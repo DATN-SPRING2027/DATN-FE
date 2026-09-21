@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiClient, getApiBaseUrl } from "./api-client";
+import { apiClient, getApiBaseUrl, getServerApiBaseUrl } from "./api-client";
 
 describe("apiClient", () => {
   const originalEnv = process.env;
@@ -14,10 +14,14 @@ describe("apiClient", () => {
     vi.restoreAllMocks();
   });
 
-  it("returns default API base URL", () => {
+  it("normalizes the server-only backend base URL", () => {
     delete process.env.CONTINUUM_API_BASE_URL;
     delete process.env.NEXT_PUBLIC_API_BASE_URL;
-    expect(getApiBaseUrl()).toBe("http://localhost:3001/api/v1");
+    expect(getServerApiBaseUrl()).toBe("http://localhost:3001/api/v1");
+  });
+
+  it("uses the BFF path in the browser", () => {
+    expect(getApiBaseUrl()).toBe("/api/backend");
   });
 
   it("performs GET request and parses JSON response", async () => {
@@ -30,7 +34,7 @@ describe("apiClient", () => {
     const result = await apiClient<{ status: string }>("/health");
 
     expect(global.fetch).toHaveBeenCalledWith(
-      "http://localhost:3001/api/v1/health",
+      "/api/backend/health",
       expect.objectContaining({
         headers: expect.objectContaining({
           "Content-Type": "application/json",

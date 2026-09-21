@@ -1,15 +1,20 @@
 /**
  * Continuum AI — API Client
- * Centralized HTTP client for communication between Next.js (FE) and NestJS (BE).
+ * Centralized HTTP client for communication with the BFF or backend boundary.
  */
 
+export function getServerApiBaseUrl(): string {
+  const configuredBaseUrl =
+    process.env.CONTINUUM_API_BASE_URL || "http://localhost:3001";
+  const normalizedBaseUrl = configuredBaseUrl.replace(/\/+$/, "");
+
+  return normalizedBaseUrl.endsWith("/api/v1")
+    ? normalizedBaseUrl
+    : `${normalizedBaseUrl}/api/v1`;
+}
+
 export function getApiBaseUrl(): string {
-  if (typeof window === "undefined") {
-    // Server environment (RSC, Route Handlers)
-    return process.env.CONTINUUM_API_BASE_URL || "http://localhost:3001/api/v1";
-  }
-  // Client environment (Browser)
-  return process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3001/api/v1";
+  return typeof window === "undefined" ? getServerApiBaseUrl() : "/api/backend";
 }
 
 export async function apiClient<T>(
