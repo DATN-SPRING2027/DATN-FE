@@ -57,4 +57,17 @@ describe("apiClient", () => {
       "API request failed: 500 Internal Server Error - Server crashed"
     );
   });
+
+  it("accepts a 204 response for commands without a response body", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 204,
+    } as Response);
+
+    await expect(
+      apiClient<void>("/projects/project-1/work-items/item-1", {
+        method: "DELETE",
+      }),
+    ).resolves.toBeUndefined();
+  });
 });

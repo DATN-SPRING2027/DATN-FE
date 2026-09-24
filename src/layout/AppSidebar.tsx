@@ -48,6 +48,12 @@ const navItems: NavItem[] = [
     path: "/calendar",
   },
   {
+    icon: <BoxCubeIcon />,
+    key: "continuumWork",
+    path: "/work",
+    new: true,
+  },
+  {
     icon: <UserCircleIcon />,
     key: "userProfile",
     path: "/profile",
@@ -143,7 +149,7 @@ const AppSidebar: React.FC = () => {
               {nav.new && (isExpanded || isHovered || isMobileOpen) && (
                 <span
                   className={cn(
-                    "inset-e-10 absolute ms-auto",
+                    "absolute inset-e-10 ms-auto",
                     openSubmenu?.type === menuType &&
                       openSubmenu?.index === index
                       ? "menu-dropdown-badge-active"

@@ -24,7 +24,7 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   );
   const responseHeaders = new Headers();
 
-  for (const name of ['cache-control', 'content-type', 'location', 'set-cookie']) {
+  for (const name of ['cache-control', 'content-type', 'location', 'set-cookie', 'x-request-id']) {
     const value = backendResponse.headers.get(name);
     if (value) {
       responseHeaders.set(name, value);
