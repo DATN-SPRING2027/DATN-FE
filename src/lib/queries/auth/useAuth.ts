@@ -48,6 +48,7 @@ export function useLoginMutation(
 
   return useMutation({
     ...options,
+    mutationKey: ["login"],
     mutationFn: (credentials: LoginInput) =>
       apiClient<LoginResponse>("/auth/login", {
         method: "POST",

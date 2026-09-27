@@ -45,7 +45,7 @@ function EditorForm({ user, actorId, onClose, onSaved }: Readonly<{ user: Direct
   }
 
   const error = update.error instanceof ApiError ? update.error : null;
-  const errorMessage = error?.status === 409 ? t("lastAdmin") : error?.status === 422
+  const errorMessage = error?.status === 409 && error.code === "LAST_ACTIVE_ADMIN" ? t("lastAdmin") : error?.status === 422
     ? t("validationError") : error?.status === 403 ? t("forbidden") : update.error ? t("saveError") : null;
 
   return (
