@@ -3,6 +3,7 @@
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSidebar } from "../context/SidebarContext";
@@ -70,6 +71,11 @@ const navItems: NavItem[] = [
       { key: "error404", path: "/error-404" },
     ],
   },
+  {
+    icon: <UserCircleIcon />,
+    key: "users",
+    path: "/users",
+  },
 ];
 
 const othersItems: NavItem[] = [
@@ -107,6 +113,7 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
   const t = useTranslations("sidebar");
+  const currentUser = useCurrentUserQuery();
 
   const renderMenuItems = (
     navItems: NavItem[],
@@ -392,7 +399,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems, "main")}
+              {renderMenuItems(navItems.filter((item) => item.key !== "users" || currentUser.data?.roles.includes("ADMIN")), "main")}
             </div>
 
             <div>

@@ -2,10 +2,12 @@
 
 import { useClickOutside } from "@/hooks/useClickOutside";
 import { getLanguage, languages } from "@/i18n/languages";
-import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { ChevronDownIcon } from "@/icons";
 import { cn } from "@/utils";
+import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
+import Alert from "@/components/ui/alert/Alert";
 import { useLocale, useTranslations } from "next-intl";
 import Image from "next/image";
 import { useRef, useState } from "react";
@@ -19,6 +21,8 @@ export default function UserDropdown() {
   const pathname = usePathname();
   const [isOpen, setIsOpen] = useState(false);
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
+  const user = useCurrentUserQuery();
+  const logout = useLogoutMutation();
   const subDropdownRef = useRef<HTMLLIElement>(null);
 
   const currentLang = getLanguage(locale);
@@ -45,6 +49,16 @@ export default function UserDropdown() {
     setIsSubDropdownOpen(false);
   };
 
+  const handleLogout = async () => {
+    try {
+      await logout.mutateAsync();
+      closeDropdown();
+      router.replace("/signin");
+    } catch {
+      // Keep the menu open so the error and retry action remain visible.
+    }
+  };
+
   return (
     <div className="relative">
       <button
@@ -60,7 +74,7 @@ export default function UserDropdown() {
           />
         </span>
 
-        <span className="me-1 block text-theme-sm font-medium">Musharof</span>
+        <span className="me-1 block text-theme-sm font-medium">{user.data?.name}</span>
 
         <ChevronDownIcon
           className={`size-5 text-gray-500 transition-transform duration-200 dark:text-gray-400 ${
@@ -76,10 +90,10 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
-            Musharof Chowdhury
+            {user.data?.name}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
-            randomuser@pimjo.com
+            {user.data?.email}
           </span>
         </div>
 
@@ -245,12 +259,15 @@ export default function UserDropdown() {
             )}
           </li>
         </ul>
-        <Link
-          href="/signin"
-          className="group mt-3 flex items-center justify-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-700 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+        {logout.isError && <Alert variant="error" title={t("signOutErrorTitle")} message={t("signOutErrorMessage")} />}
+        <button
+          type="button"
+          onClick={handleLogout}
+          disabled={logout.isPending}
+          className="group mt-3 flex items-center justify-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
         >
           {t("signOut")}
-        </Link>
+        </button>
       </Dropdown>
     </div>
   );

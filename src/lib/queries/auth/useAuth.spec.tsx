@@ -47,15 +47,17 @@ describe("auth query hooks", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.email).toBe("engineer@continuum.ai");
-    expect(mockedApiClient).toHaveBeenCalledWith("/users/me");
+    expect(mockedApiClient).toHaveBeenCalledWith("/auth/me");
   });
 
   it("authenticates credentials via useLoginMutation", async () => {
-    mockedApiClient.mockResolvedValue({
-      accessToken: "mock-token",
-      tokenType: "Bearer",
-      expiresInSeconds: 900,
-    });
+    mockedApiClient.mockResolvedValue({ user: {
+      id: "user-1",
+      email: "test@continuum.ai",
+      name: "Test User",
+      organizationId: "org-1",
+      roles: ["engineer"],
+    } });
 
     const { result } = renderHook(() => useLoginMutation(), {
       wrapper: createWrapper(),

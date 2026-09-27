@@ -10,6 +10,7 @@ export * from "./backend";
 // IAM / Auth service
 export * from "./auth/auth.keys";
 export * from "./auth/useAuth";
+export * from "./users/useUsers";
 
 // Lifecycle / Verification service
 export * from "./verification/verification.keys";

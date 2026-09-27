@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { apiClient, getApiBaseUrl, getServerApiBaseUrl } from "./api-client";
+import { ApiError, apiClient, getApiBaseUrl, getServerApiBaseUrl } from "./api-client";
 
 describe("apiClient", () => {
   const originalEnv = process.env;
@@ -56,5 +56,20 @@ describe("apiClient", () => {
     await expect(apiClient("/health")).rejects.toThrow(
       "API request failed: 500 Internal Server Error - Server crashed"
     );
+  });
+
+  it("exposes auth status and code without treating an error body as a session", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 409,
+      statusText: "Conflict",
+      text: () => Promise.resolve(JSON.stringify({ code: "ORGANIZATION_SELECTION_REQUIRED", message: "Select an organization to continue." })),
+    } as Response);
+
+    await expect(apiClient("/auth/login")).rejects.toMatchObject({
+      status: 409,
+      code: "ORGANIZATION_SELECTION_REQUIRED",
+      message: "Select an organization to continue.",
+    } satisfies Partial<ApiError>);
   });
 });
