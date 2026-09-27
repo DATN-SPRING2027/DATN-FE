@@ -24,11 +24,14 @@ async function proxy(request: NextRequest, context: RouteContext): Promise<Respo
   );
   const responseHeaders = new Headers();
 
-  for (const name of ['cache-control', 'content-type', 'location', 'set-cookie']) {
+  for (const name of ['cache-control', 'content-type', 'location']) {
     const value = backendResponse.headers.get(name);
     if (value) {
       responseHeaders.set(name, value);
     }
+  }
+  for (const cookie of backendResponse.headers.getSetCookie()) {
+    responseHeaders.append('set-cookie', cookie);
   }
 
   return new Response(backendResponse.body, {

@@ -25,6 +25,13 @@ describe("user directory queries", () => {
     expect(mockedApiClient).toHaveBeenCalledWith("/iam/users?page=2&pageSize=20&status=ACTIVE");
   });
 
+  it("omits absent optional filters from the Users request", async () => {
+    mockedApiClient.mockResolvedValue({ data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } });
+    const { result } = renderHook(() => useUsersQuery("org-1", { page: 1, pageSize: 20, status: undefined }), { wrapper: wrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApiClient).toHaveBeenCalledWith("/iam/users?page=1&pageSize=20");
+  });
+
   it("loads a user detail and patches only the requested fields", async () => {
     mockedApiClient.mockResolvedValue({ id: "user-1", fullName: "Renamed" });
     const Wrapper = wrapper();

@@ -31,10 +31,18 @@ export const userKeys = {
   detail: (organizationId: string, userId: string) => ["users", organizationId, "detail", userId] as const,
 };
 
+function listSearchParams(input: UserListInput): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(input)) {
+    if (value !== undefined && value !== null) params.set(key, String(value));
+  }
+  return params.toString();
+}
+
 export function useUsersQuery(organizationId: string, input: UserListInput) {
   return useQuery({
     queryKey: userKeys.list(organizationId, input),
-    queryFn: () => apiClient<UserList>(`/iam/users?${new URLSearchParams(Object.entries(input).map(([key, value]) => [key, String(value)])).toString()}`),
+    queryFn: () => apiClient<UserList>(`/iam/users?${listSearchParams(input)}`),
     enabled: Boolean(organizationId),
     retry: false,
   });

@@ -42,4 +42,17 @@ describe("auth BFF cookie journey", () => {
     expect(((backend.mock.calls[0][1] as RequestInit).headers as Headers).get("cookie")).toBe("continuum_access=private");
     expect(logout.headers.get("set-cookie")).toContain("Max-Age=0");
   });
+
+  it("preserves separate Set-Cookie headers including an Expires comma", async () => {
+    const headers = new Headers({ "content-type": "application/json" });
+    const access = "continuum_access=private; Path=/; HttpOnly; SameSite=Strict";
+    const clear = "continuum_refresh=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly";
+    headers.append("set-cookie", access);
+    headers.append("set-cookie", clear);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200, headers }));
+
+    const response = await POST(request("POST", "auth/login"), { params: Promise.resolve({ path: ["auth", "login"] }) });
+
+    expect(response.headers.getSetCookie()).toEqual([access, clear]);
+  });
 });
