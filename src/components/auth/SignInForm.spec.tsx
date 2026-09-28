@@ -38,6 +38,9 @@ describe("sign in form", () => {
     refetch.mockResolvedValue({ data: { id: "user-1" } });
     render(<SignInForm />);
 
+    expect(screen.queryByRole("button", { name: /sign in with (google|x)/i })).not.toBeInTheDocument();
+    expect(screen.queryByText("Or")).not.toBeInTheDocument();
+
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "user@example.com" } });
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
