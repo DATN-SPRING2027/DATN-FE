@@ -10,7 +10,38 @@ function request(method: string, path: string, cookie?: string): NextRequest {
 }
 
 describe("auth BFF cookie journey", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  it("forwards only the trusted edge client IP on login", async () => {
+    vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "1");
+    const backend = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const source = Object.assign(new Request("http://localhost:3000/api/backend/auth/login", {
+      method: "POST",
+      headers: { "x-forwarded-for": "192.0.2.9, 203.0.113.7" },
+    }), { nextUrl: new URL("http://localhost:3000/api/backend/auth/login") }) as NextRequest;
+    await POST(source, { params: Promise.resolve({ path: ["auth", "login"] }) });
+    expect(((backend.mock.calls[0][1] as RequestInit).headers as Headers).get("x-forwarded-for")).toBe("203.0.113.7");
+  });
+
+  it("stops login when the configured edge did not supply a client IP", async () => {
+    vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "1");
+    const backend = vi.spyOn(globalThis, "fetch");
+    const response = await POST(request("POST", "auth/login"), { params: Promise.resolve({ path: ["auth", "login"] }) });
+    expect(response.status).toBe(503);
+    expect(backend).not.toHaveBeenCalled();
+  });
+
+  it("does not silently share a source quota when production proxy trust is unset", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "0");
+    const backend = vi.spyOn(globalThis, "fetch");
+    const response = await POST(request("POST", "auth/login"), { params: Promise.resolve({ path: ["auth", "login"] }) });
+    expect(response.status).toBe(503);
+    expect(backend).not.toHaveBeenCalled();
+  });
 
   it("passes the login HttpOnly cookie to the browser without a token body", async () => {
     const backend = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(
