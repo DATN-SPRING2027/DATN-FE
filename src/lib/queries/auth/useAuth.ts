@@ -13,12 +13,11 @@ import { authKeys } from "./auth.keys";
 export type LoginInput = Readonly<{
   email: string;
   password: string;
+  organizationId?: string;
 }>;
 
-export type AuthSession = Readonly<{
-  accessToken: string;
-  tokenType: "Bearer";
-  expiresInSeconds: number;
+export type LoginResponse = Readonly<{
+  user: CurrentUserResponse;
 }>;
 
 export type CurrentUserResponse = Readonly<{
@@ -35,24 +34,28 @@ export function useCurrentUserQuery(
   return useQuery({
     ...options,
     queryKey: authKeys.currentUser(),
-    queryFn: () => apiClient<CurrentUserResponse>("/users/me"),
+    queryFn: () => apiClient<CurrentUserResponse>("/auth/me"),
+    retry: false,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
   });
 }
 
 export function useLoginMutation(
-  options?: Omit<UseMutationOptions<AuthSession, Error, LoginInput>, "mutationFn">
+  options?: Omit<UseMutationOptions<LoginResponse, Error, LoginInput>, "mutationFn">
 ) {
   const queryClient = useQueryClient();
 
   return useMutation({
     ...options,
+    mutationKey: ["login"],
     mutationFn: (credentials: LoginInput) =>
-      apiClient<AuthSession>("/auth/login", {
+      apiClient<LoginResponse>("/auth/login", {
         method: "POST",
         body: JSON.stringify(credentials),
       }),
     onSuccess: (...args) => {
-      queryClient.invalidateQueries({ queryKey: authKeys.currentUser() });
+      queryClient.removeQueries({ queryKey: authKeys.currentUser() });
       options?.onSuccess?.(...args);
     },
   });

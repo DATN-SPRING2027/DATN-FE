@@ -22,4 +22,16 @@ describe('BFF proxy boundary', () => {
     expect(forwarded.get('x-ignored')).toBeNull();
     expect(forwarded.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
   });
+
+  it('selects the IP appended by the trusted edge, excluding spoofed prefixes', () => {
+    const source = new Headers({ 'x-forwarded-for': '192.0.2.9, 203.0.113.7' });
+    const forwarded = createForwardHeaders(source, 1);
+    expect(forwarded.get('x-forwarded-for')).toBe('203.0.113.7');
+    expect(createForwardHeaders(source, 0).get('x-forwarded-for')).toBeNull();
+  });
+
+  it('fails closed when a configured edge did not supply a valid address', () => {
+    expect(() => createForwardHeaders(new Headers(), 1)).toThrow('Trusted client IP');
+    expect(() => createForwardHeaders(new Headers({ 'x-forwarded-for': 'spoofed' }), 1)).toThrow('Trusted client IP');
+  });
 });
