@@ -63,13 +63,14 @@ describe("apiClient", () => {
       ok: false,
       status: 409,
       statusText: "Conflict",
-      text: () => Promise.resolve(JSON.stringify({ code: "ORGANIZATION_SELECTION_REQUIRED", message: "Select an organization to continue." })),
+      text: () => Promise.resolve(JSON.stringify({ code: "ORGANIZATION_SELECTION_REQUIRED", message: "Select an organization to continue.", details: { organizations: [{ id: "org-a", name: "Alpha" }] } })),
     } as Response);
 
     await expect(apiClient("/auth/login")).rejects.toMatchObject({
       status: 409,
       code: "ORGANIZATION_SELECTION_REQUIRED",
       message: "Select an organization to continue.",
+      organizations: [{ id: "org-a", name: "Alpha" }],
     } satisfies Partial<ApiError>);
   });
 });

@@ -153,9 +153,11 @@
   "auth": {
     "signInError": "Sign in failed",
     "invalidCredentials": "Email or password is incorrect.",
-    "organizationRequired": "Enter your organization ID to continue.",
-    "organizationId": "Organization ID",
-    "invalidInput": "Check your email, password, and organization ID.",
+    "organizationRequired": "Choose an organization to continue.",
+    "organizationId": "Organization",
+    "selectOrganization": "Select an organization",
+    "invalidInput": "Check your email, password, and organization selection.",
+    "rateLimited": "Too many sign-in attempts. Please try again later.",
     "unexpectedError": "Could not sign in. Please try again.",
     "sessionError": "Signed in, but your account could not be loaded. Please try again.",
     "sessionUnavailable": "Session unavailable",
@@ -191,6 +193,7 @@
     "saveError": "Please try again.",
     "validationError": "Check the profile fields and try again.",
     "lastAdmin": "The last active organization admin cannot be suspended.",
+    "sharedAccountStatus": "This account belongs to multiple organizations. Its global status cannot be changed here. Contact a system administrator to coordinate access changes.",
     "savedTitle": "User saved",
     "savedMessage": "The user details were updated."
   },

@@ -22,6 +22,7 @@ export class ApiError extends Error {
     public readonly status: number,
     public readonly code: string | undefined,
     message: string,
+    public readonly organizations?: readonly { id: string; name: string }[],
   ) {
     super(message);
     this.name = "ApiError";
@@ -49,7 +50,7 @@ export async function apiClient<T>(
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
-    let detail: { code?: string; message?: string } = {};
+    let detail: { code?: string; message?: string; details?: { organizations?: unknown } } = {};
     try {
       detail = JSON.parse(errorBody);
     } catch {
@@ -59,6 +60,10 @@ export async function apiClient<T>(
       response.status,
       detail.code,
       detail.message ?? `API request failed: ${response.status} ${response.statusText} - ${errorBody}`,
+      response.status === 409 && detail.code === "ORGANIZATION_SELECTION_REQUIRED" && Array.isArray(detail.details?.organizations)
+        ? detail.details.organizations.filter((item): item is { id: string; name: string } =>
+          typeof item === "object" && item !== null && typeof item.id === "string" && typeof item.name === "string")
+        : undefined,
     );
   }
 

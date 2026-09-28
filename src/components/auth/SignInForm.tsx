@@ -5,6 +5,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
+import Select from "@/components/form/Select";
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery, useLoginMutation } from "@/lib/queries/auth/useAuth";
@@ -18,7 +19,7 @@ export default function SignInForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
-  const [showOrganization, setShowOrganization] = useState(false);
+  const [organizations, setOrganizations] = useState<readonly { id: string; name: string }[]>([]);
   const [sessionError, setSessionError] = useState(false);
   const t = useTranslations("auth");
   const router = useRouter();
@@ -41,7 +42,9 @@ export default function SignInForm() {
       const session = await currentUser.refetch();
       if (!session.data) setSessionError(true);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) setShowOrganization(true);
+      if (error instanceof ApiError && error.status === 409 && error.code === "ORGANIZATION_SELECTION_REQUIRED") {
+        setOrganizations(error.organizations ?? []);
+      }
     }
   }
 
@@ -49,7 +52,8 @@ export default function SignInForm() {
   const errorMessage = sessionError ? t("sessionError") : error?.status === 401
     ? t("invalidCredentials") : error?.status === 409
       ? t("organizationRequired") : error?.status === 422
-        ? t("invalidInput") : login.error ? t("unexpectedError") : null;
+        ? t("invalidInput") : error?.status === 429
+          ? t("rateLimited") : login.error ? t("unexpectedError") : null;
 
   return (
     <div className="flex w-full flex-1 flex-col lg:w-1/2">
@@ -132,7 +136,7 @@ export default function SignInForm() {
                   <Label htmlFor="signin-email">
                     Email <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input id="signin-email" name="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="info@gmail.com" />
+                  <Input id="signin-email" name="email" type="email" autoComplete="username" required value={email} onChange={(event) => { setEmail(event.target.value); setOrganizationId(""); setOrganizations([]); }} placeholder="info@gmail.com" />
                 </div>
                 <div>
                   <Label htmlFor="signin-password">
@@ -145,7 +149,7 @@ export default function SignInForm() {
                       autoComplete="current-password"
                       required
                       value={password}
-                      onChange={(event) => setPassword(event.target.value)}
+                      onChange={(event) => { setPassword(event.target.value); setOrganizationId(""); setOrganizations([]); }}
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                     />
@@ -161,10 +165,10 @@ export default function SignInForm() {
                     </span>
                   </div>
                 </div>
-                {showOrganization && (
+                {organizations.length > 0 && (
                   <div>
                     <Label htmlFor="signin-organization">{t("organizationId")}</Label>
-                    <Input id="signin-organization" name="organizationId" required value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} />
+                    <Select id="signin-organization" placeholder={t("selectOrganization")} options={organizations.map((organization) => ({ value: organization.id, label: organization.name }))} onChange={setOrganizationId} />
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -182,7 +186,7 @@ export default function SignInForm() {
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm" disabled={login.isPending || currentUser.isFetching}>
+                  <Button className="w-full" size="sm" disabled={login.isPending || currentUser.isFetching || (organizations.length > 0 && !organizationId)}>
                     Sign in
                   </Button>
                 </div>

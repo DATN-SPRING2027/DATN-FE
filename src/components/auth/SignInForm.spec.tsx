@@ -14,6 +14,7 @@ vi.mock("@/icons", () => ({
   ChevronLeftIcon: () => null,
   EyeCloseIcon: () => null,
   EyeIcon: () => null,
+  ChevronDownIcon: () => null,
 }));
 vi.mock("@/lib/queries/auth/useAuth", () => ({
   useCurrentUserQuery: vi.fn(),
@@ -45,21 +46,32 @@ describe("sign in form", () => {
     await waitFor(() => expect(refetch).toHaveBeenCalledOnce());
   });
 
-  it("offers an organization field after a 409 response", async () => {
-    mutateAsync.mockRejectedValue(new ApiError(409, "ORGANIZATION_SELECTION_REQUIRED", "Select an organization"));
+  it("offers eligible organizations by name after a verified 409 response", async () => {
+    mutateAsync.mockRejectedValue(new ApiError(409, "ORGANIZATION_SELECTION_REQUIRED", "Select an organization", [
+      { id: "651a2b3c4d5e6f7a8b9c0d1f", name: "Alpha" },
+      { id: "651a2b3c4d5e6f7a8b9c0d20", name: "Beta" },
+    ]));
     render(<SignInForm />);
 
     fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "user@example.com" } });
     fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByLabelText("organizationId")).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "Alpha" })).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("organizationId"), { target: { value: "651a2b3c4d5e6f7a8b9c0d20" } });
+    mutateAsync.mockResolvedValue({ user: { id: "user-1" } });
+    refetch.mockResolvedValue({ data: { id: "user-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    await waitFor(() => expect(mutateAsync).toHaveBeenLastCalledWith({
+      email: "user@example.com", password: "secret", organizationId: "651a2b3c4d5e6f7a8b9c0d20",
+    }));
   });
 
   it.each([
     [401, "invalidCredentials"],
     [409, "organizationRequired"],
     [422, "invalidInput"],
+    [429, "rateLimited"],
   ])("shows the existing alert for HTTP %i", (status, message) => {
     vi.mocked(useLoginMutation).mockReturnValue({
       mutateAsync,
