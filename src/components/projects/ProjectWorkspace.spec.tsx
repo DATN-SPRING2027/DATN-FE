@@ -15,12 +15,15 @@ import { useClientStateStore } from "@/stores/client-state";
 import ProjectWorkspace from "./ProjectWorkspace";
 import ProjectDetail from "./ProjectDetail";
 import ProjectCreateForm from "./ProjectCreateForm";
+import ProjectCreate from "./ProjectCreate";
+const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
 }));
 vi.mock("@/i18n/navigation", () => ({
+  useRouter: () => ({ push }),
   Link: ({ children, href }: { children: ReactNode; href: string }) => (
     <a href={href}>{children}</a>
   ),
@@ -67,6 +70,7 @@ function mount(
 }
 beforeEach(() => {
   api.mockReset();
+  push.mockReset();
   useClientStateStore.setState({ activeProjectId: null });
 });
 it("shows loading while the server list is pending", async () => {
@@ -74,7 +78,7 @@ it("shows loading while the server list is pending", async () => {
     path === "/auth/me" ? user : new Promise(() => {}),
   );
   mount(<ProjectWorkspace />);
-  await screen.findByRole("button", { name: "Create project" });
+  await screen.findByRole("link", { name: "Create project" });
   expect(screen.getByRole("status")).toHaveTextContent("Loading projects");
 });
 it("renders an empty organization list", async () => {
@@ -233,23 +237,18 @@ it("does not show cached detail before a fresh backend response", async () => {
     path === "/auth/me" ? user : new Promise(() => {}),
   );
   mount(<ProjectDetail projectId="p1" />, client);
-  await screen.findByRole("link", { name: "Back to projects" });
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/iam/projects/p1", expect.anything()),
   );
   expect(screen.queryByText("Apollo")).not.toBeInTheDocument();
 });
-it("clears displayed projects and form state when the trusted organization changes", async () => {
+it("clears displayed projects when the trusted organization changes", async () => {
   let organization = "org1";
   api.mockImplementation(async (path) =>
     path === "/auth/me" ? user : organization === "org1" ? list() : list([]),
   );
   const { client } = mount(<ProjectWorkspace />);
   await screen.findByText("Apollo");
-  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
-  fireEvent.change(screen.getByLabelText("Name"), {
-    target: { value: "Unsaved" },
-  });
   organization = "org2";
   act(() => {
     client.setQueryData(["auth", "current-user"], {
@@ -287,31 +286,20 @@ it.each([
   );
   expect(api).not.toHaveBeenCalled();
 });
-it("refreshes the list and links to the backend-created project after success", async () => {
-  let created = false;
-  api.mockImplementation(async (path, options) => {
-    if (path === "/auth/me") return user;
-    if (options?.method === "POST") {
-      created = true;
-      return project;
-    }
-    return created ? list() : list([]);
-  });
-  mount(<ProjectWorkspace />);
-  await screen.findByText(messages.projects.empty);
-  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
-  fireEvent.change(screen.getByLabelText("Name"), {
+it("creates on a separate page and navigates to the backend-created detail", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me" ? user : project,
+  );
+  mount(<ProjectCreate />);
+  fireEvent.change(await screen.findByLabelText("Name"), {
     target: { value: "Apollo" },
   });
   fireEvent.change(screen.getByLabelText("Code"), { target: { value: "AP" } });
   fireEvent.change(screen.getByLabelText("Description"), {
     target: { value: "A project" },
   });
-  fireEvent.click(screen.getAllByRole("button", { name: "Create project" })[0]);
-  expect(
-    await screen.findByRole("link", { name: "View project" }),
-  ).toHaveAttribute("href", "/projects/p1");
-  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+  await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
   expect(api).toHaveBeenCalledWith("/iam/projects", {
     method: "POST",
     body: JSON.stringify({
@@ -383,4 +371,72 @@ it("keeps detail in a loading state until the backend resolves", async () => {
     messages.projects.loading,
   );
   expect(screen.queryByText("Apollo")).not.toBeInTheDocument();
+});
+
+it("shows private creation as information and cancels back to the list", async () => {
+  api.mockResolvedValue(user);
+  mount(<ProjectCreate />);
+  expect(await screen.findByText(messages.projects.privateHint)).toBeVisible();
+  expect(screen.queryByRole("radio")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(push).toHaveBeenCalledWith("/projects");
+  expect(api.mock.calls.some(([, options]) => options?.method === "POST")).toBe(
+    false,
+  );
+});
+
+it("links to a separate create page without embedding the form in the list", async () => {
+  api.mockImplementation(async (path) => (path === "/auth/me" ? user : list()));
+  mount(<ProjectWorkspace />);
+  expect(
+    await screen.findByRole("link", { name: "Create project" }),
+  ).toHaveAttribute("href", "/projects/new");
+  expect(screen.queryByRole("form")).not.toBeInTheDocument();
+  expect(screen.getByText(messages.projects.workspaceHint)).toBeVisible();
+  expect(
+    screen.queryByText(messages.projects.organizationScope),
+  ).not.toBeInTheDocument();
+});
+
+it("resets create input when the trusted organization changes", async () => {
+  api.mockResolvedValue(user);
+  const { client } = mount(<ProjectCreate />);
+  fireEvent.change(await screen.findByLabelText("Name"), {
+    target: { value: "Unsaved" },
+  });
+  act(() =>
+    client.setQueryData(["auth", "current-user"], {
+      ...user,
+      organizationId: "org2",
+    }),
+  );
+  await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue(""));
+});
+
+it.each([401, 403, 500])(
+  "hides create form if session is denied %s",
+  async (status) => {
+    api.mockRejectedValue(new ApiError(status, undefined, "Denied"));
+    mount(<ProjectCreate />);
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.queryByRole("form")).not.toBeInTheDocument();
+  },
+);
+
+it("renders detail overview and context from backend metadata", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me"
+      ? user
+      : { ...project, description: "First line\nSecond line" },
+  );
+  mount(<ProjectDetail projectId="p1" />);
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+  ).toBeVisible();
+  expect(screen.getByText("First line Second line")).toBeVisible();
+  expect(screen.getByText("org1")).toBeVisible();
+  expect(screen.getByText("u1")).toBeVisible();
+  expect(
+    screen.queryByRole("button", { name: /deploy|edit|manage access/i }),
+  ).not.toBeInTheDocument();
 });

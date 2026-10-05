@@ -21,7 +21,7 @@ export default function ProjectState({
         </p>
         <div
           aria-hidden="true"
-          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+          className="grid grid-cols-1 gap-4 @md:grid-cols-2 @3xl:grid-cols-3"
         >
           {[0, 1, 2].map((item) => (
             <div

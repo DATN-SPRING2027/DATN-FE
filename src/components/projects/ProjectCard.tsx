@@ -8,9 +8,9 @@ export default function ProjectCard({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const format = useFormatter();
   return (
-    <article className="flex h-full flex-col rounded-xl border border-gray-200 bg-white p-5 transition-colors hover:border-brand-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-500">
+    <article className="flex h-full min-w-0 flex-col rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:border-brand-300 sm:p-5 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-500">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <span className="font-mono rounded-md bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+        <span className="max-w-full min-w-0 rounded-md bg-brand-50 px-2.5 py-1 text-xs font-semibold [overflow-wrap:anywhere] text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
           {project.code}
         </span>
         <span
@@ -19,7 +19,7 @@ export default function ProjectCard({ project }: { project: Project }) {
           {t(project.status === "ACTIVE" ? "active" : "archived")}
         </span>
       </div>
-      <h3 className="text-lg font-semibold break-words">
+      <h3 className="text-lg font-semibold [overflow-wrap:anywhere]">
         <Link
           href={`/projects/${encodeURIComponent(project.id)}`}
           className="cursor-pointer rounded-sm text-gray-900 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500 dark:text-white/90 dark:hover:text-brand-400"
@@ -27,7 +27,7 @@ export default function ProjectCard({ project }: { project: Project }) {
           {project.name}
         </Link>
       </h3>
-      <p className="mt-2 line-clamp-2 text-sm break-words text-gray-600 dark:text-gray-400">
+      <p className="mt-2 line-clamp-2 text-sm [overflow-wrap:anywhere] text-gray-600 dark:text-gray-400">
         {project.description || t("noDescription")}
       </p>
       <dl className="mt-auto flex flex-wrap justify-between gap-3 border-t border-gray-100 pt-4 text-xs dark:border-gray-800">
