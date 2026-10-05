@@ -90,35 +90,22 @@ describe("auth BFF cookie journey", () => {
     });
   });
 
-  it("forwards the cookie on /auth/me and clears it on logout", async () => {
+  it("forwards the cookie on /auth/me", async () => {
     const backend = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
+      .mockResolvedValue(
         new Response(JSON.stringify({ id: "user-1" }), { status: 200 }),
-      )
-      .mockResolvedValueOnce(
-        new Response(JSON.stringify({ status: "logged_out" }), {
-          status: 200,
-          headers: {
-            "set-cookie": "continuum_access=; Path=/; Max-Age=0; HttpOnly",
-          },
-        }),
       );
 
     await GET(request("GET", "auth/me", "continuum_access=private"), {
       params: Promise.resolve({ path: ["auth", "me"] }),
     });
-    const logout = await POST(
-      request("POST", "auth/logout", "continuum_access=private"),
-      { params: Promise.resolve({ path: ["auth", "logout"] }) },
-    );
 
     expect(
       ((backend.mock.calls[0][1] as RequestInit).headers as Headers).get(
         "cookie",
       ),
     ).toBe("continuum_access=private");
-    expect(logout.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
   it("preserves separate Set-Cookie headers including an Expires comma", async () => {
@@ -157,12 +144,16 @@ describe("auth BFF cookie journey", () => {
     expect(response.headers.getSetCookie()).toEqual([access, refresh, csrf]);
   });
 
-  it("does not expose refresh through the legacy generic BFF path", async () => {
-    const backend = vi.spyOn(globalThis, "fetch");
-    const response = await POST(request("POST", "auth/refresh"), {
-      params: Promise.resolve({ path: ["auth", "refresh"] }),
-    });
-    expect(response.status).toBe(404);
-    expect(backend).not.toHaveBeenCalled();
-  });
+  it.each(["auth/refresh", "auth/logout"])(
+    "does not expose %s through the legacy generic BFF path",
+    async (path) => {
+      const backend = vi.spyOn(globalThis, "fetch");
+      const segments = path.split("/");
+      const response = await POST(request("POST", path), {
+        params: Promise.resolve({ path: segments }),
+      });
+      expect(response.status).toBe(404);
+      expect(backend).not.toHaveBeenCalled();
+    },
+  );
 });

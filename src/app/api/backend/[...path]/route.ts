@@ -12,7 +12,7 @@ async function proxy(
   context: RouteContext,
 ): Promise<Response> {
   const { path } = await context.params;
-  if (path.join('/') === 'auth/refresh') {
+  if (['auth/refresh', 'auth/logout'].includes(path.join('/'))) {
     return new Response(null, { status: 404 });
   }
   return forwardBackendRequest(request, path);
