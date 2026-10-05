@@ -121,7 +121,8 @@
       "supportReply": "Support Reply",
       "email": "Email",
       "inbox": "Inbox",
-      "inboxDetails": "Details"
+      "inboxDetails": "Details",
+      "projects": "Projects"
     },
     "widget": {
       "title": "#1 Tailwind CSS Dashboard",
@@ -910,5 +911,43 @@
         "inProgress": "In Progress"
       }
     }
+  },
+  "projects": {
+    "title": "Projects",
+    "detail": "Project details",
+    "loading": "Loading projects…",
+    "errorTitle": "Project request failed",
+    "unauthorized": "Please sign in to continue.",
+    "forbidden": "You do not have permission for this operation.",
+    "notFound": "Project not found or unavailable.",
+    "conflict": "This project code is already in use.",
+    "validation": "Name is required (up to 200 characters). Code must contain 2–32 uppercase letters, digits, underscores or hyphens and start with a letter. Description must be at most 2000 characters.",
+    "rateLimit": "Too many requests. Please try again later.",
+    "failure": "Unable to complete the request. Please try again.",
+    "retry": "Retry",
+    "name": "Name",
+    "code": "Code",
+    "description": "Description",
+    "codeHint": "2–32 characters; start with A–Z, then A–Z, 0–9, _ or -",
+    "create": "Create project",
+    "creating": "Creating…",
+    "created": "Project created",
+    "view": "View project",
+    "cancel": "Cancel",
+    "status": "Status",
+    "all": "All statuses",
+    "active": "Active",
+    "archived": "Archived",
+    "empty": "No projects are available in this organization.",
+    "pageOf": "Page {page} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "PRIVATE": "Private",
+    "PUBLIC": "Public",
+    "visibility": "Visibility",
+    "createdAt": "Created at",
+    "updatedAt": "Updated at",
+    "noDescription": "No description",
+    "back": "Back to projects"
   }
 }
