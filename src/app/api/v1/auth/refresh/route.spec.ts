@@ -26,17 +26,15 @@ describe("public browser refresh BFF route", () => {
     });
     const access = "continuum_access=private; Path=/; HttpOnly; SameSite=Lax";
     const refresh =
-      "__Secure-refresh=private; Path=/api/v1/auth/refresh; Secure; HttpOnly";
+      "__Secure-refresh=private; Path=/api/v1/auth; Secure; HttpOnly";
     headers.append("set-cookie", access);
     headers.append("set-cookie", refresh);
-    const backend = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(
-        new Response(JSON.stringify({ status: "refreshed" }), {
-          status: 200,
-          headers,
-        }),
-      );
+    const backend = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "refreshed" }), {
+        status: 200,
+        headers,
+      }),
+    );
 
     const response = await POST(refreshRequest());
 
