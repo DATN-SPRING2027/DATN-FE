@@ -15,6 +15,7 @@ import {
 } from "@/lib/queries/projects/useProjects";
 import ProjectCreateForm from "./ProjectCreateForm";
 import ProjectState from "./ProjectState";
+import ProjectCard from "./ProjectCard";
 
 function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const t = useTranslations("projects");
@@ -28,8 +29,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     ...(status ? { status } : {}),
   });
   return (
-    <div className="space-y-5">
-      {created && (
+    <div className="space-y-6">
+      {created && !projects.isError && (
         <div role="status">
           <Alert
             variant="success"
@@ -44,14 +45,25 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </Link>
         </div>
       )}
-      <Button
-        onClick={() => {
-          setCreating(!creating);
-          setCreated(undefined);
-        }}
-      >
-        {t(creating ? "cancel" : "create")}
-      </Button>
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
+            {t("workspace")}
+          </h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            {t("workspaceHint")}
+          </p>
+        </div>
+        <Button
+          className="cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+          onClick={() => {
+            setCreating(!creating);
+            setCreated(undefined);
+          }}
+        >
+          {t(creating ? "cancel" : "create")}
+        </Button>
+      </div>
       {creating && (
         <ProjectCreateForm
           organizationId={organizationId}
@@ -62,23 +74,30 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           }}
         />
       )}
-      <div>
-        <Label htmlFor="project-status">{t("status")}</Label>
-        <Select
-          id="project-status"
-          defaultValue="all"
-          options={[
-            { value: "all", label: t("all") },
-            { value: "ACTIVE", label: t("active") },
-            { value: "ARCHIVED", label: t("archived") },
-          ]}
-          onChange={(value) => {
-            setStatus(
-              value === "all" ? undefined : (value as Project["status"]),
-            );
-            setPage(1);
-          }}
-        />
+      <div className="flex flex-wrap items-end justify-between gap-4 border-b border-gray-200 pb-5 dark:border-gray-800">
+        <div className="w-full sm:w-56">
+          <Label htmlFor="project-status">{t("status")}</Label>
+          <Select
+            id="project-status"
+            defaultValue="all"
+            options={[
+              { value: "all", label: t("all") },
+              { value: "ACTIVE", label: t("active") },
+              { value: "ARCHIVED", label: t("archived") },
+            ]}
+            onChange={(value) => {
+              setStatus(
+                value === "all" ? undefined : (value as Project["status"]),
+              );
+              setPage(1);
+            }}
+          />
+        </div>
+        {projects.isSuccess && !projects.isFetching && (
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {t("totalProjects", { count: projects.data.pagination.totalItems })}
+          </p>
+        )}
       </div>
       {(projects.isPending || projects.isFetching) && <ProjectState />}
       {projects.isError && (
@@ -92,21 +111,19 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
       {projects.isSuccess && !projects.isFetching && (
         <>
           {projects.data.data.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400">{t("empty")}</p>
+            <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-900">
+              <h3 className="font-semibold text-gray-800 dark:text-white/90">
+                {t("emptyTitle")}
+              </h3>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                {t("empty")}
+              </p>
+            </div>
           ) : (
-            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
               {projects.data.data.map((project) => (
-                <li key={project.id} className="py-4">
-                  <Link
-                    href={`/projects/${encodeURIComponent(project.id)}`}
-                    className="font-medium text-brand-500 dark:text-brand-400"
-                  >
-                    {project.name}
-                  </Link>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {project.code} · {t(project.visibility)} ·{" "}
-                    {t(project.status === "ACTIVE" ? "active" : "archived")}
-                  </p>
+                <li key={project.id} className="min-w-0">
+                  <ProjectCard project={project} />
                 </li>
               ))}
             </ul>
@@ -144,7 +161,7 @@ export default function ProjectWorkspace() {
   const t = useTranslations("projects");
   const user = useCurrentUserQuery();
   return (
-    <ComponentCard title={t("title")}>
+    <ComponentCard title={t("title")} desc={t("organizationScope")}>
       {user.isPending ? (
         <ProjectState />
       ) : user.isError ? (

@@ -948,6 +948,12 @@
     "createdAt": "Created at",
     "updatedAt": "Updated at",
     "noDescription": "No description",
-    "back": "Back to projects"
+    "back": "Back to projects",
+    "workspace": "Project Workspace",
+    "workspaceHint": "Your projects, organized in one place.",
+    "organizationScope": "Projects available in your current organization.",
+    "totalProjects": "{count, plural, one {# project} other {# projects}}",
+    "emptyTitle": "No projects yet",
+    "createHint": "Create a private project in your current organization. You can add a description to help your team understand its purpose."
   }
 }

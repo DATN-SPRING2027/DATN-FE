@@ -321,3 +321,66 @@ it("refreshes the list and links to the backend-created project after success", 
     }),
   });
 });
+
+it("renders server-returned public archived metadata without adding administration actions", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me"
+      ? user
+      : list([
+          {
+            ...project,
+            visibility: "PUBLIC",
+            status: "ARCHIVED",
+            description: "Project purpose",
+          },
+        ]),
+  );
+  mount(<ProjectWorkspace />);
+  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
+  expect(screen.getByText("Public")).toBeVisible();
+  expect(screen.getByText("Project purpose")).toBeVisible();
+  expect(screen.getByText("1 project")).toBeVisible();
+  expect(screen.getByText("Oct 5, 2026")).toHaveAttribute(
+    "datetime",
+    project.updatedAt,
+  );
+  expect(
+    screen.queryByRole("button", { name: /publish|edit|add task|members/i }),
+  ).not.toBeInTheDocument();
+});
+
+it("submits a multiline description unchanged", async () => {
+  api.mockResolvedValue(project);
+  mount(<ProjectCreateForm organizationId="org1" onCreated={vi.fn()} />);
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Apollo" },
+  });
+  fireEvent.change(screen.getByLabelText("Code"), { target: { value: "AP" } });
+  const description = screen.getByLabelText("Description");
+  expect(description.tagName).toBe("TEXTAREA");
+  fireEvent.change(description, {
+    target: { value: "First line\nSecond line" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith("/iam/projects", {
+      method: "POST",
+      body: JSON.stringify({
+        name: "Apollo",
+        code: "AP",
+        description: "First line\nSecond line",
+      }),
+    }),
+  );
+});
+
+it("keeps detail in a loading state until the backend resolves", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me" ? user : new Promise(() => {}),
+  );
+  mount(<ProjectDetail projectId="p1" />);
+  expect(await screen.findByRole("status")).toHaveTextContent(
+    messages.projects.loading,
+  );
+  expect(screen.queryByText("Apollo")).not.toBeInTheDocument();
+});

@@ -15,9 +15,22 @@ export default function ProjectState({
   const t = useTranslations("projects");
   if (!error)
     return (
-      <p role="status" className="text-sm text-gray-500 dark:text-gray-400">
-        {t("loading")}
-      </p>
+      <div role="status" aria-live="polite" className="space-y-4">
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {t("loading")}
+        </p>
+        <div
+          aria-hidden="true"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"
+        >
+          {[0, 1, 2].map((item) => (
+            <div
+              key={item}
+              className="h-52 rounded-xl border border-gray-200 bg-gray-100 motion-safe:animate-pulse dark:border-gray-800 dark:bg-gray-800"
+            />
+          ))}
+        </div>
+      </div>
     );
   const messages: Record<number, string> = {
     401: "unauthorized",

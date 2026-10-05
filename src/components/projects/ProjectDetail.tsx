@@ -1,6 +1,6 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import ComponentCard from "@/components/common/ComponentCard";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -15,6 +15,7 @@ function OrganizationProject({
   projectId: string;
 }) {
   const t = useTranslations("projects");
+  const format = useFormatter();
   const project = useProjectQuery(organizationId, projectId);
   if (project.isPending || project.isFetching) return <ProjectState />;
   if (project.isError)
@@ -32,17 +33,28 @@ function OrganizationProject({
     description: project.data.description || t("noDescription"),
     visibility: t(project.data.visibility),
     status: t(project.data.status === "ACTIVE" ? "active" : "archived"),
-    createdAt: project.data.createdAt,
-    updatedAt: project.data.updatedAt,
+    createdAt: format.dateTime(new Date(project.data.createdAt), {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }),
+    updatedAt: format.dateTime(new Date(project.data.updatedAt), {
+      dateStyle: "medium",
+      timeStyle: "short",
+      timeZone: "UTC",
+    }),
   };
   return (
-    <dl className="space-y-4">
+    <dl className="grid grid-cols-1 gap-6 rounded-xl bg-gray-50 p-5 sm:grid-cols-2 dark:bg-gray-900">
       {Object.entries(fields).map(([label, value]) => (
-        <div key={label}>
+        <div
+          key={label}
+          className={label === "description" ? "sm:col-span-2" : ""}
+        >
           <dt className="text-sm text-gray-500 dark:text-gray-400">
             {t(label)}
           </dt>
-          <dd className="break-words text-gray-800 dark:text-gray-200">
+          <dd className="mt-1 font-medium break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
             {value}
           </dd>
         </div>
@@ -56,7 +68,10 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
   return (
     <ComponentCard title={t("detail")}>
       <div className="space-y-5">
-        <Link href="/projects" className="text-brand-500 dark:text-brand-400">
+        <Link
+          href="/projects"
+          className="inline-flex rounded-lg text-sm font-medium text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400"
+        >
           {t("back")}
         </Link>
         {user.isPending ? (
