@@ -38,6 +38,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
+  { icon: <ListIcon />, key: "projects", path: "/projects" },
   {
     icon: <GridIcon />,
     key: "dashboard",
