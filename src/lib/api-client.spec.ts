@@ -73,4 +73,94 @@ describe("apiClient", () => {
       organizations: [{ id: "org-a", name: "Alpha" }],
     } satisfies Partial<ApiError>);
   });
+
+  describe("session recovery", () => {
+    const originalWindow = global.window;
+
+    beforeEach(() => {
+      global.window = {} as any;
+    });
+
+    afterEach(() => {
+      global.window = originalWindow;
+    });
+
+    it("retries request automatically on 401 when refresh succeeds", async () => {
+      const mockData = { data: "success" };
+      let callCount = 0;
+
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/auth/refresh")) {
+          return Promise.resolve({ ok: true } as Response);
+        }
+        callCount++;
+        if (callCount === 1) {
+          return Promise.resolve({
+            ok: false,
+            status: 401,
+            text: () => Promise.resolve("Unauthorized"),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve(mockData),
+        } as Response);
+      });
+
+      const result = await apiClient<{ data: string }>("/protected");
+
+      expect(global.fetch).toHaveBeenCalledTimes(3);
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        1,
+        "/api/backend/protected",
+        expect.anything()
+      );
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        2,
+        "/api/v1/auth/refresh",
+        expect.anything()
+      );
+      expect(global.fetch).toHaveBeenNthCalledWith(
+        3,
+        "/api/backend/protected",
+        expect.anything()
+      );
+      expect(result).toEqual(mockData);
+    });
+
+    it("fails and throws original error if refresh fails", async () => {
+      global.fetch = vi.fn().mockImplementation((url: string) => {
+        if (url.includes("/auth/refresh")) {
+          return Promise.resolve({
+            ok: false,
+            status: 401,
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: false,
+          status: 401,
+          statusText: "Unauthorized",
+          text: () => Promise.resolve(JSON.stringify({ message: "Expired" })),
+        } as Response);
+      });
+
+      await expect(apiClient("/protected")).rejects.toThrow(
+        "Expired"
+      );
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not retry if endpoint is auth/refresh", async () => {
+      global.fetch = vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        statusText: "Unauthorized",
+        text: () => Promise.resolve(""),
+      } as Response);
+
+      await expect(apiClient("/auth/refresh")).rejects.toThrow();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+    });
+  });
 });

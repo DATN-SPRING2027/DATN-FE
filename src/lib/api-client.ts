@@ -29,9 +29,11 @@ export class ApiError extends Error {
   }
 }
 
+let refreshPromise: Promise<boolean> | null = null;
+
 export async function apiClient<T>(
   endpoint: string,
-  options?: RequestInit
+  options?: RequestInit & { _retry?: boolean }
 ): Promise<T> {
   const baseUrl = getApiBaseUrl();
   const normalizedEndpoint = endpoint.startsWith("/")
@@ -39,7 +41,7 @@ export async function apiClient<T>(
     : `/${endpoint}`;
   const url = `${baseUrl}${normalizedEndpoint}`;
 
-  const response = await fetch(url, {
+  let response = await fetch(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -47,6 +49,34 @@ export async function apiClient<T>(
     },
     credentials: "include",
   });
+
+  if (!response.ok && response.status === 401 && !options?._retry && !endpoint.includes("auth/refresh") && !endpoint.includes("auth/login") && typeof window !== "undefined") {
+    if (!refreshPromise) {
+      refreshPromise = fetch("/api/v1/auth/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+      })
+        .then((res) => res.ok)
+        .catch(() => false)
+        .finally(() => {
+          refreshPromise = null;
+        });
+    }
+
+    const refreshSuccessful = await refreshPromise;
+
+    if (refreshSuccessful) {
+      response = await fetch(url, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          ...options?.headers,
+        },
+        credentials: "include",
+      });
+    }
+  }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
