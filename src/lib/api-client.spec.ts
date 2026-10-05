@@ -74,93 +74,43 @@ describe("apiClient", () => {
     } satisfies Partial<ApiError>);
   });
 
-  describe("session recovery", () => {
-    const originalWindow = global.window;
-
-    beforeEach(() => {
-      global.window = {} as typeof window;
-    });
-
-    afterEach(() => {
-      global.window = originalWindow;
-    });
-
-    it("retries request automatically on 401 when refresh succeeds", async () => {
-      const mockData = { data: "success" };
-      let callCount = 0;
-
-      global.fetch = vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/auth/refresh")) {
-          return Promise.resolve({ ok: true } as Response);
-        }
-        callCount++;
-        if (callCount === 1) {
-          return Promise.resolve({
-            ok: false,
+  describe("unauthorized responses", () => {
+    it.each(["/protected", "/auth/me", "/auth/refresh", "/auth/login"])(
+      "propagates 401 from %s without refreshing or replaying the request",
+      async (endpoint) => {
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+          new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
             status: 401,
-            text: () => Promise.resolve("Unauthorized"),
-          } as Response);
-        }
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: () => Promise.resolve(mockData),
-        } as Response);
-      });
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
 
-      const result = await apiClient<{ data: string }>("/protected");
-
-      expect(global.fetch).toHaveBeenCalledTimes(3);
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        1,
-        "/api/backend/protected",
-        expect.anything()
-      );
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        2,
-        "/api/v1/auth/refresh",
-        expect.anything()
-      );
-      expect(global.fetch).toHaveBeenNthCalledWith(
-        3,
-        "/api/backend/protected",
-        expect.anything()
-      );
-      expect(result).toEqual(mockData);
-    });
-
-    it("fails and throws original error if refresh fails", async () => {
-      global.fetch = vi.fn().mockImplementation((url: string) => {
-        if (url.includes("/auth/refresh")) {
-          return Promise.resolve({
-            ok: false,
-            status: 401,
-          } as Response);
-        }
-        return Promise.resolve({
-          ok: false,
+        await expect(apiClient(endpoint)).rejects.toMatchObject({
+          name: "ApiError",
           status: 401,
-          statusText: "Unauthorized",
-          text: () => Promise.resolve(JSON.stringify({ message: "Expired" })),
-        } as Response);
-      });
+          code: "UNAUTHORIZED",
+          message: "Expired",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/backend${endpoint}`,
+          expect.objectContaining({ credentials: "include" }),
+        );
+      },
+    );
 
-      await expect(apiClient("/protected")).rejects.toThrow(
-        "Expired"
+    it("does not replay an unauthorized mutation", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), { status: 401 }),
       );
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-    });
+      const body = JSON.stringify({ name: "Project", code: "PR" });
 
-    it("does not retry if endpoint is auth/refresh", async () => {
-      global.fetch = vi.fn().mockResolvedValue({
-        ok: false,
-        status: 401,
-        statusText: "Unauthorized",
-        text: () => Promise.resolve(""),
-      } as Response);
-
-      await expect(apiClient("/auth/refresh")).rejects.toThrow();
-      expect(global.fetch).toHaveBeenCalledTimes(1);
+      await expect(apiClient("/iam/projects", { method: "POST", body })).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/backend/iam/projects",
+        expect.objectContaining({ method: "POST", body }),
+      );
     });
   });
 });
