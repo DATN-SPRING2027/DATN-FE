@@ -100,4 +100,44 @@ describe("apiClient", () => {
       organizations: [{ id: "org-a", name: "Alpha" }],
     } satisfies Partial<ApiError>);
   });
+
+  describe("unauthorized responses", () => {
+    it.each(["/protected", "/auth/me", "/auth/refresh", "/auth/login"])(
+      "propagates 401 from %s without refreshing or replaying the request",
+      async (endpoint) => {
+        const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+          new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+
+        await expect(apiClient(endpoint)).rejects.toMatchObject({
+          name: "ApiError",
+          status: 401,
+          code: "UNAUTHORIZED",
+          message: "Expired",
+        });
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(fetchMock).toHaveBeenCalledWith(
+          `/api/backend${endpoint}`,
+          expect.objectContaining({ credentials: "include" }),
+        );
+      },
+    );
+
+    it("does not replay an unauthorized mutation", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), { status: 401 }),
+      );
+      const body = JSON.stringify({ name: "Project", code: "PR" });
+
+      await expect(apiClient("/iam/projects", { method: "POST", body })).rejects.toMatchObject({ status: 401 });
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/backend/iam/projects",
+        expect.objectContaining({ method: "POST", body }),
+      );
+    });
+  });
 });

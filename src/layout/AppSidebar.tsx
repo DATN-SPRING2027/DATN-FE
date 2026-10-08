@@ -1,5 +1,7 @@
 "use client";
 
+import { isSidebarPathActive } from "@/utils/sidebar-active";
+
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
@@ -38,6 +40,7 @@ type NavItem = {
 };
 
 const navItems: NavItem[] = [
+  { icon: <ListIcon />, key: "projects", path: "/projects" },
   {
     icon: <GridIcon />,
     key: "dashboard",
@@ -150,7 +153,7 @@ const AppSidebar: React.FC = () => {
               {nav.new && (isExpanded || isHovered || isMobileOpen) && (
                 <span
                   className={cn(
-                    "inset-e-10 absolute ms-auto",
+                    "absolute inset-e-10 ms-auto",
                     openSubmenu?.type === menuType &&
                       openSubmenu?.index === index
                       ? "menu-dropdown-badge-active"
@@ -274,7 +277,10 @@ const AppSidebar: React.FC = () => {
 
   // const isActive = (path: string) => path === pathname;
 
-  const isActive = useCallback((path: string) => path === pathname, [pathname]);
+  const isActive = useCallback(
+    (path: string) => isSidebarPathActive(path, pathname),
+    [pathname],
+  );
 
   useEffect(() => {
     // Check if the current path matches any submenu item
@@ -399,7 +405,14 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems.filter((item) => item.key !== "users" || currentUser.data?.roles.includes("ADMIN")), "main")}
+              {renderMenuItems(
+                navItems.filter(
+                  (item) =>
+                    item.key !== "users" ||
+                    currentUser.data?.roles.includes("ADMIN"),
+                ),
+                "main",
+              )}
             </div>
 
             <div>
