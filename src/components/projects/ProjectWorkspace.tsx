@@ -25,12 +25,12 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   });
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
-      <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 @xl:flex-row @xl:items-center @xl:justify-between dark:border-gray-800">
-        <div className="flex min-w-0 flex-wrap items-center gap-3">
-          <Label htmlFor="project-status" className="mb-0 shrink-0">
+      <div className="flex flex-col gap-4 border-b border-gray-200 pb-5 @xl:flex-row @xl:items-end @xl:justify-between dark:border-gray-800">
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="project-status" className="mb-0 text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("status")}
           </Label>
-          <div className="min-w-0 flex-1 basis-40 @xl:w-56 @xl:flex-none">
+          <div className="w-56">
             <Select
               id="project-status"
               defaultValue="all"
@@ -47,20 +47,14 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               }}
             />
           </div>
-          {projects.isSuccess && !projects.isFetching && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {t("totalProjects", {
-                count: projects.data.pagination.totalItems,
-              })}
-            </p>
-          )}
         </div>
-        <Link
-          href="/projects/new"
-          className="inline-flex h-11 w-full shrink-0 cursor-pointer items-center justify-center rounded-lg bg-brand-500 px-5 text-sm font-medium text-white transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 @xl:w-auto dark:bg-brand-500 dark:hover:bg-brand-600"
-        >
-          {t("create")}
-        </Link>
+        {projects.isSuccess && !projects.isFetching && (
+          <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
+            {t("totalProjects", {
+              count: projects.data.pagination.totalItems,
+            })}
+          </p>
+        )}
       </div>
       {(projects.isPending || projects.isFetching) && <ProjectState />}
       {projects.isError && (
@@ -125,9 +119,22 @@ export default function ProjectWorkspace() {
   const user = useCurrentUserQuery();
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
-      <p className="text-sm text-gray-500 dark:text-gray-400">
-        {t("workspaceHint")}
-      </p>
+      <header className="flex flex-col gap-4 @xl:flex-row @xl:items-center @xl:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white/90">
+            {t("title")}
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {t("workspaceHint")}
+          </p>
+        </div>
+        <Link
+          href="/projects/new"
+          className="inline-flex h-11 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-brand-500 px-5 text-sm font-medium text-white transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-brand-500 dark:hover:bg-brand-600"
+        >
+          {t("create")}
+        </Link>
+      </header>
       {user.isPending ? (
         <ProjectState />
       ) : user.isError ? (

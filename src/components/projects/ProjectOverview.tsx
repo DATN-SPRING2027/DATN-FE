@@ -1,5 +1,6 @@
 "use client";
 
+import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -26,14 +27,22 @@ export default function ProjectOverview({ project }: { project: Project }) {
   ];
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
+      <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+        <Link href="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">{t("title")}</Link>
+        <span>/</span>
+        <span className="rounded-md bg-gray-100 px-2 py-0.5 font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">{project.code}</span>
+        <span>/</span>
+        <span className="font-medium text-gray-800 dark:text-white/90">Details</span>
+      </nav>
       <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="max-w-full min-w-0 text-xl font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90">
+          <h1 className="max-w-full min-w-0 text-3xl font-bold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
             {project.name}
           </h1>
           <span
-            className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-400" : "bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+            className={`shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
           >
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}></span>
             {t(project.status === "ACTIVE" ? "active" : "archived")}
           </span>
         </div>
