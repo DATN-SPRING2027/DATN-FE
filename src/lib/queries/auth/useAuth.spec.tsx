@@ -51,13 +51,15 @@ describe("auth query hooks", () => {
   });
 
   it("authenticates credentials via useLoginMutation", async () => {
-    mockedApiClient.mockResolvedValue({ user: {
-      id: "user-1",
-      email: "test@continuum.ai",
-      name: "Test User",
-      organizationId: "org-1",
-      roles: ["engineer"],
-    } });
+    mockedApiClient.mockResolvedValue({
+      user: {
+        id: "user-1",
+        email: "test@continuum.ai",
+        name: "Test User",
+        organizationId: "org-1",
+        roles: ["engineer"],
+      },
+    });
 
     const { result } = renderHook(() => useLoginMutation(), {
       wrapper: createWrapper(),
@@ -67,7 +69,7 @@ describe("auth query hooks", () => {
       result.current.mutateAsync({
         email: "test@continuum.ai",
         password: "password123",
-      })
+      }),
     );
 
     expect(mockedApiClient).toHaveBeenCalledWith("/auth/login", {
@@ -88,7 +90,7 @@ describe("auth query hooks", () => {
 
     await act(() => result.current.mutateAsync());
 
-    expect(mockedApiClient).toHaveBeenCalledWith("/auth/logout", {
+    expect(mockedApiClient).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
     });
   });
