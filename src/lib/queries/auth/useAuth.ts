@@ -29,7 +29,7 @@ export type CurrentUserResponse = Readonly<{
 }>;
 
 export function useCurrentUserQuery(
-  options?: Omit<UseQueryOptions<CurrentUserResponse>, "queryKey" | "queryFn">
+  options?: Omit<UseQueryOptions<CurrentUserResponse>, "queryKey" | "queryFn">,
 ) {
   return useQuery({
     ...options,
@@ -42,7 +42,10 @@ export function useCurrentUserQuery(
 }
 
 export function useLoginMutation(
-  options?: Omit<UseMutationOptions<LoginResponse, Error, LoginInput>, "mutationFn">
+  options?: Omit<
+    UseMutationOptions<LoginResponse, Error, LoginInput>,
+    "mutationFn"
+  >,
 ) {
   const queryClient = useQueryClient();
 
@@ -62,14 +65,14 @@ export function useLoginMutation(
 }
 
 export function useLogoutMutation(
-  options?: Omit<UseMutationOptions<void, Error, void>, "mutationFn">
+  options?: Omit<UseMutationOptions<void, Error, void>, "mutationFn">,
 ) {
   const queryClient = useQueryClient();
 
   return useMutation({
     ...options,
     mutationFn: () =>
-      apiClient<void>("/auth/logout", {
+      apiClient<void>("/api/v1/auth/logout", {
         method: "POST",
       }),
     onSuccess: (...args) => {

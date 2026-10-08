@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ApiError, apiClient, getApiBaseUrl, getServerApiBaseUrl } from "./api-client";
+import {
+  ApiError,
+  apiClient,
+  getApiBaseUrl,
+  getServerApiBaseUrl,
+} from "./api-client";
 
 describe("apiClient", () => {
   const originalEnv = process.env;
@@ -24,6 +29,21 @@ describe("apiClient", () => {
     expect(getApiBaseUrl()).toBe("/api/backend");
   });
 
+  it("uses the public auth BFF path when an endpoint starts with /api/v1", async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({ status: "logged_out" }),
+    } as Response);
+
+    await apiClient("/api/v1/auth/logout", { method: "POST" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/v1/auth/logout",
+      expect.objectContaining({ method: "POST", credentials: "include" }),
+    );
+  });
+
   it("performs GET request and parses JSON response", async () => {
     const mockData = { status: "ok" };
     global.fetch = vi.fn().mockResolvedValue({
@@ -40,7 +60,7 @@ describe("apiClient", () => {
           "Content-Type": "application/json",
         }),
         credentials: "include",
-      })
+      }),
     );
     expect(result).toEqual(mockData);
   });
@@ -54,7 +74,7 @@ describe("apiClient", () => {
     } as Response);
 
     await expect(apiClient("/health")).rejects.toThrow(
-      "API request failed: 500 Internal Server Error - Server crashed"
+      "API request failed: 500 Internal Server Error - Server crashed",
     );
   });
 
@@ -63,7 +83,14 @@ describe("apiClient", () => {
       ok: false,
       status: 409,
       statusText: "Conflict",
-      text: () => Promise.resolve(JSON.stringify({ code: "ORGANIZATION_SELECTION_REQUIRED", message: "Select an organization to continue.", details: { organizations: [{ id: "org-a", name: "Alpha" }] } })),
+      text: () =>
+        Promise.resolve(
+          JSON.stringify({
+            code: "ORGANIZATION_SELECTION_REQUIRED",
+            message: "Select an organization to continue.",
+            details: { organizations: [{ id: "org-a", name: "Alpha" }] },
+          }),
+        ),
     } as Response);
 
     await expect(apiClient("/auth/login")).rejects.toMatchObject({
