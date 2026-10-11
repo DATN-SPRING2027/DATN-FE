@@ -92,6 +92,7 @@ describe("auth query hooks", () => {
 
     expect(mockedApiClient).toHaveBeenCalledWith("/api/v1/auth/logout", {
       method: "POST",
+      signal: expect.any(AbortSignal),
     });
   });
 });
