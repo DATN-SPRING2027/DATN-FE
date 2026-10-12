@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { vi, beforeEach, it, expect } from "vitest";
@@ -28,7 +29,12 @@ vi.mock("@/i18n/navigation", () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("@/icons", () => ({ ChevronDownIcon: () => null }));
+vi.mock("@/icons", () => ({
+  ChevronDownIcon: () => null,
+  FolderIcon: () => null,
+  GridIcon: () => null,
+  ListIcon: () => null,
+}));
 const api = vi.mocked(apiClient);
 const project = {
   id: "p1",
@@ -113,15 +119,34 @@ it("uses the accepted list path, follows pagination and status filters", async (
       expect.anything(),
     ),
   );
-  fireEvent.change(screen.getByLabelText("Status"), {
-    target: { value: "ARCHIVED" },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Archived" }));
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       "/iam/projects?page=1&pageSize=20&status=ARCHIVED",
       expect.anything(),
     ),
   );
+});
+it("supports grid/list layout and client sorting without hiding task data gaps", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me"
+      ? user
+      : list([
+          { ...project, id: "p2", name: "Zulu", updatedAt: "2026-10-06T00:00:00Z" },
+          { ...project, id: "p1", name: "Apollo", updatedAt: "2026-10-05T00:00:00Z" },
+        ]),
+  );
+  mount(<ProjectWorkspace />);
+  expect(await screen.findByText("Apollo")).toBeVisible();
+  expect(screen.getAllByText("Task data unavailable")).toHaveLength(2);
+  expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
+  expect(screen.queryByText("Updated at")).not.toBeInTheDocument();
+  const listViewButton = screen.getByRole("button", { name: "List view" });
+  fireEvent.click(listViewButton);
+  expect(listViewButton).toHaveAttribute("aria-pressed", "true");
+  fireEvent.change(screen.getByLabelText("Sort projects"), { target: { value: "name" } });
+  const cards = screen.getAllByRole("article");
+  expect(cards[0]).toContainElement(screen.getByRole("link", { name: "Apollo" }));
 });
 it.each([401, 403, 500])(
   "shows list error %s without using client selection as authorization",
@@ -325,13 +350,11 @@ it("renders server-returned public archived metadata without adding administrati
   );
   mount(<ProjectWorkspace />);
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(screen.getByText("Public")).toBeVisible();
+  expect(within(screen.getByRole("article")).getByText("Archived")).toBeVisible();
   expect(screen.getByText("Project purpose")).toBeVisible();
   expect(screen.getByText("1 project")).toBeVisible();
-  expect(screen.getByText("Oct 5, 2026")).toHaveAttribute(
-    "datetime",
-    project.updatedAt,
-  );
+  expect(screen.queryByText("Public")).not.toBeInTheDocument();
+  expect(screen.queryByText("Oct 5, 2026")).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: /publish|edit|add task|members/i }),
   ).not.toBeInTheDocument();
