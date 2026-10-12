@@ -5,6 +5,11 @@ const withNextIntl = createNextIntlPlugin();
 
 const nextConfig: NextConfig = {
   /* config options here */
+  logging: {
+    incomingRequests: {
+      ignore: [/^\/api\/auth\/google\/callback(?:\?|$)/],
+    },
+  },
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/,

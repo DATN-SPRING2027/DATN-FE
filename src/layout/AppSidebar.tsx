@@ -399,7 +399,7 @@ const AppSidebar: React.FC = () => {
                   <HorizontaLDots />
                 )}
               </h2>
-              {renderMenuItems(navItems.filter((item) => item.key !== "users" || currentUser.data?.roles.includes("ADMIN")), "main")}
+              {renderMenuItems(navItems.filter((item) => item.key !== "users" || currentUser.data?.roles?.includes("ADMIN")), "main")}
             </div>
 
             <div>

@@ -6,6 +6,19 @@ export const metadata: Metadata = {
   description: "This is Next.js Signin Page TailAdmin Dashboard Template",
 };
 
-export default function SignIn() {
-  return <SignInForm />;
+export default async function SignIn({
+  searchParams,
+}: {
+  searchParams: Promise<{ google?: string | string[] }>;
+}) {
+  const query = await searchParams;
+  const value = Array.isArray(query.google) ? query.google[0] : query.google;
+  const googleStatus =
+    value === "organization-required" ||
+    value === "failed" ||
+    value === "cancelled"
+      ? value
+      : undefined;
+
+  return <SignInForm googleStatus={googleStatus} />;
 }

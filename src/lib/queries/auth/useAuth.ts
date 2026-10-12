@@ -20,13 +20,23 @@ export type LoginResponse = Readonly<{
   user: CurrentUserResponse;
 }>;
 
-export type CurrentUserResponse = Readonly<{
-  id: string;
-  email: string;
-  name: string;
-  organizationId: string;
-  roles: readonly string[];
-}>;
+export type CurrentUserResponse =
+  | Readonly<{
+      id: string;
+      email: string;
+      name: string;
+      context: "ACCOUNT";
+      organizationId?: never;
+      roles?: never;
+    }>
+  | Readonly<{
+      id: string;
+      email: string;
+      name: string;
+      context?: "ORGANIZATION";
+      organizationId: string;
+      roles: readonly string[];
+    }>;
 
 export function useCurrentUserQuery(
   options?: Omit<UseQueryOptions<CurrentUserResponse>, "queryKey" | "queryFn">,

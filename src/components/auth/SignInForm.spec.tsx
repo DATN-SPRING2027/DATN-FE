@@ -1,17 +1,23 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SignInForm from "./SignInForm";
-import { useCurrentUserQuery, useLoginMutation } from "@/lib/queries/auth/useAuth";
+import {
+  useCurrentUserQuery,
+  useLoginMutation,
+} from "@/lib/queries/auth/useAuth";
 import { ApiError } from "@/lib/api-client";
 
 const replace = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
-  Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
+  Link: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
   useRouter: () => ({ replace }),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/icons", () => ({
   ChevronLeftIcon: () => null,
+  GoogleIcon: () => null,
   EyeCloseIcon: () => null,
   EyeIcon: () => null,
   ChevronDownIcon: () => null,
@@ -29,8 +35,16 @@ describe("sign in form", () => {
     replace.mockReset();
     refetch.mockReset();
     mutateAsync.mockReset();
-    vi.mocked(useCurrentUserQuery).mockReturnValue({ data: undefined, isFetching: false, refetch } as never);
-    vi.mocked(useLoginMutation).mockReturnValue({ mutateAsync, isPending: false, error: null } as never);
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: undefined,
+      isFetching: false,
+      refetch,
+    } as never);
+    vi.mocked(useLoginMutation).mockReturnValue({
+      mutateAsync,
+      isPending: false,
+      error: null,
+    } as never);
   });
 
   it("submits credentials and verifies the cookie session through /auth/me", async () => {
@@ -38,36 +52,79 @@ describe("sign in form", () => {
     refetch.mockResolvedValue({ data: { id: "user-1" } });
     render(<SignInForm />);
 
-    expect(screen.queryByRole("button", { name: /sign in with (google|x)/i })).not.toBeInTheDocument();
-    expect(screen.queryByText("Or")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "continueWithGoogle" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("or")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "user@example.com" } });
-    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret" } });
+    fireEvent.change(screen.getByLabelText(/Email/), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/Password/), {
+      target: { value: "secret" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledWith({ email: "user@example.com", password: "secret" }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith({
+        email: "user@example.com",
+        password: "secret",
+      }),
+    );
     await waitFor(() => expect(refetch).toHaveBeenCalledOnce());
   });
 
+  it("offers Google sign-in and shows the organization provisioning message", () => {
+    render(<SignInForm googleStatus="organization-required" />);
+
+    const googleButton = screen.getByRole("button", {
+      name: "continueWithGoogle",
+    });
+    expect(googleButton.closest("form")).toHaveAttribute(
+      "action",
+      "/api/auth/google",
+    );
+    expect(screen.getByText("googleOrganizationRequired")).toBeInTheDocument();
+  });
+
   it("offers eligible organizations by name after a verified 409 response", async () => {
-    mutateAsync.mockRejectedValue(new ApiError(409, "ORGANIZATION_SELECTION_REQUIRED", "Select an organization", [
-      { id: "651a2b3c4d5e6f7a8b9c0d1f", name: "Alpha" },
-      { id: "651a2b3c4d5e6f7a8b9c0d20", name: "Beta" },
-    ]));
+    mutateAsync.mockRejectedValue(
+      new ApiError(
+        409,
+        "ORGANIZATION_SELECTION_REQUIRED",
+        "Select an organization",
+        [
+          { id: "651a2b3c4d5e6f7a8b9c0d1f", name: "Alpha" },
+          { id: "651a2b3c4d5e6f7a8b9c0d20", name: "Beta" },
+        ],
+      ),
+    );
     render(<SignInForm />);
 
-    fireEvent.change(screen.getByLabelText(/Email/), { target: { value: "user@example.com" } });
-    fireEvent.change(screen.getByLabelText(/Password/), { target: { value: "secret" } });
+    fireEvent.change(screen.getByLabelText(/Email/), {
+      target: { value: "user@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText(/Password/), {
+      target: { value: "secret" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
-    expect(await screen.findByRole("option", { name: "Alpha" })).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("organizationId"), { target: { value: "651a2b3c4d5e6f7a8b9c0d20" } });
+    expect(
+      await screen.findByRole("option", { name: "Alpha" }),
+    ).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("organizationId"), {
+      target: { value: "651a2b3c4d5e6f7a8b9c0d20" },
+    });
     mutateAsync.mockResolvedValue({ user: { id: "user-1" } });
     refetch.mockResolvedValue({ data: { id: "user-1" } });
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenLastCalledWith({
-      email: "user@example.com", password: "secret", organizationId: "651a2b3c4d5e6f7a8b9c0d20",
-    }));
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenLastCalledWith({
+        email: "user@example.com",
+        password: "secret",
+        organizationId: "651a2b3c4d5e6f7a8b9c0d20",
+      }),
+    );
   });
 
   it.each([

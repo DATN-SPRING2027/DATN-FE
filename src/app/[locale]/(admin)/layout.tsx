@@ -34,8 +34,10 @@ export default function AdminLayout({
   useEffect(() => {
     if (unauthorized) {
       router.replace("/signin");
+    } else if (currentUser.data?.context === "ACCOUNT") {
+      router.replace("/onboarding");
     }
-  }, [unauthorized, router]);
+  }, [unauthorized, currentUser.data?.context, router]);
 
   if (isRetrying || currentUser.isError || !currentUser.data) {
     if ((isRetrying || currentUser.isError) && !unauthorized) {
@@ -46,6 +48,10 @@ export default function AdminLayout({
     return (
       <SessionRecoveryPanel state={unauthorized ? "redirecting" : "checking"} />
     );
+  }
+
+  if (currentUser.data.context === "ACCOUNT") {
+    return <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />;
   }
 
   // Dynamic class for main content margin based on sidebar state
