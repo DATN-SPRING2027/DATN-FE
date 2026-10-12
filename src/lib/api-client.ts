@@ -23,10 +23,79 @@ export class ApiError extends Error {
     public readonly code: string | undefined,
     message: string,
     public readonly organizations?: readonly { id: string; name: string }[],
+    public readonly sessionRecoveryFailed = false,
   ) {
     super(message);
     this.name = "ApiError";
   }
+}
+
+let refreshInFlight: Promise<unknown> | undefined;
+let sessionGeneration = 0;
+let logoutInFlight: Promise<void> | undefined;
+
+function recoveryError(error: unknown): ApiError {
+  return new ApiError(
+    error instanceof ApiError ? error.status : 503,
+    error instanceof ApiError ? error.code : "SESSION_RECOVERY_FAILED",
+    error instanceof Error ? error.message : "Session recovery failed",
+    undefined,
+    true,
+  );
+}
+
+async function recoverSession(): Promise<void> {
+  if (!refreshInFlight) {
+    refreshInFlight = apiClient("/api/v1/auth/refresh", { method: "POST" })
+      .then(() => { sessionGeneration += 1; })
+      .finally(() => { refreshInFlight = undefined; });
+  }
+  try {
+    await refreshInFlight;
+  } catch (error) {
+    throw recoveryError(error);
+  }
+}
+
+function waitForRefresh(
+  pendingRefresh: Promise<unknown> | undefined,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!pendingRefresh) return Promise.resolve();
+
+  const refreshSettled = pendingRefresh.then(() => undefined, () => undefined);
+  if (!signal) return refreshSettled;
+
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"));
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    void refreshSettled.then(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    });
+  });
+}
+
+export function logoutSession(signal?: AbortSignal): Promise<void> {
+  if (!logoutInFlight) {
+    const pendingRefresh = refreshInFlight;
+    logoutInFlight = (async () => {
+      // Rotation may replace the cookie, so logout must revoke after it settles.
+      await waitForRefresh(pendingRefresh, signal);
+      await apiClient<void>("/api/v1/auth/logout", { method: "POST", signal });
+    })().finally(() => {
+      logoutInFlight = undefined;
+    });
+  }
+
+  return logoutInFlight;
 }
 
 export async function apiClient<T>(
@@ -41,14 +110,45 @@ export async function apiClient<T>(
     ? normalizedEndpoint
     : `${baseUrl}${normalizedEndpoint}`;
 
-  const response = await fetch(url, {
+  const headers = new Headers(options?.headers);
+  if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
+  if (normalizedEndpoint === "/api/v1/auth/refresh" && typeof document !== "undefined") {
+    const csrfCookie = document.cookie.split(";").map((cookie) => cookie.trim())
+      .find((cookie) => cookie.startsWith("__Host-csrf="));
+    if (csrfCookie) headers.set("X-CSRF-Token", csrfCookie.slice("__Host-csrf=".length));
+  }
+
+  const requestOptions: RequestInit = {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+    headers,
     credentials: "include",
-  });
+  };
+  const generation = sessionGeneration;
+  let response = await fetch(url, requestOptions);
+  let recovered = false;
+  if (
+    typeof window !== "undefined" &&
+    ["/auth/me", "/api/v1/auth/me"].includes(normalizedEndpoint) &&
+    (options?.method ?? "GET").toUpperCase() === "GET" &&
+    response.status === 401
+  ) {
+    // Only the session probe may be replayed. Mutations never enter this flow.
+    if (logoutInFlight) {
+      try {
+        await logoutInFlight;
+      } catch (error) {
+        throw recoveryError(error);
+      }
+    } else if (generation === sessionGeneration) {
+      await recoverSession();
+    }
+    recovered = true;
+    try {
+      response = await fetch(url, requestOptions);
+    } catch (error) {
+      throw recoveryError(error);
+    }
+  }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
@@ -78,6 +178,7 @@ export async function apiClient<T>(
               typeof item.name === "string",
           )
         : undefined,
+      recovered,
     );
   }
 

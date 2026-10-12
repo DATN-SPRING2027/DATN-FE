@@ -42,7 +42,7 @@ export async function forwardBackendRequest(
       headers,
       body,
       cache: "no-store",
-      redirect: options.redirect,
+      redirect: options.redirect ?? "manual",
     },
   );
   const responseHeaders = new Headers();
@@ -53,6 +53,7 @@ export async function forwardBackendRequest(
     "content-type",
     "location",
     "referrer-policy",
+    "x-csrf-token",
   ]) {
     const value = backendResponse.headers.get(name);
     if (value) responseHeaders.set(name, value);

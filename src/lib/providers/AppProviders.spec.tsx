@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { focusManager, onlineManager } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useUpdateUserMutation, useUsersQuery } from "@/lib/queries/users/useUsers";
@@ -30,7 +31,25 @@ function EditableScreen() {
 }
 
 describe("AppProviders", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => { vi.restoreAllMocks(); focusManager.setFocused(undefined); onlineManager.setOnline(true); });
+
+  it("does not restart failed recovery on window focus or reconnect", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url) =>
+      new Response(JSON.stringify({ code: String(url).endsWith("/auth/refresh") ? "AUTH_CSRF_INVALID" : "AUTHENTICATION_FAILED" }),
+        { status: String(url).endsWith("/auth/refresh") ? 403 : 401 }),
+    );
+    render(<AppProviders><EditableScreen /></AppProviders>);
+    await waitFor(() => expect(screen.getByText("session-expired")).toBeInTheDocument());
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      focusManager.setFocused(false);
+      focusManager.setFocused(true);
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
+      await new Promise((resolve) => setTimeout(resolve, 30));
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 
   it("rechecks a successful /auth/me session after a Users 401", async () => {
     let meCalls = 0;

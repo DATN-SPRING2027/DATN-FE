@@ -37,4 +37,14 @@ describe("protected request session errors", () => {
     handleSessionError(client, new ApiError(403, "FORBIDDEN", "Forbidden"));
     expect(reset).not.toHaveBeenCalled();
   });
+
+  it.each([401, 403, 500, 503])("clears private cache after terminal recovery failure %s without rechecking", (status) => {
+    const client = new QueryClient();
+    client.setQueryData(authKeys.currentUser(), { id: "user" });
+    client.setQueryData(["users"], [{ id: "private-user" }]);
+    const reset = vi.spyOn(client, "resetQueries");
+    handleSessionError(client, new ApiError(status, "AUTH_REFRESH_FAILED", "Failed", undefined, true), true);
+    expect(client.getQueryData(["users"])).toBeUndefined();
+    expect(reset).not.toHaveBeenCalled();
+  });
 });
