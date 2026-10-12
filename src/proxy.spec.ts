@@ -7,10 +7,10 @@ vi.mock("next-intl/middleware", () => ({
 }));
 
 describe("route proxy", () => {
-  it("redirects an anonymous dashboard request before rendering", () => {
+  it("allows a dashboard request without an access cookie to reach server-verified session recovery", () => {
     const response = proxy(new NextRequest("http://localhost:3000/users"));
-    expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("http://localhost:3000/signin");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
   });
 
   it("allows sign-in and lets the authenticated layout verify a present cookie", () => {

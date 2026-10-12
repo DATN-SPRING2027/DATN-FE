@@ -148,7 +148,8 @@
     "language": "Language",
     "signOut": "Sign out",
     "signOutErrorTitle": "Sign out failed",
-    "signOutErrorMessage": "Please try again."
+    "signOutErrorMessage": "We couldn’t confirm sign out. Check your connection and try again.",
+    "signingOut": "Signing out…"
   },
   "auth": {
     "signInError": "Sign in failed",
@@ -161,8 +162,16 @@
     "unexpectedError": "Could not sign in. Please try again.",
     "sessionError": "Signed in, but your account could not be loaded. Please try again.",
     "sessionUnavailable": "Session unavailable",
-    "sessionUnavailableMessage": "Could not load your account. Please try again.",
-    "tryAgain": "Try again"
+    "sessionUnavailableMessage": "Check your connection and try again. If the issue continues, return to sign in.",
+    "tryAgain": "Try again",
+    "checkingSession": "Checking your session…",
+    "checkingSessionMessage": "Please wait while we verify access to your workspace.",
+    "recoveryHelp": "Your workspace is temporarily hidden while we verify your session.",
+    "recoveryNotice": "We couldn’t verify your session",
+    "retryingSession": "Trying again…",
+    "backToSignIn": "Back to sign in",
+    "redirectingToSignIn": "Taking you to sign in…",
+    "sessionEndedMessage": "Your session could not be restored. Sign in to continue."
   },
   "users": {
     "title": "Users",

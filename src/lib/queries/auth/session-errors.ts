@@ -12,7 +12,12 @@ export function handleSessionError(
   error: unknown,
   isCurrentUserRequest = false,
 ): void {
-  if (!(error instanceof ApiError) || error.status !== 401) return;
+  if (!(error instanceof ApiError)) return;
+  if (error.sessionRecoveryFailed) {
+    client.removeQueries({ predicate: (query) => !isCurrentUserKey(query.queryKey) });
+    return;
+  }
+  if (error.status !== 401) return;
 
   if (isCurrentUserRequest) {
     client.removeQueries({

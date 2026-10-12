@@ -2,6 +2,7 @@
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState } from "react";
+import { ApiError } from "@/lib/api-client";
 import { handleSessionError, isCurrentUserKey } from "@/lib/queries/auth/session-errors";
 
 type AppProvidersProps = Readonly<{
@@ -22,7 +23,7 @@ export function AppProviders({ children }: AppProvidersProps) {
         }),
         mutationCache: new MutationCache({
           onError: (error, _variables, _context, mutation) => {
-            if (mutation.options.mutationKey?.[0] !== "login") {
+            if (!["login", "logout"].includes(String(mutation.options.mutationKey?.[0]))) {
               handleSessionError(client, error);
             }
           },
@@ -30,7 +31,8 @@ export function AppProviders({ children }: AppProvidersProps) {
         defaultOptions: {
           queries: {
             refetchOnWindowFocus: false,
-            retry: 1,
+            retry: (failureCount, error) =>
+              !(error instanceof ApiError && (error.status === 401 || error.sessionRecoveryFailed)) && failureCount < 1,
             staleTime: 30_000,
           },
         },

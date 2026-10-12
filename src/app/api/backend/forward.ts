@@ -35,10 +35,10 @@ export async function forwardBackendRequest(
     : await request.arrayBuffer();
   const backendResponse = await fetch(
     buildBackendUrl(getServerApiBaseUrl(), path, request.nextUrl.search),
-    { method: request.method, headers, body, cache: 'no-store' },
+    { method: request.method, headers, body, cache: 'no-store', redirect: 'manual' },
   );
   const responseHeaders = new Headers();
-  for (const name of ['cache-control', 'content-type', 'location']) {
+  for (const name of ['cache-control', 'content-type', 'location', 'x-csrf-token']) {
     const value = backendResponse.headers.get(name);
     if (value) responseHeaders.set(name, value);
   }
