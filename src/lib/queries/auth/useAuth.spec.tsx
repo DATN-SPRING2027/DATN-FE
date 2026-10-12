@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor, act } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, logoutSession } from "@/lib/api-client";
 import {
   useCurrentUserQuery,
   useLoginMutation,
@@ -11,9 +11,11 @@ import {
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: vi.fn(),
+  logoutSession: vi.fn(),
 }));
 
 const mockedApiClient = vi.mocked(apiClient);
+const mockedLogoutSession = vi.mocked(logoutSession);
 
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -30,6 +32,7 @@ function createWrapper() {
 describe("auth query hooks", () => {
   beforeEach(() => {
     mockedApiClient.mockReset();
+    mockedLogoutSession.mockReset();
   });
 
   it("fetches current user via useCurrentUserQuery", async () => {
@@ -82,7 +85,7 @@ describe("auth query hooks", () => {
   });
 
   it("logs out via useLogoutMutation", async () => {
-    mockedApiClient.mockResolvedValue(undefined);
+    mockedLogoutSession.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useLogoutMutation(), {
       wrapper: createWrapper(),
@@ -90,9 +93,6 @@ describe("auth query hooks", () => {
 
     await act(() => result.current.mutateAsync());
 
-    expect(mockedApiClient).toHaveBeenCalledWith("/api/v1/auth/logout", {
-      method: "POST",
-      signal: expect.any(AbortSignal),
-    });
+    expect(mockedLogoutSession).toHaveBeenCalledWith(expect.any(AbortSignal));
   });
 });

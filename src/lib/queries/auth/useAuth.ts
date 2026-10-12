@@ -7,7 +7,7 @@ import {
   type UseMutationOptions,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, logoutSession } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
 
 export type LoginInput = Readonly<{
@@ -81,10 +81,7 @@ export function useLogoutMutation(
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
-        await apiClient<void>("/api/v1/auth/logout", {
-          method: "POST",
-          signal: controller.signal,
-        });
+        await logoutSession(controller.signal);
       } finally {
         clearTimeout(timeout);
       }

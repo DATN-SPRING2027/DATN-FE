@@ -32,6 +32,7 @@ export class ApiError extends Error {
 
 let refreshInFlight: Promise<unknown> | undefined;
 let sessionGeneration = 0;
+let logoutInFlight: Promise<void> | undefined;
 
 function recoveryError(error: unknown): ApiError {
   return new ApiError(
@@ -54,6 +55,47 @@ async function recoverSession(): Promise<void> {
   } catch (error) {
     throw recoveryError(error);
   }
+}
+
+function waitForRefresh(
+  pendingRefresh: Promise<unknown> | undefined,
+  signal?: AbortSignal,
+): Promise<void> {
+  if (!pendingRefresh) return Promise.resolve();
+
+  const refreshSettled = pendingRefresh.then(() => undefined, () => undefined);
+  if (!signal) return refreshSettled;
+
+  return new Promise<void>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener("abort", onAbort);
+      reject(signal.reason ?? new DOMException("The operation was aborted", "AbortError"));
+    };
+    if (signal.aborted) {
+      onAbort();
+      return;
+    }
+    signal.addEventListener("abort", onAbort, { once: true });
+    void refreshSettled.then(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    });
+  });
+}
+
+export function logoutSession(signal?: AbortSignal): Promise<void> {
+  if (!logoutInFlight) {
+    const pendingRefresh = refreshInFlight;
+    logoutInFlight = (async () => {
+      // Rotation may replace the cookie, so logout must revoke after it settles.
+      await waitForRefresh(pendingRefresh, signal);
+      await apiClient<void>("/api/v1/auth/logout", { method: "POST", signal });
+    })().finally(() => {
+      logoutInFlight = undefined;
+    });
+  }
+
+  return logoutInFlight;
 }
 
 export async function apiClient<T>(
@@ -91,7 +133,15 @@ export async function apiClient<T>(
     response.status === 401
   ) {
     // Only the session probe may be replayed. Mutations never enter this flow.
-    if (generation === sessionGeneration) await recoverSession();
+    if (logoutInFlight) {
+      try {
+        await logoutInFlight;
+      } catch (error) {
+        throw recoveryError(error);
+      }
+    } else if (generation === sessionGeneration) {
+      await recoverSession();
+    }
     recovered = true;
     try {
       response = await fetch(url, requestOptions);

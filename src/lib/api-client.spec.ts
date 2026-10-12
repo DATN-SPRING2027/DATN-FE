@@ -4,6 +4,7 @@ import {
   apiClient,
   getApiBaseUrl,
   getServerApiBaseUrl,
+  logoutSession,
 } from "./api-client";
 
 describe("apiClient", () => {
@@ -153,6 +154,83 @@ describe("apiClient", () => {
     await Promise.all([apiClient("/auth/me"), apiClient("/auth/me")]);
     expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
     expect(probeCalls).toBe(4);
+  });
+
+  it("waits for refresh rotation before logout and blocks recovery until logout settles", async () => {
+    let finishRefresh!: (response: Response) => void;
+    let finishLogout!: (response: Response) => void;
+    let refreshCookie = "refresh-old";
+    let logoutCookie: string | undefined;
+    let probeCalls = 0;
+    const calls: string[] = [];
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url === "/api/v1/auth/refresh") {
+        calls.push("refresh");
+        return new Promise<Response>((resolve) => {
+          finishRefresh = (response) => {
+            refreshCookie = "refresh-rotated";
+            resolve(response);
+          };
+        });
+      }
+      if (url === "/api/v1/auth/logout") {
+        calls.push("logout");
+        logoutCookie = refreshCookie;
+        return new Promise<Response>((resolve) => { finishLogout = resolve; });
+      }
+      probeCalls += 1;
+      calls.push(`probe-${probeCalls}`);
+      return probeCalls === 3
+        ? new Response('{"id":"current-user"}')
+        : new Response("{}", { status: 401 });
+    });
+
+    const recoveringProbe = apiClient("/auth/me");
+    await vi.waitFor(() => expect(calls).toContain("refresh"));
+    const logout = logoutSession();
+    const probeDuringLogout = apiClient("/auth/me");
+    await vi.waitFor(() => expect(calls).toContain("probe-2"));
+
+    expect(calls).not.toContain("logout");
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
+
+    finishRefresh(new Response('{"status":"refreshed"}'));
+    await expect(recoveringProbe).resolves.toEqual({ id: "current-user" });
+    await vi.waitFor(() => expect(calls).toContain("logout"));
+    expect(logoutCookie).toBe("refresh-rotated");
+    expect(calls.indexOf("refresh")).toBeLessThan(calls.indexOf("logout"));
+
+    finishLogout(new Response('{"status":"logged_out"}'));
+    await logout;
+    await expect(probeDuringLogout).rejects.toMatchObject({ status: 401 });
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
+  });
+
+  it("honors logout cancellation while waiting for refresh", async () => {
+    let finishRefresh!: (response: Response) => void;
+    let probeCalls = 0;
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      if (String(input) === "/api/v1/auth/refresh") {
+        return new Promise<Response>((resolve) => { finishRefresh = resolve; });
+      }
+      if (String(input) === "/api/v1/auth/logout") return new Response('{"status":"logged_out"}');
+      probeCalls += 1;
+      return probeCalls === 1
+        ? new Response("{}", { status: 401 })
+        : new Response('{"id":"current-user"}');
+    });
+
+    const recoveringProbe = apiClient("/auth/me");
+    await vi.waitFor(() => expect(fetchMock.mock.calls.some(([url]) => url === "/api/v1/auth/refresh")).toBe(true));
+    const controller = new AbortController();
+    const logout = logoutSession(controller.signal);
+    controller.abort();
+
+    await expect(logout).rejects.toMatchObject({ name: "AbortError" });
+    finishRefresh(new Response('{"status":"refreshed"}'));
+    await expect(recoveringProbe).resolves.toEqual({ id: "current-user" });
+    expect(fetchMock.mock.calls.some(([url]) => url === "/api/v1/auth/logout")).toBe(false);
   });
 
   it("rechecks a delayed 401 without rotating again after another probe recovered", async () => {
