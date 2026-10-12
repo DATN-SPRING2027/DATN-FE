@@ -7,7 +7,7 @@ import {
   type UseMutationOptions,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, logoutSession } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
 
 export type LoginInput = Readonly<{
@@ -20,13 +20,23 @@ export type LoginResponse = Readonly<{
   user: CurrentUserResponse;
 }>;
 
-export type CurrentUserResponse = Readonly<{
-  id: string;
-  email: string;
-  name: string;
-  organizationId: string;
-  roles: readonly string[];
-}>;
+export type CurrentUserResponse =
+  | Readonly<{
+      id: string;
+      email: string;
+      name: string;
+      context: "ACCOUNT";
+      organizationId?: never;
+      roles?: never;
+    }>
+  | Readonly<{
+      id: string;
+      email: string;
+      name: string;
+      context?: "ORGANIZATION";
+      organizationId: string;
+      roles: readonly string[];
+    }>;
 
 export function useCurrentUserQuery(
   options?: Omit<UseQueryOptions<CurrentUserResponse>, "queryKey" | "queryFn">,
@@ -37,7 +47,8 @@ export function useCurrentUserQuery(
     queryFn: () => apiClient<CurrentUserResponse>("/auth/me"),
     retry: false,
     staleTime: 30_000,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: (query) => query.state.status !== "error",
+    refetchOnReconnect: (query) => query.state.status !== "error",
   });
 }
 
@@ -52,6 +63,7 @@ export function useLoginMutation(
   return useMutation({
     ...options,
     mutationKey: ["login"],
+    retry: false,
     mutationFn: (credentials: LoginInput) =>
       apiClient<LoginResponse>("/auth/login", {
         method: "POST",
@@ -71,10 +83,19 @@ export function useLogoutMutation(
 
   return useMutation({
     ...options,
-    mutationFn: () =>
-      apiClient<void>("/api/v1/auth/logout", {
-        method: "POST",
-      }),
+    mutationKey: ["logout"],
+    retry: false,
+    // Report offline failure instead of leaving logout queued until reconnect.
+    networkMode: "always",
+    mutationFn: async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10_000);
+      try {
+        await logoutSession(controller.signal);
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
     onSuccess: (...args) => {
       queryClient.clear();
       options?.onSuccess?.(...args);

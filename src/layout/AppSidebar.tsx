@@ -409,7 +409,7 @@ const AppSidebar: React.FC = () => {
                 navItems.filter(
                   (item) =>
                     item.key !== "users" ||
-                    currentUser.data?.roles.includes("ADMIN"),
+                    currentUser.data?.roles?.includes("ADMIN"),
                 ),
                 "main",
               )}

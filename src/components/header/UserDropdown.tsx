@@ -259,14 +259,16 @@ export default function UserDropdown() {
             )}
           </li>
         </ul>
-        {logout.isError && <Alert variant="error" title={t("signOutErrorTitle")} message={t("signOutErrorMessage")} />}
+        {logout.isError && <div role="alert" className="mt-3"><Alert variant="error" title={t("signOutErrorTitle")} message={t("signOutErrorMessage")} /></div>}
         <button
           type="button"
           onClick={handleLogout}
           disabled={logout.isPending}
-          className="group mt-3 flex items-center justify-center gap-3 rounded-lg border border-gray-200 px-3 py-2 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
+          aria-busy={logout.isPending}
+          className="group mt-3 flex w-full items-center justify-center gap-3 rounded-lg border border-gray-200 px-3 py-3 text-theme-sm font-medium text-gray-700 transition hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-wait disabled:opacity-50 dark:border-gray-800 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-300"
         >
-          {t("signOut")}
+          {logout.isPending && <span aria-hidden="true" className="size-4 rounded-full border-2 border-gray-300 border-t-brand-500 motion-safe:animate-spin dark:border-gray-600 dark:border-t-brand-400" />}
+          <span aria-live="polite">{logout.isPending ? t("signingOut") : t("signOut")}</span>
         </button>
       </Dropdown>
     </div>

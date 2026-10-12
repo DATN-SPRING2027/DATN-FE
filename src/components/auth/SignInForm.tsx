@@ -5,21 +5,31 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
+import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
 import Select from "@/components/form/Select";
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUserQuery, useLoginMutation } from "@/lib/queries/auth/useAuth";
+import {
+  useCurrentUserQuery,
+  useLoginMutation,
+} from "@/lib/queries/auth/useAuth";
 import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
 
-export default function SignInForm() {
+export default function SignInForm({
+  googleStatus,
+}: {
+  googleStatus?: "organization-required" | "failed" | "cancelled";
+}) {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
-  const [organizations, setOrganizations] = useState<readonly { id: string; name: string }[]>([]);
+  const [organizations, setOrganizations] = useState<
+    readonly { id: string; name: string }[]
+  >([]);
   const [sessionError, setSessionError] = useState(false);
   const t = useTranslations("auth");
   const router = useRouter();
@@ -27,7 +37,8 @@ export default function SignInForm() {
   const login = useLoginMutation();
 
   useEffect(() => {
-    if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) router.replace("/");
+    if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data)
+      router.replace("/");
   }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -42,18 +53,38 @@ export default function SignInForm() {
       const session = await currentUser.refetch();
       if (!session.data) setSessionError(true);
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409 && error.code === "ORGANIZATION_SELECTION_REQUIRED") {
+      if (
+        error instanceof ApiError &&
+        error.status === 409 &&
+        error.code === "ORGANIZATION_SELECTION_REQUIRED"
+      ) {
         setOrganizations(error.organizations ?? []);
       }
     }
   }
 
   const error = login.error instanceof ApiError ? login.error : undefined;
-  const errorMessage = sessionError ? t("sessionError") : error?.status === 401
-    ? t("invalidCredentials") : error?.status === 409
-      ? t("organizationRequired") : error?.status === 422
-        ? t("invalidInput") : error?.status === 429
-          ? t("rateLimited") : login.error ? t("unexpectedError") : null;
+  const errorMessage = sessionError
+    ? t("sessionError")
+    : error?.status === 401
+      ? t("invalidCredentials")
+      : error?.status === 409
+        ? t("organizationRequired")
+        : error?.status === 422
+          ? t("invalidInput")
+          : error?.status === 429
+            ? t("rateLimited")
+            : login.error
+              ? t("unexpectedError")
+              : null;
+  const googleMessage =
+    googleStatus === "organization-required"
+      ? t("googleOrganizationRequired")
+      : googleStatus === "cancelled"
+        ? t("googleCancelled")
+        : googleStatus === "failed"
+          ? t("googleFailed")
+          : null;
 
   return (
     <div className="flex w-full flex-1 flex-col lg:w-1/2">
@@ -77,14 +108,51 @@ export default function SignInForm() {
             </p>
           </div>
           <div>
+            <GoogleOAuthButton label={t("continueWithGoogle")} />
+            <div className="relative py-3 sm:py-5">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200 dark:border-gray-800" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-4 text-gray-400 dark:bg-gray-900">
+                  {t("or")}
+                </span>
+              </div>
+            </div>
+            {googleMessage && (
+              <Alert
+                variant="error"
+                title={t("googleSignInError")}
+                message={googleMessage}
+              />
+            )}
             <form onSubmit={handleSubmit}>
               <div className="space-y-6">
-                {errorMessage && <Alert variant="error" title={t("signInError")} message={errorMessage} />}
+                {errorMessage && (
+                  <Alert
+                    variant="error"
+                    title={t("signInError")}
+                    message={errorMessage}
+                  />
+                )}
                 <div>
                   <Label htmlFor="signin-email">
                     Email <span className="text-error-500">*</span>{" "}
                   </Label>
-                  <Input id="signin-email" name="email" type="email" autoComplete="username" required value={email} onChange={(event) => { setEmail(event.target.value); setOrganizationId(""); setOrganizations([]); }} placeholder="info@gmail.com" />
+                  <Input
+                    id="signin-email"
+                    name="email"
+                    type="email"
+                    autoComplete="username"
+                    required
+                    value={email}
+                    onChange={(event) => {
+                      setEmail(event.target.value);
+                      setOrganizationId("");
+                      setOrganizations([]);
+                    }}
+                    placeholder="info@gmail.com"
+                  />
                 </div>
                 <div>
                   <Label htmlFor="signin-password">
@@ -97,13 +165,17 @@ export default function SignInForm() {
                       autoComplete="current-password"
                       required
                       value={password}
-                      onChange={(event) => { setPassword(event.target.value); setOrganizationId(""); setOrganizations([]); }}
+                      onChange={(event) => {
+                        setPassword(event.target.value);
+                        setOrganizationId("");
+                        setOrganizations([]);
+                      }}
                       type={showPassword ? "text" : "password"}
                       placeholder="Enter your password"
                     />
                     <span
                       onClick={() => setShowPassword(!showPassword)}
-                      className="inset-e-4 absolute top-1/2 z-30 -translate-y-1/2 cursor-pointer"
+                      className="absolute inset-e-4 top-1/2 z-30 -translate-y-1/2 cursor-pointer"
                     >
                       {showPassword ? (
                         <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
@@ -115,8 +187,18 @@ export default function SignInForm() {
                 </div>
                 {organizations.length > 0 && (
                   <div>
-                    <Label htmlFor="signin-organization">{t("organizationId")}</Label>
-                    <Select id="signin-organization" placeholder={t("selectOrganization")} options={organizations.map((organization) => ({ value: organization.id, label: organization.name }))} onChange={setOrganizationId} />
+                    <Label htmlFor="signin-organization">
+                      {t("organizationId")}
+                    </Label>
+                    <Select
+                      id="signin-organization"
+                      placeholder={t("selectOrganization")}
+                      options={organizations.map((organization) => ({
+                        value: organization.id,
+                        label: organization.name,
+                      }))}
+                      onChange={setOrganizationId}
+                    />
                   </div>
                 )}
                 <div className="flex items-center justify-between">
@@ -134,7 +216,15 @@ export default function SignInForm() {
                   </Link>
                 </div>
                 <div>
-                  <Button className="w-full" size="sm" disabled={login.isPending || currentUser.isFetching || (organizations.length > 0 && !organizationId)}>
+                  <Button
+                    className="w-full"
+                    size="sm"
+                    disabled={
+                      login.isPending ||
+                      currentUser.isFetching ||
+                      (organizations.length > 0 && !organizationId)
+                    }
+                  >
                     Sign in
                   </Button>
                 </div>

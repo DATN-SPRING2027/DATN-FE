@@ -4,12 +4,11 @@ import { useSidebar } from "@/context/SidebarContext";
 import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
-import Alert from "@/components/ui/alert/Alert";
+import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
 import { useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { useTranslations } from "next-intl";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 
 export default function AdminLayout({
   children,
@@ -19,49 +18,57 @@ export default function AdminLayout({
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
-  const t = useTranslations("auth");
+  const [isRetrying, setIsRetrying] = useState(false);
   const unauthorized =
     currentUser.error instanceof ApiError && currentUser.error.status === 401;
+
+  const retrySession = async () => {
+    if (isRetrying || currentUser.isFetching) return;
+    setIsRetrying(true);
+    try {
+      await currentUser.refetch();
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   useEffect(() => {
     if (unauthorized) {
       router.replace("/signin");
+    } else if (currentUser.data?.context === "ACCOUNT") {
+      router.replace("/onboarding");
     }
-  }, [unauthorized, router]);
+  }, [unauthorized, currentUser.data?.context, router]);
 
-  if (currentUser.isError || !currentUser.data) {
-    if (currentUser.isError && !unauthorized) {
+  if (isRetrying || currentUser.isError || !currentUser.data) {
+    if ((isRetrying || currentUser.isError) && !unauthorized) {
       return (
-        <div className="mx-auto mt-10 max-w-md space-y-4">
-          <Alert
-            variant="error"
-            title={t("sessionUnavailable")}
-            message={t("sessionUnavailableMessage")}
-          />
-          <button
-            type="button"
-            onClick={() => currentUser.refetch()}
-            className="text-sm font-medium text-brand-500 hover:text-brand-600"
-          >
-            {t("tryAgain")}
-          </button>
-        </div>
+        <SessionRecoveryPanel
+          state="error"
+          isRetrying={isRetrying || currentUser.isFetching}
+          onRetry={() => {
+            void retrySession();
+          }}
+        />
       );
     }
     return (
-      <div
-        className="min-h-screen bg-white dark:bg-gray-900"
-        aria-busy="true"
-      />
+      <SessionRecoveryPanel state={unauthorized ? "redirecting" : "checking"} />
+    );
+  }
+
+  if (currentUser.data.context === "ACCOUNT") {
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />
     );
   }
 
   // Dynamic class for main content margin based on sidebar state
   const mainContentMargin = isMobileOpen
-    ? "ml-0"
+    ? "ms-0"
     : isExpanded || isHovered
-      ? "lg:ml-[290px]"
-      : "lg:ml-[90px]";
+      ? "lg:ms-[290px]"
+      : "lg:ms-[90px]";
 
   return (
     <div className="min-h-screen xl:flex">
