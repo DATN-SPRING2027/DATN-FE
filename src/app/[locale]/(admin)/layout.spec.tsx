@@ -43,6 +43,18 @@ describe("protected dashboard layout", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
   });
 
+  it("routes an authenticated Account without membership to onboarding", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "new-user", email: "new@example.test", name: "New User", context: "ACCOUNT" },
+      error: null,
+      isError: false,
+      isFetching: false,
+    } as never);
+    render(<AdminLayout><div>Organization data</div></AdminLayout>);
+    expect(screen.queryByText("Organization data")).not.toBeInTheDocument();
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+  });
+
   it("shows a retry alert for a server error without redirecting", () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: undefined,

@@ -25,8 +25,10 @@ export default function AdminLayout({
   useEffect(() => {
     if (unauthorized) {
       router.replace("/signin");
+    } else if (currentUser.data?.context === "ACCOUNT") {
+      router.replace("/onboarding");
     }
-  }, [unauthorized, router]);
+  }, [unauthorized, currentUser.data?.context, router]);
 
   if (currentUser.isError || !currentUser.data) {
     if (currentUser.isError && !unauthorized) {
@@ -37,6 +39,10 @@ export default function AdminLayout({
         </div>
       );
     }
+    return <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />;
+  }
+
+  if (currentUser.data.context === "ACCOUNT") {
     return <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />;
   }
 
