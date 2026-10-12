@@ -2,25 +2,28 @@ import { Link } from "@/i18n/navigation";
 
 interface BreadcrumbProps {
   pageTitle: string;
+  homeLabel?: string;
+  items?: readonly { label: string; href: string }[];
 }
 
-const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
+const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
+  pageTitle,
+  homeLabel = "Home",
+  items = [],
+}) => {
   return (
     <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-      <h2
-        className="text-xl font-semibold text-gray-800 dark:text-white/90"
-        x-text="pageName"
-      >
+      <h2 className="text-xl font-semibold text-gray-800 dark:text-white/90">
         {pageTitle}
       </h2>
       <nav>
-        <ol className="flex items-center gap-1.5">
+        <ol className="flex flex-wrap items-center gap-1.5">
           <li>
             <Link
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
               href="/"
             >
-              Home
+              {homeLabel}
               <svg
                 className="stroke-current rtl:rotate-180"
                 width="17"
@@ -39,7 +42,26 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({ pageTitle }) => {
               </svg>
             </Link>
           </li>
-          <li className="text-sm text-gray-800 dark:text-white/90">
+          {items.map((item) => (
+            <li
+              key={item.href}
+              className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
+            >
+              <Link
+                href={item.href}
+                className="hover:text-brand-600 dark:hover:text-brand-400"
+              >
+                {item.label}
+              </Link>
+              <span aria-hidden="true" className="rtl:rotate-180">
+                ›
+              </span>
+            </li>
+          ))}
+          <li
+            aria-current="page"
+            className="text-sm text-gray-800 dark:text-white/90"
+          >
             {pageTitle}
           </li>
         </ol>

@@ -19,7 +19,8 @@ export default function AdminLayout({
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
-  const unauthorized = currentUser.error instanceof ApiError && currentUser.error.status === 401;
+  const unauthorized =
+    currentUser.error instanceof ApiError && currentUser.error.status === 401;
 
   const retrySession = async () => {
     if (isRetrying || currentUser.isFetching) return;
@@ -42,7 +43,13 @@ export default function AdminLayout({
   if (isRetrying || currentUser.isError || !currentUser.data) {
     if ((isRetrying || currentUser.isError) && !unauthorized) {
       return (
-        <SessionRecoveryPanel state="error" isRetrying={isRetrying || currentUser.isFetching} onRetry={() => { void retrySession(); }} />
+        <SessionRecoveryPanel
+          state="error"
+          isRetrying={isRetrying || currentUser.isFetching}
+          onRetry={() => {
+            void retrySession();
+          }}
+        />
       );
     }
     return (
@@ -51,15 +58,17 @@ export default function AdminLayout({
   }
 
   if (currentUser.data.context === "ACCOUNT") {
-    return <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />;
+    return (
+      <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />
+    );
   }
 
   // Dynamic class for main content margin based on sidebar state
   const mainContentMargin = isMobileOpen
-    ? "ml-0"
+    ? "ms-0"
     : isExpanded || isHovered
-    ? "lg:ml-[290px]"
-    : "lg:ml-[90px]";
+      ? "lg:ms-[290px]"
+      : "lg:ms-[90px]";
 
   return (
     <div className="min-h-screen xl:flex">
@@ -68,12 +77,14 @@ export default function AdminLayout({
       <Backdrop />
       {/* Main Content Area */}
       <div
-        className={`flex-1 transition-all  duration-300 ease-in-out ${mainContentMargin}`}
+        className={`min-w-0 flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}
       >
         {/* Header */}
         <AppHeader />
         {/* Page Content */}
-        <div className="p-4 mx-auto max-w-(--breakpoint-2xl) md:p-6">{children}</div>
+        <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+          {children}
+        </div>
       </div>
     </div>
   );
