@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -18,11 +19,17 @@ vi.mock("@/lib/queries/auth/useAuth", () => ({
   useRequestPasswordResetMutation: vi.fn(),
 }));
 
+function renderWithResetToken(token: string) {
+  window.history.replaceState(null, "", `/reset-password#token=${token}`);
+  return render(<PasswordResetForm />);
+}
+
 describe("PasswordResetForm", () => {
   const requestMutation = vi.fn();
   const confirmMutation = vi.fn();
 
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     requestMutation.mockReset();
     confirmMutation.mockReset();
     vi.mocked(useRequestPasswordResetMutation).mockReturnValue({
@@ -55,7 +62,7 @@ describe("PasswordResetForm", () => {
   });
 
   it("does not submit mismatched passwords", () => {
-    render(<PasswordResetForm token={"a".repeat(43)} />);
+    renderWithResetToken("a".repeat(43));
     fireEvent.change(screen.getByLabelText("newPassword"), {
       target: { value: "A-long-password-123" },
     });
@@ -70,10 +77,21 @@ describe("PasswordResetForm", () => {
     expect(confirmMutation).not.toHaveBeenCalled();
   });
 
-  it("submits a matching password and replaces the token-bearing address", async () => {
+  it("reads the token from the URL fragment and clears it before submission", async () => {
+    const token = "a".repeat(43);
+    window.history.replaceState(null, "", `/reset-password#token=${token}`);
     const replaceState = vi.spyOn(window.history, "replaceState");
     confirmMutation.mockResolvedValue(undefined);
-    render(<PasswordResetForm token={"a".repeat(43)} />);
+    render(<PasswordResetForm />);
+
+    expect(replaceState).toHaveBeenCalledWith(
+      null,
+      "",
+      "/reset-password",
+    );
+    expect(window.location.hash).toBe("");
+    expect(window.location.search).toBe("");
+
     fireEvent.change(screen.getByLabelText("newPassword"), {
       target: { value: "A-long-password-123" },
     });
@@ -86,16 +104,43 @@ describe("PasswordResetForm", () => {
 
     await waitFor(() =>
       expect(confirmMutation).toHaveBeenCalledWith({
-        token: "a".repeat(43),
+        token,
         password: "A-long-password-123",
       }),
     );
+    expect(replaceState).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("resetPasswordSuccessMessage")).toBeInTheDocument();
+  });
+
+  it("does not accept reset tokens from a query string", () => {
+    const token = "a".repeat(43);
+    window.history.replaceState(null, "", `/reset-password?token=${token}`);
+    const replaceState = vi.spyOn(window.history, "replaceState");
+    render(<PasswordResetForm />);
+
     expect(replaceState).toHaveBeenCalledWith(
       null,
       "",
-      window.location.pathname,
+      "/reset-password",
     );
-    expect(screen.getByText("resetPasswordSuccessMessage")).toBeInTheDocument();
+    expect(screen.getByText("forgotPasswordTitle")).toBeInTheDocument();
+    expect(window.location.search).toBe("");
+    expect(confirmMutation).not.toHaveBeenCalled();
+  });
+
+  it("keeps the reset token when React replays the mount effect", () => {
+    window.history.replaceState(
+      null,
+      "",
+      `/reset-password#token=${"a".repeat(43)}`,
+    );
+    render(
+      <StrictMode>
+        <PasswordResetForm />
+      </StrictMode>,
+    );
+
+    expect(screen.getByLabelText("newPassword")).toBeInTheDocument();
   });
 
   it("uses one generic message for expired or already used reset links", () => {
@@ -104,7 +149,7 @@ describe("PasswordResetForm", () => {
       isPending: false,
       error: new ApiError(400, "PASSWORD_RESET_TOKEN_INVALID", "expired"),
     } as never);
-    render(<PasswordResetForm token={"a".repeat(43)} />);
+    renderWithResetToken("a".repeat(43));
 
     expect(screen.getByText("resetPasswordInvalidMessage")).toBeInTheDocument();
   });
@@ -119,8 +164,25 @@ describe("PasswordResetForm", () => {
         "unsupported password length",
       ),
     } as never);
-    render(<PasswordResetForm token={"a".repeat(43)} />);
+    renderWithResetToken("a".repeat(43));
 
     expect(screen.getByText("passwordLengthError")).toBeInTheDocument();
+  });
+
+  it("blocks passwords that exceed bcrypt's UTF-8 byte limit", () => {
+    renderWithResetToken("a".repeat(43));
+    const password = "é".repeat(37);
+    fireEvent.change(screen.getByLabelText("newPassword"), {
+      target: { value: password },
+    });
+    fireEvent.change(screen.getByLabelText("confirmPassword"), {
+      target: { value: password },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "resetPasswordAction" }),
+    );
+
+    expect(screen.getByText("passwordLengthError")).toBeInTheDocument();
+    expect(confirmMutation).not.toHaveBeenCalled();
   });
 });

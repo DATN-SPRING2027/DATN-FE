@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useLayoutEffect, useState, type FormEvent } from "react";
 import { Link } from "@/i18n/navigation";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -13,16 +13,30 @@ import {
 } from "@/lib/queries/auth/useAuth";
 import { useTranslations } from "next-intl";
 
-export default function PasswordResetForm({ token }: { token?: string }) {
+export default function PasswordResetForm() {
   const t = useTranslations("auth");
+  const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [requestAccepted, setRequestAccepted] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
   const [passwordMismatch, setPasswordMismatch] = useState(false);
+  const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const requestReset = useRequestPasswordResetMutation();
   const completeReset = useCompletePasswordResetMutation();
+
+  useLayoutEffect(() => {
+    if (!window.location.hash && !window.location.search) return;
+
+    const resetToken = new URLSearchParams(
+      window.location.hash.slice(1),
+    ).get("token");
+    window.history.replaceState(null, "", window.location.pathname);
+    // Capture this client-only credential before removing it from browser history.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setToken(resetToken ?? "");
+  }, []);
 
   async function submitRequest(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -38,11 +52,14 @@ export default function PasswordResetForm({ token }: { token?: string }) {
   async function submitNewPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPasswordMismatch(password !== confirmPassword);
-    if (password !== confirmPassword || !token) return;
+    const passwordLength = Array.from(password).length;
+    const passwordBytes = new TextEncoder().encode(password).length;
+    const passwordIsValid = passwordLength >= 12 && passwordBytes <= 72;
+    setPasswordPolicyError(!passwordIsValid);
+    if (password !== confirmPassword || !passwordIsValid || !token) return;
 
     try {
       await completeReset.mutateAsync({ token, password });
-      window.history.replaceState(null, "", window.location.pathname);
       setPasswordUpdated(true);
     } catch {
       // The UI maps invalid, expired and consumed tokens to one message.
@@ -98,6 +115,11 @@ export default function PasswordResetForm({ token }: { token?: string }) {
             }
           />
         ) : null}
+        {passwordPolicyError ? (
+          <p role="alert" className="text-sm text-error-500">
+            {t("passwordLengthError")}
+          </p>
+        ) : null}
         <form onSubmit={submitNewPassword} className="space-y-5">
           <div>
             <Label htmlFor="new-password">{t("newPassword")}</Label>
@@ -110,7 +132,10 @@ export default function PasswordResetForm({ token }: { token?: string }) {
               maxLength={72}
               required
               value={password}
-              onChange={(event) => setPassword(event.target.value)}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                setPasswordPolicyError(false);
+              }}
             />
           </div>
           <div>
