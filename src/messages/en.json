@@ -156,6 +156,7 @@
     "forgotPasswordLink": "Forgot password?",
     "forgotPasswordTitle": "Reset your password",
     "forgotPasswordDescription": "Enter the email address on your account and we’ll send reset instructions if it is eligible.",
+    "email": "Email",
     "sendResetLink": "Send reset link",
     "sendingResetLink": "Sending…",
     "resetRequestAcceptedTitle": "Check your email",
