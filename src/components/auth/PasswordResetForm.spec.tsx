@@ -86,6 +86,31 @@ describe("PasswordResetForm", () => {
     expect(confirmMutation).not.toHaveBeenCalled();
   });
 
+  it("clears and recalculates the mismatch warning while passwords are edited", () => {
+    renderWithResetToken("a".repeat(43));
+    fireEvent.change(screen.getByLabelText("newPassword"), {
+      target: { value: "A-long-password-123" },
+    });
+    fireEvent.change(screen.getByLabelText("confirmPassword"), {
+      target: { value: "A-different-password" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "resetPasswordAction" }),
+    );
+
+    expect(screen.getByText("passwordMismatch")).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("confirmPassword"), {
+      target: { value: "A-long-password-123" },
+    });
+    expect(screen.queryByText("passwordMismatch")).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("confirmPassword"), {
+      target: { value: "A-different-password" },
+    });
+    expect(screen.getByText("passwordMismatch")).toBeInTheDocument();
+  });
+
   it("reads the token from the URL fragment and clears it before submission", async () => {
     const token = "a".repeat(43);
     window.history.replaceState(null, "", `/reset-password#token=${token}`);

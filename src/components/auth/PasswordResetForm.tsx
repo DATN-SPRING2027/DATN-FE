@@ -32,7 +32,7 @@ export default function PasswordResetForm() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [requestAccepted, setRequestAccepted] = useState(false);
   const [passwordUpdated, setPasswordUpdated] = useState(false);
-  const [passwordMismatch, setPasswordMismatch] = useState(false);
+  const [passwordSubmitAttempted, setPasswordSubmitAttempted] = useState(false);
   const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const requestReset = useRequestPasswordResetMutation();
   const completeReset = useCompletePasswordResetMutation();
@@ -62,7 +62,7 @@ export default function PasswordResetForm() {
 
   async function submitNewPassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setPasswordMismatch(password !== confirmPassword);
+    setPasswordSubmitAttempted(true);
     const passwordLength = Array.from(password).length;
     const passwordBytes = new TextEncoder().encode(password).length;
     const passwordIsValid = passwordLength >= 12 && passwordBytes <= 72;
@@ -87,6 +87,7 @@ export default function PasswordResetForm() {
   const passwordBytes = new TextEncoder().encode(password).length;
   const isLengthValid = passwordLength >= 12 && passwordBytes <= 72;
   const isMatchValid = confirmPassword.length > 0 && password === confirmPassword;
+  const passwordMismatch = passwordSubmitAttempted && password !== confirmPassword;
 
   // Password strength score (0 to 3)
   const strengthScore = (() => {
