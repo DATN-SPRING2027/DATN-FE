@@ -1,7 +1,5 @@
 "use client";
 
-import { useId, useState } from "react";
-import ProjectMembers from "./members/ProjectMembers";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
@@ -10,9 +8,6 @@ import ComponentCard from "@/components/common/ComponentCard";
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const format = useFormatter();
-  const memberLabels = useTranslations("projectMembers");
-  const [tab, setTab] = useState<"overview" | "members">("overview");
-  const tabId = useId();
   const date = (value: string) =>
     format.dateTime(new Date(value), {
       dateStyle: "medium",
@@ -33,20 +28,11 @@ export default function ProjectOverview({ project }: { project: Project }) {
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <Link
-          href="/projects"
-          className="hover:text-brand-600 dark:hover:text-brand-400"
-        >
-          {t("title")}
-        </Link>
+        <Link href="/projects" className="hover:text-brand-600 dark:hover:text-brand-400">{t("title")}</Link>
         <span>/</span>
-        <span className="rounded-md bg-gray-100 px-2 py-0.5 font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-          {project.code}
-        </span>
+        <span className="rounded-md bg-gray-100 px-2 py-0.5 font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">{project.code}</span>
         <span>/</span>
-        <span className="font-medium text-gray-800 dark:text-white/90">
-          Details
-        </span>
+        <span className="font-medium text-gray-800 dark:text-white/90">Details</span>
       </nav>
       <header className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
@@ -54,11 +40,9 @@ export default function ProjectOverview({ project }: { project: Project }) {
             {project.name}
           </h1>
           <span
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
+            className={`shrink-0 flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
           >
-            <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}
-            ></span>
+            <span className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}></span>
             {t(project.status === "ACTIVE" ? "active" : "archived")}
           </span>
         </div>
@@ -66,105 +50,61 @@ export default function ProjectOverview({ project }: { project: Project }) {
           {t("overviewHint")}
         </p>
       </header>
-      <div
-        role="tablist"
-        aria-label={project.name}
-        className="flex flex-wrap items-center gap-5 border-b border-gray-200 dark:border-gray-800"
-      >
-        {(["overview", "members"] as const).map((value) => (
-          <button
-            key={value}
-            id={`${tabId}-${value}-tab`}
-            role="tab"
-            type="button"
-            aria-selected={tab === value}
-            aria-controls={`${tabId}-${value}-panel`}
-            tabIndex={tab === value ? 0 : -1}
-            onClick={() => setTab(value)}
-            onKeyDown={(event) => {
-              let next: typeof tab;
-              if (event.key === "ArrowLeft" || event.key === "ArrowRight")
-                next = value === "overview" ? "members" : "overview";
-              else if (event.key === "Home") next = "overview";
-              else if (event.key === "End") next = "members";
-              else return;
-              event.preventDefault();
-              setTab(next);
-              document.getElementById(`${tabId}-${next}-tab`)?.focus();
-            }}
-            className={`cursor-pointer border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
+      <div className="border-b border-gray-200 pb-3 dark:border-gray-800">
+        <h2 className="inline-block border-b-2 border-brand-500 pb-3 text-sm font-medium text-brand-600 dark:text-brand-400">
+          {t("overview")}
+        </h2>
+      </div>
+      <dl className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
+        {summary.map(({ label, value }) => (
+          <div
+            key={label}
+            className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs @xl:p-5 dark:border-gray-800 dark:bg-gray-900"
           >
-            {value === "overview" ? t("overview") : memberLabels("title")}
-          </button>
+            <dt className="text-sm text-gray-500 dark:text-gray-400">
+              {t(label)}
+            </dt>
+            <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90">
+              {label === "updatedAt" ? (
+                <time dateTime={project.updatedAt}>{value}</time>
+              ) : (
+                value
+              )}
+            </dd>
+          </div>
         ))}
-      </div>
-      <div
-        id={`${tabId}-overview-panel`}
-        role="tabpanel"
-        aria-labelledby={`${tabId}-overview-tab`}
-        hidden={tab !== "overview"}
-        className="space-y-5 sm:space-y-6"
-      >
-        <dl className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
-          {summary.map(({ label, value }) => (
-            <div
-              key={label}
-              className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs @xl:p-5 dark:border-gray-800 dark:bg-gray-900"
-            >
-              <dt className="text-sm text-gray-500 dark:text-gray-400">
-                {t(label)}
-              </dt>
-              <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90">
-                {label === "updatedAt" ? (
-                  <time dateTime={project.updatedAt}>{value}</time>
-                ) : (
-                  value
-                )}
-              </dd>
-            </div>
-          ))}
-        </dl>
-        <div className="grid min-w-0 grid-cols-1 items-start gap-4 @4xl:grid-cols-3 @4xl:gap-6">
-          <ComponentCard
-            title={t("description")}
-            className="min-w-0 @4xl:col-span-2"
-          >
-            <p className="text-sm leading-6 [overflow-wrap:anywhere] whitespace-pre-wrap text-gray-600 dark:text-gray-300">
-              {project.description || t("noDescription")}
-            </p>
-          </ComponentCard>
-          <ComponentCard title={t("projectContext")} className="min-w-0">
-            <dl className="space-y-5">
-              {context.map(({ label, value }) => (
-                <div key={label}>
-                  <dt className="text-sm text-gray-500 dark:text-gray-400">
-                    {t(label)}
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium break-all text-gray-800 dark:text-gray-200">
-                    {label === "createdAt" ? (
-                      <time dateTime={project.createdAt}>{value}</time>
-                    ) : (
-                      value
-                    )}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-            <p className="border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500 dark:border-gray-800 dark:text-gray-400">
-              {t("contextHint")}
-            </p>
-          </ComponentCard>
-        </div>
-      </div>
-      {tab === "members" && (
-        <div
-          id={`${tabId}-members-panel`}
-          role="tabpanel"
-          aria-labelledby={`${tabId}-members-tab`}
+      </dl>
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 @4xl:grid-cols-3 @4xl:gap-6">
+        <ComponentCard
+          title={t("description")}
+          className="min-w-0 @4xl:col-span-2"
         >
-          <ProjectMembers projectId={project.id} />
-        </div>
-      )}
+          <p className="text-sm leading-6 [overflow-wrap:anywhere] whitespace-pre-wrap text-gray-600 dark:text-gray-300">
+            {project.description || t("noDescription")}
+          </p>
+        </ComponentCard>
+        <ComponentCard title={t("projectContext")} className="min-w-0">
+          <dl className="space-y-5">
+            {context.map(({ label, value }) => (
+              <div key={label}>
+                <dt className="text-sm text-gray-500 dark:text-gray-400">
+                  {t(label)}
+                </dt>
+                <dd className="mt-1 text-sm font-medium break-all text-gray-800 dark:text-gray-200">
+                  {label === "createdAt" ? (
+                    <time dateTime={project.createdAt}>{value}</time>
+                  ) : (
+                    value
+                  )}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            {t("contextHint")}
+          </p>
+        </ComponentCard>
+      </div>
     </div>
   );
 }

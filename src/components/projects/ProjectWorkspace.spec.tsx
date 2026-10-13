@@ -34,13 +34,6 @@ vi.mock("@/icons", () => ({
   FolderIcon: () => null,
   GridIcon: () => null,
   ListIcon: () => null,
-  TrashBinIcon: () => null,
-  TimeIcon: () => null,
-  PlusIcon: () => null,
-  CheckCircleIcon: () => null,
-  LockIcon: () => null,
-  UserCircleIcon: () => null,
-  GroupIcon: () => null,
 }));
 const api = vi.mocked(apiClient);
 const project = {
@@ -139,18 +132,8 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
     path === "/auth/me"
       ? user
       : list([
-          {
-            ...project,
-            id: "p2",
-            name: "Zulu",
-            updatedAt: "2026-10-06T00:00:00Z",
-          },
-          {
-            ...project,
-            id: "p1",
-            name: "Apollo",
-            updatedAt: "2026-10-05T00:00:00Z",
-          },
+          { ...project, id: "p2", name: "Zulu", updatedAt: "2026-10-06T00:00:00Z" },
+          { ...project, id: "p1", name: "Apollo", updatedAt: "2026-10-05T00:00:00Z" },
         ]),
   );
   mount(<ProjectWorkspace />);
@@ -161,13 +144,9 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
   const listViewButton = screen.getByRole("button", { name: "List view" });
   fireEvent.click(listViewButton);
   expect(listViewButton).toHaveAttribute("aria-pressed", "true");
-  fireEvent.change(screen.getByLabelText("Sort projects"), {
-    target: { value: "name" },
-  });
+  fireEvent.change(screen.getByLabelText("Sort projects"), { target: { value: "name" } });
   const cards = screen.getAllByRole("article");
-  expect(cards[0]).toContainElement(
-    screen.getByRole("link", { name: "Apollo" }),
-  );
+  expect(cards[0]).toContainElement(screen.getByRole("link", { name: "Apollo" }));
 });
 it.each([401, 403, 500])(
   "shows list error %s without using client selection as authorization",
@@ -371,9 +350,7 @@ it("renders server-returned public archived metadata without adding administrati
   );
   mount(<ProjectWorkspace />);
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(
-    within(screen.getByRole("article")).getByText("Archived"),
-  ).toBeVisible();
+  expect(within(screen.getByRole("article")).getByText("Archived")).toBeVisible();
   expect(screen.getByText("Project purpose")).toBeVisible();
   expect(screen.getByText("1 project")).toBeVisible();
   expect(screen.queryByText("Public")).not.toBeInTheDocument();
@@ -484,40 +461,5 @@ it("renders detail overview and context from backend metadata", async () => {
   expect(screen.getByText("u1")).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /deploy|edit|manage access/i }),
-  ).not.toBeInTheDocument();
-});
-
-it("switches member management inline without navigating away from Project details", async () => {
-  api.mockImplementation(async (path) => {
-    if (path === "/auth/me") return user;
-    if (path.includes("/memberships")) return list([]);
-    return project;
-  });
-  mount(<ProjectDetail projectId="p1" />);
-  const overview = await screen.findByRole("tab", { name: "Overview" });
-  const members = screen.getByRole("tab", { name: "Project members" });
-  expect(overview).toHaveAttribute("aria-selected", "true");
-  expect(api.mock.calls.some(([path]) => path.includes("/memberships"))).toBe(
-    false,
-  );
-  fireEvent.click(members);
-  expect(await screen.findByRole("form", { name: "Add member" })).toBeVisible();
-  expect(members).toHaveAttribute("aria-selected", "true");
-  expect(
-    screen.queryByRole("link", { name: "Project members" }),
-  ).not.toBeInTheDocument();
-  expect(screen.queryByText("Private")).not.toBeVisible();
-  expect(push).not.toHaveBeenCalled();
-  await waitFor(() =>
-    expect(api).toHaveBeenCalledWith(
-      "/iam/projects/p1/memberships?page=1&pageSize=20&status=ACTIVE",
-      expect.any(Object),
-    ),
-  );
-  fireEvent.keyDown(members, { key: "ArrowLeft" });
-  expect(overview).toHaveFocus();
-  expect(screen.getByText("Private")).toBeVisible();
-  expect(
-    screen.queryByRole("form", { name: "Add member" }),
   ).not.toBeInTheDocument();
 });
