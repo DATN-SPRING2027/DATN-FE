@@ -40,6 +40,33 @@ describe("auth BFF cookie journey", () => {
     ).toBe("203.0.113.7");
   });
 
+  it.each(["auth/password-reset/request", "auth/password-reset/confirm"])(
+    "forwards only the trusted edge client IP on %s",
+    async (path) => {
+      vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "1");
+      const backend = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(
+          new Response(null, { status: path.endsWith("request") ? 202 : 204 }),
+        );
+      const source = Object.assign(
+        new Request(`http://localhost:3000/api/backend/${path}`, {
+          method: "POST",
+          headers: { "x-forwarded-for": "192.0.2.9, 203.0.113.7" },
+        }),
+        { nextUrl: new URL(`http://localhost:3000/api/backend/${path}`) },
+      ) as NextRequest;
+      await POST(source, {
+        params: Promise.resolve({ path: path.split("/") }),
+      });
+      expect(
+        ((backend.mock.calls[0][1] as RequestInit).headers as Headers).get(
+          "x-forwarded-for",
+        ),
+      ).toBe("203.0.113.7");
+    },
+  );
+
   it("stops login when the configured edge did not supply a client IP", async () => {
     vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "1");
     const backend = vi.spyOn(globalThis, "fetch");
