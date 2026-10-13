@@ -31,6 +31,7 @@ vi.mock("@/icons", () =>
       "TimeIcon",
       "UserCircleIcon",
       "GroupIcon",
+      "EyeIcon",
       "FolderIcon",
       "ListIcon",
       "CheckCircleIcon",
@@ -83,6 +84,11 @@ async function findMember(id: string) {
   return (await screen.findAllByText(id))[0];
 }
 function submitAdd(id = "user-2") {
+  if (!screen.queryByRole("form", { name: "Add member" })) {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open Add member form" }),
+    );
+  }
   fireEvent.change(screen.getByLabelText("User ID"), { target: { value: id } });
   fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
 }
@@ -93,7 +99,9 @@ it("lists the documented projection without role or appointment controls", async
   respond();
   mount();
   expect(await findMember("user-1")).toBeVisible();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Open Add member form" }),
+  ).toBeEnabled();
   expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
   expect(api).toHaveBeenCalledWith(
     "/iam/projects/project-1/memberships?page=1&pageSize=20&status=ACTIVE",
@@ -184,7 +192,9 @@ it("denied listing is not empty and does not infer denial of add", async () => {
     screen.queryByText("No members match this filter."),
   ).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Open Add member form" }),
+  ).toBeEnabled();
 });
 it("denied add disables only add until access is checked again", async () => {
   api.mockImplementation(async (endpoint, options) => {
@@ -226,7 +236,9 @@ it("denied remove disables remove and keeps the member visible", async () => {
   ).toBeVisible();
   expect(screen.getByRole("button", { name: "Remove" })).toBeDisabled();
   expect(screen.getAllByText("user-1")[0]).toBeVisible();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Open Add member form" }),
+  ).toBeEnabled();
 });
 it.each([
   [
@@ -344,11 +356,11 @@ it("keeps pagination and status filtering in the documented contract", async () 
     ),
   );
   await findMember("user-1");
-  fireEvent.click(
-    within(screen.getByRole("group", { name: "Membership status" })).getByRole(
-      "button",
-      { name: "Inactive" },
-    ),
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "Membership status" }),
+    {
+      target: { value: "INACTIVE" },
+    },
   );
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
@@ -435,8 +447,14 @@ it("resets form, confirmation and denied action when Project scope changes", asy
   expect(
     screen.queryByRole("region", { name: "Remove member" }),
   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("form", { name: "Add member" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Open Add member form" }),
+  ).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
   expect(screen.getByLabelText("User ID")).toHaveValue("");
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
 });
 it("resets denied action when the trusted Organization changes", async () => {
   let organizationId = "org-1";
@@ -464,7 +482,9 @@ it("resets denied action when the trusted Organization changes", async () => {
   await view.client.invalidateQueries({ queryKey: ["auth"] });
   expect(await findMember("user-2")).toBeVisible();
   expect(screen.queryByText("user-1")).not.toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
+  expect(
+    screen.getByRole("button", { name: "Open Add member form" }),
+  ).toBeEnabled();
 });
 it("does not offer removal for inactive memberships", async () => {
   respond(page([{ ...member, status: "INACTIVE" }]));
@@ -580,7 +600,7 @@ it("handles archived Project access denial without exposing a member list", asyn
   expect(screen.getByRole("button", { name: "Add member" })).toBeDisabled();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
-it("selects a member from the side list without requesting new backend operations", async () => {
+it("selects a member from the table without requesting new backend operations", async () => {
   respond(
     page([
       member,
@@ -597,7 +617,9 @@ it("selects a member from the side list without requesting new backend operation
     screen.getByRole("button", { name: "View member user-2" }),
   ).toHaveAttribute("aria-pressed", "true");
   expect(
-    screen.queryByRole("button", { name: "Remove" }),
+    within(
+      screen.getByRole("button", { name: "View member user-2" }).closest("tr")!,
+    ).queryByRole("button", { name: "Remove" }),
   ).not.toBeInTheDocument();
   expect(api).toHaveBeenCalledTimes(requestCount);
 });
@@ -642,8 +664,14 @@ it.each(["add", "remove"] as const)(
     });
     const view = mount();
     await findMember("user-1");
-    if (action === "remove")
+    if (action === "add") {
+      fireEvent.click(
+        screen.getByRole("button", { name: "Open Add member form" }),
+      );
+      await screen.findByRole("form", { name: "Add member" });
+    } else {
       fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    }
     vi.useFakeTimers();
     try {
       await act(async () => {
@@ -676,3 +704,29 @@ it.each(["add", "remove"] as const)(
     }
   },
 );
+
+it("removes the intended table row by membership ID and offers only supported status filters", async () => {
+  api.mockImplementation(async (endpoint, options) => {
+    if (endpoint === "/auth/me") return user;
+    if (options?.method === "DELETE") return undefined;
+    return page([member, { ...member, id: "membership-2", userId: "user-2" }]);
+  });
+  mount();
+  const row = (
+    await screen.findByRole("button", { name: "View member user-2" })
+  ).closest("tr")!;
+  const status = screen.getByRole("combobox", { name: "Membership status" });
+  expect(
+    within(status)
+      .getAllByRole("option")
+      .map((option) => option.getAttribute("value")),
+  ).toEqual(["ACTIVE", "INACTIVE"]);
+  fireEvent.click(within(row).getByRole("button", { name: "Remove" }));
+  expect(screen.getByRole("dialog")).toHaveTextContent("user-2");
+  fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
+  await screen.findByText("Member removed from active Project access.");
+  expect(api).toHaveBeenCalledWith(
+    "/iam/projects/project-1/memberships/membership-2",
+    expect.objectContaining({ method: "DELETE" }),
+  );
+});

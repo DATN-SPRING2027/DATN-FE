@@ -15,11 +15,11 @@ not used to invent endpoints or additional fields.
 
 ## Accepted operations
 
-| Action | Backend operation | Request/result |
-| --- | --- | --- |
-| List | `GET /api/v1/iam/projects/{projectId}/memberships` | `page`, `pageSize=20`, optional `status`; membership projection plus pagination |
-| Add | `POST /api/v1/iam/projects/{projectId}/memberships` | Body contains only `userId`; successful membership response |
-| Remove | `DELETE /api/v1/iam/projects/{projectId}/memberships/{membershipId}` | Confirmation required in UI; `204` has no JSON body |
+| Action | Backend operation                                                    | Request/result                                                                  |
+| ------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| List   | `GET /api/v1/iam/projects/{projectId}/memberships`                   | `page`, `pageSize=20`, optional `status`; membership projection plus pagination |
+| Add    | `POST /api/v1/iam/projects/{projectId}/memberships`                  | Body contains only `userId`; successful membership response                     |
+| Remove | `DELETE /api/v1/iam/projects/{projectId}/memberships/{membershipId}` | Confirmation required in UI; `204` has no JSON body                             |
 
 Browser requests use the existing `/api/backend/iam/...` BFF. Membership rows
 show only the documented User ID, membership status and joined timestamp.
@@ -53,7 +53,7 @@ projection. The FE therefore uses the documented responses themselves:
 
 This provides response-driven controls within the accepted FE-only scope.
 If a future requirement is to hide or enable actions based on permissions
-*before the first attempt*, it needs a separately accepted server permission
+_before the first attempt_, it needs a separately accepted server permission
 projection. This implementation does not fabricate such a field or endpoint.
 
 ## Errors, state and concurrency
@@ -116,7 +116,6 @@ Git handoff: the existing checkout is
 `f6380a4`. This completion turn did not create or switch branches, stage, commit,
 push, create a PR or merge. All changes remain local for the user's review.
 
-
 ## Reference layout update
 
 The member page now follows the supplied reference's list-and-detail layout:
@@ -134,7 +133,7 @@ retained. This visual update creates or switches no branches and performs no
 stage, commit, push or merge.
 
 Reference-layout validation: `npm run check` passed lint, typecheck, all 205
- tests and production build. Browser smoke checks passed selection, add and
+tests and production build. Browser smoke checks passed selection, add and
 confirmed removal with the isolated fixture. Desktop 1440px, mobile 375px and
 dark mode were inspected; mobile document width stayed at 375px and the browser
 reported no console warnings/errors. A deliberate regression that ignored the
@@ -186,3 +185,41 @@ operation or payload changed. `npm run check` passed all 208 tests and build;
 browser fixture checks confirmed switching both ways without navigation.
 A deliberate reversed-panel mutation failed the new tab regression test; the
 source was restored byte-for-byte and all 39 Project workspace tests passed.
+
+## Table layout reference update
+
+The member tab now follows the supplied table layout: current-page User ID
+search, an ACTIVE/INACTIVE status dropdown, membership rows with initials,
+status badges, UTC join dates and explicit Remove actions, followed by the
+existing Add form. Selecting a User ID reveals its existing membership details.
+Removed decorative summary/safeguard/record cards stay removed. No fabricated
+profiles, role editing, access-level claims, invitations or new API operations
+are introduced. The misleading All filter was removed because the backend
+defaults omitted status to ACTIVE; both supported filters send explicit status.
+
+`npm run check` passed lint, typecheck, all 211 tests and production build.
+The new row-action test verifies removal uses the selected membership ID; a
+deliberate wrong-row mutation failed it and source was restored byte-for-byte.
+Desktop and mobile layouts were inspected using an isolated fixture; mobile
+keeps the document at 375px and scrolls the 672px table independently. Browser
+fixture removal targeted the expected row; no console warnings/errors appeared.
+The API hooks and backend remain unchanged.
+
+## Project members dashboard reference
+
+The project header now keeps only the Overview and Project members tabs. The
+Members tab shows summary cards, current-page search, a disabled role filter, a
+status filter backed by the supported ACTIVE/INACTIVE query, and a table with
+User name, User ID, project membership, project scope, status, join date and
+remove action. The membership response has no user name, so that cell displays
+an em dash; the FE does not call the separate organization directory API. The
+top Add member action opens the Members tab and displays the existing User ID form
+in a centered dialog with the User ID field focused. The dialog is hidden until requested. Sharing, role
+filtering and bulk selection remain disabled because the accepted Project
+member contract does not support them. Unknown access counts use an em dash; no
+mock users, profiles, roles or permissions are mixed into API results. No
+backend files, endpoints or payloads changed.
+
+`npm run lint`, `npm run typecheck`, and the Project member/workspace suites pass
+(73 tests). A production build was not rerun; an earlier attempt produced no
+output for more than two minutes and was stopped.

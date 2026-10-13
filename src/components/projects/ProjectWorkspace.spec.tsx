@@ -41,6 +41,7 @@ vi.mock("@/icons", () => ({
   LockIcon: () => null,
   UserCircleIcon: () => null,
   GroupIcon: () => null,
+  EyeIcon: () => null,
 }));
 const api = vi.mocked(apiClient);
 const project = {
@@ -154,7 +155,7 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
         ]),
   );
   mount(<ProjectWorkspace />);
-  expect(await screen.findByText("Apollo")).toBeVisible();
+  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
   expect(screen.getAllByText("Task data unavailable")).toHaveLength(2);
   expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
   expect(screen.queryByText("Updated at")).not.toBeInTheDocument();
@@ -193,7 +194,7 @@ it("retries a failed list", async () => {
   await screen.findByRole("alert");
   failed = false;
   fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-  expect(await screen.findByText("Apollo")).toBeVisible();
+  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
 });
 it("validates the form before sending a request, then submits only accepted fields", async () => {
   const onCreated = vi.fn();
@@ -249,7 +250,9 @@ it("loads project detail by the accepted ID path", async () => {
     path === "/auth/me" ? user : project,
   );
   mount(<ProjectDetail projectId="p1" />);
-  expect(await screen.findByText("Apollo")).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+  ).toBeVisible();
   expect(screen.getByText("Private")).toBeVisible();
   expect(api).toHaveBeenCalledWith(
     "/iam/projects/p1",
@@ -294,7 +297,7 @@ it("clears displayed projects when the trusted organization changes", async () =
     path === "/auth/me" ? user : organization === "org1" ? list() : list([]),
   );
   const { client } = mount(<ProjectWorkspace />);
-  await screen.findByText("Apollo");
+  await screen.findByRole("link", { name: "Apollo" });
   organization = "org2";
   act(() => {
     client.setQueryData(["auth", "current-user"], {
@@ -479,7 +482,7 @@ it("renders detail overview and context from backend metadata", async () => {
   expect(
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
-  expect(screen.getByText("First line Second line")).toBeVisible();
+  expect(screen.getAllByText("First line Second line")[0]).toBeVisible();
   expect(screen.getByText("org1")).toBeVisible();
   expect(screen.getByText("u1")).toBeVisible();
   expect(
@@ -501,7 +504,14 @@ it("switches member management inline without navigating away from Project detai
     false,
   );
   fireEvent.click(members);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("form", { name: "Add member" }),
+    ).not.toBeInTheDocument(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
   expect(await screen.findByRole("form", { name: "Add member" })).toBeVisible();
+  expect(screen.getByRole("dialog", { name: "Add member" })).toBeVisible();
   expect(members).toHaveAttribute("aria-selected", "true");
   expect(
     screen.queryByRole("link", { name: "Project members" }),

@@ -6,12 +6,15 @@ import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
+import Button from "@/components/ui/button/Button";
+import { GroupIcon, PlusIcon } from "@/icons";
 
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
   const [tab, setTab] = useState<"overview" | "members">("overview");
+  const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
   const date = (value: string) =>
     format.dateTime(new Date(value), {
@@ -30,6 +33,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
     { label: "createdBy", value: project.createdBy },
     { label: "createdAt", value: date(project.createdAt) },
   ];
+  const tabs = ["overview", "members"] as const;
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -40,38 +44,67 @@ export default function ProjectOverview({ project }: { project: Project }) {
           {t("title")}
         </Link>
         <span>/</span>
-        <span className="rounded-md bg-gray-100 px-2 py-0.5 font-medium text-gray-800 dark:bg-gray-800 dark:text-gray-200">
-          {project.code}
-        </span>
-        <span>/</span>
         <span className="font-medium text-gray-800 dark:text-white/90">
-          Details
+          {project.name}
         </span>
       </nav>
-      <header className="space-y-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="max-w-full min-w-0 text-3xl font-bold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
-            {project.name}
-          </h1>
+      <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        <div className="flex min-w-0 items-center gap-4">
           <span
-            className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
+            aria-hidden="true"
+            className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-lg font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
           >
-            <span
-              className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}
-            ></span>
-            {t(project.status === "ACTIVE" ? "active" : "archived")}
+            {project.code.slice(0, 2).toUpperCase()}
           </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="max-w-full min-w-0 text-2xl font-bold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
+                {project.name}
+              </h1>
+              <span
+                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
+              >
+                <span
+                  className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}
+                ></span>
+                {t(project.status === "ACTIVE" ? "active" : "archived")}
+              </span>
+            </div>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {project.description || t("overviewHint")}
+            </p>
+          </div>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t("overviewHint")}
-        </p>
+        <div className="flex shrink-0 items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="mr-2 flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+          >
+            <GroupIcon className="size-5" />
+          </span>
+          <span title={memberLabels("shareUnavailable")}>
+            <Button variant="outline" disabled>
+              {memberLabels("share")}
+            </Button>
+          </span>
+          <Button
+            ariaLabel={memberLabels("openAdd")}
+            startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
+            onClick={() => {
+              setTab("members");
+              setShowAddModal(true);
+            }}
+          >
+            {memberLabels("add")}
+          </Button>
+        </div>
       </header>
       <div
         role="tablist"
         aria-label={project.name}
         className="flex flex-wrap items-center gap-5 border-b border-gray-200 dark:border-gray-800"
       >
-        {(["overview", "members"] as const).map((value) => (
+        {tabs.map((value) => (
           <button
             key={value}
             id={`${tabId}-${value}-tab`}
@@ -162,7 +195,12 @@ export default function ProjectOverview({ project }: { project: Project }) {
           role="tabpanel"
           aria-labelledby={`${tabId}-members-tab`}
         >
-          <ProjectMembers projectId={project.id} />
+          <ProjectMembers
+            projectId={project.id}
+            showAddButton={false}
+            addModalOpen={showAddModal}
+            onCloseAdd={() => setShowAddModal(false)}
+          />
         </div>
       )}
     </div>
