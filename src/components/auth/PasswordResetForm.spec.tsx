@@ -14,6 +14,15 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
+vi.mock("@/icons", () => ({
+  CheckCircleIcon: () => null,
+  CheckLineIcon: () => null,
+  ChevronLeftIcon: () => null,
+  EnvelopeIcon: () => null,
+  EyeCloseIcon: () => null,
+  EyeIcon: () => null,
+  LockIcon: () => null,
+}));
 vi.mock("@/lib/queries/auth/useAuth", () => ({
   useCompletePasswordResetMutation: vi.fn(),
   useRequestPasswordResetMutation: vi.fn(),
