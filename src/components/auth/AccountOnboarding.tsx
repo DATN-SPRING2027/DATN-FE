@@ -7,7 +7,6 @@ import Label from "@/components/form/Label";
 import { useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
 import {
-  useAcceptOrganizationInvitationMutation,
   useMyOrganizationInvitationsQuery,
   useCreateOrganizationMutation,
   useOrganizationOptionsQuery,
@@ -23,7 +22,6 @@ export default function AccountOnboarding() {
   const organizations = useOrganizationOptionsQuery(current.data?.context === "ACCOUNT");
   const invitations = useMyOrganizationInvitationsQuery(current.data?.context === "ACCOUNT");
   const create = useCreateOrganizationMutation();
-  const accept = useAcceptOrganizationInvitationMutation();
   const select = useSelectOrganizationMutation();
   const logout = useLogoutMutation();
   const [name, setName] = useState("");
@@ -50,16 +48,6 @@ export default function AccountOnboarding() {
       await selectAndEnter(result.id);
     } catch {
       // The mutation error is shown below the form.
-    }
-  }
-
-  async function acceptAndEnter(invitationId: string) {
-    try {
-      const membership = await accept.mutateAsync(invitationId);
-      await select.mutateAsync(membership.organizationId);
-      router.replace("/");
-    } catch {
-      // The mutation error is shown below the invitation list.
     }
   }
 
@@ -103,25 +91,27 @@ export default function AccountOnboarding() {
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("onboardingInvitedDescription")}</p>
         {invitations.isLoading && <p className="mt-3 text-sm text-gray-500" aria-busy="true">{t("onboardingInvitationChecking")}</p>}
         {invitations.isError && <Alert variant="error" title={t("onboardingInvitationError")} message={t("onboardingAccessErrorDetail")} />}
-        {invitations.data && invitations.data.length > 0 && (
+        {invitations.data && invitations.data.data.length > 0 && (
           <ul className="mt-4 space-y-3">
-            {invitations.data.map((invitation) => (
+            {invitations.data.data.map((invitation) => (
               <li key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
                 <div>
                   <p className="font-medium text-gray-900 dark:text-white">{invitation.organizationName}</p>
-                  <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t("onboardingInvitationRole", { role: invitation.roleCode })}</p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">{t("onboardingInvitationExpiry", { date: new Date(invitation.expiresAt).toISOString().slice(0, 10) })}</p>
+                  <p role="status" className="mt-2 text-sm text-warning-700 dark:text-warning-400">{t("onboardingInvitationUnavailable")}</p>
                 </div>
-                <Button disabled={accept.isPending || select.isPending} onClick={() => void acceptAndEnter(invitation.id)}>
-                  {t("onboardingAcceptInvitation")}
-                </Button>
               </li>
             ))}
           </ul>
         )}
+        {invitations.data && invitations.data.data.length === 0 && (
+          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400" role="status">
+            {t("onboardingNoInvitations")}
+          </p>
+        )}
         <button type="button" onClick={() => { void organizations.refetch(); void invitations.refetch(); }} className="mt-3 text-sm font-medium text-brand-500 hover:text-brand-600">{t("onboardingCheckAgain")}</button>
       </section>
-      {(create.isError || select.isError || accept.isError) && <Alert variant="error" title={t("onboardingActionError")} message={t("onboardingActionErrorDetail")} />}
+      {(create.isError || select.isError) && <Alert variant="error" title={t("onboardingActionError")} message={t("onboardingActionErrorDetail")} />}
       <button type="button" onClick={() => void logout.mutateAsync().then(() => router.replace("/signin")).catch(() => undefined)} className="self-start text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400">{t("onboardingSignOut")}</button>
     </main>
   );

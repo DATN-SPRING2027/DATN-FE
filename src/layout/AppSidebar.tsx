@@ -1,12 +1,12 @@
 "use client";
 
+import BrandLogo from "@/components/common/BrandLogo";
 import { isSidebarPathActive } from "@/utils/sidebar-active";
 
 import { Link, usePathname } from "@/i18n/navigation";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import Image from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSidebar } from "../context/SidebarContext";
 import {
@@ -41,6 +41,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { icon: <ListIcon />, key: "projects", path: "/projects" },
+  { icon: <UserCircleIcon />, key: "organizationMembers", path: "/organization/members" },
   {
     icon: <GridIcon />,
     key: "dashboard",
@@ -356,35 +357,9 @@ const AppSidebar: React.FC = () => {
       >
         <Link href="/">
           {isExpanded || isHovered || isMobileOpen ? (
-            <>
-              <Image
-                className="dark:hidden"
-                src="/images/logo/logo.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-                priority
-                style={{ width: "auto", height: "auto" }}
-              />
-              <Image
-                className="hidden dark:block"
-                src="/images/logo/logo-dark.svg"
-                alt="Logo"
-                width={150}
-                height={40}
-                priority
-                style={{ width: "auto", height: "auto" }}
-              />
-            </>
+            <BrandLogo className="h-10" priority />
           ) : (
-            <Image
-              src="/images/logo/logo-icon.svg"
-              alt="Logo"
-              width={32}
-              height={32}
-              priority
-              style={{ width: "auto", height: "auto" }}
-            />
+            <BrandLogo variant="mark" className="h-8 w-8" priority />
           )}
         </Link>
       </div>
