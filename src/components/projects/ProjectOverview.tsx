@@ -1,6 +1,7 @@
 "use client";
 
 import { useId, useState } from "react";
+import ProjectVisibility from "./ProjectVisibility";
 import ProjectMembers from "./members/ProjectMembers";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
@@ -154,6 +155,12 @@ export default function ProjectOverview({ project }: { project: Project }) {
                   value
                 )}
               </dd>
+              {label === "visibility" && (
+                <ProjectVisibility
+                  key={`${project.organizationId}:${project.id}`}
+                  project={project}
+                />
+              )}
             </div>
           ))}
         </dl>
