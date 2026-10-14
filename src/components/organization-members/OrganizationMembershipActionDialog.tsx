@@ -157,8 +157,8 @@ export default function OrganizationMembershipActionDialog({
           <div className="mb-5" role="alert">
             <Alert variant="error" title={t("errorTitle")} message={t(getErrorMessageKey(error))} />
             <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" variant="outline" disabled={busy} onClick={onRetry}>{t("retryMutation")}</Button>
-              <Button size="sm" variant="outline" disabled={busy} onClick={onRefresh}>{busy ? t("refreshingBeforeNewAction") : t("refreshBeforeNewAction")}</Button>
+              <Button size="sm" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy} onClick={onRetry}>{t("retryMutation")}</Button>
+              <Button size="sm" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy} onClick={onRefresh}>{busy ? t("refreshingBeforeNewAction") : t("refreshBeforeNewAction")}</Button>
             </div>
             {refreshFailed && <p className="mt-3 text-sm text-error-600 dark:text-error-400">{t("refreshBeforeNewActionError")}</p>}
           </div>
@@ -166,8 +166,8 @@ export default function OrganizationMembershipActionDialog({
         {isPending && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("working")}</p>}
         {isRecovering && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("refreshingBeforeNewAction")}</p>}
         <form onSubmit={submit} className="flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" disabled={busy || hasUnresolvedError} onClick={onClose}>{t("cancel")}</Button>
-          <Button type="submit" disabled={busy || hasUnresolvedError || (reasonOptions.length > 0 && !reason)}>{busy ? t("working") : t("confirm")}</Button>
+          <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError} onClick={onClose}>{t("cancel")}</Button>
+          <Button type="submit" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError || (reasonOptions.length > 0 && !reason)}>{busy ? t("working") : t("confirm")}</Button>
         </form>
       </div>
     </Modal>

@@ -10,6 +10,7 @@ import Alert from "@/components/ui/alert/Alert";
 import ComponentCard from "@/components/common/ComponentCard";
 import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import Label from "@/components/form/Label";
+import { GroupIcon, MailIcon, UserIcon } from "@/icons";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { organizationMembershipReadiness } from "@/lib/queries/organization-memberships/organization-membership-readiness";
 import {
@@ -56,12 +57,30 @@ function LoadingPanel({ label }: { label: string }) {
   return <div role="status" className="rounded-xl border border-gray-100 bg-gray-50 px-5 py-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{label}</div>;
 }
 
+function ListLoadingPanel({ label }: { label: string }) {
+  return (
+    <div role="status" aria-label={label} aria-busy="true" className="space-y-3">
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: 3 }, (_, index) => (
+        <div key={index} aria-hidden="true" className="flex animate-pulse items-center gap-4 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-800">
+          <div className="size-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-4 w-1/3 rounded bg-gray-100 dark:bg-gray-800" />
+            <div className="h-3 w-1/2 rounded bg-gray-100 dark:bg-gray-800" />
+          </div>
+          <div className="hidden h-6 w-20 rounded-full bg-gray-100 dark:bg-gray-800 sm:block" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function MembershipError({ error, retry, invitation = false }: { error: unknown; retry: () => void; invitation?: boolean }) {
   const t = useTranslations("organizationMembers");
   return (
     <div role="alert" className="space-y-3">
       <Alert variant="error" title={t("errorTitle")} message={t(invitation ? "invitationLoadError" : getErrorMessageKey(error))} />
-      <Button size="sm" variant="outline" onClick={retry}>{t("retryLoad")}</Button>
+      <Button size="sm" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={retry}>{t("retryLoad")}</Button>
     </div>
   );
 }
@@ -209,14 +228,14 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
 
   return (
     <div className="space-y-6">
-      <PageBreadCrumb pageTitle={t("title")} homeLabel={t("home")} />
+      <PageBreadCrumb pageTitle={t("title")} homeLabel={t("home")} showTitle={false} breadcrumbLabel={t("breadcrumbLabel")} />
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between sm:pb-6">
         <div>
           <p className="text-sm font-medium text-brand-600 dark:text-brand-400">{t("organizationScope")}</p>
           <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">{t("description")}</p>
         </div>
-        <Button onClick={openInviteDialog} className="w-full shrink-0 sm:w-auto">
+        <Button onClick={openInviteDialog} startIcon={<UserIcon className="size-4" aria-hidden="true" />} className="w-full shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:w-auto">
           {t("inviteButton")}
         </Button>
       </header>
@@ -225,13 +244,26 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
       {inviteSuccess && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("inviteAccepted")}</div>}
 
       <ComponentCard title={t("membersTitle")} desc={t("membersDescription")}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-          <div className="max-w-xl text-sm text-gray-500 dark:text-gray-400">{t("membershipScopeNote")}</div>
+        <div className="flex flex-col gap-4 border-b border-gray-100 pb-4 dark:border-gray-800 sm:flex-row sm:items-end sm:justify-between">
+          {readyMembers ? (
+            <p aria-live="polite" className="text-sm font-medium text-gray-600 dark:text-gray-300">
+              {t("membersCount", { count: readyMembers.pagination.totalItems })}
+            </p>
+          ) : memberships.isFetching ? (
+            <div aria-hidden="true" className="h-4 w-24 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+          ) : <span />}
           <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
         </div>
-        {memberships.isFetching && <LoadingPanel label={t("membersLoading")} />}
+        {memberships.isFetching && <ListLoadingPanel label={t("membersLoading")} />}
         {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
-        {readyMembers && readyMembers.data.length === 0 && <div className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("membersEmpty")}</div>}
+        {readyMembers && readyMembers.data.length === 0 && (
+          <div role="status" className="flex items-center gap-4 rounded-xl border border-dashed border-gray-300 px-4 py-5 dark:border-gray-700">
+            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+              <GroupIcon className="size-5" />
+            </span>
+            <p className="text-sm text-gray-600 dark:text-gray-300">{t("membersEmpty")}</p>
+          </div>
+        )}
         {readyMembers && readyMembers.data.length > 0 && (
           <OrganizationMembershipList
             page={readyMembers}
@@ -244,9 +276,19 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
       </ComponentCard>
 
       <ComponentCard title={t("invitationsTitle")} desc={t("invitationsDescription")}>
-        {invitations.isFetching && <LoadingPanel label={t("invitationsLoading")} />}
+        {invitations.isFetching && <ListLoadingPanel label={t("invitationsLoading")} />}
         {invitations.isError && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
-        {readyInvitations && readyInvitations.data.length === 0 && <div className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("invitationsEmpty")}</div>}
+        {readyInvitations && readyInvitations.data.length === 0 && (
+          <div role="status" className="flex items-center gap-4 rounded-xl border border-dashed border-gray-300 px-4 py-5 dark:border-gray-700">
+            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
+              <MailIcon className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{t("invitationsEmpty")}</p>
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("invitationsEmptyDescription")}</p>
+            </div>
+          </div>
+        )}
         {readyInvitations && readyInvitations.data.length > 0 && (
           <OrganizationInvitationList page={readyInvitations} actionsEnabled={organizationMembershipReadiness.invitationCommands.status === "READY"} onPageChange={setInvitationPage} onAction={(action, invitation) => openAction({ action, invitation })} />
         )}

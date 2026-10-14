@@ -14,6 +14,11 @@ vi.mock("@/lib/api-client", async (original) => ({
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
+vi.mock("@/icons", () => ({
+  GroupIcon: () => null,
+  MailIcon: () => null,
+  UserIcon: () => null,
+}));
 
 const api = vi.mocked(apiClient);
 const organizationId = "0123456789abcdef01234567";
@@ -85,6 +90,20 @@ beforeEach(() => api.mockReset());
 afterEach(() => vi.restoreAllMocks());
 
 describe("Organization membership management page", () => {
+  it("keeps one page title and uses the server-paginated count in a responsive membership table", async () => {
+    const page = membershipPage();
+    respond({ memberships: { ...page, pagination: { ...page.pagination, totalItems: 42, totalPages: 3 } } });
+    mount();
+
+    expect(await screen.findByText("42 results")).toBeVisible();
+    expect(screen.getAllByRole("heading", { name: "Organization members" })).toHaveLength(1);
+    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeVisible();
+    expect(screen.getByText("AM")).toBeVisible();
+    const table = screen.getByRole("table");
+    expect(table).toHaveClass("table-fixed");
+    expect(within(table).getAllByRole("row").at(-1)).toHaveClass("grid", "lg:table-row");
+  });
+
   it("shows all four approved states and leaves authority to the server", async () => {
     respond({ memberships: membershipPage([
       membership("PENDING_INVITE"),
@@ -166,12 +185,23 @@ describe("Organization membership management page", () => {
     mount();
     expect(await screen.findByText("No memberships match this status.")).toBeVisible();
     expect(await screen.findByText("There are no pending invitations.")).toBeVisible();
+    expect(screen.getByText("Invitations awaiting a response appear here.")).toBeVisible();
   });
 
   it("shows the initial loading state while the authenticated context is unresolved", () => {
     api.mockImplementation(() => new Promise(() => undefined));
     mount();
     expect(screen.getByRole("status")).toHaveTextContent("Loading your Organization context…");
+  });
+
+  it("shows separate loading states while the member and invitation reads are pending", async () => {
+    api.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/me") return user;
+      return new Promise(() => undefined);
+    });
+    mount();
+    expect(await screen.findByRole("status", { name: "Loading memberships…" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("status", { name: "Loading pending invitations…" })).toHaveAttribute("aria-busy", "true");
   });
 
   it("suspends an active membership only after the server acknowledges the contract request", async () => {

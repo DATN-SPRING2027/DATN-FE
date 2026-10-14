@@ -26,7 +26,7 @@
 
 ## UI direction
 
-Use the user-approved TailAdmin direction and UI UX Pro Max accessibility/responsive guidance. Keep existing theme tokens and Outfit type. Show only fields from the accepted contract. No illustrative member rows, fake counts, or success simulation in production.
+Use the user-approved TailAdmin foundation and the supplied UI UX Pro Max redesign brief as the accessibility/responsive guide. Keep the existing theme tokens and Outfit type, with one page heading, a compact breadcrumb, and a responsive membership table that reflows into cards on narrow screens. Show only fields and actions from the accepted contract. The membership result count comes from the server `totalItems`; do not add grouped summary counts, roles, or search because the current list contract does not provide them. Keep invitations read-only while A7/A8 block mutation commands. No illustrative member rows, fake counts, or success simulation in production.
 
 ## Completion gate
 

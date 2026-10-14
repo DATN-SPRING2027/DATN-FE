@@ -86,7 +86,7 @@ export default function OrganizationInvitationCreateDialog({
       isOpen={isOpen}
       onClose={() => { if (!isPending) onClose(); }}
       showCloseButton={false}
-      className="mx-4 w-full max-w-xl"
+      className="mx-4 w-full max-w-lg"
     >
       <div
         ref={dialogRef}
@@ -96,7 +96,7 @@ export default function OrganizationInvitationCreateDialog({
         aria-describedby={descriptionId}
         aria-busy={isPending}
         onKeyDown={trapFocus}
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
       >
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
@@ -168,11 +168,12 @@ export default function OrganizationInvitationCreateDialog({
           {isPending && <p role="status" className="text-sm text-gray-500 dark:text-gray-400">{t("inviting")}</p>}
 
           <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
-            <Button type="button" variant="outline" disabled={isPending} onClick={onClose}>
+            <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={isPending} onClick={onClose}>
               {t("inviteCancel")}
             </Button>
             <Button
               type="submit"
+              className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
               disabled={!canSend || isPending || !email.trim() || !reasonCode}
             >
               {isPending ? t("inviting") : t("sendInvite")}
