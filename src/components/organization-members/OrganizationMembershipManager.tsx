@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useModal } from "@/hooks/useModal";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
 import ComponentCard from "@/components/common/ComponentCard";
@@ -15,7 +16,9 @@ import {
   createIdempotencyKey,
   type MembershipListFilter,
 } from "@/lib/queries/organization-memberships/organization-memberships.service";
+import type { InviteMemberInput } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import {
+  useInviteOrganizationMember,
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
   useSuspendOrganizationMembership,
@@ -27,6 +30,7 @@ import type {
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import OrganizationMembershipList from "./OrganizationMembershipList";
 import OrganizationInvitationList from "./OrganizationInvitationList";
+import OrganizationInvitationCreateDialog from "./OrganizationInvitationCreateDialog";
 import OrganizationMembershipActionDialog, {
   type MembershipActionReasonCode,
   type MembershipActionTarget,
@@ -84,19 +88,9 @@ function MembershipStatusSelect({ value, disabled, onChange }: { value: Membersh
   );
 }
 
-function InvitationCommandsUnavailable() {
-  const t = useTranslations("organizationMembers");
-  return (
-    <ComponentCard title={t("inviteTitle")} desc={t("inviteDescription")} className="h-full">
-      <p role="status" aria-live="polite" className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm leading-6 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
-        {t("invitationCommandsBlocked")}
-      </p>
-    </ComponentCard>
-  );
-}
-
 function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: string; organizationId: string }) {
   const t = useTranslations("organizationMembers");
+  const inviteDialog = useModal();
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [membershipPage, setMembershipPage] = useState(1);
   const [invitationPage, setInvitationPage] = useState(1);
@@ -111,7 +105,11 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
   };
   const memberships = useOrganizationMembershipsQuery(actorId, organizationId, filter);
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
+  const invite = useInviteOrganizationMember(actorId, organizationId);
   const suspend = useSuspendOrganizationMembership(actorId, organizationId);
+  const [inviteSuccess, setInviteSuccess] = useState(false);
+  const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
+  const canSendInvitation = organizationMembershipReadiness.invitationCommands.status === "READY";
   const actionMutation = target?.action === "suspend" ? suspend : undefined;
   const hasUnresolvedMutation = Boolean(actionMutation?.isPending || actionMutation?.isError);
 
@@ -148,6 +146,36 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
     setTarget(next);
   }
 
+  function openInviteDialog() {
+    invite.reset();
+    setInviteSuccess(false);
+    inviteDialog.openModal();
+  }
+
+  function closeInviteDialog() {
+    if (invite.isPending) return;
+    inviteDialog.closeModal();
+  }
+
+  async function submitInvite(input: InviteMemberInput) {
+    if (!canSendInvitation || invite.isPending) return;
+    const previousAttempt = inviteAttempt.current;
+    const idempotencyKey =
+      previousAttempt?.input.email === input.email && previousAttempt.input.reasonCode === input.reasonCode
+        ? previousAttempt.idempotencyKey
+        : createIdempotencyKey();
+    inviteAttempt.current = { input, idempotencyKey };
+
+    try {
+      await invite.mutateAsync({ input, idempotencyKey });
+      inviteAttempt.current = null;
+      inviteDialog.closeModal();
+      setInviteSuccess(true);
+    } catch {
+      // Keep the exact request and idempotency key available for a safe retry.
+    }
+  }
+
   function closeAction() {
     if (actionMutation?.isPending || actionMutation?.isError) return;
     setTarget(null);
@@ -182,36 +210,38 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
   return (
     <div className="space-y-6">
       <PageBreadCrumb pageTitle={t("title")} homeLabel={t("home")} />
-      <header className="flex flex-col gap-2 border-b border-gray-200 pb-5 dark:border-gray-800 sm:pb-6">
-        <p className="text-sm font-medium text-brand-600 dark:text-brand-400">{t("organizationScope")}</p>
-        <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
-        <p className="max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">{t("description")}</p>
+      <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between sm:pb-6">
+        <div>
+          <p className="text-sm font-medium text-brand-600 dark:text-brand-400">{t("organizationScope")}</p>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">{t("description")}</p>
+        </div>
+        <Button onClick={openInviteDialog} className="w-full shrink-0 sm:w-auto">
+          {t("inviteButton")}
+        </Button>
       </header>
 
       {notice && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("actionAccepted")}</div>}
+      {inviteSuccess && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("inviteAccepted")}</div>}
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.72fr)]">
-        <ComponentCard title={t("membersTitle")} desc={t("membersDescription")}>
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="max-w-xl text-sm text-gray-500 dark:text-gray-400">{t("membershipScopeNote")}</div>
-            <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
-          </div>
-          {memberships.isFetching && <LoadingPanel label={t("membersLoading")} />}
-          {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
-          {readyMembers && readyMembers.data.length === 0 && <div className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("membersEmpty")}</div>}
-          {readyMembers && readyMembers.data.length > 0 && (
-            <OrganizationMembershipList
-              page={readyMembers}
-              actorId={actorId}
-              actionsDisabled={hasUnresolvedMutation}
-              onPageChange={setMembershipPage}
-              onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
-            />
-          )}
-        </ComponentCard>
-
-        <InvitationCommandsUnavailable />
-      </div>
+      <ComponentCard title={t("membersTitle")} desc={t("membersDescription")}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="max-w-xl text-sm text-gray-500 dark:text-gray-400">{t("membershipScopeNote")}</div>
+          <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
+        </div>
+        {memberships.isFetching && <LoadingPanel label={t("membersLoading")} />}
+        {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
+        {readyMembers && readyMembers.data.length === 0 && <div className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center text-sm text-gray-500 dark:border-gray-700 dark:text-gray-400">{t("membersEmpty")}</div>}
+        {readyMembers && readyMembers.data.length > 0 && (
+          <OrganizationMembershipList
+            page={readyMembers}
+            actorId={actorId}
+            actionsDisabled={hasUnresolvedMutation}
+            onPageChange={setMembershipPage}
+            onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
+          />
+        )}
+      </ComponentCard>
 
       <ComponentCard title={t("invitationsTitle")} desc={t("invitationsDescription")}>
         {invitations.isFetching && <LoadingPanel label={t("invitationsLoading")} />}
@@ -234,6 +264,14 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
         isRecovering={isRefreshingAction}
         refreshFailed={actionRefreshFailed}
       />
+      {inviteDialog.isOpen && <OrganizationInvitationCreateDialog
+        isOpen={inviteDialog.isOpen}
+        canSend={canSendInvitation}
+        isPending={invite.isPending}
+        error={invite.isError ? invite.error : undefined}
+        onClose={closeInviteDialog}
+        onSubmit={(input) => { void submitInvite(input); }}
+      />}
     </div>
   );
 }

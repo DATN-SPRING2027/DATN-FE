@@ -136,19 +136,29 @@ describe("Organization membership management page", () => {
     expect(screen.queryByText("Alex Member")).not.toBeInTheDocument();
   });
 
-  it("keeps invite, accept, resend, and cancel unavailable until their accepted readiness gates clear", async () => {
+  it("opens the invitation dialog but keeps submission blocked until readiness gates clear", async () => {
     respond({
       memberships: membershipPage([membership("PENDING_INVITE")]),
       invitations: invitationPage([invitation]),
     });
     mount();
     expect((await screen.findAllByText("alex@example.com")).length).toBeGreaterThan(0);
-    expect(screen.getByText(/Create, resend, and cancel are unavailable/)).toHaveAttribute("role", "status");
-    expect(screen.queryByRole("button", { name: "Create invitation" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("textbox", { name: "Account email" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Invite an existing user")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Invitation creation is currently paused/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/This list is read-only/)).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
+    const dialog = screen.getByRole("dialog", { name: "Invite user" });
+    expect(within(dialog).getByLabelText("Email address")).toBeVisible();
+    expect(within(dialog).getByLabelText("Reason")).toBeVisible();
+    expect(within(dialog).getByText(/Sending invitations is unavailable until/)).toHaveAttribute("role", "status");
+    fireEvent.change(within(dialog).getByLabelText("Email address"), { target: { value: "new-member@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
+    expect(within(dialog).getByRole("button", { name: "Send invite" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Resend invitation" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel invitation" })).not.toBeInTheDocument();
     expect(api.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Invite user" })).not.toBeInTheDocument();
   });
 
   it("shows empty member and invitation states", async () => {
