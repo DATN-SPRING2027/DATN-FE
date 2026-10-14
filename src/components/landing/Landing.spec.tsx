@@ -9,6 +9,7 @@ import LandingDemoSection from "./LandingDemoSection";
 import LandingCtaFooter from "./LandingCtaFooter";
 import Landing3DCard from "./Landing3DCard";
 import KnowledgeEcosystemGraph from "./KnowledgeEcosystemGraph";
+import KnowledgeGraphExperience from "./KnowledgeGraphExperience";
 import HeadingEmphasis, { SectionHeading } from "./HeadingEmphasis";
 
 // Mock next-intl and navigation
@@ -113,26 +114,26 @@ describe("Continuum AI — Living Knowledge Experience", () => {
         screen.getByText("Tại sao nhóm quyết định chọn Redis Pub/Sub?")
       ).toBeInTheDocument();
       expect(screen.getAllByText("Work Note WN-104").length).toBeGreaterThan(0);
-      expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
-      expect(screen.getByText("Bằng chứng")).toBeInTheDocument();
-      expect(screen.getByText("Thẩm định")).toBeInTheDocument();
-      expect(screen.getByText("Tiếp nối")).toBeInTheDocument();
+      expect(screen.getAllByText("Ghi nhận").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Bằng chứng").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Thẩm định").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Tiếp nối").length).toBeGreaterThan(0);
 
       // Click on stage 2: Bằng chứng
-      fireEvent.click(screen.getByText("Bằng chứng"));
+      fireEvent.click(screen.getAllByText("Bằng chứng")[0]);
       expect(
         screen.getByText("Liên kết PR #88 và Báo cáo kiểm thử tải")
       ).toBeInTheDocument();
-      expect(screen.getByText(/PR #88: feat\(iam\) redis-pubsub/i)).toBeInTheDocument();
+      expect(screen.getAllByText(/PR #88: feat\(iam\) redis-pubsub/i).length).toBeGreaterThan(0);
 
       // Click on stage 3: Thẩm định
-      fireEvent.click(screen.getByText("Thẩm định"));
+      fireEvent.click(screen.getAllByText("Thẩm định")[0]);
       expect(
         screen.getByText("Tech Lead đối chiếu hạ tầng & phê duyệt chính thức")
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/Trần Thị B \(Tech Lead \/ System Architect\)/i)
-      ).toBeInTheDocument();
+        screen.getAllByText(/Trần Thị B \(Tech Lead \/ System Architect\)/i).length
+      ).toBeGreaterThan(0);
     });
   });
 
@@ -153,6 +154,33 @@ describe("Continuum AI — Living Knowledge Experience", () => {
       expect(
         screen.getByText(/Work Note WN-104 \(Nguyễn Văn A\)/i)
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("KnowledgeGraphExperience (Full-Width Cinematic Graph)", () => {
+    it("renders living knowledge graph with clusters, node inspector, and RAG simulation", () => {
+      render(<KnowledgeGraphExperience />);
+      expect(
+        screen.getByText("MẠNG LƯỚI TRI THỨC SỐNG • VECTOR SPACE GRAPH")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Khám phá mạng lưới tri thức sống")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("của toàn dự án.")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Tất cả cụm mạng lưới")).toBeInTheDocument();
+      expect(screen.getByText("Cụm 1: IAM & Caching (Sprint 24)")).toBeInTheDocument();
+      expect(screen.getByText("Node Inspector")).toBeInTheDocument();
+
+      // Switch cluster
+      fireEvent.click(screen.getByText("Cụm 2: API Gateway & gRPC (Sprint 22)"));
+      expect(screen.getByText("WN-082: gRPC Routing")).toBeInTheDocument();
+
+      // Simulate query
+      const queryBtn = screen.getByRole("button", { name: /truy vết tri thức/i });
+      fireEvent.click(queryBtn);
+      expect(queryBtn).toBeDisabled();
     });
   });
 

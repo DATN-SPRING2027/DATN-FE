@@ -3,6 +3,7 @@ import { setRequestLocale } from "next-intl/server";
 import LandingNavbar from "@/components/landing/LandingNavbar";
 import LandingHero from "@/components/landing/LandingHero";
 import LandingProblemSolution from "@/components/landing/LandingProblemSolution";
+import KnowledgeGraphExperience from "@/components/landing/KnowledgeGraphExperience";
 import LandingFeatures from "@/components/landing/LandingFeatures";
 import LandingHowItWorks from "@/components/landing/LandingHowItWorks";
 import LandingDemoSection from "@/components/landing/LandingDemoSection";
@@ -36,6 +37,7 @@ export default async function LandingPage({
       <main>
         <LandingHero />
         <LandingProblemSolution />
+        <KnowledgeGraphExperience />
         <LandingFeatures />
         <LandingHowItWorks />
         <LandingDemoSection />

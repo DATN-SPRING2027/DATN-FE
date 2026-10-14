@@ -35,6 +35,13 @@ export default function LandingNavbar() {
             Giải pháp
           </a>
           <a
+            href="#mang-luoi-tri-thuc"
+            onClick={(e) => scrollToSection(e, "mang-luoi-tri-thuc")}
+            className="text-sm font-semibold text-[#334155] transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
+          >
+            Mạng lưới tri thức
+          </a>
+          <a
             href="#tinh-nang"
             onClick={(e) => scrollToSection(e, "tinh-nang")}
             className="text-sm font-semibold text-[#334155] transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
@@ -102,6 +109,13 @@ export default function LandingNavbar() {
               className="rounded-md px-3 py-2 text-base font-semibold text-[#334155] hover:bg-blue-50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               Giải pháp
+            </a>
+            <a
+              href="#mang-luoi-tri-thuc"
+              onClick={(e) => scrollToSection(e, "mang-luoi-tri-thuc")}
+              className="rounded-md px-3 py-2 text-base font-semibold text-[#334155] hover:bg-blue-50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Mạng lưới tri thức
             </a>
             <a
               href="#tinh-nang"

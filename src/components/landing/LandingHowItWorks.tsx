@@ -19,7 +19,6 @@ export default function LandingHowItWorks() {
       step: "01",
       name: "Ghi nhận",
       subtitle: "In-flow Capture",
-      actionTitle: "Lưu vết trực tiếp trong công việc",
       actor: "Nguyễn Văn A (Backend)",
       desc: "Kỹ sư lưu Work Note WN-104 kèm PR #88 và benchmark đo tải ngay khi code xong.",
       icon: DocsIcon,
@@ -39,7 +38,6 @@ export default function LandingHowItWorks() {
       step: "02",
       name: "Đề xuất",
       subtitle: "AI Synthesis",
-      actionTitle: "Phát hiện mẫu hình & đề xuất chuẩn hóa",
       actor: "Continuum AI Engine",
       desc: "AI phân tích ngữ cảnh và đề xuất đưa vào kho tri thức chuẩn của tổ chức.",
       icon: ShootingStarIcon,
@@ -59,7 +57,6 @@ export default function LandingHowItWorks() {
       step: "03",
       name: "Kiểm chứng",
       subtitle: "Human Verification",
-      actionTitle: "Thẩm định và bảo chứng chất lượng",
       actor: "Trần Thị B (Tech Lead)",
       desc: "Tech Lead đối chiếu hạ tầng Kubernetes và bấm phê duyệt tri thức chính thức.",
       icon: CheckCircleIcon,
@@ -79,7 +76,6 @@ export default function LandingHowItWorks() {
       step: "04",
       name: "Bàn giao",
       subtitle: "Seamless Handover",
-      actionTitle: "Chuyển giao không đứt gãy",
       actor: "Lê Minh B (Kỹ sư mới)",
       desc: "Người mới tiếp nhận gói bàn giao, tra cứu lý do kỹ thuật và tiếp tục công việc tức thì.",
       icon: TaskIcon,
@@ -177,7 +173,7 @@ export default function LandingHowItWorks() {
                 </div>
 
                 <h3 className="text-lg sm:text-xl font-extrabold text-[#0F172A] dark:text-white">
-                  {currentStep.actionTitle}
+                  {currentStep.name}: {currentStep.desc.split(".")[0]}
                 </h3>
 
                 <p className="text-xs sm:text-sm text-[#334155] leading-relaxed dark:text-gray-300">
