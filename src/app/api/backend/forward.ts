@@ -13,11 +13,21 @@ export async function forwardBackendRequest(
 ): Promise<Response> {
   let headers: Headers;
   try {
-    const login = request.method === "POST" && path.join("/") === "auth/login";
-    const edgeHops = login
+    const trustedAuthMutation =
+      request.method === "POST" &&
+      [
+        "auth/login",
+        "auth/password-reset/request",
+        "auth/password-reset/confirm",
+      ].includes(path.join("/"));
+    const edgeHops = trustedAuthMutation
       ? trustedEdgeHops(process.env.CONTINUUM_TRUSTED_EDGE_HOPS)
       : 0;
-    if (login && process.env.NODE_ENV === "production" && edgeHops === 0) {
+    if (
+      trustedAuthMutation &&
+      process.env.NODE_ENV === "production" &&
+      edgeHops === 0
+    ) {
       throw new Error("Trusted client IP is required in production");
     }
     headers = createForwardHeaders(request.headers, edgeHops);

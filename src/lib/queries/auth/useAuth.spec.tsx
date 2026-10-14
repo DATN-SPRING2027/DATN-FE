@@ -7,6 +7,8 @@ import {
   useCurrentUserQuery,
   useLoginMutation,
   useLogoutMutation,
+  useRequestPasswordResetMutation,
+  useCompletePasswordResetMutation,
 } from "./useAuth";
 
 vi.mock("@/lib/api-client", () => ({
@@ -94,5 +96,49 @@ describe("auth query hooks", () => {
     await act(() => result.current.mutateAsync());
 
     expect(mockedLogoutSession).toHaveBeenCalledWith(expect.any(AbortSignal));
+  });
+
+  it("requests a password reset through the BFF", async () => {
+    mockedApiClient.mockResolvedValue({ status: "accepted" });
+    const { result } = renderHook(() => useRequestPasswordResetMutation(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(() =>
+      result.current.mutateAsync({ email: "person@example.com" }),
+    );
+
+    expect(mockedApiClient).toHaveBeenCalledWith(
+      "/auth/password-reset/request",
+      {
+        method: "POST",
+        body: JSON.stringify({ email: "person@example.com" }),
+      },
+    );
+  });
+
+  it("confirms a password reset through the BFF without replaying credentials", async () => {
+    mockedApiClient.mockResolvedValue(undefined);
+    const { result } = renderHook(() => useCompletePasswordResetMutation(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(() =>
+      result.current.mutateAsync({
+        token: "a".repeat(43),
+        password: "A-long-password-123",
+      }),
+    );
+
+    expect(mockedApiClient).toHaveBeenCalledWith(
+      "/auth/password-reset/confirm",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          token: "a".repeat(43),
+          password: "A-long-password-123",
+        }),
+      },
+    );
   });
 });

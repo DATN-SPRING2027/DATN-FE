@@ -7,7 +7,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   logging: {
     incomingRequests: {
-      ignore: [/^\/api\/auth\/google\/callback(?:\?|$)/],
+      ignore: [
+        /^\/api\/auth\/google\/callback(?:\?|$)/,
+        /^\/reset-password(?:\?|$)/,
+      ],
     },
   },
   webpack(config) {

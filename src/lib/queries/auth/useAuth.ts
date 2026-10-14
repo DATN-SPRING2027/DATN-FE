@@ -20,6 +20,13 @@ export type LoginResponse = Readonly<{
   user: CurrentUserResponse;
 }>;
 
+export type PasswordResetRequestInput = Readonly<{ email: string }>;
+export type PasswordResetRequestResponse = Readonly<{ status: "accepted" }>;
+export type PasswordResetConfirmInput = Readonly<{
+  token: string;
+  password: string;
+}>;
+
 export type CurrentUserResponse =
   | Readonly<{
       id: string;
@@ -73,6 +80,46 @@ export function useLoginMutation(
       queryClient.removeQueries({ queryKey: authKeys.currentUser() });
       options?.onSuccess?.(...args);
     },
+  });
+}
+
+export function useRequestPasswordResetMutation(
+  options?: Omit<
+    UseMutationOptions<
+      PasswordResetRequestResponse,
+      Error,
+      PasswordResetRequestInput
+    >,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    ...options,
+    mutationKey: ["password-reset-request"],
+    retry: false,
+    mutationFn: ({ email }) =>
+      apiClient<PasswordResetRequestResponse>("/auth/password-reset/request", {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      }),
+  });
+}
+
+export function useCompletePasswordResetMutation(
+  options?: Omit<
+    UseMutationOptions<void, Error, PasswordResetConfirmInput>,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    ...options,
+    mutationKey: ["password-reset-confirm"],
+    retry: false,
+    mutationFn: ({ token, password }) =>
+      apiClient<void>("/auth/password-reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+      }),
   });
 }
 
