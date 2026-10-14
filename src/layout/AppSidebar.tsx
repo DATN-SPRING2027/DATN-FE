@@ -41,6 +41,7 @@ type NavItem = {
 
 const navItems: NavItem[] = [
   { icon: <ListIcon />, key: "projects", path: "/projects" },
+  { icon: <UserCircleIcon />, key: "organizationMembers", path: "/organization/members" },
   {
     icon: <GridIcon />,
     key: "dashboard",
