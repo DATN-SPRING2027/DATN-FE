@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { SectionHeading } from "./HeadingEmphasis";
 import {
   CheckCircleIcon,
   DocsIcon,
@@ -13,6 +12,7 @@ import {
 
 interface KnowledgeItem {
   id: string;
+  code: string;
   title: string;
   category: string;
   status: "verified" | "pending";
@@ -20,55 +20,65 @@ interface KnowledgeItem {
   summary: string;
   source: string;
   reviewer: string;
+  details: string;
 }
 
-const INITIAL_KNOWLEDGE_ITEMS: KnowledgeItem[] = [
+const PROJECT_KNOWLEDGE_ITEMS: KnowledgeItem[] = [
   {
     id: "k-1",
-    title: "Quyết định chọn Redis Cache cho User Session và Pub/Sub",
-    category: "Kiến trúc hệ thống",
+    code: "WN-104",
+    title: "Kiến trúc Redis Pub/Sub & Token Revocation",
+    category: "Cấu trúc Caching",
     status: "verified",
     date: "14/10/2026",
     summary:
-      "Giảm tải cho cơ sở dữ liệu chính khi lượng người dùng đồng thời tăng đột biến. Bổ sung TTL 7 ngày cho refresh tokens.",
-    source: "PR #89 • Kiến trúc hệ thống v3",
-    reviewer: "Tech Lead Nguyễn Văn A",
+      "Chuyển trạng thái session và token blacklist từ in-memory sang cụm Redis Pub/Sub phân tán để chịu tải 100k users đồng thời.",
+    source: "PR #88 • Benchmark_100k.pdf",
+    reviewer: "Trần Thị B (Tech Lead)",
+    details:
+      "Tối ưu hoá cụm Redis Cluster 3-node, đảm bảo failover tự động trong 3 giây. Latency p99 đạt 12.4ms trong đợt tải 100k rps.",
   },
   {
     id: "k-2",
-    title: "Cách xử lý Timeout khi gọi SAG Inference Engine",
-    category: "AI Service",
+    code: "WN-105",
+    title: "Cơ chế xoay vòng Refresh Token an toàn",
+    category: "Bảo mật IAM",
     status: "verified",
     date: "12/10/2026",
     summary:
-      "Điều chỉnh client timeout lên 45s và bật stream SSE để tránh ngắt kết nối socket khi model sinh response dài.",
-    source: "Commit #a3c9f2 • Báo cáo sự cố Incident-04",
-    reviewer: "Backend Lead Trần Thị B",
+      "Refresh token được lưu trong HttpOnly Secure Cookie với thời hạn 7 ngày, tự động vô hiệu hoá khi phát hiện truy cập bất thường.",
+    source: "Auth Spec v1.4 • RFC-7519",
+    reviewer: "Trần Thị B (Tech Lead)",
+    details:
+      "Bổ sung cơ chế Fingerprinting để phát hiện token reuse. Nếu token cũ được sử dụng lại, toàn bộ token tree của user bị thu hồi ngay.",
   },
   {
     id: "k-3",
-    title: "Quy chuẩn mã hoá dữ liệu định danh khách hàng (PII)",
-    category: "Bảo mật",
+    code: "WN-106",
+    title: "Đặc tả tích hợp Azure AD SAML 2.0 (Sprint 25)",
+    category: "Mở rộng SSO",
     status: "pending",
     date: "11/10/2026",
     summary:
-      "Đề xuất áp dụng mã hoá AES-256-GCM ở tầng Application trước khi lưu vào MongoDB collection Users.",
-    source: "PR #108 • Báo cáo bảo mật",
-    reviewer: "Chờ thẩm định bởi Security Lead",
+      "Đề xuất phương án mapping thuộc tính Azure AD claims sang role RBAC nội bộ của Continuum AI.",
+    source: "Draft Spec v0.2 • Issue #204",
+    reviewer: "Chờ thẩm định bởi Tech Lead",
+    details:
+      "Đang chờ phê duyệt sơ đồ luồng IDP-initiated SAML flow trước khi tiến hành code trong Sprint 25.",
   },
 ];
 
 export default function LandingDemoSection() {
   const [activeTab, setActiveTab] = useState<"knowledge" | "verify" | "chat">("knowledge");
   const [selectedFilter, setSelectedFilter] = useState<"all" | "verified" | "pending">("all");
-  const [selectedItem, setSelectedItem] = useState<KnowledgeItem>(INITIAL_KNOWLEDGE_ITEMS[0]);
+  const [selectedItem, setSelectedItem] = useState<KnowledgeItem>(PROJECT_KNOWLEDGE_ITEMS[0]);
   const [verifyStatus, setVerifyStatus] = useState<"pending" | "approved">("pending");
   const [activeCitation, setActiveCitation] = useState<string | null>(null);
   const [chatQuery, setChatQuery] = useState<string>(
-    "Chính sách gia hạn Refresh Token và xử lý timeout SSE được quy định ở đâu?"
+    "Tại sao nhóm quyết định dùng Redis Pub/Sub thay vì RabbitMQ cho cụm IAM?"
   );
 
-  const filteredItems = INITIAL_KNOWLEDGE_ITEMS.filter((item) => {
+  const filteredItems = PROJECT_KNOWLEDGE_ITEMS.filter((item) => {
     if (selectedFilter === "verified") return item.status === "verified";
     if (selectedFilter === "pending") return item.status === "pending";
     return true;
@@ -77,24 +87,29 @@ export default function LandingDemoSection() {
   return (
     <section
       id="demo"
-      className="py-20 md:py-28 bg-[#F0F7FF]/60 border-t border-blue-100 dark:bg-gray-900/80 dark:border-gray-800"
+      className="py-20 md:py-28 bg-[#F0F7FF]/50 border-t border-blue-100 dark:bg-gray-900/80 dark:border-gray-800"
     >
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        {/* Section Heading with Gradient Emphasis */}
-        <SectionHeading
-          badge="Xem trước Trải nghiệm Thực tế"
-          regularText="Đừng chỉ đọc về Continuum AI."
-          emphasizedText="Hãy trải nghiệm cách tri thức được tiếp nối."
-          emphasisVariant="gradient"
-          description="Giao diện mô phỏng tương tác trực quan cho toàn bộ vòng đời tri thức: từ lưu trữ, thẩm định đến hỏi đáp trích dẫn nguồn."
-          align="center"
-        />
+        {/* Section Header */}
+        <div className="max-w-3xl mb-10">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1 text-xs font-bold text-blue-700 shadow-2xs mb-3.5 border border-blue-200 dark:bg-gray-800 dark:border-gray-700 dark:text-blue-300">
+            <span>Trải nghiệm Sản phẩm Thực tế</span>
+          </div>
+
+          <h2 className="text-2xl font-extrabold tracking-tight text-[#0F172A] sm:text-3xl lg:text-4xl dark:text-white leading-tight">
+            Khám phá cách tri thức được tiếp nối
+          </h2>
+
+          <p className="mt-3.5 text-base text-[#334155] leading-relaxed dark:text-gray-300">
+            Xem trước giao diện Continuum AI với các chức năng tra cứu, kiểm chứng và đối chiếu bằng chứng kỹ thuật trong dự án Core IAM & Caching.
+          </p>
+        </div>
 
         {/* Interactive Mode Switcher Tabs */}
-        <div className="mt-10 flex justify-center">
+        <div className="flex justify-start sm:justify-center mb-6">
           <div
             role="tablist"
-            className="inline-flex flex-wrap items-center justify-center gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm border border-slate-200 dark:bg-gray-800 dark:border-gray-700"
+            className="inline-flex flex-wrap items-center gap-1.5 rounded-2xl bg-white p-1.5 shadow-sm border border-slate-200 dark:bg-gray-800 dark:border-gray-700"
           >
             <button
               type="button"
@@ -103,7 +118,7 @@ export default function LandingDemoSection() {
               onClick={() => setActiveTab("knowledge")}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 activeTab === "knowledge"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                   : "text-[#334155] hover:text-blue-600 dark:text-gray-300 dark:hover:text-white"
               }`}
             >
@@ -117,7 +132,7 @@ export default function LandingDemoSection() {
               onClick={() => setActiveTab("verify")}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 activeTab === "verify"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                   : "text-[#334155] hover:text-blue-600 dark:text-gray-300 dark:hover:text-white"
               }`}
             >
@@ -131,7 +146,7 @@ export default function LandingDemoSection() {
               onClick={() => setActiveTab("chat")}
               className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs sm:text-sm font-bold transition-all ${
                 activeTab === "chat"
-                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/20"
+                  ? "bg-blue-600 text-white shadow-md shadow-blue-500/20"
                   : "text-[#334155] hover:text-blue-600 dark:text-gray-300 dark:hover:text-white"
               }`}
             >
@@ -141,25 +156,26 @@ export default function LandingDemoSection() {
           </div>
         </div>
 
-        {/* Demo Browser Viewport */}
-        <div id="demo-viewport" className="mt-8">
-          <div className="rounded-3xl border border-slate-200/90 bg-white p-4 sm:p-7 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
-            {/* Browser Window Header */}
+        {/* Large Crisp Product Viewport */}
+        <div id="demo-viewport">
+          <div className="rounded-3xl border border-slate-200/90 bg-white p-5 sm:p-8 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
+            {/* Window Chrome Header */}
             <div className="flex flex-wrap items-center justify-between border-b border-slate-200 pb-4 mb-6 gap-3 dark:border-gray-800">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2.5">
                 <span className="h-3 w-3 rounded-full bg-[#FF5F56]" />
                 <span className="h-3 w-3 rounded-full bg-[#FFBD2E]" />
                 <span className="h-3 w-3 rounded-full bg-[#27C93F]" />
-                <span className="ml-2 text-xs font-bold text-[#0F172A] dark:text-white">
+                <span className="ml-2 text-xs font-extrabold text-[#0F172A] dark:text-white">
                   Continuum AI Studio
                 </span>
+                <span className="text-slate-300 dark:text-gray-600">/</span>
+                <span className="text-xs text-slate-500 font-medium">
+                  Dự án: Core IAM & Caching (Sprint 24)
+                </span>
               </div>
-              <div className="hidden sm:flex items-center gap-2 rounded-lg bg-[#F8FAFC] px-3 py-1 text-xs text-slate-500 border border-slate-200 dark:bg-gray-800 dark:border-gray-700">
-                <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
-                <span>Dự án: Enterprise Knowledge Base • Sprint 24</span>
-              </div>
+
               <span className="rounded-full bg-blue-50 px-2.5 py-0.5 text-[10px] font-bold text-blue-700 border border-blue-200 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300">
-                Mô phỏng tương tác
+                Bản xem trước tính năng tương tác
               </span>
             </div>
 
@@ -168,7 +184,7 @@ export default function LandingDemoSection() {
               <div className="space-y-6">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-base font-bold text-[#0F172A] dark:text-white">
+                    <h3 className="text-base sm:text-lg font-bold text-[#0F172A] dark:text-white">
                       Danh sách tri thức đã lưu vết
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-gray-400">
@@ -181,18 +197,18 @@ export default function LandingDemoSection() {
                     <button
                       type="button"
                       onClick={() => setSelectedFilter("all")}
-                      className={`rounded-lg px-2.5 py-1 transition-colors ${
+                      className={`rounded-lg px-3 py-1 transition-colors ${
                         selectedFilter === "all"
                           ? "bg-blue-600 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300"
                       }`}
                     >
-                      Tất cả ({INITIAL_KNOWLEDGE_ITEMS.length})
+                      Tất cả ({PROJECT_KNOWLEDGE_ITEMS.length})
                     </button>
                     <button
                       type="button"
                       onClick={() => setSelectedFilter("verified")}
-                      className={`rounded-lg px-2.5 py-1 transition-colors ${
+                      className={`rounded-lg px-3 py-1 transition-colors ${
                         selectedFilter === "verified"
                           ? "bg-blue-600 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300"
@@ -203,7 +219,7 @@ export default function LandingDemoSection() {
                     <button
                       type="button"
                       onClick={() => setSelectedFilter("pending")}
-                      className={`rounded-lg px-2.5 py-1 transition-colors ${
+                      className={`rounded-lg px-3 py-1 transition-colors ${
                         selectedFilter === "pending"
                           ? "bg-blue-600 text-white"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300"
@@ -224,7 +240,7 @@ export default function LandingDemoSection() {
                         onClick={() => setSelectedItem(item)}
                         className={`cursor-pointer rounded-2xl border p-4.5 transition-all ${
                           isSelected
-                            ? "border-blue-600 bg-blue-50/30 shadow-md ring-2 ring-blue-500/20 dark:bg-gray-800 dark:border-blue-500"
+                            ? "border-blue-600 bg-blue-50/40 shadow-md ring-2 ring-blue-500/20 dark:bg-gray-800 dark:border-blue-500"
                             : "border-slate-200 bg-[#F8FAFC] hover:border-blue-300 hover:bg-white dark:border-gray-800 dark:bg-gray-800/60"
                         }`}
                       >
@@ -244,19 +260,19 @@ export default function LandingDemoSection() {
                             {item.status === "verified" ? "Đã xác minh" : "Chờ kiểm chứng"}
                           </span>
                           <span className="text-[10px] text-slate-400 font-medium">
-                            {item.date}
+                            {item.code}
                           </span>
                         </div>
 
-                        <h4 className="text-xs font-bold text-[#0F172A] line-clamp-2 dark:text-white">
+                        <h4 className="text-xs sm:text-sm font-bold text-[#0F172A] line-clamp-2 dark:text-white">
                           {item.title}
                         </h4>
 
-                        <p className="mt-1.5 text-[11px] text-[#334155] line-clamp-2 dark:text-gray-300">
+                        <p className="mt-1.5 text-xs text-[#334155] line-clamp-2 dark:text-gray-300">
                           {item.summary}
                         </p>
 
-                        <div className="mt-3 pt-2.5 border-t border-slate-200 flex items-center justify-between text-[10px] text-blue-600 font-bold dark:border-gray-700">
+                        <div className="mt-3.5 pt-2.5 border-t border-slate-200 flex items-center justify-between text-[11px] text-blue-600 font-bold dark:border-gray-700">
                           <span>{item.source}</span>
                           <span aria-hidden="true">&rarr;</span>
                         </div>
@@ -266,10 +282,10 @@ export default function LandingDemoSection() {
                 </div>
 
                 {/* Selected Item Detail Inspector */}
-                <div className="rounded-2xl border border-blue-200 bg-white p-5 shadow-xs dark:border-gray-700 dark:bg-gray-800">
-                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3 dark:border-gray-700">
-                    <span className="rounded-md bg-blue-100 px-2 py-0.5 text-[10px] font-extrabold text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                      Chi tiết tri thức: {selectedItem.id.toUpperCase()}
+                <div className="rounded-2xl border border-blue-200 bg-white p-5 sm:p-6 shadow-xs dark:border-gray-700 dark:bg-gray-850">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 mb-3.5 dark:border-gray-700">
+                    <span className="rounded-md bg-blue-100 px-2.5 py-0.5 text-xs font-black text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                      Chi tiết tri thức: {selectedItem.code}
                     </span>
                     <span className="text-xs text-slate-500">
                       Người thẩm định:{" "}
@@ -278,14 +294,14 @@ export default function LandingDemoSection() {
                       </strong>
                     </span>
                   </div>
-                  <h4 className="text-sm font-bold text-[#0F172A] dark:text-white">
+                  <h4 className="text-base font-bold text-[#0F172A] dark:text-white">
                     {selectedItem.title}
                   </h4>
-                  <p className="mt-1.5 text-xs leading-relaxed text-[#334155] dark:text-gray-300">
-                    {selectedItem.summary}
+                  <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[#334155] dark:text-gray-300">
+                    {selectedItem.details}
                   </p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-blue-700 dark:text-blue-400 font-semibold">
-                    <FileIcon className="h-4 w-4" />
+                  <div className="mt-4 flex items-center gap-2 text-xs text-blue-700 dark:text-blue-400 font-semibold">
+                    <FileIcon className="h-4 w-4 shrink-0" />
                     <span>Nguồn bằng chứng đối chiếu: {selectedItem.source}</span>
                   </div>
                 </div>
@@ -296,7 +312,7 @@ export default function LandingDemoSection() {
             {activeTab === "verify" && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-base font-bold text-[#0F172A] dark:text-white">
+                  <h3 className="text-base sm:text-lg font-bold text-[#0F172A] dark:text-white">
                     Khu vực thẩm định tri thức (Lead Verification Workflow)
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-gray-400">
@@ -304,13 +320,13 @@ export default function LandingDemoSection() {
                   </p>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 sm:p-6 dark:border-gray-800 dark:bg-gray-800/80">
+                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 sm:p-7 dark:border-gray-800 dark:bg-gray-850">
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
                     <div className="flex items-center gap-2">
                       <span className="rounded-md bg-indigo-100 px-2.5 py-0.5 text-xs font-bold text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
-                        Đề xuất bởi AI Engine
+                        Đề xuất từ Work Note WN-104
                       </span>
-                      <span className="text-xs text-slate-500">Mã đề xuất: #CAND-204</span>
+                      <span className="text-xs text-slate-500">Tác giả: Nguyễn Văn A</span>
                     </div>
 
                     <span
@@ -327,23 +343,23 @@ export default function LandingDemoSection() {
                   </div>
 
                   <h4 className="text-base font-bold text-[#0F172A] dark:text-white">
-                    Quy chuẩn cấu hình Retry Policy với Exponential Backoff khi gọi SAG Engine
+                    Kiến trúc Redis Pub/Sub & Token Revocation cho cụm IAM
                   </h4>
 
                   <p className="mt-2 text-xs sm:text-sm leading-relaxed text-[#334155] dark:text-gray-300">
-                    Để giải quyết hiện tượng nghẽn mạng do gọi lại liên tục khi tải cao, các service bắt buộc cấu hình retry tối đa 3 lần với hệ số giãn nở cấp số nhân và bổ sung Jitter ngẫu nhiên.
+                    Chuyển session cache và blacklist tokens sang Redis Pub/Sub. Đã kiểm thử tải 100k người dùng đồng thời, latency trung bình giảm từ 840ms xuống 12.4ms.
                   </p>
 
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-xs dark:border-gray-700 dark:bg-gray-900">
-                    <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
-                      Bằng chứng đối chiếu (Evidence attached):
+                  <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3.5 text-xs dark:border-gray-700 dark:bg-gray-900">
+                    <span className="font-bold text-slate-700 dark:text-slate-300 block mb-1.5">
+                      Bằng chứng đối chiếu đính kèm:
                     </span>
                     <div className="flex flex-wrap gap-2">
-                      <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-blue-600 dark:bg-gray-800">
-                        Git Commit #c891f2: Add Jitter to Retry
+                      <span className="rounded bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-blue-600 dark:bg-gray-800">
+                        PR #88: feat(iam) redis-pubsub (Merged)
                       </span>
-                      <span className="rounded bg-slate-100 px-2 py-0.5 font-mono text-[11px] text-blue-600 dark:bg-gray-800">
-                        Benchmark Report: LoadTest_100k_users.pdf
+                      <span className="rounded bg-slate-100 px-2.5 py-1 font-mono text-[11px] text-blue-600 dark:bg-gray-800">
+                        Benchmark_100k_users.pdf (Latency 12.4ms)
                       </span>
                     </div>
                   </div>
@@ -351,9 +367,9 @@ export default function LandingDemoSection() {
                   {/* Review Actions */}
                   <div className="mt-6 pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 dark:border-gray-700">
                     <div className="text-xs text-slate-500">
-                      Người chịu trách nhiệm:{" "}
+                      Vai trò thẩm định:{" "}
                       <strong className="text-[#0F172A] dark:text-white">
-                        Tech Lead (Bạn đang ở chế độ xem thử)
+                        Trần Thị B (Tech Lead)
                       </strong>
                     </div>
 
@@ -383,7 +399,7 @@ export default function LandingDemoSection() {
             {activeTab === "chat" && (
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-base font-bold text-[#0F172A] dark:text-white">
+                  <h3 className="text-base sm:text-lg font-bold text-[#0F172A] dark:text-white">
                     Trợ lý Continuum AI — Hỏi đáp có trích dẫn nguồn
                   </h3>
                   <p className="text-xs text-slate-500 dark:text-gray-400">
@@ -393,37 +409,37 @@ export default function LandingDemoSection() {
 
                 {/* Sample Prompt Pills */}
                 <div className="flex flex-wrap items-center gap-2 text-xs">
-                  <span className="text-slate-500">Câu hỏi gợi ý:</span>
+                  <span className="text-slate-500">Câu hỏi mẫu:</span>
                   <button
                     type="button"
                     onClick={() =>
                       setChatQuery(
-                        "Chính sách gia hạn Refresh Token và xử lý timeout SSE được quy định ở đâu?"
+                        "Tại sao nhóm quyết định dùng Redis Pub/Sub thay vì RabbitMQ cho cụm IAM?"
                       )
                     }
                     className="rounded-lg bg-blue-50 px-2.5 py-1 text-blue-700 font-semibold hover:bg-blue-100 transition-colors border border-blue-200 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300"
                   >
-                    1. Refresh Token & SSE timeout
+                    1. Tại sao chọn Redis Pub/Sub?
                   </button>
                   <button
                     type="button"
                     onClick={() =>
                       setChatQuery(
-                        "Giải pháp tối ưu chỉ mục MongoDB Index đã được thực hiện trong PR nào?"
+                        "Chính sách thời hạn Refresh Token và Fingerprinting được quy định ở đâu?"
                       )
                     }
                     className="rounded-lg bg-blue-50 px-2.5 py-1 text-blue-700 font-semibold hover:bg-blue-100 transition-colors border border-blue-200 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300"
                   >
-                    2. Tối ưu MongoDB Index
+                    2. Quy chuẩn Refresh Token
                   </button>
                 </div>
 
                 {/* Interactive Q&A Bubble */}
-                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 dark:border-gray-800 dark:bg-gray-800/80">
+                <div className="rounded-2xl border border-slate-200 bg-[#F8FAFC] p-5 dark:border-gray-800 dark:bg-gray-850">
                   {/* User Question */}
                   <div className="flex items-start gap-3 mb-4">
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-700 dark:bg-gray-700 dark:text-gray-200">
-                      Bạn
+                      Lê Minh B
                     </div>
                     <div className="rounded-2xl bg-white px-4 py-2.5 text-xs sm:text-sm font-semibold text-[#0F172A] shadow-xs border border-slate-200 dark:bg-gray-900 dark:border-gray-700 dark:text-white">
                       {chatQuery}
@@ -435,41 +451,41 @@ export default function LandingDemoSection() {
                     <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-xs">
                       <ShootingStarIcon className="h-4 w-4" />
                     </div>
-                    <div className="rounded-2xl bg-white p-4 text-xs sm:text-sm leading-relaxed text-[#334155] shadow-xs border border-slate-200 space-y-3 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
+                    <div className="rounded-2xl bg-white p-4 sm:p-5 text-xs sm:text-sm leading-relaxed text-[#334155] shadow-xs border border-slate-200 space-y-3 dark:bg-gray-900 dark:border-gray-700 dark:text-gray-300">
                       <p>
-                        Dựa trên kho tri thức đã được Tech Lead xác minh của dự án:
+                        Dựa trên kho tri thức đã được Tech Lead Trần Thị B xác nhận của dự án:
                       </p>
-                      <ul className="list-disc pl-4 space-y-1 text-xs">
+                      <ul className="list-disc pl-4 space-y-2 text-xs">
                         <li>
-                          <strong>Refresh Token:</strong> Được lưu trữ an toàn trong HttpOnly Cookie với thời hạn TTL là 7 ngày{" "}
+                          <strong>Lý do kỹ thuật:</strong> Cụm Redis đã được triển khai sẵn cho Session Cache. Việc tái sử dụng Redis Pub/Sub giúp đáp ứng lưu lượng 100k users với latency dưới 15ms mà không cần duy trì thêm cụm hạ tầng RabbitMQ riêng biệt{" "}
                           <button
                             type="button"
-                            onClick={() => setActiveCitation("auth-spec")}
+                            onClick={() => setActiveCitation("wn-104")}
                             className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer"
                           >
-                            [1] Auth Spec v1.4
+                            [1] Work Note WN-104
                           </button>
                           .
                         </li>
                         <li>
-                          <strong>SSE Timeout:</strong> Client timeout được nâng lên 45s và hỗ trợ reconnect tự động{" "}
+                          <strong>Bằng chứng thực thi:</strong> Logic đã được merge trong{" "}
                           <button
                             type="button"
-                            onClick={() => setActiveCitation("incident-04")}
+                            onClick={() => setActiveCitation("pr-88")}
                             className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-extrabold text-blue-700 border border-blue-200 hover:bg-blue-100 cursor-pointer"
                           >
-                            [2] Báo cáo Incident-04
-                          </button>
-                          .
+                            [2] PR #88
+                          </button>{" "}
+                          kèm báo cáo đo tải p99 đạt 12.4ms.
                         </li>
                       </ul>
 
                       {/* Clickable Citation Preview Drawer/Box */}
                       {activeCitation && (
-                        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3 text-xs dark:border-blue-900 dark:bg-blue-950/40">
+                        <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-3.5 text-xs dark:border-blue-900 dark:bg-blue-950/40">
                           <div className="flex items-center justify-between mb-1">
                             <span className="font-bold text-blue-900 dark:text-blue-300">
-                              Trích dẫn gốc ({activeCitation === "auth-spec" ? "Auth Spec v1.4" : "Báo cáo Incident-04"}):
+                              Trích dẫn nguồn gốc ({activeCitation === "wn-104" ? "Work Note WN-104" : "PR #88"}):
                             </span>
                             <button
                               type="button"
@@ -480,9 +496,9 @@ export default function LandingDemoSection() {
                             </button>
                           </div>
                           <p className="text-[11px] text-[#334155] dark:text-gray-300 italic">
-                            {activeCitation === "auth-spec"
-                              ? '"Mục 4.2: Refresh token phải luôn đặt Flag HttpOnly, SameSite=Lax và có TTL tối đa 7 ngày để giảm thiểu tấn công XSS."'
-                              : '"Mục 2.1: Khi SAG Inference Engine trả về chunk dài, socket HTTP thường bị drop ở giây thứ 30. Cần nâng timeout lên 45s và bật SSE keep-alive."'}
+                            {activeCitation === "wn-104"
+                              ? '"Mục 2.1: Nhóm đã cân nhắc RabbitMQ nhưng quyết định chọn Redis Pub/Sub vì tối ưu chi phí vận hành hạ tầng Kubernetes và đã có sẵn Redis Cluster."'
+                              : '"PR #88: Merge commit a3c9f2: Triển khai Redis Pub/Sub token revocation channel và test case kiểm thử tải đạt yêu cầu."'}
                           </p>
                         </div>
                       )}

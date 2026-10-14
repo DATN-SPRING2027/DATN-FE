@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { SectionHeading } from "./HeadingEmphasis";
 import {
   CheckCircleIcon,
   DocsIcon,
@@ -20,18 +19,18 @@ export default function LandingHowItWorks() {
       step: "01",
       name: "Ghi nhận",
       subtitle: "In-flow Capture",
-      actor: "Thành viên dự án / Developer",
-      desc: "Thành viên thêm ghi chú công việc (Work Notes), quyết định kỹ thuật và đính kèm tài liệu liên quan ngay khi triển khai.",
+      actor: "Nguyễn Văn A (Senior Backend)",
+      desc: "Kỹ sư tạo Work Note WN-104 ghi lại quyết định chọn Redis Pub/Sub, lý do kỹ thuật và đính kèm PR #88 ngay khi hoàn thành Sprint 24.",
       icon: DocsIcon,
-      input: "Quyết định kỹ thuật, PR, commit, sự cố hàng ngày",
-      output: "Work Note có bằng chứng chứng minh",
+      input: "Quyết định kỹ thuật, mã nguồn PR #88, kết quả đo tải",
+      output: "Work Note WN-104 có bằng chứng đính kèm",
       mockup: {
-        title: "Work Note: Xử lý Cache Invalidation cho User Profile",
-        author: "Kỹ sư Backend",
+        title: "Work Note: Kiến trúc Redis Pub/Sub cho Session Cache",
+        author: "Kỹ sư Nguyễn Văn A",
         badge: "Đã lưu vết",
         details: [
-          "Quyết định: Sử dụng Redis Pub/Sub để trigger xoá cache khi cập nhật profile.",
-          "Bằng chứng: Đính kèm PR #88 & Benchmark Test Report.",
+          "Quyết định: Sử dụng Redis Pub/Sub để đồng bộ hoá session giữa các pod.",
+          "Bằng chứng: Đính kèm PR #88 & Benchmark report (12.4ms latency).",
         ],
       },
     },
@@ -40,17 +39,17 @@ export default function LandingHowItWorks() {
       name: "Đề xuất",
       subtitle: "AI Synthesis",
       actor: "Continuum AI Engine",
-      desc: "AI phân tích các nguồn dữ liệu được cấp phép, gom cụm các quyết định liên quan và đề xuất tri thức ứng viên vào kho dự án.",
+      desc: "AI phân tích nội dung Work Note, nhận diện đây là quyết định kiến trúc trọng yếu của cụm IAM và đề xuất đưa vào kho tri thức ứng viên.",
       icon: ShootingStarIcon,
-      input: "Kho Work Notes, PR description và tài liệu thiết kế",
-      output: "Bản thảo tri thức ứng viên (Candidate Knowledge)",
+      input: "Nội dung Work Note WN-104 và file đặc tả kiến trúc",
+      output: "Bản thảo tri thức ứng viên chờ phê duyệt",
       mockup: {
-        title: "Đề xuất: Quy chuẩn cấu hình Timeout cho Microservices",
+        title: "Đề xuất tri thức: Chuẩn cấu hình Session Caching cho Microservices",
         author: "Continuum AI Assistant",
         badge: "Chờ kiểm duyệt",
         details: [
-          "AI phát hiện mẫu cấu hình lặp lại trong 4 service gần nhất.",
-          "Đề xuất đưa vào quy chuẩn chung của dự án để tránh sự cố treo socket.",
+          "AI nhận diện mẫu cấu hình lặp lại trong 3 module liên quan.",
+          "Đề xuất tạo chuẩn kiến trúc cho toàn bộ các module kế thừa.",
         ],
       },
     },
@@ -58,18 +57,18 @@ export default function LandingHowItWorks() {
       step: "03",
       name: "Kiểm chứng",
       subtitle: "Human Verification",
-      actor: "Tech Lead / Người có thẩm quyền",
-      desc: "Người có trách nhiệm kiểm tra tài liệu bằng chứng, đối chiếu tính chuẩn xác của nội dung trước khi bấm xác nhận chính thức.",
+      actor: "Trần Thị B (Tech Lead / System Architect)",
+      desc: "Tech Lead kiểm tra kết quả đo tải, đối chiếu với hạ tầng Kubernetes hiện tại trước khi bấm phê duyệt tri thức chính thức.",
       icon: CheckCircleIcon,
-      input: "Bản thảo tri thức đề xuất kèm bằng chứng thực thi",
+      input: "Bản thảo đề xuất & bằng chứng đo tải thực tế",
       output: "Tri thức chính thức được bảo chứng (Verified Knowledge)",
       mockup: {
-        title: "Thẩm định: Quy chuẩn cấu hình Timeout cho Microservices",
-        author: "Tech Lead / System Architect",
-        badge: "Đã xác minh bởi con người",
+        title: "Thẩm định: Chuẩn cấu hình Session Caching cho Microservices",
+        author: "Tech Lead Trần Thị B",
+        badge: "Đã thẩm định",
         details: [
-          "Xác nhận: Đã đối chiếu với hạ tầng Kubernetes và chấp thuận.",
-          "Trạng thái: Đã đưa vào kho tri thức chính thức của tổ chức.",
+          "Xác nhận: Đã đối chiếu hạ tầng Kubernetes và chấp thuận.",
+          "Trạng thái: Đã lưu vào kho tri thức chính thức của dự án.",
         ],
       },
     },
@@ -77,17 +76,17 @@ export default function LandingHowItWorks() {
       step: "04",
       name: "Bàn giao",
       subtitle: "Seamless Handover",
-      actor: "Người kế nhiệm / Thành viên mới",
-      desc: "Người kế nhiệm tra cứu gói bàn giao hoàn chỉnh và đặt câu hỏi cho trợ lý AI để nhận câu trả lời có trích dẫn nguồn chuẩn.",
+      actor: "Lê Minh B (Kỹ sư mới tiếp nhận)",
+      desc: "Người mới tiếp nhận gói bàn giao module IAM, tra cứu câu hỏi và nắm được lý do chọn Redis mà không cần làm phiền người tiền nhiệm.",
       icon: TaskIcon,
-      input: "Gói bàn giao chuyên biệt và các câu hỏi ngôn ngữ tự nhiên",
-      output: "Nắm vững toàn bộ dự án mà không cần làm phiền người cũ",
+      input: "Gói bàn giao chuyên biệt và các câu hỏi tra cứu",
+      output: "Tiếp tục phát triển hệ thống mà không bị gián đoạn",
       mockup: {
-        title: "Tiếp quản: Gói bàn giao Core Microservices & Caching",
-        author: "Kỹ sư kế nhiệm",
+        title: "Tiếp quản: Gói bàn giao Module IAM & Caching",
+        author: "Kỹ sư kế nhiệm Lê Minh B",
         badge: "Tiếp nối liên tục",
         details: [
-          "Đã xem 12 quyết định kiến trúc kèm bằng chứng xác thực.",
+          "Đã xem 5 quyết định kiến trúc kèm bằng chứng xác thực.",
           "Tra cứu trợ lý AI: 100% câu trả lời có nguồn trích dẫn đối chiếu.",
         ],
       },
@@ -103,18 +102,26 @@ export default function LandingHowItWorks() {
       className="py-16 md:py-24 border-t border-slate-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
     >
       <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
-        {/* Section Heading with Gradient Emphasis */}
-        <SectionHeading
-          badge="Quy trình 4 Bước Khép kín"
-          regularText="Ghi nhận. Kết nối. Xác minh."
-          emphasizedText="Tiếp nối không gián đoạn."
-          emphasisVariant="gradient"
-          description="Khám phá hành trình từng mẩu kinh nghiệm thực tế trở thành tài sản tri thức trường tồn của tổ chức."
-          align="center"
-        />
+        {/* Section Header with Refined Editorial Rhythm */}
+        <div className="max-w-3xl mb-12">
+          <div className="inline-flex items-center gap-1.5 rounded-full border border-blue-200 bg-blue-50/80 px-3.5 py-1 text-xs font-bold text-blue-700 shadow-2xs mb-3.5 dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300">
+            <span>Quy trình 4 giai đoạn</span>
+          </div>
 
-        {/* Horizontal Process Stepper Bar (Desktop & Mobile) */}
-        <div className="mt-14">
+          <h2 className="text-2xl font-extrabold tracking-tight text-[#0F172A] sm:text-3xl lg:text-4xl dark:text-white leading-tight">
+            Ghi nhận. Kết nối. Xác minh.{" "}
+            <span className="text-blue-600 dark:text-blue-400">
+              Tiếp nối không gián đoạn.
+            </span>
+          </h2>
+
+          <p className="mt-3.5 text-base text-[#334155] leading-relaxed dark:text-gray-300">
+            Hành trình khép kín giúp từng quyết định kỹ thuật từ lúc ghi nhận ban đầu trở thành tài sản được kiểm chứng vững chắc cho người tiếp nối.
+          </p>
+        </div>
+
+        {/* Process Stepper Bar */}
+        <div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:gap-4">
             {steps.map((item, idx) => {
               const isSelected = activeStep === idx;
@@ -152,20 +159,20 @@ export default function LandingHowItWorks() {
           </div>
 
           {/* Interactive Stage Detail Card */}
-          <div className="mt-8 rounded-3xl border border-slate-200/90 bg-[#F8FAFC] p-6 sm:p-8 shadow-sm dark:border-gray-800 dark:bg-gray-800/60">
-            <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-10">
+          <div className="mt-7 rounded-3xl border border-slate-200/90 bg-[#F8FAFC] p-6 sm:p-8 shadow-sm dark:border-gray-800 dark:bg-gray-800/60">
+            <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-12 lg:gap-8">
               {/* Left Column: Stage Info & Inputs/Outputs */}
-              <div className="lg:col-span-6 space-y-5">
-                <div className="flex items-center gap-2.5">
+              <div className="lg:col-span-6 space-y-4">
+                <div className="flex items-center gap-2">
                   <span className="rounded-md bg-blue-600 text-white px-2.5 py-1 text-xs font-extrabold">
-                    Bước {currentStep.step}
+                    Giai đoạn {currentStep.step}
                   </span>
                   <span className="text-xs font-bold text-blue-700 dark:text-blue-400">
                     {currentStep.subtitle}
                   </span>
                 </div>
 
-                <h3 className="text-2xl font-extrabold text-[#0F172A] dark:text-white">
+                <h3 className="text-xl sm:text-2xl font-extrabold text-[#0F172A] dark:text-white">
                   {currentStep.name}: {currentStep.desc.split(".")[0]}
                 </h3>
 
@@ -173,34 +180,26 @@ export default function LandingHowItWorks() {
                   {currentStep.desc}
                 </p>
 
-                {/* Actor */}
-                <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 dark:border-gray-700 dark:bg-gray-800">
+                {/* Responsible Actor */}
+                <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs dark:border-gray-700 dark:bg-gray-800">
                   <UserIcon className="h-4 w-4 text-blue-600 shrink-0" />
-                  <span className="text-xs text-slate-500 dark:text-gray-400">
-                    Chủ thể thực hiện:
-                  </span>
-                  <strong className="text-xs text-[#0F172A] dark:text-white">
-                    {currentStep.actor}
-                  </strong>
+                  <span className="text-slate-500 dark:text-gray-400">Chủ thể thực hiện:</span>
+                  <strong className="text-[#0F172A] dark:text-white">{currentStep.actor}</strong>
                 </div>
 
                 {/* Inputs & Outputs Badges */}
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 text-xs">
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 text-xs">
                   <div className="rounded-xl border border-slate-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-                    <span className="block font-bold text-slate-500 mb-1 dark:text-gray-400">
+                    <span className="block font-bold text-slate-500 mb-0.5 dark:text-gray-400">
                       Đầu vào (Input):
                     </span>
-                    <span className="text-[#334155] dark:text-gray-300">
-                      {currentStep.input}
-                    </span>
+                    <span className="text-[#334155] dark:text-gray-300">{currentStep.input}</span>
                   </div>
                   <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-3 dark:border-blue-900/60 dark:bg-blue-950/40">
-                    <span className="block font-bold text-blue-700 mb-1 dark:text-blue-300">
+                    <span className="block font-bold text-blue-700 mb-0.5 dark:text-blue-300">
                       Đầu ra (Output):
                     </span>
-                    <span className="text-[#334155] dark:text-gray-300 font-semibold">
-                      {currentStep.output}
-                    </span>
+                    <span className="text-[#334155] dark:text-gray-300 font-semibold">{currentStep.output}</span>
                   </div>
                 </div>
               </div>
@@ -215,7 +214,7 @@ export default function LandingHowItWorks() {
                       </div>
                       <div>
                         <span className="block text-xs font-bold text-[#0F172A] dark:text-white">
-                          Mô phỏng quy trình
+                          Minh họa quy trình
                         </span>
                         <span className="block text-[10px] text-slate-500">
                           {currentStep.mockup.author}
@@ -227,7 +226,7 @@ export default function LandingHowItWorks() {
                     </span>
                   </div>
 
-                  <h4 className="text-sm font-bold text-[#0F172A] mb-3 dark:text-white">
+                  <h4 className="text-xs sm:text-sm font-bold text-[#0F172A] mb-2.5 dark:text-white">
                     {currentStep.mockup.title}
                   </h4>
 
@@ -253,22 +252,19 @@ export default function LandingHowItWorks() {
           </div>
         </div>
 
-        {/* Mandatory Prominent Core Principle Callout */}
-        <div className="mt-12 mx-auto max-w-3xl rounded-3xl border-2 border-blue-500/30 bg-gradient-to-r from-blue-50 via-indigo-50/60 to-blue-50 p-6 sm:p-7 shadow-lg shadow-blue-500/5 dark:border-blue-900/60 dark:from-blue-950/60 dark:via-indigo-950/40 dark:to-blue-950/60">
-          <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 text-center sm:text-left">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/30">
-              <InfoIcon className="h-6 w-6" />
+        {/* Core Principle Callout */}
+        <div className="mt-10 mx-auto max-w-2xl rounded-2xl border border-blue-200 bg-blue-50/70 p-4 sm:p-5 shadow-xs dark:border-blue-900/50 dark:bg-blue-950/40">
+          <div className="flex items-start gap-3">
+            <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white shadow-2xs">
+              <InfoIcon className="h-4 w-4" />
             </div>
-            <div>
-              <span className="inline-block rounded-full bg-blue-600 text-white px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wide mb-1.5">
-                Nguyên tắc bất biến
+            <div className="text-xs sm:text-sm">
+              <span className="font-bold text-blue-900 dark:text-blue-300">
+                Nguyên tắc cốt lõi:{" "}
               </span>
-              <h4 className="text-lg sm:text-xl font-extrabold text-[#0F172A] dark:text-white">
-                AI hỗ trợ tổng hợp. Con người quyết định điều gì được xác nhận.
-              </h4>
-              <p className="mt-1.5 text-xs sm:text-sm text-[#334155] leading-relaxed dark:text-gray-300">
-                Continuum AI không bao giờ tự động xuất bản tri thức mà không có sự thẩm định của người chịu trách nhiệm. Công nghệ phục vụ con người, bảo toàn sự chính xác và tin cậy tuyệt đối.
-              </p>
+              <span className="text-[#334155] dark:text-gray-300">
+                AI hỗ trợ tổng hợp và đề xuất; Tech Lead trực tiếp rà soát bằng chứng và xác nhận trước khi tri thức được đưa vào lưu hành.
+              </span>
             </div>
           </div>
         </div>

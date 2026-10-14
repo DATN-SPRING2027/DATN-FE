@@ -37,7 +37,7 @@ vi.mock("@/icons", () => ({
   ChevronDownIcon: () => <span data-testid="chevron-down-icon" />,
 }));
 
-describe("Landing Page 2.0 Components", () => {
+describe("Continuum AI — Living Knowledge Experience", () => {
   describe("HeadingEmphasis & SectionHeading", () => {
     it("renders gradient, blue, underline, and contrast variants", () => {
       render(
@@ -60,7 +60,7 @@ describe("Landing Page 2.0 Components", () => {
           badge="Quy trình thử nghiệm"
           regularText="Khi nhân sự rời dự án,"
           emphasizedText="tri thức phải ở lại."
-          emphasisVariant="gradient"
+          emphasisVariant="blue"
           description="Mô tả kiểm tra cho SectionHeading"
         />
       );
@@ -105,20 +105,59 @@ describe("Landing Page 2.0 Components", () => {
     });
   });
 
+  describe("KnowledgeEcosystemGraph (Hero Knowledge Trace)", () => {
+    it("renders Continuum Knowledge Trace with interactive decision journey", () => {
+      render(<KnowledgeEcosystemGraph />);
+      expect(screen.getByText("CONTINUUM KNOWLEDGE TRACE")).toBeInTheDocument();
+      expect(
+        screen.getByText("Tại sao nhóm quyết định chọn Redis Pub/Sub?")
+      ).toBeInTheDocument();
+      expect(screen.getAllByText("Work Note WN-104").length).toBeGreaterThan(0);
+      expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
+      expect(screen.getByText("Bằng chứng")).toBeInTheDocument();
+      expect(screen.getByText("Thẩm định")).toBeInTheDocument();
+      expect(screen.getByText("Tiếp nối")).toBeInTheDocument();
+
+      // Click on stage 2: Bằng chứng
+      fireEvent.click(screen.getByText("Bằng chứng"));
+      expect(
+        screen.getByText("Liên kết PR #88 và Báo cáo kiểm thử tải")
+      ).toBeInTheDocument();
+      expect(screen.getByText(/PR #88: feat\(iam\) redis-pubsub/i)).toBeInTheDocument();
+
+      // Click on stage 3: Thẩm định
+      fireEvent.click(screen.getByText("Thẩm định"));
+      expect(
+        screen.getByText("Tech Lead đối chiếu hạ tầng & phê duyệt chính thức")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Trần Thị B \(Tech Lead \/ System Architect\)/i)
+      ).toBeInTheDocument();
+    });
+  });
+
   describe("LandingProblemSolution", () => {
-    it("renders transformation comparison panels (Traditional vs Continuum AI)", () => {
+    it("renders visual before/after comparison with Slack fragments vs Continuum stream", () => {
       render(<LandingProblemSolution />);
       expect(screen.getByText("Khi nhân sự thay đổi,")).toBeInTheDocument();
       expect(screen.getByText("tri thức không được phép biến mất.")).toBeInTheDocument();
-      expect(screen.getByText("Quản lý tri thức truyền thống")).toBeInTheDocument();
-      expect(screen.getByText("Tiếp nối tri thức thông minh")).toBeInTheDocument();
-      expect(screen.getByText("Quyết định nằm rải rác trong chat")).toBeInTheDocument();
-      expect(screen.getByText("Ghi nhận quyết định trong công việc")).toBeInTheDocument();
+      expect(
+        screen.getByText("Cách làm cũ: Rời rạc & Phụ thuộc trí nhớ")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText("Tiếp nối có ngữ cảnh & bằng chứng")
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Tin nhắn Slack \(#backend-dev\) • 3 tuần trước/i)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(/Work Note WN-104 \(Nguyễn Văn A\)/i)
+      ).toBeInTheDocument();
     });
   });
 
   describe("LandingFeatures", () => {
-    it("renders all 5 Bento Grid feature cards", () => {
+    it("renders Bento Grid with unified IAM and Caching project story", () => {
       render(<LandingFeatures />);
       expect(
         screen.getByText("Ghi nhận tri thức ngay khi công việc diễn ra")
@@ -131,18 +170,21 @@ describe("Landing Page 2.0 Components", () => {
       expect(
         screen.getByText("Tri thức không còn là những mảnh rời rạc")
       ).toBeInTheDocument();
+      expect(
+        screen.getByText("Kiến trúc Redis Pub/Sub & Token Revocation")
+      ).toBeInTheDocument();
     });
   });
 
   describe("LandingHowItWorks", () => {
-    it("renders 4 sequential steps, responsible actor and prominent core principle", () => {
+    it("renders 4 sequential stages with unified story and core principle", () => {
       render(<LandingHowItWorks />);
       expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
       expect(screen.getByText("Đề xuất")).toBeInTheDocument();
       expect(screen.getByText("Kiểm chứng")).toBeInTheDocument();
       expect(screen.getByText("Bàn giao")).toBeInTheDocument();
       expect(
-        screen.getByText("AI hỗ trợ tổng hợp. Con người quyết định điều gì được xác nhận.")
+        screen.getByText(/AI hỗ trợ tổng hợp và đề xuất; Tech Lead trực tiếp rà soát bằng chứng/i)
       ).toBeInTheDocument();
     });
   });
@@ -169,7 +211,7 @@ describe("Landing Page 2.0 Components", () => {
   });
 
   describe("LandingCtaFooter", () => {
-    it("renders final CTA with gradient headline and footer copyright", () => {
+    it("renders final CTA and footer copyright", () => {
       render(<LandingCtaFooter />);
       expect(screen.getByText("Tri thức hôm nay.")).toBeInTheDocument();
       expect(
@@ -192,26 +234,6 @@ describe("Landing Page 2.0 Components", () => {
       expect(card.style.transformStyle).toBe("preserve-3d");
       fireEvent.mouseLeave(card);
       expect(card.style.transform).toContain("rotateX(0deg)");
-    });
-  });
-
-  describe("KnowledgeEcosystemGraph", () => {
-    it("renders Living Knowledge Network with central core and 6 lifecycle nodes", () => {
-      render(<KnowledgeEcosystemGraph />);
-      expect(screen.getByText("CONTINUUM")).toBeInTheDocument();
-      expect(screen.getByText("AI CORE")).toBeInTheDocument();
-      expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
-      expect(screen.getByText("Bằng chứng")).toBeInTheDocument();
-      expect(screen.getByText("AI Đề xuất")).toBeInTheDocument();
-      expect(screen.getByText("Kiểm chứng")).toBeInTheDocument();
-      expect(screen.getByText("Truy xuất")).toBeInTheDocument();
-      expect(screen.getByText("Bàn giao")).toBeInTheDocument();
-
-      // Interaction: Click on Bằng chứng node
-      fireEvent.click(screen.getByText("Bằng chứng"));
-      expect(
-        screen.getByText("Liên kết lý do và nguồn gốc xác thực")
-      ).toBeInTheDocument();
     });
   });
 });
