@@ -7,6 +7,7 @@ interface ButtonProps {
   startIcon?: ReactNode; // Icon before the text
   endIcon?: ReactNode; // Icon after the text
   onClick?: () => void; // Click handler
+  ariaLabel?: string;
   disabled?: boolean; // Disabled state
   className?: string; // Disabled state
 }
@@ -18,6 +19,7 @@ const Button: React.FC<ButtonProps> = ({
   startIcon,
   endIcon,
   onClick,
+  ariaLabel,
   className = "",
   disabled = false,
 }) => {
@@ -42,6 +44,7 @@ const Button: React.FC<ButtonProps> = ({
       } ${variantClasses[variant]} ${
         disabled ? "cursor-not-allowed opacity-50" : ""
       }`}
+      aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled}
     >
