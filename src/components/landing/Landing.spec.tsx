@@ -95,7 +95,7 @@ describe("Continuum AI — Living Knowledge Experience", () => {
       expect(screen.getByText("Nhân sự có thể rời dự án.")).toBeInTheDocument();
       expect(screen.getByText("Tri thức phải ở lại.")).toBeInTheDocument();
       expect(
-        screen.getByText(/Continuum AI giúp đội ngũ ghi nhận quyết định, kết nối bằng chứng/i)
+        screen.getByText(/Lưu vết quyết định kỹ thuật, liên kết bằng chứng và bàn giao trọn vẹn/i)
       ).toBeInTheDocument();
       expect(screen.getAllByText("Trải nghiệm bản demo").length).toBeGreaterThan(0);
       expect(screen.getByText("Khám phá cách hoạt động")).toBeInTheDocument();
@@ -142,13 +142,13 @@ describe("Continuum AI — Living Knowledge Experience", () => {
       expect(screen.getByText("Khi nhân sự thay đổi,")).toBeInTheDocument();
       expect(screen.getByText("tri thức không được phép biến mất.")).toBeInTheDocument();
       expect(
-        screen.getByText("Cách làm cũ: Rời rạc & Phụ thuộc trí nhớ")
+        screen.getByText("Cách làm cũ: Rời rạc & Thất thoát")
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Tiếp nối có ngữ cảnh & bằng chứng")
+        screen.getByText("Tiếp nối có bằng chứng & kiểm chứng")
       ).toBeInTheDocument();
       expect(
-        screen.getByText(/Tin nhắn Slack \(#backend-dev\) • 3 tuần trước/i)
+        screen.getByText(/Slack #backend • 3 tuần trước/i)
       ).toBeInTheDocument();
       expect(
         screen.getByText(/Work Note WN-104 \(Nguyễn Văn A\)/i)
