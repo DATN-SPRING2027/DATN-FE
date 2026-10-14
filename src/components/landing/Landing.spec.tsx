@@ -9,6 +9,7 @@ import LandingDemoSection from "./LandingDemoSection";
 import LandingCtaFooter from "./LandingCtaFooter";
 import Landing3DCard from "./Landing3DCard";
 import KnowledgeEcosystemGraph from "./KnowledgeEcosystemGraph";
+import HeadingEmphasis, { SectionHeading } from "./HeadingEmphasis";
 
 // Mock next-intl and navigation
 vi.mock("@/i18n/navigation", () => ({
@@ -23,16 +24,53 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/icons", () => ({
   ArrowRightIcon: () => <span data-testid="arrow-right-icon" />,
   CheckCircleIcon: () => <span data-testid="check-circle-icon" />,
+  CheckLineIcon: () => <span data-testid="check-line-icon" />,
+  CloseIcon: () => <span data-testid="close-icon" />,
   DocsIcon: () => <span data-testid="docs-icon" />,
   ShootingStarIcon: () => <span data-testid="star-icon" />,
   TaskIcon: () => <span data-testid="task-icon" />,
   TimeIcon: () => <span data-testid="time-icon" />,
   FileIcon: () => <span data-testid="file-icon" />,
   InfoIcon: () => <span data-testid="info-icon" />,
+  LockIcon: () => <span data-testid="lock-icon" />,
+  UserIcon: () => <span data-testid="user-icon" />,
   ChevronDownIcon: () => <span data-testid="chevron-down-icon" />,
 }));
 
-describe("Landing Page Components", () => {
+describe("Landing Page 2.0 Components", () => {
+  describe("HeadingEmphasis & SectionHeading", () => {
+    it("renders gradient, blue, underline, and contrast variants", () => {
+      render(
+        <div>
+          <HeadingEmphasis variant="gradient">Tri thức phải ở lại</HeadingEmphasis>
+          <HeadingEmphasis variant="blue">Xác minh con người</HeadingEmphasis>
+          <HeadingEmphasis variant="underline">Bằng chứng thực thi</HeadingEmphasis>
+          <HeadingEmphasis variant="contrast">Chuyển giao</HeadingEmphasis>
+        </div>
+      );
+      expect(screen.getByText("Tri thức phải ở lại")).toBeInTheDocument();
+      expect(screen.getByText("Xác minh con người")).toBeInTheDocument();
+      expect(screen.getByText("Bằng chứng thực thi")).toBeInTheDocument();
+      expect(screen.getByText("Chuyển giao")).toBeInTheDocument();
+    });
+
+    it("renders SectionHeading with badge, regular text and emphasized phrase", () => {
+      render(
+        <SectionHeading
+          badge="Quy trình thử nghiệm"
+          regularText="Khi nhân sự rời dự án,"
+          emphasizedText="tri thức phải ở lại."
+          emphasisVariant="gradient"
+          description="Mô tả kiểm tra cho SectionHeading"
+        />
+      );
+      expect(screen.getByText("Quy trình thử nghiệm")).toBeInTheDocument();
+      expect(screen.getByText("Khi nhân sự rời dự án,")).toBeInTheDocument();
+      expect(screen.getByText("tri thức phải ở lại.")).toBeInTheDocument();
+      expect(screen.getByText("Mô tả kiểm tra cho SectionHeading")).toBeInTheDocument();
+    });
+  });
+
   describe("LandingNavbar", () => {
     it("renders navigation links and call to actions", () => {
       render(<LandingNavbar />);
@@ -40,70 +78,77 @@ describe("Landing Page Components", () => {
       expect(screen.getByText("Tính năng")).toBeInTheDocument();
       expect(screen.getByText("Cách hoạt động")).toBeInTheDocument();
       expect(screen.getByText("Đăng nhập")).toBeInTheDocument();
-      expect(screen.getAllByText("Khám phá bản demo").length).toBeGreaterThan(0);
+      expect(screen.getAllByText("Trải nghiệm bản demo").length).toBeGreaterThan(0);
     });
 
     it("toggles mobile menu on button click", () => {
       render(<LandingNavbar />);
       const toggleBtn = screen.getByRole("button", { name: /toggle navigation menu/i });
       fireEvent.click(toggleBtn);
-      // After clicking, mobile menu links are rendered
       expect(screen.getAllByText("Giải pháp").length).toBe(2);
     });
   });
 
   describe("LandingHero", () => {
-    it("renders value prop headline and CTA buttons", () => {
+    it("renders value prop headline, principles and CTA buttons", () => {
       render(<LandingHero />);
+      expect(screen.getByText("Nhân sự có thể rời dự án.")).toBeInTheDocument();
+      expect(screen.getByText("Tri thức phải ở lại.")).toBeInTheDocument();
       expect(
-        screen.getByText("Đừng để tri thức dự án rời đi cùng một thành viên.")
+        screen.getByText(/Continuum AI giúp đội ngũ ghi nhận quyết định, kết nối bằng chứng/i)
       ).toBeInTheDocument();
-      expect(
-        screen.getByText("Hệ sinh thái tri thức sống cho đội ngũ phần mềm")
-      ).toBeInTheDocument();
-      expect(screen.getByText("Tìm hiểu cách hoạt động")).toBeInTheDocument();
-      expect(screen.getByText("Hạt tâm Tri thức")).toBeInTheDocument();
-      expect(screen.getByText("Thu thập & Bóc tách")).toBeInTheDocument();
+      expect(screen.getAllByText("Trải nghiệm bản demo").length).toBeGreaterThan(0);
+      expect(screen.getByText("Khám phá cách hoạt động")).toBeInTheDocument();
+      expect(screen.getByText("Ghi nhận trong quá trình làm việc")).toBeInTheDocument();
+      expect(screen.getByText("Tri thức có nguồn và kiểm chứng")).toBeInTheDocument();
+      expect(screen.getByText("Con người giữ quyền xác nhận")).toBeInTheDocument();
     });
   });
 
   describe("LandingProblemSolution", () => {
-    it("renders problem heading and 3 benefits cards", () => {
+    it("renders transformation comparison panels (Traditional vs Continuum AI)", () => {
       render(<LandingProblemSolution />);
-      expect(
-        screen.getByText("Khi một người rời dự án, kiến thức không nên rời theo.")
-      ).toBeInTheDocument();
-      expect(screen.getByText("Ghi lại khi công việc đang diễn ra")).toBeInTheDocument();
-      expect(screen.getByText("Biết điều gì đã được kiểm chứng")).toBeInTheDocument();
-      expect(screen.getByText("Bàn giao có trọng tâm")).toBeInTheDocument();
+      expect(screen.getByText("Khi nhân sự thay đổi,")).toBeInTheDocument();
+      expect(screen.getByText("tri thức không được phép biến mất.")).toBeInTheDocument();
+      expect(screen.getByText("Quản lý tri thức truyền thống")).toBeInTheDocument();
+      expect(screen.getByText("Tiếp nối tri thức thông minh")).toBeInTheDocument();
+      expect(screen.getByText("Quyết định nằm rải rác trong chat")).toBeInTheDocument();
+      expect(screen.getByText("Ghi nhận quyết định trong công việc")).toBeInTheDocument();
     });
   });
 
   describe("LandingFeatures", () => {
-    it("renders 4 main feature cards", () => {
+    it("renders all 5 Bento Grid feature cards", () => {
       render(<LandingFeatures />);
-      expect(screen.getByText("Work Notes và tài liệu")).toBeInTheDocument();
-      expect(screen.getByText("Tri thức có kiểm chứng")).toBeInTheDocument();
-      expect(screen.getByText("Trợ lý hỏi đáp có trích dẫn")).toBeInTheDocument();
-      expect(screen.getByText("Quy trình bàn giao")).toBeInTheDocument();
+      expect(
+        screen.getByText("Ghi nhận tri thức ngay khi công việc diễn ra")
+      ).toBeInTheDocument();
+      expect(screen.getByText("AI đề xuất. Con người xác minh.")).toBeInTheDocument();
+      expect(
+        screen.getByText("Câu trả lời có thể kiểm chứng nguồn")
+      ).toBeInTheDocument();
+      expect(screen.getByText("Bàn giao không mất ngữ cảnh")).toBeInTheDocument();
+      expect(
+        screen.getByText("Tri thức không còn là những mảnh rời rạc")
+      ).toBeInTheDocument();
     });
   });
 
   describe("LandingHowItWorks", () => {
-    it("renders 4 sequential steps and explicit AI vs Human note", () => {
+    it("renders 4 sequential steps, responsible actor and prominent core principle", () => {
       render(<LandingHowItWorks />);
       expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
       expect(screen.getByText("Đề xuất")).toBeInTheDocument();
       expect(screen.getByText("Kiểm chứng")).toBeInTheDocument();
       expect(screen.getByText("Bàn giao")).toBeInTheDocument();
       expect(
-        screen.getByText(/AI đóng vai trò tổng hợp và đưa ra đề xuất; con người/i)
+        screen.getByText("AI hỗ trợ tổng hợp. Con người quyết định điều gì được xác nhận.")
       ).toBeInTheDocument();
     });
   });
 
   describe("LandingDemoSection", () => {
-    it("allows switching between interactive demo tabs", () => {
+    it("allows switching between interactive demo tabs and shows verification workflow", () => {
       render(<LandingDemoSection />);
       expect(screen.getByText("1. Kho tri thức dự án")).toBeInTheDocument();
       expect(screen.getByText("2. Thẩm định & Xác nhận")).toBeInTheDocument();
@@ -124,14 +169,13 @@ describe("Landing Page Components", () => {
   });
 
   describe("LandingCtaFooter", () => {
-    it("renders final CTA and footer copyright", () => {
+    it("renders final CTA with gradient headline and footer copyright", () => {
       render(<LandingCtaFooter />);
+      expect(screen.getByText("Tri thức hôm nay.")).toBeInTheDocument();
       expect(
-        screen.getByText("Giúp người kế nhiệm bắt đầu với đầy đủ ngữ cảnh.")
+        screen.getByText("Sức mạnh cho người kế nhiệm ngày mai.")
       ).toBeInTheDocument();
-      expect(
-        screen.getByText(/Mọi quyền được bảo lưu/i)
-      ).toBeInTheDocument();
+      expect(screen.getByText(/Mọi quyền được bảo lưu/i)).toBeInTheDocument();
     });
   });
 
@@ -152,17 +196,22 @@ describe("Landing Page Components", () => {
   });
 
   describe("KnowledgeEcosystemGraph", () => {
-    it("renders core seed and branch nodes with interactive click", () => {
+    it("renders Living Knowledge Network with central core and 6 lifecycle nodes", () => {
       render(<KnowledgeEcosystemGraph />);
-      expect(screen.getByText("Hạt tâm Tri thức")).toBeInTheDocument();
-      expect(screen.getByText("Thu thập & Bóc tách")).toBeInTheDocument();
-      expect(screen.getByText("Mạng lưới Liên kết")).toBeInTheDocument();
-      expect(screen.getByText("Kiểm chứng Thẩm định")).toBeInTheDocument();
+      expect(screen.getByText("CONTINUUM")).toBeInTheDocument();
+      expect(screen.getByText("AI CORE")).toBeInTheDocument();
+      expect(screen.getByText("Ghi nhận")).toBeInTheDocument();
+      expect(screen.getByText("Bằng chứng")).toBeInTheDocument();
+      expect(screen.getByText("AI Đề xuất")).toBeInTheDocument();
+      expect(screen.getByText("Kiểm chứng")).toBeInTheDocument();
+      expect(screen.getByText("Truy xuất")).toBeInTheDocument();
+      expect(screen.getByText("Bàn giao")).toBeInTheDocument();
 
-      // Click on branch-2 node
-      fireEvent.click(screen.getByText("Mạng lưới Liên kết"));
-      expect(screen.getByText("Kết nối ngữ cảnh thông minh")).toBeInTheDocument();
-      expect(screen.getByText("Khám phá liên kết AI")).toBeInTheDocument();
+      // Interaction: Click on Bằng chứng node
+      fireEvent.click(screen.getByText("Bằng chứng"));
+      expect(
+        screen.getByText("Liên kết lý do và nguồn gốc xác thực")
+      ).toBeInTheDocument();
     });
   });
 });

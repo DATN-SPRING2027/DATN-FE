@@ -1,603 +1,484 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useId } from "react";
+import {
+  DocsIcon,
+  CheckCircleIcon,
+  ShootingStarIcon,
+  TaskIcon,
+  FileIcon,
+  LockIcon,
+  ArrowRightIcon,
+} from "@/icons";
 
-export interface EcosystemNode {
+export interface KnowledgeNodeItem {
   id: string;
-  parentId?: string;
+  step: string;
   label: string;
-  role: "upload" | "network" | "query" | "growth" | "verify" | "core";
-  x: number; // percentage 0-100
-  y: number; // percentage 0-100
-  colorScheme: {
-    orbGradient: string;
-    glowColor: string;
-    shadowColor: string;
-    ringColor: string;
-    iconColor: string;
-  };
-  card?: {
-    badge: string;
-    title: string;
-    description: string;
-    ctaText: string;
-    actionSectionId?: string;
-  };
-  depthTags?: { dx: number; dy: number; label: string; blur?: boolean }[];
+  badge: string;
+  stageName: string;
+  title: string;
+  shortDesc: string;
+  detail: string;
+  actor: string;
+  x: number; // SVG coordinate (viewBox 600x500)
+  y: number;
+  icon: (props: { className?: string }) => React.ReactElement;
+  connectedTo: string[]; // Node IDs connected
+  accentColor: string;
 }
 
-export const defaultEcosystemNodes: EcosystemNode[] = [
+export const KNOWLEDGE_LIFECYCLE_NODES: KnowledgeNodeItem[] = [
   {
-    id: "core",
-    label: "Hạt tâm Tri thức",
-    role: "core",
-    x: 50,
-    y: 50,
-    colorScheme: {
-      orbGradient: "from-blue-700 via-indigo-600 to-blue-500",
-      glowColor: "rgba(37, 99, 235, 0.4)",
-      shadowColor: "rgba(30, 58, 138, 0.5)",
-      ringColor: "rgba(59, 130, 246, 0.3)",
-      iconColor: "#FFFFFF",
-    },
+    id: "capture",
+    step: "01",
+    label: "Ghi nhận",
+    badge: "In-flow Capture",
+    stageName: "Giai đoạn 01 • Ghi nhận công việc",
+    title: "Ghi nhận tri thức trong quá trình làm việc",
+    shortDesc: "Work Notes & Quyết định kỹ thuật",
+    detail:
+      "Thành viên ghi nhận các quyết định kiến trúc, cách xử lý lỗi và trở ngại ngay khi công việc diễn ra, không để trôi vào chat hay chờ đến ngày bàn giao.",
+    actor: "Thành viên dự án / Developer",
+    x: 130,
+    y: 130,
+    icon: DocsIcon,
+    connectedTo: ["core", "evidence", "handover"],
+    accentColor: "#3B82F6",
   },
   {
-    id: "branch-1",
-    parentId: "core",
-    label: "Thu thập & Bóc tách",
-    role: "upload",
-    x: 24,
-    y: 27,
-    colorScheme: {
-      orbGradient: "from-sky-400 via-blue-500 to-blue-600",
-      glowColor: "rgba(56, 189, 248, 0.35)",
-      shadowColor: "rgba(14, 165, 233, 0.4)",
-      ringColor: "rgba(186, 230, 253, 0.5)",
-      iconColor: "#FFFFFF",
-    },
-    card: {
-      badge: "Giai đoạn 01 • Đầu vào",
-      title: "Chắt lọc dữ liệu tự nhiên",
-      description: "Tự động phân tích và làm sạch hàng ngàn tài liệu, Work Notes và PR kỹ thuật thành các khối tri thức cô đọng.",
-      ctaText: "Xem quy trình",
-      actionSectionId: "giai-phap",
-    },
-    depthTags: [
-      { dx: -7, dy: -6, label: "Work Notes", blur: true },
-      { dx: -4, dy: 9, label: "Evidence PRs", blur: false },
-    ],
+    id: "evidence",
+    step: "02",
+    label: "Bằng chứng",
+    badge: "Source & Context",
+    stageName: "Giai đoạn 02 • Bằng chứng xác thực",
+    title: "Liên kết lý do và nguồn gốc xác thực",
+    shortDesc: "Git PR, commit & specs đính kèm",
+    detail:
+      "Mọi ghi chú đều đính kèm bằng chứng xác thực: PR kỹ thuật, commit hash, issue tracker hoặc tài liệu kiến trúc để người sau kiểm chứng nhanh chóng.",
+    actor: "Hệ thống tích hợp (Git, Jira, Docs)",
+    x: 300,
+    y: 75,
+    icon: FileIcon,
+    connectedTo: ["core", "capture", "proposal"],
+    accentColor: "#60A5FA",
   },
   {
-    id: "branch-2",
-    parentId: "core",
-    label: "Mạng lưới Liên kết",
-    role: "network",
-    x: 74,
-    y: 24,
-    colorScheme: {
-      orbGradient: "from-blue-600 via-indigo-600 to-blue-700",
-      glowColor: "rgba(37, 99, 235, 0.5)",
-      shadowColor: "rgba(30, 58, 138, 0.6)",
-      ringColor: "rgba(99, 102, 241, 0.4)",
-      iconColor: "#FFFFFF",
-    },
-    card: {
-      badge: "Giai đoạn 02 • Cấu trúc",
-      title: "Kết nối ngữ cảnh thông minh",
-      description: "Hình thành hệ thống rễ liên kết các thông tin rời rạc thành bức tranh tổng thể, sẵn sàng cho việc kế thừa.",
-      ctaText: "Khám phá liên kết AI",
-      actionSectionId: "tinh-nang",
-    },
-    depthTags: [
-      { dx: 7, dy: -8, label: "Graph Context", blur: true },
-      { dx: 9, dy: 7, label: "Auto Link", blur: false },
-    ],
+    id: "proposal",
+    step: "03",
+    label: "AI Đề xuất",
+    badge: "AI Synthesis",
+    stageName: "Giai đoạn 03 • AI Tổng hợp & Đề xuất",
+    title: "AI gom cụm ngữ cảnh & đề xuất tri thức",
+    shortDesc: "Chắt lọc tri thức từ nguồn được phép",
+    detail:
+      "Continuum AI Engine phân tích các nguồn dữ liệu được cấp phép, gom cụm các quyết định liên quan và đề xuất tri thức ứng viên vào kho dự án.",
+    actor: "Continuum AI Assistant",
+    x: 470,
+    y: 130,
+    icon: ShootingStarIcon,
+    connectedTo: ["core", "evidence", "verification"],
+    accentColor: "#6366F1",
   },
   {
-    id: "branch-3",
-    parentId: "core",
-    label: "Kiểm chứng Thẩm định",
-    role: "verify",
-    x: 82,
-    y: 56,
-    colorScheme: {
-      orbGradient: "from-blue-600 via-cyan-600 to-teal-600",
-      glowColor: "rgba(6, 182, 212, 0.35)",
-      shadowColor: "rgba(8, 145, 178, 0.4)",
-      ringColor: "rgba(165, 243, 252, 0.5)",
-      iconColor: "#FFFFFF",
-    },
-    card: {
-      badge: "Giai đoạn 03 • Bảo chứng",
-      title: "Xác thực bởi người có trách nhiệm",
-      description: "Nguyên tắc cốt lõi: AI chỉ đưa ra đề xuất, con người (Tech Lead/Maintainer) trực tiếp kiểm chứng trước khi xác nhận.",
-      ctaText: "Xem cơ chế kiểm duyệt",
-      actionSectionId: "cach-hoat-dong",
-    },
-    depthTags: [
-      { dx: 8, dy: -6, label: "Lead Review", blur: false },
-      { dx: 7, dy: 8, label: "Human Verify", blur: true },
-    ],
+    id: "verification",
+    step: "04",
+    label: "Kiểm chứng",
+    badge: "Human-in-the-loop",
+    stageName: "Giai đoạn 04 • Thẩm định bởi con người",
+    title: "Tri thức được con người xác minh 100%",
+    shortDesc: "Tech Lead kiểm duyệt trước khi lưu",
+    detail:
+      "Nguyên tắc cốt lõi: AI hỗ trợ tổng hợp và đề xuất, nhưng chỉ người có thẩm quyền (Lead/Owner) mới được phê duyệt tri thức chính thức.",
+    actor: "Tech Lead / Module Owner",
+    x: 470,
+    y: 370,
+    icon: CheckCircleIcon,
+    connectedTo: ["core", "proposal", "retrieval"],
+    accentColor: "#2563EB",
   },
   {
-    id: "branch-4",
-    parentId: "core",
-    label: "Truy vấn Tức thì",
-    role: "query",
-    x: 68,
-    y: 78,
-    colorScheme: {
-      orbGradient: "from-amber-500 via-orange-500 to-amber-600",
-      glowColor: "rgba(245, 158, 11, 0.45)",
-      shadowColor: "rgba(217, 119, 6, 0.5)",
-      ringColor: "rgba(254, 215, 170, 0.6)",
-      iconColor: "#FFFFFF",
-    },
-    card: {
-      badge: "Giai đoạn 04 • Khai thác",
-      title: "Trích xuất câu trả lời chính xác",
-      description: "Đặt câu hỏi bằng ngôn ngữ tự nhiên và nhận phản hồi tức thì kèm trích dẫn nguồn bằng chứng minh bạch.",
-      ctaText: "Trải nghiệm ngay",
-      actionSectionId: "demo",
-    },
-    depthTags: [
-      { dx: 6, dy: 9, label: "RAG Citation", blur: false },
-      { dx: -7, dy: 8, label: "Vector Search", blur: true },
-    ],
+    id: "retrieval",
+    step: "05",
+    label: "Truy xuất",
+    badge: "Source-based RAG",
+    stageName: "Giai đoạn 05 • Truy vấn có trích dẫn",
+    title: "Câu trả lời có thể kiểm chứng nguồn",
+    shortDesc: "Hỏi đáp tự nhiên với trích dẫn minh bạch",
+    detail:
+      "Thành viên tra cứu và hỏi đáp về dự án bằng ngôn ngữ tự nhiên. Câu trả lời luôn kèm trích dẫn nguồn; nếu thiếu tài liệu, hệ thống thông báo minh bạch.",
+    actor: "Mọi thành viên trong nhóm",
+    x: 300,
+    y: 425,
+    icon: LockIcon,
+    connectedTo: ["core", "verification", "handover"],
+    accentColor: "#4F46E5",
   },
   {
-    id: "branch-5",
-    parentId: "core",
-    label: "Sinh trưởng Kế thừa",
-    role: "growth",
-    x: 26,
-    y: 72,
-    colorScheme: {
-      orbGradient: "from-indigo-600 via-blue-700 to-indigo-800",
-      glowColor: "rgba(79, 70, 229, 0.4)",
-      shadowColor: "rgba(49, 46, 129, 0.5)",
-      ringColor: "rgba(199, 210, 254, 0.5)",
-      iconColor: "#FFFFFF",
-    },
-    card: {
-      badge: "Giai đoạn 05 • Chuyển giao",
-      title: "Hệ sinh thái tự học hỏi & bàn giao",
-      description: "Mỗi tương tác mới giúp mở rộng nhánh tri thức, người kế nhiệm tiếp quản trọn vẹn context công việc.",
-      ctaText: "Tìm hiểu thêm",
-      actionSectionId: "tinh-nang",
-    },
-    depthTags: [
-      { dx: -8, dy: 6, label: "Handover Kit", blur: false },
-      { dx: 7, dy: 9, label: "Knowledge DNA", blur: true },
-    ],
+    id: "handover",
+    step: "06",
+    label: "Bàn giao",
+    badge: "Zero-loss Handover",
+    stageName: "Giai đoạn 06 • Bàn giao & Kế thừa",
+    title: "Bàn giao trọn vẹn ngữ cảnh cho người mới",
+    shortDesc: "Tiếp nối công việc không gián đoạn",
+    detail:
+      "Người tiếp nhận dự án kế thừa đầy đủ gói bàn giao gồm trách nhiệm đang mở, các câu hỏi chưa giải quyết và tài liệu đã thẩm định từ người đi trước.",
+    actor: "Người kế nhiệm / Nhân sự mới",
+    x: 130,
+    y: 370,
+    icon: TaskIcon,
+    connectedTo: ["core", "retrieval", "capture"],
+    accentColor: "#818CF8",
   },
 ];
 
-interface KnowledgeEcosystemGraphProps {
-  nodes?: EcosystemNode[];
-  onSelectNode?: (node: EcosystemNode) => void;
-  className?: string;
-}
-
 export default function KnowledgeEcosystemGraph({
-  nodes = defaultEcosystemNodes,
-  onSelectNode,
   className = "",
-}: KnowledgeEcosystemGraphProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [activeNodeId, setActiveNodeId] = useState<string>("branch-2");
+}: {
+  className?: string;
+}) {
+  const [selectedNodeId, setSelectedNodeId] = useState<string>("verification");
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const mousePos = useRef<{ x: number; y: number }>({ x: -1000, y: -1000 });
+  const filterId = useId();
 
-  const coreNode = useMemo(() => nodes.find((n) => n.role === "core") || nodes[0], [nodes]);
-  const branchNodes = useMemo(() => nodes.filter((n) => n.id !== coreNode.id), [nodes, coreNode]);
-  const activeNode = useMemo(
-    () => nodes.find((n) => n.id === (hoveredNodeId || activeNodeId)) || branchNodes[0],
-    [nodes, hoveredNodeId, activeNodeId, branchNodes]
-  );
+  const activeId = hoveredNodeId || selectedNodeId;
+  const activeNode =
+    KNOWLEDGE_LIFECYCLE_NODES.find((n) => n.id === activeId) ||
+    KNOWLEDGE_LIFECYCLE_NODES[3]; // default to verification
 
-  // Atmospheric Cyber-Biophilic Particles (Royal Blue & Cyan glow)
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let animationFrameId: number;
-    let width = (canvas.width = canvas.parentElement?.clientWidth || 640);
-    let height = (canvas.height = canvas.parentElement?.clientHeight || 620);
-
-    const handleResize = () => {
-      if (!canvas.parentElement) return;
-      width = canvas.width = canvas.parentElement.clientWidth;
-      height = canvas.height = canvas.parentElement.clientHeight;
-    };
-    window.addEventListener("resize", handleResize);
-
-    // Particle pool: 110 luminous blue & cyan data particles
-    const particleCount = 110;
-    const particles = Array.from({ length: particleCount }).map(() => ({
-      x: Math.random() * width,
-      y: Math.random() * height,
-      vx: (Math.random() - 0.5) * 0.4,
-      vy: (Math.random() - 0.5) * 0.4,
-      radius: Math.random() * 2.2 + 0.8,
-      alpha: Math.random() * 0.5 + 0.2,
-      pulse: Math.random() * Math.PI * 2,
-      color: Math.random() > 0.35 ? "rgba(37, 99, 235," : "rgba(6, 182, 212,",
-    }));
-
-    const render = () => {
-      ctx.clearRect(0, 0, width, height);
-
-      // Render cyber mesh / subtle grid coordinates
-      ctx.strokeStyle = "rgba(226, 232, 240, 0.45)";
-      ctx.lineWidth = 0.5;
-
-      particles.forEach((p) => {
-        p.pulse += 0.025;
-        p.x += p.vx + Math.sin(p.pulse) * 0.2;
-        p.y += p.vy + Math.cos(p.pulse) * 0.15;
-
-        // Wrap around
-        if (p.x < 0) p.x = width;
-        if (p.x > width) p.x = 0;
-        if (p.y < 0) p.y = height;
-        if (p.y > height) p.y = 0;
-
-        // Soft cursor repulsion
-        const dx = mousePos.current.x - p.x;
-        const dy = mousePos.current.y - p.y;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 110 && dist > 0) {
-          const force = (110 - dist) / 110;
-          p.x -= (dx / dist) * force * 1.8;
-          p.y -= (dy / dist) * force * 1.8;
-        }
-
-        // Draw particle with gentle glow
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
-        ctx.fillStyle = `${p.color} ${p.alpha * (0.7 + 0.3 * Math.sin(p.pulse))})`;
-        ctx.fill();
-      });
-
-      animationFrameId = requestAnimationFrame(render);
-    };
-
-    render();
-
-    return () => {
-      cancelAnimationFrame(animationFrameId);
-      window.removeEventListener("resize", handleResize);
-    };
-  }, []);
-
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    mousePos.current = {
-      x: e.clientX - rect.left,
-      y: e.clientY - rect.top,
-    };
+  const isConnected = (sourceId: string, targetId: string) => {
+    if (activeId === "core") return true;
+    if (sourceId === "core" && targetId === activeId) return true;
+    if (targetId === "core" && sourceId === activeId) return true;
+    const current = KNOWLEDGE_LIFECYCLE_NODES.find((n) => n.id === activeId);
+    if (!current) return false;
+    return current.connectedTo.includes(sourceId) || current.connectedTo.includes(targetId);
   };
 
-  const handleMouseLeave = () => {
-    mousePos.current = { x: -1000, y: -1000 };
-    setHoveredNodeId(null);
-  };
-
-  // Natural organic Bézier optical fiber curve
-  const getBranchPath = (fromX: number, fromY: number, toX: number, toY: number) => {
-    const midX = (fromX + toX) / 2;
-    const midY = (fromY + toY) / 2;
-    const dx = toX - fromX;
-    const dy = toY - fromY;
-    const normalX = -dy * 0.22;
-    const normalY = dx * 0.22;
-    const cx = midX + normalX;
-    const cy = midY + normalY;
-    return `M ${fromX} ${fromY} Q ${cx} ${cy} ${toX} ${toY}`;
+  const scrollToSection = (id: string) => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth" });
+    }
   };
 
   return (
     <div
-      ref={containerRef}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      className={`relative h-[580px] sm:h-[640px] w-full select-none overflow-visible rounded-3xl bg-gradient-to-br from-white via-[#F8FAFC] to-[#EFF6FF]/70 border border-blue-100/80 shadow-[0_25px_60px_-15px_rgba(37,99,235,0.14),0_0_35px_rgba(59,130,246,0.08)] backdrop-blur-xl p-4 sm:p-6 transition-all ${className}`}
+      className={`relative rounded-3xl border border-slate-200/90 bg-gradient-to-b from-white via-[#F8FAFC] to-[#EFF6FF]/40 p-4 sm:p-6 shadow-xl shadow-blue-500/5 transition-all dark:border-gray-800 dark:from-gray-900 dark:via-gray-900/95 dark:to-blue-950/20 ${className}`}
     >
-      {/* Background Micro Spore Particles Canvas */}
-      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-0 h-full w-full rounded-[inherit]" />
-
-      {/* Atmospheric Royal Blue Ambient Radial Glows */}
-      <div
-        className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -z-0 h-[420px] w-[420px] rounded-full bg-blue-500/10 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute top-1/4 right-1/4 -z-0 h-80 w-80 rounded-full bg-indigo-500/10 blur-3xl"
-        aria-hidden="true"
-      />
-      <div
-        className="pointer-events-none absolute bottom-1/4 left-1/4 -z-0 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl"
-        aria-hidden="true"
-      />
-
-      {/* SVG Layer for Optical Fiber Paths & Animated Light Pulses */}
-      <svg
-        viewBox="0 0 100 100"
-        preserveAspectRatio="none"
-        className="pointer-events-none absolute inset-0 z-10 h-full w-full"
-      >
-        <defs>
-          {/* Active Optical Fiber Gradient (Royal Blue to Vibrant Cyan) */}
-          <linearGradient id="activeFiberGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#2563EB" />
-            <stop offset="50%" stopColor="#38BDF8" />
-            <stop offset="100%" stopColor="#06B6D4" />
-          </linearGradient>
-
-          {/* Idle Fiber Gradient (Muted slate-blue optical line) */}
-          <linearGradient id="idleFiberGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.45" />
-            <stop offset="100%" stopColor="#94A3B8" stopOpacity="0.25" />
-          </linearGradient>
-
-          {/* Optical Fiber Glow Filter */}
-          <filter id="fiberGlow" x="-30%" y="-30%" width="160%" height="160%">
-            <feGaussianBlur stdDeviation="1.8" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
-        </defs>
-
-        {/* Faint Concentric Radar Ripple Circles around Center */}
-        <circle cx={coreNode.x} cy={coreNode.y} r={16} fill="none" stroke="#3B82F6" strokeWidth={0.35} strokeDasharray="1, 3" className="opacity-40 animate-[spin_30s_linear_infinite]" />
-        <circle cx={coreNode.x} cy={coreNode.y} r={32} fill="none" stroke="#60A5FA" strokeWidth={0.25} strokeDasharray="2, 4" className="opacity-30" />
-        <circle cx={coreNode.x} cy={coreNode.y} r={46} fill="none" stroke="#93C5FD" strokeWidth={0.2} strokeDasharray="3, 5" className="opacity-20" />
-
-        {/* Render Optical Fiber Connections */}
-        {branchNodes.map((node) => {
-          const isActive = (hoveredNodeId || activeNodeId) === node.id;
-          const path = getBranchPath(coreNode.x, coreNode.y, node.x, node.y);
-
-          return (
-            <g key={node.id} className="transition-all duration-500">
-              {/* Base Optical Fiber Track */}
-              <path
-                d={path}
-                fill="none"
-                stroke={isActive ? "url(#activeFiberGradient)" : "url(#idleFiberGradient)"}
-                strokeWidth={isActive ? 1.8 : 0.9}
-                strokeLinecap="round"
-                style={{
-                  filter: isActive ? "url(#fiberGlow)" : "none",
-                }}
-                className="transition-all duration-300"
-              />
-
-              {/* Real-time Moving Light Pulse along the Fiber (Data Flow) */}
-              {isActive && (
-                <path
-                  d={path}
-                  fill="none"
-                  stroke="#67E8F9"
-                  strokeWidth={2.4}
-                  strokeLinecap="round"
-                  strokeDasharray="4, 18"
-                  className="animate-[dashFlow_1.6s_linear_infinite]"
-                  style={{ filter: "url(#fiberGlow)" }}
-                />
-              )}
-
-              {/* Sub-branch optical veins radiating from Active Node */}
-              {isActive &&
-                node.depthTags?.map((tag, tIdx) => {
-                  const tagX = node.x + tag.dx;
-                  const tagY = node.y + tag.dy;
-                  const tagPath = getBranchPath(node.x, node.y, tagX, tagY);
-                  return (
-                    <g key={tIdx} className="animate-fadeIn">
-                      <path
-                        d={tagPath}
-                        fill="none"
-                        stroke="#38BDF8"
-                        strokeWidth={0.7}
-                        strokeLinecap="round"
-                        strokeDasharray="1.5, 2"
-                        className="opacity-70"
-                      />
-                      <circle cx={tagX} cy={tagY} r={0.8} fill="#38BDF8" />
-                      <text
-                        x={tagX + (tag.dx > 0 ? 1.6 : -1.6)}
-                        y={tagY + (tag.dy > 0 ? 2.5 : -1.5)}
-                        fontSize="2.1"
-                        fontWeight="700"
-                        fill="#1E40AF"
-                        textAnchor={tag.dx > 0 ? "start" : "end"}
-                        className={`select-none font-sans ${tag.blur ? "opacity-50 blur-[0.3px]" : "opacity-90"}`}
-                      >
-                        {tag.label}
-                      </text>
-                    </g>
-                  );
-                })}
-            </g>
-          );
-        })}
-      </svg>
-
-      {/* CORE SEED (Hạt tâm Tri thức) in Center */}
-      <div
-        style={{ left: `${coreNode.x}%`, top: `${coreNode.y}%` }}
-        className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-transform duration-300 hover:scale-110"
-        onClick={() => {
-          setActiveNodeId("core");
-          onSelectNode?.(coreNode);
-        }}
-      >
-        <div className="relative flex items-center justify-center">
-          {/* Concentric Pulsing Ripples */}
-          <span className="absolute h-20 w-20 rounded-full bg-blue-500/20 animate-ping opacity-75" />
-          <span className="absolute h-16 w-16 rounded-full bg-indigo-500/25 animate-pulse" />
-
-          {/* 3D Glossy Core Orb with layered light */}
-          <div className="relative flex h-13 w-13 items-center justify-center rounded-full bg-gradient-to-tr from-blue-700 via-indigo-600 to-blue-500 p-1 text-white shadow-[0_10px_25px_-5px_rgba(37,99,235,0.6),inset_0_2px_4px_rgba(255,255,255,0.6)] ring-4 ring-white/90">
-            {/* Core Center Emblem */}
-            <svg className="h-6 w-6 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-
-          {/* Core Glassmorphic Tag */}
-          <span className="absolute -bottom-6.5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-white/95 px-3 py-0.5 text-[11px] font-bold text-blue-900 shadow-sm border border-blue-200/80 backdrop-blur-md">
-            {coreNode.label}
+      {/* Top Header Badge */}
+      <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 mb-3 text-xs dark:border-gray-800">
+        <div className="flex items-center gap-2">
+          <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+          <span className="font-bold text-[#0F172A] tracking-wide dark:text-white">
+            Mạng lưới Tri thức Sống (Living Knowledge Network)
           </span>
         </div>
+        <span className="hidden sm:inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-semibold text-blue-700 border border-blue-200/80 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300">
+          Tương tác trực tiếp
+        </span>
       </div>
 
-      {/* 3D INTERACTIVE INTELLECTUAL SEED NODES */}
-      {branchNodes.map((node) => {
-        const isActive = (hoveredNodeId || activeNodeId) === node.id;
-        const isNetworkNode = node.id === "branch-2";
-
-        return (
-          <div
-            key={node.id}
-            style={{ left: `${node.x}%`, top: `${node.y}%` }}
-            onMouseEnter={() => setHoveredNodeId(node.id)}
-            onMouseLeave={() => setHoveredNodeId(null)}
-            onClick={() => {
-              setActiveNodeId(node.id);
-              onSelectNode?.(node);
-            }}
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer group"
-          >
-            <div className="relative flex flex-col items-center">
-              {/* Radar Ripple Effect for Active Focus Node ("Mạng lưới Liên kết") */}
-              {isNetworkNode && (
-                <>
-                  <span className="absolute -inset-3 rounded-full bg-blue-500/20 animate-ping opacity-60 pointer-events-none" />
-                  <span className="absolute -inset-6 rounded-full border border-blue-400/40 animate-pulse pointer-events-none" />
-                </>
-              )}
-
-              {/* 3D Digital Seed Orb with glossy curvature */}
-              <div
-                className={`relative flex items-center justify-center transition-all duration-300 ${
-                  isActive
-                    ? "scale-125 ring-4 ring-blue-400/40 shadow-[0_12px_30px_-5px_rgba(37,99,235,0.55),inset_0_2px_4px_rgba(255,255,255,0.7)]"
-                    : "scale-100 hover:scale-115 ring-2 ring-white/90 shadow-[0_8px_20px_-4px_rgba(30,58,138,0.35),inset_0_1.5px_3px_rgba(255,255,255,0.6)]"
-                } ${
-                  isNetworkNode ? "h-12 w-12" : "h-10.5 w-10.5"
-                } rounded-full bg-gradient-to-tr ${node.colorScheme.orbGradient} text-white`}
-              >
-                {/* Specific 3D Vector Icons per User Spec */}
-                {node.role === "upload" && (
-                  /* Glowing Upload / Extract Icon */
-                  <svg className="h-5 w-5 drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                  </svg>
-                )}
-
-                {node.role === "network" && (
-                  /* 3D Chain-link Icon */
-                  <svg className="h-6 w-6 drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                  </svg>
-                )}
-
-                {node.role === "verify" && (
-                  /* Verified Shield Icon */
-                  <svg className="h-5 w-5 drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                )}
-
-                {node.role === "query" && (
-                  /* Glowing Search Icon */
-                  <svg className="h-5 w-5 drop-shadow text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                )}
-
-                {node.role === "growth" && (
-                  /* Digitized Double-Helix / Sprout Icon */
-                  <svg className="h-5 w-5 drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                  </svg>
-                )}
-              </div>
-
-              {/* Glassmorphic Rounded Label Tag with Bold Typography */}
-              <span
-                className={`mt-2.5 whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold transition-all duration-300 ${
-                  isActive
-                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30 scale-105 ring-1 ring-blue-300"
-                    : "bg-white/95 text-slate-800 shadow-sm border border-slate-200/90 group-hover:bg-white group-hover:border-blue-400 group-hover:text-blue-600"
-                }`}
-              >
-                {node.label}
-              </span>
-            </div>
-          </div>
-        );
-      })}
-
-      {/* RE-DESIGNED DETAIL CARD (Rich Hover Frosted Glassmorphism Card) */}
-      {activeNode && activeNode.card && (
+      {/* SVG Network Graph Canvas */}
+      <div className="relative aspect-[6/5] w-full overflow-hidden rounded-2xl bg-white/70 backdrop-blur-xs border border-slate-200/70 p-1 dark:bg-gray-950/60 dark:border-gray-800">
+        {/* Soft Grid Background */}
         <div
-          className="absolute z-30 transition-all duration-300 ease-out"
+          className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.08]"
           style={{
-            left: activeNode.x > 50 ? `${Math.max(8, activeNode.x - 40)}%` : `${Math.min(64, activeNode.x + 8)}%`,
-            top: activeNode.y > 50 ? `${Math.max(8, activeNode.y - 36)}%` : `${Math.min(60, activeNode.y + 6)}%`,
+            backgroundImage:
+              "radial-gradient(#2563EB 1px, transparent 1px), radial-gradient(#2563EB 1px, #ffffff 1px)",
+            backgroundSize: "24px 24px",
           }}
+          aria-hidden="true"
+        />
+
+        <svg
+          viewBox="0 0 600 500"
+          className="h-full w-full select-none"
+          role="img"
+          aria-label="Sơ đồ vòng đời tri thức sống Continuum AI"
         >
-          <div className="w-[290px] sm:w-[330px] rounded-2xl border border-blue-200/80 bg-white/95 p-4.5 sm:p-5 shadow-[0_20px_50px_rgba(30,58,138,0.18)] backdrop-blur-xl ring-1 ring-blue-900/5 animate-scaleUp">
-            {/* Header Badge in Brand Blue */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700 border border-blue-200/80">
-                {activeNode.card.badge}
-              </span>
-              <span className="text-[10px] font-semibold text-slate-400 tracking-wider uppercase">Active Node</span>
-            </div>
+          <defs>
+            <filter id={`${filterId}-glow`} x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur stdDeviation="6" result="blur" />
+              <feComposite in="SourceGraphic" in2="blur" operator="over" />
+            </filter>
+            <linearGradient id={`${filterId}-coreGrad`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#1D4ED8" />
+              <stop offset="50%" stopColor="#2563EB" />
+              <stop offset="100%" stopColor="#4F46E5" />
+            </linearGradient>
+            <linearGradient id={`${filterId}-pulseGrad`} x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#3B82F6" stopOpacity="0.4" />
+              <stop offset="100%" stopColor="#6366F1" stopOpacity="0.1" />
+            </linearGradient>
+          </defs>
 
-            {/* Title with Perfect Vietnamese Typography Rendering */}
-            <h4 className="text-sm sm:text-base font-extrabold text-[#0F172A] leading-snug">
-              {activeNode.card.title}
-            </h4>
+          {/* Central Pulsing Halo Ring */}
+          <circle
+            cx="300"
+            cy="250"
+            r="165"
+            fill="none"
+            stroke="url(#"
+            strokeDasharray="4 6"
+            className="stroke-blue-200/60 dark:stroke-blue-800/40 animate-[spin_60s_linear_infinite]"
+          />
+          <circle
+            cx="300"
+            cy="250"
+            r="80"
+            fill={`url(#${filterId}-pulseGrad)`}
+            className="animate-pulse"
+          />
 
-            {/* Description */}
-            <p className="mt-2 text-xs leading-relaxed text-[#334155]">
-              {activeNode.card.description}
-            </p>
+          {/* Connected Edges between Lifecycle Nodes (Outer ring) */}
+          {KNOWLEDGE_LIFECYCLE_NODES.map((node, i) => {
+            const nextNode =
+              KNOWLEDGE_LIFECYCLE_NODES[(i + 1) % KNOWLEDGE_LIFECYCLE_NODES.length];
+            const activeEdge = isConnected(node.id, nextNode.id);
+            return (
+              <line
+                key={`ring-${node.id}-${nextNode.id}`}
+                x1={node.x}
+                y1={node.y}
+                x2={nextNode.x}
+                y2={nextNode.y}
+                stroke={activeEdge ? "#2563EB" : "#CBD5E1"}
+                strokeWidth={activeEdge ? 2.5 : 1.2}
+                strokeDasharray={activeEdge ? undefined : "3 3"}
+                className={`transition-all duration-300 ${
+                  activeEdge
+                    ? "opacity-90 dark:stroke-blue-400"
+                    : "opacity-40 dark:stroke-gray-700"
+                }`}
+              />
+            );
+          })}
 
-            {/* Action CTA link in Vivid Brand Blue */}
-            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-              <button
-                type="button"
-                onClick={() => {
-                  if (activeNode.card?.actionSectionId) {
-                    const el = document.getElementById(activeNode.card.actionSectionId);
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
+          {/* Radial Spokes connecting Central Core to Nodes */}
+          {KNOWLEDGE_LIFECYCLE_NODES.map((node) => {
+            const activeSpoke = isConnected("core", node.id) && activeId === node.id;
+            return (
+              <g key={`spoke-${node.id}`}>
+                <line
+                  x1="300"
+                  y1="250"
+                  x2={node.x}
+                  y2={node.y}
+                  stroke={activeSpoke ? "#3B82F6" : "#E2E8F0"}
+                  strokeWidth={activeSpoke ? 2.5 : 1}
+                  className={`transition-all duration-300 ${
+                    activeSpoke
+                      ? "opacity-100 dark:stroke-blue-400"
+                      : "opacity-50 dark:stroke-gray-800"
+                  }`}
+                />
+                {activeSpoke && (
+                  <circle
+                    cx={(300 + node.x) / 2}
+                    cy={(250 + node.y) / 2}
+                    r="3"
+                    fill="#2563EB"
+                    className="animate-ping"
+                  />
+                )}
+              </g>
+            );
+          })}
+
+          {/* Center Core Node: Continuum AI */}
+          <g
+            className="cursor-pointer"
+            onClick={() => {
+              setSelectedNodeId("verification");
+            }}
+          >
+            <circle
+              cx="300"
+              cy="250"
+              r="44"
+              fill={`url(#${filterId}-coreGrad)`}
+              filter={`url(#${filterId}-glow)`}
+              className="drop-shadow-lg transition-transform duration-300 hover:scale-105"
+            />
+            <circle
+              cx="300"
+              cy="250"
+              r="48"
+              fill="none"
+              stroke="#60A5FA"
+              strokeWidth="2"
+              strokeOpacity="0.6"
+            />
+            {/* Core Center Emblem */}
+            <text
+              x="300"
+              y="246"
+              textAnchor="middle"
+              fill="#FFFFFF"
+              fontSize="12"
+              fontWeight="800"
+              letterSpacing="0.05em"
+              className="pointer-events-none"
+            >
+              CONTINUUM
+            </text>
+            <text
+              x="300"
+              y="262"
+              textAnchor="middle"
+              fill="#93C5FD"
+              fontSize="10"
+              fontWeight="700"
+              className="pointer-events-none"
+            >
+              AI CORE
+            </text>
+          </g>
+
+          {/* The 6 Lifecycle Knowledge Nodes */}
+          {KNOWLEDGE_LIFECYCLE_NODES.map((node) => {
+            const isSelected = selectedNodeId === node.id;
+            const isHovered = hoveredNodeId === node.id;
+            const isActive = isSelected || isHovered;
+
+            return (
+              <g
+                key={node.id}
+                tabIndex={0}
+                role="button"
+                aria-pressed={isSelected}
+                aria-label={`${node.step}: ${node.label} - ${node.title}`}
+                onMouseEnter={() => setHoveredNodeId(node.id)}
+                onMouseLeave={() => setHoveredNodeId(null)}
+                onClick={() => setSelectedNodeId(node.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setSelectedNodeId(node.id);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 transition-colors"
+                className="cursor-pointer outline-none focus:ring-2 focus:ring-blue-500 rounded-full"
               >
-                <span>{activeNode.card.ctaText}</span>
-                <span aria-hidden="true">&rarr;</span>
-              </button>
-              <span className="text-[10px] font-medium text-slate-400">Continuum AI</span>
-            </div>
-          </div>
-        </div>
-      )}
+                {/* Node Outer Halo Glow when active */}
+                {isActive && (
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r="34"
+                    fill={node.accentColor}
+                    fillOpacity="0.25"
+                    filter={`url(#${filterId}-glow)`}
+                    className="animate-pulse"
+                  />
+                )}
 
-      {/* Micro Tooltip with Tiny Glowing Blue Dot */}
-      <div className="pointer-events-none absolute bottom-3.5 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 rounded-full bg-white/85 px-4 py-1.5 text-[11px] font-semibold text-slate-600 border border-blue-100/90 shadow-sm backdrop-blur-md">
-        <span className="h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.8)] animate-pulse" />
-        <span>Rê chuột hoặc nhấp vào chồi hạt để khám phá dòng chảy tri thức</span>
+                {/* Node Main Circle */}
+                <circle
+                  cx={node.x}
+                  cy={node.y}
+                  r="24"
+                  fill={isActive ? "#2563EB" : "#FFFFFF"}
+                  stroke={isActive ? "#60A5FA" : "#CBD5E1"}
+                  strokeWidth={isActive ? "3" : "1.8"}
+                  className="transition-all duration-200 drop-shadow-md dark:fill-gray-900 dark:stroke-gray-700"
+                />
+
+                {/* Node Step Badge */}
+                <circle
+                  cx={node.x + 18}
+                  cy={node.y - 18}
+                  r="10"
+                  fill={isActive ? "#1E293B" : "#2563EB"}
+                  className="drop-shadow-xs"
+                />
+                <text
+                  x={node.x + 18}
+                  y={node.y - 14.5}
+                  textAnchor="middle"
+                  fill="#FFFFFF"
+                  fontSize="9"
+                  fontWeight="800"
+                  className="pointer-events-none"
+                >
+                  {node.step}
+                </text>
+
+                {/* Short Node Label */}
+                <text
+                  x={node.x}
+                  y={node.y + 38}
+                  textAnchor="middle"
+                  fill={isActive ? "#1D4ED8" : "#334155"}
+                  fontSize="11"
+                  fontWeight={isActive ? "800" : "600"}
+                  className="pointer-events-none tracking-tight dark:fill-gray-200"
+                >
+                  {node.label}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Interactive Detail Floating Panel (Updates on Hover / Click) */}
+      <div className="mt-4 rounded-2xl border border-blue-200/90 bg-white p-4 sm:p-5 shadow-lg shadow-blue-500/5 dark:border-blue-900/50 dark:bg-gray-800">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-extrabold text-blue-700 border border-blue-200 dark:bg-blue-950 dark:border-blue-900 dark:text-blue-300">
+                {activeNode.stageName}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-gray-400">
+                • Phụ trách:{" "}
+                <strong className="text-[#0F172A] dark:text-white">
+                  {activeNode.actor}
+                </strong>
+              </span>
+            </div>
+            <h3 className="text-base font-extrabold text-[#0F172A] dark:text-white">
+              {activeNode.title}
+            </h3>
+            <p className="text-xs sm:text-sm leading-relaxed text-[#334155] dark:text-gray-300">
+              {activeNode.detail}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => scrollToSection("cach-hoat-dong")}
+            className="shrink-0 inline-flex items-center gap-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold px-3 py-2 text-xs transition-colors border border-blue-200/80 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300"
+          >
+            <span>Xem quy trình</span>
+            <ArrowRightIcon className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        {/* Quick Stepper Bar on bottom */}
+        <div className="mt-3.5 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500 dark:border-gray-700/80 dark:text-gray-400">
+          <div className="flex items-center gap-1">
+            {KNOWLEDGE_LIFECYCLE_NODES.map((n) => (
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => setSelectedNodeId(n.id)}
+                className={`h-2 rounded-full transition-all ${
+                  selectedNodeId === n.id
+                    ? "w-6 bg-blue-600"
+                    : "w-2 bg-slate-300 hover:bg-blue-400 dark:bg-gray-600"
+                }`}
+                title={`${n.step}: ${n.label}`}
+                aria-label={`Chọn giai đoạn ${n.step}: ${n.label}`}
+              />
+            ))}
+          </div>
+          <span className="font-semibold text-blue-700 dark:text-blue-400">
+            Bước {activeNode.step} / 06: {activeNode.label}
+          </span>
+        </div>
       </div>
     </div>
   );

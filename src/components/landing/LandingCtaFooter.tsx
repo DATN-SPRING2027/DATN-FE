@@ -15,48 +15,70 @@ export default function LandingCtaFooter() {
 
   return (
     <>
-      {/* CTA Bottom Section */}
-      <section className="py-20 md:py-24 border-t border-slate-200/80 bg-white relative overflow-hidden dark:border-gray-800 dark:bg-gray-950">
-        <div
-          className="pointer-events-none absolute -bottom-24 left-1/2 -translate-x-1/2 h-[500px] w-[500px] rounded-full bg-blue-500/10 blur-3xl opacity-75 dark:bg-blue-950/20"
-          aria-hidden="true"
-        />
-
+      {/* Premium Dark Navy CTA Section */}
+      <section className="py-20 md:py-28 bg-[#F8FAFC] relative overflow-hidden dark:bg-gray-950">
         <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8 relative z-10">
-          <div className="rounded-3xl border border-blue-200 bg-gradient-to-b from-blue-50/70 to-white p-8 sm:p-12 md:p-16 text-center shadow-xl dark:border-gray-800 dark:from-gray-900 dark:to-gray-900/90">
-            <span className="inline-block rounded-full bg-white px-3.5 py-1 text-xs font-bold text-blue-700 shadow-2xs mb-4 border border-blue-200 dark:bg-gray-800 dark:border-gray-700 dark:text-blue-300">
-              Chuyển giao không gián đoạn
-            </span>
+          <div className="relative rounded-3xl border border-blue-500/20 bg-gradient-to-br from-[#0B1120] via-[#10172D] to-[#1E1B4B] p-8 sm:p-14 md:p-20 text-center shadow-2xl overflow-hidden">
+            {/* Ambient Lighting Gradients */}
+            <div
+              className="pointer-events-none absolute -top-24 -left-24 h-[400px] w-[400px] rounded-full bg-blue-600/20 blur-3xl opacity-75"
+              aria-hidden="true"
+            />
+            <div
+              className="pointer-events-none absolute -bottom-24 -right-24 h-[400px] w-[400px] rounded-full bg-indigo-600/20 blur-3xl opacity-75"
+              aria-hidden="true"
+            />
 
-            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold tracking-tight text-[#0F172A] max-w-2xl mx-auto dark:text-white">
-              Giúp người kế nhiệm bắt đầu với đầy đủ ngữ cảnh.
-            </h2>
+            {/* Subtle Grid overlay */}
+            <div
+              className="pointer-events-none absolute inset-0 opacity-[0.04]"
+              style={{
+                backgroundImage:
+                  "radial-gradient(#60A5FA 1px, transparent 1px), radial-gradient(#60A5FA 1px, #0B1120 1px)",
+                backgroundSize: "28px 28px",
+              }}
+              aria-hidden="true"
+            />
 
-            <p className="mt-4 text-base sm:text-lg text-[#334155] max-w-xl mx-auto leading-relaxed dark:text-gray-300">
-              Khám phá cách Continuum AI lưu giữ tri thức và hỗ trợ bàn giao trong dự án của bạn.
-            </p>
+            <div className="relative z-10 max-w-3xl mx-auto">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3.5 py-1 text-xs font-bold text-blue-300 border border-blue-400/20 mb-5 backdrop-blur-xs">
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+                <span>Bảo toàn giá trị tri thức doanh nghiệp</span>
+              </span>
 
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3.5">
-              <button
-                type="button"
-                onClick={() => scrollTo("demo")}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-3.5 text-base font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl hover:shadow-blue-500/30 active:scale-[0.98]"
-              >
-                <span>Khám phá bản demo</span>
-                <ArrowRightIcon className="h-4 w-4" />
-              </button>
-              <Link
-                href="/signin"
-                className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-3.5 text-base font-semibold text-[#1E293B] shadow-xs transition-all hover:bg-slate-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-              >
-                Đăng nhập hệ thống
-              </Link>
+              <h2 className="text-2xl sm:text-3xl lg:text-5xl font-black tracking-tight text-white leading-tight">
+                Tri thức hôm nay.{" "}
+                <span className="block mt-1 sm:mt-2 bg-gradient-to-r from-blue-400 via-indigo-300 to-violet-300 bg-clip-text text-transparent">
+                  Sức mạnh cho người kế nhiệm ngày mai.
+                </span>
+              </h2>
+
+              <p className="mt-5 text-base sm:text-lg text-slate-300 max-w-xl mx-auto leading-relaxed">
+                Khám phá cách Continuum AI giúp đội ngũ ghi nhận, kiểm chứng và tiếp nối tri thức qua từng dự án.
+              </p>
+
+              <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <button
+                  type="button"
+                  onClick={() => scrollTo("demo")}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-7 py-4 text-base font-bold text-white shadow-lg shadow-blue-500/30 transition-all hover:from-blue-500 hover:to-indigo-500 hover:shadow-xl hover:shadow-blue-500/40 active:scale-[0.98]"
+                >
+                  <span>Trải nghiệm bản demo</span>
+                  <ArrowRightIcon className="h-4 w-4" />
+                </button>
+                <Link
+                  href="/signin"
+                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/80 px-7 py-4 text-base font-bold text-white transition-all hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98]"
+                >
+                  Đăng nhập hệ thống
+                </Link>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* Clean Professional Footer */}
       <footer className="border-t border-slate-200 bg-[#F8FAFC] py-12 dark:border-gray-800 dark:bg-gray-900">
         <div className="mx-auto max-w-[1240px] px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-8 border-b border-slate-200 dark:border-gray-800">
@@ -69,7 +91,7 @@ export default function LandingCtaFooter() {
               </p>
             </div>
 
-            {/* Nav links in footer */}
+            {/* Navigation links in footer */}
             <div className="flex flex-wrap items-center gap-6 text-xs font-semibold text-[#334155] dark:text-gray-300">
               <a
                 href="#giai-phap"
@@ -119,7 +141,10 @@ export default function LandingCtaFooter() {
 
           <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-500 gap-3 dark:text-gray-400">
             <p>&copy; {new Date().getFullYear()} Continuum AI. Mọi quyền được bảo lưu.</p>
-            <p>Hệ sinh thái tri thức sống • Chuẩn Be Vietnam Pro</p>
+            <p className="flex items-center gap-1.5 font-medium">
+              <span className="h-1.5 w-1.5 rounded-full bg-blue-600" />
+              <span>Nhân sự có thể rời dự án. Tri thức phải ở lại.</span>
+            </p>
           </div>
         </div>
       </footer>

@@ -63,7 +63,7 @@ export default function LandingNavbar() {
             onClick={(e) => scrollToSection(e, "demo")}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4.5 py-2.5 text-sm font-semibold text-white shadow-md shadow-blue-500/20 transition-all hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98]"
           >
-            <span>Khám phá bản demo</span>
+            <span>Trải nghiệm bản demo</span>
             <ArrowRightIcon className="h-4 w-4" />
           </a>
         </div>
@@ -129,7 +129,7 @@ export default function LandingNavbar() {
                 onClick={(e) => scrollToSection(e, "demo")}
                 className="w-full text-center rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 py-2.5 text-sm font-semibold text-white shadow-sm hover:from-blue-700 hover:to-indigo-700"
               >
-                Khám phá bản demo
+                Trải nghiệm bản demo
               </a>
             </div>
           </div>
