@@ -136,77 +136,64 @@ describe("Organization membership management page", () => {
     expect(screen.queryByText("Alex Member")).not.toBeInTheDocument();
   });
 
-  it("creates an invitation with the accepted body and only shows success after a valid server acknowledgement", async () => {
-    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
-    api.mockImplementation(async (endpoint, options) => {
-      if (endpoint === "/auth/me") return user;
-      if (endpoint.includes("/memberships?")) return membershipPage([]);
-      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage();
-      if (endpoint === `/iam/organizations/${organizationId}/invitations` && options?.method === "POST") {
-        return {
-          operationId: "7123456789abcdef01234567",
-          membership: { id: memberId, organizationId, userId, status: "PENDING_INVITE", version: 1 },
-          invitation: { id: invitationId, status: "PENDING", version: 1, expiresAt: "2026-02-01T00:00:00.000Z" },
-        };
-      }
-      return invitationPage();
+  it("keeps invite, accept, resend, and cancel unavailable until their accepted readiness gates clear", async () => {
+    respond({
+      memberships: membershipPage([membership("PENDING_INVITE")]),
+      invitations: invitationPage([invitation]),
     });
     mount();
-    await screen.findByText("No memberships match this status.");
-    fireEvent.change(screen.getByLabelText("Account email"), { target: { value: "new.member@example.com" } });
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
-    expect(await screen.findByText("The server accepted the invitation request.")).toBeVisible();
-    const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/invitations") && options?.method === "POST");
-    expect(call).toBeDefined();
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ email: "new.member@example.com", reasonCode: "ACCESS_REQUEST" });
-    expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
-    expect(new Headers(call?.[1]?.headers).get("Idempotency-Key")).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
+    expect((await screen.findAllByText("alex@example.com")).length).toBeGreaterThan(0);
+    expect(screen.getByText(/Create, resend, and cancel are unavailable/)).toHaveAttribute("role", "status");
+    expect(screen.queryByRole("button", { name: "Create invitation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: "Account email" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Resend invitation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel invitation" })).not.toBeInTheDocument();
+    expect(api.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
   });
 
-  it("retries an ambiguous invitation with the exact original key and request body", async () => {
-    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
-    let attempts = 0;
-    api.mockImplementation(async (endpoint, options) => {
-      if (endpoint === "/auth/me") return user;
-      if (endpoint.includes("/memberships?")) return membershipPage([membership("ACTIVE")]);
-      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage();
-      if (endpoint === `/iam/organizations/${organizationId}/invitations` && options?.method === "POST") {
-        attempts += 1;
-        if (attempts === 1) throw new ApiError(503, "IAM_MEMBERSHIP_DEPENDENCY_UNAVAILABLE", "Unavailable");
-        return {
-          operationId: "7123456789abcdef01234567",
-          membership: { id: memberId, organizationId, userId, status: "PENDING_INVITE", version: 1 },
-        };
-      }
-      return invitationPage();
-    });
+  it("shows empty member and invitation states", async () => {
+    respond({ memberships: membershipPage([]), invitations: invitationPage() });
     mount();
-    await screen.findAllByText("Alex Member");
-    fireEvent.change(screen.getByLabelText("Account email"), { target: { value: "retry@example.com" } });
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
-    expect(await screen.findByText("A required Organization membership service is unavailable. No change was confirmed.")).toBeVisible();
-    const first = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/invitations") && options?.method === "POST");
-    const firstBody = String(first?.[1]?.body);
-    const firstKey = new Headers(first?.[1]?.headers).get("Idempotency-Key");
-    expect(screen.getByRole("button", { name: "Create invitation" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Suspend" })).toBeDisabled();
-    expect(screen.getByLabelText("Account email")).toBeDisabled();
-    expect(screen.queryByRole("button", { name: "Dismiss error" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Retry the same request" }));
-    expect(await screen.findByText("The server accepted the invitation request.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Suspend" })).toBeEnabled();
-    const mutationCalls = api.mock.calls.filter(([endpoint, options]) => endpoint.endsWith("/invitations") && options?.method === "POST");
-    expect(mutationCalls).toHaveLength(2);
-    expect(String(mutationCalls[1]?.[1]?.body)).toBe(firstBody);
-    expect(new Headers(mutationCalls[1]?.[1]?.headers).get("Idempotency-Key")).toBe(firstKey);
+    expect(await screen.findByText("No memberships match this status.")).toBeVisible();
+    expect(await screen.findByText("There are no pending invitations.")).toBeVisible();
   });
 
   it("shows the initial loading state while the authenticated context is unresolved", () => {
     api.mockImplementation(() => new Promise(() => undefined));
     mount();
     expect(screen.getByRole("status")).toHaveTextContent("Loading your Organization context…");
+  });
+
+  it("suspends an active membership only after the server acknowledges the contract request", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    let state: "ACTIVE" | "SUSPENDED" = "ACTIVE";
+    api.mockImplementation(async (endpoint, options) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([membership(state)]);
+      if (endpoint.includes("/invitations?")) return invitationPage();
+      if (endpoint.endsWith("/suspend") && options?.method === "POST") {
+        state = "SUSPENDED";
+        return {
+          operationId: "7123456789abcdef01234567",
+          membership: { id: memberId, organizationId, userId, status: state, version: 4 },
+        };
+      }
+      throw new Error("Unexpected request");
+    });
+    mount();
+    await screen.findAllByText("Alex Member");
+    fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
+    const dialog = await screen.findByRole("dialog", { name: "Suspend Organization membership?" });
+    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByText("The server accepted the request.")).toBeVisible();
+    const suspendedLabels = await screen.findAllByText("Suspended");
+    expect(suspendedLabels.some((label) => label.tagName === "SPAN")).toBe(true);
+    const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/suspend") && options?.method === "POST");
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, reasonCode: "ACCESS_REVIEW" });
+    expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
+    expect(new Headers(call?.[1]?.headers).get("Idempotency-Key")).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
   });
 
   it("safely handles the last eligible ADMIN conflict without showing success", async () => {
@@ -222,8 +209,6 @@ describe("Organization membership management page", () => {
     });
     mount();
     await screen.findAllByText("Alex Member");
-    fireEvent.change(screen.getByLabelText("Account email"), { target: { value: "new@example.com" } });
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
     fireEvent.click(screen.getByRole("button", { name: "Suspend" }));
     const dialog = await screen.findByRole("dialog", { name: "Suspend Organization membership?" });
     fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
@@ -231,8 +216,8 @@ describe("Organization membership management page", () => {
     expect(await within(dialog).findByText("The server did not allow this change because it would remove the last eligible ADMIN.")).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "Confirm" })).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "Keep current state" })).toBeDisabled();
-    expect(screen.getByRole("button", { name: "Create invitation" })).toBeDisabled();
-    expect(screen.getByLabelText("Account email")).toBeDisabled();
+    expect(screen.queryByRole("button", { name: "Create invitation" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Account email")).not.toBeInTheDocument();
     expect(screen.getByText("Alex Member")).toBeVisible();
     expect(screen.queryByText("The server accepted the request.")).not.toBeInTheDocument();
     const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/suspend") && options?.method === "POST");
@@ -240,37 +225,7 @@ describe("Organization membership management page", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Refresh lists before a new action" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
     expect(screen.getByRole("button", { name: "Suspend" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Create invitation" })).toBeEnabled();
-  });
-
-  it("requires successful fresh lists before a new invite command after a failed one", async () => {
-    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
-    let mutationAttempts = 0;
-    api.mockImplementation(async (endpoint, options) => {
-      if (endpoint === "/auth/me") return user;
-      if (endpoint.includes("/memberships?")) return membershipPage([]);
-      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage();
-      if (endpoint.endsWith("/invitations") && options?.method === "POST") {
-        mutationAttempts += 1;
-        if (mutationAttempts === 1) throw new ApiError(503, "IAM_MEMBERSHIP_DEPENDENCY_UNAVAILABLE", "Unavailable");
-        return { operationId: "7123456789abcdef01234567", membership: { id: memberId, organizationId, userId, status: "PENDING_INVITE", version: 1 } };
-      }
-      return invitationPage();
-    });
-    mount();
-    await screen.findByText("No memberships match this status.");
-    fireEvent.change(screen.getByLabelText("Account email"), { target: { value: "first@example.com" } });
-    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
-    expect(await screen.findByText("A required Organization membership service is unavailable. No change was confirmed.")).toBeVisible();
-    expect(screen.getByRole("button", { name: "Create invitation" })).toBeDisabled();
-
-    fireEvent.click(screen.getByRole("button", { name: "Refresh lists before a new action" }));
-    await waitFor(() => expect(screen.getByRole("button", { name: "Create invitation" })).toBeEnabled());
-    fireEvent.change(screen.getByLabelText("Account email"), { target: { value: "second@example.com" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create invitation" }));
-    expect(await screen.findByText("The server accepted the invitation request.")).toBeVisible();
-    expect(mutationAttempts).toBe(2);
+    expect(screen.queryByRole("button", { name: "Create invitation" })).not.toBeInTheDocument();
   });
 
   it("does not offer self-suspend in the membership row", async () => {
@@ -280,33 +235,23 @@ describe("Organization membership management page", () => {
     expect(screen.queryByRole("button", { name: "Suspend" })).not.toBeInTheDocument();
   });
 
-  it("sends pending invitation versions for resend and cancel without merging invitation state into membership state", async () => {
-    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
-    api.mockImplementation(async (endpoint, options) => {
+  it("shows an invitation read error and recovers on retry", async () => {
+    let invitationReads = 0;
+    api.mockImplementation(async (endpoint) => {
       if (endpoint === "/auth/me") return user;
-      if (endpoint.includes("/memberships?")) return membershipPage([membership("PENDING_INVITE")]);
-      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage([invitation]);
-      if ((endpoint.endsWith("/resend") || endpoint.endsWith("/cancel")) && options?.method === "POST") {
-        return { operationId: "7123456789abcdef01234567", membership: { id: memberId, organizationId, userId, status: "PENDING_INVITE", version: 3 }, invitation: { id: "8123456789abcdef01234567", status: "PENDING", version: 3, expiresAt: "2026-03-01T00:00:00.000Z" } };
+      if (endpoint.includes("/memberships?")) return membershipPage([]);
+      if (endpoint.includes("/invitations?")) {
+        invitationReads += 1;
+        if (invitationReads === 1) throw new ApiError(503, "IAM_MEMBERSHIP_DEPENDENCY_UNAVAILABLE", "Unavailable");
+        return invitationPage();
       }
-      return invitationPage([invitation]);
+      throw new Error("Unexpected request");
     });
     mount();
-    await screen.findAllByText("alex@example.com");
-    fireEvent.click(screen.getByRole("button", { name: "Resend invitation" }));
-    const dialog = await screen.findByRole("dialog", { name: "Resend invitation?" });
-    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
-    await screen.findByText("The server accepted the request.");
-    const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/resend") && options?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "ACCESS_REVIEW" });
-    await waitFor(() => expect(screen.getByRole("button", { name: "Cancel invitation" })).toBeEnabled());
-    fireEvent.click(screen.getByRole("button", { name: "Cancel invitation" }));
-    const cancelDialog = await screen.findByRole("dialog", { name: "Cancel invitation?" });
-    fireEvent.click(within(cancelDialog).getByRole("button", { name: "Confirm" }));
-    await screen.findByText("The server accepted the request.");
-    const cancelCall = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/cancel") && options?.method === "POST");
-    expect(JSON.parse(String(cancelCall?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "INVITATION_CANCELLED" });
+    expect(await screen.findByText("Could not load pending invitations.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("There are no pending invitations.")).toBeVisible();
+    expect(invitationReads).toBe(2);
   });
 
   it("does not query member data when the authenticated context has no Organization", async () => {

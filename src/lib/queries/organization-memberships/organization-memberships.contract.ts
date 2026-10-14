@@ -61,6 +61,23 @@ export type AdminInvitationPage = Readonly<{
   pagination: Pagination;
 }>;
 
+export type RecipientInvitation = Readonly<{
+  id: string;
+  membershipId: string;
+  organizationId: string;
+  status: AdminInvitation["status"];
+  version: number;
+  expiresAt: string;
+  createdAt: string;
+  membershipVersion: number;
+  organizationName: string;
+}>;
+
+export type RecipientInvitationPage = Readonly<{
+  data: readonly RecipientInvitation[];
+  pagination: Pagination;
+}>;
+
 export type MembershipMutationAck = Readonly<{
   operationId: string;
   membership: Readonly<{
@@ -247,6 +264,49 @@ export function parseAdminInvitationPage(
       membershipVersion: item.membershipVersion,
       targetUserId: item.targetUserId,
       email: item.email,
+    };
+  });
+}
+
+export function parseRecipientInvitationPage(
+  value: unknown,
+): RecipientInvitationPage {
+  return parsePage(value, (item) => {
+    const fields = [
+      "id",
+      "membershipId",
+      "organizationId",
+      "status",
+      "version",
+      "expiresAt",
+      "createdAt",
+      "membershipVersion",
+      "organizationName",
+    ];
+    if (
+      !isRecord(item) ||
+      Object.keys(item).length !== fields.length ||
+      fields.some((field) => !Object.hasOwn(item, field)) ||
+      typeof item.id !== "string" || !resourceIdPattern.test(item.id) ||
+      typeof item.membershipId !== "string" || !resourceIdPattern.test(item.membershipId) ||
+      typeof item.organizationId !== "string" || !resourceIdPattern.test(item.organizationId) ||
+      typeof item.status !== "string" || !invitationStates.has(item.status) ||
+      !isVersion(item.version) ||
+      !isDateTime(item.expiresAt) ||
+      !isDateTime(item.createdAt) ||
+      !isVersion(item.membershipVersion) ||
+      typeof item.organizationName !== "string"
+    ) throw invalidResponse();
+    return {
+      id: item.id,
+      membershipId: item.membershipId,
+      organizationId: item.organizationId,
+      status: item.status as RecipientInvitation["status"],
+      version: item.version,
+      expiresAt: item.expiresAt,
+      createdAt: item.createdAt,
+      membershipVersion: item.membershipVersion,
+      organizationName: item.organizationName,
     };
   });
 }

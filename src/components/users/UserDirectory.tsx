@@ -29,12 +29,11 @@ export default function UserDirectory() {
   const organizationId = currentUser.data?.organizationId ?? "";
   const users = useUsersQuery(organizationId, { page, pageSize: 20, ...(status ? { status } : {}), ...(roleCode ? { roleCode } : {}) });
   const forbidden = users.error instanceof ApiError && users.error.status === 403;
-  const canManageInvitations = currentUser.data?.context !== "ACCOUNT" && currentUser.data?.roles?.includes("ADMIN") === true;
 
   return (
     <ComponentCard title={t("title")}>
       <div className="space-y-5">
-        {canManageInvitations && <OrganizationInvitationManager organizationId={organizationId} />}
+        <OrganizationInvitationManager />
         {saved && <Alert variant="success" title={t("savedTitle")} message={t("savedMessage")} />}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>

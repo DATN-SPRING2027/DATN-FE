@@ -1,9 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AccountOnboarding from "./AccountOnboarding";
 import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
 import {
-  useAcceptOrganizationInvitationMutation,
   useCreateOrganizationMutation,
   useMyOrganizationInvitationsQuery,
   useOrganizationOptionsQuery,
@@ -11,7 +10,6 @@ import {
 } from "@/lib/queries/auth/useAccountOnboarding";
 
 const replace = vi.fn();
-const accept = vi.fn();
 const select = vi.fn();
 vi.mock("@/i18n/navigation", () => ({ useRouter: () => ({ replace }) }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -20,7 +18,6 @@ vi.mock("@/lib/queries/auth/useAuth", () => ({
   useLogoutMutation: vi.fn(),
 }));
 vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
-  useAcceptOrganizationInvitationMutation: vi.fn(),
   useCreateOrganizationMutation: vi.fn(),
   useMyOrganizationInvitationsQuery: vi.fn(),
   useOrganizationOptionsQuery: vi.fn(),
@@ -30,7 +27,6 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
 describe("account onboarding invitations", () => {
   beforeEach(() => {
     replace.mockReset();
-    accept.mockReset();
     select.mockReset();
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: { id: "user-1", email: "invitee@example.com", name: "Invitee", context: "ACCOUNT" },
@@ -41,15 +37,13 @@ describe("account onboarding invitations", () => {
       data: [], isLoading: false, isError: false, refetch: vi.fn(),
     } as never);
     vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
-      data: [{
-        id: "invite-1", organizationId: "org-1", organizationName: "Continuum",
-        email: "invitee@example.com", roleCode: "MEMBER", status: "PENDING",
-        expiresAt: "2026-10-18T10:00:00.000Z", createdAt: "2026-10-11T10:00:00.000Z",
-      }],
+      data: { data: [{
+        id: "invite-1", membershipId: "member-1", organizationId: "org-1",
+        organizationName: "Continuum", status: "PENDING", version: 1,
+        membershipVersion: 1, expiresAt: "2026-10-18T10:00:00.000Z",
+        createdAt: "2026-10-11T10:00:00.000Z",
+      }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
       isLoading: false, isError: false, refetch: vi.fn(),
-    } as never);
-    vi.mocked(useAcceptOrganizationInvitationMutation).mockReturnValue({
-      mutateAsync: accept, isPending: false, isError: false,
     } as never);
     vi.mocked(useSelectOrganizationMutation).mockReturnValue({
       mutateAsync: select, isPending: false, isError: false,
@@ -59,16 +53,20 @@ describe("account onboarding invitations", () => {
     } as never);
   });
 
-  it("accepts an email-matched invitation and selects its Organization", async () => {
-    accept.mockResolvedValue({ organizationId: "org-1", organizationName: "Continuum" });
-    select.mockResolvedValue({ user: { organizationId: "org-1" } });
+  it("shows pending invitations without exposing the blocked legacy accept action", () => {
     render(<AccountOnboarding />);
 
     expect(screen.getByText("Continuum")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "onboardingAcceptInvitation" }));
-
-    await waitFor(() => expect(accept).toHaveBeenCalledWith("invite-1"));
-    await waitFor(() => expect(select).toHaveBeenCalledWith("org-1"));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    expect(screen.getByRole("status")).toHaveTextContent("onboardingInvitationUnavailable");
+    expect(screen.queryByRole("button", { name: "onboardingAcceptInvitation" })).not.toBeInTheDocument();
+    expect(select).not.toHaveBeenCalled();
+  });
+  it("shows an explicit empty state when the recipient inbox is empty", () => {
+    vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
+      data: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
+      isLoading: false, isError: false, refetch: vi.fn(),
+    } as never);
+    render(<AccountOnboarding />);
+    expect(screen.getByRole("status")).toHaveTextContent("onboardingNoInvitations");
   });
 });

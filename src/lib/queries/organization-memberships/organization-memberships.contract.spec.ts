@@ -3,6 +3,7 @@ import {
   parseAdminInvitationPage,
   parseMembershipPage,
   parseMutationAck,
+  parseRecipientInvitationPage,
 } from "./organization-memberships.contract";
 
 const orgId = "0123456789abcdef01234567";
@@ -51,6 +52,29 @@ describe("Organization membership accepted contract parsers", () => {
     };
     expect(parseAdminInvitationPage({ data: [invitation], pagination }, orgId).data[0]?.membershipId).toBe(membership("ACTIVE").id);
     expect(() => parseAdminInvitationPage({ data: [{ ...invitation, organizationId: "3123456789abcdef01234567" }], pagination }, orgId)).toThrow();
+  });
+
+  it("parses the recipient invitation page without accepting admin-only fields", () => {
+    const invitation = {
+      id: "4123456789abcdef01234567",
+      membershipId: "1123456789abcdef01234567",
+      organizationId: orgId,
+      status: "PENDING",
+      version: 2,
+      expiresAt: "2026-02-01T00:00:00.000Z",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      membershipVersion: 3,
+      organizationName: "Continuum",
+    };
+    expect(
+      parseRecipientInvitationPage({ data: [invitation], pagination }).data[0],
+    ).toEqual(invitation);
+    expect(() =>
+      parseRecipientInvitationPage({
+        data: [{ ...invitation, targetUserId: membership("ACTIVE").userId }],
+        pagination,
+      }),
+    ).toThrow();
   });
 
   it("accepts only a well-formed mutation acknowledgement scoped to this Organization", () => {

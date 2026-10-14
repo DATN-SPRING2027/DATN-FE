@@ -12,12 +12,12 @@ function formatDate(value: string, locale: string): string {
 
 export default function OrganizationInvitationList({
   page,
-  actionsDisabled,
+  actionsEnabled,
   onPageChange,
   onAction,
 }: {
   page: AdminInvitationPage;
-  actionsDisabled: boolean;
+  actionsEnabled: boolean;
   onPageChange: (next: number) => void;
   onAction: (action: "resend" | "cancel", invitation: AdminInvitation) => void;
 }) {
@@ -34,7 +34,7 @@ export default function OrganizationInvitationList({
               <TableCell isHeader className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("email")}</TableCell>
               <TableCell isHeader className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("invitationState")}</TableCell>
               <TableCell isHeader className="px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("expiresColumn")}</TableCell>
-              <TableCell isHeader className="px-5 py-3 text-end text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("actionsColumn")}</TableCell>
+              {actionsEnabled && <TableCell isHeader className="px-5 py-3 text-end text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("actionsColumn")}</TableCell>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -47,12 +47,12 @@ export default function OrganizationInvitationList({
                   <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-300">
                     <time dateTime={invitation.expiresAt}>{formatDate(invitation.expiresAt, locale)}</time>
                   </TableCell>
-                  <TableCell className="px-5 py-4 text-end align-middle">
+                  {actionsEnabled && <TableCell className="px-5 py-4 text-end align-middle">
                     <div className="inline-flex flex-wrap justify-end gap-2">
-                      {actions.includes("resend") && <Button variant="outline" size="sm" disabled={actionsDisabled} onClick={() => onAction("resend", invitation)}>{t("resend")}</Button>}
-                      {actions.includes("cancel") && <Button variant="outline" size="sm" disabled={actionsDisabled} onClick={() => onAction("cancel", invitation)}>{t("cancelInvitation")}</Button>}
+                      {actions.includes("resend") && <Button variant="outline" size="sm" onClick={() => onAction("resend", invitation)}>{t("resend")}</Button>}
+                      {actions.includes("cancel") && <Button variant="outline" size="sm" onClick={() => onAction("cancel", invitation)}>{t("cancelInvitation")}</Button>}
                     </div>
-                  </TableCell>
+                  </TableCell>}
                 </TableRow>
               );
             })}
