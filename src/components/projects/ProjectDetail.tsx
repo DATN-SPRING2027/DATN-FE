@@ -1,5 +1,8 @@
 "use client";
 
+import { useMutationState } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import ProjectVisibilityNotification from "./ProjectVisibilityNotification";
 import ProjectOverview from "./ProjectOverview";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
@@ -13,17 +16,47 @@ function OrganizationProject({
   projectId: string;
 }) {
   const project = useProjectQuery(organizationId, projectId);
+  const t = useTranslations("projectVisibility");
+  const changes = useMutationState({
+    filters: {
+      mutationKey: ["project-visibility-change", organizationId, projectId],
+    },
+    select: (mutation) => ({
+      id: mutation.mutationId,
+      status: mutation.state.status,
+      target: mutation.state.variables,
+    }),
+  });
+  const latest = changes.at(-1);
+  const notice =
+    latest?.status === "success" &&
+    (project.isError || project.data?.visibility === latest.target) &&
+    (latest.target === "PRIVATE" || latest.target === "PUBLIC") ? (
+      <ProjectVisibilityNotification
+        key={latest.id}
+        message={t(latest.target === "PRIVATE" ? "privateSuccess" : "success")}
+      />
+    ) : null;
+
   if (project.isPending || project.isFetching) return <ProjectState />;
   if (project.isError)
     return (
-      <ProjectState
-        error={project.error}
-        retry={() => {
-          void project.refetch();
-        }}
-      />
+      <div className="space-y-3">
+        {notice}
+        <ProjectState
+          error={project.error}
+          retry={() => {
+            void project.refetch();
+          }}
+        />
+      </div>
     );
-  return <ProjectOverview project={project.data} />;
+  return (
+    <div className="space-y-3">
+      {notice}
+      <ProjectOverview project={project.data} />
+    </div>
+  );
 }
 
 export default function ProjectDetail({ projectId }: { projectId: string }) {

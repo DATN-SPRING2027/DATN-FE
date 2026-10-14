@@ -531,3 +531,167 @@ it("switches member management inline without navigating away from Project detai
     screen.queryByRole("form", { name: "Add member" }),
   ).not.toBeInTheDocument();
 });
+
+it.each(["PUBLIC", "PRIVATE"] as const)(
+  "changes visibility to %s on the live Project page",
+  async (target) => {
+    let changed = false;
+    api.mockImplementation(async (path, options) => {
+      if (path === "/auth/me") return user;
+      if (path.endsWith("/visibility") && options?.method !== "PATCH")
+        return { canManageVisibility: true };
+      if (path.endsWith("/visibility")) {
+        changed = true;
+        return { ...project, visibility: target };
+      }
+      return {
+        ...project,
+        visibility: changed
+          ? target
+          : target === "PUBLIC"
+            ? "PRIVATE"
+            : "PUBLIC",
+      };
+    });
+    mount(<ProjectDetail projectId="p1" />);
+    const label = target === "PUBLIC" ? "Make public" : "Make private";
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: label })).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByRole("button", { name: label }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name:
+          target === "PUBLIC"
+            ? "Confirm publication"
+            : "Confirm private visibility",
+      }),
+    );
+    expect(
+      await screen.findByText(target === "PUBLIC" ? "Public" : "Private"),
+    ).toBeVisible();
+    expect(
+      await screen.findByText(
+        target === "PUBLIC"
+          ? "Project is now public."
+          : "Project is now private.",
+      ),
+    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", {
+          name: target === "PUBLIC" ? "Make private" : "Make public",
+        }),
+      ).toBeEnabled(),
+    );
+    const toast = screen
+      .getByText(
+        target === "PUBLIC"
+          ? "Project is now public."
+          : "Project is now private.",
+      )
+      .closest('[role="status"]');
+    expect(toast).toHaveClass("fixed", "end-4", "top-5");
+    expect(toast?.parentElement).toBe(document.body);
+  },
+);
+it("reconciles stale visibility after conflict without false publication success", async () => {
+  let changed = false;
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/me") return user;
+    if (path.endsWith("/visibility") && options?.method !== "PATCH")
+      return { canManageVisibility: true };
+    if (path.endsWith("/visibility")) {
+      changed = true;
+      throw new ApiError(409, undefined, "Conflict");
+    }
+    return { ...project, visibility: changed ? "PUBLIC" : "PRIVATE" };
+  });
+  mount(<ProjectDetail projectId="p1" />);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Make public" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm publication" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("changed");
+  fireEvent.click(screen.getByRole("button", { name: "Refresh project" }));
+  expect(await screen.findByText("Public")).toBeVisible();
+  expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
+});
+it("hides metadata if making private removes the actor's PUBLIC-only read access", async () => {
+  let changed = false;
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/me") return user;
+    if (path.endsWith("/visibility") && options?.method !== "PATCH")
+      return { canManageVisibility: true };
+    if (path.endsWith("/visibility")) {
+      changed = true;
+      return { ...project, visibility: "PRIVATE" };
+    }
+    if (changed) throw new ApiError(403, undefined, "Read denied");
+    return { ...project, visibility: "PUBLIC" };
+  });
+  mount(<ProjectDetail projectId="p1" />);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Make private" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Make private" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Confirm private visibility" }),
+  );
+  await screen.findByRole("alert");
+  expect(await screen.findByText("Project is now private.")).toBeVisible();
+  expect(
+    screen.queryByRole("heading", { name: "Apollo" }),
+  ).not.toBeInTheDocument();
+});
+it("does not grant visibility management from ADMIN client roles", async () => {
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/me") return { ...user, roles: ["ADMIN"] };
+    if (path.endsWith("/visibility"))
+      throw new ApiError(403, undefined, "Denied");
+    return project;
+  });
+  mount(<ProjectDetail projectId="p1" />);
+  expect(await screen.findByRole("alert")).toHaveTextContent("permission");
+  expect(screen.getByRole("button", { name: "Make public" })).toBeDisabled();
+  expect(
+    api.mock.calls.some(([, options]) => options?.method === "PATCH"),
+  ).toBe(false);
+});
+
+it("keeps a late visibility response scoped to the original Project", async () => {
+  let finish!: (value: unknown) => void;
+  api.mockImplementation(async (path, options) => {
+    if (path === "/auth/me") return user;
+    if (path.endsWith("/visibility") && options?.method !== "PATCH")
+      return { canManageVisibility: true };
+    if (path.endsWith("/visibility"))
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    return path.endsWith("/p2")
+      ? { ...project, id: "p2", name: "Other project" }
+      : project;
+  });
+  const { client, rerender } = mount(<ProjectDetail projectId="p1" />);
+  await waitFor(() =>
+    expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Make public" }));
+  fireEvent.click(screen.getByRole("button", { name: "Confirm publication" }));
+  await waitFor(() => expect(finish).toBeDefined());
+  rerender(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ProjectDetail projectId="p2" />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+  await screen.findByRole("heading", { name: "Other project" });
+  await act(async () => {
+    finish({ ...project, visibility: "PUBLIC" });
+  });
+  expect(screen.getByText("Private")).toBeVisible();
+  expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
+});
