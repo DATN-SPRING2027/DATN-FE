@@ -31,7 +31,7 @@ export default async function LandingPage({
   setRequestLocale(locale);
 
   return (
-    <div className="min-h-screen bg-[#FAFDFB] text-[#334155] antialiased selection:bg-[#10B981] selection:text-white dark:bg-gray-950 dark:text-gray-200">
+    <div className="min-h-screen bg-[#F8FAFC] text-[#334155] antialiased selection:bg-blue-600 selection:text-white dark:bg-gray-950 dark:text-gray-200">
       <LandingNavbar />
       <main>
         <LandingHero />
