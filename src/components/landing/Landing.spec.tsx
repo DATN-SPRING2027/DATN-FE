@@ -8,6 +8,7 @@ import LandingHowItWorks from "./LandingHowItWorks";
 import LandingDemoSection from "./LandingDemoSection";
 import LandingCtaFooter from "./LandingCtaFooter";
 import Landing3DCard from "./Landing3DCard";
+import KnowledgeEcosystemGraph from "./KnowledgeEcosystemGraph";
 
 // Mock next-intl and navigation
 vi.mock("@/i18n/navigation", () => ({
@@ -58,11 +59,11 @@ describe("Landing Page Components", () => {
         screen.getByText("Đừng để tri thức dự án rời đi cùng một thành viên.")
       ).toBeInTheDocument();
       expect(
-        screen.getByText("Nền tảng duy trì tri thức cho đội ngũ phần mềm")
+        screen.getByText("Hệ sinh thái tri thức sống cho đội ngũ phần mềm")
       ).toBeInTheDocument();
       expect(screen.getByText("Tìm hiểu cách hoạt động")).toBeInTheDocument();
-      expect(screen.getByText("Đã xác minh")).toBeInTheDocument();
-      expect(screen.getByText(/Nguồn trích dẫn/i)).toBeInTheDocument();
+      expect(screen.getByText("Hạt tâm Tri thức")).toBeInTheDocument();
+      expect(screen.getByText("Thu thập & Bóc tách")).toBeInTheDocument();
     });
   });
 
@@ -147,6 +148,21 @@ describe("Landing Page Components", () => {
       expect(card.style.transformStyle).toBe("preserve-3d");
       fireEvent.mouseLeave(card);
       expect(card.style.transform).toContain("rotateX(0deg)");
+    });
+  });
+
+  describe("KnowledgeEcosystemGraph", () => {
+    it("renders core seed and branch nodes with interactive click", () => {
+      render(<KnowledgeEcosystemGraph />);
+      expect(screen.getByText("Hạt tâm Tri thức")).toBeInTheDocument();
+      expect(screen.getByText("Thu thập & Bóc tách")).toBeInTheDocument();
+      expect(screen.getByText("Mạng lưới Liên kết")).toBeInTheDocument();
+      expect(screen.getByText("Kiểm chứng Thẩm định")).toBeInTheDocument();
+
+      // Click on branch-2 node
+      fireEvent.click(screen.getByText("Mạng lưới Liên kết"));
+      expect(screen.getByText("Kết nối ngữ cảnh thông minh")).toBeInTheDocument();
+      expect(screen.getByText("Khám phá liên kết AI")).toBeInTheDocument();
     });
   });
 });
