@@ -1148,5 +1148,28 @@
     "currentStatus": "Current membership status",
     "membershipRecordHint": "Status reflects the stored membership record.",
     "addDescription": "Add an existing active member of this Organization."
+  },
+  "projectVisibility": {
+    "makePrivate": "Make private",
+    "checkingAccess": "Checking visibility permissions…",
+    "privateConfirmTitle": "Make project private?",
+    "privateConfirmBody": "Make {name} private? Organization members who can only read this project because it is public will lose access to its metadata. You may also lose access if you do not meet the private project read policy. Content permissions stay unchanged.",
+    "privateConfirm": "Confirm private visibility",
+    "privateSuccess": "Project is now private.",
+    "publish": "Make public",
+    "confirmTitle": "Make project public?",
+    "confirmBody": "Publish {name}? Active organization members will be able to read its project metadata. Content permissions stay unchanged.",
+    "cancel": "Cancel",
+    "confirm": "Confirm publication",
+    "pending": "Updating visibility…",
+    "success": "Project is now public.",
+    "denied": "You do not have permission to change this project visibility.",
+    "conflict": "The project changed since it was loaded. Refresh to check its current visibility.",
+    "session": "Your session expired. Sign in again.",
+    "unavailable": "This project is unavailable in the current organization.",
+    "invalid": "The visibility request was rejected.",
+    "rateLimit": "Too many requests. Wait before refreshing.",
+    "unknown": "The visibility change could not be confirmed. Refresh the project before trying again.",
+    "refresh": "Refresh project"
   }
 }
