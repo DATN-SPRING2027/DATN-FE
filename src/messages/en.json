@@ -10,10 +10,16 @@
     "seeAll": "See all"
   },
   "sidebar": {
+    "navigation": "Main navigation",
+    "brandLabel": "Continuum AI home",
     "groups": {
-      "menu": "Menu",
+      "workspace": "Workspace",
+      "organization": "Organization",
+      "account": "Account",
+      "administration": "Administration",
+      "menu": "Workspace",
       "support": "Support",
-      "others": "Others"
+      "others": "Account"
     },
     "badges": {
       "new": "new",
@@ -123,12 +129,35 @@
       "inbox": "Inbox",
       "inboxDetails": "Details",
       "projects": "Projects",
-      "organizationMembers": "Organization members"
+      "organizationMembers": "Organization members",
+      "overview": "Overview",
+      "work": "Work",
+      "workNotes": "Work Notes",
+      "knowledge": "Knowledge",
+      "aiSearch": "AI Search",
+      "handover": "Handover",
+      "members": "Members",
+      "settings": "Settings"
     },
-    "widget": {
-      "title": "#1 Tailwind CSS Dashboard",
-      "description": "Leading Tailwind CSS Admin Template with 500+ UI Component and Pages.",
-      "purchasePlan": "Purchase Plan"
+    "organizationLabel": "Organization",
+    "organizationSwitcherLabel": "Choose organization",
+    "organizationListLabel": "Organizations",
+    "organizationUnavailable": "Organization unavailable",
+    "organizationLoading": "Loading organizations…",
+    "organizationLoadError": "Could not load organizations.",
+    "organizationRetry": "Try again",
+    "organizationSelectError": "Could not switch organizations.",
+    "currentOrganization": "Current organization",
+    "noOrganizations": "No organizations are available for this account.",
+    "manageOrganizations": "Manage organizations",
+    "comingSoon": "Coming soon",
+    "account": {
+      "profile": "Open profile for {name}",
+      "defaultName": "Signed-in user",
+      "defaultRole": "Member",
+      "signOut": "Sign out",
+      "signingOut": "Signing out…",
+      "signOutError": "Could not sign out. Try again."
     }
   },
   "header": {
@@ -245,7 +274,7 @@
     "onboardingInvitationChecking": "Checking invitations...",
     "onboardingInvitationError": "Could not check invitations",
     "onboardingInvitationExpiry": "Expires {date}",
-      "onboardingNoInvitations": "There are no pending organization invitations for this account.",
+    "onboardingNoInvitations": "There are no pending organization invitations for this account.",
     "onboardingInvitationUnavailable": "Invitation acceptance is unavailable until legacy or orphaned rights evidence and the coordinated cutover are verified. Contact your Organization administrator.",
     "onboardingCheckAgain": "Check again",
     "onboardingActionError": "Could not continue",
