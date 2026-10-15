@@ -1353,6 +1353,8 @@
   },
   "projectMembers": {
     "title": "Project members",
+    "directoryDescription": "Review Project access and membership status.",
+    "memberColumn": "Member",
     "checkAccess": "Check access again",
     "list": "Member list",
     "add": "Add member",
