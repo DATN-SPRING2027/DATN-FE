@@ -47,7 +47,7 @@ describe("sign in form", () => {
     } as never);
   });
 
-  it("routes an authenticated organization member to the dashboard", async () => {
+  it("routes an authenticated organization member to Organization selection", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
         id: "user-1",
@@ -64,10 +64,10 @@ describe("sign in form", () => {
 
     render(<SignInForm />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/select-organization"));
   });
 
-  it("routes an authenticated account without an organization to onboarding", async () => {
+  it("routes an authenticated account without an organization to Organization selection", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
         id: "user-1",
@@ -82,7 +82,7 @@ describe("sign in form", () => {
 
     render(<SignInForm />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/select-organization"));
   });
 
   it("submits credentials and verifies the cookie session through /auth/me", async () => {

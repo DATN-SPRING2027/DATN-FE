@@ -38,9 +38,7 @@ export default function SignInForm({
 
   useEffect(() => {
     if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
-      router.replace(
-        currentUser.data.context === "ACCOUNT" ? "/onboarding" : "/dashboard",
-      );
+      router.replace("/select-organization");
     }
   }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router]);
 

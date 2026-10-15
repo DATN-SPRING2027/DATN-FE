@@ -1,34 +1,33 @@
 "use client";
 
+import BrandLogo from "@/components/common/BrandLogo";
 import Alert from "@/components/ui/alert/Alert";
-import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
 import {
-  useMyOrganizationInvitationsQuery,
   useCreateOrganizationMutation,
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
 } from "@/lib/queries/auth/useAccountOnboarding";
 import { useTranslations } from "next-intl";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
+import OrganizationChoices from "./OrganizationChoices";
+import OrganizationCreateForm from "./OrganizationCreateForm";
+import OrganizationInvitations from "./OrganizationInvitations";
 
 export default function AccountOnboarding() {
   const t = useTranslations("auth");
   const router = useRouter();
   const current = useCurrentUserQuery();
-  const organizations = useOrganizationOptionsQuery(current.data?.context === "ACCOUNT");
-  const invitations = useMyOrganizationInvitationsQuery(current.data?.context === "ACCOUNT");
+  const isAccount = current.data?.context === "ACCOUNT";
+  const canSelectOrganization = Boolean(current.data);
+  const organizations = useOrganizationOptionsQuery(canSelectOrganization);
   const create = useCreateOrganizationMutation();
   const select = useSelectOrganizationMutation();
   const logout = useLogoutMutation();
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
-    if (current.data && current.data.context !== "ACCOUNT") router.replace("/");
     if (current.isError) router.replace("/signin");
   }, [current.data, current.isError, router]);
 
@@ -37,82 +36,97 @@ export default function AccountOnboarding() {
       await select.mutateAsync(id);
       router.replace("/");
     } catch {
-      // The mutation error is shown below the form.
+      // The mutation error is shown below the organization choices.
     }
   }
 
-  async function createAndEnter(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function createAndEnter(input: { name: string; slug: string }) {
     try {
-      const result = await create.mutateAsync({ name: name.trim(), slug: slug.trim() });
+      const result = await create.mutateAsync(input);
       await selectAndEnter(result.id);
     } catch {
-      // The mutation error is shown below the form.
+      // Keep the form open and show the mutation error below it.
     }
   }
 
-  if (!current.data || current.data.context !== "ACCOUNT")
-    return <main className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />;
+  if (!current.data)
+    return (
+      <main
+        className="flex min-h-screen w-full flex-1 items-center justify-center bg-white px-6 dark:bg-gray-900 lg:w-1/2"
+        aria-busy="true"
+        aria-label={t("checkingSession")}
+      >
+        <div className="w-full max-w-lg space-y-4">
+          <div className="h-8 w-40 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div className="h-10 w-3/4 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+        </div>
+      </main>
+    );
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col justify-center gap-6 px-6 py-12">
-      <div>
-        <h1 className="text-title-sm font-semibold text-gray-900 dark:text-white">{t("onboardingTitle")}</h1>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("onboardingDescription", { name: current.data.name })}</p>
-      </div>
+    <main className="flex min-h-screen w-full flex-1 flex-col overflow-y-auto bg-white px-6 py-8 dark:bg-gray-900 sm:px-10 lg:w-1/2 lg:px-12">
+      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-7 py-4">
+        <header>
+          <Link href="/" aria-label="Continuum AI home" className="inline-flex h-8">
+            <BrandLogo className="h-full" priority />
+          </Link>
+          <p className="mt-10 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-400">
+            {t("onboardingEyebrow")}
+          </p>
+          <h1 className="mt-3 text-title-sm font-semibold tracking-tight text-gray-900 dark:text-white sm:text-title-md">
+            {t("onboardingTitle")}
+          </h1>
+          <p className="mt-3 max-w-lg text-sm leading-6 text-gray-600 dark:text-gray-400">
+            {t("onboardingDescription", { name: current.data.name })}
+          </p>
+        </header>
 
-      {organizations.isLoading && <p className="text-sm text-gray-500" aria-busy="true">{t("onboardingChecking")}</p>}
-      {organizations.isError && <Alert variant="error" title={t("onboardingAccessError")} message={t("onboardingAccessErrorDetail")} />}
-      {organizations.data && organizations.data.length > 0 && (
-        <section className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800">
-          <h2 className="font-medium text-gray-900 dark:text-white">{t("onboardingAvailable")}</h2>
-          <div className="mt-4 flex flex-col gap-3">
-            {organizations.data.map((organization) => (
-              <button key={organization.id} type="button" disabled={select.isPending} onClick={() => void selectAndEnter(organization.id)} className="rounded-lg border border-gray-300 px-4 py-3 text-start text-sm text-gray-800 hover:border-brand-500 disabled:opacity-50 dark:border-gray-700 dark:text-gray-200">
-                {organization.name}
-              </button>
+        {organizations.isLoading && (
+          <div className="space-y-3" aria-busy="true" aria-label={t("onboardingChecking")}>
+            {[0, 1].map((item) => (
+              <div key={item} className="h-18 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
             ))}
           </div>
-        </section>
-      )}
-      {organizations.data?.length === 0 && <p className="text-sm text-gray-600 dark:text-gray-400">{t("onboardingNoOrganization")}</p>}
-
-      <section className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800">
-        <h2 className="font-medium text-gray-900 dark:text-white">{t("onboardingCreate")}</h2>
-        <form className="mt-4 space-y-4" onSubmit={(event) => void createAndEnter(event)}>
-          <div><Label htmlFor="organization-name">{t("onboardingName")}</Label><Input id="organization-name" value={name} onChange={(event) => setName(event.target.value)} required maxLength={200} /></div>
-          <div><Label htmlFor="organization-slug">{t("onboardingSlug")}</Label><Input id="organization-slug" value={slug} onChange={(event) => setSlug(event.target.value)} required maxLength={100} pattern="[a-z0-9]+(-[a-z0-9]+)*" /></div>
-          <Button disabled={create.isPending || select.isPending}>{t("onboardingCreateAction")}</Button>
-        </form>
-      </section>
-
-      <section className="rounded-2xl border border-gray-200 p-5 dark:border-gray-800">
-        <h2 className="font-medium text-gray-900 dark:text-white">{t("onboardingInvited")}</h2>
-        <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{t("onboardingInvitedDescription")}</p>
-        {invitations.isLoading && <p className="mt-3 text-sm text-gray-500" aria-busy="true">{t("onboardingInvitationChecking")}</p>}
-        {invitations.isError && <Alert variant="error" title={t("onboardingInvitationError")} message={t("onboardingAccessErrorDetail")} />}
-        {invitations.data && invitations.data.data.length > 0 && (
-          <ul className="mt-4 space-y-3">
-            {invitations.data.data.map((invitation) => (
-              <li key={invitation.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-                <div>
-                  <p className="font-medium text-gray-900 dark:text-white">{invitation.organizationName}</p>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-500">{t("onboardingInvitationExpiry", { date: new Date(invitation.expiresAt).toISOString().slice(0, 10) })}</p>
-                  <p role="status" className="mt-2 text-sm text-warning-700 dark:text-warning-400">{t("onboardingInvitationUnavailable")}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
-        {invitations.data && invitations.data.data.length === 0 && (
-          <p className="mt-3 text-sm text-gray-500 dark:text-gray-400" role="status">
-            {t("onboardingNoInvitations")}
-          </p>
+        {organizations.isError && (
+          <Alert variant="error" title={t("onboardingAccessError")} message={t("onboardingAccessErrorDetail")} />
         )}
-        <button type="button" onClick={() => { void organizations.refetch(); void invitations.refetch(); }} className="mt-3 text-sm font-medium text-brand-500 hover:text-brand-600">{t("onboardingCheckAgain")}</button>
-      </section>
-      {(create.isError || select.isError) && <Alert variant="error" title={t("onboardingActionError")} message={t("onboardingActionErrorDetail")} />}
-      <button type="button" onClick={() => void logout.mutateAsync().then(() => router.replace("/signin")).catch(() => undefined)} className="self-start text-sm text-gray-500 hover:text-gray-800 dark:text-gray-400">{t("onboardingSignOut")}</button>
+        {organizations.isSuccess && (
+          <OrganizationChoices
+            organizations={organizations.data}
+            isBusy={select.isPending || create.isPending}
+            onSelect={(id) => void selectAndEnter(id)}
+            onCreate={() => setShowCreateForm(true)}
+          />
+        )}
+        {showCreateForm && (
+          <OrganizationCreateForm
+            disabled={create.isPending || select.isPending}
+            onCreate={(input) => void createAndEnter(input)}
+            onCancel={() => setShowCreateForm(false)}
+          />
+        )}
+        {(create.isError || select.isError) && (
+          <Alert variant="error" title={t("onboardingActionError")} message={t("onboardingActionErrorDetail")} />
+        )}
+
+        {isAccount && (
+          <OrganizationInvitations
+            enabled={isAccount}
+            onCheckOrganizations={() => void organizations.refetch()}
+          />
+        )}
+
+        <button
+          type="button"
+          disabled={logout.isPending}
+          onClick={() => void logout.mutateAsync().then(() => router.replace("/signin")).catch(() => undefined)}
+          className="self-start rounded-lg px-2 py-1 text-sm text-gray-500 transition hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-gray-200"
+        >
+          {t("onboardingSignOut")}
+        </button>
+      </div>
     </main>
   );
 }

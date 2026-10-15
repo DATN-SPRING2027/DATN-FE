@@ -99,6 +99,8 @@ export async function GET(request: NextRequest): Promise<Response> {
   const callbackFailed =
     backend.status >= 500 ||
     (backend.status === 302 && location === "/signin?google=failed");
+  const isSuccessfulLoginRedirect =
+    location === "/" || location === "/select-organization";
   logCallbackStage({
     requestId,
     stage: "bff_backend_response",
@@ -114,7 +116,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       : {}),
   });
 
-  if (backend.status === 302 && location === "/") {
+  if (backend.status === 302 && isSuccessfulLoginRedirect) {
     const cookieNames = cookies.map((cookie) =>
       cookie.slice(0, cookie.indexOf("=")).trim().toLowerCase(),
     );
