@@ -37,8 +37,11 @@ export default function SignInForm({
   const login = useLoginMutation();
 
   useEffect(() => {
-    if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data)
-      router.replace("/");
+    if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
+      router.replace(
+        currentUser.data.context === "ACCOUNT" ? "/onboarding" : "/dashboard",
+      );
+    }
   }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {

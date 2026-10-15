@@ -2,11 +2,43 @@
 
 import React, { useState } from "react";
 import BrandLogo from "@/components/common/BrandLogo";
+import UserDropdown from "@/components/header/UserDropdown";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 
 export default function LandingNavbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const currentUser = useCurrentUserQuery();
+
+  const renderAuthAction = (isMobile = false) => {
+    if (currentUser.data) return <UserDropdown />;
+
+    if (currentUser.isPending) {
+      return (
+        <span
+          aria-label="Đang kiểm tra phiên đăng nhập"
+          aria-busy="true"
+          className={`inline-block animate-pulse rounded-lg bg-slate-100 dark:bg-gray-800 ${
+            isMobile ? "h-10 w-full" : "h-9 w-24"
+          }`}
+        />
+      );
+    }
+
+    return (
+      <Link
+        href="/signin"
+        className={
+          isMobile
+            ? "w-full rounded-lg border border-slate-200 py-2.5 text-center text-sm font-semibold text-[#334155] hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300"
+            : "rounded-lg px-4 py-2 text-sm font-semibold text-[#334155] transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
+        }
+      >
+        Đăng nhập
+      </Link>
+    );
+  };
 
   const scrollToSection = (e: React.MouseEvent<HTMLAnchorElement>, id: string) => {
     e.preventDefault();
@@ -59,12 +91,7 @@ export default function LandingNavbar() {
 
         {/* Action Buttons */}
         <div className="hidden items-center gap-3 sm:flex">
-          <Link
-            href="/signin"
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-[#334155] transition-colors hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400"
-          >
-            Đăng nhập
-          </Link>
+          {renderAuthAction()}
           <a
             href="#demo"
             onClick={(e) => scrollToSection(e, "demo")}
@@ -132,12 +159,7 @@ export default function LandingNavbar() {
               Cách hoạt động
             </a>
             <div className="pt-2 border-t border-slate-200 dark:border-gray-800 flex flex-col gap-2.5">
-              <Link
-                href="/signin"
-                className="w-full text-center rounded-lg border border-slate-200 py-2.5 text-sm font-semibold text-[#334155] hover:bg-slate-50 dark:border-gray-700 dark:text-gray-300"
-              >
-                Đăng nhập
-              </Link>
+              {renderAuthAction(true)}
               <a
                 href="#demo"
                 onClick={(e) => scrollToSection(e, "demo")}
