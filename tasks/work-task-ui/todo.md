@@ -7,13 +7,14 @@
 
 ## Route and navigation
 
-- [x] Add localized `/work` Server Component route and render the client workspace.
-- [x] Enable the existing Work navigation item and active-route styling.
+- [x] Add localized `/projects/[projectId]/work` Server Component route and render the client workspace in its selected Project.
+- [x] Add a Work entry from Project detail and remove the Organization-level Work sidebar item.
+- [x] Load the selected Project using the current Organization context before rendering the Work preview.
 
 ## Preview model and controls
 
 - [x] Add Work view types, fixed status/priority presentation, and realistic fixture rows.
-- [x] Add project-space heading, preview-data indicator, workspace tabs and responsive toolbar.
+- [x] Add project-space heading from the selected Project, preview-data indicator, workspace tabs and responsive toolbar.
 - [x] Implement shared search, status/priority/assignee filters, grouping and selection state.
 
 ## Views and creation
@@ -45,7 +46,7 @@
 
 ## Overview verification
 
-- [x] `npm run check` — passed after review fixes (lint, typecheck, 42 test files / 322 tests, production build).
+- [x] Earlier `npm run check` checkpoint — passed before project scoping (lint, typecheck, 42 test files / 322 tests, production build).
 - [x] Desktop browser accessibility snapshot shows all Overview panels and current preview counts.
 - [ ] Overview filter interaction, mobile/dark-mode visual inspection and browser console inspection remain.
 
@@ -53,14 +54,14 @@
 
 - [x] Review keyboard semantics, focus visibility, TailAdmin dark-mode classes, and narrow/wide layout behavior in source.
 - [x] Run `npm run lint` — passed.
-- [x] Run `npm run typecheck` — passed.
-- [x] Run `npm run build` — passed; `/[locale]/work` is included in the route manifest.
+- [ ] Run the standard `npm run typecheck` — blocked by malformed ignored `.next/dev/types/routes.d.ts` and `validator.ts` while the local Next server is running; source TypeScript check passed with a temporary config excluding generated `.next` types.
+- [ ] Complete `npm run check` — tests passed (43 files / 324 tests) and production compilation passed, but standard type checking fails on the same generated `.next/dev/types` syntax errors.
 - [x] Review full diff and status; no backend, schema, configuration, dependency, or secret changes found.
 
 ## Verification boundary
 
-- `npm run check` passed: lint, typecheck, 42 Vitest files / 322 tests, and production build. Focused Work tests cover current-month normalization, Monday-first grid boundaries, date comparison, locale-aware details and clearing a search-only criterion.
-- The existing `http://localhost:3000/work` tab was inspected at desktop size before the review fix: the October 2026 Calendar renders a Monday-first month grid with five due-dated sample items and an Unscheduled section; an event opens the shared detail modal with its due date; closing it restores focus; previous-month and Today controls work. The current-date highlight is covered in source and by helper tests but was not visually re-inspected after the fix.
+- Before this route-scope change, `npm run check` passed with 42 files / 322 tests. After the change, lint passed, the full suite passed with 43 files / 324 tests, and a source-only TypeScript check passed; standard typecheck/build type validation are blocked by malformed ignored `.next/dev/types` generated while the local Next server is running.
+- The previous `http://localhost:3000/work` implementation was inspected before route scoping. Use `/projects/{projectId}/work` for subsequent browser checks; the project-scoped route has not yet been visually inspected.
 - Earlier Work checks confirmed all Board columns fit, task details open from List and Board, the Create dialog backdrop is light, translations render and the Next.js issue overlay is gone.
 - Narrow/mobile viewport, dark-mode calendar appearance, Overview filter interaction and direct browser console-log inspection remain unverified.
 - The sample organization, project and work items are illustrative; there is no live API integration or persistence.

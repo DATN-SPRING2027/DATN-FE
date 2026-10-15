@@ -1,6 +1,5 @@
 import type { WorkItem, WorkPerson } from "./work-types";
 
-export const PREVIEW_ORGANIZATION = "North Star Company";
 export const PREVIEW_PROJECT = "Internal Knowledge Hub";
 
 export const PREVIEW_PEOPLE: readonly WorkPerson[] = [

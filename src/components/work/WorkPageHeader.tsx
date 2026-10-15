@@ -10,17 +10,23 @@ import {
   PlusIcon,
   TableIcon,
 } from "@/icons";
+import { Link } from "@/i18n/navigation";
 import type { RefObject } from "react";
-import { PREVIEW_ORGANIZATION, PREVIEW_PROJECT } from "./work-preview-data";
 
 export type WorkView = "overview" | "list" | "board" | "calendar";
 
 export default function WorkPageHeader({
+  projectId,
+  projectName,
+  projectCode,
   view,
   onViewChange,
   onCreate,
   createButtonRef,
 }: {
+  projectId: string;
+  projectName: string;
+  projectCode: string;
   view: WorkView;
   onViewChange: (view: WorkView) => void;
   onCreate: () => void;
@@ -41,7 +47,13 @@ export default function WorkPageHeader({
   return (
     <header className="min-w-0 space-y-5">
       <nav aria-label={t("breadcrumb")} className="flex items-center gap-2 text-sm">
-        <span className="text-gray-500 dark:text-gray-400">{PREVIEW_ORGANIZATION}</span>
+        <Link href="/projects" className="text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+          {t("projects")}
+        </Link>
+        <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">/</span>
+        <Link href={`/projects/${encodeURIComponent(projectId)}`} className="text-gray-500 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400">
+          {projectName}
+        </Link>
         <span aria-hidden="true" className="text-gray-300 dark:text-gray-600">/</span>
         <span aria-current="page" className="font-medium text-gray-900 dark:text-white/90">
           {t("title")}
@@ -51,17 +63,17 @@ export default function WorkPageHeader({
       <div className="flex flex-col gap-4 border-b border-gray-200 pb-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-warning-100 text-sm font-semibold text-warning-700 dark:bg-warning-500/15 dark:text-warning-400">
-            KN
+            {projectCode.slice(0, 2).toUpperCase()}
           </span>
           <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               {t("projectSpace")}
             </p>
             <h1 className="truncate text-xl font-semibold text-gray-900 dark:text-white/90">
-              {PREVIEW_PROJECT}
+              {projectName}
             </h1>
             <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-              {PREVIEW_ORGANIZATION}
+              {projectCode}
             </p>
           </div>
           <span className="hidden shrink-0 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400 md:inline-flex">

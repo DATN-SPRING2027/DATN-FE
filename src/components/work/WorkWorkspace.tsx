@@ -2,6 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useProjectQuery } from "@/lib/queries/projects/useProjects";
+import ProjectState from "@/components/projects/ProjectState";
 import Button from "@/components/ui/button/Button";
 import WorkBoardView from "./WorkBoardView";
 import WorkItemDetailDialog from "./WorkItemDetailDialog";
@@ -14,7 +17,6 @@ import WorkToolbar from "./WorkToolbar";
 import {
   INITIAL_PREVIEW_WORK_ITEMS,
   PREVIEW_PEOPLE,
-  PREVIEW_PROJECT,
 } from "./work-preview-data";
 import {
   WORK_STATUS_ORDER,
@@ -27,8 +29,11 @@ import {
 } from "./work-types";
 import { getCalendarMonthStart } from "./work-calendar-utils";
 
-export default function WorkWorkspace() {
+export default function WorkWorkspace({ projectId }: { projectId: string }) {
   const t = useTranslations("work");
+  const user = useCurrentUserQuery();
+  const organizationId = user.data?.organizationId ?? "";
+  const project = useProjectQuery(organizationId, projectId);
   const [view, setView] = useState<WorkView>("list");
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getCalendarMonthStart(new Date()),
@@ -47,6 +52,8 @@ export default function WorkWorkspace() {
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
+  const projectName = project.data?.name ?? "";
+  const projectCode = project.data?.code ?? "";
 
   const visibleItems = useMemo(() => {
     const normalizedQuery = normalizeSearch(query.trim());
@@ -62,8 +69,8 @@ export default function WorkWorkspace() {
         (priority === "ALL" || item.priority === priority) &&
         (assigneeId === "ALL" || item.assignee.id === assigneeId)
       );
-    });
-  }, [assigneeId, items, priority, query, status]);
+    }).map((item) => ({ ...item, projectName }));
+  }, [assigneeId, items, priority, projectName, query, status]);
 
   const groups = useMemo(
     () => groupWorkItems(visibleItems, groupBy),
@@ -128,7 +135,7 @@ export default function WorkWorkspace() {
         resolution: "UNRESOLVED",
         createdAt: new Date().toISOString(),
         dueDate: input.dueDate,
-        projectName: PREVIEW_PROJECT,
+        projectName,
         subtasks: { completed: 0, total: 0 },
       };
       return [item, ...current];
@@ -137,9 +144,22 @@ export default function WorkWorkspace() {
     setCreateOpen(false);
   }
 
+  if (user.isPending || (organizationId && project.isPending)) {
+    return <ProjectState />;
+  }
+  if (user.isError) return <ProjectState error={user.error} />;
+  if (!organizationId) return <ProjectState error={new Error("No trusted organization")} />;
+  if (project.isError) {
+    return <ProjectState error={project.error} retry={() => void project.refetch()} />;
+  }
+  if (!project.data) return <ProjectState />;
+
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       <WorkPageHeader
+        projectId={projectId}
+        projectName={projectName}
+        projectCode={projectCode}
         view={view}
         onViewChange={setView}
         onCreate={() => setCreateOpen(true)}

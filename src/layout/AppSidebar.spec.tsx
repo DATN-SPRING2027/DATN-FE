@@ -76,7 +76,6 @@ vi.mock("@/icons/index", () => {
     PlugInIcon: Icon,
     SettingsIcon: Icon,
     ShootingStarIcon: Icon,
-    TaskIcon: Icon,
     DocsIcon: Icon,
   };
 });
@@ -88,7 +87,6 @@ vi.mock("next-intl", () => ({
       "sidebar.groups.administration": "Administration",
       "sidebar.items.overview": "Overview",
       "sidebar.items.projects": "Projects",
-      "sidebar.items.work": "Work",
       "sidebar.items.workNotes": "Work Notes",
       "sidebar.items.knowledge": "Knowledge",
       "sidebar.items.aiSearch": "AI Search",
@@ -199,7 +197,8 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Work", "Calendar", "Members"]);
+    ).toEqual(["Overview", "Projects", "Calendar", "Members"]);
+    expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",

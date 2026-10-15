@@ -8,7 +8,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon, PlusIcon } from "@/icons";
+import { GroupIcon, PlusIcon, TaskIcon } from "@/icons";
 
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
@@ -76,7 +76,14 @@ export default function ProjectOverview({ project }: { project: Project }) {
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href={`/projects/${encodeURIComponent(project.id)}/work`}
+            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-700"
+          >
+            <TaskIcon className="size-4" aria-hidden="true" />
+            {t("work")}
+          </Link>
           <span
             aria-hidden="true"
             className="mr-2 flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"

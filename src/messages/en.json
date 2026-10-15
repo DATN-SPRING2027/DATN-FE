@@ -131,7 +131,6 @@
       "projects": "Projects",
       "organizationMembers": "Organization members",
       "overview": "Overview",
-      "work": "Work",
       "workNotes": "Work Notes",
       "knowledge": "Knowledge",
       "aiSearch": "AI Search",
@@ -1107,6 +1106,7 @@
     "createNew": "Create New Project",
     "createPageHint": "Configure and provision a new project workspace in your organization.",
     "overview": "Overview",
+    "work": "Work",
     "overviewHint": "Project information and organization context.",
     "projectContext": "Project context",
     "projectId": "Project ID",
@@ -1117,6 +1117,7 @@
   "work": {
     "title": "Work",
     "breadcrumb": "Work breadcrumb",
+    "projects": "Projects",
     "projectSpace": "Project space",
     "previewData": "Preview data",
     "create": "Create",

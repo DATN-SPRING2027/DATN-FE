@@ -42,6 +42,7 @@ vi.mock("@/icons", () => ({
   UserCircleIcon: () => null,
   GroupIcon: () => null,
   EyeIcon: () => null,
+  TaskIcon: () => null,
 }));
 const api = vi.mocked(apiClient);
 const project = {
@@ -253,6 +254,10 @@ it("loads project detail by the accepted ID path", async () => {
   expect(
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
+  expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
+    "href",
+    "/projects/p1/work",
+  );
   expect(screen.getByText("Private")).toBeVisible();
   expect(api).toHaveBeenCalledWith(
     "/iam/projects/p1",
