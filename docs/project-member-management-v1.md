@@ -223,3 +223,17 @@ backend files, endpoints or payloads changed.
 `npm run lint`, `npm run typecheck`, and the Project member/workspace suites pass
 (73 tests). A production build was not rerun; an earlier attempt produced no
 output for more than two minutes and was stopped.
+
+## Compact Project member directory
+
+The member list uses a compact TailAdmin directory layout with the live
+membership total, current-page User ID search, the supported ACTIVE/INACTIVE
+status filter and the existing Add action. Rows show the opaque User ID,
+Project membership scope, UTC joined date and status. The trailing arrow opens
+the already-loaded membership details; active rows retain the confirmed Remove
+action. Decorative checkboxes, the unavailable role filter and placeholder
+access/invitation metrics are removed. Names, email addresses, roles and
+cross-Project counts are not shown because the accepted membership response
+does not contain them. Search remains local to the loaded page; API operations,
+authorization behavior and payloads are unchanged. The table retains its own
+horizontal scroll area on narrow screens and TailAdmin light/dark theme tokens.
