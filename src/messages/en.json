@@ -1111,13 +1111,28 @@
     "sections": "Project sections",
     "activity": "Activity",
     "knowledge": "Knowledge",
+    "settings": "Setting",
     "comingSoon": "Coming soon",
     "overviewHint": "Project information and organization context.",
     "projectContext": "Project context",
     "projectId": "Project ID",
     "organizationId": "Organization ID",
     "createdBy": "Created by (user ID)",
-    "contextHint": "Dates are displayed in UTC."
+    "contextHint": "Dates are displayed in UTC.",
+    "settingsPanel": {
+      "title": "Project settings",
+      "description": "Manage this project’s details, visibility, and lifecycle.",
+      "apiNotice": "Visibility changes are available. Project name and description edits and project deletion are not supported by the backend yet, so those settings cannot be saved.",
+      "detailsTitle": "Project details",
+      "detailsUnavailable": "Editing project details will be enabled when the backend update API is available.",
+      "saveChanges": "Save changes",
+      "visibilityTitle": "Project visibility",
+      "visibilityDescription": "Choose whether active members of this organization can read this project’s metadata. Content access rules remain unchanged.",
+      "visibilityArchived": "Visibility cannot be changed while this project is archived.",
+      "dangerZoneTitle": "Danger zone",
+      "deleteUnavailable": "Project deletion is not available because the backend has no delete operation or approved deletion behavior yet.",
+      "deleteProject": "Delete project"
+    }
   },
   "work": {
     "title": "Work",
