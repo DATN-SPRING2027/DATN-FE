@@ -22,7 +22,7 @@ describe("Google OAuth callback BFF route", () => {
   });
 
   it("forwards the callback without following the backend app redirect", async () => {
-    const headers = new Headers({ location: "/", "cache-control": "no-store" });
+    const headers = new Headers({ location: "/select-organization", "cache-control": "no-store" });
     headers.append("set-cookie", "continuum_access=session; Path=/; HttpOnly");
     headers.append("set-cookie", "__Secure-refresh=refresh; Path=/; Secure");
     headers.append("set-cookie", "__Host-csrf=csrf; Path=/; Secure");
@@ -45,7 +45,7 @@ describe("Google OAuth callback BFF route", () => {
     );
     expect(response.headers.get("x-request-id")).toBe(requestId);
     expect(response.status).toBe(302);
-    expect(response.headers.get("location")).toBe("/");
+    expect(response.headers.get("location")).toBe("/select-organization");
     expect(response.headers.get("set-cookie")).toContain(
       "continuum_access=session",
     );
@@ -61,7 +61,7 @@ describe("Google OAuth callback BFF route", () => {
 
   it("reports a missing session cookie when the backend redirects as if login succeeded", async () => {
     vi.mocked(forwardBackendRequest).mockResolvedValue(
-      new Response(null, { status: 302, headers: { location: "/" } }),
+      new Response(null, { status: 302, headers: { location: "/select-organization" } }),
     );
     const warning = vi
       .spyOn(console, "warn")
@@ -118,20 +118,27 @@ describe("Google OAuth callback BFF route", () => {
     expect(response.headers.get("set-cookie")).toContain("Max-Age=0");
   });
 
-  it("routes users without membership back to sign-in with a clear message key", async () => {
+  it("routes a user without memberships to the selection screen with an ACCOUNT session", async () => {
+    const headers = new Headers({ location: "/select-organization" });
+    headers.append("set-cookie", "continuum_access=account-session; Path=/; HttpOnly");
+    headers.append("set-cookie", "__Secure-refresh=refresh; Path=/api/v1/auth; Secure; HttpOnly");
+    headers.append("set-cookie", "__Host-csrf=csrf; Path=/; Secure");
+    vi.mocked(forwardBackendRequest).mockResolvedValue(
+      new Response(null, { status: 302, headers }),
+    );
+    const response = await GET(request());
+    expect(response.status).toBe(302);
+    expect(response.headers.get("location")).toBe("/select-organization");
+    expect(response.headers.get("set-cookie")).toContain("account-session");
+  });
+
+  it("keeps the sign-in error fallback for a backend that rejects organization access", async () => {
     vi.mocked(forwardBackendRequest).mockResolvedValue(
       Response.json({ code: "ORGANIZATION_ACCESS_REQUIRED" }, { status: 403 }),
     );
     const response = await GET(request());
-    expect(
-      new URL(response.headers.get("location")!, "http://localhost:5000")
-        .pathname,
-    ).toBe("/signin");
-    expect(
-      new URL(
-        response.headers.get("location")!,
-        "http://localhost:5000",
-      ).searchParams.get("google"),
-    ).toBe("organization-required");
+    const destination = new URL(response.headers.get("location")!, "http://localhost:5000");
+    expect(destination.pathname).toBe("/signin");
+    expect(destination.searchParams.get("google")).toBe("organization-required");
   });
 });
