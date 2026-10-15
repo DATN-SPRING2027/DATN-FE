@@ -34,7 +34,7 @@ export default function AccountOnboarding() {
   async function selectAndEnter(id: string) {
     try {
       await select.mutateAsync(id);
-      router.replace("/");
+      router.replace("/dashboard");
     } catch {
       // The mutation error is shown below the organization choices.
     }

@@ -1,0 +1,46 @@
+# Project Work Notes — TODO
+
+## Scope and docs
+
+- [x] Inspect current Project and Work route patterns and existing TailAdmin components.
+- [x] Verify Work Notes BE contract boundary; document FE-only preview behavior.
+- [x] Record role views, shared filters, route, accessibility, and API boundary in `design.md`.
+- [x] Record implementation phases in `plan.md`.
+
+## Project navigation and workspace
+
+- [x] Add localized `/projects/[projectId]/work-notes` route.
+- [x] Add Work Notes beside Work in Project section navigation.
+- [x] Load Project context and render standard loading/error/unauthorized states.
+- [x] Derive the displayed role from `/auth/me.roles`; remove role switching and show a read-only current-role badge.
+- [x] Add shared Activity / Weekly reports / Knowledge tabs; Admin Configuration tab.
+- [x] Add preview disclosure and shared search/member/task/type/week/attention filters.
+
+## Member experience
+
+- [x] Implement Activity timeline and note creation for four note types with conditional fields.
+- [x] Attribute member-created notes and weekly reports to the signed-in user identity.
+- [x] Support optional Task link and local conversion from work update to knowledge draft.
+- [x] Implement weekly report form with completed, unfinished/blocked, and next-week sections.
+- [x] Show knowledge review statuses.
+
+## Leader experience
+
+- [x] Show blocked work, missing reports, pending knowledge, and reports reviewed metrics.
+- [x] Implement attention-only filter and mark-as-viewed action.
+- [x] Show weekly reports by member with read-only details.
+- [x] Implement local approve/request-changes actions for knowledge; no member content editing.
+
+## Admin experience
+
+- [x] Add separate Configuration tab with templates, reminder schedule, submission rules, approval flow, and role permission matrix.
+- [x] Label configuration controls as preview-only and unsaved.
+
+## Finish and handoff
+
+- [x] Review keyboard/focus/dialog behavior, accessible status labels, responsive classes, and dark-mode classes in source.
+- [x] Add role-specific UI tests for Member, Leader, Admin, and unsupported role claims.
+- [x] Run `npm run check` (lint, TypeScript, all unit tests, and production build).
+- [ ] Manually inspect rendered light/dark and narrow-screen states in an authenticated browser.
+- [x] Review final diff, changed paths, Git status/history, and check for secrets/generated files.
+- [x] Summarize branch, commit, checks, API/database/config/security impact, and remaining risks.
