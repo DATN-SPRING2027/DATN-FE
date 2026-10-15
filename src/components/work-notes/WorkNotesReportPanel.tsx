@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { CheckCircleIcon, FileIcon } from "@/icons";
-import { INITIAL_PREVIEW_REPORTS } from "./work-notes-preview-data";
 import type { WorkNotesRole, WeeklyReport } from "./work-notes-types";
 
 const FIELD_CLASS = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm leading-6 text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
@@ -13,22 +12,27 @@ const FIELD_CLASS = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py
 export default function WorkNotesReportPanel({
   role,
   reports,
+  currentUserName,
   onSubmit,
   onMarkReviewed,
 }: {
   role: WorkNotesRole;
   reports: readonly WeeklyReport[];
+  currentUserName: string;
   onSubmit: (report: Pick<WeeklyReport, "completed" | "blockers" | "nextWeek">) => void;
   onMarkReviewed: (id: string) => void;
 }) {
   const t = useTranslations("workNotes");
   const [selected, setSelected] = useState<WeeklyReport | null>(null);
+  const currentReport = reports.find((report) => report.member === currentUserName && report.week === "THIS_WEEK");
   const [draft, setDraft] = useState(() => {
-    const initial = INITIAL_PREVIEW_REPORTS.find((report) => report.member === "Minh Anh" && report.week === "THIS_WEEK");
-    return { completed: initial?.completed ?? "", blockers: initial?.blockers ?? "", nextWeek: initial?.nextWeek ?? "" };
+    return {
+      completed: currentReport?.completed ?? "",
+      blockers: currentReport?.blockers ?? "",
+      nextWeek: currentReport?.nextWeek ?? "",
+    };
   });
   const [error, setError] = useState("");
-  const currentReport = reports.find((report) => report.member === "Minh Anh" && report.week === "THIS_WEEK");
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -61,7 +65,7 @@ export default function WorkNotesReportPanel({
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">{t("reports.yourSummary")}</h3>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("reports.shortReportHint")}</p>
             </div>
-            <span className="text-xs text-gray-500 dark:text-gray-400">{t("reports.memberName")}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">{t("reports.memberName", { member: currentUserName })}</span>
           </div>
           <div className="space-y-4 px-5 py-5">
             <ReportField label={t("reports.completed")} value={draft.completed} placeholder={t("reports.completedPlaceholder")} onChange={(value) => setDraft((current) => ({ ...current, completed: value }))} />

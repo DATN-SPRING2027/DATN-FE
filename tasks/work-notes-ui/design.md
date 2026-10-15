@@ -10,6 +10,7 @@ Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`.
 - Select the Member / Leader / Admin view from the signed-in user's `/auth/me.roles`; never let a user change roles from the Work Notes UI. Map `ADMIN` to Admin, `TEAM_LEADER` to Leader, and `MEMBER` to Member, with that precedence if multiple roles are present. If none is recognized, show an error instead of defaulting to Member.
 - This PR follows the user-approved temporary `/auth/me.roles` mapping. The BE contract documents those as Organization roles while `TEAM_LEADER` assignments are Project-scoped, so the current response may not identify a Project Leader. Do not treat this FE mapping as authorization; Project endpoints remain the security boundary. A future BE contract is needed for exact per-Project role resolution.
 - Work Notes, weekly reports, review actions, and configuration remain local preview state. Do not call an API or imply persistence until a matching BE contract exists.
+- Attribute newly created notes and the member's weekly report to the signed-in user's identity from `/auth/me`; preview fixtures for other members remain illustrative.
 - Existing Project authorization remains the boundary for viewing content. Leader review actions are limited to mark-as-viewed and knowledge approve/request-changes; Leaders cannot edit member-authored note/report content.
 
 ## Navigation and page structure

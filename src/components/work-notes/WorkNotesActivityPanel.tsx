@@ -9,6 +9,8 @@ export default function WorkNotesActivityPanel({
   notes,
   reports,
   role,
+  currentUserName,
+  currentUserReportSubmitted,
   onMarkViewed,
   onConvert,
   onOpenReports,
@@ -16,6 +18,8 @@ export default function WorkNotesActivityPanel({
   notes: readonly WorkNote[];
   reports: readonly WeeklyReport[];
   role: WorkNotesRole;
+  currentUserName: string;
+  currentUserReportSubmitted: boolean;
   onMarkViewed: (id: string) => void;
   onConvert: (note: WorkNote) => void;
   onOpenReports: () => void;
@@ -83,8 +87,8 @@ export default function WorkNotesActivityPanel({
                       {note.nextStep}
                     </p>
                   )}
-                  {(role !== "MEMBER" || (note.kind === "WORK_UPDATE" && note.author === "Minh Anh")) && <footer className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-                    {role === "MEMBER" && note.kind === "WORK_UPDATE" && note.author === "Minh Anh" && (
+                  {(role !== "MEMBER" || (note.kind === "WORK_UPDATE" && note.author === currentUserName)) && <footer className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
+                    {role === "MEMBER" && note.kind === "WORK_UPDATE" && note.author === currentUserName && (
                       <button type="button" onClick={() => onConvert(note)} className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400">
                         <BookOpenIcon aria-hidden="true" className="size-4" />{t("activity.saveAsKnowledge")}
                       </button>
@@ -122,8 +126,13 @@ export default function WorkNotesActivityPanel({
             </div>
             {role === "MEMBER" ? (
               <p className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-                <CheckCircleIcon aria-hidden="true" className="size-4 shrink-0 text-success-500" />{t("activity.memberSubmitted")}
+                {currentUserReportSubmitted
+                  ? <CheckCircleIcon aria-hidden="true" className="size-4 shrink-0 text-success-500" />
+                  : <TimeIcon aria-hidden="true" className="size-4 shrink-0 text-warning-500" />}
+                {t(currentUserReportSubmitted ? "activity.memberSubmitted" : "activity.memberNotSubmitted")}
               </p>
+            ) : reports.length === 0 ? (
+              <p className="text-xs text-gray-500 dark:text-gray-400">{t("activity.noReports")}</p>
             ) : needsAttention.length > 0 ? (
               <ul className="divide-y divide-gray-100 dark:divide-gray-800">
                 {needsAttention.slice(0, 3).map((report) => (

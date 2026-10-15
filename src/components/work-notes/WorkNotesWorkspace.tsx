@@ -36,9 +36,10 @@ import type {
   WorkNote,
   WorkNoteKind,
   WorkNotesTab,
+  WorkNotesIdentity,
   WeeklyReport,
 } from "./work-notes-types";
-import { resolveWorkNotesRole } from "./work-notes-types";
+import { getWorkNotesInitials, resolveWorkNotesRole } from "./work-notes-types";
 
 const FIELD_CLASS =
   "h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:placeholder:text-gray-500";
@@ -50,6 +51,11 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
   const user = useCurrentUserQuery();
   const organizationId = user.data?.organizationId ?? "";
   const project = useProjectQuery(organizationId, projectId);
+  const currentUser: WorkNotesIdentity = {
+    id: user.data?.id ?? "",
+    name: user.data?.name ?? "",
+    initials: getWorkNotesInitials(user.data?.name ?? ""),
+  };
   const role = user.data && "roles" in user.data
     ? resolveWorkNotesRole(user.data.roles ?? [])
     : undefined;
@@ -106,6 +112,9 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
       );
     });
   }, [attentionOnly, kind, member, reports, role, search, task, week]);
+  const currentUserReportSubmitted = reports.some(
+    (report) => report.member === currentUser.name && report.week === "THIS_WEEK" && report.status === "SUBMITTED",
+  );
 
   if (user.isPending || (organizationId && project.isPending)) return <ProjectState />;
   if (user.isError) return <ProjectState error={user.error} />;
@@ -168,13 +177,31 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
   }
 
   function saveReport(input: Pick<WeeklyReport, "completed" | "blockers" | "nextWeek">) {
-    setReports((current) =>
-      current.map((report) =>
-        report.member === "Minh Anh" && report.week === "THIS_WEEK"
-          ? { ...report, ...input, status: "SUBMITTED", updatedAt: t("justNow"), reviewed: false }
-          : report,
-      ),
-    );
+    setReports((current) => {
+      const existingReport = current.some(
+        (report) => report.member === currentUser.name && report.week === "THIS_WEEK",
+      );
+      if (existingReport) {
+        return current.map((report) =>
+          report.member === currentUser.name && report.week === "THIS_WEEK"
+            ? { ...report, ...input, status: "SUBMITTED", updatedAt: t("justNow"), reviewed: false }
+            : report,
+        );
+      }
+      return [
+        {
+          id: `report-${currentUser.id}-THIS_WEEK`,
+          member: currentUser.name,
+          initials: currentUser.initials,
+          status: "SUBMITTED",
+          ...input,
+          updatedAt: t("justNow"),
+          reviewed: false,
+          week: "THIS_WEEK",
+        },
+        ...current,
+      ];
+    });
     setAnnouncement(t("reportSavedPreview"));
   }
 
@@ -284,6 +311,9 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex xl:flex-wrap">
               <FilterSelect label={t("filters.member")} value={member} onChange={setMember}>
                 <option value="ALL">{t("filters.allMembers")}</option>
+                {currentUser.name && !PREVIEW_MEMBERS.some((person) => person.name === currentUser.name) && (
+                  <option value={currentUser.name}>{currentUser.name}</option>
+                )}
                 {PREVIEW_MEMBERS.map((person) => <option key={person.name} value={person.name}>{person.name}</option>)}
               </FilterSelect>
               <FilterSelect label={t("filters.task")} value={task} onChange={setTask}>
@@ -325,6 +355,8 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
               notes={filteredNotes.filter((note) => note.kind !== "KNOWLEDGE")}
               reports={reports}
               role={role}
+              currentUserName={currentUser.name}
+              currentUserReportSubmitted={currentUserReportSubmitted}
               onMarkViewed={(noteId) => {
                 updateNote(noteId, (note) => ({ ...note, viewed: true }));
                 setAnnouncement(t("markedViewedPreview"));
@@ -337,6 +369,7 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
             <WorkNotesReportPanel
               role={role}
               reports={role === "MEMBER" ? reports : filteredReports}
+              currentUserName={currentUser.name}
               onSubmit={saveReport}
               onMarkReviewed={markReportReviewed}
             />
@@ -354,7 +387,7 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
       </section>
 
       <p role="status" aria-live="polite" className="sr-only">{announcement}</p>
-      <WorkNoteCreateDialog key={createKind} isOpen={createOpen} initialKind={createKind} onClose={() => setCreateOpen(false)} onCreate={addNote} />
+      <WorkNoteCreateDialog key={createKind} isOpen={createOpen} initialKind={createKind} currentUser={currentUser} onClose={() => setCreateOpen(false)} onCreate={addNote} />
     </div>
   );
 }

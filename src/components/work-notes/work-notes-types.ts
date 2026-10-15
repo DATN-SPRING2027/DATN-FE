@@ -1,5 +1,15 @@
 export type WorkNotesRole = "MEMBER" | "LEADER" | "ADMIN";
 export type WorkNotesTab = "ACTIVITY" | "REPORTS" | "KNOWLEDGE" | "CONFIG";
+export type WorkNotesIdentity = Readonly<{
+  id: string;
+  name: string;
+  initials: string;
+}>;
+
+export function getWorkNotesInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  return parts.slice(0, 2).map((part) => Array.from(part)[0]?.toLocaleUpperCase() ?? "").join("") || "U";
+}
 
 export function resolveWorkNotesRole(
   organizationRoles: readonly string[],

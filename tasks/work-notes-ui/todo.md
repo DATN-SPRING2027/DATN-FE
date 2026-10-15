@@ -19,6 +19,7 @@
 ## Member experience
 
 - [x] Implement Activity timeline and note creation for four note types with conditional fields.
+- [x] Attribute member-created notes and weekly reports to the signed-in user identity.
 - [x] Support optional Task link and local conversion from work update to knowledge draft.
 - [x] Implement weekly report form with completed, unfinished/blocked, and next-week sections.
 - [x] Show knowledge review statuses.

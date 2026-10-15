@@ -6,18 +6,20 @@ import { CloseLineIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import { PREVIEW_TASKS } from "./work-notes-preview-data";
-import type { CreateWorkNoteInput, WorkNoteKind } from "./work-notes-types";
+import type { CreateWorkNoteInput, WorkNoteKind, WorkNotesIdentity } from "./work-notes-types";
 
 const FIELD_CLASS = "w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
 
 export default function WorkNoteCreateDialog({
   isOpen,
   initialKind,
+  currentUser,
   onClose,
   onCreate,
 }: {
   isOpen: boolean;
   initialKind: WorkNoteKind;
+  currentUser: WorkNotesIdentity;
   onClose: () => void;
   onCreate: (note: CreateWorkNoteInput) => void;
 }) {
@@ -27,6 +29,7 @@ export default function WorkNoteCreateDialog({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasOpenRef = useRef(false);
   const [kind, setKind] = useState<WorkNoteKind>(initialKind);
+  const [previousInitialKind, setPreviousInitialKind] = useState(initialKind);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [secondary, setSecondary] = useState("");
@@ -34,6 +37,11 @@ export default function WorkNoteCreateDialog({
   const [taskKey, setTaskKey] = useState("");
   const [tags, setTags] = useState("");
   const [error, setError] = useState("");
+
+  if (initialKind !== previousInitialKind) {
+    setPreviousInitialKind(initialKind);
+    setKind(initialKind);
+  }
 
   useEffect(() => {
     if (isOpen && !wasOpenRef.current) {
@@ -89,8 +97,8 @@ export default function WorkNoteCreateDialog({
     const selectedTask = PREVIEW_TASKS.find((task) => task.key === taskKey);
     const isKnowledge = kind === "KNOWLEDGE";
     onCreate({
-      author: "Minh Anh",
-      initials: "MA",
+      author: currentUser.name,
+      initials: currentUser.initials,
       kind,
       title: cleanTitle,
       body: body.trim(),
@@ -162,7 +170,7 @@ export default function WorkNoteCreateDialog({
           )}
           {kind === "WEEKLY_SUMMARY" && (
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t("form.blockerLabel")}<textarea rows={3} value={secondary} onChange={(event) => setSecondary(event.target.value)} placeholder={t("form.blockerPlaceholder")} className={`${FIELD_CLASS} resize-y`} /></label>
+              <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t("form.unfinishedLabel")}<textarea rows={3} value={secondary} onChange={(event) => setSecondary(event.target.value)} placeholder={t("form.blockerPlaceholder")} className={`${FIELD_CLASS} resize-y`} /></label>
               <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t("form.nextStepLabel")}<textarea rows={3} value={nextStep} onChange={(event) => setNextStep(event.target.value)} placeholder={t("form.nextStepPlaceholder")} className={`${FIELD_CLASS} resize-y`} /></label>
             </div>
           )}
