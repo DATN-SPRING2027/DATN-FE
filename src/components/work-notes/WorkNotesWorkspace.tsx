@@ -35,15 +35,14 @@ import type {
   KnowledgeStatus,
   WorkNote,
   WorkNoteKind,
-  WorkNotesRole,
   WorkNotesTab,
   WeeklyReport,
 } from "./work-notes-types";
+import { resolveWorkNotesRole } from "./work-notes-types";
 
 const FIELD_CLASS =
   "h-10 min-w-0 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:placeholder:text-gray-500";
 
-const ROLES: readonly WorkNotesRole[] = ["MEMBER", "LEADER", "ADMIN"];
 const CONTENT_TABS: readonly WorkNotesTab[] = ["ACTIVITY", "REPORTS", "KNOWLEDGE"];
 
 export default function WorkNotesWorkspace({ projectId }: { projectId: string }) {
@@ -51,7 +50,9 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
   const user = useCurrentUserQuery();
   const organizationId = user.data?.organizationId ?? "";
   const project = useProjectQuery(organizationId, projectId);
-  const [role, setRole] = useState<WorkNotesRole>("MEMBER");
+  const role = user.data && "roles" in user.data
+    ? resolveWorkNotesRole(user.data.roles ?? [])
+    : undefined;
   const [tab, setTab] = useState<WorkNotesTab>("ACTIVITY");
   const [notes, setNotes] = useState<WorkNote[]>([...INITIAL_PREVIEW_NOTES]);
   const [reports, setReports] = useState<WeeklyReport[]>([...INITIAL_PREVIEW_REPORTS]);
@@ -109,6 +110,7 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
   if (user.isPending || (organizationId && project.isPending)) return <ProjectState />;
   if (user.isError) return <ProjectState error={user.error} />;
   if (!organizationId) return <ProjectState error={new Error("No trusted organization")} />;
+  if (!role) return <ProjectState error={new Error("No supported Work Notes role")} />;
   if (project.isError) {
     return <ProjectState error={project.error} retry={() => void project.refetch()} />;
   }
@@ -183,12 +185,6 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
     setAnnouncement(t("reportReviewedPreview"));
   }
 
-  function selectRole(nextRole: WorkNotesRole) {
-    setRole(nextRole);
-    if (nextRole !== "ADMIN" && tab === "CONFIG") setTab("ACTIVITY");
-    setAttentionOnly(false);
-  }
-
   const tabs: readonly WorkNotesTab[] = role === "ADMIN"
     ? [...CONTENT_TABS, "CONFIG"]
     : CONTENT_TABS;
@@ -215,19 +211,12 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("projectCode", { code: projectCode })}</p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
-          <div className="flex w-fit items-center rounded-lg border border-gray-200 bg-white p-1 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900" role="group" aria-label={t("rolePreviewLabel")}>
-            {ROLES.map((value) => (
-              <button
-                key={value}
-                type="button"
-                aria-pressed={role === value}
-                onClick={() => selectRole(value)}
-                className={`rounded-md px-3 py-2 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${role === value ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300" : "text-gray-500 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"}`}
-              >
-                {t(`roles.${value}`)}
-              </button>
-            ))}
-          </div>
+          <span
+            aria-label={t("currentRoleLabel", { role: t(`roles.${role}`) })}
+            className="w-fit rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+          >
+            {t(`roles.${role}`)}
+          </span>
           {role === "MEMBER" && (
             <Button
               type="button"

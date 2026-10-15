@@ -7,14 +7,15 @@ Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`.
 ## Product model
 
 - Work Notes belong to the selected Project and link optionally to a Work item.
-- The Member / Leader / Admin switcher is a **UI preview control** for reviewing role-specific screen variants. It is not authentication or authorization.
+- Select the Member / Leader / Admin view from the signed-in user's `/auth/me.roles`; never let a user change roles from the Work Notes UI. Map `ADMIN` to Admin, `TEAM_LEADER` to Leader, and `MEMBER` to Member, with that precedence if multiple roles are present. If none is recognized, show an error instead of defaulting to Member.
+- This PR follows the user-approved temporary `/auth/me.roles` mapping. The BE contract documents those as Organization roles while `TEAM_LEADER` assignments are Project-scoped, so the current response may not identify a Project Leader. Do not treat this FE mapping as authorization; Project endpoints remain the security boundary. A future BE contract is needed for exact per-Project role resolution.
 - Work Notes, weekly reports, review actions, and configuration remain local preview state. Do not call an API or imply persistence until a matching BE contract exists.
 - Existing Project authorization remains the boundary for viewing content. Leader review actions are limited to mark-as-viewed and knowledge approve/request-changes; Leaders cannot edit member-authored note/report content.
 
 ## Navigation and page structure
 
 - Add Work Notes next to Work in the Project section row.
-- Use a compact project breadcrumb/header, role preview control, and primary create-note action.
+- Use a compact project breadcrumb/header, a non-interactive badge for the authenticated role, and the primary create-note action when the role is Member.
 - Shared workspace tabs: Activity, Weekly reports, Knowledge. Admin also gets a distinct Configuration tab.
 - Shared filters: search, member, task, note type, week, and attention-only. Keep controls wrap-safe on narrow screens.
 - Show a persistent, concise preview notice near the workspace controls so users understand edits are temporary.
@@ -44,7 +45,7 @@ Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`.
 
 ## Interaction and accessibility
 
-- Keyboard-operable tabs, role switcher, filters, cards, and dialogs; visible focus states and semantic labels.
+- Keyboard-operable tabs, filters, cards, and dialogs; visible focus states and semantic labels. The current-role badge is labelled for assistive technology and is not interactive.
 - Dialog close returns focus to its trigger; backdrop remains lightly dimmed to match current Work dialogs.
 - Statuses use text and icon/shape in addition to color.
 - Empty and filtered states explain how to recover; announce local actions through a polite live region.

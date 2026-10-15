@@ -1,5 +1,15 @@
 export type WorkNotesRole = "MEMBER" | "LEADER" | "ADMIN";
 export type WorkNotesTab = "ACTIVITY" | "REPORTS" | "KNOWLEDGE" | "CONFIG";
+
+export function resolveWorkNotesRole(
+  organizationRoles: readonly string[],
+): WorkNotesRole | undefined {
+  if (organizationRoles.includes("ADMIN")) return "ADMIN";
+  if (organizationRoles.includes("TEAM_LEADER")) return "LEADER";
+  if (organizationRoles.includes("MEMBER")) return "MEMBER";
+  return undefined;
+}
+
 export type WorkNoteKind =
   | "WORK_UPDATE"
   | "WEEKLY_SUMMARY"

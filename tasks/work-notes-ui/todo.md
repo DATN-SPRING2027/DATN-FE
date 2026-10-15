@@ -12,7 +12,8 @@
 - [x] Add localized `/projects/[projectId]/work-notes` route.
 - [x] Add Work Notes beside Work in Project section navigation.
 - [x] Load Project context and render standard loading/error/unauthorized states.
-- [x] Add role preview switcher and shared Activity / Weekly reports / Knowledge tabs; Admin Configuration tab.
+- [x] Derive the displayed role from `/auth/me.roles`; remove role switching and show a read-only current-role badge.
+- [x] Add shared Activity / Weekly reports / Knowledge tabs; Admin Configuration tab.
 - [x] Add preview disclosure and shared search/member/task/type/week/attention filters.
 
 ## Member experience
@@ -37,7 +38,8 @@
 ## Finish and handoff
 
 - [x] Review keyboard/focus/dialog behavior, accessible status labels, responsive classes, and dark-mode classes in source.
-- [x] Run lint, typecheck, and production build; tests were not run because they were not requested.
+- [x] Add role-specific UI tests for Member, Leader, Admin, and unsupported role claims.
+- [x] Run `npm run check` (lint, TypeScript, all unit tests, and production build).
 - [ ] Manually inspect rendered light/dark and narrow-screen states in an authenticated browser.
 - [x] Review final diff, changed paths, Git status/history, and check for secrets/generated files.
 - [x] Summarize branch, commit, checks, API/database/config/security impact, and remaining risks.
