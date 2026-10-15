@@ -81,6 +81,23 @@ describe("account onboarding invitations", () => {
     expect(screen.getByText("onboardingNoInvitations")).toBeInTheDocument();
   });
 
+  it("enters the dashboard after an account user selects an organization", async () => {
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: [{ id: "org-1", name: "North Star" }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      refetch: vi.fn(),
+    } as never);
+    select.mockResolvedValue({ user: { organizationId: "org-1" } });
+
+    render(<AccountOnboarding />);
+    fireEvent.click(screen.getByRole("button", { name: /North Star/ }));
+
+    await waitFor(() => expect(select).toHaveBeenCalledWith("org-1"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
   it("offers organization creation when none are available and opens the form on demand", () => {
     render(<AccountOnboarding />);
 
@@ -129,7 +146,7 @@ describe("account onboarding invitations", () => {
     fireEvent.click(screen.getByRole("button", { name: /Sunrise Institute/ }));
 
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-2"));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
   it("lets a member create another organization and enters it", async () => {
@@ -164,7 +181,7 @@ describe("account onboarding invitations", () => {
       slug: "new-organization",
     }));
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-created"));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
   it("disables organization actions while creating another organization", () => {
@@ -209,6 +226,6 @@ describe("account onboarding invitations", () => {
       slug: "new-organization",
     }));
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-created"));
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 });
