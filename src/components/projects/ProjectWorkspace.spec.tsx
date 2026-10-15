@@ -42,6 +42,8 @@ vi.mock("@/icons", () => ({
   UserCircleIcon: () => null,
   GroupIcon: () => null,
   EyeIcon: () => null,
+  SearchIcon: () => null,
+  ArrowRightIcon: () => null,
   TaskIcon: () => null,
 }));
 const api = vi.mocked(apiClient);

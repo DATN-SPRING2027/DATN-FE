@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useTranslations } from "next-intl";
+import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { ApiError } from "@/lib/api-client";
 import { isResourceId } from "@/lib/queries/projects/project-members.contract";
@@ -24,7 +24,7 @@ import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
 import MemberRemoveConfirmation from "./MemberRemoveConfirmation";
 import MemberError, { isMemberActionDenied } from "./MemberError";
-import { EyeIcon, GroupIcon, TimeIcon } from "@/icons";
+import { GroupIcon, SearchIcon } from "@/icons";
 import { Modal } from "@/components/ui/modal";
 
 function ScopedProjectMembers({
@@ -41,6 +41,7 @@ function ScopedProjectMembers({
   onCloseAdd?: () => void;
 }) {
   const t = useTranslations("projectMembers");
+  const format = useFormatter();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
   const confirmation = useModal();
@@ -99,34 +100,6 @@ function ScopedProjectMembers({
     member.userId.toLowerCase().includes(search.toLowerCase().trim()),
   );
   const focusedMember = listedMembers.find((member) => member.id === focusedId);
-  const metrics = [
-    {
-      label: "membersMetric",
-      value: members.isSuccess
-        ? String(members.data.pagination.totalItems)
-        : "—",
-      icon: GroupIcon,
-      tone: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300",
-    },
-    {
-      label: "fullAccess",
-      value: "—",
-      icon: GroupIcon,
-      tone: "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400",
-    },
-    {
-      label: "limitedAccess",
-      value: "—",
-      icon: EyeIcon,
-      tone: "bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-300",
-    },
-    {
-      label: "pendingInvitation",
-      value: "—",
-      icon: TimeIcon,
-      tone: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
-    },
-  ];
   function requestRemoval(member: ProjectMembership) {
     remove.reset();
     setNotice(undefined);
@@ -155,64 +128,50 @@ function ScopedProjectMembers({
           {t("checkAccess")}
         </Button>
       )}
-      {showAddButton && (
-        <div className="flex justify-end">
-          <Button ariaLabel={t("openAdd")} onClick={openAddModal}>
-            {t("add")}
-          </Button>
-        </div>
-      )}
-      <dl className="grid grid-cols-1 gap-3 @xl:grid-cols-2 @4xl:grid-cols-4">
-        {metrics.map(({ label, value, icon: Icon, tone }) => (
-          <div
-            key={label}
-            className="flex min-w-0 items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-          >
-            <span
-              className={`flex size-11 shrink-0 items-center justify-center rounded-full ${tone}`}
-            >
-              <Icon aria-hidden="true" className="size-5" />
-            </span>
-            <div className="flex min-w-0 flex-col">
-              <dt className="order-2 truncate text-sm text-gray-500 dark:text-gray-400">
-                {t(label)}
-              </dt>
-              <dd className="order-1 text-xl font-semibold text-gray-900 dark:text-white/90">
-                {value}
-              </dd>
+      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs sm:p-5 xl:flex-row xl:items-center xl:justify-between dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+            <GroupIcon aria-hidden="true" className="size-5" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
+                {t("title")}
+              </h2>
+              {members.isSuccess && !members.isFetching && (
+                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  {format.number(members.data.pagination.totalItems)}{" "}
+                  {t("membersMetric")}
+                </span>
+              )}
             </div>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {t("directoryDescription")}
+            </p>
           </div>
-        ))}
-      </dl>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="w-full sm:max-w-md">
-          <Label htmlFor="member-roster-search">{t("searchPage")}</Label>
-          <Input
-            id="member-roster-search"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setSelected(undefined);
-              confirmation.closeModal();
-            }}
-            placeholder={t("searchPlaceholder")}
-          />
         </div>
-        <div className="flex flex-wrap items-end gap-3">
-          <div>
-            <Label htmlFor="member-role-filter">{t("roleFilter")}</Label>
-            <select
-              id="member-role-filter"
-              defaultValue="all"
-              disabled
-              aria-describedby="member-role-filter-hint"
-              className="h-[42px] min-w-36 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-500 disabled:cursor-not-allowed disabled:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400 dark:disabled:bg-gray-800"
-            >
-              <option value="all">{t("allRoles")}</option>
-            </select>
-            <span id="member-role-filter-hint" className="sr-only">
-              {t("unsupportedStatic")}
-            </span>
+        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end xl:flex-1 xl:justify-end">
+          <div className="min-w-0 flex-1 sm:min-w-56 xl:w-64 xl:flex-none">
+            <Label htmlFor="member-roster-search" className="sr-only">
+              {t("searchPage")}
+            </Label>
+            <div className="relative">
+              <SearchIcon
+                aria-hidden="true"
+                className="pointer-events-none absolute start-3 top-3.5 size-4 text-gray-400"
+              />
+              <Input
+                id="member-roster-search"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setSelected(undefined);
+                  confirmation.closeModal();
+                }}
+                placeholder={t("searchPlaceholder")}
+                className="ps-10"
+              />
+            </div>
           </div>
           <MemberStatusFilter
             value={status}
@@ -225,6 +184,15 @@ function ScopedProjectMembers({
               confirmation.closeModal();
             }}
           />
+          {showAddButton && (
+            <Button
+              ariaLabel={t("openAdd")}
+              onClick={openAddModal}
+              className="shrink-0"
+            >
+              {t("add")}
+            </Button>
+          )}
         </div>
       </div>
       <section

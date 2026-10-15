@@ -37,6 +37,8 @@ vi.mock("@/icons", () =>
       "CheckCircleIcon",
       "LockIcon",
       "PlusIcon",
+      "ArrowRightIcon",
+      "SearchIcon",
     ].map((name) => [name, () => null]),
   ),
 );
