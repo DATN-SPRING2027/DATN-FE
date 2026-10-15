@@ -86,6 +86,9 @@ function mount(
     ),
   };
 }
+async function openSettingsTab() {
+  fireEvent.click(await screen.findByRole("tab", { name: "Settings" }));
+}
 beforeEach(() => {
   api.mockReset();
   push.mockReset();
@@ -576,6 +579,7 @@ it.each(["PUBLIC", "PRIVATE"] as const)(
       };
     });
     mount(<ProjectDetail projectId="p1" />);
+    await openSettingsTab();
     const label = target === "PUBLIC" ? "Make public" : "Make private";
     await waitFor(() =>
       expect(screen.getByRole("button", { name: label })).toBeEnabled(),
@@ -590,7 +594,9 @@ it.each(["PUBLIC", "PRIVATE"] as const)(
       }),
     );
     expect(
-      await screen.findByText(target === "PUBLIC" ? "Public" : "Private"),
+      await within(screen.getByRole("tabpanel")).findByText(
+        target === "PUBLIC" ? "Public" : "Private",
+      ),
     ).toBeVisible();
     expect(
       await screen.findByText(
@@ -630,6 +636,7 @@ it("reconciles stale visibility after conflict without false publication success
     return { ...project, visibility: changed ? "PUBLIC" : "PRIVATE" };
   });
   mount(<ProjectDetail projectId="p1" />);
+  await openSettingsTab();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
   );
@@ -637,7 +644,9 @@ it("reconciles stale visibility after conflict without false publication success
   fireEvent.click(screen.getByRole("button", { name: "Confirm publication" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("changed");
   fireEvent.click(screen.getByRole("button", { name: "Refresh project" }));
-  expect(await screen.findByText("Public")).toBeVisible();
+  expect(
+    await within(screen.getByRole("tabpanel")).findByText("Public"),
+  ).toBeVisible();
   expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
 });
 it("hides metadata if making private removes the actor's PUBLIC-only read access", async () => {
@@ -654,6 +663,7 @@ it("hides metadata if making private removes the actor's PUBLIC-only read access
     return { ...project, visibility: "PUBLIC" };
   });
   mount(<ProjectDetail projectId="p1" />);
+  await openSettingsTab();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make private" })).toBeEnabled(),
   );
@@ -675,6 +685,7 @@ it("does not grant visibility management from ADMIN client roles", async () => {
     return project;
   });
   mount(<ProjectDetail projectId="p1" />);
+  await openSettingsTab();
   expect(await screen.findByRole("alert")).toHaveTextContent("permission");
   expect(screen.getByRole("button", { name: "Make public" })).toBeDisabled();
   expect(
@@ -697,6 +708,7 @@ it("keeps a late visibility response scoped to the original Project", async () =
       : project;
   });
   const { client, rerender } = mount(<ProjectDetail projectId="p1" />);
+  await openSettingsTab();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
   );
