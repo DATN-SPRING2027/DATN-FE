@@ -41,6 +41,7 @@ vi.mock("@/icons", () => ({
   LockIcon: () => null,
   UserCircleIcon: () => null,
   GroupIcon: () => null,
+  SettingsIcon: () => null,
   EyeIcon: () => null,
   TaskIcon: () => null,
 }));

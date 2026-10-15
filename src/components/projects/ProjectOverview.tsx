@@ -1,20 +1,20 @@
 "use client";
 
 import { useId, useState } from "react";
-import ProjectVisibility from "./ProjectVisibility";
 import ProjectMembers from "./members/ProjectMembers";
+import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon, PlusIcon } from "@/icons";
+import { GroupIcon, PlusIcon, SettingsIcon } from "@/icons";
 
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
-  const [tab, setTab] = useState<"overview" | "members">("overview");
+  const [tab, setTab] = useState<"overview" | "members" | "settings">("overview");
   const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
   const date = (value: string) =>
@@ -34,7 +34,17 @@ export default function ProjectOverview({ project }: { project: Project }) {
     { label: "createdBy", value: project.createdBy },
     { label: "createdAt", value: date(project.createdAt) },
   ];
-  const tabs = ["overview", "members"] as const;
+  const tabs = ["overview", "members", "settings"] as const;
+  const tabLabel = (value: (typeof tabs)[number]) =>
+    value === "overview"
+      ? t("overview")
+      : value === "members"
+        ? memberLabels("title")
+        : t("settings");
+  const adjacentTab = (value: (typeof tabs)[number], direction: -1 | 1) => {
+    const index = tabs.indexOf(value);
+    return tabs[(index + direction + tabs.length) % tabs.length];
+  };
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
@@ -121,11 +131,11 @@ export default function ProjectOverview({ project }: { project: Project }) {
                 tabIndex={tab === value ? 0 : -1}
                 onClick={() => setTab(value)}
                 onKeyDown={(event) => {
-                  let next: typeof tab;
-                  if (event.key === "ArrowLeft" || event.key === "ArrowRight")
-                    next = value === "overview" ? "members" : "overview";
-                  else if (event.key === "Home") next = "overview";
-                  else if (event.key === "End") next = "members";
+                  let next: (typeof tabs)[number];
+                  if (event.key === "ArrowLeft") next = adjacentTab(value, -1);
+                  else if (event.key === "ArrowRight") next = adjacentTab(value, 1);
+                  else if (event.key === "Home") next = tabs[0];
+                  else if (event.key === "End") next = tabs[tabs.length - 1];
                   else return;
                   event.preventDefault();
                   setTab(next);
@@ -133,7 +143,10 @@ export default function ProjectOverview({ project }: { project: Project }) {
                 }}
                 className={`shrink-0 cursor-pointer border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
               >
-                {value === "overview" ? t("overview") : memberLabels("title")}
+                {value === "settings" && (
+                  <SettingsIcon className="me-2 inline size-4" aria-hidden="true" />
+                )}
+                {tabLabel(value)}
               </button>
             ))}
           </div>
@@ -184,12 +197,6 @@ export default function ProjectOverview({ project }: { project: Project }) {
                   value
                 )}
               </dd>
-              {label === "visibility" && (
-                <ProjectVisibility
-                  key={`${project.organizationId}:${project.id}`}
-                  project={project}
-                />
-              )}
             </div>
           ))}
         </dl>
@@ -237,6 +244,17 @@ export default function ProjectOverview({ project }: { project: Project }) {
             addModalOpen={showAddModal}
             onCloseAdd={() => setShowAddModal(false)}
           />
+        </div>
+      )}
+      {tab === "settings" && (
+        <div
+          id={`${tabId}-settings-panel`}
+          role="tabpanel"
+          aria-labelledby={`${tabId}-settings-tab`}
+          tabIndex={0}
+          className="space-y-5"
+        >
+          <ProjectSettings project={project} />
         </div>
       )}
     </div>
