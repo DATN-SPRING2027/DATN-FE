@@ -199,7 +199,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar", "Members"]);
+    ).toEqual(["Overview", "Projects", "Work", "Calendar", "Members"]);
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -210,7 +210,6 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     for (const label of [
-      "Work",
       "Work Notes",
       "Knowledge",
       "AI Search",

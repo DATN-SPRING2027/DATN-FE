@@ -27,7 +27,7 @@ import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
 const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon },
   { key: "projects", path: "/projects", icon: FolderIcon },
-  { key: "work", icon: TaskIcon },
+  { key: "work", path: "/work", icon: TaskIcon },
   { key: "workNotes", icon: DocsIcon },
   { key: "knowledge", icon: BookOpenIcon },
   { key: "aiSearch", icon: ShootingStarIcon },
