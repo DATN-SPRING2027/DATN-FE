@@ -143,6 +143,12 @@ export default function ProjectOverview({ project }: { project: Project }) {
           >
             {t("work")}
           </Link>
+          <Link
+            href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
+            className="inline-flex shrink-0 cursor-pointer border-b-2 border-transparent pb-3 text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+          >
+            {t("workNotes")}
+          </Link>
           <button
             type="button"
             disabled
