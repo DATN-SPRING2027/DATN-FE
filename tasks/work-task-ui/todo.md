@@ -9,6 +9,7 @@
 
 - [x] Add localized `/projects/[projectId]/work` Server Component route and render the client workspace in its selected Project.
 - [x] Add a Work entry from Project detail and remove the Organization-level Work sidebar item.
+- [x] Place Work in the Project detail section row with Overview and Project members; show Activity and Knowledge as disabled until supported.
 - [x] Load the selected Project using the current Organization context before rendering the Work preview.
 
 ## Preview model and controls

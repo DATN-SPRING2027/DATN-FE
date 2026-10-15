@@ -254,10 +254,24 @@ it("loads project detail by the accepted ID path", async () => {
   expect(
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
-  expect(screen.getByRole("link", { name: "Work" })).toHaveAttribute(
+  const sections = screen.getByRole("navigation", {
+    name: "Project sections",
+  });
+  const workLink = screen.getByRole("link", { name: "Work" });
+  expect(sections).toContainElement(screen.getByRole("tab", { name: "Overview" }));
+  expect(sections).toContainElement(
+    screen.getByRole("tab", { name: "Project members" }),
+  );
+  expect(sections).toContainElement(workLink);
+  expect(workLink).toHaveAttribute(
     "href",
     "/projects/p1/work",
   );
+  expect(screen.getByRole("button", { name: "Activity" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Knowledge" })).toBeDisabled();
+  expect(
+    screen.getByRole("heading", { level: 1, name: "Apollo" }).closest("header"),
+  ).not.toContainElement(workLink);
   expect(screen.getByText("Private")).toBeVisible();
   expect(api).toHaveBeenCalledWith(
     "/iam/projects/p1",

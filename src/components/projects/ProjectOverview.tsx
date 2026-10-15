@@ -8,7 +8,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon, PlusIcon, TaskIcon } from "@/icons";
+import { GroupIcon, PlusIcon } from "@/icons";
 
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
@@ -77,13 +77,6 @@ export default function ProjectOverview({ project }: { project: Project }) {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href={`/projects/${encodeURIComponent(project.id)}/work`}
-            className="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-medium text-gray-700 ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-700"
-          >
-            <TaskIcon className="size-4" aria-hidden="true" />
-            {t("work")}
-          </Link>
           <span
             aria-hidden="true"
             className="mr-2 flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
@@ -107,38 +100,67 @@ export default function ProjectOverview({ project }: { project: Project }) {
           </Button>
         </div>
       </header>
-      <div
-        role="tablist"
-        aria-label={project.name}
-        className="flex flex-wrap items-center gap-5 border-b border-gray-200 dark:border-gray-800"
+      <nav
+        aria-label={t("sections")}
+        className="min-w-0 overflow-x-auto"
       >
-        {tabs.map((value) => (
-          <button
-            key={value}
-            id={`${tabId}-${value}-tab`}
-            role="tab"
-            type="button"
-            aria-selected={tab === value}
-            aria-controls={`${tabId}-${value}-panel`}
-            tabIndex={tab === value ? 0 : -1}
-            onClick={() => setTab(value)}
-            onKeyDown={(event) => {
-              let next: typeof tab;
-              if (event.key === "ArrowLeft" || event.key === "ArrowRight")
-                next = value === "overview" ? "members" : "overview";
-              else if (event.key === "Home") next = "overview";
-              else if (event.key === "End") next = "members";
-              else return;
-              event.preventDefault();
-              setTab(next);
-              document.getElementById(`${tabId}-${next}-tab`)?.focus();
-            }}
-            className={`cursor-pointer border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
+        <div className="flex min-w-max items-center gap-5 border-b border-gray-200 dark:border-gray-800">
+          <div
+            role="tablist"
+            aria-label={project.name}
+            className="flex items-center gap-5"
           >
-            {value === "overview" ? t("overview") : memberLabels("title")}
+            {tabs.map((value) => (
+              <button
+                key={value}
+                id={`${tabId}-${value}-tab`}
+                role="tab"
+                type="button"
+                aria-selected={tab === value}
+                aria-controls={`${tabId}-${value}-panel`}
+                tabIndex={tab === value ? 0 : -1}
+                onClick={() => setTab(value)}
+                onKeyDown={(event) => {
+                  let next: typeof tab;
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight")
+                    next = value === "overview" ? "members" : "overview";
+                  else if (event.key === "Home") next = "overview";
+                  else if (event.key === "End") next = "members";
+                  else return;
+                  event.preventDefault();
+                  setTab(next);
+                  document.getElementById(`${tabId}-${next}-tab`)?.focus();
+                }}
+                className={`shrink-0 cursor-pointer border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
+              >
+                {value === "overview" ? t("overview") : memberLabels("title")}
+              </button>
+            ))}
+          </div>
+          <Link
+            href={`/projects/${encodeURIComponent(project.id)}/work`}
+            className="inline-flex shrink-0 cursor-pointer border-b-2 border-transparent pb-3 text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+          >
+            {t("work")}
+          </Link>
+          <button
+            type="button"
+            disabled
+            title={t("comingSoon")}
+            className="inline-flex shrink-0 cursor-not-allowed border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+          >
+            {t("activity")}
           </button>
-        ))}
-      </div>
+          <button
+            type="button"
+            disabled
+            title={t("comingSoon")}
+            className="inline-flex shrink-0 cursor-not-allowed border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+          >
+            {t("knowledge")}
+          </button>
+        </div>
+      </nav>
       <div
         id={`${tabId}-overview-panel`}
         role="tabpanel"

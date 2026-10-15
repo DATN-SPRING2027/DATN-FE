@@ -9,11 +9,12 @@ This screen is a frontend preview. A visible **Preview data** indicator and copy
 ## Page hierarchy
 
 1. Existing admin shell: organization switcher, sidebar, account footer and header stay unchanged. Work is not linked as an organization-level destination.
-2. Context breadcrumb: `Projects / {project name} / Work`; the selected Project name and code come from the existing Project API.
-3. Project space header: small “Project space” label, project monogram, selected project name and code, and a compact preview-data badge. Keep membership/options actions absent because no matching Work contract exists.
-4. View tabs: Overview, List, Board and Calendar are active views within the same page state. Timeline, Docs and Reports remain unavailable/coming soon and do not navigate to fake screens.
-5. Toolbar: search, assignee filter chips, Filter control, Group control, status scope and a Create action.
-6. Main content: a filter-aware Overview dashboard, dense List table, responsive status Board or month Calendar.
+2. Project detail section navigation sits below the Project header: Overview and Project members keep their current in-page tab behavior, Work links to the project-scoped route, and Activity and Knowledge are shown as disabled until those sections are supported.
+3. Context breadcrumb: `Projects / {project name} / Work`; the selected Project name and code come from the existing Project API.
+4. Project space header: small “Project space” label, project monogram, selected project name and code, and a compact preview-data badge. Keep membership/options actions absent because no matching Work contract exists.
+5. View tabs: Overview, List, Board and Calendar are active views within the same page state. Timeline, Docs and Reports remain unavailable/coming soon and do not navigate to fake screens.
+6. Toolbar: search, assignee filter chips, Filter control, Group control, status scope and a Create action.
+7. Main content: a filter-aware Overview dashboard, dense List table, responsive status Board or month Calendar.
 
 ## Overview view
 
