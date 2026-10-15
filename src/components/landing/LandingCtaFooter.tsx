@@ -4,8 +4,13 @@ import React from "react";
 import BrandLogo from "@/components/common/BrandLogo";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 
 export default function LandingCtaFooter() {
+  const currentUser = useCurrentUserQuery();
+  const workspacePath =
+    currentUser.data?.context === "ACCOUNT" ? "/onboarding" : "/dashboard";
+
   const scrollTo = (id: string) => {
     const el = document.getElementById(id);
     if (el) {
@@ -66,12 +71,27 @@ export default function LandingCtaFooter() {
                   <span>Trải nghiệm bản demo</span>
                   <ArrowRightIcon className="h-4 w-4" />
                 </button>
-                <Link
-                  href="/signin"
-                  className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/80 px-7 py-4 text-base font-bold text-white transition-all hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98]"
-                >
-                  Đăng nhập hệ thống
-                </Link>
+                {currentUser.isPending ? (
+                  <span
+                    aria-label="Đang kiểm tra phiên đăng nhập"
+                    aria-busy="true"
+                    className="h-14 w-48 animate-pulse rounded-xl bg-white/10"
+                  />
+                ) : currentUser.data ? (
+                  <Link
+                    href={workspacePath}
+                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/80 px-7 py-4 text-base font-bold text-white transition-all hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98]"
+                  >
+                    Vào không gian làm việc
+                  </Link>
+                ) : (
+                  <Link
+                    href="/signin"
+                    className="w-full sm:w-auto inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-800/80 px-7 py-4 text-base font-bold text-white transition-all hover:bg-slate-700 hover:border-slate-600 active:scale-[0.98]"
+                  >
+                    Đăng nhập hệ thống
+                  </Link>
+                )}
               </div>
             </div>
           </div>
@@ -133,9 +153,21 @@ export default function LandingCtaFooter() {
               >
                 Bản demo
               </a>
-              <Link href="/signin" className="hover:text-blue-600 transition-colors">
-                Đăng nhập
-              </Link>
+              {currentUser.isPending ? (
+                <span
+                  aria-label="Đang kiểm tra phiên đăng nhập"
+                  aria-busy="true"
+                  className="inline-block h-4 w-14 animate-pulse rounded bg-slate-200 dark:bg-gray-800"
+                />
+              ) : currentUser.data ? (
+                <Link href="/profile" className="hover:text-blue-600 transition-colors">
+                  Hồ sơ
+                </Link>
+              ) : (
+                <Link href="/signin" className="hover:text-blue-600 transition-colors">
+                  Đăng nhập
+                </Link>
+              )}
             </div>
           </div>
 

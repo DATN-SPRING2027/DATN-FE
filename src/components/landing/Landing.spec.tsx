@@ -1,5 +1,6 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import LandingNavbar from "./LandingNavbar";
 import LandingHero from "./LandingHero";
 import LandingProblemSolution from "./LandingProblemSolution";
@@ -19,6 +20,14 @@ vi.mock("@/i18n/navigation", () => ({
       {children}
     </a>
   ),
+}));
+
+vi.mock("@/lib/queries/auth/useAuth", () => ({
+  useCurrentUserQuery: vi.fn(() => ({ data: undefined, isPending: false })),
+}));
+
+vi.mock("@/components/header/UserDropdown", () => ({
+  default: () => <div data-testid="authenticated-user-profile">Profile</div>,
 }));
 
 // Mock SVG icons for vitest environment
@@ -73,6 +82,13 @@ describe("Continuum AI — Living Knowledge Experience", () => {
   });
 
   describe("LandingNavbar", () => {
+    beforeEach(() => {
+      vi.mocked(useCurrentUserQuery).mockReturnValue({
+        data: undefined,
+        isPending: false,
+      } as never);
+    });
+
     it("renders navigation links and call to actions", () => {
       render(<LandingNavbar />);
       expect(screen.getByText("Giải pháp")).toBeInTheDocument();
@@ -80,6 +96,40 @@ describe("Continuum AI — Living Knowledge Experience", () => {
       expect(screen.getByText("Cách hoạt động")).toBeInTheDocument();
       expect(screen.getByText("Đăng nhập")).toBeInTheDocument();
       expect(screen.getAllByText("Trải nghiệm bản demo").length).toBeGreaterThan(0);
+    });
+
+    it("shows the signed-in profile instead of sign-in links", () => {
+      vi.mocked(useCurrentUserQuery).mockReturnValue({
+        data: {
+          id: "user-1",
+          name: "Thang",
+          email: "thang@example.com",
+          context: "ORGANIZATION",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        },
+        isPending: false,
+      } as never);
+
+      render(<LandingNavbar />);
+
+      expect(screen.queryByText("Đăng nhập")).not.toBeInTheDocument();
+      expect(screen.getByTestId("authenticated-user-profile")).toBeInTheDocument();
+    });
+
+    it("does not show the sign-in link while the session is being checked", () => {
+      vi.mocked(useCurrentUserQuery).mockReturnValue({
+        data: undefined,
+        isPending: true,
+      } as never);
+
+      render(<LandingNavbar />);
+
+      expect(screen.queryByText("Đăng nhập")).not.toBeInTheDocument();
+      expect(screen.getByLabelText("Đang kiểm tra phiên đăng nhập")).toHaveAttribute(
+        "aria-busy",
+        "true",
+      );
     });
 
     it("toggles mobile menu on button click", () => {
@@ -246,6 +296,33 @@ describe("Continuum AI — Living Knowledge Experience", () => {
         screen.getByText("Sức mạnh cho người kế nhiệm ngày mai.")
       ).toBeInTheDocument();
       expect(screen.getByText(/Mọi quyền được bảo lưu/i)).toBeInTheDocument();
+    });
+
+    it("replaces sign-in links with workspace and profile links for signed-in users", () => {
+      vi.mocked(useCurrentUserQuery).mockReturnValue({
+        data: {
+          id: "user-1",
+          name: "Thang",
+          email: "thang@example.com",
+          context: "ORGANIZATION",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        },
+        isPending: false,
+      } as never);
+
+      render(<LandingCtaFooter />);
+
+      expect(screen.queryByText("Đăng nhập hệ thống")).not.toBeInTheDocument();
+      expect(screen.queryByText("Đăng nhập")).not.toBeInTheDocument();
+      expect(screen.getByRole("link", { name: "Vào không gian làm việc" })).toHaveAttribute(
+        "href",
+        "/dashboard",
+      );
+      expect(screen.getByRole("link", { name: "Hồ sơ" })).toHaveAttribute(
+        "href",
+        "/profile",
+      );
     });
   });
 

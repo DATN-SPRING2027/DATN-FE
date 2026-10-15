@@ -47,6 +47,44 @@ describe("sign in form", () => {
     } as never);
   });
 
+  it("routes an authenticated organization member to the dashboard", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        context: "ORGANIZATION",
+        organizationId: "org-1",
+        roles: ["MEMBER"],
+      },
+      isSuccess: true,
+      isFetching: false,
+      refetch,
+    } as never);
+
+    render(<SignInForm />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("routes an authenticated account without an organization to onboarding", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1",
+        email: "user@example.com",
+        name: "User",
+        context: "ACCOUNT",
+      },
+      isSuccess: true,
+      isFetching: false,
+      refetch,
+    } as never);
+
+    render(<SignInForm />);
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
+  });
+
   it("submits credentials and verifies the cookie session through /auth/me", async () => {
     mutateAsync.mockResolvedValue({ user: { id: "user-1" } });
     refetch.mockResolvedValue({ data: { id: "user-1" } });
