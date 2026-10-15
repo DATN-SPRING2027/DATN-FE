@@ -8,7 +8,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon, PlusIcon, SettingsIcon } from "@/icons";
+import { GroupIcon, PlusIcon } from "@/icons";
 
 export default function ProjectOverview({ project }: { project: Project }) {
   const t = useTranslations("projects");
@@ -114,11 +114,11 @@ export default function ProjectOverview({ project }: { project: Project }) {
         aria-label={t("sections")}
         className="min-w-0 overflow-x-auto"
       >
-        <div className="flex min-w-max items-center gap-5 border-b border-gray-200 dark:border-gray-800">
+        <div className="flex w-full min-w-max items-stretch border-b border-gray-200 dark:border-gray-800">
           <div
             role="tablist"
             aria-label={project.name}
-            className="flex items-center gap-5"
+            className="flex flex-[3] items-stretch"
           >
             {tabs.map((value) => (
               <button
@@ -141,24 +141,21 @@ export default function ProjectOverview({ project }: { project: Project }) {
                   setTab(next);
                   document.getElementById(`${tabId}-${next}-tab`)?.focus();
                 }}
-                className={`shrink-0 cursor-pointer border-b-2 pb-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
+                className={`flex-1 cursor-pointer whitespace-nowrap border-b-2 px-2 pb-3 text-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
               >
-                {value === "settings" && (
-                  <SettingsIcon className="me-2 inline size-4" aria-hidden="true" />
-                )}
                 {tabLabel(value)}
               </button>
             ))}
           </div>
           <Link
             href={`/projects/${encodeURIComponent(project.id)}/work`}
-            className="inline-flex shrink-0 cursor-pointer border-b-2 border-transparent pb-3 text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+            className="inline-flex flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
           >
             {t("work")}
           </Link>
           <Link
             href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
-            className="inline-flex shrink-0 cursor-pointer border-b-2 border-transparent pb-3 text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+            className="inline-flex flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
           >
             {t("workNotes")}
           </Link>
@@ -166,7 +163,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
             type="button"
             disabled
             title={t("comingSoon")}
-            className="inline-flex shrink-0 cursor-not-allowed border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+            className="inline-flex flex-1 cursor-not-allowed items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
           >
             {t("activity")}
           </button>
@@ -174,7 +171,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
             type="button"
             disabled
             title={t("comingSoon")}
-            className="inline-flex shrink-0 cursor-not-allowed border-b-2 border-transparent pb-3 text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+            className="inline-flex flex-1 cursor-not-allowed items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
           >
             {t("knowledge")}
           </button>

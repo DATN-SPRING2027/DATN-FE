@@ -41,7 +41,7 @@ vi.mock("@/icons", () => ({
   LockIcon: () => null,
   UserCircleIcon: () => null,
   GroupIcon: () => null,
-  SettingsIcon: () => null,
+  SettingsIcon: () => <svg data-testid="settings-icon" />,
   EyeIcon: () => null,
   SearchIcon: () => null,
   ArrowRightIcon: () => null,
@@ -87,7 +87,7 @@ function mount(
   };
 }
 async function openSettingsTab() {
-  fireEvent.click(await screen.findByRole("tab", { name: "Settings" }));
+  fireEvent.click(await screen.findByRole("tab", { name: "Setting" }));
 }
 beforeEach(() => {
   api.mockReset();
@@ -283,6 +283,17 @@ it("loads project detail by the accepted ID path", async () => {
     "/iam/projects/p1",
     expect.objectContaining({ cache: "no-store" }),
   );
+});
+it("shows a text-only Setting tab in the Project section navigation", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me" ? user : project,
+  );
+  mount(<ProjectDetail projectId="p1" />);
+
+  const settingTab = await screen.findByRole("tab", { name: "Setting" });
+
+  expect(settingTab).toBeVisible();
+  expect(settingTab.querySelector('[data-testid="settings-icon"]')).toBeNull();
 });
 it.each([401, 403, 404, 500])(
   "hides detail on server denial %s even with cached project and selection",
