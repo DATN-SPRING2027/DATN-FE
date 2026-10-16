@@ -340,6 +340,7 @@ export function useCreatePlatformOrganizationMutation() {
       if (!input.name.trim() || input.name.length > 200 || !/^[a-f\d]{24}$/i.test(input.firstAdminUserId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug) || input.slug.length > 100) throw new ApiError(422, "VALIDATION_FAILED", "Invalid Organization input");
       return parseOrganization(await apiClient<unknown>("/iam/platform/organizations", {
         method: "POST",
+        headers: csrfHeaders(),
         body: JSON.stringify(input),
         cache: "no-store",
       }));
