@@ -205,6 +205,33 @@ describe("AppSidebar navigation", () => {
     );
   });
 
+  it("does not expose deferred Platform operations to a Platform Operator", () => {
+    currentUser.data = {
+      ...currentUser.data,
+      roles: ["PLATFORM_OPERATOR"],
+    };
+    render(<AppSidebar />);
+
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const controls = [
+      ...within(nav).getAllByRole("link"),
+      ...within(nav).getAllByRole("button"),
+    ];
+
+    expect(
+      controls.filter((control) =>
+        /platform|operations|configuration/i.test(
+          control.getAttribute("aria-label") ?? control.textContent ?? "",
+        ),
+      ),
+    ).toHaveLength(0);
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("/platform")),
+    ).toBe(false);
+  });
+
   it("shows not-yet-routed features as disabled items instead of broken links", () => {
     render(<AppSidebar />);
 
