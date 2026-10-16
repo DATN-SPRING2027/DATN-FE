@@ -40,6 +40,20 @@ describe("auth BFF cookie journey", () => {
     ).toBe("203.0.113.7");
   });
 
+  it("forwards only the trusted edge client IP on Platform Operator login", async () => {
+    vi.stubEnv("CONTINUUM_TRUSTED_EDGE_HOPS", "1");
+    const backend = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}"));
+    const source = Object.assign(
+      new Request("http://localhost:3000/api/backend/auth/platform/login", {
+        method: "POST",
+        headers: { "x-forwarded-for": "192.0.2.9, 203.0.113.7" },
+      }),
+      { nextUrl: new URL("http://localhost:3000/api/backend/auth/platform/login") },
+    ) as NextRequest;
+    await POST(source, { params: Promise.resolve({ path: ["auth", "platform", "login"] }) });
+    expect(((backend.mock.calls[0][1] as RequestInit).headers as Headers).get("x-forwarded-for")).toBe("203.0.113.7");
+  });
+
   it.each(["auth/password-reset/request", "auth/password-reset/confirm"])(
     "forwards only the trusted edge client IP on %s",
     async (path) => {
