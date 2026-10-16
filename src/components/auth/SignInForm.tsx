@@ -243,6 +243,11 @@ export default function SignInForm({
                 </Link>
               </p>
             </div>
+            <div className="mt-3 text-center text-sm sm:text-start">
+              <Link href="/platform/signin" className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400">
+                {t("platformSignIn")}
+              </Link>
+            </div>
           </div>
         </div>
       </div>
