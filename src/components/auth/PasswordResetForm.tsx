@@ -21,6 +21,7 @@ import {
   LockIcon,
 } from "@/icons";
 import { useTranslations } from "next-intl";
+import styles from "./auth-experience.module.css";
 
 export default function PasswordResetForm() {
   const t = useTranslations("auth");
@@ -109,7 +110,7 @@ export default function PasswordResetForm() {
   ];
 
   return (
-    <div className="flex w-full flex-1 flex-col justify-between overflow-y-auto px-6 py-8 sm:px-10 lg:w-1/2 lg:py-12">
+    <div className={styles.resetForm}>
       {/* Top Navigation */}
       <div className="mx-auto mb-6 w-full max-w-md">
         <Link
@@ -223,7 +224,7 @@ export default function PasswordResetForm() {
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
                     aria-label={showPassword ? "Hide password" : "Show password"}
-                    tabIndex={-1}
+
                   >
                     {showPassword ? (
                       <EyeIcon className="h-5 w-5" />
@@ -301,7 +302,7 @@ export default function PasswordResetForm() {
                     aria-label={
                       showConfirmPassword ? "Hide password" : "Show password"
                     }
-                    tabIndex={-1}
+
                   >
                     {showConfirmPassword ? (
                       <EyeIcon className="h-5 w-5" />
@@ -425,9 +426,6 @@ export default function PasswordResetForm() {
              ======================================================== */
           <div className="space-y-6">
             <header>
-              <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-500 ring-1 ring-brand-500/20 dark:bg-brand-500/10 dark:text-brand-400">
-                <LockIcon className="h-6 w-6" />
-              </div>
               <h1 className="text-title-sm font-bold tracking-tight text-gray-900 sm:text-title-md dark:text-white/95">
                 {t("forgotPasswordTitle")}
               </h1>

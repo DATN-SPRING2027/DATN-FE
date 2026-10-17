@@ -16,7 +16,8 @@ vi.mock("@/i18n/navigation", () => ({
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/icons", () => ({
-  ChevronLeftIcon: () => null,
+  ArrowRightIcon: () => null,
+  EnvelopeIcon: () => null,
   GoogleIcon: () => null,
   EyeCloseIcon: () => null,
   EyeIcon: () => null,
@@ -47,6 +48,32 @@ describe("sign in form", () => {
     } as never);
   });
 
+  it("supports keyboard-accessible password visibility without changing credentials", () => {
+    render(<SignInForm />);
+    const password = screen.getByLabelText("password");
+    fireEvent.change(password, { target: { value: "local-preview-password" } });
+    expect(password).toHaveAttribute("type", "password");
+    fireEvent.click(screen.getByRole("button", { name: "showPassword" }));
+    expect(password).toHaveAttribute("type", "text");
+    expect(
+      screen.getByRole("button", { name: "hidePassword" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "hidePassword" }));
+    expect(password).toHaveAttribute("type", "password");
+    expect(password).toHaveValue("local-preview-password");
+    expect(
+      screen.getByRole("checkbox", { name: "remember" }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a direct link to Platform Operator sign-in", () => {
+    render(<SignInForm />);
+
+    expect(
+      screen.getByRole("link", { name: "platformSignIn" }),
+    ).toHaveAttribute("href", "/platform/signin");
+  });
+
   it("routes an authenticated organization member to Organization selection", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
@@ -64,7 +91,9 @@ describe("sign in form", () => {
 
     render(<SignInForm />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/select-organization"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/select-organization"),
+    );
   });
 
   it("routes an authenticated account without an organization to Organization selection", async () => {
@@ -82,7 +111,9 @@ describe("sign in form", () => {
 
     render(<SignInForm />);
 
-    await waitFor(() => expect(replace).toHaveBeenCalledWith("/select-organization"));
+    await waitFor(() =>
+      expect(replace).toHaveBeenCalledWith("/select-organization"),
+    );
   });
 
   it("submits credentials and verifies the cookie session through /auth/me", async () => {
@@ -93,15 +124,15 @@ describe("sign in form", () => {
     expect(
       screen.getByRole("button", { name: "continueWithGoogle" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("or")).toBeInTheDocument();
+    expect(screen.getByText("alternative")).toBeInTheDocument();
 
-    fireEvent.change(screen.getByLabelText(/Email/), {
+    fireEvent.change(screen.getByLabelText("email"), {
       target: { value: "user@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/Password/), {
+    fireEvent.change(screen.getByLabelText("password"), {
       target: { value: "secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "signIn" }));
 
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenCalledWith({
@@ -139,13 +170,13 @@ describe("sign in form", () => {
     );
     render(<SignInForm />);
 
-    fireEvent.change(screen.getByLabelText(/Email/), {
+    fireEvent.change(screen.getByLabelText("email"), {
       target: { value: "user@example.com" },
     });
-    fireEvent.change(screen.getByLabelText(/Password/), {
+    fireEvent.change(screen.getByLabelText("password"), {
       target: { value: "secret" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "signIn" }));
 
     expect(
       await screen.findByRole("option", { name: "Alpha" }),
@@ -155,7 +186,7 @@ describe("sign in form", () => {
     });
     mutateAsync.mockResolvedValue({ user: { id: "user-1" } });
     refetch.mockResolvedValue({ data: { id: "user-1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
+    fireEvent.click(screen.getByRole("button", { name: "signIn" }));
     await waitFor(() =>
       expect(mutateAsync).toHaveBeenLastCalledWith({
         email: "user@example.com",

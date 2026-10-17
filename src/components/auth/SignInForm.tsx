@@ -13,9 +13,10 @@ import {
   useCurrentUserQuery,
   useLoginMutation,
 } from "@/lib/queries/auth/useAuth";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import { ArrowRightIcon, EnvelopeIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
+import styles from "./auth-experience.module.css";
 
 export default function SignInForm({
   googleStatus,
@@ -32,6 +33,7 @@ export default function SignInForm({
   >([]);
   const [sessionError, setSessionError] = useState(false);
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const login = useLoginMutation();
@@ -88,169 +90,130 @@ export default function SignInForm({
           : null;
 
   return (
-    <div className="flex w-full flex-1 flex-col lg:w-1/2">
-      <div className="mx-auto mb-5 w-full max-w-md sm:pt-10">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-        >
-          <ChevronLeftIcon className="rtl:rotate-180" />
-          Back to dashboard
-        </Link>
-      </div>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-        <div>
-          <div className="mb-5 sm:mb-8">
-            <h1 className="mb-2 text-title-sm font-semibold text-gray-800 sm:text-title-md dark:text-white/90">
-              Sign In
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign in!
-            </p>
-          </div>
-          <div>
-            <GoogleOAuthButton label={t("continueWithGoogle")} />
-            <div className="relative py-3 sm:py-5">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-800" />
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-gray-400 dark:bg-gray-900">
-                  {t("or")}
-                </span>
-              </div>
-            </div>
-            {googleMessage && (
-              <Alert
-                variant="error"
-                title={t("googleSignInError")}
-                message={googleMessage}
-              />
-            )}
-            <form onSubmit={handleSubmit}>
-              <div className="space-y-6">
-                {errorMessage && (
-                  <Alert
-                    variant="error"
-                    title={t("signInError")}
-                    message={errorMessage}
-                  />
-                )}
-                <div>
-                  <Label htmlFor="signin-email">
-                    Email <span className="text-error-500">*</span>{" "}
-                  </Label>
-                  <Input
-                    id="signin-email"
-                    name="email"
-                    type="email"
-                    autoComplete="username"
-                    required
-                    value={email}
-                    onChange={(event) => {
-                      setEmail(event.target.value);
-                      setOrganizationId("");
-                      setOrganizations([]);
-                    }}
-                    placeholder="info@gmail.com"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="signin-password">
-                    Password <span className="text-error-500">*</span>{" "}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="signin-password"
-                      name="password"
-                      autoComplete="current-password"
-                      required
-                      value={password}
-                      onChange={(event) => {
-                        setPassword(event.target.value);
-                        setOrganizationId("");
-                        setOrganizations([]);
-                      }}
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter your password"
-                    />
-                    <span
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-e-4 top-1/2 z-30 -translate-y-1/2 cursor-pointer"
-                    >
-                      {showPassword ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
-                  </div>
-                </div>
-                {organizations.length > 0 && (
-                  <div>
-                    <Label htmlFor="signin-organization">
-                      {t("organizationId")}
-                    </Label>
-                    <Select
-                      id="signin-organization"
-                      placeholder={t("selectOrganization")}
-                      options={organizations.map((organization) => ({
-                        value: organization.id,
-                        label: organization.name,
-                      }))}
-                      onChange={setOrganizationId}
-                    />
-                  </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Checkbox checked={isChecked} onChange={setIsChecked} />
-                    <span className="block text-theme-sm font-normal text-gray-700 dark:text-gray-400">
-                      Keep me logged in
-                    </span>
-                  </div>
-                  <Link
-                    href="/reset-password"
-                    className="text-sm text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                  >
-                    {t("forgotPasswordLink")}
-                  </Link>
-                </div>
-                <div>
-                  <Button
-                    className="w-full"
-                    size="sm"
-                    disabled={
-                      login.isPending ||
-                      currentUser.isFetching ||
-                      (organizations.length > 0 && !organizationId)
-                    }
-                  >
-                    Sign in
-                  </Button>
-                </div>
-              </div>
-            </form>
-
-            <div className="mt-5">
-              <p className="text-center text-sm font-normal text-gray-700 sm:text-start dark:text-gray-400">
-                Don&apos;t have an account? {""}
-                <Link
-                  href="/signup"
-                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                >
-                  Sign Up
-                </Link>
-              </p>
-            </div>
-            <div className="mt-3 text-center text-sm sm:text-start">
-              <Link href="/platform/signin" className="font-medium text-brand-500 hover:text-brand-600 dark:text-brand-400">
-                {t("platformSignIn")}
-              </Link>
-            </div>
-          </div>
+    <main className={styles.signin}>
+      <header className={styles.formHeading}>
+        <p className={styles.eyebrow}>{ui("eyebrow")}</p>
+        <h1>
+          {ui("signinTitle")}
+          <span aria-hidden="true">.</span>
+        </h1>
+        <p className={styles.introduction}>
+          {ui("signinHint")} <Link href="/signup">{ui("signinJoin")}</Link>
+        </p>
+      </header>
+      {googleMessage && (
+        <Alert
+          variant="error"
+          title={t("googleSignInError")}
+          message={googleMessage}
+        />
+      )}
+      <form onSubmit={handleSubmit} className={styles.signinForm}>
+        {errorMessage && (
+          <Alert
+            variant="error"
+            title={t("signInError")}
+            message={errorMessage}
+          />
+        )}
+        <div className={styles.field}>
+          <Label htmlFor="signin-email">{ui("email")}</Label>
+          <Input
+            id="signin-email"
+            name="email"
+            type="email"
+            autoComplete="username"
+            required
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setOrganizationId("");
+              setOrganizations([]);
+            }}
+            placeholder={ui("emailPlaceholder")}
+          />
+          <EnvelopeIcon aria-hidden="true" className={styles.fieldIcon} />
         </div>
+        <div className={styles.field}>
+          <Label htmlFor="signin-password">{ui("password")}</Label>
+          <Input
+            id="signin-password"
+            name="password"
+            autoComplete="current-password"
+            required
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setOrganizationId("");
+              setOrganizations([]);
+            }}
+            type={showPassword ? "text" : "password"}
+            placeholder={ui("passwordPlaceholder")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            className={styles.passwordToggle}
+            aria-label={ui(showPassword ? "hidePassword" : "showPassword")}
+            aria-pressed={showPassword}
+            aria-controls="signin-password"
+          >
+            {showPassword ? (
+              <EyeIcon aria-hidden="true" />
+            ) : (
+              <EyeCloseIcon aria-hidden="true" />
+            )}
+          </button>
+        </div>
+        {organizations.length > 0 && (
+          <div className={styles.organizationSelect}>
+            <Label htmlFor="signin-organization">{t("organizationId")}</Label>
+            <Select
+              id="signin-organization"
+              placeholder={t("selectOrganization")}
+              options={organizations.map((organization) => ({
+                value: organization.id,
+                label: organization.name,
+              }))}
+              onChange={setOrganizationId}
+            />
+          </div>
+        )}
+        <div className={styles.formOptions}>
+          <Checkbox
+            label={ui("remember")}
+            checked={isChecked}
+            onChange={setIsChecked}
+          />
+          <Link href="/reset-password">{t("forgotPasswordLink")}</Link>
+        </div>
+        <Button
+          type="submit"
+          className={styles.primaryButton}
+          disabled={
+            login.isPending ||
+            currentUser.isFetching ||
+            (organizations.length > 0 && !organizationId)
+          }
+          endIcon={
+            <ArrowRightIcon
+              aria-hidden="true"
+              className="h-4 w-4 rtl:rotate-180"
+            />
+          }
+        >
+          {ui(login.isPending ? "signingIn" : "signIn")}
+        </Button>
+      </form>
+      <div className={styles.separator}>
+        <span>{ui("alternative")}</span>
       </div>
-    </div>
+      <div className={styles.googleButton}>
+        <GoogleOAuthButton label={t("continueWithGoogle")} />
+      </div>
+      <p className="mt-5 text-center text-sm text-brand-600 hover:underline dark:text-brand-300">
+        <Link href="/platform/signin">{t("platformSignIn")}</Link>
+      </p>
+    </main>
   );
 }
