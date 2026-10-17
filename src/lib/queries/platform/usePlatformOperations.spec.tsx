@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import {
   usePlatformChangeUserStatusMutation,
+  usePlatformIncidentHistoryQuery,
   usePlatformIncidentQuery,
   usePlatformUserOrganizationsQuery,
   usePlatformUserSessionQuery,
@@ -215,5 +216,34 @@ describe("Platform user operations", () => {
       }),
     );
     expect(result.current.data).not.toHaveProperty("internalPayload");
+  });
+
+  it("accepts redacted incident history notes up to the API limit", async () => {
+    const incidentId = "651a2b3c4d5e6f7a8b9c0d22";
+    const note = "a".repeat(2000);
+    mockedApiClient.mockResolvedValue({
+      data: [
+        {
+          id: "751a2b3c4d5e6f7a8b9c0d22",
+          incidentId,
+          action: "NOTE_ADDED",
+          fromStatus: "OPEN",
+          toStatus: "OPEN",
+          version: 2,
+          actorUserId: user.id,
+          occurredAt: "2026-10-16T01:00:00.000Z",
+          note,
+        },
+      ],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    });
+
+    const { result } = renderHook(
+      () => usePlatformIncidentHistoryQuery(incidentId, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.data[0]?.note).toHaveLength(2000);
   });
 });

@@ -1456,7 +1456,9 @@ export function usePlatformIncidentHistoryQuery(
             version: requireInteger(h.version, 1),
             actorUserId: requireId(h.actorUserId),
             occurredAt: requireTimestamp(h.occurredAt),
-            ...(h.note === undefined ? {} : { note: requireText(h.note, 500) }),
+            ...(h.note === undefined
+              ? {}
+              : { note: requireText(h.note, 2000) }),
           };
         },
       ),
