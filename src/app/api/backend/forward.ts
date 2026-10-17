@@ -63,8 +63,11 @@ export async function forwardBackendRequest(
   for (const name of [
     "cache-control",
     "content-type",
+    "etag",
+    "idempotency-replayed",
     "location",
     "referrer-policy",
+    "retry-after",
     "x-csrf-token",
   ]) {
     const value = backendResponse.headers.get(name);
