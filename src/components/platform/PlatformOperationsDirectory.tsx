@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import Button from "@/components/ui/button/Button";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
@@ -166,6 +166,32 @@ export default function PlatformOperationsDirectory({
   const [traceId, setTraceId] = useState("");
   const [note, setNote] = useState("");
   const [formMessage, setFormMessage] = useState("");
+  const userDetailDialogRef = useRef<HTMLDialogElement>(null);
+  const userDetailCloseButtonRef = useRef<HTMLButtonElement>(null);
+  const userDetailTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!selectedId) {
+      userDetailTriggerRef.current?.focus();
+      return;
+    }
+
+    const dialog = userDetailDialogRef.current;
+    if (!dialog) return;
+
+    userDetailTriggerRef.current =
+      document.activeElement instanceof HTMLButtonElement
+        ? document.activeElement
+        : null;
+    if (!dialog.open) dialog.showModal();
+    userDetailCloseButtonRef.current?.focus();
+  }, [selectedId]);
+
+  function closeUserDetails() {
+    setSelectedId("");
+    setSelectedSessionId("");
+  }
+
   const users = usePlatformUsersQuery(
     {
       page,
@@ -396,55 +422,112 @@ export default function PlatformOperationsDirectory({
               )}
             </section>
             {selectedId && (
-              <section className={`${box} p-5`}>
-                <div className="mb-4 flex items-center justify-between">
-                  <h2 className="text-sm font-bold">User detail</h2>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedId("");
-                      setSelectedSessionId("");
-                    }}
+              <dialog
+                ref={userDetailDialogRef}
+                aria-labelledby="platform-user-detail-title"
+                onCancel={closeUserDetails}
+                onClick={(event) => {
+                  if (event.target !== event.currentTarget) return;
+                  const bounds = event.currentTarget.getBoundingClientRect();
+                  if (
+                    event.clientX < bounds.left ||
+                    event.clientX > bounds.right ||
+                    event.clientY < bounds.top ||
+                    event.clientY > bounds.bottom
+                  ) {
+                    closeUserDetails();
+                  }
+                }}
+                className="m-auto max-h-[92vh] w-[calc(100%-1.5rem)] max-w-4xl space-y-5 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-lg backdrop:bg-gray-900/15 backdrop:backdrop-blur-[1px] dark:border-gray-800 dark:bg-gray-900 dark:backdrop:bg-gray-950/25"
+              >
+                <header className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-800">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      aria-hidden="true"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                    >
+                      {selectedUser.data?.fullName.charAt(0).toUpperCase() ??
+                        "U"}
+                    </span>
+                    <div className="min-w-0">
+                      <h2
+                        id="platform-user-detail-title"
+                        className="truncate text-base font-semibold text-gray-900 dark:text-white"
+                      >
+                        {selectedUser.data?.fullName ?? "User detail"}
+                      </h2>
+                      {selectedUser.data?.email && (
+                        <p className="mt-1 truncate text-xs text-gray-500 dark:text-gray-400">
+                          {selectedUser.data.email}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    ref={userDetailCloseButtonRef}
+                    type="button"
+                    onClick={closeUserDetails}
+                    className="shrink-0 cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     Close
-                  </Button>
-                </div>
+                  </button>
+                </header>
                 {selectedUser.isPending ? (
                   <Loading columns={3} />
                 ) : selectedUser.isError || !selectedUser.data ? (
                   <ErrorState retry={() => void selectedUser.refetch()} />
                 ) : (
                   <>
-                    <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                      <TextField
-                        label="Email"
-                        value={selectedUser.data.email}
-                      />
-                      <TextField
-                        label="Status"
-                        value={selectedUser.data.status}
-                      />
-                      <TextField
-                        label="Created"
-                        value={new Date(
-                          selectedUser.data.createdAt,
-                        ).toLocaleString()}
-                      />
-                      <TextField
-                        label="Last login"
-                        value={
-                          selectedUser.data.lastLoginAt
-                            ? new Date(
-                                selectedUser.data.lastLoginAt,
-                              ).toLocaleString()
-                            : "—"
-                        }
-                      />
-                    </dl>
-                    <div className="mt-5 grid gap-5 lg:grid-cols-2">
-                      <div>
-                        <h3 className="text-xs font-bold">Organizations</h3>
+                    <dl className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                          <dt className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                            Status
+                          </dt>
+                          <dd className="mt-2">
+                            <StatusBadge
+                              status={selectedUser.data.status}
+                              label={selectedUser.data.status}
+                            />
+                          </dd>
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                          <TextField
+                            label="Created"
+                            value={new Date(
+                              selectedUser.data.createdAt,
+                            ).toLocaleString()}
+                          />
+                        </div>
+                        <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                          <TextField
+                            label="Last login"
+                            value={
+                              selectedUser.data.lastLoginAt
+                                ? new Date(
+                                    selectedUser.data.lastLoginAt,
+                                  ).toLocaleString()
+                                : "—"
+                            }
+                          />
+                        </div>
+                      </dl>
+                      <section
+                        aria-labelledby="platform-user-organizations-title"
+                        className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <h3
+                            id="platform-user-organizations-title"
+                            className="text-sm font-semibold text-gray-900 dark:text-white"
+                          >
+                            Organizations
+                          </h3>
+                          {userOrganizations.data?.pagination && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {userOrganizations.data.pagination.totalItems}
+                            </span>
+                          )}
+                        </div>
                         {userOrganizations.isPending ? (
                           <Loading columns={2} />
                         ) : userOrganizations.isError ? (
@@ -457,15 +540,15 @@ export default function PlatformOperationsDirectory({
                               {userOrganizations.data.data.map((membership) => (
                                 <li
                                   key={membership.organizationId}
-                                  className="rounded-lg bg-gray-50 p-3 text-xs dark:bg-gray-800"
+                                  className="rounded-lg border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/50"
                                 >
                                   <strong>{membership.organizationName}</strong>
-                                  <span className="ml-2 text-gray-500">
+                                  <span className="ms-2 text-gray-500">
                                     {membership.status} ·{" "}
                                     {membership.organizationRoles.join(", ") ||
                                       "No role"}
                                   </span>
-                                  <span className="font-mono mt-1 block text-[10px] text-gray-500">
+                                  <span className="mt-1 block font-mono text-[10px] text-gray-500">
                                     {membership.organizationSlug}
                                   </span>
                                 </li>
@@ -491,29 +574,10 @@ export default function PlatformOperationsDirectory({
                             body="The Platform API returned no organization memberships for this user."
                           />
                         )}
-                      </div>
-                      <div>
-                        <h3 className="text-xs font-bold">
-                          Effective Platform permissions
-                        </h3>
-                        <ul className="mt-2 max-h-52 space-y-1 overflow-auto">
-                          {(
-                            selectedUser.data.effectivePlatformPermissions ?? []
-                          ).map((item) => (
-                            <li
-                              key={`${item.permission}-${item.scope}`}
-                              className="font-mono rounded bg-gray-50 p-2 text-[10px] break-all dark:bg-gray-800"
-                            >
-                              {item.permission} · {item.scope} ·{" "}
-                              {item.effective ? "effective" : item.status}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    </div>
+                    </section>
                     {canManageUsers && selectedUser.data.id !== operatorId && (
                       <form
-                        className="mt-5 flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4 dark:border-gray-800"
+                        className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800"
                         onSubmit={(e) => {
                           const status =
                             selectedUser.data!.status === "ACTIVE"
@@ -537,7 +601,7 @@ export default function PlatformOperationsDirectory({
                           );
                         }}
                       >
-                        <p className="text-xs text-gray-500">
+                        <p className="max-w-2xl text-xs leading-5 text-gray-500 dark:text-gray-400">
                           Account status changes require the displayed version
                           and ACCESS_REVIEW reason.
                         </p>
@@ -553,8 +617,23 @@ export default function PlatformOperationsDirectory({
                       </form>
                     )}
                     {canReadSessions && (
-                      <div className="mt-5 border-t border-gray-100 pt-4 dark:border-gray-800">
-                        <h3 className="mb-2 text-xs font-bold">Sessions</h3>
+                      <section
+                        aria-labelledby="platform-user-sessions-title"
+                        className="rounded-xl border border-gray-200 p-4 dark:border-gray-800"
+                      >
+                        <div className="mb-4 flex items-center justify-between gap-3">
+                          <h3
+                            id="platform-user-sessions-title"
+                            className="text-sm font-semibold text-gray-900 dark:text-white"
+                          >
+                            Sessions
+                          </h3>
+                          {userSessions.data?.pagination && (
+                            <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                              {userSessions.data.pagination.totalItems}
+                            </span>
+                          )}
+                        </div>
                         {userSessions.isPending ? (
                           <Loading columns={4} />
                         ) : userSessions.isError ? (
@@ -566,13 +645,13 @@ export default function PlatformOperationsDirectory({
                             {userSessions.data.data.map((session) => (
                               <li
                                 key={session.id}
-                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-gray-50 p-3 text-xs dark:bg-gray-800"
+                                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/50"
                               >
                                 <span>
                                   <span className="font-mono">
                                     {session.id}
                                   </span>
-                                  <span className="ml-2 text-gray-500">
+                                  <span className="ms-2 text-gray-500">
                                     {session.context} · {session.status} ·
                                     expires{" "}
                                     {new Date(
@@ -694,16 +773,19 @@ export default function PlatformOperationsDirectory({
                             )}
                           </div>
                         )}
-                      </div>
+                      </section>
                     )}
                     {formMessage && (
-                      <p className="mt-3 text-xs" role="status">
+                      <p
+                        className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                        role="status"
+                      >
                         {formMessage}
                       </p>
                     )}
                   </>
                 )}
-              </section>
+              </dialog>
             )}
           </>
         )}
