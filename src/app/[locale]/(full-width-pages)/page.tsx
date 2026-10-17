@@ -1,25 +1,17 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import LandingNavbar from "@/components/landing/LandingNavbar";
-import LandingHero from "@/components/landing/LandingHero";
-import LandingProblemSolution from "@/components/landing/LandingProblemSolution";
-import KnowledgeGraphExperience from "@/components/landing/KnowledgeGraphExperience";
-import LandingFeatures from "@/components/landing/LandingFeatures";
-import LandingHowItWorks from "@/components/landing/LandingHowItWorks";
-import LandingDemoSection from "@/components/landing/LandingDemoSection";
-import LandingCtaFooter from "@/components/landing/LandingCtaFooter";
+import ContinuumLanding from "@/components/landing/rylo/ContinuumLanding";
 
 export const metadata: Metadata = {
-  title: "Continuum AI — Nền tảng duy trì tri thức cho đội ngũ phần mềm",
+  title: "Continuum AI — Knowledge stays. Teams move forward.",
   description:
-    "Continuum AI giúp các nhóm trong dự án phần mềm ghi nhận kinh nghiệm trong lúc làm việc, kiểm chứng bằng chứng và bàn giao rõ ràng cho người kế nhiệm.",
+    "Capture software-team experience, verify the evidence, and hand over project knowledge with the full context.",
   keywords: [
     "Continuum AI",
-    "duy trì tri thức dự án",
-    "bàn giao công việc phần mềm",
+    "project knowledge",
+    "software team handover",
     "work notes",
     "knowledge management",
-    "software engineering handover",
   ],
 };
 
@@ -31,18 +23,5 @@ export default async function LandingPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return (
-    <div className="min-h-screen bg-[#F8FAFC] text-[#334155] antialiased selection:bg-blue-600 selection:text-white dark:bg-gray-950 dark:text-gray-200">
-      <LandingNavbar />
-      <main>
-        <LandingHero />
-        <LandingProblemSolution />
-        <KnowledgeGraphExperience />
-        <LandingFeatures />
-        <LandingHowItWorks />
-        <LandingDemoSection />
-        <LandingCtaFooter />
-      </main>
-    </div>
-  );
+  return <ContinuumLanding />;
 }
