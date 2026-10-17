@@ -300,7 +300,8 @@ export default function PlatformMembershipDirectory({
                     <td className="px-5 py-3.5 text-end">
                       {canSuspendMemberships &&
                       member.status === "ACTIVE" &&
-                      member.userId !== currentUserId ? (
+                      member.userId !== currentUserId &&
+                      member.hasPersistedVersion !== false ? (
                         <button
                           type="button"
                           onClick={() => onSuspend(member)}
@@ -310,9 +311,14 @@ export default function PlatformMembershipDirectory({
                         </button>
                       ) : (
                         <span className="text-[11px] text-gray-400">
-                          {member.userId === currentUserId
-                            ? t("memberships.currentOperator")
-                            : t("memberships.noAction")}
+                          {member.hasPersistedVersion === false &&
+                          member.status === "ACTIVE" &&
+                          canSuspendMemberships &&
+                          member.userId !== currentUserId
+                            ? t("memberships.migrationRequired")
+                            : member.userId === currentUserId
+                              ? t("memberships.currentOperator")
+                              : t("memberships.noAction")}
                         </span>
                       )}
                     </td>

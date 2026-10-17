@@ -298,6 +298,7 @@
       "chooseOrganization": "Choose an Organization to load memberships.",
       "directoryNote": "Current membership projection for the selected Organization. No invitation or role mutation is available here.",
       "noAction": "No action",
+      "migrationRequired": "Suspension unavailable until membership lifecycle metadata is initialized.",
       "partialTitle": "Other membership actions are unavailable",
       "partialBody": "Invite, resend, revoke, remove, role change, and membership history require separate Platform API and audit contracts. Only the currently authorized membership read and suspend operations are active.",
       "userUnavailable": "Account unavailable",

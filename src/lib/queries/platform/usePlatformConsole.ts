@@ -79,6 +79,7 @@ export type PlatformMembership = Readonly<{
   userId: string;
   status: "PENDING_INVITE" | "ACTIVE" | "SUSPENDED" | "REMOVED";
   version: number;
+  hasPersistedVersion?: boolean;
   createdAt: string;
   updatedAt: string;
   user: Readonly<{
@@ -260,6 +261,8 @@ function parseMembership(
     !membershipStatuses.has(value.status) ||
     !Number.isSafeInteger(value.version) ||
     Number(value.version) < 1 ||
+    (value.hasPersistedVersion !== undefined &&
+      typeof value.hasPersistedVersion !== "boolean") ||
     !dateTime(value.createdAt) ||
     !dateTime(value.updatedAt) ||
     !Array.isArray(value.organizationRoles)
@@ -300,6 +303,7 @@ function parseMembership(
     userId: value.userId,
     status: value.status as PlatformMembership["status"],
     version: Number(value.version),
+    hasPersistedVersion: value.hasPersistedVersion !== false,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     user,
