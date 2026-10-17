@@ -9,6 +9,143 @@
     "filter": "Filter",
     "seeAll": "See all"
   },
+  "platformConsole": {
+    "eyebrow": "Platform operations",
+    "title": "Administration Console",
+    "loading": "Loading your platform session…",
+    "sessionChecking": "Verifying your platform access…",
+    "sessionActive": "Platform session active",
+    "signOutPending": "Signing out…",
+    "signOut": "Sign out",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "retry": "Try again",
+    "cancel": "Cancel",
+    "securityNote": "Actions are limited to the current permission set. Tenant content, project data, and secrets are not available here.",
+    "navigation": {
+      "title": "Console",
+      "organizations": "Organizations",
+      "health": "Platform health",
+      "audit": "Audit activity"
+    },
+    "sections": {
+      "organizations": "Organizations",
+      "health": "Platform health",
+      "audit": "Audit activity"
+    },
+    "descriptions": {
+      "organizations": "Review Organization metadata, look up an eligible account, and perform the limited membership action available to your current permissions.",
+      "health": "Check IAM process liveness. This view does not report dependency readiness or service metrics.",
+      "audit": "Review the fixed operational audit projection. Export and raw event details are not available."
+    },
+    "table": {
+      "organization": "Organization",
+      "plan": "Plan",
+      "updated": "Updated",
+      "action": "Action",
+      "member": "Member",
+      "role": "Organization role",
+      "status": "Status",
+      "noRole": "No Organization role",
+      "event": "Event",
+      "target": "Target",
+      "actor": "Actor",
+      "time": "Time"
+    },
+    "errors": {
+      "signOut": "Could not confirm sign out. Try again.",
+      "userLookup": "No eligible active account was found. Check the email and try again.",
+      "organizationCreate": "Organization creation was not confirmed. Review the details and retry.",
+      "organizationList": "Organizations could not be loaded.",
+      "organizationDetail": "This Organization could not be loaded.",
+      "membershipList": "Memberships could not be loaded.",
+      "membershipSuspend": "Membership was not suspended. Refresh the Organization and check its current state.",
+      "health": "IAM health could not be checked.",
+      "audit": "Audit activity could not be loaded."
+    },
+    "noCapabilities": {
+      "title": "No active console permissions",
+      "body": "This account can sign in, but it has no current V1 Platform Console permission. Contact the approved Platform authority process.",
+      "organizationReadNeeded": "Organization creation is available, but this session cannot read the Organization directory. Ask for the exact Organization read permission to review the result."
+    },
+    "organizations": {
+      "directory": "Organization directory",
+      "directoryHelp": "A bounded list of Organization metadata. No tenant content is included.",
+      "open": "Open",
+      "emptyTitle": "No Organizations found",
+      "emptyBody": "There are no Organization records in this page.",
+      "createTitle": "Create an Organization",
+      "createHelp": "The selected active account becomes the first Organization ADMIN in the same backend transaction.",
+      "name": "Organization name",
+      "slug": "URL slug",
+      "plan": "Plan",
+      "creating": "Creating…",
+      "create": "Create Organization",
+      "firstAdminEmail": "First ADMIN email",
+      "findFirstAdmin": "Find active account",
+      "selectedAdmin": "Selected: {name} · {email}",
+      "selected": "Selected Organization"
+    },
+    "users": {
+      "lookupTitle": "Find an active account",
+      "lookupHelp": "Search requires an exact email match and returns only the minimal active account identity.",
+      "email": "Email address",
+      "lookup": "Look up account",
+      "activeAccount": "Active account",
+      "lookupCreateNote": "User lookup is used only to select the first ADMIN for Organization creation."
+    },
+    "memberships": {
+      "title": "Organization memberships",
+      "userUnavailable": "Account unavailable",
+      "suspend": "Suspend",
+      "currentOperator": "Current operator",
+      "emptyTitle": "No memberships found",
+      "emptyBody": "This Organization has no memberships in the selected page.",
+      "confirmTitle": "Suspend this membership?",
+      "confirmBody": "Suspend access for {name}? This action changes Organization membership status and is recorded in the operational audit.",
+      "confirmGuard": "The backend checks the current permission, Organization relationship, membership version, self-action rule, and last-ADMIN rule before writing.",
+      "suspending": "Suspending…",
+      "confirmSuspend": "Confirm suspension"
+    },
+    "membershipStatus": {
+      "PENDING_INVITE": "Pending invite",
+      "ACTIVE": "Active",
+      "SUSPENDED": "Suspended",
+      "REMOVED": "Removed"
+    },
+    "health": {
+      "title": "IAM process liveness",
+      "description": "The existing PLAT-HEALTH-01 response, unchanged.",
+      "checking": "Checking IAM…",
+      "healthy": "IAM is responding",
+      "iamOnly": "This is process liveness only; database, queue, and dependency readiness are not included."
+    },
+    "audit": {
+      "title": "Operational audit",
+      "boundedNote": "Latest fixed projection · up to 100 records · no export",
+      "loading": "Loading audit activity…",
+      "emptyTitle": "No operational activity",
+      "emptyBody": "There are no events in the bounded audit projection."
+    },
+    "results": {
+      "organizationCreated": "Organization {name} was created.",
+      "membershipSuspended": "Membership for {name} was suspended."
+    },
+    "signIn": {
+      "backToAccount": "Back to account sign in",
+      "title": "Platform Operator sign in",
+      "description": "Use an approved Platform Operator account. Access is evaluated from current server-side permissions on every request.",
+      "email": "Email",
+      "password": "Password",
+      "submit": "Sign in to Platform Console",
+      "submitting": "Signing in…",
+      "errorTitle": "Could not sign in",
+      "invalidCredentials": "Email or password is incorrect.",
+      "notAuthorized": "This account is not authorized for Platform Operator sign in.",
+      "unavailable": "The Platform session could not be verified. Try again.",
+      "accessNote": "There is no self-service bootstrap, grant, or revoke action in this console."
+    }
+  },
   "sidebar": {
     "navigation": "Main navigation",
     "brandLabel": "Continuum AI home",
@@ -236,6 +373,7 @@
     "emailRegistrationVerifyErrorMessage": "Please try again. If the link expired, start registration again.",
     "securityFootnote": "Continuum AI Security • End-to-end encrypted",
     "signInError": "Sign in failed",
+    "platformSignIn": "Platform Operator sign in",
     "googleSignInError": "Google sign-in failed",
     "continueWithGoogle": "Continue with Google",
     "signUpWithGoogle": "Sign up with Google",
