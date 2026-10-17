@@ -1,9 +1,11 @@
 "use client";
 
-import BrandLogo from "@/components/common/BrandLogo";
 import Alert from "@/components/ui/alert/Alert";
-import { Link, useRouter } from "@/i18n/navigation";
-import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
+import { useRouter } from "@/i18n/navigation";
+import {
+  useCurrentUserQuery,
+  useLogoutMutation,
+} from "@/lib/queries/auth/useAuth";
 import {
   useCreateOrganizationMutation,
   useOrganizationOptionsQuery,
@@ -14,9 +16,11 @@ import { useEffect, useState } from "react";
 import OrganizationChoices from "./OrganizationChoices";
 import OrganizationCreateForm from "./OrganizationCreateForm";
 import OrganizationInvitations from "./OrganizationInvitations";
+import styles from "./auth-experience.module.css";
 
 export default function AccountOnboarding() {
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
   const router = useRouter();
   const current = useCurrentUserQuery();
   const isAccount = current.data?.context === "ACCOUNT";
@@ -52,7 +56,7 @@ export default function AccountOnboarding() {
   if (!current.data)
     return (
       <main
-        className="flex min-h-screen w-full flex-1 items-center justify-center bg-white px-6 dark:bg-gray-900 lg:w-1/2"
+        className={styles.pending}
         aria-busy="true"
         aria-label={t("checkingSession")}
       >
@@ -65,32 +69,39 @@ export default function AccountOnboarding() {
     );
 
   return (
-    <main className="flex min-h-screen w-full flex-1 flex-col overflow-y-auto bg-white px-6 py-8 dark:bg-gray-900 sm:px-10 lg:w-1/2 lg:px-12">
-      <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-7 py-4">
-        <header>
-          <Link href="/" aria-label="Continuum AI home" className="inline-flex h-8">
-            <BrandLogo className="h-full" priority />
-          </Link>
-          <p className="mt-10 text-xs font-semibold uppercase tracking-widest text-brand-600 dark:text-brand-400">
-            {t("onboardingEyebrow")}
-          </p>
-          <h1 className="mt-3 text-title-sm font-semibold tracking-tight text-gray-900 dark:text-white sm:text-title-md">
-            {t("onboardingTitle")}
+    <main className={styles.organization}>
+      <div className={styles.organizationContent}>
+        <header className={styles.formHeading}>
+          <p className={styles.eyebrow}>{t("onboardingEyebrow")}</p>
+          <h1>
+            {ui("organizationTitle")}
+            <span aria-hidden="true">.</span>
           </h1>
-          <p className="mt-3 max-w-lg text-sm leading-6 text-gray-600 dark:text-gray-400">
+          <p className={styles.introduction}>
             {t("onboardingDescription", { name: current.data.name })}
           </p>
         </header>
 
         {organizations.isLoading && (
-          <div className="space-y-3" aria-busy="true" aria-label={t("onboardingChecking")}>
+          <div
+            className="space-y-3"
+            aria-busy="true"
+            aria-label={t("onboardingChecking")}
+          >
             {[0, 1].map((item) => (
-              <div key={item} className="h-18 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+              <div
+                key={item}
+                className="h-18 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+              />
             ))}
           </div>
         )}
         {organizations.isError && (
-          <Alert variant="error" title={t("onboardingAccessError")} message={t("onboardingAccessErrorDetail")} />
+          <Alert
+            variant="error"
+            title={t("onboardingAccessError")}
+            message={t("onboardingAccessErrorDetail")}
+          />
         )}
         {organizations.isSuccess && (
           <OrganizationChoices
@@ -108,7 +119,11 @@ export default function AccountOnboarding() {
           />
         )}
         {(create.isError || select.isError) && (
-          <Alert variant="error" title={t("onboardingActionError")} message={t("onboardingActionErrorDetail")} />
+          <Alert
+            variant="error"
+            title={t("onboardingActionError")}
+            message={t("onboardingActionErrorDetail")}
+          />
         )}
 
         {isAccount && (
@@ -121,7 +136,12 @@ export default function AccountOnboarding() {
         <button
           type="button"
           disabled={logout.isPending}
-          onClick={() => void logout.mutateAsync().then(() => router.replace("/signin")).catch(() => undefined)}
+          onClick={() =>
+            void logout
+              .mutateAsync()
+              .then(() => router.replace("/signin"))
+              .catch(() => undefined)
+          }
           className="self-start rounded-lg px-2 py-1 text-sm text-gray-500 transition hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-gray-200"
         >
           {t("onboardingSignOut")}
