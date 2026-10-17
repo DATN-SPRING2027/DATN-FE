@@ -211,9 +211,6 @@ export default function SignInForm({
       <div className={styles.googleButton}>
         <GoogleOAuthButton label={t("continueWithGoogle")} />
       </div>
-      <p className="mt-5 text-center text-sm text-brand-600 hover:underline dark:text-brand-300">
-        <Link href="/platform/signin">{t("platformSignIn")}</Link>
-      </p>
     </main>
   );
 }

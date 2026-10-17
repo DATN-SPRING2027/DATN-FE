@@ -111,19 +111,6 @@ describe("apiClient", () => {
     ]);
   });
 
-  it("recovers an expired Platform session through the Platform identity probe", async () => {
-    const fetchMock = vi.spyOn(global, "fetch")
-      .mockResolvedValueOnce(new Response("{}", { status: 401 }))
-      .mockResolvedValueOnce(new Response('{"status":"refreshed"}'))
-      .mockResolvedValueOnce(new Response('{"context":"PLATFORM"}'));
-    await expect(apiClient("/auth/platform/me")).resolves.toEqual({ context: "PLATFORM" });
-    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
-      "/api/backend/auth/platform/me",
-      "/api/v1/auth/refresh",
-      "/api/backend/auth/platform/me",
-    ]);
-  });
-
   it("does not refresh again when the retried session probe is still unauthorized", async () => {
     const fetchMock = vi.spyOn(global, "fetch")
       .mockResolvedValueOnce(new Response('{}', { status: 401 }))
