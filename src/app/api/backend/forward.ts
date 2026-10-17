@@ -20,6 +20,8 @@ export async function forwardBackendRequest(
         "auth/platform/login",
         "auth/password-reset/request",
         "auth/password-reset/confirm",
+        "auth/registrations",
+        "auth/registrations/verify",
       ].includes(path.join("/"));
     const edgeHops = trustedAuthMutation
       ? trustedEdgeHops(process.env.CONTINUUM_TRUSTED_EDGE_HOPS)
