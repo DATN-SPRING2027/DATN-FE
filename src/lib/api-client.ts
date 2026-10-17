@@ -128,12 +128,7 @@ export async function apiClient<T>(
   let recovered = false;
   if (
     typeof window !== "undefined" &&
-    [
-      "/auth/me",
-      "/api/v1/auth/me",
-      "/auth/platform/me",
-      "/api/v1/auth/platform/me",
-    ].includes(normalizedEndpoint) &&
+    ["/auth/me", "/api/v1/auth/me"].includes(normalizedEndpoint) &&
     (options?.method ?? "GET").toUpperCase() === "GET" &&
     response.status === 401
   ) {

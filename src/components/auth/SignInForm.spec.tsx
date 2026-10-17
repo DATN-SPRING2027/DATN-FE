@@ -66,14 +66,6 @@ describe("sign in form", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a direct link to Platform Operator sign-in", () => {
-    render(<SignInForm />);
-
-    expect(
-      screen.getByRole("link", { name: "platformSignIn" }),
-    ).toHaveAttribute("href", "/platform/signin");
-  });
-
   it("routes an authenticated organization member to Organization selection", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
