@@ -1,7 +1,6 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
-import PlatformUnavailablePage from "@/components/platform/PlatformUnavailablePage";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import type {
   PlatformMembership,
@@ -340,21 +339,6 @@ export default function PlatformMembershipDirectory({
         )}
       </section>
 
-      {/* Compact unavailable banner for missing operations */}
-      <PlatformUnavailablePage
-        partial
-        items={[
-          t("capabilities.membershipInvite"),
-          t("capabilities.membershipResend"),
-          t("capabilities.membershipRevoke"),
-          t("capabilities.membershipRemove"),
-          t("capabilities.membershipRole"),
-          t("capabilities.membershipHistory"),
-        ]}
-        title={t("capabilities.membershipTitle")}
-        description={t("capabilities.membershipDescription")}
-        dependency={t("capabilities.membershipDependency")}
-      />
     </div>
   );
 }
