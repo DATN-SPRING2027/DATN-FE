@@ -15,6 +15,9 @@
     "loading": "Loading your platform session…",
     "sessionChecking": "Verifying your platform access…",
     "loadingOrganizationDetail": "Loading Organization details…",
+    "loadingOrganizations": "Loading Organizations…",
+    "loadingMemberships": "Loading memberships…",
+    "lookingUp": "Looking up account…",
     "sessionActive": "Platform session active",
     "signOutPending": "Signing out…",
     "signOut": "Sign out",
@@ -54,20 +57,63 @@
       "account": "Platform account"
     },
     "pages": {
-      "dashboard": { "title": "Platform dashboard", "description": "A bounded overview of the Platform data and health currently available to this account." },
-      "organizations": { "title": "Organizations", "description": "Review Organization metadata, create an Organization, and inspect its current memberships.", "readPermissionNeeded": "Organization directory and detail require the exact Organization read permission." },
-      "users": { "title": "User management", "description": "The exact active-account lookup is available only when choosing the first Organization ADMIN. This Platform API has no general User directory or lifecycle actions." },
-      "memberships": { "title": "Membership management", "description": "Review memberships for an Organization and suspend an eligible membership when authorized." },
-      "projects": { "title": "Project management", "description": "Platform-scoped Project metadata and access policy are not available in the current API." },
-      "security": { "title": "Sessions & security", "description": "Review the current Platform session. Other-user session and security-event operations are unavailable." },
-      "services": { "title": "Service operations", "description": "The current health capability reports IAM process liveness only." },
-      "jobs": { "title": "Jobs & queues", "description": "Job and queue data or controls are not available to the Platform console." },
-      "ai": { "title": "RAG & AI operations", "description": "RAG, model, index and AI operational data are not available to the Platform console." },
-      "integrations": { "title": "Integration management", "description": "Platform-scoped integration status and actions are not available." },
-      "incidents": { "title": "Incident management", "description": "Incident data and actions are not available to the Platform console." },
-      "diagnostics": { "title": "Support & diagnostics", "description": "Platform diagnostics are unavailable until a redacted Platform API is approved." },
-      "audit": { "title": "Audit activity", "description": "Review and filter the fixed bounded operational audit projection." },
-      "account": { "title": "Platform account", "description": "Review the identity and current permission projection for this Platform session." }
+      "dashboard": {
+        "title": "Platform dashboard",
+        "description": "A bounded overview of the Platform data and health currently available to this account."
+      },
+      "organizations": {
+        "title": "Organizations",
+        "description": "Review Organization metadata, create an Organization, and inspect its current memberships.",
+        "readPermissionNeeded": "Organization directory and detail require the exact Organization read permission."
+      },
+      "users": {
+        "title": "User management",
+        "description": "The exact active-account lookup is available only when choosing the first Organization ADMIN. This Platform API has no general User directory or lifecycle actions."
+      },
+      "memberships": {
+        "title": "Membership management",
+        "description": "Review memberships for an Organization and suspend an eligible membership when authorized."
+      },
+      "projects": {
+        "title": "Project management",
+        "description": "Platform-scoped Project metadata and access policy are not available in the current API."
+      },
+      "security": {
+        "title": "Sessions & security",
+        "description": "Review the current Platform session. Other-user session and security-event operations are unavailable."
+      },
+      "services": {
+        "title": "Service operations",
+        "description": "The current health capability reports IAM process liveness only."
+      },
+      "jobs": {
+        "title": "Jobs & queues",
+        "description": "Job and queue data or controls are not available to the Platform console."
+      },
+      "ai": {
+        "title": "RAG & AI operations",
+        "description": "RAG, model, index and AI operational data are not available to the Platform console."
+      },
+      "integrations": {
+        "title": "Integration management",
+        "description": "Platform-scoped integration status and actions are not available."
+      },
+      "incidents": {
+        "title": "Incident management",
+        "description": "Incident data and actions are not available to the Platform console."
+      },
+      "diagnostics": {
+        "title": "Support & diagnostics",
+        "description": "Platform diagnostics are unavailable until a redacted Platform API is approved."
+      },
+      "audit": {
+        "title": "Audit activity",
+        "description": "Review and filter the fixed bounded operational audit projection."
+      },
+      "account": {
+        "title": "Platform account",
+        "description": "Review the identity and current permission projection for this Platform session."
+      }
     },
     "unavailable": {
       "badge": "Unavailable in the current Platform API",
@@ -1466,7 +1512,7 @@
       "overview": "Overview",
       "list": "List",
       "board": "Board",
-    "calendar": "Calendar",
+      "calendar": "Calendar",
       "timeline": "Timeline",
       "docs": "Docs",
       "reports": "Reports"
@@ -1552,24 +1598,24 @@
     "project": "Project",
     "detailPreviewNotice": "Preview only. Details are read-only and reset when you reload this page.",
     "created": "Created",
-  "dueDate": "Due date",
-  "noDueDate": "No due date",
-  "calendarTitle": "Work calendar",
-  "calendarGridLabel": "Work calendar for {month}",
-  "calendarSummary": "{scheduled} scheduled this month · {unscheduled} without a due date",
-  "calendarNavigation": "Calendar month navigation",
-  "previousMonth": "Previous month",
-  "nextMonth": "Next month",
-  "today": "Today",
-  "selectCalendarDay": "Show work items for {date}",
-  "calendarDayCount": "{count, plural, one {# work item} other {# work items}}",
-  "calendarEventLabel": "{key}: {title}, {status}, due {date}",
-  "calendarTasksOnDate": "Work due {date}",
-  "noTasksOnDate": "No work items due on this date.",
-  "emptyCalendarTitle": "No work scheduled this month",
-  "emptyCalendarDescription": "Add a due date to a work item to place it on the calendar.",
-  "unscheduled": "Unscheduled",
-  "unscheduledDescription": "Work items without a due date",
+    "dueDate": "Due date",
+    "noDueDate": "No due date",
+    "calendarTitle": "Work calendar",
+    "calendarGridLabel": "Work calendar for {month}",
+    "calendarSummary": "{scheduled} scheduled this month · {unscheduled} without a due date",
+    "calendarNavigation": "Calendar month navigation",
+    "previousMonth": "Previous month",
+    "nextMonth": "Next month",
+    "today": "Today",
+    "selectCalendarDay": "Show work items for {date}",
+    "calendarDayCount": "{count, plural, one {# work item} other {# work items}}",
+    "calendarEventLabel": "{key}: {title}, {status}, due {date}",
+    "calendarTasksOnDate": "Work due {date}",
+    "noTasksOnDate": "No work items due on this date.",
+    "emptyCalendarTitle": "No work scheduled this month",
+    "emptyCalendarDescription": "Add a due date to a work item to place it on the calendar.",
+    "unscheduled": "Unscheduled",
+    "unscheduledDescription": "Work items without a due date",
     "listCaption": "Work item preview list",
     "selectAllVisible": "Select all visible work items",
     "selectWorkItem": "Select work item {key}",
@@ -1591,7 +1637,7 @@
     "createPreviewNotice": "This preview form does not send data to the backend. New items reset when you reload.",
     "summaryLabel": "Summary",
     "summaryPlaceholder": "Describe the work item",
-  "dueDateHint": "Optional · appears on the Work calendar",
+    "dueDateHint": "Optional · appears on the Work calendar",
     "titleRequired": "Enter a summary.",
     "cancel": "Cancel",
     "addToPreview": "Add to preview",

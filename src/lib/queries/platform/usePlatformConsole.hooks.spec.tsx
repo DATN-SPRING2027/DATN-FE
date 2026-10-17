@@ -83,7 +83,10 @@ describe("Platform paginated list queries", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApiClient).toHaveBeenCalledWith(
       "/iam/platform/organizations?page=2&pageSize=100",
-      { cache: "no-store" },
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 
@@ -96,7 +99,10 @@ describe("Platform paginated list queries", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApiClient).toHaveBeenCalledWith(
       `/iam/platform/organizations/${organizationId}/memberships?page=3&pageSize=100`,
-      { cache: "no-store" },
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
     );
   });
 });

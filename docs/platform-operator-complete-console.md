@@ -1,107 +1,103 @@
-# Platform Operator Complete Console — Research and API Dependency Matrix
+# Platform Operator — FE ↔ BE Integration Handoff
 
-## Product boundary
+## Scope and handoff
 
-The requested FE scope includes 14 Platform Operator groups. The FE may provide navigable page structure across those groups, but a visible page does not authorize new data access. The backend Platform API and permission are authoritative. No Organization-scoped endpoint is reused under a Platform session. No fake rows, fake counts, fake status, or simulated success are allowed.
+This is a continuation of the existing Antigravity Platform UI. The single
+`/platform` console, route files, TailAdmin shell, navigation, cards, tables,
+detail layouts, pagination, and shared loading/empty/error components remain the
+base. Codex connected the supported screens through the existing API client and
+TanStack Query; no second console or duplicate route was added. The original FE
+checkout containing Antigravity's uncommitted work was left untouched.
 
-Configuration remains out of scope. The console must not expose tenant content, secrets, raw audit events, job payloads, prompts, or cross-user session data.
+The FE branch is `feat/Thang-platform-operator-integration-fe-ui`, based on the
+updated FE `origin/main` plus the existing Platform UI commits. The BE reference
+branch is `feat/Thang-platform-operator-v1-be-api` at
+`d0ff992703631fcde3ce1d0ab7dd428f22c02e3b`.
 
-## Repository findings
+The BE controller and capability matrix are the evidence for runtime routes.
+The checked-in `docs/openapi/iam-v1.openapi.json` is behind that implementation:
+it currently describes only Platform login, Organization collection, health,
+and the legacy audit feed. It does not describe the newer users, sessions,
+projects, dashboard, services, jobs, AI, integrations, incidents, diagnostics,
+or paginated audit operations consumed here. This contract mismatch is a
+handoff blocker for a fully synchronized OpenAPI contract; this FE task does
+not modify the BE repository.
 
-- FE: Next.js 16 App Router, React 19, TypeScript, TailAdmin, Tailwind CSS 4, TanStack Query 5 and next-intl. The configured repository currently ships English copy in `src/messages/en.json`.
-- Authentication uses the same-origin backend proxy and HttpOnly-cookie flow. The FE must not read or persist bearer/refresh tokens.
-- Current main did not contain the Platform Console implementation. The previous task branch contains the console implementation and its API/BFF/tests; it is being reused on this clean branch.
-- The existing account-scoped User, Membership and Project routes are bound to Organization identity and are not valid Platform Operator APIs.
-- No BE changes are in scope for this FE task.
+## Capability matrix
 
-## Current Platform API and permission evidence
+`FE connected` means a real endpoint is called through the existing API client
+and its response drives the UI. It does not claim that the endpoint was reached
+against a live authenticated BE, MongoDB, or audit store during this task.
 
-The current Platform controller/service implementation exposes the following operations (verified in the existing BE task branch `feat/Thang-platform-operator-v1-be-api`):
+| Capability         | Antigravity UI                                                      | FE logic                                                                                                                                                                                  | Runtime Platform API                                                                                                                                                      | BE capability                                                                     | DB evidence                                                                                                 | Audit evidence                                                                                               | Browser | Status |
+| ------------------ |---|---|---|---|---|---|---|---|
+| User               | Existing Users route/table/detail layout retained                   | Search, status filter, paging, safe detail, paginated organizations, effective permissions, paginated sessions/detail, status mutation                                                    | `GET /users`, `/users/:userId`, `/users/:userId/organizations`, `/users/:userId/sessions`, `/users/:userId/sessions/:sessionId`; `PATCH /users/:userId/status`            | `account.read`, `account.manage`; PLATFORM scope                                  | BE matrix maps reads/status writes to Mongo user, membership and session data; not live-verified | BE matrix documents audited status changes; not live-verified | BLOCKED | PARTIAL |
+| Organization       | Existing directory/detail/create flow retained                      | List/detail/create, first-ADMIN exact lookup, metadata edit, members, invitation read                                                                                                     | `GET/POST /organizations`, `GET/PATCH /organizations/:organizationId`, `GET /organizations/:organizationId/invitations`, membership APIs                                  | `organization.read`, `organization.create`, `organization.manage`; PLATFORM scope | BE matrix maps Organization metadata writes to Mongo; not live-verified | BE matrix documents audited writes; not live-verified                                              | BLOCKED | PARTIAL |
+| Membership         | Existing organization-scoped page/table/dialog retained             | Paginated member list and confirmed suspend with version/reason; invitation metadata read on Organization detail                                                                          | `GET /organizations/:organizationId/memberships`, `GET /memberships`, `POST /organizations/:organizationId/memberships/:membershipId/suspend`                             | `membership.read`, `lifecycle.manage`; PLATFORM scope                             | BE matrix maps suspension to Mongo with CAS; not live-verified | BE matrix documents suspension audit; not live-verified                                         | BLOCKED | PARTIAL |
+| Project            | Existing Projects route retained and populated from safe projection | Search, visibility filter, paging, detail/member summary, confirmed visibility edit                                                                                                       | `GET /projects`, `/projects/:projectId`; `PATCH /projects/:projectId`                                                                                                     | `project.read`, `project.manage`; PLATFORM scope                                  | BE matrix maps Project metadata writes to Mongo; not live-verified | BE matrix documents audited metadata writes; not live-verified                                        | BLOCKED | PARTIAL |
+| Session & Security | Existing Security page and account identity display retained        | Current operator sessions and safe detail; cross-user session list/detail/revoke available in User detail; own-session revoke hidden because the API does not identify the active session | `GET /users/:userId/sessions`, `/users/:userId/sessions/:sessionId`; `POST /users/:userId/sessions/:sessionId/revoke` plus current Platform session/logout                | `session.read`, `session.manage`; PLATFORM scope                                  | BE matrix maps session state to refresh-session families; not live-verified | BE matrix documents session-revoke audit; not live-verified                            | BLOCKED | PARTIAL |
+| Dashboard          | Existing dashboard cards retained                                   | API aggregates for organizations/users/memberships/projects/service health and recent safe activity                                                                                       | `GET /dashboard`                                                                                                                                                          | `dashboard.summary.read`; PLATFORM scope                                          | BE matrix reads aggregate projections; not live-verified | No mutation; audit not applicable                                               | BLOCKED | PARTIAL |
+| Services           | Existing Services route/card layout retained                        | Safe service status, availability, readiness, dependencies and bounded diagnostics                                                                                                        | `GET /services`                                                                                                                                                           | `service.read`; PLATFORM scope                                                    | BE matrix reads service health sources; not live-verified | No mutation; audit not applicable                     | BLOCKED | PARTIAL |
+| Job / Queue        | Existing Jobs route/table retained                                  | Queue/job pages, safe failure summary, confirmed retry/cancel with expected status                                                                                                        | `GET /queues`, `/jobs`; `POST /jobs/:queueId/:jobId/retry`, `/cancel`                                                                                                     | `job.read`, `job.manage`; PLATFORM scope                                          | Runtime queue provider state; not live-verified | BE matrix documents audited job commands; not live-verified                                          | BLOCKED | PARTIAL |
+| RAG / AI           | Existing AI route/card retained                                     | SAG operational readiness and safe dependency summary                                                                                                                                     | `GET /ai/operations`                                                                                                                                                      | `ai.operations.read`; PLATFORM scope                                              | No live DB verification; SAG does not expose provider/model/job state | No mutation/audit capability for the unexposed SAG states                     | BLOCKED | PARTIAL |
+| Integration        | Existing Integrations route/table retained                          | Safe provider/org/project/status/sync/failure summary                                                                                                                                     | `GET /integrations`                                                                                                                                                       | `integration.read`; PLATFORM scope                                                | Persisted integration metadata; not live-verified | Test/reconnect remains gated; no live audit verification                 | BLOCKED | PARTIAL |
+| Incident           | Existing Incidents route/table/detail retained                      | List/detail/history/create, confirmed acknowledge/resolve, notes                                                                                                                          | `GET /incidents`, `/incidents/:incidentId`, `/incidents/:incidentId/history`; `POST /incidents`, `/:incidentId/acknowledge`, `/:incidentId/resolve`, `/:incidentId/notes` | `incident.read`, `incident.manage`; PLATFORM scope                                | BE matrix maps incident/history writes to Mongo; not live-verified | BE matrix maps incident actions to audit; not live-verified                                | BLOCKED | PARTIAL |
+| Diagnostics        | Existing Diagnostics route retained                                 | Request-ID trace view with server-bounded redacted events                                                                                                                                 | `GET /diagnostics/traces/:requestId`                                                                                                                                      | `diagnostics.trace.read`; PLATFORM scope                                          | Trace reads use indexed audit data; not live-verified | Read-only audit projection; no live verification                                                   | BLOCKED | PARTIAL |
+| Audit              | Existing Audit route/table retained                                 | Server pagination, action/actor/resource/time filters, event detail and resource history; no export                                                                                       | `GET /audit/events`, `/audit/events/:eventId`, `/audit/resources/:resourceType/:resourceId/history`                                                                       | `audit.read`; PLATFORM scope                                                      | Reads the BE audit collection; not live-verified | Mutations rely on BE audit producers; not live-verified                   | BLOCKED | PARTIAL |
+| Platform Account   | Existing account page and sign-out retained                         | Current validated Platform identity, effective permissions, own session state, sign-out                                                                                                   | Current Platform session and logout routes                                                                                                                                | Current authenticated Platform subject                                            | No live session persistence verification | Logout/audit behavior not live-verified                                           | BLOCKED | PARTIAL |
 
-| Operation | API | Required permission | FE capability |
-|---|---|---|---|
-| Current Platform session | `GET /api/v1/auth/platform/me` | Authenticated current Platform subject | Current account and effective permission projection |
-| Sign in | `POST /api/v1/auth/platform/login` | Platform login flow | Existing Platform sign-in |
-| Sign out | `POST /api/v1/auth/logout` | Current session | Current-session sign-out |
-| Organization create | `POST /api/v1/iam/platform/organizations` | `organization.create` | Create Organization and select first ADMIN through exact active-account lookup |
-| Organization list/detail | `GET /api/v1/iam/platform/organizations`, `GET /api/v1/iam/platform/organizations/:organizationId` | `platform.organizations.organization.read` | Bounded metadata list/detail |
-| Exact active account lookup | `POST /api/v1/iam/platform/users/lookup` | `platform.users.account.read` | Lookup one exact email for first ADMIN assignment; not a directory |
-| Organization memberships | `GET /api/v1/iam/platform/organizations/:organizationId/memberships` | `platform.memberships.membership.read` | List memberships for a selected Organization |
-| Suspend membership | `POST /api/v1/iam/platform/organizations/:organizationId/memberships/:membershipId/suspend` | `platform.memberships.lifecycle.manage` | Suspend after confirmation with required CSRF/idempotency/version/reason contract |
-| Platform health | `GET /api/v1/iam/platform/health` | `platform.health.read` | IAM process liveness only |
-| Bounded audit | `GET /api/v1/iam/platform/audit` | `platform.audit.read` | Fixed projection, at most 100 records, no export/raw event |
+The browser column is BLOCKED for all capabilities: the production FE smoke request to `/platform/signin` receives a 307 redirect back to the same path while rewriting internally to `/en/platform/signin`, including when `NEXT_LOCALE=en` is sent; the browser reports `ERR_TOO_MANY_REDIRECTS`. No authenticated BE/BFF or Platform browser session was available, so capability interactions were not verified in a real browser.
 
-Exact active permission catalog in the current Platform session contract:
+The implementation intentionally leaves these operations without callable
+controls: Organization lifecycle (no approved state model), invitation
+invite/resend/cancel while BE notification/cutover gates are closed, membership
+remove/restore/role change, Platform authority grant/revoke, and integration
+test/reconnect while the external provider gate is unavailable. It does not
+reuse organization-scoped User/Project APIs, fabricate records, or expose
+tenant content, job payloads, credentials, raw errors, or raw audit events.
+The FE also withholds revoking a session belonging to the current operator,
+because the session list/API response does not mark which session is the active
+browser session.
 
-`organization.create`, `platform.health.read`, `platform.audit.read`, `platform.organizations.organization.read`, `platform.users.account.read`, `platform.memberships.membership.read`, `platform.memberships.lifecycle.manage`.
+## Mutation and session handling
 
-Frontend permission checks only control visibility and affordances. The backend repeats authorization on every request.
+- FE controls are shown only for the exact permission and scope returned by the
+  current Platform session. BE authorization remains authoritative.
+- Cookie mutations use the shared CSRF header. Mutations that require replay
+  safety include an idempotency key; versioned writes send the current CAS
+  value and reason code required by the controller.
+- Every Platform API request has a 15-second abort timeout; an abort is rendered
+  through the same safe request error state and is not retried automatically.
+- `409` conflicts invalidate Platform and audit queries so the next render uses
+  current server state. Mutation failures do not trigger blind retries.
+- Successful mutations invalidate the relevant Platform projections and audit
+  queries. FE never fabricates audit events.
+- Platform `401` handling clears private query cache and the route guard hides
+  cached console data while the session is unresolved or invalid. Tokens are
+  not read from browser storage or rendered.
+- User status, session revoke, job commands, project visibility and incident
+  acknowledge/resolve ask for confirmation. Membership suspension retains its
+  confirmation dialog.
 
-## 14-group dependency matrix
+## Validation and remaining blockers
 
-| # | Group | Planned FE route/page | Current Platform API | FE behavior / blocker |
-|---:|---|---|---|---|
-| 1 | User Management | `/platform/users` | Exact-email active-account lookup only | Allow exact lookup only for Organization creation context; no directory, detail, activate/deactivate, effective membership/permission view, or cross-user session management. Requires platform user-directory and lifecycle contracts. |
-| 2 | Organization Management | `/platform/organizations`, `/platform/organizations/:organizationId` | List, metadata detail, create; memberships are a separate route | Live list/detail/create and first ADMIN lookup; no metadata edit, Organization lifecycle, invite/resend/revoke, or remove/role mutation. Each missing operation requires a platform-authorized API and audit contract. |
-| 3 | Membership Management | `/platform/memberships` | List and suspend for selected Organization | Live list/suspend only. Invite/resend/revoke/remove/role-change/history are unavailable; existing org-admin APIs are not called. |
-| 4 | Project Management | `/platform/projects` | None | Metadata, visibility and access policy unavailable. Existing Project APIs require Organization identity; no tenant content is requested. |
-| 5 | Session & Security | `/platform/security` | Current Platform session only, plus sign out | Show current session identity/permissions and sign out. Other-user sessions, revoke, anomaly handling and security events unavailable. |
-| 6 | Platform Dashboard | `/platform` | Organization list, IAM health, bounded audit | Use actual available responses only. User/Project/other service metrics unavailable; do not infer totals from partial data. |
-| 7 | Service Operations | `/platform/services` | IAM health only | Preserve process liveness; service dependency/availability/diagnostics unavailable. |
-| 8 | Job / Queue Management | `/platform/jobs` | None | Explicit unavailable state; no payload/status/retry/cancel data or controls. |
-| 9 | RAG / AI Operations | `/platform/ai` | None | Explicit unavailable state; no tenant content, prompts, model/index health or job payload. |
-| 10 | Integration Management | `/platform/integrations` | None | Explicit unavailable state; never display or handle connection secrets/keys. |
-| 11 | Incident Management | `/platform/incidents` | None | Explicit unavailable state; no incident list/actions/notes until approved API and audit contract. |
-| 12 | Support / Diagnostics | `/platform/diagnostics` | None | Explicit unavailable state; no trace/diagnostic output until redaction contract and API exist. |
-| 13 | Audit | `/platform/audit` | Fixed bounded audit projection | Existing list only; client filters may refine the loaded bounded projection. No raw event details, server query implication, or export. |
-| 14 | Platform Account | `/platform/account` | Current Platform session and sign out | Show session identity/effective permissions and sign out. No profile, credentials, or secrets. |
+`npm run check` passed: ESLint, TypeScript, all 393 Vitest tests in 53 files,
+and the production build. `git diff --check` also passed. The repository has no
+Playwright/Cypress E2E script or test suite. Browser smoke was attempted against
+the local production FE and is blocked by the locale redirect loop documented
+above. The FE worktree had no `.env.local`, and no BE listener was available on
+the configured local port, so authenticated BE, Mongo persistence and audit
+production were not verified. A passing unit/build suite proves FE behavior
+only; BE matrix/tests are repository evidence, not live acceptance.
 
-## Risk and implementation notes
+The main contract blocker is the stale checked-in OpenAPI JSON noted above. The
+external readiness gates for invitations, Jira actions, and unavailable SAG
+details are backend constraints. Organization lifecycle and unapproved
+membership/authority changes remain out of scope until a reviewed BE state
+model, permissions, audit contract, and migration exist.
 
-- `GET /auth/platform/me` returns current session/permission projection, not an administrative user/session directory.
-- Existing Organization invitation and Project APIs are intentionally excluded because they are organization-scoped and their actor/ACL contract differs.
-- The health operation describes IAM process liveness only; it must not be relabeled as database, queue, or whole-platform readiness.
-- Audit’s bounded projection is not an export source. Local filters must clearly apply only to the loaded records.
-- Unsupported operations require a separately approved Platform API, permission/scope, audit event and QA oracle before they become actionable.
+## Impact
 
-## As-built implementation
-
-The console now provides routes under `/platform` for Dashboard, Organizations (directory and detail), Users, Memberships, Projects, Sessions & Security, Services, Jobs & Queues, RAG & AI, Integrations, Incidents, Diagnostics, Audit, and Platform Account. The 14 entries share the existing Platform session guard and grouped responsive navigation.
-
-Active FE/API behavior:
-
-- Organization list/detail metadata and Membership lists use the current Platform endpoints and exact `platform.organizations.organization.read` / `platform.memberships.membership.read` permission projections. Organization and Membership results support all API pages (100 rows per page) through explicit previous/next controls.
-- Organization creation remains gated by `organization.create`; first ADMIN selection is an exact email lookup gated by `platform.users.account.read`, and lookup is only shown for its approved Organization creation purpose.
-- Membership suspension remains gated by `platform.memberships.lifecycle.manage`, excludes the current Platform subject in the affordance, asks for confirmation, sends CSRF + idempotency + expected membership version + fixed reason code, and trusts only the validated server acknowledgement.
-- Services/Health exposes only IAM process liveness under `platform.health.read`.
-- Dashboard shows exact Organization `totalItems`, IAM liveness, and the first five items from the fixed bounded audit projection when permissions allow. User/Project counts and non-IAM service readiness are explicitly unavailable.
-- Audit displays only the fixed fields from the <=100 record API response. Action/actor/resource/time filters operate locally over that loaded projection; there is no export or raw event view.
-- Account and Security show only the current Platform identity, effective current permissions and current session state. Sign-out uses the existing logout route. No bearer or refresh token is rendered or stored by this feature.
-- Invalid Organization route IDs are rejected in the UI and query hook without issuing a request or remaining in a pending spinner state.
-- The session-query cache handler now recognizes both the Platform identity query and Platform-scoped requests/mutations. When any Platform request loses its session, other private cached queries are cleared, the identity is rechecked once, and the console is hidden while the session is unresolved or failed. The failed `/auth/platform/me` query remains as the terminal error so the route guard can redirect without a retry loop.
-
-## Remaining FE/backend blockers
-
-The following UI groups are present and state the exact missing Platform capability, but have no list/detail/action control that could pretend to succeed:
-
-- User directory/search/filter/detail, ACTIVE/INACTIVE lifecycle, user memberships/effective roles and cross-user sessions: requires Platform-scoped user directory, status, membership projection and session APIs/permissions/audit/QA contract. Current exact-email ACTIVE account lookup is not a directory and appears only in the Organization-create first ADMIN flow, gated by `platform.users.account.read`.
-- Organization metadata edits, lifecycle/status and invitations: requires Platform-scoped mutation APIs and audit contract.
-- Membership invite/resend/revoke/remove/role change/history: requires Platform APIs beyond current read + suspend.
-- Project list/metadata/visibility/access policy: no Platform Project projection/API exists; Organization-scoped Project APIs are not reused.
-- Other-user session/security events, service dependencies/diagnostics, Jobs/Queue, RAG/AI, Integrations, Incidents and Support/Diagnostics: no Platform API projection, permissions, audit contract or QA oracle exists. These remain unavailable; no tenant content, job payloads, prompts, secrets or diagnostic output is requested or displayed.
-
-No Configuration UI is included. No BE files, contract, permissions, database schema, dependency, or environment setting were changed by this FE task.
-
-## Validation and review
-
-Validation is recorded after the final implementation pass:
-
-- `npm ci`: completed from the existing lockfile; lockfile remains unchanged.
-- `npm run check`: passed on the final implementation; lint and typecheck passed, all 49 Vitest files / 371 tests passed, and the Next.js production build generated all Platform routes successfully.
-- Focused Platform Console, pagination, Platform query hook and session recovery tests cover all 14 navigation entries, permissions, active actions, safe unavailable states, local audit filters, invalid IDs, paged API URLs and one-time identity recovery after failures in Platform-scoped endpoints.
-- Browser smoke: unauthenticated Platform route redirected to sign-in without a retry loop; sign-in form rendered. An authenticated Platform browser session was unavailable, so rendered authenticated module pages were not manually inspected in-browser.
-- Final `git diff --check` passed. The endpoint review found only the listed existing Platform endpoints; no Organization-scoped User/Project API is used by the Platform console. Secret, token, raw tenant-content, job-payload and prompt scans found no implementation matches.
-
-## Change impact
-
-This is FE-only. It adds no database migration or schema change and no environment/configuration change. The app-level session cache error handling is updated to avoid retry loops for the Platform identity query while preserving terminal session failure. Rollback is reverting the FE branch; no data rollback is needed.
+FE-only change. No Mongo schema, database migration, BE source, configuration,
+dependency, or production/staging data was changed. Rollback is reverting the
+FE commit; no data rollback is needed.

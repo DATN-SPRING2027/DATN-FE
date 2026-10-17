@@ -9,7 +9,7 @@ Deliver a usable FE console shell for all 14 requested Platform Operator domains
 - Keep the current server-authorized permissions and existing Organization, IAM health, and bounded audit behavior.
 - Reuse the existing Platform Console implementation from the previous FE task branch, then extend it on a fresh branch from `origin/main`.
 - Use a single Platform session and the existing same-origin BFF/API client. Do not reuse Organization-scoped User, Membership, Project, invitation, or session endpoints from a Platform session.
-- Render all 14 domain entries. Only activate screens/actions backed by the existing Platform API and exact permission. All other controls remain unavailable with an explicit backend dependency.
+- Render all 14 domain entries. Only activate screens/actions backed by the runtime Platform controller/capability matrix and exact permission. The checked-in OpenAPI JSON lags the controller and is recorded as a contract mismatch.
 - Never show tenant content, secrets, raw audit records, or fabricated counts/rows.
 - Do not change BE, permission semantics, authorization, data models, dependencies, or Configuration scope.
 
@@ -18,8 +18,8 @@ Deliver a usable FE console shell for all 14 requested Platform Operator domains
 1. Record the actual API/permission dependency matrix and repository findings in `docs/platform-operator-complete-console.md`.
 2. Reuse the previous platform-console commits on this clean `origin/main` task branch.
 3. Implement route-aware console navigation and pages for Dashboard, Organizations, Users, Memberships, Projects, Sessions & Security, Platform Health/Services, Jobs/Queue, RAG/AI, Integrations, Incidents, Diagnostics, Audit, and Account.
-4. Wire only current Platform API capabilities: organization list/detail/create, exact active-account lookup, membership list/suspend, IAM process health, fixed bounded audit, current Platform session, and sign out.
-5. Add honest empty/unavailable states for each unsupported Platform operation; support client-side filters only over the currently returned bounded audit projection.
+4. Wire the supported Platform API capabilities for users, organizations, memberships, projects, sessions, dashboard, services, queues/jobs, SAG operations, integrations, incidents, diagnostics, audit, and account.
+5. Keep controls disabled or unavailable only where the BE gate/provider/model is genuinely unavailable or the mutation has no approved state model; do not issue fake requests or reuse tenant-scoped APIs.
 6. Add/adjust focused component, API, route and behavior tests, then run lint, typecheck, unit tests, build, `npm run check`, and diff/security review.
 7. Run a browser-based visual/interaction pass when a browser surface is available; record exact results and any remaining BE/API blockers.
 
@@ -38,4 +38,4 @@ Deliver a usable FE console shell for all 14 requested Platform Operator domains
 
 ## Known constraints / blockers
 
-The current Platform API has no Platform-authorized User directory/status/session, Organization edit/lifecycle/invitation, Membership invitation/revoke/remove/role/history, Project, cross-user Security, job/queue, service dependency, RAG/AI, integration, incident, or diagnostics endpoints. Existing product User/Membership/Project APIs require Organization identity and are deliberately not called from the Platform console. These areas have safe navigable pages but cannot expose live list/detail/mutation behavior until a separate backend contract, exact permission, audit contract and QA oracle are approved and implemented.
+The runtime Platform controller and capability matrix include most operations listed in the handoff. The FE consumes available projections and commands, but this task cannot claim live MongoDB/audit verification without a running authenticated BE and test database. The checked-in `docs/openapi/iam-v1.openapi.json` currently covers only login, Organization collection, health, and legacy audit, so it must be synchronized with the runtime controller in a BE-owned task. Invitation commands and Jira test/reconnect remain behind BE readiness gates; SAG model/provider/processing-job detail is not exposed; Organization lifecycle and membership role/remove/restore lack an approved Platform state model. The FE does not call organization-scoped User or Project APIs.

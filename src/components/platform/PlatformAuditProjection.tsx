@@ -1,51 +1,434 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
-import { usePlatformAuditQuery, type PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
+import PlatformPagination from "@/components/platform/PlatformPagination";
+import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
+import {
+  usePlatformAuditEventQuery,
+  usePlatformAuditEventsQuery,
+  usePlatformAuditResourceHistoryQuery,
+} from "@/lib/queries/platform/usePlatformOperations";
 import { useTranslations } from "next-intl";
-import { useMemo, useState } from "react";
+import { useState } from "react";
+import EmptyState from "./ui/EmptyState";
+import { TableSkeleton } from "./ui/LoadingSkeleton";
 
-export default function PlatformAuditProjection({ permissions }: { permissions: readonly PlatformPermission[] }) {
+const auditActions = [
+  "organization.create",
+  "platform.authority.granted",
+  "platform.authority.revoked",
+  "platform.user.status.changed",
+  "platform.session.revoked",
+  "platform.sessions.revoked_all",
+  "ORGANIZATION_MEMBERSHIP_SUSPENDED",
+  "platform.organization.metadata.changed",
+  "platform.project.metadata.changed",
+  "platform.incident.created",
+  "platform.incident.acknowledged",
+  "platform.incident.resolved",
+  "platform.incident.note.added",
+  "platform.job.retry",
+  "platform.job.cancel",
+];
+const resourceTypes = [
+  "ORGANIZATION",
+  "PLATFORM_AUTHORITY",
+  "ORGANIZATION_MEMBERSHIP",
+  "USER",
+  "PROJECT",
+  "SESSION",
+  "INCIDENT",
+  "JOB",
+];
+const resourceIdPattern =
+  /^(?:[a-f\d]{24}|[A-Za-z0-9._:-]{1,200}:[A-Za-z0-9._:-]{1,200})$/i;
+const userIdPattern = /^[a-f\d]{24}$/i;
+const sessionIdPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export default function PlatformAuditProjection({
+  permissions,
+}: {
+  permissions: readonly PlatformPermission[];
+}) {
   const t = useTranslations("platformConsole");
   const allowed = permissions.includes("platform.audit.read");
-  const audit = usePlatformAuditQuery(allowed);
+  const [page, setPage] = useState(1);
   const [action, setAction] = useState("");
   const [actor, setActor] = useState("");
   const [resource, setResource] = useState("");
+  const [resourceId, setResourceId] = useState("");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
-  const filtered = useMemo(() => (audit.data ?? []).filter((event) => {
-    const time = Date.parse(event.occurredAt);
-    return (!action || event.action.toLowerCase().includes(action.trim().toLowerCase())) &&
-      (!actor || event.actorUserId.toLowerCase().includes(actor.trim().toLowerCase())) &&
-      (!resource || event.targetResource.toLowerCase().includes(resource.trim().toLowerCase())) &&
-      (!from || time >= new Date(`${from}T00:00:00`).getTime()) &&
-      (!to || time <= new Date(`${to}T23:59:59.999`).getTime());
-  }), [action, actor, audit.data, from, resource, to]);
+  const [selectedEventId, setSelectedEventId] = useState("");
+  const actorFilter = userIdPattern.test(actor.trim())
+    ? actor.trim()
+    : undefined;
+  const resourceIdFilter =
+    (resource === "SESSION" && sessionIdPattern.test(resourceId.trim())) ||
+    resourceIdPattern.test(resourceId.trim())
+      ? resourceId.trim()
+      : undefined;
+  const audit = usePlatformAuditEventsQuery(
+    {
+      page,
+      pageSize: 25,
+      action: action || undefined,
+      actorUserId: actorFilter,
+      resourceType: resource || undefined,
+      resourceId: resourceIdFilter,
+      from: from ? new Date(`${from}T00:00:00.000Z`).toISOString() : undefined,
+      to: to ? new Date(`${to}T23:59:59.999Z`).toISOString() : undefined,
+    },
+    allowed,
+  );
+  const detail = usePlatformAuditEventQuery(
+    selectedEventId,
+    allowed && Boolean(selectedEventId),
+  );
+  const history = usePlatformAuditResourceHistoryQuery(
+    detail.data?.resourceType ?? "",
+    detail.data?.resourceId ?? "",
+    allowed && Boolean(detail.data),
+  );
+  const events = audit.data?.data ?? [];
+
+  const getActionBadgeColor = (actionName: string) =>
+    actionName.includes("create")
+      ? "bg-brand-50 text-brand-700 ring-1 ring-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300"
+      : actionName.includes("suspend") ||
+          actionName.includes("revoke") ||
+          actionName.includes("cancel")
+        ? "bg-amber-50 text-amber-700 ring-1 ring-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300"
+        : "bg-gray-100 text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700";
 
   return (
-    <section className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-        <div><h3 className="font-semibold text-gray-900 dark:text-white">{t("audit.title")}</h3><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("audit.boundedNote")}</p></div>
-        <Button variant="outline" size="sm" disabled={!allowed || audit.isFetching} onClick={() => void audit.refetch()}>{audit.isFetching ? t("refreshing") : t("refresh")}</Button>
-      </div>
-      {!allowed ? <p role="status" className="px-5 py-5 text-sm text-gray-500 dark:text-gray-400">{t("audit.permissionNeeded")}</p> : audit.isError ? <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5" role="alert"><p className="text-sm text-error-600 dark:text-error-400">{t("errors.audit")}</p><button type="button" onClick={() => void audit.refetch()} className="text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div> : audit.isPending ? <p className="px-5 py-8 text-sm text-gray-500" role="status">{t("audit.loading")}</p> : (
-        <>
-          <div className="grid gap-3 border-b border-gray-100 p-5 sm:grid-cols-2 xl:grid-cols-5 dark:border-gray-800">
-            <FilterInput label={t("audit.filterAction")} value={action} onChange={setAction} />
-            <FilterInput label={t("audit.filterActor")} value={actor} onChange={setActor} />
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">{t("audit.filterResource")}<select value={resource} onChange={(event) => setResource(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white"><option value="">{t("audit.allResources")}</option><option value="ORGANIZATION">ORGANIZATION</option><option value="ORGANIZATION_MEMBERSHIP">ORGANIZATION_MEMBERSHIP</option><option value="PLATFORM_AUTHORITY">PLATFORM_AUTHORITY</option></select></label>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">{t("audit.from")}<input type="date" value={from} onChange={(event) => setFrom(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white" /></label>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">{t("audit.to")}<input type="date" value={to} onChange={(event) => setTo(event.target.value)} className="mt-1.5 h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white" /></label>
+    <div className="space-y-6">
+      <section className="overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+          <div>
+            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+              {t("audit.title")}
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {t("audit.boundedNote")}
+            </p>
           </div>
-          <p className="px-5 pt-4 text-xs text-gray-500 dark:text-gray-400">{t("audit.localFilterNote", { count: audit.data?.length ?? 0, filtered: filtered.length })}</p>
-          {filtered.length ? <div className="mt-3 overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-5 py-3 text-start font-medium">{t("table.event")}</th><th className="px-5 py-3 text-start font-medium">{t("table.target")}</th><th className="px-5 py-3 text-start font-medium">{t("table.actor")}</th><th className="px-5 py-3 text-start font-medium">{t("table.time")}</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{filtered.map((row, index) => <tr key={`${row.action}-${row.targetResourceId}-${row.occurredAt}-${index}`}><td className="px-5 py-3 font-medium text-gray-800 dark:text-gray-100">{row.action}</td><td className="px-5 py-3"><p>{row.targetResource}</p><p className="text-xs text-gray-500">{row.targetResourceId}</p></td><td className="px-5 py-3 font-mono text-xs text-gray-500">{row.actorUserId}</td><td className="px-5 py-3 text-gray-500">{new Date(row.occurredAt).toLocaleString()}</td></tr>)}</tbody></table></div> : <div className="px-5 py-8 text-center"><h4 className="font-semibold text-gray-800 dark:text-gray-100">{audit.data?.length ? t("audit.noFilterMatches") : t("audit.emptyTitle")}</h4><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{audit.data?.length ? t("audit.noFilterMatchesHelp") : t("audit.emptyBody")}</p></div>}
-        </>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!allowed || audit.isFetching}
+            onClick={() => void audit.refetch()}
+          >
+            {audit.isFetching ? t("refreshing") : t("refresh")}
+          </Button>
+        </div>
+        {!allowed ? (
+          <p
+            role="status"
+            className="px-5 py-8 text-center text-xs text-gray-500"
+          >
+            {t("audit.permissionNeeded")}
+          </p>
+        ) : audit.isError ? (
+          <div
+            className="flex flex-wrap items-center justify-between gap-3 px-5 py-6"
+            role="alert"
+          >
+            <p className="text-xs text-rose-600">{t("errors.audit")}</p>
+            <button
+              type="button"
+              onClick={() => void audit.refetch()}
+              className="text-xs font-semibold text-brand-600 hover:underline"
+            >
+              {t("retry")}
+            </button>
+          </div>
+        ) : audit.isPending ? (
+          <div>
+            <p role="status" className="sr-only">
+              {t("audit.loading")}
+            </p>
+            <TableSkeleton rows={5} columns={4} />
+          </div>
+        ) : (
+          <>
+            <div className="dark:bg-gray-850/40 grid gap-3 border-b border-gray-100 bg-gray-50/50 p-4 sm:grid-cols-2 xl:grid-cols-4 dark:border-gray-800">
+              <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                {t("audit.filterAction")}
+                <select
+                  value={action}
+                  onChange={(e) => {
+                    setAction(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <option value="">All actions</option>
+                  {auditActions.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <FilterInput
+                label={t("audit.filterActor")}
+                value={actor}
+                onChange={(v) => {
+                  setActor(v);
+                  setPage(1);
+                }}
+                placeholder="User ObjectId"
+              />
+              <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                {t("audit.filterResource")}
+                <select
+                  value={resource}
+                  onChange={(e) => {
+                    setResource(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs dark:border-gray-700 dark:bg-gray-900"
+                >
+                  <option value="">All resources</option>
+                  {resourceTypes.map((item) => (
+                    <option key={item}>{item}</option>
+                  ))}
+                </select>
+              </label>
+              <FilterInput
+                label="Resource ID"
+                value={resourceId}
+                onChange={(v) => {
+                  setResourceId(v);
+                  setPage(1);
+                }}
+                placeholder="ObjectId or queue:job"
+              />
+              <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                {t("audit.from")}
+                <input
+                  type="date"
+                  value={from}
+                  onChange={(e) => {
+                    setFrom(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs dark:border-gray-700 dark:bg-gray-900"
+                />
+              </label>
+              <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                {t("audit.to")}
+                <input
+                  type="date"
+                  value={to}
+                  onChange={(e) => {
+                    setTo(e.target.value);
+                    setPage(1);
+                  }}
+                  className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs dark:border-gray-700 dark:bg-gray-900"
+                />
+              </label>
+            </div>
+            {((actor && !actorFilter) || (resourceId && !resourceIdFilter)) && (
+              <p className="px-5 pt-3 text-[11px] text-amber-700" role="status">
+                Actor/resource ID filters are sent only after they match the BE
+                identifier format.
+              </p>
+            )}
+            {events.length ? (
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-xs">
+                  <thead className="border-b border-gray-100 bg-gray-50/75 text-[11px] font-semibold text-gray-500 uppercase dark:border-gray-800 dark:bg-gray-800/40">
+                    <tr>
+                      <th className="px-5 py-3 text-start">
+                        {t("table.event")}
+                      </th>
+                      <th className="px-5 py-3 text-start">
+                        {t("table.target")}
+                      </th>
+                      <th className="px-5 py-3 text-start">
+                        {t("table.actor")}
+                      </th>
+                      <th className="px-5 py-3 text-end">{t("table.time")}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                    {events.map((row) => (
+                      <tr
+                        key={row.eventId}
+                        className="hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
+                      >
+                        <td className="px-5 py-3.5">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedEventId(row.eventId)}
+                            className={`font-mono inline-flex rounded-md px-2 py-0.5 text-[11px] font-semibold ${getActionBadgeColor(row.action)}`}
+                          >
+                            {row.action}
+                          </button>
+                        </td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-semibold text-gray-800 dark:text-gray-200">
+                            {row.resourceType}
+                          </p>
+                          <p className="font-mono text-[10px] text-gray-400">
+                            {row.resourceId}
+                          </p>
+                        </td>
+                        <td className="font-mono px-5 py-3.5 text-gray-500">
+                          {row.actorUserId}
+                        </td>
+                        <td className="px-5 py-3.5 text-end text-gray-400">
+                          <time dateTime={row.occurredAt}>
+                            {new Date(row.occurredAt).toLocaleString()}
+                          </time>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <EmptyState
+                title={t("audit.emptyTitle")}
+                body={t("audit.emptyBody")}
+              />
+            )}
+            {audit.data?.pagination && (
+              <PlatformPagination
+                ariaLabel={t("audit.title")}
+                page={audit.data.pagination.page}
+                totalPages={audit.data.pagination.totalPages}
+                totalItems={audit.data.pagination.totalItems}
+                onPageChange={setPage}
+              />
+            )}
+          </>
+        )}
+      </section>
+      {selectedEventId && (
+        <section className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-sm font-bold">Audit event detail</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSelectedEventId("")}
+            >
+              Close
+            </Button>
+          </div>
+          {detail.isPending ? (
+            <TableSkeleton rows={2} columns={3} />
+          ) : detail.isError || !detail.data ? (
+            <p role="alert" className="text-xs text-rose-600">
+              Audit event detail is unavailable.
+            </p>
+          ) : (
+            <>
+              <dl className="grid gap-4 break-words sm:grid-cols-2 lg:grid-cols-4">
+                <Detail label="Action" value={detail.data.action} />
+                <Detail
+                  label="Resource"
+                  value={`${detail.data.resourceType} · ${detail.data.resourceId}`}
+                />
+                <Detail label="Actor" value={detail.data.actorUserId} />
+                <Detail
+                  label="Time"
+                  value={new Date(detail.data.occurredAt).toLocaleString()}
+                />
+                <Detail
+                  label="Request ID"
+                  value={detail.data.requestId ?? "—"}
+                />
+                <Detail label="Reason" value={detail.data.reasonCode ?? "—"} />
+              </dl>
+              {detail.data.changes && (
+                <div className="mt-4">
+                  <h4 className="text-xs font-bold">
+                    Allowed change projection
+                  </h4>
+                  <ul className="mt-2 space-y-1">
+                    {Object.entries(detail.data.changes).map(([key, value]) => (
+                      <li
+                        key={key}
+                        className="font-mono rounded bg-gray-50 p-2 text-[10px] break-all dark:bg-gray-800"
+                      >
+                        {key}: {String(value.from ?? "—")} →{" "}
+                        {String(value.to ?? "—")}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="mt-5 border-t border-gray-100 pt-4 dark:border-gray-800">
+                <h4 className="text-xs font-bold">Resource history</h4>
+                {history.isPending ? (
+                  <p role="status" className="mt-2 text-xs text-gray-500">
+                    Loading history
+                  </p>
+                ) : history.isError ? (
+                  <p role="alert" className="mt-2 text-xs text-gray-500">
+                    Resource history is unavailable.
+                  </p>
+                ) : history.data?.data.length ? (
+                  <ul className="mt-2 space-y-1">
+                    {history.data.data.map((event) => (
+                      <li
+                        key={event.eventId}
+                        className="rounded bg-gray-50 p-2 text-xs dark:bg-gray-800"
+                      >
+                        {event.action} ·{" "}
+                        {new Date(event.occurredAt).toLocaleString()} ·{" "}
+                        {event.actorUserId}
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="mt-2 text-xs text-gray-500">
+                    No resource history was returned.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+        </section>
       )}
-    </section>
+    </div>
   );
 }
 
-function FilterInput({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <label className="block text-xs font-medium text-gray-600 dark:text-gray-300">{label}<input value={value} onChange={(event) => onChange(event.target.value)} maxLength={100} className="mt-1.5 h-10 w-full rounded-lg border border-gray-300 bg-transparent px-3 text-sm text-gray-800 outline-hidden focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white" /></label>;
+function FilterInput({
+  label,
+  value,
+  onChange,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+      {label}
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        maxLength={240}
+        placeholder={placeholder}
+        className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+      />
+    </label>
+  );
+}
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold text-gray-500 uppercase">
+        {label}
+      </dt>
+      <dd className="mt-1 text-xs text-gray-800 dark:text-gray-200">{value}</dd>
+    </div>
+  );
 }
