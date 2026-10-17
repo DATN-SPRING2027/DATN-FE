@@ -17,6 +17,7 @@ export async function forwardBackendRequest(
       request.method === "POST" &&
       [
         "auth/login",
+        "auth/platform/login",
         "auth/password-reset/request",
         "auth/password-reset/confirm",
         "auth/registrations",

@@ -1,0 +1,729 @@
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import PlatformConsole from "./PlatformConsole";
+
+const {
+  routerReplace,
+  pathname,
+  session,
+  organizations,
+  organization,
+  memberships,
+  suspend,
+  createOrganization,
+  lookup,
+  health,
+  audit,
+  logout,
+  organizationListQuery,
+  membershipListQuery,
+} = vi.hoisted(() => ({
+  routerReplace: vi.fn(),
+  pathname: { value: "/platform/memberships" },
+  session: {
+    data: {
+      id: "651a2b3c4d5e6f7a8b9c0d1e",
+      email: "operator@example.test",
+      name: "Platform Operator",
+      context: "PLATFORM",
+      permissions: [
+        "platform.organizations.organization.read",
+        "platform.users.account.read",
+        "platform.memberships.membership.read",
+      ] as string[],
+    },
+    isPending: false,
+    isFetching: false,
+    isError: false,
+    isSuccess: true,
+  },
+  organizations: {
+    data: {
+      data: [
+        {
+          id: "651a2b3c4d5e6f7a8b9c0d21",
+          name: "North Star",
+          slug: "north-star",
+          plan: "FREE",
+          createdAt: "2026-10-01T00:00:00.000Z",
+          updatedAt: "2026-10-02T00:00:00.000Z",
+        },
+      ],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+    },
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  },
+  organization: {
+    data: {
+      id: "651a2b3c4d5e6f7a8b9c0d21",
+      name: "North Star",
+      slug: "north-star",
+      plan: "FREE",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-02T00:00:00.000Z",
+    },
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  },
+  memberships: {
+    data: {
+      data: [
+        {
+          id: "751a2b3c4d5e6f7a8b9c0d21",
+          organizationId: "651a2b3c4d5e6f7a8b9c0d21",
+          userId: "851a2b3c4d5e6f7a8b9c0d21",
+          status: "ACTIVE",
+          version: 2,
+          createdAt: "2026-10-01T00:00:00.000Z",
+          updatedAt: "2026-10-02T00:00:00.000Z",
+          user: {
+            id: "851a2b3c4d5e6f7a8b9c0d21",
+            email: "member@example.test",
+            fullName: "Member One",
+            accountStatus: "ACTIVE",
+          },
+          organizationRoles: ["MEMBER"],
+        },
+      ],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+    },
+    isError: false,
+    isPending: false,
+    refetch: vi.fn(),
+  },
+  suspend: { mutateAsync: vi.fn(), isPending: false },
+  createOrganization: { mutateAsync: vi.fn(), isPending: false },
+  lookup: { mutateAsync: vi.fn(), isPending: false },
+  health: {
+    data: { status: "ok" },
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  },
+  audit: {
+    data: [
+      {
+        action: "organization.create",
+        targetResource: "ORGANIZATION" as const,
+        targetResourceId: "651a2b3c4d5e6f7a8b9c0d21",
+        actorUserId: "651a2b3c4d5e6f7a8b9c0d1e",
+        occurredAt: "2026-10-12T00:00:00.000Z",
+      },
+      {
+        action: "membership.suspend",
+        targetResource: "ORGANIZATION_MEMBERSHIP" as const,
+        targetResourceId: "751a2b3c4d5e6f7a8b9c0d21",
+        actorUserId: "651a2b3c4d5e6f7a8b9c0d1e",
+        occurredAt: "2026-10-13T00:00:00.000Z",
+      },
+    ],
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  },
+  logout: { mutateAsync: vi.fn(), isPending: false },
+  organizationListQuery: vi.fn(),
+  membershipListQuery: vi.fn(),
+}));
+
+const { operationHooks, operationState } = vi.hoisted(() => {
+  const page: {
+    data: unknown[];
+    pagination: {
+      page: number;
+      pageSize: number;
+      totalItems: number;
+      totalPages: number;
+    };
+  } = {
+    data: [],
+    pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+  };
+  const query = {
+    data: page,
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
+  const list = {
+    data: [],
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
+  const mutation = { mutateAsync: vi.fn(), isPending: false };
+  const dashboard = {
+    data: {
+      organizations: { total: 2 },
+      users: { total: 3, active: 2, suspended: 1, pendingInvite: 0 },
+      projects: { total: 4, active: 3, archived: 1 },
+      memberships: {
+        total: 5,
+        active: 3,
+        suspended: 1,
+        pendingInvite: 0,
+        removed: 1,
+      },
+      generatedAt: "2026-10-16T00:00:00.000Z",
+      serviceHealth: {
+        status: "READY",
+        total: 8,
+        ready: 8,
+        degraded: 0,
+        unavailable: 0,
+        lastCheckedAt: "2026-10-16T00:00:00.000Z",
+      },
+      recentOperationalActivity: { availability: "AVAILABLE", items: [] },
+    },
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    isSuccess: true,
+    refetch: vi.fn(),
+  };
+  const auditEvents = {
+    data: page,
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
+  const state = {
+    query,
+    list,
+    dashboard,
+    auditEvents,
+    auditEventsQuery: vi.fn(),
+    operationQuery: vi.fn(),
+  };
+  return {
+    operationState: state,
+    operationHooks: {
+      usePlatformOrganizationInvitationsQuery: vi.fn(() => query),
+      usePlatformChangeOrganizationMetadataMutation: vi.fn(() => mutation),
+      usePlatformDashboardQuery: vi.fn(() => dashboard),
+      usePlatformUsersQuery: vi.fn((...args: unknown[]) => {
+        state.operationQuery("users", ...args);
+        return query;
+      }),
+      usePlatformUserQuery: vi.fn(() => query),
+      usePlatformUserOrganizationsQuery: vi.fn(() => query),
+      usePlatformUserSessionQuery: vi.fn(() => query),
+      usePlatformUserSessionsQuery: vi.fn(() => query),
+      usePlatformChangeUserStatusMutation: vi.fn(() => mutation),
+      usePlatformRevokeSessionMutation: vi.fn(() => mutation),
+      usePlatformProjectsQuery: vi.fn(() => query),
+      usePlatformProjectQuery: vi.fn(() => query),
+      usePlatformChangeProjectMetadataMutation: vi.fn(() => mutation),
+      usePlatformServicesQuery: vi.fn(() => list),
+      usePlatformQueuesQuery: vi.fn(() => list),
+      usePlatformJobsQuery: vi.fn(() => query),
+      usePlatformJobCommandMutation: vi.fn(() => mutation),
+      usePlatformAiOperationsQuery: vi.fn(() => query),
+      usePlatformIntegrationsQuery: vi.fn(() => query),
+      usePlatformIncidentsQuery: vi.fn(() => query),
+      usePlatformIncidentQuery: vi.fn(() => query),
+      usePlatformIncidentHistoryQuery: vi.fn(() => query),
+      usePlatformCreateIncidentMutation: vi.fn(() => mutation),
+      usePlatformIncidentActionMutation: vi.fn(() => mutation),
+      usePlatformRequestTraceQuery: vi.fn(() => query),
+      usePlatformAuditEventsQuery: vi.fn((...args: unknown[]) => {
+        state.auditEventsQuery(...args);
+        return auditEvents;
+      }),
+      usePlatformAuditEventQuery: vi.fn(() => query),
+      usePlatformAuditResourceHistoryQuery: vi.fn(() => query),
+    },
+  };
+});
+
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({
+    href,
+    children,
+    ...props
+  }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+  usePathname: () => pathname.value,
+  useRouter: () => ({ replace: routerReplace }),
+}));
+vi.mock("@/components/common/BrandLogo", () => ({
+  default: () => <span>Continuum</span>,
+}));
+vi.mock("@/components/common/ThemeToggleButton", () => ({
+  ThemeToggleButton: () => null,
+}));
+vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
+  usePlatformSessionQuery: () => session,
+  usePlatformLogoutMutation: () => logout,
+  usePlatformOrganizationsQuery: (...args: unknown[]) => {
+    organizationListQuery(...args);
+    return organizations;
+  },
+  usePlatformOrganizationQuery: () => organization,
+  usePlatformMembershipsQuery: (...args: unknown[]) => {
+    membershipListQuery(...args);
+    return memberships;
+  },
+  usePlatformUserLookupMutation: () => lookup,
+  useCreatePlatformOrganizationMutation: () => createOrganization,
+  useSuspendPlatformMembershipMutation: () => suspend,
+  usePlatformHealthQuery: () => health,
+  usePlatformAuditQuery: () => audit,
+}));
+vi.mock("@/lib/queries/platform/usePlatformOperations", () => operationHooks);
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string, values?: Record<string, string>) =>
+    values ? `${key} ${Object.values(values).join(" ")}` : key,
+}));
+
+describe("PlatformConsole", () => {
+  beforeEach(() => {
+    routerReplace.mockReset();
+    pathname.value = "/platform/memberships";
+    session.isPending = false;
+    session.isFetching = false;
+    session.isError = false;
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.users.account.read",
+      "platform.memberships.membership.read",
+    ];
+    suspend.mutateAsync.mockReset().mockResolvedValue({});
+    lookup.mutateAsync.mockReset();
+    organizations.refetch.mockReset();
+    organizations.isError = false;
+    organizations.isPending = false;
+    organizations.data.pagination.page = 1;
+    organizations.data.pagination.totalPages = 1;
+    organizationListQuery.mockClear();
+    organization.isError = false;
+    organization.isPending = false;
+    memberships.refetch.mockReset();
+    memberships.isError = false;
+    memberships.isPending = false;
+    memberships.data.pagination.page = 1;
+    memberships.data.pagination.totalPages = 1;
+    membershipListQuery.mockClear();
+    audit.data = [];
+    audit.isError = false;
+    audit.isPending = false;
+    audit.refetch.mockReset();
+    health.isError = false;
+    health.isPending = false;
+    operationState.auditEvents.data = {
+      data: [],
+      pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+    };
+    operationState.auditEvents.isError = false;
+    operationState.auditEvents.isPending = false;
+    operationState.auditEvents.refetch.mockReset();
+    operationState.auditEventsQuery.mockClear();
+    operationState.operationQuery.mockClear();
+  });
+
+  it("renders only the allowed Organization and Membership actions", () => {
+    pathname.value = "/platform/organizations";
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "pages.organizations.title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("North Star")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "organizations.create" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Configuration|Export|RAG|Job queue/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not leave an invalid Organization route in a permanent loading state", () => {
+    pathname.value = "/platform/organizations/not-an-object-id";
+    organization.isPending = true;
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByText("errors.invalidOrganizationId"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("loadingOrganizationDetail"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides cached console data as soon as the Platform session probe fails", () => {
+    session.isError = true;
+    render(<PlatformConsole />);
+
+    expect(screen.getByText("sessionChecking")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "signOut" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+  });
+
+  it("explains when Organization membership access is not granted", () => {
+    session.data.permissions = ["platform.organizations.organization.read"];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByText("memberships.readPermissionNeeded"),
+    ).toBeInTheDocument();
+    expect(membershipListQuery).toHaveBeenLastCalledWith(
+      "651a2b3c4d5e6f7a8b9c0d21",
+      false,
+      1,
+    );
+  });
+
+  it("requests the next Organization directory page through the Platform query", () => {
+    pathname.value = "/platform/organizations";
+    organizations.data.pagination.totalPages = 2;
+    render(<PlatformConsole />);
+
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "organizations.directory" }),
+      ).getByRole("button", { name: "next" }),
+    );
+    expect(organizationListQuery).toHaveBeenLastCalledWith(true, 2);
+  });
+
+  it("shows a confirmation before the permission-gated membership suspend action", async () => {
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    render(<PlatformConsole />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "memberships.suspend" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "memberships.confirmTitle",
+    });
+    expect(dialog).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/memberships.confirmGuard/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "memberships.confirmSuspend",
+      }),
+    );
+    await waitFor(() =>
+      expect(suspend.mutateAsync).toHaveBeenCalledWith({
+        membershipId: "751a2b3c4d5e6f7a8b9c0d21",
+        expectedMembershipVersion: 2,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+  });
+
+  it("keeps every module discoverable while withholding ungranted operation controls", () => {
+    session.data.permissions = ["platform.memberships.membership.read"];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getAllByRole("link", { name: "navigation.services" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("link", { name: "navigation.audit" }),
+    ).toHaveLength(2);
+    expect(
+      screen.getAllByRole("link", { name: "navigation.dashboard" }),
+    ).toHaveLength(2);
+    expect(
+      screen.queryByRole("button", { name: "organizations.create" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders all requested domain routes in grouped navigation", () => {
+    render(<PlatformConsole />);
+
+    for (const label of [
+      "navigation.dashboard",
+      "navigation.organizations",
+      "navigation.users",
+      "navigation.memberships",
+      "navigation.projects",
+      "navigation.security",
+      "navigation.services",
+      "navigation.jobs",
+      "navigation.ai",
+      "navigation.integrations",
+      "navigation.incidents",
+      "navigation.diagnostics",
+      "navigation.audit",
+      "navigation.account",
+    ]) {
+      expect(screen.getAllByRole("link", { name: label })).toHaveLength(2);
+    }
+  });
+
+  it("connects the Users route to the scoped Platform API instead of the organization-creation lookup", () => {
+    pathname.value = "/platform/users";
+    session.data.permissions = ["platform.users.account.read"];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "pages.users.title" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("users.email")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "users.lookup" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("No users found")).toBeInTheDocument();
+    expect(operationState.operationQuery).toHaveBeenCalledWith(
+      "users",
+      expect.objectContaining({ page: 1, pageSize: 25 }),
+      true,
+    );
+    expect(lookup.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("limits exact active-account lookup to Organization creation", () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = [
+      "organization.create",
+      "platform.users.account.read",
+    ];
+    render(<PlatformConsole />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "organizations.create" }),
+    );
+
+    expect(
+      screen.getByLabelText("organizations.firstAdminEmail"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "organizations.findFirstAdmin" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("users.email")).not.toBeInTheDocument();
+  });
+
+  it("requires the exact account-read permission before showing first-ADMIN lookup", () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = ["organization.create"];
+    render(<PlatformConsole />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "organizations.create" }),
+    );
+
+    expect(
+      screen.queryByLabelText("organizations.firstAdminEmail"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "organizations.findFirstAdmin" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("users.accountLookupPermissionNeeded"),
+    ).toBeInTheDocument();
+  });
+
+  it("connects the Projects route only when its Platform read permission is present", () => {
+    pathname.value = "/platform/projects";
+    session.data.permissions = ["platform.projects.project.read"];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "pages.projects.title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("No projects")).toBeInTheDocument();
+    expect(operationHooks.usePlatformProjectsQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 25 }),
+      true,
+    );
+  });
+
+  it("keeps authorization boundaries visible across operations routes", () => {
+    const { rerender } = render(<PlatformConsole />);
+    const blockedAreas = [
+      [
+        "/platform/jobs",
+        "Your Platform session does not grant platform.jobs.job.read.",
+      ],
+      [
+        "/platform/ai",
+        "Your Platform session does not grant platform.ai.operations.read.",
+      ],
+      [
+        "/platform/integrations",
+        "Your Platform session does not grant platform.integrations.integration.read.",
+      ],
+      [
+        "/platform/incidents",
+        "Your Platform session does not grant platform.incidents.incident.read.",
+      ],
+      [
+        "/platform/diagnostics",
+        "Your Platform session does not grant platform.diagnostics.trace.read.",
+      ],
+    ] as const;
+
+    for (const [path, expectedMessage] of blockedAreas) {
+      pathname.value = path;
+      rerender(<PlatformConsole />);
+      expect(screen.getByText(expectedMessage)).toBeInTheDocument();
+    }
+  });
+
+  it("shows only the current validated identity and permission projection on Account", () => {
+    pathname.value = "/platform/account";
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "account.identityTitle" }),
+    ).toBeInTheDocument();
+    expect(
+      within(screen.getByRole("main")).getByText("operator@example.test"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("platform.organizations.organization.read"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/eyJ[A-Za-z0-9_-]+\./)).not.toBeInTheDocument();
+  });
+
+  it("sends exact Audit filters to the paginated BE projection", () => {
+    pathname.value = "/platform/audit";
+    session.data.permissions = ["platform.audit.read"];
+    operationState.auditEvents.data = {
+      data: [
+        {
+          eventId: "event-safe-1",
+          occurredAt: "2026-10-13T00:00:00.000Z",
+          actorUserId: "651a2b3c4d5e6f7a8b9c0d1e",
+          action: "platform.project.metadata.changed",
+          resourceType: "PROJECT",
+          resourceId: "751a2b3c4d5e6f7a8b9c0d21",
+          scope: "PLATFORM",
+          result: "SUCCESS",
+        },
+      ],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    };
+    render(<PlatformConsole />);
+
+    fireEvent.change(screen.getByLabelText("audit.filterAction"), {
+      target: { value: "platform.project.metadata.changed" },
+    });
+    expect(
+      screen.getAllByText("platform.project.metadata.changed").length,
+    ).toBeGreaterThan(0);
+    expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 25,
+        action: "platform.project.metadata.changed",
+      }),
+      true,
+    );
+  });
+
+  it("renders dashboard aggregates from the Platform dashboard API", () => {
+    pathname.value = "/platform";
+    session.data.permissions = ["platform.dashboard.summary.read"];
+    audit.data = [];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "pages.dashboard.title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2")).toBeInTheDocument();
+    expect(screen.getByText("2 active · 1 suspended")).toBeInTheDocument();
+    expect(screen.getByText("3 active · 1 archived")).toBeInTheDocument();
+    expect(
+      screen.getAllByText("dashboard.iamHealthDetail").length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("supports membership review on its own route and requires confirmation before suspension", async () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    render(<PlatformConsole />);
+
+    expect(
+      screen.getByRole("heading", { name: "pages.memberships.title" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("memberships.organization")).toHaveValue(
+      "651a2b3c4d5e6f7a8b9c0d21",
+    );
+    expect(screen.getByText("Member One")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "memberships.suspend" }),
+    );
+    const dialog = screen.getByRole("dialog", {
+      name: "memberships.confirmTitle",
+    });
+    expect(dialog).toBeInTheDocument();
+    fireEvent.click(
+      within(dialog).getByRole("button", {
+        name: "memberships.confirmSuspend",
+      }),
+    );
+    await waitFor(() =>
+      expect(suspend.mutateAsync).toHaveBeenCalledWith({
+        membershipId: "751a2b3c4d5e6f7a8b9c0d21",
+        expectedMembershipVersion: 2,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+  });
+
+  it("requests the next membership page for the selected Organization", () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+    ];
+    memberships.data.pagination.totalPages = 2;
+    render(<PlatformConsole />);
+
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "memberships.title" }),
+      ).getByRole("button", { name: "next" }),
+    );
+    expect(membershipListQuery).toHaveBeenLastCalledWith(
+      "651a2b3c4d5e6f7a8b9c0d21",
+      true,
+      2,
+    );
+  });
+
+  it("offers a retry when the bounded Audit API fails", () => {
+    pathname.value = "/platform/audit";
+    session.data.permissions = ["platform.audit.read"];
+    operationState.auditEvents.isError = true;
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(operationState.auditEvents.refetch).toHaveBeenCalledOnce();
+  });
+});
