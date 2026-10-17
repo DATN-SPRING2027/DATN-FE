@@ -25,6 +25,8 @@
     "refreshing": "Refreshing…",
     "retry": "Try again",
     "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
     "pagination": {
       "summary": "Page {page} of {totalPages} · {totalItems} total records",
       "previous": "Previous",
@@ -68,7 +70,7 @@
       },
       "users": {
         "title": "User management",
-        "description": "The exact active-account lookup is available only when choosing the first Organization ADMIN. This Platform API has no general User directory or lifecycle actions."
+        "description": "Browse user accounts with search, status filters, and pagination. Select Details to view permitted account, membership, permission, and session information. Sensitive authentication data is not exposed."
       },
       "memberships": {
         "title": "Membership management",
@@ -131,7 +133,7 @@
       "organizationInvitations": "Invite, resend, or revoke an invitation",
       "organizationMembershipRoles": "Add/remove members or change Organization roles",
       "userTitle": "User directory and lifecycle controls are unavailable",
-      "userDescription": "This screen does not provide a user list, detail, status changes, effective membership/permission view, or user-session management. The exact active-account lookup is limited to choosing the first ADMIN during Organization creation.",
+      "userDescription": "Organization creation only searches for an active account to assign as the first ADMIN. Use User management to browse accounts and review permitted details.",
       "userDependency": "A Platform-scoped user directory and lifecycle contract with bounded fields, exact permissions, audit behavior, and QA coverage.",
       "userDirectory": "User directory and search/filter",
       "userDetail": "User detail and effective membership/role/permission view",
@@ -254,6 +256,7 @@
       "signOut": "Could not confirm sign out. Try again.",
       "userLookup": "No eligible active account was found. Check the email and try again.",
       "organizationCreate": "Organization creation was not confirmed. Review the details and retry.",
+      "organizationUpdate": "Could not update Organization metadata. Review the details and retry.",
       "organizationList": "Organizations could not be loaded.",
       "organizationDetail": "This Organization could not be loaded.",
       "invalidOrganizationId": "The Organization link is invalid. Return to the directory and choose an Organization.",

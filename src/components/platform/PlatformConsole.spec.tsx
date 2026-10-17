@@ -25,7 +25,7 @@ const {
   membershipListQuery,
 } = vi.hoisted(() => ({
   routerReplace: vi.fn(),
-  pathname: { value: "/platform/organizations/651a2b3c4d5e6f7a8b9c0d21" },
+  pathname: { value: "/platform/memberships" },
   session: {
     data: {
       id: "651a2b3c4d5e6f7a8b9c0d1e",
@@ -298,7 +298,7 @@ vi.mock("next-intl", () => ({
 describe("PlatformConsole", () => {
   beforeEach(() => {
     routerReplace.mockReset();
-    pathname.value = "/platform/organizations/651a2b3c4d5e6f7a8b9c0d21";
+    pathname.value = "/platform/memberships";
     session.isPending = false;
     session.isFetching = false;
     session.isError = false;
@@ -341,16 +341,13 @@ describe("PlatformConsole", () => {
   });
 
   it("renders only the allowed Organization and Membership actions", () => {
+    pathname.value = "/platform/organizations";
     render(<PlatformConsole />);
 
     expect(
       screen.getByRole("heading", { name: "pages.organizations.title" }),
     ).toBeInTheDocument();
-    expect(screen.getAllByText("North Star")).toHaveLength(2);
-    expect(screen.getByText("Member One")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "memberships.suspend" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByText("North Star")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "organizations.create" }),
     ).not.toBeInTheDocument();
@@ -513,6 +510,10 @@ describe("PlatformConsole", () => {
     ];
     render(<PlatformConsole />);
 
+    fireEvent.click(
+      screen.getByRole("button", { name: "organizations.create" }),
+    );
+
     expect(
       screen.getByLabelText("organizations.firstAdminEmail"),
     ).toBeInTheDocument();
@@ -526,6 +527,10 @@ describe("PlatformConsole", () => {
     pathname.value = "/platform/organizations";
     session.data.permissions = ["organization.create"];
     render(<PlatformConsole />);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "organizations.create" }),
+    );
 
     expect(
       screen.queryByLabelText("organizations.firstAdminEmail"),
