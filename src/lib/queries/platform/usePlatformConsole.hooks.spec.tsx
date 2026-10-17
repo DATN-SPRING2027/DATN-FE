@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
-import { useCreatePlatformOrganizationMutation } from "./usePlatformConsole";
+import {
+  useCreatePlatformOrganizationMutation,
+  usePlatformMembershipsQuery,
+  usePlatformOrganizationQuery,
+  usePlatformOrganizationsQuery,
+} from "./usePlatformConsole";
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
   const original = await importOriginal<typeof import("@/lib/api-client")>();
@@ -59,5 +64,54 @@ describe("useCreatePlatformOrganizationMutation", () => {
     expect(new Headers(options?.headers).get("X-CSRF-Token")).toBe(
       "csrf-test-token",
     );
+  });
+});
+
+describe("Platform paginated list queries", () => {
+  beforeEach(() => {
+    mockedApiClient.mockReset().mockResolvedValue({
+      data: [],
+      pagination: { page: 2, pageSize: 100, totalItems: 205, totalPages: 3 },
+    });
+  });
+
+  it("requests the selected Organization directory page", async () => {
+    const { result } = renderHook(() => usePlatformOrganizationsQuery(true, 2), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApiClient).toHaveBeenCalledWith(
+      "/iam/platform/organizations?page=2&pageSize=100",
+      { cache: "no-store" },
+    );
+  });
+
+  it("requests the selected membership page within one Organization", async () => {
+    const organizationId = "651a2b3c4d5e6f7a8b9c0d21";
+    const { result } = renderHook(() => usePlatformMembershipsQuery(organizationId, true, 3), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(mockedApiClient).toHaveBeenCalledWith(
+      `/iam/platform/organizations/${organizationId}/memberships?page=3&pageSize=100`,
+      { cache: "no-store" },
+    );
+  });
+});
+
+describe("Platform Organization detail query", () => {
+  beforeEach(() => {
+    mockedApiClient.mockReset();
+  });
+
+  it("does not send a request for an invalid Organization ID", async () => {
+    const { result } = renderHook(() => usePlatformOrganizationQuery("not-an-object-id", true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
+    expect(mockedApiClient).not.toHaveBeenCalled();
   });
 });

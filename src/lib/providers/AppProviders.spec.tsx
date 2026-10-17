@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useUpdateUserMutation, useUsersQuery } from "@/lib/queries/users/useUsers";
 import { AppProviders } from "./AppProviders";
+import { usePlatformOrganizationsQuery, usePlatformSessionQuery } from "@/lib/queries/platform/usePlatformConsole";
 
 function ProtectedScreen() {
   const currentUser = useCurrentUserQuery();
@@ -30,6 +31,17 @@ function EditableScreen() {
   );
 }
 
+function PlatformSessionScreen() {
+  const session = usePlatformSessionQuery();
+  return <span>{session.isError ? "platform-session-error" : "platform-session-loading"}</span>;
+}
+
+function PlatformDirectoryScreen() {
+  const session = usePlatformSessionQuery();
+  const organizations = usePlatformOrganizationsQuery(Boolean(session.data));
+  return <span>{session.isError ? "platform-session-error" : organizations.isError ? "platform-directory-error" : "platform-directory-loading"}</span>;
+}
+
 describe("AppProviders", () => {
   afterEach(() => { vi.restoreAllMocks(); focusManager.setFocused(undefined); onlineManager.setOnline(true); });
 
@@ -49,6 +61,45 @@ describe("AppProviders", () => {
       await new Promise((resolve) => setTimeout(resolve, 30));
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps a failed Platform session probe terminal instead of looping after 401/403", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const isRefresh = String(input).endsWith("/auth/refresh");
+      return new Response(JSON.stringify({ code: isRefresh ? "AUTH_CSRF_INVALID" : "AUTHENTICATION_FAILED" }), {
+        status: isRefresh ? 403 : 401,
+      });
+    });
+
+    render(<AppProviders><PlatformSessionScreen /></AppProviders>);
+
+    await waitFor(() => expect(screen.getByText("platform-session-error")).toBeInTheDocument());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("rechecks Platform identity once after a protected Platform endpoint loses its session", async () => {
+    let platformMeCalls = 0;
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.endsWith("/auth/platform/me")) {
+        platformMeCalls += 1;
+        return new Response(JSON.stringify(platformMeCalls === 1
+          ? { id: "651a2b3c4d5e6f7a8b9c0d21", email: "operator@example.test", name: "Operator", context: "PLATFORM", permissions: ["platform.organizations.organization.read"] }
+          : { code: "AUTHENTICATION_FAILED" }), { status: platformMeCalls === 1 ? 200 : 401 });
+      }
+      if (url.includes("/iam/platform/organizations")) {
+        return new Response(JSON.stringify({ code: "AUTHENTICATION_FAILED" }), { status: 401 });
+      }
+      return new Response(JSON.stringify({ code: "AUTH_CSRF_INVALID" }), { status: 403 });
+    });
+
+    render(<AppProviders><PlatformDirectoryScreen /></AppProviders>);
+
+    await waitFor(() => expect(screen.getByText("platform-session-error")).toBeInTheDocument());
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
+    expect(platformMeCalls).toBe(2);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
   });
 
   it("rechecks a successful /auth/me session after a Users 401", async () => {

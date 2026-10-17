@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, apiClient } from "@/lib/api-client";
+import { platformSessionQueryKey } from "./platform-session.key";
 
 export const platformPermissions = [
   "organization.create",
@@ -223,10 +224,12 @@ function csrfHeaders(idempotencyKey?: string): Headers {
 
 export const platformKeys = {
   all: ["platform-console"] as const,
-  session: () => [...platformKeys.all, "session"] as const,
+  session: () => platformSessionQueryKey,
   organizations: () => [...platformKeys.all, "organizations"] as const,
+  organizationsPage: (page: number) => [...platformKeys.organizations(), page] as const,
   organization: (id: string) => [...platformKeys.all, "organization", id] as const,
   memberships: (id: string) => [...platformKeys.all, "organization", id, "memberships"] as const,
+  membershipsPage: (id: string, page: number) => [...platformKeys.memberships(id), page] as const,
   health: () => [...platformKeys.all, "health"] as const,
   audit: () => [...platformKeys.all, "audit"] as const,
 };
@@ -257,6 +260,7 @@ export function usePlatformSessionQuery() {
 export function usePlatformLoginMutation() {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: ["login", "platform"],
     mutationFn: (credentials: Readonly<{ email: string; password: string }>) =>
       apiClient<{ context: "PLATFORM"; user: { id: string; email: string; name: string } }>("/auth/platform/login", {
         method: "POST",
@@ -267,10 +271,10 @@ export function usePlatformLoginMutation() {
   });
 }
 
-export function usePlatformOrganizationsQuery(enabled: boolean) {
+export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
   return useQuery({
-    queryKey: platformKeys.organizations(),
-    queryFn: async () => parsePage(await apiClient<unknown>("/iam/platform/organizations?page=1&pageSize=100", { cache: "no-store" }), parseOrganization),
+    queryKey: platformKeys.organizationsPage(page),
+    queryFn: async () => parsePage(await apiClient<unknown>(`/iam/platform/organizations?page=${page}&pageSize=100`, { cache: "no-store" }), parseOrganization),
     enabled,
     retry: false,
     staleTime: 15_000,
@@ -288,6 +292,7 @@ export function usePlatformOrganizationQuery(id: string, enabled: boolean) {
 
 export function usePlatformUserLookupMutation() {
   return useMutation({
+    mutationKey: [...platformKeys.all, "user-lookup"],
     mutationFn: async (email: string) => parsePlatformUser(await apiClient<unknown>("/iam/platform/users/lookup", {
       method: "POST",
       headers: csrfHeaders(),
@@ -297,11 +302,11 @@ export function usePlatformUserLookupMutation() {
   });
 }
 
-export function usePlatformMembershipsQuery(organizationId: string, enabled: boolean) {
+export function usePlatformMembershipsQuery(organizationId: string, enabled: boolean, page = 1) {
   return useQuery({
-    queryKey: platformKeys.memberships(organizationId),
+    queryKey: platformKeys.membershipsPage(organizationId, page),
     queryFn: async () => parsePage(
-      await apiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=1&pageSize=100`, { cache: "no-store" }),
+      await apiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=${page}&pageSize=100`, { cache: "no-store" }),
       (item) => parseMembership(item, organizationId),
     ),
     enabled: enabled && resourceIdPattern.test(organizationId),
@@ -313,6 +318,7 @@ export function usePlatformMembershipsQuery(organizationId: string, enabled: boo
 export function useSuspendPlatformMembershipMutation(organizationId: string) {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: [...platformKeys.all, "membership-suspend"],
     mutationFn: async (input: Readonly<{ membershipId: string; expectedMembershipVersion: number; reasonCode: "SECURITY_INCIDENT" | "ACCESS_REVIEW" }>) => {
       if (!resourceIdPattern.test(organizationId) || !resourceIdPattern.test(input.membershipId) || !Number.isSafeInteger(input.expectedMembershipVersion) || input.expectedMembershipVersion < 1) throw new ApiError(422, "VALIDATION_FAILED", "Invalid membership operation");
       const idempotencyKey = globalThis.crypto.randomUUID();
@@ -336,6 +342,7 @@ export function useSuspendPlatformMembershipMutation(organizationId: string) {
 export function useCreatePlatformOrganizationMutation() {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: [...platformKeys.all, "organization-create"],
     mutationFn: async (input: Readonly<{ name: string; slug: string; plan: "FREE" | "ENTERPRISE"; firstAdminUserId: string }>) => {
       if (!input.name.trim() || input.name.length > 200 || !/^[a-f\d]{24}$/i.test(input.firstAdminUserId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug) || input.slug.length > 100) throw new ApiError(422, "VALIDATION_FAILED", "Invalid Organization input");
       return parseOrganization(await apiClient<unknown>("/iam/platform/organizations", {
@@ -393,6 +400,7 @@ export function usePlatformAuditQuery(enabled: boolean) {
 export function usePlatformLogoutMutation() {
   const client = useQueryClient();
   return useMutation({
+    mutationKey: ["logout", "platform"],
     mutationFn: () => apiClient<void>("/api/v1/auth/logout", { method: "POST", cache: "no-store" }),
     onSuccess: () => client.clear(),
   });

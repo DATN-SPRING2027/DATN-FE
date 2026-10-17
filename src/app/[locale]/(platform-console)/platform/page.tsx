@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Platform Console | Continuum AI",
-  description: "Manage permitted platform Organization and Membership operations.",
+  description: "Review the Platform administration, security, operations and audit capabilities available to your account.",
 };
 
 export default function PlatformConsolePage() {
