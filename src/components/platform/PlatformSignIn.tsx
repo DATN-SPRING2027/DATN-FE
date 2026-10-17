@@ -20,8 +20,8 @@ export default function PlatformSignIn() {
   const [sessionUnavailable, setSessionUnavailable] = useState(false);
 
   useEffect(() => {
-    if (session.isSuccess && session.data.context === "PLATFORM") router.replace("/platform");
-  }, [router, session.data, session.isSuccess]);
+    if (session.isSuccess && !session.isError && !session.isFetching && session.data?.context === "PLATFORM") router.replace("/platform");
+  }, [router, session.data, session.isError, session.isFetching, session.isSuccess]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

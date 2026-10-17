@@ -6,7 +6,7 @@ import PlatformConsole from "./PlatformConsole";
 const { routerReplace, pathname, session, organizations, organization, memberships, suspend, createOrganization, lookup, health, audit, logout, organizationListQuery, membershipListQuery } = vi.hoisted(() => ({
   routerReplace: vi.fn(),
   pathname: { value: "/platform/organizations/651a2b3c4d5e6f7a8b9c0d21" },
-  session: { data: { id: "651a2b3c4d5e6f7a8b9c0d1e", email: "operator@example.test", name: "Platform Operator", context: "PLATFORM", permissions: ["platform.organizations.organization.read", "platform.users.account.read", "platform.memberships.membership.read"] as string[] }, error: null as unknown, refetch: vi.fn(), isPending: false, isFetching: false, isError: false, isSuccess: true },
+  session: { data: { id: "651a2b3c4d5e6f7a8b9c0d1e", email: "operator@example.test", name: "Platform Operator", context: "PLATFORM", permissions: ["platform.organizations.organization.read", "platform.users.account.read", "platform.memberships.membership.read"] as string[] }, dataUpdatedAt: 1, error: null as unknown, refetch: vi.fn(), isPending: false, isFetching: false, isError: false, isSuccess: true },
   organizations: { data: { data: [{ id: "651a2b3c4d5e6f7a8b9c0d21", name: "North Star", slug: "north-star", plan: "FREE", createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z" }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } }, isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   organization: { data: { id: "651a2b3c4d5e6f7a8b9c0d21", name: "North Star", slug: "north-star", plan: "FREE", createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z" }, isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   memberships: { data: { data: [{ id: "751a2b3c4d5e6f7a8b9c0d21", organizationId: "651a2b3c4d5e6f7a8b9c0d21", userId: "851a2b3c4d5e6f7a8b9c0d21", status: "ACTIVE", version: 2, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z", user: { id: "851a2b3c4d5e6f7a8b9c0d21", email: "member@example.test", fullName: "Member One", accountStatus: "ACTIVE" }, organizationRoles: ["MEMBER"] }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } }, isError: false, isPending: false, refetch: vi.fn() },
@@ -42,17 +42,28 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
   usePlatformAuditQuery: () => audit,
 }));
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, values?: Record<string, string>) =>
-    values ? `${key} ${Object.values(values).join(" ")}` : key,
+  useTranslations: (namespace?: string) => (key: string, values?: Record<string, string>) => {
+    const translatedKey = namespace === "organizationMembers" ? `${namespace}.${key}` : key;
+    return values ? `${translatedKey} ${Object.values(values).join(" ")}` : translatedKey;
+  },
 }));
 
 describe("PlatformConsole", () => {
   beforeEach(() => {
     routerReplace.mockReset();
     pathname.value = "/platform/organizations/651a2b3c4d5e6f7a8b9c0d21";
+    session.data = {
+      id: "651a2b3c4d5e6f7a8b9c0d1e",
+      email: "operator@example.test",
+      name: "Platform Operator",
+      context: "PLATFORM",
+      permissions: [],
+    };
     session.isPending = false;
     session.isFetching = false;
     session.isError = false;
+    session.isSuccess = true;
+    session.dataUpdatedAt = 1;
     session.error = null;
     session.refetch.mockReset();
     logout.mutateAsync.mockReset().mockResolvedValue(undefined);
@@ -62,10 +73,12 @@ describe("PlatformConsole", () => {
       "platform.memberships.membership.read",
     ];
     suspend.mutateAsync.mockReset().mockResolvedValue({});
+    suspend.isPending = false;
     lookup.mutateAsync.mockReset();
     organizations.refetch.mockReset();
     organizations.isError = false;
     organizations.isPending = false;
+    Reflect.set(organizations, "error", null);
     organizations.data.pagination.page = 1;
     organizations.data.pagination.totalPages = 1;
     organizationListQuery.mockClear();
@@ -76,6 +89,7 @@ describe("PlatformConsole", () => {
     memberships.isPending = false;
     memberships.data.pagination.page = 1;
     memberships.data.pagination.totalPages = 1;
+    memberships.data.data[0].version = 2;
     membershipListQuery.mockClear();
     audit.data = [];
     audit.isError = false;
@@ -113,6 +127,68 @@ describe("PlatformConsole", () => {
     expect(screen.getByText("sessionChecking")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "signOut" })).not.toBeInTheDocument();
     expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+  });
+
+  it("does not render or request privileged data while a cached Platform session is being revalidated", () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+    ];
+    session.isFetching = true;
+    render(<PlatformConsole />);
+
+    expect(screen.getByText("loading")).toBeInTheDocument();
+    expect(screen.queryByText("Platform Operator")).not.toBeInTheDocument();
+    expect(screen.queryByText("North Star")).not.toBeInTheDocument();
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+    expect(organizationListQuery).toHaveBeenLastCalledWith(false, 1);
+    expect(membershipListQuery).toHaveBeenLastCalledWith("651a2b3c4d5e6f7a8b9c0d21", false, 1);
+  });
+
+  it("drops operator-scoped form and lookup state after successful session revalidation", async () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = ["organization.create", "platform.users.account.read"];
+    lookup.mutateAsync.mockResolvedValueOnce({
+      id: "851a2b3c4d5e6f7a8b9c0d21",
+      email: "admin@example.test",
+      fullName: "First Admin",
+      status: "ACTIVE",
+    });
+    const { rerender } = render(<PlatformConsole />);
+
+    fireEvent.change(screen.getByLabelText("organizations.name"), { target: { value: "Draft Organization" } });
+    fireEvent.change(screen.getByLabelText("organizations.slug"), { target: { value: "draft-organization" } });
+    const email = screen.getByLabelText("organizations.firstAdminEmail");
+    fireEvent.change(email, { target: { value: "admin@example.test" } });
+    fireEvent.submit(email.closest("form")!);
+    expect(await screen.findByText(/organizations.selectedAdmin/)).toBeInTheDocument();
+
+    session.data = {
+      id: "951a2b3c4d5e6f7a8b9c0d21",
+      email: "new-operator@example.test",
+      name: "New Operator",
+      context: "PLATFORM",
+      permissions: ["organization.create", "platform.users.account.read"],
+    };
+    session.dataUpdatedAt = 2;
+    rerender(<PlatformConsole />);
+
+    expect(screen.getByLabelText("organizations.name")).toHaveValue("");
+    expect(screen.getByLabelText("organizations.slug")).toHaveValue("");
+    expect(screen.getByLabelText("organizations.firstAdminEmail")).toHaveValue("");
+    expect(screen.queryByText(/organizations.selectedAdmin/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "organizations.create" })).toBeDisabled();
+  });
+
+  it("treats a cleared session as unauthenticated without rendering its former data", async () => {
+    pathname.value = "/platform/memberships";
+    Reflect.set(session, "data", null);
+    render(<PlatformConsole />);
+
+    expect(screen.getByText("sessionChecking")).toBeInTheDocument();
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith("/platform/signin"));
   });
 
   it("keeps transient Platform session failures retryable without redirecting to sign in", async () => {
@@ -206,12 +282,143 @@ describe("PlatformConsole", () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText(/memberships.confirmGuard/)).toBeInTheDocument();
 
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "ACCESS_REVIEW" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
     await waitFor(() => expect(suspend.mutateAsync).toHaveBeenCalledWith({
       membershipId: "751a2b3c4d5e6f7a8b9c0d21",
       expectedMembershipVersion: 2,
       reasonCode: "ACCESS_REVIEW",
     }));
+  });
+
+  it("opens an accessible suspend dialog, traps keyboard focus, closes on Escape, and restores focus", async () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    render(<PlatformConsole />);
+
+    const trigger = screen.getByRole("button", { name: "memberships.suspend" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
+    const reason = within(dialog).getByLabelText("organizationMembers.reason");
+    const cancel = within(dialog).getByRole("button", { name: "cancel" });
+    const confirm = within(dialog).getByRole("button", { name: "memberships.confirmSuspend" });
+
+    expect(dialog).toHaveAttribute("aria-describedby", "suspend-body suspend-guard");
+    await waitFor(() => expect(reason).toHaveFocus());
+    expect(confirm).toBeDisabled();
+
+    confirm.focus();
+    fireEvent.keyDown(dialog, { key: "Tab" });
+    expect(reason).toHaveFocus();
+    reason.focus();
+    fireEvent.keyDown(dialog, { key: "Tab", shiftKey: true });
+    expect(cancel).toHaveFocus();
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(trigger).toHaveFocus());
+    expect(cancel).not.toBeInTheDocument();
+  });
+
+  it("announces a pending suspend and blocks close/duplicate confirmation until it settles", async () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    let resolveSuspend: (() => void) | undefined;
+    suspend.mutateAsync.mockImplementation(() => new Promise((resolve) => { resolveSuspend = () => resolve({}); }));
+    const { rerender } = render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "memberships.suspend" }));
+    const dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "ACCESS_REVIEW" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
+
+    suspend.isPending = true;
+    rerender(<PlatformConsole />);
+    expect(screen.getByRole("status")).toHaveTextContent("memberships.suspending");
+    expect(within(dialog).getByRole("button", { name: "memberships.suspending" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "cancel" })).toBeDisabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.getByRole("dialog", { name: "memberships.confirmTitle" })).toBeInTheDocument();
+
+    await act(async () => resolveSuspend?.());
+    suspend.isPending = false;
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("records the operator-selected Security Incident reason", async () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "memberships.suspend" }));
+    const dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "SECURITY_INCIDENT" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
+
+    await waitFor(() => expect(suspend.mutateAsync).toHaveBeenCalledWith({
+      membershipId: "751a2b3c4d5e6f7a8b9c0d21",
+      expectedMembershipVersion: 2,
+      reasonCode: "SECURITY_INCIDENT",
+    }));
+  });
+
+  it("discards a stale confirmation on 409 and requires a fresh confirmation with the updated version", async () => {
+    pathname.value = "/platform/memberships";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.memberships.membership.read",
+      "platform.memberships.lifecycle.manage",
+    ];
+    suspend.mutateAsync
+      .mockRejectedValueOnce(new ApiError(409, "MEMBERSHIP_VERSION_CONFLICT", "private stale version detail"))
+      .mockResolvedValueOnce({});
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "memberships.suspend" }));
+    let dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "ACCESS_REVIEW" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByText("errors.conflict")).toBeInTheDocument();
+    expect(screen.queryByText("private stale version detail")).not.toBeInTheDocument();
+    expect(suspend.mutateAsync).toHaveBeenCalledTimes(1);
+
+    memberships.data.data[0].version = 3;
+    fireEvent.click(screen.getByRole("button", { name: "memberships.suspend" }));
+    dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
+    expect(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" })).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "ACCESS_REVIEW" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
+
+    await waitFor(() => expect(suspend.mutateAsync).toHaveBeenNthCalledWith(2, {
+      membershipId: "751a2b3c4d5e6f7a8b9c0d21",
+      expectedMembershipVersion: 3,
+      reasonCode: "ACCESS_REVIEW",
+    }));
+  });
+
+  it("shows a safe localized error when a BE-dependent Organization route is unavailable", () => {
+    pathname.value = "/platform/organizations";
+    organizations.isError = true;
+    Reflect.set(organizations, "error", new ApiError(404, "ROUTE_NOT_FOUND", "private backend detail"));
+    render(<PlatformConsole />);
+
+    expect(screen.getByText("errors.notFound")).toBeInTheDocument();
+    expect(screen.queryByText("private backend detail")).not.toBeInTheDocument();
   });
 
   it("keeps every module discoverable while withholding ungranted operation controls", () => {
@@ -376,6 +583,7 @@ describe("PlatformConsole", () => {
     fireEvent.click(screen.getByRole("button", { name: "memberships.suspend" }));
     const dialog = screen.getByRole("dialog", { name: "memberships.confirmTitle" });
     expect(dialog).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText("organizationMembers.reason"), { target: { value: "ACCESS_REVIEW" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "memberships.confirmSuspend" }));
     await waitFor(() => expect(suspend.mutateAsync).toHaveBeenCalledWith({
       membershipId: "751a2b3c4d5e6f7a8b9c0d21",

@@ -265,11 +265,38 @@ export const platformKeys = {
   audit: () => [...platformKeys.all, "audit"] as const,
 };
 
+function isPlatformPrivateQuery(queryKey: readonly unknown[]): boolean {
+  return queryKey[0] === platformKeys.all[0] && !(queryKey.length === 2 && queryKey[1] === "session");
+}
+
+async function clearPlatformPrivateState(client: ReturnType<typeof useQueryClient>): Promise<void> {
+  const isPrivateQuery = (query: { queryKey: readonly unknown[] }) => isPlatformPrivateQuery(query.queryKey);
+  await client.cancelQueries({ predicate: isPrivateQuery });
+  client.removeQueries({ predicate: isPrivateQuery });
+
+  for (const mutation of client.getMutationCache().getAll()) {
+    const mutationKey = mutation.options.mutationKey;
+    const isPlatformMutation = mutationKey?.[0] === platformKeys.all[0];
+    const isPlatformAuthMutation = mutationKey?.[0] === "login" || mutationKey?.[0] === "logout"
+      ? mutationKey[1] === "platform"
+      : false;
+    if (isPlatformMutation || isPlatformAuthMutation) client.getMutationCache().remove(mutation);
+  }
+}
+
 export function usePlatformSessionQuery() {
+  const client = useQueryClient();
   return useQuery({
     queryKey: platformKeys.session(),
-    queryFn: async () => {
-      const value: unknown = await platformApiClient("/auth/platform/me", { cache: "no-store" });
+    queryFn: async ({ signal }) => {
+      await clearPlatformPrivateState(client);
+      let value: unknown;
+      try {
+        value = await platformApiClient("/auth/platform/me", { cache: "no-store", signal });
+      } catch (error) {
+        if (error instanceof ApiError && (error.status === 401 || error.status === 403)) return null;
+        throw error;
+      }
       if (
         !record(value) || typeof value.id !== "string" || !resourceIdPattern.test(value.id) ||
         typeof value.email !== "string" || typeof value.name !== "string" || value.context !== "PLATFORM" ||
@@ -305,7 +332,7 @@ export function usePlatformLoginMutation() {
 export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
   return useQuery({
     queryKey: platformKeys.organizationsPage(page),
-    queryFn: async () => parsePage(await platformApiClient<unknown>(`/iam/platform/organizations?page=${page}&pageSize=100`, { cache: "no-store" }), parseOrganization),
+    queryFn: async ({ signal }) => parsePage(await platformApiClient<unknown>(`/iam/platform/organizations?page=${page}&pageSize=100`, { cache: "no-store", signal }), parseOrganization),
     enabled,
     retry: false,
     staleTime: 15_000,
@@ -315,7 +342,7 @@ export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
 export function usePlatformOrganizationQuery(id: string, enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.organization(id),
-    queryFn: async () => parseOrganization(await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(id)}`, { cache: "no-store" })),
+    queryFn: async ({ signal }) => parseOrganization(await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(id)}`, { cache: "no-store", signal })),
     enabled: enabled && resourceIdPattern.test(id),
     retry: false,
   });
@@ -336,8 +363,8 @@ export function usePlatformUserLookupMutation() {
 export function usePlatformMembershipsQuery(organizationId: string, enabled: boolean, page = 1) {
   return useQuery({
     queryKey: platformKeys.membershipsPage(organizationId, page),
-    queryFn: async () => parsePage(
-      await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=${page}&pageSize=100`, { cache: "no-store" }),
+    queryFn: async ({ signal }) => parsePage(
+      await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=${page}&pageSize=100`, { cache: "no-store", signal }),
       (item) => parseMembership(item, organizationId),
     ),
     enabled: enabled && resourceIdPattern.test(organizationId),
@@ -367,6 +394,15 @@ export function useSuspendPlatformMembershipMutation(organizationId: string) {
       );
     },
     onSuccess: () => client.invalidateQueries({ queryKey: platformKeys.memberships(organizationId) }),
+    onError: async (error) => {
+      if (!(error instanceof ApiError) || error.status !== 409) return;
+      try {
+        await client.invalidateQueries({ queryKey: platformKeys.memberships(organizationId) }, { throwOnError: true });
+      } catch {
+        // Do not leave a stale version actionable when the authoritative refresh fails.
+        client.removeQueries({ queryKey: platformKeys.memberships(organizationId) });
+      }
+    },
   });
 }
 
@@ -390,8 +426,8 @@ export function useCreatePlatformOrganizationMutation() {
 export function usePlatformHealthQuery(enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.health(),
-    queryFn: async () => {
-      const value: unknown = await platformApiClient("/iam/platform/health", { cache: "no-store" });
+    queryFn: async ({ signal }) => {
+      const value: unknown = await platformApiClient("/iam/platform/health", { cache: "no-store", signal });
       if (!record(value) || value.status !== "ok") throw invalidResponse();
       return { status: "ok" as const };
     },
@@ -404,8 +440,8 @@ export function usePlatformHealthQuery(enabled: boolean) {
 export function usePlatformAuditQuery(enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.audit(),
-    queryFn: async () => {
-      const value: unknown = await platformApiClient<unknown>("/iam/platform/audit", { cache: "no-store" });
+    queryFn: async ({ signal }) => {
+      const value: unknown = await platformApiClient<unknown>("/iam/platform/audit", { cache: "no-store", signal });
       return parsePlatformAuditRecords(value);
     },
     enabled,

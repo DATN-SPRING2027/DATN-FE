@@ -56,13 +56,24 @@ export function platformErrorMessageKey(error: unknown, fallback: string): strin
 export async function withPlatformApiTimeout<T>(
   request: (signal: AbortSignal) => Promise<T>,
   timeoutMs = PLATFORM_API_TIMEOUT_MS,
+  parentSignal?: AbortSignal,
 ): Promise<T> {
+  if (parentSignal?.aborted) throw parentSignal.reason ?? new DOMException("The operation was aborted", "AbortError");
   const controller = new AbortController();
   let timedOut = false;
   let rejectTimeout!: (error: PlatformRequestError) => void;
+  let rejectAborted!: (error: unknown) => void;
   const timeout = new Promise<never>((_resolve, reject) => {
     rejectTimeout = reject;
   });
+  const aborted = new Promise<never>((_resolve, reject) => {
+    rejectAborted = reject;
+  });
+  const abortFromParent = () => {
+    controller.abort(parentSignal?.reason);
+    rejectAborted(parentSignal?.reason ?? new DOMException("The operation was aborted", "AbortError"));
+  };
+  parentSignal?.addEventListener("abort", abortFromParent, { once: true });
   const timer = setTimeout(() => {
     timedOut = true;
     controller.abort();
@@ -70,19 +81,26 @@ export async function withPlatformApiTimeout<T>(
   }, timeoutMs);
 
   try {
-    return await Promise.race([Promise.resolve().then(() => request(controller.signal)), timeout]);
+    return await Promise.race([Promise.resolve().then(() => request(controller.signal)), timeout, aborted]);
   } catch (error) {
+    if (parentSignal?.aborted) throw parentSignal.reason ?? error;
     if (timedOut) throw new PlatformRequestError("timeout");
     if (error instanceof ApiError || error instanceof PlatformRequestError) throw error;
     if (error instanceof TypeError) throw new PlatformRequestError("network");
     throw error;
   } finally {
     clearTimeout(timer);
+    parentSignal?.removeEventListener("abort", abortFromParent);
   }
 }
 
-export function platformApiClient<T>(endpoint: string, options?: Omit<RequestInit, "signal">): Promise<T> {
-  return withPlatformApiTimeout((signal) => apiClient<T>(endpoint, { ...options, signal }));
+export function platformApiClient<T>(endpoint: string, options?: RequestInit): Promise<T> {
+  const { signal: parentSignal, ...requestOptions } = options ?? {};
+  return withPlatformApiTimeout(
+    (signal) => apiClient<T>(endpoint, { ...requestOptions, signal }),
+    PLATFORM_API_TIMEOUT_MS,
+    parentSignal ?? undefined,
+  );
 }
 
 export function platformLogout(): Promise<void> {

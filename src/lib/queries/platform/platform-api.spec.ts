@@ -49,4 +49,19 @@ describe("withPlatformApiTimeout", () => {
 
     expect(requestSignal?.aborted).toBe(true);
   });
+
+  it("propagates query cancellation and settles even when the request ignores AbortSignal", async () => {
+    const parent = new AbortController();
+    let requestSignal: AbortSignal | undefined;
+    const request = withPlatformApiTimeout((signal) => {
+      requestSignal = signal;
+      return new Promise<never>(() => {});
+    }, 10_000, parent.signal);
+    const rejected = expect(request).rejects.toMatchObject({ name: "AbortError" });
+
+    parent.abort();
+    await rejected;
+
+    expect(requestSignal?.aborted).toBe(true);
+  });
 });

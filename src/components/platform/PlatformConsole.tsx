@@ -7,6 +7,7 @@ import PlatformMembershipDirectory from "@/components/platform/PlatformMembershi
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import PlatformUnavailablePage from "@/components/platform/PlatformUnavailablePage";
 import Button from "@/components/ui/button/Button";
+import { Modal } from "@/components/ui/modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -25,7 +26,7 @@ import {
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 
 const sectionIds = [
   "dashboard", "organizations", "users", "memberships", "projects", "security",
@@ -41,12 +42,30 @@ function has(session: { permissions: readonly PlatformPermission[] } | undefined
   return Boolean(session?.permissions.includes(permission));
 }
 
+function useSessionScopedState<T>(sessionRevision: number, initialValue: T) {
+  const [storedState, setStoredState] = useState({ revision: sessionRevision, value: initialValue });
+  const value = storedState.revision === sessionRevision ? storedState.value : initialValue;
+  const setValue = (nextValue: T | ((currentValue: T) => T)) => {
+    setStoredState((currentState) => {
+      const currentValue = currentState.revision === sessionRevision ? currentState.value : initialValue;
+      return {
+        revision: sessionRevision,
+        value: typeof nextValue === "function"
+          ? (nextValue as (currentValue: T) => T)(currentValue)
+          : nextValue,
+      };
+    });
+  };
+  return [value, setValue] as const;
+}
+
 function apiMessage(error: unknown, fallback: string, translate: (key: string) => string): string {
   return translate(platformErrorMessageKey(error, fallback));
 }
 
 export default function PlatformConsole() {
   const t = useTranslations("platformConsole");
+  const tOrganizationMembers = useTranslations("organizationMembers");
   const router = useRouter();
   const pathname = usePathname();
   const pathSegments = pathname.split("/").filter(Boolean);
@@ -55,13 +74,17 @@ export default function PlatformConsole() {
   const routeOrganizationId = activeSection === "organizations" ? pathSegments[2] ?? "" : "";
   const hasValidRouteOrganizationId = /^[a-f\d]{24}$/i.test(routeOrganizationId);
   const session = usePlatformSessionQuery();
+  const verifiedSession = session.isSuccess && !session.isError && !session.isFetching && session.data?.context === "PLATFORM"
+    ? session.data
+    : undefined;
+  const sessionRevision = session.dataUpdatedAt;
   const logout = usePlatformLogoutMutation();
-  const canReadOrganizations = has(session.data, "platform.organizations.organization.read");
-  const canCreateOrganization = has(session.data, "organization.create");
-  const canLookupUsers = has(session.data, "platform.users.account.read");
-  const canReadMemberships = has(session.data, "platform.memberships.membership.read");
-  const canSuspendMemberships = has(session.data, "platform.memberships.lifecycle.manage");
-  const canReadHealth = has(session.data, "platform.health.read");
+  const canReadOrganizations = has(verifiedSession, "platform.organizations.organization.read");
+  const canCreateOrganization = has(verifiedSession, "organization.create");
+  const canLookupUsers = has(verifiedSession, "platform.users.account.read");
+  const canReadMemberships = has(verifiedSession, "platform.memberships.membership.read");
+  const canSuspendMemberships = has(verifiedSession, "platform.memberships.lifecycle.manage");
+  const canReadHealth = has(verifiedSession, "platform.health.read");
   const shouldLoadOrganizations = ["organizations", "memberships"].includes(activeSection);
   const shouldLoadHealth = activeSection === "services";
   const [organizationPage, setOrganizationPage] = useState(1);
@@ -70,15 +93,18 @@ export default function PlatformConsole() {
   const setDetailMembershipPage = (page: number) => setDetailMembershipPageState({ organizationId: routeOrganizationId, page });
   const organizations = usePlatformOrganizationsQuery(canReadOrganizations && shouldLoadOrganizations, organizationPage);
   const health = usePlatformHealthQuery(canReadHealth && shouldLoadHealth);
-  const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
-  const [lookupEmail, setLookupEmail] = useState("");
-  const [selectedUser, setSelectedUser] = useState<{ id: string; email: string; fullName: string } | null>(null);
-  const [organizationName, setOrganizationName] = useState("");
-  const [organizationSlug, setOrganizationSlug] = useState("");
-  const [organizationPlan, setOrganizationPlan] = useState<"FREE" | "ENTERPRISE">("FREE");
-  const [suspendTarget, setSuspendTarget] = useState<PlatformMembership | null>(null);
-  const [operationMessage, setOperationMessage] = useState("");
+  const [selectedOrganizationId, setSelectedOrganizationId] = useSessionScopedState(sessionRevision, "");
+  const [lookupEmail, setLookupEmail] = useSessionScopedState(sessionRevision, "");
+  const [selectedUser, setSelectedUser] = useSessionScopedState<{ id: string; email: string; fullName: string } | null>(sessionRevision, null);
+  const [organizationName, setOrganizationName] = useSessionScopedState(sessionRevision, "");
+  const [organizationSlug, setOrganizationSlug] = useSessionScopedState(sessionRevision, "");
+  const [organizationPlan, setOrganizationPlan] = useSessionScopedState<"FREE" | "ENTERPRISE">(sessionRevision, "FREE");
+  const [suspendTarget, setSuspendTarget] = useSessionScopedState<PlatformMembership | null>(sessionRevision, null);
+  const [suspendReason, setSuspendReason] = useSessionScopedState<"SECURITY_INCIDENT" | "ACCESS_REVIEW" | "">(sessionRevision, "");
+  const [operationMessage, setOperationMessage] = useSessionScopedState(sessionRevision, "");
   const lookupRequestId = useRef(0);
+  const suspendDialogRef = useRef<HTMLDivElement>(null);
+  const suspendTriggerRef = useRef<HTMLElement | null>(null);
   const organizationRows = organizations.data?.data ?? [];
   const effectiveSelectedOrganizationId = routeOrganizationId || (activeSection === "memberships" ? selectedOrganizationId || organizationRows[0]?.id : "") || "";
   const organization = usePlatformOrganizationQuery(effectiveSelectedOrganizationId, canReadOrganizations && activeSection === "organizations" && Boolean(effectiveSelectedOrganizationId));
@@ -86,6 +112,17 @@ export default function PlatformConsole() {
   const lookup = usePlatformUserLookupMutation();
   const createOrganization = useCreatePlatformOrganizationMutation();
   const suspend = useSuspendPlatformMembershipMutation(effectiveSelectedOrganizationId);
+
+  useEffect(() => {
+    if (!suspendTarget) return;
+    const frame = window.requestAnimationFrame(() => {
+      suspendDialogRef.current?.querySelector<HTMLElement>("select, button")?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      if (suspendTriggerRef.current?.isConnected) suspendTriggerRef.current.focus();
+    };
+  }, [suspendTarget]);
 
   const navigationGroups = [
     { title: t("navigation.dashboardGroup"), items: [{ id: "dashboard" as const, href: "/platform", label: t("navigation.dashboard") }] },
@@ -109,7 +146,7 @@ export default function PlatformConsole() {
   ];
 
   const sessionErrorKind = getPlatformErrorKind(session.error);
-  const needsSignIn = session.isError && ["unauthenticated", "forbidden"].includes(sessionErrorKind);
+  const needsSignIn = session.data === null || session.isError && ["unauthenticated", "forbidden"].includes(sessionErrorKind);
 
   useEffect(() => {
     if (needsSignIn) router.replace("/platform/signin");
@@ -172,22 +209,48 @@ export default function PlatformConsole() {
   }
 
   async function confirmSuspend() {
-    if (!suspendTarget) return;
+    if (!suspendTarget || !suspendReason || suspend.isPending) return;
     setOperationMessage("");
     try {
       await suspend.mutateAsync({
         membershipId: suspendTarget.id,
         expectedMembershipVersion: suspendTarget.version,
-        reasonCode: "ACCESS_REVIEW",
+        reasonCode: suspendReason,
       });
       setOperationMessage(t("results.membershipSuspended", { name: suspendTarget.user?.fullName ?? suspendTarget.userId }));
       setSuspendTarget(null);
+      setSuspendReason("");
     } catch (error) {
+      if (getPlatformErrorKind(error) === "conflict") {
+        setSuspendTarget(null);
+        setSuspendReason("");
+      }
       setOperationMessage(apiMessage(error, "errors.membershipSuspend", t));
     }
   }
 
-  if (session.isPending || session.isFetching && !session.data) {
+  function trapSuspendDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
+    if (event.key !== "Tab") return;
+    const elements = suspendDialogRef.current?.querySelectorAll<HTMLElement>("select:not(:disabled), button:not(:disabled)");
+    if (!elements?.length) return;
+    const first = elements[0];
+    const last = elements[elements.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function openSuspendDialog(membership: PlatformMembership, trigger: HTMLElement) {
+    suspendTriggerRef.current = trigger;
+    setSuspendReason("");
+    setSuspendTarget(membership);
+  }
+
+  if (session.isPending || session.isFetching) {
     return <main className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" aria-live="polite">{t("loading")}</main>;
   }
   if (session.isError) {
@@ -195,6 +258,9 @@ export default function PlatformConsole() {
       <p>{needsSignIn ? t("sessionChecking") : t(platformErrorMessageKey(session.error, "errors.server"))}</p>
       {!needsSignIn && <Button variant="outline" size="sm" onClick={() => void session.refetch()}>{t("retry")}</Button>}
     </main>;
+  }
+  if (!verifiedSession) {
+    return <main className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" aria-live="polite">{t("sessionChecking")}</main>;
   }
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
@@ -209,8 +275,8 @@ export default function PlatformConsole() {
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden text-end sm:block">
-              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{session.data.name}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400">{session.data.email}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{verifiedSession.name}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">{verifiedSession.email}</p>
             </div>
             <Button variant="outline" size="sm" disabled={logout.isPending} onClick={() => void signOut()}>{logout.isPending ? t("signOutPending") : t("signOut")}</Button>
           </div>
@@ -248,7 +314,7 @@ export default function PlatformConsole() {
 
           {operationMessage && <div role="status" className="rounded-lg border border-blue-light-200 bg-blue-light-50 px-4 py-3 text-sm text-blue-light-800 dark:border-blue-light-500/20 dark:bg-blue-light-500/10 dark:text-blue-light-200">{operationMessage}</div>}
 
-          {activeSection === "dashboard" && <PlatformDashboard permissions={session.data.permissions} />}
+          {activeSection === "dashboard" && <PlatformDashboard permissions={verifiedSession.permissions} />}
 
           {activeSection === "organizations" && (
             <div className="space-y-5">
@@ -308,7 +374,7 @@ export default function PlatformConsole() {
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">{t("organizations.selected")}</p><h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{organization.data.name}</h3><p className="mt-1 text-sm text-gray-500">{organization.data.slug} · {organization.data.plan}</p></div><Button variant="outline" size="sm" disabled={organization.isFetching} onClick={() => void organization.refetch()}>{t("refresh")}</Button></div>
                 {organization.isError && <p role="alert" className="mt-3 text-sm text-error-600">{t("errors.organizationDetail")}</p>}
                 {canReadMemberships && <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-800"><div className="mb-3 flex items-center justify-between"><h4 className="font-semibold text-gray-800 dark:text-gray-100">{t("memberships.title")}</h4><span className="text-xs text-gray-500">{memberships.data?.pagination.totalItems ?? 0}</span></div>
-                  {memberships.isError ? <QueryError error={memberships.error} fallbackKey="errors.membershipList" onRetry={() => void memberships.refetch()} /> : memberships.isPending ? <LoadingRow label={t("loadingMemberships")} /> : memberships.data?.data.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-3 py-2 text-start font-medium">{t("table.member")}</th><th className="px-3 py-2 text-start font-medium">{t("table.role")}</th><th className="px-3 py-2 text-start font-medium">{t("table.status")}</th><th className="px-3 py-2 text-end font-medium">{t("table.action")}</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{memberships.data.data.map((member) => <tr key={member.id}><td className="px-3 py-3"><p className="font-medium text-gray-800 dark:text-gray-100">{member.user?.fullName ?? t("memberships.userUnavailable")}</p><p className="text-xs text-gray-500">{member.user?.email ?? member.userId}</p></td><td className="px-3 py-3 text-gray-600 dark:text-gray-300">{member.organizationRoles.length ? member.organizationRoles.join(", ") : t("table.noRole")}</td><td className="px-3 py-3"><StatusBadge status={member.status} label={t(`membershipStatus.${member.status}`)} /></td><td className="px-3 py-3 text-end">{canSuspendMemberships && member.status === "ACTIVE" && member.userId !== session.data.id ? <button type="button" onClick={() => setSuspendTarget(member)} className="rounded-md px-3 py-1.5 text-sm font-medium text-error-600 hover:bg-error-50 focus-visible:outline-2 focus-visible:outline-error-500 dark:text-error-400 dark:hover:bg-error-500/10">{t("memberships.suspend")}</button> : <span className="text-xs text-gray-400">{member.userId === session.data.id ? t("memberships.currentOperator") : "—"}</span>}</td></tr>)}</tbody></table></div> : <EmptyState title={t("memberships.emptyTitle")} body={t("memberships.emptyBody")} />}
+                  {memberships.isError ? <QueryError error={memberships.error} fallbackKey="errors.membershipList" onRetry={() => void memberships.refetch()} /> : memberships.isPending ? <LoadingRow label={t("loadingMemberships")} /> : memberships.data?.data.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-3 py-2 text-start font-medium">{t("table.member")}</th><th className="px-3 py-2 text-start font-medium">{t("table.role")}</th><th className="px-3 py-2 text-start font-medium">{t("table.status")}</th><th className="px-3 py-2 text-end font-medium">{t("table.action")}</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{memberships.data.data.map((member) => <tr key={member.id}><td className="px-3 py-3"><p className="font-medium text-gray-800 dark:text-gray-100">{member.user?.fullName ?? t("memberships.userUnavailable")}</p><p className="text-xs text-gray-500">{member.user?.email ?? member.userId}</p></td><td className="px-3 py-3 text-gray-600 dark:text-gray-300">{member.organizationRoles.length ? member.organizationRoles.join(", ") : t("table.noRole")}</td><td className="px-3 py-3"><StatusBadge status={member.status} label={t(`membershipStatus.${member.status}`)} /></td><td className="px-3 py-3 text-end">{canSuspendMemberships && member.status === "ACTIVE" && member.userId !== verifiedSession.id ? <button type="button" onClick={(event) => openSuspendDialog(member, event.currentTarget)} className="rounded-md px-3 py-1.5 text-sm font-medium text-error-600 hover:bg-error-50 focus-visible:outline-2 focus-visible:outline-error-500 dark:text-error-400 dark:hover:bg-error-500/10">{t("memberships.suspend")}</button> : <span className="text-xs text-gray-400">{member.userId === verifiedSession.id ? t("memberships.currentOperator") : "—"}</span>}</td></tr>)}</tbody></table></div> : <EmptyState title={t("memberships.emptyTitle")} body={t("memberships.emptyBody")} />}
                   {memberships.data?.pagination && <PlatformPagination ariaLabel={t("memberships.title")} page={memberships.data.pagination.page} totalPages={memberships.data.pagination.totalPages} totalItems={memberships.data.pagination.totalItems} onPageChange={setDetailMembershipPage} />}
                 </div>}
               </section>}
@@ -325,13 +391,13 @@ export default function PlatformConsole() {
           </div>}
 
           {activeSection === "memberships" && <div className="space-y-5">
-            <PlatformMembershipDirectory organizations={organizations.data} organizationsLoading={organizations.isPending} organizationsError={organizations.error} onRetryOrganizations={() => void organizations.refetch()} organizationPage={organizationPage} onOrganizationPageChange={(page) => { setOrganizationPage(page); setSelectedOrganizationId(""); }} organizationId={effectiveSelectedOrganizationId} canReadOrganizations={canReadOrganizations} canReadMemberships={canReadMemberships} canSuspendMemberships={canSuspendMemberships} currentUserId={session.data.id} onOrganizationChange={setSelectedOrganizationId} onSuspend={setSuspendTarget} />
+            <PlatformMembershipDirectory organizations={organizations.data} organizationsLoading={organizations.isPending} organizationsError={organizations.error} onRetryOrganizations={() => void organizations.refetch()} organizationPage={organizationPage} onOrganizationPageChange={(page) => { setOrganizationPage(page); setSelectedOrganizationId(""); }} organizationId={effectiveSelectedOrganizationId} canReadOrganizations={canReadOrganizations} canReadMemberships={canReadMemberships} canSuspendMemberships={canSuspendMemberships} currentUserId={verifiedSession.id} onOrganizationChange={setSelectedOrganizationId} onSuspend={(membership) => openSuspendDialog(membership, document.activeElement instanceof HTMLElement ? document.activeElement : document.body)} />
           </div>}
 
           {activeSection === "projects" && <PlatformUnavailablePage items={[t("capabilities.projectDirectory"), t("capabilities.projectMetadata"), t("capabilities.projectVisibility"), t("capabilities.projectAccess")]} title={t("capabilities.projectTitle")} description={t("capabilities.projectDescription")} dependency={t("capabilities.projectDependency")} />}
 
           {activeSection === "security" && <div className="space-y-5">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{t("security.currentSession")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("security.currentSessionNote")}</p></div><span className="rounded-full border border-success-200 bg-success-50 px-3 py-1 text-xs font-medium text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-300">{t("sessionActive")}</span></div><dl className="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 dark:border-gray-800"><DetailField label={t("account.operator")} value={session.data.name} /><DetailField label={t("account.email")} value={session.data.email} /><DetailField label={t("account.context")} value={session.data.context} /><DetailField label={t("account.permissionCount")} value={String(session.data.permissions.length)} /></dl></section>
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{t("security.currentSession")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("security.currentSessionNote")}</p></div><span className="rounded-full border border-success-200 bg-success-50 px-3 py-1 text-xs font-medium text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-300">{t("sessionActive")}</span></div><dl className="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 dark:border-gray-800"><DetailField label={t("account.operator")} value={verifiedSession.name} /><DetailField label={t("account.email")} value={verifiedSession.email} /><DetailField label={t("account.context")} value={verifiedSession.context} /><DetailField label={t("account.permissionCount")} value={String(verifiedSession.permissions.length)} /></dl></section>
             <PlatformUnavailablePage partial items={[t("capabilities.securityOtherSessions"), t("capabilities.securityRevoke"), t("capabilities.securityAnomalies"), t("capabilities.securityEvents")]} title={t("capabilities.securityTitle")} description={t("capabilities.securityDescription")} dependency={t("capabilities.securityDependency")} />
           </div>}
 
@@ -346,16 +412,36 @@ export default function PlatformConsole() {
           {activeSection === "incidents" && <PlatformUnavailablePage items={[t("capabilities.incidentDirectory"), t("capabilities.incidentLifecycle"), t("capabilities.incidentNotes"), t("capabilities.incidentAudit")]} title={t("capabilities.incidentTitle")} description={t("capabilities.incidentDescription")} dependency={t("capabilities.incidentDependency")} />}
           {activeSection === "diagnostics" && <PlatformUnavailablePage items={[t("capabilities.diagnosticsTrace"), t("capabilities.diagnosticsTools"), t("capabilities.diagnosticsOutput")]} title={t("capabilities.diagnosticsTitle")} description={t("capabilities.diagnosticsDescription")} dependency={t("capabilities.diagnosticsDependency")} />}
 
-          {activeSection === "audit" && <PlatformAuditProjection permissions={session.data.permissions} />}
+          {activeSection === "audit" && <PlatformAuditProjection permissions={verifiedSession.permissions} />}
 
           {activeSection === "account" && <div className="space-y-5">
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><h3 className="font-semibold text-gray-900 dark:text-white">{t("account.identityTitle")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("account.identityNote")}</p><dl className="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 dark:border-gray-800"><DetailField label={t("account.operator")} value={session.data.name} /><DetailField label={t("account.email")} value={session.data.email} /><DetailField label={t("account.context")} value={session.data.context} /><DetailField label={t("account.sessionStatus")} value={t("sessionActive")} /></dl></section>
-            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><h3 className="font-semibold text-gray-900 dark:text-white">{t("account.permissionTitle")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("account.permissionNote")}</p><ul className="mt-4 flex flex-wrap gap-2">{session.data.permissions.map((permission) => <li key={permission} className="rounded-md bg-gray-100 px-2.5 py-1.5 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{permission}</li>)}</ul></section>
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><h3 className="font-semibold text-gray-900 dark:text-white">{t("account.identityTitle")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("account.identityNote")}</p><dl className="mt-5 grid gap-4 border-t border-gray-100 pt-5 sm:grid-cols-2 dark:border-gray-800"><DetailField label={t("account.operator")} value={verifiedSession.name} /><DetailField label={t("account.email")} value={verifiedSession.email} /><DetailField label={t("account.context")} value={verifiedSession.context} /><DetailField label={t("account.sessionStatus")} value={t("sessionActive")} /></dl></section>
+            <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><h3 className="font-semibold text-gray-900 dark:text-white">{t("account.permissionTitle")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("account.permissionNote")}</p><ul className="mt-4 flex flex-wrap gap-2">{verifiedSession.permissions.map((permission) => <li key={permission} className="rounded-md bg-gray-100 px-2.5 py-1.5 font-mono text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-300">{permission}</li>)}</ul></section>
           </div>}
         </section>
       </div>
 
-      {suspendTarget && <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSuspendTarget(null); }}><section role="dialog" aria-modal="true" aria-labelledby="suspend-title" className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-700 dark:bg-gray-900"><h2 id="suspend-title" className="text-lg font-semibold text-gray-900 dark:text-white">{t("memberships.confirmTitle")}</h2><p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{t("memberships.confirmBody", { name: suspendTarget.user?.fullName ?? suspendTarget.userId })}</p><p className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs leading-5 text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">{t("memberships.confirmGuard")}</p><div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row"><Button type="button" variant="outline" disabled={suspend.isPending} onClick={() => setSuspendTarget(null)}>{t("cancel")}</Button><Button type="button" disabled={suspend.isPending} onClick={() => void confirmSuspend()}>{suspend.isPending ? t("memberships.suspending") : t("memberships.confirmSuspend")}</Button></div></section></div>}
+      {suspendTarget && <Modal isOpen onClose={() => { if (!suspend.isPending) { setSuspendTarget(null); setSuspendReason(""); } }} showCloseButton={false} className="mx-4 max-w-md">
+        <div ref={suspendDialogRef} role="dialog" aria-modal="true" aria-labelledby="suspend-title" aria-describedby="suspend-body suspend-guard" onKeyDown={trapSuspendDialogFocus} className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-700 dark:bg-gray-900">
+          <h2 id="suspend-title" className="text-lg font-semibold text-gray-900 dark:text-white">{t("memberships.confirmTitle")}</h2>
+          <p id="suspend-body" className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{t("memberships.confirmBody", { name: suspendTarget.user?.fullName ?? suspendTarget.userId })}</p>
+          <p id="suspend-guard" className="mt-3 rounded-lg bg-warning-50 px-3 py-2 text-xs leading-5 text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">{t("memberships.confirmGuard")}</p>
+          <div className="mt-5">
+            <Label htmlFor="platform-suspend-reason">{tOrganizationMembers("reason")}</Label>
+            <select id="platform-suspend-reason" value={suspendReason} required disabled={suspend.isPending} onChange={(event) => setSuspendReason(event.target.value as "SECURITY_INCIDENT" | "ACCESS_REVIEW" | "")} className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90">
+              <option value="">{tOrganizationMembers("selectReason")}</option>
+              <option value="SECURITY_INCIDENT">{tOrganizationMembers("securityIncident")}</option>
+              <option value="ACCESS_REVIEW">{tOrganizationMembers("accessReview")}</option>
+            </select>
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{tOrganizationMembers("reasonHelp")}</p>
+          </div>
+          {suspend.isPending && <p role="status" className="mt-4 text-sm text-gray-500 dark:text-gray-400">{t("memberships.suspending")}</p>}
+          <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+            <Button type="button" variant="outline" disabled={suspend.isPending} onClick={() => { setSuspendTarget(null); setSuspendReason(""); }}>{t("cancel")}</Button>
+            <Button type="button" disabled={suspend.isPending || !suspendReason} onClick={() => void confirmSuspend()}>{suspend.isPending ? t("memberships.suspending") : t("memberships.confirmSuspend")}</Button>
+          </div>
+        </div>
+      </Modal>}
     </main>
   );
 }
