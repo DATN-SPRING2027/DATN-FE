@@ -1,11 +1,12 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-client";
 import PlatformConsole from "./PlatformConsole";
 
 const { routerReplace, pathname, session, organizations, organization, memberships, suspend, createOrganization, lookup, health, audit, logout, organizationListQuery, membershipListQuery } = vi.hoisted(() => ({
   routerReplace: vi.fn(),
   pathname: { value: "/platform/organizations/651a2b3c4d5e6f7a8b9c0d21" },
-  session: { data: { id: "651a2b3c4d5e6f7a8b9c0d1e", email: "operator@example.test", name: "Platform Operator", context: "PLATFORM", permissions: ["platform.organizations.organization.read", "platform.users.account.read", "platform.memberships.membership.read"] as string[] }, isPending: false, isFetching: false, isError: false, isSuccess: true },
+  session: { data: { id: "651a2b3c4d5e6f7a8b9c0d1e", email: "operator@example.test", name: "Platform Operator", context: "PLATFORM", permissions: ["platform.organizations.organization.read", "platform.users.account.read", "platform.memberships.membership.read"] as string[] }, error: null as unknown, refetch: vi.fn(), isPending: false, isFetching: false, isError: false, isSuccess: true },
   organizations: { data: { data: [{ id: "651a2b3c4d5e6f7a8b9c0d21", name: "North Star", slug: "north-star", plan: "FREE", createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z" }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } }, isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   organization: { data: { id: "651a2b3c4d5e6f7a8b9c0d21", name: "North Star", slug: "north-star", plan: "FREE", createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z" }, isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   memberships: { data: { data: [{ id: "751a2b3c4d5e6f7a8b9c0d21", organizationId: "651a2b3c4d5e6f7a8b9c0d21", userId: "851a2b3c4d5e6f7a8b9c0d21", status: "ACTIVE", version: 2, createdAt: "2026-10-01T00:00:00.000Z", updatedAt: "2026-10-02T00:00:00.000Z", user: { id: "851a2b3c4d5e6f7a8b9c0d21", email: "member@example.test", fullName: "Member One", accountStatus: "ACTIVE" }, organizationRoles: ["MEMBER"] }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } }, isError: false, isPending: false, refetch: vi.fn() },
@@ -15,7 +16,7 @@ const { routerReplace, pathname, session, organizations, organization, membershi
   health: { data: { status: "ok" }, isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   audit: { data: [
     { action: "organization.create", targetResource: "ORGANIZATION" as const, targetResourceId: "651a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-12T00:00:00.000Z" },
-    { action: "membership.suspend", targetResource: "ORGANIZATION_MEMBERSHIP" as const, targetResourceId: "751a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-13T00:00:00.000Z" },
+    { action: "ORGANIZATION_MEMBERSHIP_SUSPENDED", targetResource: "ORGANIZATION_MEMBERSHIP" as const, targetResourceId: "751a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-13T00:00:00.000Z" },
   ], isError: false, isPending: false, isFetching: false, refetch: vi.fn() },
   logout: { mutateAsync: vi.fn(), isPending: false },
   organizationListQuery: vi.fn(),
@@ -52,6 +53,9 @@ describe("PlatformConsole", () => {
     session.isPending = false;
     session.isFetching = false;
     session.isError = false;
+    session.error = null;
+    session.refetch.mockReset();
+    logout.mutateAsync.mockReset().mockResolvedValue(undefined);
     session.data.permissions = [
       "platform.organizations.organization.read",
       "platform.users.account.read",
@@ -103,11 +107,73 @@ describe("PlatformConsole", () => {
 
   it("hides cached console data as soon as the Platform session probe fails", () => {
     session.isError = true;
+    session.error = new ApiError(401, "AUTH_INVALID", "private backend detail");
     render(<PlatformConsole />);
 
     expect(screen.getByText("sessionChecking")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "signOut" })).not.toBeInTheDocument();
     expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+  });
+
+  it("keeps transient Platform session failures retryable without redirecting to sign in", async () => {
+    session.isError = true;
+    session.error = new ApiError(503, "IAM_UNAVAILABLE", "database stack trace");
+    render(<PlatformConsole />);
+
+    expect(await screen.findByText("errors.server")).toBeInTheDocument();
+    expect(routerReplace).not.toHaveBeenCalledWith("/platform/signin");
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(session.refetch).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("database stack trace")).not.toBeInTheDocument();
+  });
+
+  it("normalizes lookup service failures without exposing backend details", async () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = ["organization.create", "platform.users.account.read"];
+    lookup.mutateAsync.mockRejectedValueOnce(new ApiError(503, "IAM_UNAVAILABLE", "private database detail"));
+    render(<PlatformConsole />);
+
+    const email = screen.getByLabelText("organizations.firstAdminEmail");
+    fireEvent.change(email, { target: { value: "admin@example.test" } });
+    fireEvent.submit(email.closest("form")!);
+
+    expect(await screen.findByText("errors.server")).toBeInTheDocument();
+    expect(screen.queryByText("private database detail")).not.toBeInTheDocument();
+  });
+
+  it("keeps account lookup not-found responses indistinguishable from other ineligible accounts", async () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = ["organization.create", "platform.users.account.read"];
+    lookup.mutateAsync.mockRejectedValueOnce(new ApiError(404, "ACCOUNT_NOT_FOUND", "private lookup detail"));
+    render(<PlatformConsole />);
+
+    const email = screen.getByLabelText("organizations.firstAdminEmail");
+    fireEvent.change(email, { target: { value: "admin@example.test" } });
+    fireEvent.submit(email.closest("form")!);
+
+    expect(await screen.findByText("errors.userLookup")).toBeInTheDocument();
+    expect(screen.queryByText("private lookup detail")).not.toBeInTheDocument();
+  });
+
+  it("shows a normalized sign-out failure and does not report sign-out success", async () => {
+    logout.mutateAsync.mockRejectedValueOnce(new ApiError(503, "IAM_UNAVAILABLE", "private backend detail"));
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "signOut" }));
+
+    expect(await screen.findByText("errors.server")).toBeInTheDocument();
+    expect(routerReplace).not.toHaveBeenCalledWith("/platform/signin");
+    expect(screen.queryByText("private backend detail")).not.toBeInTheDocument();
+  });
+
+  it("leaves the console when sign-out confirms the Platform session is already unauthenticated", async () => {
+    logout.mutateAsync.mockRejectedValueOnce(new ApiError(401, "AUTHENTICATION_FAILED", "private auth detail"));
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "signOut" }));
+
+    await waitFor(() => expect(routerReplace).toHaveBeenCalledWith("/platform/signin"));
+    expect(screen.queryByText("private auth detail")).not.toBeInTheDocument();
   });
 
   it("explains when Organization membership access is not granted", () => {
@@ -194,6 +260,29 @@ describe("PlatformConsole", () => {
     expect(screen.queryByLabelText("users.email")).not.toBeInTheDocument();
   });
 
+  it("does not attach a lookup result to a different email entered while the request is pending", async () => {
+    pathname.value = "/platform/organizations";
+    session.data.permissions = ["organization.create", "platform.users.account.read"];
+    let resolveLookup: ((value: { id: string; email: string; fullName: string; status: "ACTIVE" }) => void) | undefined;
+    lookup.mutateAsync.mockImplementation(() => new Promise((resolve) => { resolveLookup = resolve; }));
+    render(<PlatformConsole />);
+
+    const email = screen.getByLabelText("organizations.firstAdminEmail");
+    fireEvent.change(email, { target: { value: "first-admin@example.test" } });
+    fireEvent.submit(email.closest("form")!);
+    fireEvent.change(email, { target: { value: "different-admin@example.test" } });
+
+    await act(async () => resolveLookup?.({
+      id: "851a2b3c4d5e6f7a8b9c0d21",
+      email: "first-admin@example.test",
+      fullName: "First Admin",
+      status: "ACTIVE",
+    }));
+
+    expect(screen.queryByText(/organizations.selectedAdmin/)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "organizations.create" })).toBeDisabled();
+  });
+
   it("requires the exact account-read permission before showing first-ADMIN lookup", () => {
     pathname.value = "/platform/organizations";
     session.data.permissions = ["organization.create"];
@@ -249,12 +338,12 @@ describe("PlatformConsole", () => {
     session.data.permissions = ["platform.audit.read"];
     audit.data = [
       { action: "organization.create", targetResource: "ORGANIZATION", targetResourceId: "651a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-12T00:00:00.000Z" },
-      { action: "membership.suspend", targetResource: "ORGANIZATION_MEMBERSHIP", targetResourceId: "751a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-13T00:00:00.000Z" },
+      { action: "ORGANIZATION_MEMBERSHIP_SUSPENDED", targetResource: "ORGANIZATION_MEMBERSHIP", targetResourceId: "751a2b3c4d5e6f7a8b9c0d21", actorUserId: "651a2b3c4d5e6f7a8b9c0d1e", occurredAt: "2026-10-13T00:00:00.000Z" },
     ];
     render(<PlatformConsole />);
 
     fireEvent.change(screen.getByLabelText("audit.filterAction"), { target: { value: "membership" } });
-    expect(screen.getByText("membership.suspend")).toBeInTheDocument();
+    expect(screen.getByText("ORGANIZATION_MEMBERSHIP_SUSPENDED")).toBeInTheDocument();
     expect(screen.queryByText("organization.create")).not.toBeInTheDocument();
     expect(screen.getByText(/audit.localFilterNote/)).toBeInTheDocument();
   });

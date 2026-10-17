@@ -10,7 +10,7 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { getPlatformErrorKind, platformErrorMessageKey } from "@/lib/queries/platform/platform-api";
 import {
   useCreatePlatformOrganizationMutation,
   usePlatformHealthQuery,
@@ -25,7 +25,7 @@ import {
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 const sectionIds = [
   "dashboard", "organizations", "users", "memberships", "projects", "security",
@@ -41,12 +41,8 @@ function has(session: { permissions: readonly PlatformPermission[] } | undefined
   return Boolean(session?.permissions.includes(permission));
 }
 
-function apiMessage(error: unknown, fallback: string): string {
-  if (!(error instanceof ApiError)) return fallback;
-  if (error.status === 403) return fallback;
-  if (error.status === 404) return fallback;
-  if (error.status === 409) return fallback;
-  return fallback;
+function apiMessage(error: unknown, fallback: string, translate: (key: string) => string): string {
+  return translate(platformErrorMessageKey(error, fallback));
 }
 
 export default function PlatformConsole() {
@@ -82,6 +78,7 @@ export default function PlatformConsole() {
   const [organizationPlan, setOrganizationPlan] = useState<"FREE" | "ENTERPRISE">("FREE");
   const [suspendTarget, setSuspendTarget] = useState<PlatformMembership | null>(null);
   const [operationMessage, setOperationMessage] = useState("");
+  const lookupRequestId = useRef(0);
   const organizationRows = organizations.data?.data ?? [];
   const effectiveSelectedOrganizationId = routeOrganizationId || (activeSection === "memberships" ? selectedOrganizationId || organizationRows[0]?.id : "") || "";
   const organization = usePlatformOrganizationQuery(effectiveSelectedOrganizationId, canReadOrganizations && activeSection === "organizations" && Boolean(effectiveSelectedOrganizationId));
@@ -111,9 +108,12 @@ export default function PlatformConsole() {
     { title: t("navigation.accountGroup"), items: [{ id: "account" as const, href: "/platform/account", label: t("navigation.account") }] },
   ];
 
+  const sessionErrorKind = getPlatformErrorKind(session.error);
+  const needsSignIn = session.isError && ["unauthenticated", "forbidden"].includes(sessionErrorKind);
+
   useEffect(() => {
-    if (session.isError) router.replace("/platform/signin");
-  }, [router, session.isError]);
+    if (needsSignIn) router.replace("/platform/signin");
+  }, [needsSignIn, router]);
 
   const pageTitle = t(`pages.${activeSection}.title`);
   const pageDescription = t(`pages.${activeSection}.description`);
@@ -122,8 +122,12 @@ export default function PlatformConsole() {
     try {
       await logout.mutateAsync();
       router.replace("/platform/signin");
-    } catch {
-      setOperationMessage(t("errors.signOut"));
+    } catch (error) {
+      if (getPlatformErrorKind(error) === "unauthenticated") {
+        router.replace("/platform/signin");
+        return;
+      }
+      setOperationMessage(apiMessage(error, "errors.signOut", t));
     }
   }
 
@@ -131,11 +135,17 @@ export default function PlatformConsole() {
     event.preventDefault();
     setOperationMessage("");
     setSelectedUser(null);
+    const requestId = ++lookupRequestId.current;
+    const requestedEmail = lookupEmail.trim();
     try {
-      const user = await lookup.mutateAsync(lookupEmail.trim());
+      const user = await lookup.mutateAsync(requestedEmail);
+      if (requestId !== lookupRequestId.current) return;
       setSelectedUser({ id: user.id, email: user.email, fullName: user.fullName });
-    } catch {
-      setOperationMessage(t("errors.userLookup"));
+    } catch (error) {
+      if (requestId !== lookupRequestId.current) return;
+      setOperationMessage(getPlatformErrorKind(error) === "notFound"
+        ? t("errors.userLookup")
+        : apiMessage(error, "errors.userLookup", t));
     }
   }
 
@@ -157,7 +167,7 @@ export default function PlatformConsole() {
       setSelectedUser(null);
       setLookupEmail("");
     } catch (error) {
-      setOperationMessage(apiMessage(error, t("errors.organizationCreate")));
+      setOperationMessage(apiMessage(error, "errors.organizationCreate", t));
     }
   }
 
@@ -173,7 +183,7 @@ export default function PlatformConsole() {
       setOperationMessage(t("results.membershipSuspended", { name: suspendTarget.user?.fullName ?? suspendTarget.userId }));
       setSuspendTarget(null);
     } catch (error) {
-      setOperationMessage(apiMessage(error, t("errors.membershipSuspend")));
+      setOperationMessage(apiMessage(error, "errors.membershipSuspend", t));
     }
   }
 
@@ -181,12 +191,11 @@ export default function PlatformConsole() {
     return <main className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" aria-live="polite">{t("loading")}</main>;
   }
   if (session.isError) {
-    return <main className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" aria-live="polite">{t("sessionChecking")}</main>;
+    return <main className="flex min-h-screen flex-col items-center justify-center gap-3 bg-gray-50 px-4 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" role="alert" aria-live="polite">
+      <p>{needsSignIn ? t("sessionChecking") : t(platformErrorMessageKey(session.error, "errors.server"))}</p>
+      {!needsSignIn && <Button variant="outline" size="sm" onClick={() => void session.refetch()}>{t("retry")}</Button>}
+    </main>;
   }
-  if (!session.data) {
-    return <main className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300" aria-live="polite">{t("sessionChecking")}</main>;
-  }
-
   return (
     <main className="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-gray-100">
       <header className="sticky top-0 z-20 border-b border-gray-200 bg-white/95 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95">
@@ -252,7 +261,7 @@ export default function PlatformConsole() {
                     </div>
                     <Button variant="outline" size="sm" disabled={organizations.isFetching} onClick={() => void organizations.refetch()}>{organizations.isFetching ? t("refreshing") : t("refresh")}</Button>
                   </div>
-                  {organizations.isError ? <QueryError message={t("errors.organizationList")} onRetry={() => void organizations.refetch()} /> : organizations.isPending ? <LoadingRow label={t("loadingOrganizations")} /> : organizations.data?.data.length ? (
+                  {organizations.isError ? <QueryError error={organizations.error} fallbackKey="errors.organizationList" onRetry={() => void organizations.refetch()} /> : organizations.isPending ? <LoadingRow label={t("loadingOrganizations")} /> : organizations.data?.data.length ? (
                     <div className="overflow-x-auto">
                       <table className="min-w-full text-sm">
                         <thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-5 py-3 text-start font-medium">{t("table.organization")}</th><th className="px-5 py-3 text-start font-medium">{t("table.plan")}</th><th className="px-5 py-3 text-start font-medium">{t("table.updated")}</th><th className="px-5 py-3 text-end font-medium">{t("table.action")}</th></tr></thead>
@@ -282,7 +291,7 @@ export default function PlatformConsole() {
                   </form>
                   <div className="mt-5 rounded-lg bg-gray-50 p-4 dark:bg-gray-800/50">
                     {canLookupUsers ? <form className="flex flex-col gap-3 sm:flex-row sm:items-end" onSubmit={(event) => void runLookup(event)}>
-                      <div className="min-w-0 flex-1"><Label htmlFor="first-admin-email">{t("organizations.firstAdminEmail")}</Label><Input id="first-admin-email" type="email" maxLength={254} value={lookupEmail} required onChange={(event) => { setLookupEmail(event.target.value); setSelectedUser(null); }} /></div>
+                      <div className="min-w-0 flex-1"><Label htmlFor="first-admin-email">{t("organizations.firstAdminEmail")}</Label><Input id="first-admin-email" type="email" maxLength={254} value={lookupEmail} required onChange={(event) => { lookupRequestId.current += 1; setLookupEmail(event.target.value); setSelectedUser(null); setOperationMessage(""); }} /></div>
                       <Button type="submit" variant="outline" disabled={lookup.isPending}>{lookup.isPending ? t("lookingUp") : t("organizations.findFirstAdmin")}</Button>
                     </form> : <PermissionNotice message={t("users.accountLookupPermissionNeeded")} />}
                     {selectedUser && <p className="mt-3 text-sm text-success-700 dark:text-success-300">{t("organizations.selectedAdmin", { name: selectedUser.fullName, email: selectedUser.email })}</p>}
@@ -293,13 +302,13 @@ export default function PlatformConsole() {
               {routeOrganizationId && !canReadOrganizations && <PermissionNotice message={t("pages.organizations.readPermissionNeeded")} />}
               {routeOrganizationId && !hasValidRouteOrganizationId && <div role="alert" className="rounded-lg border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/20 dark:bg-error-500/10 dark:text-error-300">{t("errors.invalidOrganizationId")}</div>}
               {hasValidRouteOrganizationId && canReadOrganizations && organization.isPending && <LoadingRow label={t("loadingOrganizationDetail")} />}
-              {hasValidRouteOrganizationId && canReadOrganizations && organization.isError && <QueryError message={t("errors.organizationDetail")} onRetry={() => void organization.refetch()} />}
+              {hasValidRouteOrganizationId && canReadOrganizations && organization.isError && <QueryError error={organization.error} fallbackKey="errors.organizationDetail" onRetry={() => void organization.refetch()} />}
               {hasValidRouteOrganizationId && organization.data && !canReadMemberships && <PermissionNotice message={t("memberships.readPermissionNeeded")} />}
               {hasValidRouteOrganizationId && organization.data && <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold tracking-wide text-gray-400 uppercase">{t("organizations.selected")}</p><h3 className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">{organization.data.name}</h3><p className="mt-1 text-sm text-gray-500">{organization.data.slug} · {organization.data.plan}</p></div><Button variant="outline" size="sm" disabled={organization.isFetching} onClick={() => void organization.refetch()}>{t("refresh")}</Button></div>
                 {organization.isError && <p role="alert" className="mt-3 text-sm text-error-600">{t("errors.organizationDetail")}</p>}
                 {canReadMemberships && <div className="mt-6 border-t border-gray-100 pt-5 dark:border-gray-800"><div className="mb-3 flex items-center justify-between"><h4 className="font-semibold text-gray-800 dark:text-gray-100">{t("memberships.title")}</h4><span className="text-xs text-gray-500">{memberships.data?.pagination.totalItems ?? 0}</span></div>
-                  {memberships.isError ? <QueryError message={t("errors.membershipList")} onRetry={() => void memberships.refetch()} /> : memberships.isPending ? <LoadingRow label={t("loadingMemberships")} /> : memberships.data?.data.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-3 py-2 text-start font-medium">{t("table.member")}</th><th className="px-3 py-2 text-start font-medium">{t("table.role")}</th><th className="px-3 py-2 text-start font-medium">{t("table.status")}</th><th className="px-3 py-2 text-end font-medium">{t("table.action")}</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{memberships.data.data.map((member) => <tr key={member.id}><td className="px-3 py-3"><p className="font-medium text-gray-800 dark:text-gray-100">{member.user?.fullName ?? t("memberships.userUnavailable")}</p><p className="text-xs text-gray-500">{member.user?.email ?? member.userId}</p></td><td className="px-3 py-3 text-gray-600 dark:text-gray-300">{member.organizationRoles.length ? member.organizationRoles.join(", ") : t("table.noRole")}</td><td className="px-3 py-3"><StatusBadge status={member.status} label={t(`membershipStatus.${member.status}`)} /></td><td className="px-3 py-3 text-end">{canSuspendMemberships && member.status === "ACTIVE" && member.userId !== session.data.id ? <button type="button" onClick={() => setSuspendTarget(member)} className="rounded-md px-3 py-1.5 text-sm font-medium text-error-600 hover:bg-error-50 focus-visible:outline-2 focus-visible:outline-error-500 dark:text-error-400 dark:hover:bg-error-500/10">{t("memberships.suspend")}</button> : <span className="text-xs text-gray-400">{member.userId === session.data.id ? t("memberships.currentOperator") : "—"}</span>}</td></tr>)}</tbody></table></div> : <EmptyState title={t("memberships.emptyTitle")} body={t("memberships.emptyBody")} />}
+                  {memberships.isError ? <QueryError error={memberships.error} fallbackKey="errors.membershipList" onRetry={() => void memberships.refetch()} /> : memberships.isPending ? <LoadingRow label={t("loadingMemberships")} /> : memberships.data?.data.length ? <div className="overflow-x-auto"><table className="min-w-full text-sm"><thead className="bg-gray-50 text-xs text-gray-500 dark:bg-gray-800/60 dark:text-gray-400"><tr><th className="px-3 py-2 text-start font-medium">{t("table.member")}</th><th className="px-3 py-2 text-start font-medium">{t("table.role")}</th><th className="px-3 py-2 text-start font-medium">{t("table.status")}</th><th className="px-3 py-2 text-end font-medium">{t("table.action")}</th></tr></thead><tbody className="divide-y divide-gray-100 dark:divide-gray-800">{memberships.data.data.map((member) => <tr key={member.id}><td className="px-3 py-3"><p className="font-medium text-gray-800 dark:text-gray-100">{member.user?.fullName ?? t("memberships.userUnavailable")}</p><p className="text-xs text-gray-500">{member.user?.email ?? member.userId}</p></td><td className="px-3 py-3 text-gray-600 dark:text-gray-300">{member.organizationRoles.length ? member.organizationRoles.join(", ") : t("table.noRole")}</td><td className="px-3 py-3"><StatusBadge status={member.status} label={t(`membershipStatus.${member.status}`)} /></td><td className="px-3 py-3 text-end">{canSuspendMemberships && member.status === "ACTIVE" && member.userId !== session.data.id ? <button type="button" onClick={() => setSuspendTarget(member)} className="rounded-md px-3 py-1.5 text-sm font-medium text-error-600 hover:bg-error-50 focus-visible:outline-2 focus-visible:outline-error-500 dark:text-error-400 dark:hover:bg-error-500/10">{t("memberships.suspend")}</button> : <span className="text-xs text-gray-400">{member.userId === session.data.id ? t("memberships.currentOperator") : "—"}</span>}</td></tr>)}</tbody></table></div> : <EmptyState title={t("memberships.emptyTitle")} body={t("memberships.emptyBody")} />}
                   {memberships.data?.pagination && <PlatformPagination ariaLabel={t("memberships.title")} page={memberships.data.pagination.page} totalPages={memberships.data.pagination.totalPages} totalItems={memberships.data.pagination.totalItems} onPageChange={setDetailMembershipPage} />}
                 </div>}
               </section>}
@@ -316,7 +325,7 @@ export default function PlatformConsole() {
           </div>}
 
           {activeSection === "memberships" && <div className="space-y-5">
-            <PlatformMembershipDirectory organizations={organizations.data} organizationsLoading={organizations.isPending} organizationsError={organizations.isError} onRetryOrganizations={() => void organizations.refetch()} organizationPage={organizationPage} onOrganizationPageChange={(page) => { setOrganizationPage(page); setSelectedOrganizationId(""); }} organizationId={effectiveSelectedOrganizationId} canReadOrganizations={canReadOrganizations} canReadMemberships={canReadMemberships} canSuspendMemberships={canSuspendMemberships} currentUserId={session.data.id} onOrganizationChange={setSelectedOrganizationId} onSuspend={setSuspendTarget} />
+            <PlatformMembershipDirectory organizations={organizations.data} organizationsLoading={organizations.isPending} organizationsError={organizations.error} onRetryOrganizations={() => void organizations.refetch()} organizationPage={organizationPage} onOrganizationPageChange={(page) => { setOrganizationPage(page); setSelectedOrganizationId(""); }} organizationId={effectiveSelectedOrganizationId} canReadOrganizations={canReadOrganizations} canReadMemberships={canReadMemberships} canSuspendMemberships={canSuspendMemberships} currentUserId={session.data.id} onOrganizationChange={setSelectedOrganizationId} onSuspend={setSuspendTarget} />
           </div>}
 
           {activeSection === "projects" && <PlatformUnavailablePage items={[t("capabilities.projectDirectory"), t("capabilities.projectMetadata"), t("capabilities.projectVisibility"), t("capabilities.projectAccess")]} title={t("capabilities.projectTitle")} description={t("capabilities.projectDescription")} dependency={t("capabilities.projectDependency")} />}
@@ -327,7 +336,7 @@ export default function PlatformConsole() {
           </div>}
 
           {activeSection === "services" && <div className="space-y-5">
-            {canReadHealth ? <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{t("health.title")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("health.description")}</p></div><Button variant="outline" size="sm" disabled={health.isFetching} onClick={() => void health.refetch()}>{t("refresh")}</Button></div>{health.isPending ? <LoadingRow label={t("health.checking")} /> : health.isError ? <QueryError message={t("errors.health")} onRetry={() => void health.refetch()} /> : <div className="mt-5 flex items-center gap-3 rounded-lg border border-success-200 bg-success-50 px-4 py-4 dark:border-success-500/20 dark:bg-success-500/10"><span className="h-2.5 w-2.5 rounded-full bg-success-500" aria-hidden="true" /><div><p className="font-medium text-success-800 dark:text-success-300">{t("health.healthy")}</p><p className="text-sm text-success-700 dark:text-success-400">{t("health.iamOnly")}</p></div></div>}</section> : <PermissionNotice message={t("pages.services.permissionNeeded")} />}
+            {canReadHealth ? <section className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"><div className="flex items-center justify-between gap-3"><div><h3 className="font-semibold text-gray-900 dark:text-white">{t("health.title")}</h3><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("health.description")}</p></div><Button variant="outline" size="sm" disabled={health.isFetching} onClick={() => void health.refetch()}>{t("refresh")}</Button></div>{health.isPending ? <LoadingRow label={t("health.checking")} /> : health.isError ? <QueryError error={health.error} fallbackKey="errors.health" onRetry={() => void health.refetch()} /> : <div className="mt-5 flex items-center gap-3 rounded-lg border border-success-200 bg-success-50 px-4 py-4 dark:border-success-500/20 dark:bg-success-500/10"><span className="h-2.5 w-2.5 rounded-full bg-success-500" aria-hidden="true" /><div><p className="font-medium text-success-800 dark:text-success-300">{t("health.healthy")}</p><p className="text-sm text-success-700 dark:text-success-400">{t("health.iamOnly")}</p></div></div>}</section> : <PermissionNotice message={t("pages.services.permissionNeeded")} />}
             <PlatformUnavailablePage partial items={[t("capabilities.serviceStatus"), t("capabilities.serviceDependencies"), t("capabilities.serviceDiagnostics")]} title={t("capabilities.serviceTitle")} description={t("capabilities.serviceDescription")} dependency={t("capabilities.serviceDependency")} />
           </div>}
 
@@ -359,9 +368,9 @@ function LoadingRow({ label }: { label: string }) {
   return <p className="px-5 py-8 text-sm text-gray-500" role="status">{label}</p>;
 }
 
-function QueryError({ message, onRetry }: { message: string; onRetry: () => void }) {
+function QueryError({ error, fallbackKey, onRetry }: { error: unknown; fallbackKey: string; onRetry: () => void }) {
   const t = useTranslations("platformConsole");
-  return <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5" role="alert"><p className="text-sm text-error-600 dark:text-error-400">{message}</p><button type="button" onClick={onRetry} className="text-sm font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div>;
+  return <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5" role="alert"><p className="text-sm text-error-600 dark:text-error-400">{t(platformErrorMessageKey(error, fallbackKey))}</p><button type="button" onClick={onRetry} className="text-sm font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div>;
 }
 
 function StatusBadge({ status, label }: { status: string; label: string }) {

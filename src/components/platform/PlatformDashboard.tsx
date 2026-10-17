@@ -8,6 +8,7 @@ import {
   usePlatformOrganizationsQuery,
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
+import { platformErrorMessageKey } from "@/lib/queries/platform/platform-api";
 import { useTranslations } from "next-intl";
 
 type PlatformDashboardProps = Readonly<{
@@ -27,13 +28,13 @@ export default function PlatformDashboard({ permissions }: PlatformDashboardProp
     <div className="space-y-5">
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label={t("dashboard.summary") }>
         <SummaryCard label={t("dashboard.organizations")} value={
-          !canReadOrganizations ? t("dashboard.unavailable") : organizations.isPending ? t("dashboard.loading") : organizations.isError ? t("dashboard.error") : String(organizations.data?.pagination.totalItems ?? 0)
+          !canReadOrganizations ? t("dashboard.unavailable") : organizations.isPending ? t("dashboard.loading") : organizations.isError ? t(platformErrorMessageKey(organizations.error, "dashboard.error")) : String(organizations.data?.pagination.totalItems ?? 0)
         } detail={canReadOrganizations ? t("dashboard.totalOrganizations") : t("dashboard.permissionNeeded")} href="/platform/organizations" onRetry={organizations.isError ? () => void organizations.refetch() : undefined} />
         <SummaryCard label={t("dashboard.users")} value={t("dashboard.unavailable")} detail={t("dashboard.userMetricsUnavailable")} href="/platform/users" />
         <SummaryCard label={t("dashboard.projects")} value={t("dashboard.unavailable")} detail={t("dashboard.projectMetricsUnavailable")} href="/platform/projects" />
         <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <p className="text-sm text-gray-500 dark:text-gray-400">{t("dashboard.iamHealth")}</p>
-          <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{!canReadHealth ? t("dashboard.unavailable") : health.isPending ? t("dashboard.loading") : health.isError ? t("dashboard.error") : t("health.healthy")}</p>
+          <p className="mt-2 text-lg font-semibold text-gray-900 dark:text-white">{!canReadHealth ? t("dashboard.unavailable") : health.isPending ? t("dashboard.loading") : health.isError ? t(platformErrorMessageKey(health.error, "dashboard.error")) : t("health.healthy")}</p>
           <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("dashboard.iamHealthDetail")}</p>
           {health.isError && canReadHealth && <button type="button" onClick={() => void health.refetch()} className="mt-2 text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button>}
           <Link href="/platform/services" className="mt-4 inline-flex text-sm font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("dashboard.openHealth")}</Link>
@@ -45,7 +46,7 @@ export default function PlatformDashboard({ permissions }: PlatformDashboardProp
           <div><h3 className="font-semibold text-gray-900 dark:text-white">{t("dashboard.recentActivity")}</h3><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("dashboard.recentActivityNote")}</p></div>
           <Link href="/platform/audit" className="text-sm font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("dashboard.openAudit")}</Link>
         </div>
-        {!canReadAudit ? <UnavailableRow message={t("dashboard.permissionNeeded")} /> : audit.isPending ? <UnavailableRow message={t("dashboard.loading")} /> : audit.isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 px-5 py-6"><p className="text-sm text-error-600 dark:text-error-400">{t("dashboard.auditError")}</p><button type="button" onClick={() => void audit.refetch()} className="text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div> : audit.data?.length ? (
+        {!canReadAudit ? <UnavailableRow message={t("dashboard.permissionNeeded")} /> : audit.isPending ? <UnavailableRow message={t("dashboard.loading")} /> : audit.isError ? <div role="alert" className="flex flex-wrap items-center justify-between gap-3 px-5 py-6"><p className="text-sm text-error-600 dark:text-error-400">{t(platformErrorMessageKey(audit.error, "dashboard.auditError"))}</p><button type="button" onClick={() => void audit.refetch()} className="text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div> : audit.data?.length ? (
           <ul className="divide-y divide-gray-100 dark:divide-gray-800">
             {audit.data.slice(0, 5).map((event, index) => <li key={`${event.action}-${event.targetResourceId}-${event.occurredAt}-${index}`} className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 px-5 py-3">
               <div className="min-w-0"><p className="truncate text-sm font-medium text-gray-800 dark:text-gray-100">{event.action}</p><p className="text-xs text-gray-500 dark:text-gray-400">{event.targetResource} · {event.targetResourceId}</p></div>

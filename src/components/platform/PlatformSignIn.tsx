@@ -5,7 +5,7 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { Link, useRouter } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { getPlatformErrorKind, platformErrorMessageKey } from "@/lib/queries/platform/platform-api";
 import { usePlatformLoginMutation, usePlatformSessionQuery } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
@@ -36,14 +36,16 @@ export default function PlatformSignIn() {
     }
   }
 
-  const error = login.error instanceof ApiError ? login.error : undefined;
-  const message = error?.status === 401
-    ? t("signIn.invalidCredentials")
-    : error?.status === 403
-      ? t("signIn.notAuthorized")
-      : sessionUnavailable || login.isError
-        ? t("signIn.unavailable")
-        : null;
+  const loginErrorKind = getPlatformErrorKind(login.error);
+  const message = login.error
+    ? loginErrorKind === "unauthenticated"
+      ? t("signIn.invalidCredentials")
+      : loginErrorKind === "forbidden"
+        ? t("signIn.notAuthorized")
+        : t(platformErrorMessageKey(login.error, "signIn.unavailable"))
+    : sessionUnavailable
+      ? t(platformErrorMessageKey(session.error, "signIn.unavailable"))
+      : null;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 dark:bg-gray-950">

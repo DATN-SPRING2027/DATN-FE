@@ -92,15 +92,29 @@ The following UI groups are present and state the exact missing Platform capabil
 
 No Configuration UI is included. No BE files, contract, permissions, database schema, dependency, or environment setting were changed by this FE task.
 
+## Logic audit follow-up
+
+The console logic audit kept the existing page structure and styling and made these behavior/API corrections:
+
+- Platform requests now have a 15-second aborting timeout and stable HTTP/network error categories. User-facing messages resolve to fixed translations; backend response text and stack details are never displayed.
+- A failed Platform session probe redirects to sign-in only for unauthenticated or forbidden responses. Transient server, network, timeout and other failures keep a retry path and do not expose cached console data.
+- Sign-out uses the shared refresh-aware logout flow so a concurrent session refresh cannot leave the Platform session active after the UI reports success.
+- A 401 from sign-out clears private query state and returns to Platform sign-in; lookup 404 stays indistinguishable from other ineligible accounts, while other lookup/sign-out failures use their normalized safe message category.
+- An Organization first-ADMIN lookup is tied to the exact email value submitted. Editing the email invalidates any in-flight result and clears the previous selection, preventing an old response from enabling creation for a different address.
+- Audit records are checked against the current action-to-resource projection. A malformed or unapproved record fails the bounded response instead of being silently omitted from the client display.
+- The missing `platformConsole.loadingMemberships` runtime message, plus the loading/permission/error messages reached by the active Platform flows, now have entries in the configured English catalog. A test checks the Platform literal translation keys.
+
+These fixes do not add APIs or permissions and do not widen the active operation set. Unsupported User, Project, session, service, job, AI, integration, incident, support, diagnostics and Configuration operations remain unavailable as described above.
+
 ## Validation and review
 
 Validation is recorded after the final implementation pass:
 
-- `npm ci`: completed from the existing lockfile; lockfile remains unchanged.
-- `npm run check`: passed on the final implementation; lint and typecheck passed, all 49 Vitest files / 371 tests passed, and the Next.js production build generated all Platform routes successfully.
-- Focused Platform Console, pagination, Platform query hook and session recovery tests cover all 14 navigation entries, permissions, active actions, safe unavailable states, local audit filters, invalid IDs, paged API URLs and one-time identity recovery after failures in Platform-scoped endpoints.
-- Browser smoke: unauthenticated Platform route redirected to sign-in without a retry loop; sign-in form rendered. An authenticated Platform browser session was unavailable, so rendered authenticated module pages were not manually inspected in-browser.
-- Final `git diff --check` passed. The endpoint review found only the listed existing Platform endpoints; no Organization-scoped User/Project API is used by the Platform console. Secret, token, raw tenant-content, job-payload and prompt scans found no implementation matches.
+- `npm run check`: passed after the final logic audit; lint, typecheck, all 51 Vitest files / 396 tests, and the Next.js production build passed.
+- Focused Platform tests cover normalized HTTP/network/timeout errors, abort behavior, safe message mapping, translation keys, transient session retry, stale first-ADMIN lookup responses, lookup not-found privacy, strict audit-projection validation, refresh-aware logout, logout 401 cache clearing, permission gates, active actions and unavailable states.
+- Authenticated browser smoke on the local app rendered all 14 Platform navigation routes plus Organization detail. Each route retained the Platform shell/session and showed its expected module heading; unavailable modules stayed in explicit unavailable states.
+- The sign-in route was not exercised with an unauthenticated browser session in this pass. Existing component/API tests cover sign-in error mapping; no credentials were entered into the browser.
+- `git diff --check` passed. Manual endpoint and authorization review found no calls to Organization-scoped User/Project APIs from the Platform console. The FE continues to rely on server-side permission enforcement and contains no token handling or tenant-content/secret projections.
 
 ## Change impact
 

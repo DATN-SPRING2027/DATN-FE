@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import { platformErrorMessageKey } from "@/lib/queries/platform/platform-api";
 import { usePlatformAuditQuery, type PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
@@ -29,7 +30,7 @@ export default function PlatformAuditProjection({ permissions }: { permissions: 
         <div><h3 className="font-semibold text-gray-900 dark:text-white">{t("audit.title")}</h3><p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("audit.boundedNote")}</p></div>
         <Button variant="outline" size="sm" disabled={!allowed || audit.isFetching} onClick={() => void audit.refetch()}>{audit.isFetching ? t("refreshing") : t("refresh")}</Button>
       </div>
-      {!allowed ? <p role="status" className="px-5 py-5 text-sm text-gray-500 dark:text-gray-400">{t("audit.permissionNeeded")}</p> : audit.isError ? <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5" role="alert"><p className="text-sm text-error-600 dark:text-error-400">{t("errors.audit")}</p><button type="button" onClick={() => void audit.refetch()} className="text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div> : audit.isPending ? <p className="px-5 py-8 text-sm text-gray-500" role="status">{t("audit.loading")}</p> : (
+      {!allowed ? <p role="status" className="px-5 py-5 text-sm text-gray-500 dark:text-gray-400">{t("audit.permissionNeeded")}</p> : audit.isError ? <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-5" role="alert"><p className="text-sm text-error-600 dark:text-error-400">{t(platformErrorMessageKey(audit.error, "errors.audit"))}</p><button type="button" onClick={() => void audit.refetch()} className="text-sm font-medium text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400">{t("retry")}</button></div> : audit.isPending ? <p className="px-5 py-8 text-sm text-gray-500" role="status">{t("audit.loading")}</p> : (
         <>
           <div className="grid gap-3 border-b border-gray-100 p-5 sm:grid-cols-2 xl:grid-cols-5 dark:border-gray-800">
             <FilterInput label={t("audit.filterAction")} value={action} onChange={setAction} />

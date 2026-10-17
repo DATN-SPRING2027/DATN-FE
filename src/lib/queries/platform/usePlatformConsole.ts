@@ -1,7 +1,8 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ApiError, apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
+import { platformApiClient, platformLogout } from "./platform-api";
 import { platformSessionQueryKey } from "./platform-session.key";
 
 export const platformPermissions = [
@@ -72,7 +73,7 @@ export type PlatformMembershipSuspensionAcknowledgement = Readonly<{
   }>;
 }>;
 export type PlatformAuditRecord = Readonly<{
-  action: string;
+  action: "organization.create" | "platform.authority.granted" | "platform.authority.revoked" | "ORGANIZATION_MEMBERSHIP_SUSPENDED";
   targetResource: "ORGANIZATION" | "PLATFORM_AUTHORITY" | "ORGANIZATION_MEMBERSHIP";
   targetResourceId: string;
   actorUserId: string;
@@ -83,6 +84,12 @@ const resourceIdPattern = /^[a-f\d]{24}$/i;
 const dateTimePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const permissionSet = new Set<string>(platformPermissions);
 const membershipStatuses = new Set(["PENDING_INVITE", "ACTIVE", "SUSPENDED", "REMOVED"]);
+const platformAuditResources = {
+  "organization.create": "ORGANIZATION",
+  "platform.authority.granted": "PLATFORM_AUTHORITY",
+  "platform.authority.revoked": "PLATFORM_AUTHORITY",
+  ORGANIZATION_MEMBERSHIP_SUSPENDED: "ORGANIZATION_MEMBERSHIP",
+} as const;
 
 function invalidResponse(): ApiError {
   return new ApiError(502, "INVALID_PLATFORM_RESPONSE", "The Platform API returned an invalid response");
@@ -212,6 +219,30 @@ function parseMembership(value: unknown, organizationId: string): PlatformMember
   };
 }
 
+function parsePlatformAuditRecord(value: unknown): PlatformAuditRecord {
+  if (
+    !record(value) ||
+    typeof value.action !== "string" || !Object.hasOwn(platformAuditResources, value.action) ||
+    value.targetResource !== platformAuditResources[value.action as keyof typeof platformAuditResources] ||
+    typeof value.targetResourceId !== "string" || !value.targetResourceId ||
+    typeof value.actorUserId !== "string" || !value.actorUserId ||
+    !dateTime(value.occurredAt)
+  ) throw invalidResponse();
+
+  return {
+    action: value.action as PlatformAuditRecord["action"],
+    targetResource: value.targetResource as PlatformAuditRecord["targetResource"],
+    targetResourceId: value.targetResourceId,
+    actorUserId: value.actorUserId,
+    occurredAt: value.occurredAt,
+  };
+}
+
+function parsePlatformAuditRecords(value: unknown): PlatformAuditRecord[] {
+  if (!Array.isArray(value) || value.length > 100) throw invalidResponse();
+  return value.map(parsePlatformAuditRecord);
+}
+
 function csrfHeaders(idempotencyKey?: string): Headers {
   if (typeof document === "undefined") throw new ApiError(403, "AUTH_CSRF_INVALID", "CSRF context is unavailable");
   const cookie = document.cookie.split(";").map((item) => item.trim()).find((item) => item.startsWith("__Host-csrf="));
@@ -238,7 +269,7 @@ export function usePlatformSessionQuery() {
   return useQuery({
     queryKey: platformKeys.session(),
     queryFn: async () => {
-      const value: unknown = await apiClient("/auth/platform/me", { cache: "no-store" });
+      const value: unknown = await platformApiClient("/auth/platform/me", { cache: "no-store" });
       if (
         !record(value) || typeof value.id !== "string" || !resourceIdPattern.test(value.id) ||
         typeof value.email !== "string" || typeof value.name !== "string" || value.context !== "PLATFORM" ||
@@ -262,7 +293,7 @@ export function usePlatformLoginMutation() {
   return useMutation({
     mutationKey: ["login", "platform"],
     mutationFn: (credentials: Readonly<{ email: string; password: string }>) =>
-      apiClient<{ context: "PLATFORM"; user: { id: string; email: string; name: string } }>("/auth/platform/login", {
+      platformApiClient<{ context: "PLATFORM"; user: { id: string; email: string; name: string } }>("/auth/platform/login", {
         method: "POST",
         body: JSON.stringify(credentials),
         cache: "no-store",
@@ -274,7 +305,7 @@ export function usePlatformLoginMutation() {
 export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
   return useQuery({
     queryKey: platformKeys.organizationsPage(page),
-    queryFn: async () => parsePage(await apiClient<unknown>(`/iam/platform/organizations?page=${page}&pageSize=100`, { cache: "no-store" }), parseOrganization),
+    queryFn: async () => parsePage(await platformApiClient<unknown>(`/iam/platform/organizations?page=${page}&pageSize=100`, { cache: "no-store" }), parseOrganization),
     enabled,
     retry: false,
     staleTime: 15_000,
@@ -284,7 +315,7 @@ export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
 export function usePlatformOrganizationQuery(id: string, enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.organization(id),
-    queryFn: async () => parseOrganization(await apiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(id)}`, { cache: "no-store" })),
+    queryFn: async () => parseOrganization(await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(id)}`, { cache: "no-store" })),
     enabled: enabled && resourceIdPattern.test(id),
     retry: false,
   });
@@ -293,7 +324,7 @@ export function usePlatformOrganizationQuery(id: string, enabled: boolean) {
 export function usePlatformUserLookupMutation() {
   return useMutation({
     mutationKey: [...platformKeys.all, "user-lookup"],
-    mutationFn: async (email: string) => parsePlatformUser(await apiClient<unknown>("/iam/platform/users/lookup", {
+    mutationFn: async (email: string) => parsePlatformUser(await platformApiClient<unknown>("/iam/platform/users/lookup", {
       method: "POST",
       headers: csrfHeaders(),
       body: JSON.stringify({ email }),
@@ -306,7 +337,7 @@ export function usePlatformMembershipsQuery(organizationId: string, enabled: boo
   return useQuery({
     queryKey: platformKeys.membershipsPage(organizationId, page),
     queryFn: async () => parsePage(
-      await apiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=${page}&pageSize=100`, { cache: "no-store" }),
+      await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships?page=${page}&pageSize=100`, { cache: "no-store" }),
       (item) => parseMembership(item, organizationId),
     ),
     enabled: enabled && resourceIdPattern.test(organizationId),
@@ -322,7 +353,7 @@ export function useSuspendPlatformMembershipMutation(organizationId: string) {
     mutationFn: async (input: Readonly<{ membershipId: string; expectedMembershipVersion: number; reasonCode: "SECURITY_INCIDENT" | "ACCESS_REVIEW" }>) => {
       if (!resourceIdPattern.test(organizationId) || !resourceIdPattern.test(input.membershipId) || !Number.isSafeInteger(input.expectedMembershipVersion) || input.expectedMembershipVersion < 1) throw new ApiError(422, "VALIDATION_FAILED", "Invalid membership operation");
       const idempotencyKey = globalThis.crypto.randomUUID();
-      const value = await apiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(input.membershipId)}/suspend`, {
+      const value = await platformApiClient<unknown>(`/iam/platform/organizations/${encodeURIComponent(organizationId)}/memberships/${encodeURIComponent(input.membershipId)}/suspend`, {
         method: "POST",
         headers: csrfHeaders(idempotencyKey),
         body: JSON.stringify({ expectedMembershipVersion: input.expectedMembershipVersion, reasonCode: input.reasonCode }),
@@ -345,7 +376,7 @@ export function useCreatePlatformOrganizationMutation() {
     mutationKey: [...platformKeys.all, "organization-create"],
     mutationFn: async (input: Readonly<{ name: string; slug: string; plan: "FREE" | "ENTERPRISE"; firstAdminUserId: string }>) => {
       if (!input.name.trim() || input.name.length > 200 || !/^[a-f\d]{24}$/i.test(input.firstAdminUserId) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug) || input.slug.length > 100) throw new ApiError(422, "VALIDATION_FAILED", "Invalid Organization input");
-      return parseOrganization(await apiClient<unknown>("/iam/platform/organizations", {
+      return parseOrganization(await platformApiClient<unknown>("/iam/platform/organizations", {
         method: "POST",
         headers: csrfHeaders(),
         body: JSON.stringify(input),
@@ -360,7 +391,7 @@ export function usePlatformHealthQuery(enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.health(),
     queryFn: async () => {
-      const value: unknown = await apiClient("/iam/platform/health", { cache: "no-store" });
+      const value: unknown = await platformApiClient("/iam/platform/health", { cache: "no-store" });
       if (!record(value) || value.status !== "ok") throw invalidResponse();
       return { status: "ok" as const };
     },
@@ -374,22 +405,8 @@ export function usePlatformAuditQuery(enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.audit(),
     queryFn: async () => {
-      const value: unknown = await apiClient<unknown>("/iam/platform/audit", { cache: "no-store" });
-      if (!Array.isArray(value) || value.length > 100) throw invalidResponse();
-      return value.flatMap((item): PlatformAuditRecord[] => {
-        if (
-          !record(item) || typeof item.action !== "string" ||
-          !["ORGANIZATION", "PLATFORM_AUTHORITY", "ORGANIZATION_MEMBERSHIP"].includes(String(item.targetResource)) ||
-          typeof item.targetResourceId !== "string" || typeof item.actorUserId !== "string" || !dateTime(item.occurredAt)
-        ) return [];
-        return [{
-          action: item.action,
-          targetResource: item.targetResource as PlatformAuditRecord["targetResource"],
-          targetResourceId: item.targetResourceId,
-          actorUserId: item.actorUserId,
-          occurredAt: item.occurredAt,
-        }];
-      });
+      const value: unknown = await platformApiClient<unknown>("/iam/platform/audit", { cache: "no-store" });
+      return parsePlatformAuditRecords(value);
     },
     enabled,
     retry: false,
@@ -401,7 +418,10 @@ export function usePlatformLogoutMutation() {
   const client = useQueryClient();
   return useMutation({
     mutationKey: ["logout", "platform"],
-    mutationFn: () => apiClient<void>("/api/v1/auth/logout", { method: "POST", cache: "no-store" }),
+    mutationFn: platformLogout,
     onSuccess: () => client.clear(),
+    onError: (error) => {
+      if (error instanceof ApiError && error.status === 401) client.clear();
+    },
   });
 }
