@@ -1,155 +1,147 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
-import { Link } from "@/i18n/navigation";
-import { ChevronLeftIcon, EyeCloseIcon, EyeIcon } from "@/icons";
+import Alert from "@/components/ui/alert/Alert";
+import Button from "@/components/ui/button/Button";
 import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
-import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Link } from "@/i18n/navigation";
+import { ApiError } from "@/lib/api-client";
+import { useRequestEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
+import { ArrowRightIcon, CheckCircleIcon } from "@/icons";
+import styles from "./auth-experience.module.css";
 
 export default function SignUpForm() {
-  const [showPassword, setShowPassword] = useState(false);
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
   const [isChecked, setIsChecked] = useState(false);
+  const [requestAccepted, setRequestAccepted] = useState(false);
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
+  const registration = useRequestEmailRegistrationMutation();
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRequestAccepted(false);
+    try {
+      await registration.mutateAsync({
+        fullName: fullName.trim(),
+        email: email.trim(),
+      });
+      setRequestAccepted(true);
+    } catch {
+      // The API uses one generic response for every syntactically valid email.
+    }
+  }
+
+  const requestError =
+    registration.error instanceof ApiError ? registration.error : undefined;
 
   return (
-    <div className="no-scrollbar flex w-full flex-1 flex-col overflow-y-auto lg:w-1/2">
-      <div className="mx-auto mb-5 w-full max-w-md sm:pt-10">
-        <Link
-          href="/"
-          className="inline-flex items-center text-sm text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
-        >
-          <ChevronLeftIcon className="rtl:rotate-180" />
-          Back to dashboard
-        </Link>
-      </div>
-      <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center">
-        <div>
-          <div className="mb-5 sm:mb-8">
-            <h1 className="mb-2 text-title-sm font-semibold text-gray-800 sm:text-title-md dark:text-white/90">
-              Sign Up
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              Enter your email and password to sign up!
-            </p>
-          </div>
-          <div>
-            <GoogleOAuthButton label={t("signUpWithGoogle")} />
-            <div className="relative py-3 sm:py-5">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-200 dark:border-gray-800"></div>
-              </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="bg-white p-2 text-gray-400 sm:px-5 sm:py-2 dark:bg-gray-900">
-                  {t("or")}
-                </span>
-              </div>
-            </div>
-            <form>
-              <div className="space-y-5">
-                <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-                  {/* <!-- First Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      First Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="fname"
-                      name="fname"
-                      placeholder="Enter your first name"
-                    />
-                  </div>
-                  {/* <!-- Last Name --> */}
-                  <div className="sm:col-span-1">
-                    <Label>
-                      Last Name<span className="text-error-500">*</span>
-                    </Label>
-                    <Input
-                      type="text"
-                      id="lname"
-                      name="lname"
-                      placeholder="Enter your last name"
-                    />
-                  </div>
-                </div>
-                {/* <!-- Email --> */}
-                <div>
-                  <Label>
-                    Email<span className="text-error-500">*</span>
-                  </Label>
-                  <Input
-                    type="email"
-                    id="email"
-                    name="email"
-                    placeholder="Enter your email"
-                  />
-                </div>
-                {/* <!-- Password --> */}
-                <div>
-                  <Label>
-                    Password<span className="text-error-500">*</span>
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      placeholder="Enter your password"
-                      type={showPassword ? "text" : "password"}
-                    />
-                    <span
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-e-4 top-1/2 z-30 -translate-y-1/2 cursor-pointer"
-                    >
-                      {showPassword ? (
-                        <EyeIcon className="fill-gray-500 dark:fill-gray-400" />
-                      ) : (
-                        <EyeCloseIcon className="fill-gray-500 dark:fill-gray-400" />
-                      )}
-                    </span>
-                  </div>
-                </div>
-                {/* <!-- Checkbox --> */}
-                <div className="flex items-center gap-3">
-                  <Checkbox
-                    className="h-5 w-5"
-                    checked={isChecked}
-                    onChange={setIsChecked}
-                  />
-                  <p className="inline-block font-normal text-gray-500 dark:text-gray-400">
-                    By creating an account means you agree to the{" "}
-                    <span className="text-gray-800 dark:text-white/90">
-                      Terms and Conditions,
-                    </span>{" "}
-                    and our{" "}
-                    <span className="text-gray-800 dark:text-white">
-                      Privacy Policy
-                    </span>
-                  </p>
-                </div>
-                {/* <!-- Button --> */}
-                <div>
-                  <button className="flex w-full items-center justify-center rounded-lg bg-brand-500 px-4 py-3 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600">
-                    Sign Up
-                  </button>
-                </div>
-              </div>
-            </form>
+    <main className={styles.signup}>
+      <header className={styles.formHeading}>
+        <p className={styles.eyebrow}>{ui("signupEyebrow")}</p>
+        <h1>
+          {ui("signupTitle")}
+          <span>.</span>
+        </h1>
+        <p className={styles.introduction}>
+          {ui("signupHint")} <Link href="/signin">{ui("signIn")}</Link>
+        </p>
+      </header>
 
-            <div className="mt-5">
-              <p className="text-center text-sm font-normal text-gray-700 sm:text-start dark:text-gray-400">
-                Already have an account?{" "}
-                <Link
-                  href="/signin"
-                  className="text-brand-500 hover:text-brand-600 dark:text-brand-400"
-                >
-                  Sign In
-                </Link>
-              </p>
-            </div>
+      {requestAccepted ? (
+        <section aria-live="polite" className="space-y-5">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success-50 text-success-600 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400">
+            <CheckCircleIcon className="h-7 w-7" aria-hidden="true" />
           </div>
-        </div>
-      </div>
-    </div>
+          <Alert
+            variant="info"
+            title={t("emailRegistrationRequestAcceptedTitle")}
+            message={t("emailRegistrationRequestAcceptedMessage")}
+          />
+          <Link
+            href="/signin"
+            className="inline-flex min-h-11 items-center text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300"
+          >
+            {t("backToSignIn")}
+          </Link>
+        </section>
+      ) : (
+        <form className={styles.signinForm} onSubmit={submit}>
+          {registration.error ? (
+            <Alert
+              variant="error"
+              title={t("emailRegistrationRequestErrorTitle")}
+              message={
+                requestError?.status === 429
+                  ? t("emailRegistrationRateLimited")
+                  : t("emailRegistrationRequestErrorMessage")
+              }
+            />
+          ) : null}
+          <div className={styles.field}>
+            <Label htmlFor="signup-full-name">{ui("fullName")}</Label>
+            <Input
+              id="signup-full-name"
+              name="fullName"
+              type="text"
+              autoComplete="name"
+              maxLength={160}
+              required
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+              placeholder={ui("fullName")}
+            />
+          </div>
+          <div className={styles.field}>
+            <Label htmlFor="signup-email">{ui("email")}</Label>
+            <Input
+              id="signup-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              maxLength={320}
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder={ui("emailPlaceholder")}
+            />
+          </div>
+          <div className={styles.agreement}>
+            <Checkbox
+              checked={isChecked}
+              onChange={setIsChecked}
+              label={ui("signupAgreement")}
+            />
+          </div>
+          <Button
+            type="submit"
+            className={styles.primaryButton}
+            disabled={registration.isPending}
+          >
+            {registration.isPending
+              ? t("emailRegistrationSending")
+              : ui("signupAction")}
+            <ArrowRightIcon
+              aria-hidden="true"
+              className="h-5 w-5 rtl:rotate-180"
+            />
+          </Button>
+        </form>
+      )}
+
+      {!requestAccepted ? (
+        <>
+          <div className={styles.separator}>{ui("alternative")}</div>
+          <div className={styles.googleButton}>
+            <GoogleOAuthButton label={t("signUpWithGoogle")} />
+          </div>
+        </>
+      ) : null}
+    </main>
   );
 }

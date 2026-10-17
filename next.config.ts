@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
       ignore: [
         /^\/api\/auth\/google\/callback(?:\?|$)/,
         /^\/reset-password(?:\?|$)/,
+        /^\/verify-email(?:\?|$)/,
       ],
     },
   },

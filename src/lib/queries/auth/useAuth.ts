@@ -26,6 +26,17 @@ export type PasswordResetConfirmInput = Readonly<{
   token: string;
   password: string;
 }>;
+export type EmailRegistrationRequestInput = Readonly<{
+  fullName: string;
+  email: string;
+}>;
+export type EmailRegistrationRequestResponse = Readonly<{
+  status: "accepted";
+}>;
+export type EmailRegistrationVerifyInput = Readonly<{
+  token: string;
+  password: string;
+}>;
 
 export type CurrentUserResponse =
   | Readonly<{
@@ -117,6 +128,46 @@ export function useCompletePasswordResetMutation(
     retry: false,
     mutationFn: ({ token, password }) =>
       apiClient<void>("/auth/password-reset/confirm", {
+        method: "POST",
+        body: JSON.stringify({ token, password }),
+      }),
+  });
+}
+
+export function useRequestEmailRegistrationMutation(
+  options?: Omit<
+    UseMutationOptions<
+      EmailRegistrationRequestResponse,
+      Error,
+      EmailRegistrationRequestInput
+    >,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    ...options,
+    mutationKey: ["email-registration-request"],
+    retry: false,
+    mutationFn: ({ fullName, email }) =>
+      apiClient<EmailRegistrationRequestResponse>("/auth/registrations", {
+        method: "POST",
+        body: JSON.stringify({ fullName, email }),
+      }),
+  });
+}
+
+export function useVerifyEmailRegistrationMutation(
+  options?: Omit<
+    UseMutationOptions<void, Error, EmailRegistrationVerifyInput>,
+    "mutationFn"
+  >,
+) {
+  return useMutation({
+    ...options,
+    mutationKey: ["email-registration-verify"],
+    retry: false,
+    mutationFn: ({ token, password }) =>
+      apiClient<void>("/auth/registrations/verify", {
         method: "POST",
         body: JSON.stringify({ token, password }),
       }),
