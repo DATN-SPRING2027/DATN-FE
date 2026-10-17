@@ -241,11 +241,18 @@ export default function PlatformMembershipDirectory({
             <table className="min-w-full text-xs">
               <thead className="border-b border-gray-100 bg-gray-50/75 text-[11px] font-semibold text-gray-500 uppercase dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-400">
                 <tr>
-                  <th className="px-5 py-3 text-start">{t("table.member")}</th>
-                  <th className="px-5 py-3 text-start">{t("table.role")}</th>
-                  <th className="px-5 py-3 text-start">{t("table.status")}</th>
-                  <th className="px-5 py-3 text-start">{t("table.updated")}</th>
-                  <th className="px-5 py-3 text-end">{t("table.action")}</th>
+                  <th scope="col" className="px-5 py-3 text-start">
+                    {t("table.member")}
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-start">
+                    {t("table.role")}
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-start">
+                    {t("table.status")}
+                  </th>
+                  <th scope="col" className="px-5 py-3 text-start">
+                    {t("table.updated")}
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -255,19 +262,33 @@ export default function PlatformMembershipDirectory({
                     className="transition-colors hover:bg-gray-50/50 dark:hover:bg-white/[0.02]"
                   >
                     <td className="px-5 py-3.5">
-                      <div className="flex items-center gap-3">
-                        <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                          {getInitials(member.user?.fullName ?? "?")}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="font-semibold text-gray-800 dark:text-gray-200">
-                            {member.user?.fullName ??
-                              t("memberships.userUnavailable")}
-                          </p>
-                          <p className="truncate text-[11px] text-gray-400">
-                            {member.user?.email ?? member.userId}
-                          </p>
+                      <div className="flex min-w-0 items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-xs font-bold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                            {getInitials(member.user?.fullName ?? "?")}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate font-semibold text-gray-800 dark:text-gray-200">
+                              {member.user?.fullName ??
+                                t("memberships.userUnavailable")}
+                            </p>
+                            <p className="truncate text-[11px] text-gray-400">
+                              {member.user?.email ?? member.userId}
+                            </p>
+                          </div>
                         </div>
+                        {canSuspendMemberships &&
+                          member.status === "ACTIVE" &&
+                          member.userId !== currentUserId &&
+                          member.hasPersistedVersion !== false && (
+                            <button
+                              type="button"
+                              onClick={() => onSuspend(member)}
+                              className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-rose-500 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                            >
+                              {t("memberships.suspend")}
+                            </button>
+                          )}
                       </div>
                     </td>
                     <td className="px-5 py-3.5">
@@ -296,31 +317,6 @@ export default function PlatformMembershipDirectory({
                     </td>
                     <td className="px-5 py-3.5 text-gray-500 dark:text-gray-400">
                       {new Date(member.updatedAt).toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3.5 text-end">
-                      {canSuspendMemberships &&
-                      member.status === "ACTIVE" &&
-                      member.userId !== currentUserId &&
-                      member.hasPersistedVersion !== false ? (
-                        <button
-                          type="button"
-                          onClick={() => onSuspend(member)}
-                          className="rounded-lg px-2.5 py-1 text-xs font-semibold text-rose-600 transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-2 focus-visible:outline-rose-500 dark:text-rose-400 dark:hover:bg-rose-500/10"
-                        >
-                          {t("memberships.suspend")}
-                        </button>
-                      ) : (
-                        <span className="text-[11px] text-gray-400">
-                          {member.hasPersistedVersion === false &&
-                          member.status === "ACTIVE" &&
-                          canSuspendMemberships &&
-                          member.userId !== currentUserId
-                            ? t("memberships.migrationRequired")
-                            : member.userId === currentUserId
-                              ? t("memberships.currentOperator")
-                              : t("memberships.noAction")}
-                        </span>
-                      )}
                     </td>
                   </tr>
                 ))}
