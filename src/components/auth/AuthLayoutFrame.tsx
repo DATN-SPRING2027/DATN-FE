@@ -14,6 +14,7 @@ const redesignedRoutes = new Set([
   "/signin",
   "/signup",
   "/reset-password",
+  "/verify-email",
   "/select-organization",
   "/onboarding",
 ]);
@@ -40,7 +41,7 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
             <Link href="/">{t("home")}</Link>
             {pathname === "/signin" ? (
               <Link href="/signup">{t("join")}</Link>
-            ) : pathname === "/signup" || pathname === "/reset-password" ? (
+            ) : pathname === "/signup" || pathname === "/reset-password" || pathname === "/verify-email" ? (
               <Link href="/signin">{t("signIn")}</Link>
             ) : (
               <span>{t("workspaceSetup")}</span>
