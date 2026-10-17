@@ -1,8 +1,11 @@
 import { readdirSync } from 'node:fs';
 import { join, relative, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-const localeAppDirectory = join(process.cwd(), 'src', 'app', '[locale]');
+const localeAppDirectory = fileURLToPath(
+  new URL('../app/[locale]', import.meta.url),
+);
 const restrictedPlatformRouteSegment =
   /^(?:platform.*|operations?.*|ops(?:[-_].*)?|admin(?:istration)?.*|console.*|configuration.*|config(?:uration)?.*)$/i;
 
