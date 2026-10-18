@@ -9,14 +9,23 @@ import Button from "@/components/ui/button/Button";
 import { Link } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useVerifyEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
-import { CheckCircleIcon, ChevronLeftIcon, LockIcon } from "@/icons";
+import {
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  EyeCloseIcon,
+  EyeIcon,
+  LockIcon,
+} from "@/icons";
 import styles from "./auth-experience.module.css";
 
 export default function EmailRegistrationForm() {
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordSubmitAttempted, setPasswordSubmitAttempted] = useState(false);
   const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const [verified, setVerified] = useState(false);
@@ -157,36 +166,78 @@ export default function EmailRegistrationForm() {
                 <Label htmlFor="registration-password">
                   {t("newPassword")}
                 </Label>
-                <Input
-                  id="registration-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={12}
-                  maxLength={72}
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setPasswordPolicyError(false);
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="registration-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    minLength={12}
+                    maxLength={72}
+                    className="pe-12"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setPasswordPolicyError(false);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className={styles.passwordToggle}
+                    aria-label={
+                      ui(showPassword ? "hidePassword" : "showPassword")
+                    }
+                    aria-pressed={showPassword}
+                    aria-controls="registration-password"
+                  >
+                    {showPassword ? (
+                      <EyeIcon aria-hidden="true" />
+                    ) : (
+                      <EyeCloseIcon aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="registration-password-confirm">
                   {t("confirmPassword")}
                 </Label>
-                <Input
-                  id="registration-password-confirm"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={12}
-                  maxLength={72}
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="registration-password-confirm"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    minLength={12}
+                    maxLength={72}
+                    className="pe-12"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className={styles.passwordToggle}
+                    aria-label={
+                      ui(
+                        showConfirmPassword
+                          ? "hideConfirmPassword"
+                          : "showConfirmPassword",
+                      )
+                    }
+                    aria-pressed={showConfirmPassword}
+                    aria-controls="registration-password-confirm"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeIcon aria-hidden="true" />
+                    ) : (
+                      <EyeCloseIcon aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button
                 type="submit"

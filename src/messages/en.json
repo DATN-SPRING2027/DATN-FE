@@ -2314,6 +2314,8 @@
     "passwordPlaceholder": "Enter your password",
     "showPassword": "Show password",
     "hidePassword": "Hide password",
+    "showConfirmPassword": "Show confirmation password",
+    "hideConfirmPassword": "Hide confirmation password",
     "remember": "Keep me signed in",
     "signIn": "Sign in",
     "signingIn": "Signing in…",
