@@ -1012,6 +1012,54 @@ export function usePlatformArchiveUserMutation() {
   });
 }
 
+export function usePlatformRestoreUserMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        userId: string;
+        expectedUpdatedAt: string;
+        reasonCode: "ACCESS_REVIEW";
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.userId) ||
+        !isTimestamp(input.expectedUpdatedAt) ||
+        input.reasonCode !== "ACCESS_REVIEW"
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid Platform user restore operation",
+        );
+      const restored = parseUser(
+        await platformApiClient<unknown>(
+          `/iam/platform/users/${encodeURIComponent(input.userId)}/restore`,
+          {
+            method: "POST",
+            headers: mutationHeaders(),
+            body: JSON.stringify({
+              expectedUpdatedAt: input.expectedUpdatedAt,
+              reasonCode: input.reasonCode,
+            }),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (
+        restored.id !== input.userId ||
+        restored.status !== "SUSPENDED" ||
+        restored.archivedAt !== null
+      )
+        throw invalidResponse();
+      return restored;
+    },
+    retry: false,
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
 export function usePlatformChangeUserStatusMutation() {
   const client = useQueryClient();
   return useMutation({

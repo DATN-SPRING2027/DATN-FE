@@ -251,6 +251,7 @@ const { operationHooks, operationState } = vi.hoisted(() => {
       usePlatformChangeUserStatusMutation: vi.fn(() => mutation),
       usePlatformUpdateUserProfileMutation: vi.fn(() => mutation),
       usePlatformArchiveUserMutation: vi.fn(() => mutation),
+      usePlatformRestoreUserMutation: vi.fn(() => mutation),
       usePlatformRevokeSessionMutation: vi.fn(() => mutation),
       usePlatformProjectsQuery: vi.fn(() => query),
       usePlatformProjectQuery: vi.fn(() => query),
@@ -316,8 +317,12 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
 }));
 vi.mock("@/lib/queries/platform/usePlatformOperations", () => operationHooks);
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string, values?: Record<string, string>) =>
-    values ? `${key} ${Object.values(values).join(" ")}` : key,
+  useTranslations: (namespace: string) =>
+    (key: string, values?: Record<string, string>) => {
+      if (namespace === "platformUserActions" && key === "restore")
+        return "Restore account";
+      return values ? `${key} ${Object.values(values).join(" ")}` : key;
+    },
 }));
 
 function makePlatformUser(
@@ -340,7 +345,7 @@ function makePlatformUser(
   };
 }
 
-function openUserDetails(user: ReturnType<typeof makePlatformUser>) {
+function renderUserDirectory(user: ReturnType<typeof makePlatformUser>) {
   pathname.value = "/platform/users";
   session.data.permissions = [
     "platform.users.account.read",
@@ -362,7 +367,6 @@ function openUserDetails(user: ReturnType<typeof makePlatformUser>) {
     },
   });
   render(<PlatformConsole />);
-  fireEvent.click(screen.getByRole("button", { name: "Details" }));
 }
 
 describe("PlatformConsole", () => {
@@ -432,6 +436,175 @@ describe("PlatformConsole", () => {
     operationState.userDetailQuery.isPending = false;
     operationState.userDetailQuery.refetch.mockReset();
     operationState.mutation.mutateAsync.mockReset().mockResolvedValue({});
+  });
+
+  it.each([
+    {
+      status: "ACTIVE" as const,
+      archivedAt: null,
+      visible: ["View details", "Edit profile", "Suspend account", "Archive user"],
+      hidden: ["Reactivate account", "Restore account"],
+    },
+    {
+      status: "SUSPENDED" as const,
+      archivedAt: null,
+      visible: ["View details", "Edit profile", "Reactivate account", "Archive user"],
+      hidden: ["Suspend account", "Restore account"],
+    },
+    {
+      status: "SUSPENDED" as const,
+      archivedAt: "2026-10-03T00:00:00.000Z",
+      visible: ["View details", "Restore account"],
+      hidden: ["Edit profile", "Suspend account", "Reactivate account", "Archive user"],
+    },
+  ])("shows only valid $status user actions in the row menu", ({ status, archivedAt, visible, hidden }) => {
+    const user = makePlatformUser(status, archivedAt);
+    renderUserDirectory(user);
+
+    expect(screen.queryByRole("button", { name: "Details" })).not.toBeInTheDocument();
+    const trigger = screen.getByRole("button", {
+      name: `Actions for ${user.fullName}`,
+    });
+    fireEvent.click(trigger);
+
+    const menu = screen.getByRole("menu", {
+      name: `Actions for ${user.fullName}`,
+    });
+    for (const label of visible) {
+      expect(within(menu).getByRole("menuitem", { name: label })).toBeInTheDocument();
+    }
+    for (const label of hidden) {
+      expect(within(menu).queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
+    }
+  });
+
+  it("closes the row menu on Escape and returns focus to its trigger", () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    const trigger = screen.getByRole("button", {
+      name: `Actions for ${user.fullName}`,
+    });
+
+    fireEvent.click(trigger);
+    const menu = screen.getByRole("menu", {
+      name: `Actions for ${user.fullName}`,
+    });
+    expect(within(menu).getByRole("menuitem", { name: "View details" })).toHaveFocus();
+    fireEvent.keyDown(menu, { key: "Escape" });
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("closes the row menu after clicking outside it", () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+
+    fireEvent.pointerDown(screen.getByRole("textbox", { name: "Search users" }));
+
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("opens and saves profile edits directly from the row menu", async () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Edit user profile" });
+    expect(within(dialog).getByLabelText("Full name")).toHaveValue(user.fullName);
+    fireEvent.change(within(dialog).getByLabelText("Full name"), {
+      target: { value: "Updated from menu" },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        fullName: "Updated from menu",
+        avatarUrl: null,
+        expectedUpdatedAt: user.updatedAt,
+      }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Edit user profile" })).not.toBeInTheDocument(),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("Profile updated");
+  });
+
+  it("suspends an active account from the row menu after confirmation", async () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Suspend account" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Suspend account?" });
+    expect(dialog).toHaveTextContent("revokes the user’s active sessions");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Suspend account" }));
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        status: "SUSPENDED",
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("SUSPENDED");
+  });
+
+  it("reactivates a suspended account from the row menu after confirmation", async () => {
+    const user = makePlatformUser("SUSPENDED");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Reactivate account" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Reactivate account?" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Reactivate account" }));
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        status: "ACTIVE",
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("ACTIVE");
+  });
+
+  it("archives a user from the row menu after acknowledging the retained records", async () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive user" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Archive user?" });
+    expect(dialog).toHaveTextContent("audit history");
+    const archiveButton = within(dialog).getByRole("button", { name: "Archive user" });
+    expect(archiveButton).toBeDisabled();
+    fireEvent.click(within(dialog).getByLabelText(/I understand the account/));
+    fireEvent.click(archiveButton);
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("archived");
   });
 
   it("renders only the allowed Organization and Membership actions", () => {
@@ -633,21 +806,45 @@ describe("PlatformConsole", () => {
     });
 
     render(<PlatformConsole />);
-    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${invite.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "View details" }));
 
-    expect(await screen.findByRole("button", { name: "Edit profile" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Suspend account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reactivate account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archive user" })).not.toBeInTheDocument();
+    const detailDialog = await screen.findByRole("dialog", {
+      name: invite.fullName,
+    });
+    expect(
+      within(detailDialog).queryByText("Account actions"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detailDialog).queryByRole("button", { name: "Edit profile" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detailDialog).queryByRole("button", { name: "Suspend account" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detailDialog).queryByRole("button", {
+        name: "Reactivate account",
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(detailDialog).queryByRole("button", { name: "Archive user" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("edits only profile fields from the User detail modal and closes on success", async () => {
+  it("edits profile fields from the row menu and returns focus after success", async () => {
     const user = makePlatformUser("ACTIVE");
-    openUserDetails(user);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
     const profileDialog = screen.getByRole("dialog", {
       name: "Edit user profile",
     });
+    const fullNameInput = within(profileDialog).getByLabelText("Full name");
+    expect(fullNameInput).toHaveFocus();
     fireEvent.change(within(profileDialog).getByLabelText("Full name"), {
       target: { value: "Updated Name" },
     });
@@ -671,19 +868,20 @@ describe("PlatformConsole", () => {
         screen.queryByRole("dialog", { name: "Edit user profile" }),
       ).not.toBeInTheDocument(),
     );
+    expect(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    ).toHaveFocus();
   });
 
-  it("reactivates only a suspended account after a confirmation step", async () => {
+  it("reactivates a suspended account from the row menu after confirmation", async () => {
     const user = makePlatformUser("SUSPENDED");
-    openUserDetails(user);
-
-    expect(
-      await screen.findByRole("button", { name: "Reactivate account" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Suspend account" }),
-    ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Reactivate account" }));
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Reactivate account" }),
+    );
     const statusDialog = screen.getByRole("dialog", {
       name: "Reactivate account?",
     });
@@ -706,8 +904,11 @@ describe("PlatformConsole", () => {
     operationState.mutation.mutateAsync
       .mockRejectedValueOnce(new ApiError(409, "USER_VERSION_STALE", "private detail"))
       .mockResolvedValueOnce({});
-    openUserDetails(user);
-    fireEvent.click(await screen.findByRole("button", { name: "Archive user" }));
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Archive user" }));
     const archiveDialog = screen.getByRole("dialog", { name: "Archive user?" });
     const archiveButton = within(archiveDialog).getByRole("button", {
       name: "Archive user",
@@ -746,8 +947,11 @@ describe("PlatformConsole", () => {
     operationState.mutation.mutateAsync.mockRejectedValueOnce(
       new ApiError(403, "PLATFORM_PERMISSION_DENIED", "sensitive server detail"),
     );
-    openUserDetails(user);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
     const profileDialog = screen.getByRole("dialog", {
       name: "Edit user profile",
     });
@@ -765,6 +969,7 @@ describe("PlatformConsole", () => {
     [404, "no longer exists"],
     [409, "changed after it was loaded"],
     [422, "values are invalid"],
+    [429, "Too many requests were made"],
     [500, "could not complete this action"],
     [503, "temporarily unavailable"],
   ])("shows safe contextual feedback for HTTP %i", async (status, message) => {
@@ -772,8 +977,11 @@ describe("PlatformConsole", () => {
     operationState.mutation.mutateAsync.mockRejectedValueOnce(
       new ApiError(status, "PLATFORM_USER_REQUEST_FAILED", "sensitive server detail"),
     );
-    openUserDetails(user);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
     const profileDialog = screen.getByRole("dialog", {
       name: "Edit user profile",
     });
@@ -786,15 +994,30 @@ describe("PlatformConsole", () => {
     expect(alert).not.toHaveTextContent("sensitive server detail");
   });
 
-  it("shows archived status and withholds every mutation action", async () => {
+  it("shows archived status and exposes only the safe restore action", async () => {
     const user = makePlatformUser("SUSPENDED", "2026-10-03T00:00:00.000Z");
-    openUserDetails(user);
+    renderUserDirectory(user);
 
-    expect(await screen.findAllByText("ARCHIVED")).toHaveLength(2);
-    expect(screen.queryByRole("button", { name: "Edit profile" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Suspend account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Reactivate account" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Archive user" })).not.toBeInTheDocument();
+    expect(await screen.findAllByText("ARCHIVED")).toHaveLength(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    const menu = screen.getByRole("menu", {
+      name: `Actions for ${user.fullName}`,
+    });
+    expect(
+      within(menu).getByRole("menuitem", { name: "Restore account" }),
+    ).toBeInTheDocument();
+    for (const label of [
+      "Edit profile",
+      "Suspend account",
+      "Reactivate account",
+      "Archive user",
+    ]) {
+      expect(
+        within(menu).queryByRole("menuitem", { name: label }),
+      ).not.toBeInTheDocument();
+    }
   });
 
   it("limits exact active-account lookup to Organization creation", () => {
