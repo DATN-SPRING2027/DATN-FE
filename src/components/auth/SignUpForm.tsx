@@ -11,7 +11,7 @@ import GoogleOAuthButton from "@/components/auth/GoogleOAuthButton";
 import { Link } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useRequestEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
-import { ArrowRightIcon, CheckCircleIcon } from "@/icons";
+import { ArrowRightIcon, ChevronLeftIcon, EnvelopeIcon } from "@/icons";
 import styles from "./auth-experience.module.css";
 
 export default function SignUpForm() {
@@ -42,32 +42,42 @@ export default function SignUpForm() {
 
   return (
     <main className={styles.signup}>
-      <header className={styles.formHeading}>
-        <p className={styles.eyebrow}>{ui("signupEyebrow")}</p>
-        <h1>
-          {ui("signupTitle")}
-          <span>.</span>
-        </h1>
-        <p className={styles.introduction}>
-          {ui("signupHint")} <Link href="/signin">{ui("signIn")}</Link>
-        </p>
-      </header>
+      {!requestAccepted ? (
+        <header className={styles.formHeading}>
+          <p className={styles.eyebrow}>{ui("signupEyebrow")}</p>
+          <h1>
+            {ui("signupTitle")}
+            <span>.</span>
+          </h1>
+          <p className={styles.introduction}>
+            {ui("signupHint")} <Link href="/signin">{ui("signIn")}</Link>
+          </p>
+        </header>
+      ) : null}
 
       {requestAccepted ? (
-        <section aria-live="polite" className="space-y-5">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success-50 text-success-600 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400">
-            <CheckCircleIcon className="h-7 w-7" aria-hidden="true" />
+        <section
+          aria-live="polite"
+          aria-labelledby="signup-confirmation-title"
+          className={styles.authConfirmation}
+          role="status"
+        >
+          <div className={styles.authConfirmationIcon}>
+            <EnvelopeIcon aria-hidden="true" />
           </div>
-          <Alert
-            variant="info"
-            title={t("emailRegistrationRequestAcceptedTitle")}
-            message={t("emailRegistrationRequestAcceptedMessage")}
-          />
-          <Link
-            href="/signin"
-            className="inline-flex min-h-11 items-center text-sm font-medium text-brand-600 hover:text-brand-700 dark:text-brand-300"
-          >
-            {t("backToSignIn")}
+          <h1 id="signup-confirmation-title">
+            {t("emailRegistrationRequestAcceptedTitle")}
+          </h1>
+          <p className={styles.authConfirmationMessage}>
+            {t("emailRegistrationRequestAcceptedMessage")}
+          </p>
+          <div className={styles.authConfirmationRecipient}>
+            <span>{ui("email")}</span>
+            <strong>{email.trim()}</strong>
+          </div>
+          <Link href="/signin" className={styles.authConfirmationLink}>
+            <ChevronLeftIcon aria-hidden="true" />
+            <span>{t("backToSignIn")}</span>
           </Link>
         </section>
       ) : (

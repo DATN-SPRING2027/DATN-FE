@@ -9,14 +9,23 @@ import Button from "@/components/ui/button/Button";
 import { Link } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useVerifyEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
-import { CheckCircleIcon, ChevronLeftIcon, LockIcon } from "@/icons";
+import {
+  CheckCircleIcon,
+  ChevronLeftIcon,
+  EyeCloseIcon,
+  EyeIcon,
+  LockIcon,
+} from "@/icons";
 import styles from "./auth-experience.module.css";
 
 export default function EmailRegistrationForm() {
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
   const [token, setToken] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [passwordSubmitAttempted, setPasswordSubmitAttempted] = useState(false);
   const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const [verified, setVerified] = useState(false);
@@ -71,30 +80,40 @@ export default function EmailRegistrationForm() {
 
   return (
     <main className={styles.resetForm}>
-      <div className="mx-auto mb-6 w-full max-w-md">
-        <Link
-          href="/signin"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
-        >
-          <ChevronLeftIcon className="h-4 w-4 rtl:rotate-180" />
-          <span>{t("backToSignIn")}</span>
-        </Link>
-      </div>
+      {!verified ? (
+        <div className="mx-auto mb-6 w-full max-w-md">
+          <Link
+            href="/signin"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
+          >
+            <ChevronLeftIcon className="h-4 w-4 rtl:rotate-180" />
+            <span>{t("backToSignIn")}</span>
+          </Link>
+        </div>
+      ) : null}
 
       <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-6">
         {verified ? (
-          <section aria-live="polite" className="space-y-5">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-success-50 text-success-600 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400">
+          <section
+            aria-live="polite"
+            aria-labelledby="email-registration-success-title"
+            className={styles.authConfirmation}
+            role="status"
+          >
+            <div
+              className={`${styles.authConfirmationIcon} ${styles.authConfirmationIconSuccess}`}
+            >
               <CheckCircleIcon className="h-7 w-7" aria-hidden="true" />
             </div>
-            <Alert
-              variant="success"
-              title={t("emailRegistrationSuccessTitle")}
-              message={t("emailRegistrationSuccessMessage")}
-            />
+            <h1 id="email-registration-success-title">
+              {t("emailRegistrationSuccessTitle")}
+            </h1>
+            <p className={styles.authConfirmationMessage}>
+              {t("emailRegistrationSuccessMessage")}
+            </p>
             <Link
               href="/signin"
-              className="inline-flex h-11 w-full items-center justify-center rounded-lg bg-brand-500 px-5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              className={styles.authConfirmationAction}
             >
               {t("backToSignIn")}
             </Link>
@@ -157,36 +176,78 @@ export default function EmailRegistrationForm() {
                 <Label htmlFor="registration-password">
                   {t("newPassword")}
                 </Label>
-                <Input
-                  id="registration-password"
-                  name="password"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={12}
-                  maxLength={72}
-                  value={password}
-                  onChange={(event) => {
-                    setPassword(event.target.value);
-                    setPasswordPolicyError(false);
-                  }}
-                />
+                <div className="relative">
+                  <Input
+                    id="registration-password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    minLength={12}
+                    maxLength={72}
+                    className="pe-12"
+                    value={password}
+                    onChange={(event) => {
+                      setPassword(event.target.value);
+                      setPasswordPolicyError(false);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className={styles.passwordToggle}
+                    aria-label={
+                      ui(showPassword ? "hidePassword" : "showPassword")
+                    }
+                    aria-pressed={showPassword}
+                    aria-controls="registration-password"
+                  >
+                    {showPassword ? (
+                      <EyeIcon aria-hidden="true" />
+                    ) : (
+                      <EyeCloseIcon aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="registration-password-confirm">
                   {t("confirmPassword")}
                 </Label>
-                <Input
-                  id="registration-password-confirm"
-                  name="confirmPassword"
-                  type="password"
-                  autoComplete="new-password"
-                  required
-                  minLength={12}
-                  maxLength={72}
-                  value={confirmPassword}
-                  onChange={(event) => setConfirmPassword(event.target.value)}
-                />
+                <div className="relative">
+                  <Input
+                    id="registration-password-confirm"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    required
+                    minLength={12}
+                    maxLength={72}
+                    className="pe-12"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className={styles.passwordToggle}
+                    aria-label={
+                      ui(
+                        showConfirmPassword
+                          ? "hideConfirmPassword"
+                          : "showConfirmPassword",
+                      )
+                    }
+                    aria-pressed={showConfirmPassword}
+                    aria-controls="registration-password-confirm"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeIcon aria-hidden="true" />
+                    ) : (
+                      <EyeCloseIcon aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
               </div>
               <Button
                 type="submit"

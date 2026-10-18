@@ -605,6 +605,128 @@
 .signup {
   padding-block: 1rem;
 }
+.authConfirmation {
+  width: 100%;
+  max-width: 38rem;
+  margin-inline: auto;
+  padding: clamp(1.5rem, 4vw, 2.25rem);
+  border: 1px solid var(--auth-line);
+  border-radius: 1.5rem;
+  background: var(--auth-surface);
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 0.08);
+}
+.authConfirmationIcon {
+  display: grid;
+  width: 3.25rem;
+  height: 3.25rem;
+  place-items: center;
+  border: 1px solid
+    color-mix(in srgb, var(--color-brand-500) 22%, transparent);
+  border-radius: 1rem;
+  background: color-mix(
+    in srgb,
+    var(--color-brand-500) 10%,
+    var(--auth-surface)
+  );
+  color: var(--color-brand-600);
+}
+.authConfirmationIcon svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+:global(.dark) .authConfirmationIcon {
+  color: var(--color-brand-300);
+}
+.authConfirmationIconSuccess {
+  border-color: color-mix(in srgb, var(--color-success-500) 22%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-success-500) 10%,
+    var(--auth-surface)
+  );
+  color: var(--color-success-600);
+}
+:global(.dark) .authConfirmationIconSuccess {
+  color: var(--color-success-400);
+}
+.authConfirmation h1 {
+  margin-block: 1.1rem 0.65rem;
+  font-size: clamp(2rem, 3.4vw, 2.8rem);
+  line-height: 1.12;
+  letter-spacing: -0.05em;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.authConfirmationMessage {
+  max-width: 32rem;
+  color: var(--auth-muted);
+  font-size: 0.95rem;
+  line-height: 1.75;
+}
+.authConfirmationRecipient {
+  display: grid;
+  gap: 0.35rem;
+  min-width: 0;
+  margin-block-start: 1.5rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--auth-line);
+  border-radius: 1rem;
+  background: var(--auth-soft);
+}
+.authConfirmationRecipient > span {
+  color: var(--auth-muted);
+  font-size: 0.75rem;
+}
+.authConfirmationRecipient > strong {
+  color: var(--auth-ink);
+  font-size: 0.9rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.authConfirmationLink {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-start: 1rem;
+  color: var(--color-brand-600);
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+:global(.dark) .authConfirmationLink {
+  color: var(--color-brand-300);
+}
+.authConfirmationLink:hover {
+  color: var(--color-brand-700);
+}
+:global(.dark) .authConfirmationLink:hover {
+  color: var(--color-brand-200);
+}
+.authConfirmationLink svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+.authConfirmationAction {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: 1.25rem;
+  padding-inline: 1.25rem;
+  border-radius: 0.75rem;
+  background: var(--color-brand-500);
+  color: var(--color-white);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+.authConfirmationAction:hover {
+  background: var(--color-brand-600);
+}
 .resetForm {
   display: flex;
   flex-direction: column;
