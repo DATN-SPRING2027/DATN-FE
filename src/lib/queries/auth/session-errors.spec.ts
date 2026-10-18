@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
+import { platformSessionQueryKey } from "@/lib/queries/platform/platform-session.key";
 import { handleSessionError } from "./session-errors";
 
 describe("protected request session errors", () => {
@@ -46,5 +47,42 @@ describe("protected request session errors", () => {
     handleSessionError(client, new ApiError(status, "AUTH_REFRESH_FAILED", "Failed", undefined, true), true);
     expect(client.getQueryData(["users"])).toBeUndefined();
     expect(reset).not.toHaveBeenCalled();
+  });
+
+  it("keeps the failed Platform identity query while clearing its private data", () => {
+    const client = new QueryClient();
+    const platformSession = { context: "PLATFORM", id: "operator" };
+    client.setQueryData(platformSessionQueryKey, platformSession);
+    client.setQueryData(["platform-console", "organizations"], [{ id: "org-1" }]);
+    client.setQueryData(["other-private-data"], [{ id: "private-1" }]);
+
+    handleSessionError(client, new ApiError(403, "AUTH_CSRF_INVALID", "Refresh failed", undefined, true), platformSessionQueryKey);
+
+    expect(client.getQueryData(platformSessionQueryKey)).toEqual(platformSession);
+    expect(client.getQueryData(["platform-console", "organizations"])).toBeUndefined();
+    expect(client.getQueryData(["other-private-data"])).toBeUndefined();
+  });
+
+  it("keeps a failed Platform request terminal, clears other private data, and rechecks Platform identity once", async () => {
+    vi.useFakeTimers();
+    const client = new QueryClient();
+    client.setQueryData(platformSessionQueryKey, { context: "PLATFORM", id: "operator" });
+    const failedRequestKey = ["platform-console", "organizations", 1] as const;
+    client.setQueryData(failedRequestKey, [{ id: "org-1" }]);
+    client.setQueryData(["platform-console", "audit"], [{ action: "private" }]);
+    const reset = vi.spyOn(client, "resetQueries").mockResolvedValue(undefined);
+
+    handleSessionError(
+      client,
+      new ApiError(403, "AUTH_CSRF_INVALID", "Refresh failed", undefined, true),
+      undefined,
+      failedRequestKey,
+    );
+    await vi.runAllTimersAsync();
+
+    expect(client.getQueryData(platformSessionQueryKey)).toBeUndefined();
+    expect(client.getQueryData(failedRequestKey)).toBeUndefined();
+    expect(client.getQueryData(["platform-console", "audit"])).toBeUndefined();
+    expect(reset).toHaveBeenCalledWith({ queryKey: platformSessionQueryKey });
   });
 });
