@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { ApiError } from "@/lib/api-client";
 import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import {
   usePlatformAiOperationsQuery,
+  usePlatformArchiveUserMutation,
   usePlatformChangeProjectMetadataMutation,
   usePlatformChangeUserStatusMutation,
   usePlatformCreateIncidentMutation,
@@ -21,6 +23,7 @@ import {
   usePlatformRevokeSessionMutation,
   usePlatformServicesQuery,
   usePlatformUserQuery,
+  usePlatformUpdateUserProfileMutation,
   usePlatformUserOrganizationsQuery,
   usePlatformUserSessionQuery,
   usePlatformUserSessionsQuery,
@@ -33,6 +36,29 @@ function has(
   permission: PlatformPermission,
 ) {
   return permissions.includes(permission);
+}
+
+function operationErrorMessage(error: unknown) {
+  if (!(error instanceof ApiError))
+    return "The operation could not be confirmed. Refresh the record before trying again.";
+  switch (error.status) {
+    case 401:
+      return "Your Platform session expired. Sign in again to continue.";
+    case 403:
+      return "Your Platform account does not have permission to complete this action.";
+    case 404:
+      return "This record no longer exists. Refresh the directory.";
+    case 409:
+      return "This record changed after it was loaded. Current details are refreshing; review them before trying again.";
+    case 422:
+      return "Some values are invalid or the action is not allowed for this account state. Review the form and try again.";
+    case 500:
+      return "The Platform service could not complete this action. No success was confirmed.";
+    case 503:
+      return "The Platform service is temporarily unavailable. No success was confirmed.";
+    default:
+      return "The operation could not be confirmed. Refresh the record before trying again.";
+  }
 }
 
 export function usePlatformOperationsViewModel({
@@ -70,7 +96,13 @@ export function usePlatformOperationsViewModel({
   const [sessionPage, setSessionPage] = useState(1);
   const [incidentHistoryPage, setIncidentHistoryPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [status, setStatus] = useState("");
+  const [statusBySection, setStatusBySection] = useState<
+    Partial<Record<PlatformOperationsProps["section"], string>>
+  >({});
+  const status = statusBySection[section] ?? "";
+  function setStatus(nextStatus: string) {
+    setStatusBySection((current) => ({ ...current, [section]: nextStatus }));
+  }
   const [selectedId, setSelectedId] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [requestId, setRequestId] = useState("");
@@ -108,7 +140,14 @@ export function usePlatformOperationsViewModel({
       page,
       pageSize: 25,
       search: search.trim() || undefined,
-      status: status as "ACTIVE" | "SUSPENDED" | "PENDING_INVITE" | undefined,
+      status:
+        section === "users" && status
+          ? (status as
+              | "ACTIVE"
+              | "SUSPENDED"
+              | "PENDING_INVITE"
+              | "ARCHIVED")
+          : undefined,
     },
     section === "users" && canReadUsers,
   );
@@ -135,6 +174,8 @@ export function usePlatformOperationsViewModel({
         (section === "users" && canReadSessions && Boolean(selectedId))),
   );
   const changeUserStatus = usePlatformChangeUserStatusMutation();
+  const updateUserProfile = usePlatformUpdateUserProfileMutation();
+  const archiveUser = usePlatformArchiveUserMutation();
   const revokeSession = usePlatformRevokeSessionMutation();
   const projects = usePlatformProjectsQuery(
     {
@@ -189,7 +230,7 @@ export function usePlatformOperationsViewModel({
   async function handleSubmit(
     event: FormEvent<HTMLFormElement>,
     action: () => Promise<unknown>,
-  ) {
+  ): Promise<boolean> {
     event.preventDefault();
     setFormMessage("");
     try {
@@ -198,13 +239,13 @@ export function usePlatformOperationsViewModel({
         "Operation completed. The Platform state and audit projection are refreshing.",
       );
       setNote("");
-    } catch {
-      setFormMessage(
-        "The operation was not confirmed. Refresh the record before trying again.",
-      );
+      return true;
+    } catch (error) {
+      setFormMessage(operationErrorMessage(error));
+      return false;
     }
   }
-  async function runOperation(action: () => Promise<unknown>) {
+  async function runOperation(action: () => Promise<unknown>): Promise<boolean> {
     setFormMessage("");
     try {
       await action();
@@ -212,10 +253,10 @@ export function usePlatformOperationsViewModel({
         "Operation completed. The Platform state and audit projection are refreshing.",
       );
       setNote("");
-    } catch {
-      setFormMessage(
-        "The operation was not confirmed. Refresh the record before trying again.",
-      );
+      return true;
+    } catch (error) {
+      setFormMessage(operationErrorMessage(error));
+      return false;
     }
   }
   const canReadDiagnostics = has(
@@ -273,6 +314,8 @@ export function usePlatformOperationsViewModel({
     userSessions,
     selectedSession,
     changeUserStatus,
+    updateUserProfile,
+    archiveUser,
     revokeSession,
     projects,
     selectedProject,

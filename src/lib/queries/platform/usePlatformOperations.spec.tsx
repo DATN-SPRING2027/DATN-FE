@@ -4,9 +4,11 @@ import type { PropsWithChildren } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/lib/api-client";
 import {
+  usePlatformArchiveUserMutation,
   usePlatformChangeUserStatusMutation,
   usePlatformIncidentHistoryQuery,
   usePlatformIncidentQuery,
+  usePlatformUpdateUserProfileMutation,
   usePlatformUserOrganizationsQuery,
   usePlatformUserSessionQuery,
   usePlatformUsersQuery,
@@ -35,6 +37,8 @@ const user = {
   id: "651a2b3c4d5e6f7a8b9c0d21",
   email: "operator@example.test",
   fullName: "Platform Operator",
+  avatarUrl: null,
+  archivedAt: null,
   status: "SUSPENDED",
   createdAt: "2026-10-16T00:00:00.000Z",
   updatedAt: "2026-10-16T01:00:00.000Z",
@@ -81,6 +85,40 @@ describe("Platform user operations", () => {
     timeout.mockRestore();
   });
 
+  it.each(["ACTIVE", "SUSPENDED", "PENDING_INVITE", "ARCHIVED"] as const)(
+    "accepts the %s Platform user list filter",
+    async (status) => {
+      mockedApiClient.mockResolvedValue({
+        data: [],
+        pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+      });
+
+      const { result } = renderHook(
+        () => usePlatformUsersQuery({ page: 1, pageSize: 25, status }, true),
+        { wrapper: createWrapper() },
+      );
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(mockedApiClient).toHaveBeenCalledWith(
+        `/iam/platform/users?page=1&pageSize=25&status=${status}`,
+        expect.objectContaining({ cache: "no-store" }),
+      );
+    },
+  );
+
+  it("rejects a user list filter outside the Platform user contract", () => {
+    expect(() =>
+      renderHook(
+        () =>
+          usePlatformUsersQuery(
+            { status: "PUBLIC" as "ACTIVE" },
+            false,
+          ),
+        { wrapper: createWrapper() },
+      ),
+    ).toThrow("Invalid user filter");
+  });
+
   it("sends a CSRF protected CAS status change with request ID and refreshes private projections", async () => {
     const cookie = vi
       .spyOn(document, "cookie", "get")
@@ -121,6 +159,101 @@ describe("Platform user operations", () => {
     expect(headers.get("X-Request-ID")).toMatch(/^[A-Za-z0-9._:-]{1,128}$/);
     expect(JSON.parse(String(options?.body))).toEqual({
       status: "ACTIVE",
+      expectedUpdatedAt: user.updatedAt,
+      reasonCode: "ACCESS_REVIEW",
+    });
+    expect(invalidate).toHaveBeenCalled();
+    cookie.mockRestore();
+  });
+
+  it("updates Platform profile fields through the Platform route with CAS and no retry", async () => {
+    const cookie = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-csrf=csrf-test-token");
+    mockedApiClient.mockResolvedValue({
+      ...user,
+      fullName: "Updated Operator",
+      avatarUrl: "https://cdn.example.test/operator.png",
+      updatedAt: "2026-10-16T02:00:00.000Z",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(
+      () => usePlatformUpdateUserProfileMutation(),
+      { wrapper },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        userId: user.id,
+        fullName: "Updated Operator",
+        avatarUrl: "https://cdn.example.test/operator.png",
+        expectedUpdatedAt: user.updatedAt,
+      });
+    });
+
+    const [path, options] = mockedApiClient.mock.calls[0];
+    const headers = new Headers(options?.headers);
+    expect(path).toBe(`/iam/platform/users/${user.id}`);
+    expect(options?.method).toBe("PATCH");
+    expect(headers.get("X-CSRF-Token")).toBe("csrf-test-token");
+    expect(headers.get("X-Request-ID")).toMatch(/^[A-Za-z0-9._:-]{1,128}$/);
+    expect(JSON.parse(String(options?.body))).toEqual({
+      fullName: "Updated Operator",
+      avatarUrl: "https://cdn.example.test/operator.png",
+      expectedUpdatedAt: user.updatedAt,
+    });
+    expect(invalidate).toHaveBeenCalled();
+    cookie.mockRestore();
+  });
+
+  it("archives a Platform user through the explicit archive route with CAS and no retry", async () => {
+    const cookie = vi
+      .spyOn(document, "cookie", "get")
+      .mockReturnValue("__Host-csrf=csrf-test-token");
+    mockedApiClient.mockResolvedValue({
+      ...user,
+      status: "SUSPENDED",
+      archivedAt: "2026-10-16T02:00:00.000Z",
+      updatedAt: "2026-10-16T02:00:00.000Z",
+    });
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(() => usePlatformArchiveUserMutation(), {
+      wrapper,
+    });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        userId: user.id,
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      });
+    });
+
+    const [path, options] = mockedApiClient.mock.calls[0];
+    const headers = new Headers(options?.headers);
+    expect(path).toBe(`/iam/platform/users/${user.id}/archive`);
+    expect(options?.method).toBe("POST");
+    expect(headers.get("X-CSRF-Token")).toBe("csrf-test-token");
+    expect(headers.get("X-Request-ID")).toMatch(/^[A-Za-z0-9._:-]{1,128}$/);
+    expect(JSON.parse(String(options?.body))).toEqual({
       expectedUpdatedAt: user.updatedAt,
       reasonCode: "ACCESS_REVIEW",
     });
