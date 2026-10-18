@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
+import PlatformUserActionsMenu from "@/components/platform/PlatformUserActionsMenu";
+import type { PlatformUserAction } from "@/components/platform/PlatformUserActionsMenu";
+import { UserCircleIcon } from "@/icons";
 import {
   DirectoryTable,
   ErrorState,
@@ -16,19 +20,27 @@ import {
   input,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
+import type { PlatformUserRecord } from "@/lib/queries/platform/usePlatformOperations";
 
 export default function PlatformUsersDirectory({
   model,
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const t = useTranslations("platformUserActions");
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [restoreModalOpen, setRestoreModalOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [editFullName, setEditFullName] = useState("");
   const [editAvatarUrl, setEditAvatarUrl] = useState("");
   const [archiveAcknowledged, setArchiveAcknowledged] = useState(false);
   const [userActionAttempted, setUserActionAttempted] = useState(false);
+  const [actionTarget, setActionTarget] = useState<PlatformUserRecord | null>(null);
+  const [actionFeedback, setActionFeedback] = useState("");
+  const actionReturnFocusRef = useRef<HTMLButtonElement | null>(null);
+  const editFullNameRef = useRef<HTMLInputElement>(null);
+  const userSearchRef = useRef<HTMLInputElement>(null);
   const {
     canReadUsers,
     users,
@@ -54,6 +66,7 @@ export default function PlatformUsersDirectory({
     changeUserStatus,
     updateUserProfile,
     archiveUser,
+    restoreUser,
     canReadSessions,
     userSessions,
     canManageSessions,
@@ -61,61 +74,253 @@ export default function PlatformUsersDirectory({
     runOperation,
     selectedSession,
     formMessage,
+    setFormMessage,
   } = model;
   const currentUser = selectedUser.data;
   const isArchived = Boolean(currentUser?.archivedAt);
   const displayedStatus = isArchived ? "ARCHIVED" : currentUser?.status;
+  const actionUser = actionTarget ?? currentUser;
+  const actionUserStatus = actionUser?.archivedAt
+    ? "ARCHIVED"
+    : actionUser?.status;
 
-  function openProfileEditor() {
-    if (!currentUser) return;
-    setEditFullName(currentUser.fullName);
-    setEditAvatarUrl(currentUser.avatarUrl ?? "");
+  useEffect(() => {
+    if (editModalOpen) editFullNameRef.current?.focus();
+  }, [editModalOpen]);
+
+  useEffect(() => {
+    if (statusModalOpen) {
+      document
+        .querySelector<HTMLElement>(
+          '[aria-labelledby="platform-user-status-title"] button',
+        )
+        ?.focus();
+    }
+  }, [statusModalOpen]);
+
+  useEffect(() => {
+    if (archiveModalOpen) {
+      document
+        .querySelector<HTMLElement>(
+          '[aria-labelledby="platform-user-archive-title"] button',
+        )
+        ?.focus();
+    }
+  }, [archiveModalOpen]);
+
+  useEffect(() => {
+    if (restoreModalOpen) {
+      document
+        .querySelector<HTMLElement>(
+          '[aria-labelledby="platform-user-restore-title"] button',
+        )
+        ?.focus();
+    }
+  }, [restoreModalOpen]);
+
+  function restoreActionMenuFocus() {
+    const trigger = actionReturnFocusRef.current;
+    actionReturnFocusRef.current = null;
+    if (trigger?.isConnected) trigger.focus();
+    else userSearchRef.current?.focus();
+  }
+
+  function openProfileEditor(user: PlatformUserRecord | undefined = currentUser) {
+    if (!user || user.archivedAt) return;
+    setActionFeedback("");
+    setActionTarget(user);
+    setEditFullName(user.fullName ?? "");
+    setEditAvatarUrl(user.avatarUrl ?? "");
     setUserActionAttempted(false);
+    setFormMessage("");
     setEditModalOpen(true);
   }
 
+  function openStatusConfirmation(
+    user: PlatformUserRecord | undefined = currentUser,
+  ) {
+    if (
+      !user ||
+      user.archivedAt ||
+      !["ACTIVE", "SUSPENDED"].includes(user.status)
+    )
+      return;
+    setActionFeedback("");
+    setActionTarget(user);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    setStatusModalOpen(true);
+  }
+
+  function openArchiveConfirmation(
+    user: PlatformUserRecord | undefined = currentUser,
+  ) {
+    if (
+      !user ||
+      user.archivedAt ||
+      !["ACTIVE", "SUSPENDED"].includes(user.status)
+    )
+      return;
+    setActionFeedback("");
+    setActionTarget(user);
+    setArchiveAcknowledged(false);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    setArchiveModalOpen(true);
+  }
+
+  function openRestoreConfirmation(
+    user: PlatformUserRecord | undefined = currentUser,
+  ) {
+    if (!user || !user.archivedAt || user.status !== "SUSPENDED") return;
+    setActionFeedback("");
+    setActionTarget(user);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    setRestoreModalOpen(true);
+  }
+
+  function closeEditProfile() {
+    if (updateUserProfile.isPending) return;
+    setEditModalOpen(false);
+    setActionTarget(null);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    restoreActionMenuFocus();
+  }
+
+  function closeStatusConfirmation() {
+    if (changeUserStatus.isPending) return;
+    setStatusModalOpen(false);
+    setActionTarget(null);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    restoreActionMenuFocus();
+  }
+
+  function closeArchiveConfirmation() {
+    if (archiveUser.isPending) return;
+    setArchiveModalOpen(false);
+    setArchiveAcknowledged(false);
+    setActionTarget(null);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    restoreActionMenuFocus();
+  }
+
+  function closeRestoreConfirmation() {
+    if (restoreUser.isPending) return;
+    setRestoreModalOpen(false);
+    setActionTarget(null);
+    setUserActionAttempted(false);
+    setFormMessage("");
+    restoreActionMenuFocus();
+  }
+
+  function handleUserAction(
+    action: PlatformUserAction,
+    user: PlatformUserRecord,
+    trigger: HTMLButtonElement,
+  ) {
+    if (action === "view-details") {
+      setSelectedId(user.id);
+      setOrganizationPage(1);
+      setSessionPage(1);
+      setSelectedSessionId("");
+      return;
+    }
+
+    actionReturnFocusRef.current = trigger;
+    if (action === "edit-profile") openProfileEditor(user);
+    else if (action === "suspend" || action === "reactivate")
+      openStatusConfirmation(user);
+    else if (action === "archive") openArchiveConfirmation(user);
+    else if (action === "restore") openRestoreConfirmation(user);
+  }
+
   async function submitProfile(event: FormEvent<HTMLFormElement>) {
-    if (!currentUser) return;
+    if (!actionUser) return;
     setUserActionAttempted(true);
     const success = await handleSubmit(event, () =>
       updateUserProfile.mutateAsync({
-        userId: currentUser.id,
-        fullName: editFullName.trim(),
+        userId: actionUser.id,
+        fullName: (editFullName ?? "").trim(),
         avatarUrl: editAvatarUrl.trim() || null,
-        expectedUpdatedAt: currentUser.updatedAt,
+        expectedUpdatedAt: actionUser.updatedAt,
       }),
     );
-    if (success) setEditModalOpen(false);
+    if (success) {
+      setEditModalOpen(false);
+      setActionFeedback(`Profile updated for ${actionUser.fullName}.`);
+      setActionTarget(null);
+      setUserActionAttempted(false);
+      restoreActionMenuFocus();
+    }
   }
 
   async function submitStatusChange(event: FormEvent<HTMLFormElement>) {
-    if (!currentUser || !displayedStatus) return;
-    const status = displayedStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    if (!actionUser || !actionUserStatus) return;
+    const status = actionUserStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
     setUserActionAttempted(true);
     const success = await handleSubmit(event, () =>
       changeUserStatus.mutateAsync({
-        userId: currentUser.id,
+        userId: actionUser.id,
         status,
-        expectedUpdatedAt: currentUser.updatedAt,
+        expectedUpdatedAt: actionUser.updatedAt,
         reasonCode: "ACCESS_REVIEW",
       }),
     );
-    if (success) setStatusModalOpen(false);
+    if (success) {
+      setStatusModalOpen(false);
+      setActionFeedback(`Account status updated to ${status}.`);
+      setActionTarget(null);
+      setUserActionAttempted(false);
+      restoreActionMenuFocus();
+    }
   }
 
   async function submitArchive(event: FormEvent<HTMLFormElement>) {
-    if (!currentUser) return;
+    if (!actionUser) return;
     setUserActionAttempted(true);
     const success = await handleSubmit(event, () =>
       archiveUser.mutateAsync({
-        userId: currentUser.id,
-        expectedUpdatedAt: currentUser.updatedAt,
+        userId: actionUser.id,
+        expectedUpdatedAt: actionUser.updatedAt,
         reasonCode: "ACCESS_REVIEW",
       }),
     );
     if (success) {
       setArchiveModalOpen(false);
       setArchiveAcknowledged(false);
+      setActionFeedback("Account archived. User record and audit history were retained.");
+      setActionTarget(null);
+      setUserActionAttempted(false);
+      restoreActionMenuFocus();
+    }
+  }
+
+  async function submitRestore(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (
+      !actionUser ||
+      !actionUser.archivedAt ||
+      actionUser.status !== "SUSPENDED"
+    )
+      return;
+    setUserActionAttempted(true);
+    const success = await handleSubmit(event, () =>
+      restoreUser.mutateAsync({
+        userId: actionUser.id,
+        expectedUpdatedAt: actionUser.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    if (success) {
+      setRestoreModalOpen(false);
+      setActionFeedback(t("restoreSuccess"));
+      setActionTarget(null);
+      setUserActionAttempted(false);
+      restoreActionMenuFocus();
     }
   }
   return (
@@ -136,6 +341,7 @@ export default function PlatformUsersDirectory({
               </div>
               <div className="flex flex-wrap gap-2">
                 <input
+                  ref={userSearchRef}
                   className={input}
                   aria-label="Search users"
                   placeholder="Search users"
@@ -201,18 +407,20 @@ export default function PlatformUsersDirectory({
                       </time>
                     </td>
                     <td className={cell}>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedId(user.id);
-                          setOrganizationPage(1);
-                          setSessionPage(1);
-                          setSelectedSessionId("");
-                        }}
-                      >
-                        Details
-                      </Button>
+                      <PlatformUserActionsMenu
+                        user={user}
+                        operatorId={operatorId}
+                        canManage={canManageUsers}
+                        disabled={
+                          updateUserProfile.isPending ||
+                          changeUserStatus.isPending ||
+                          archiveUser.isPending ||
+                          restoreUser.isPending
+                        }
+                        onAction={(action, selectedUser, trigger) =>
+                          handleUserAction(action, selectedUser, trigger)
+                        }
+                      />
                     </td>
                   </tr>
                 ))}
@@ -233,6 +441,14 @@ export default function PlatformUsersDirectory({
               />
             )}
           </section>
+          {actionFeedback && (
+            <p
+              role="status"
+              className="rounded-lg border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-800 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200"
+            >
+              {actionFeedback}
+            </p>
+          )}
           {selectedId && (
             <dialog
               ref={userDetailDialogRef}
@@ -250,9 +466,9 @@ export default function PlatformUsersDirectory({
                   closeUserDetails();
                 }
               }}
-              className="m-auto max-h-[92vh] w-[calc(100%-1.5rem)] max-w-4xl space-y-5 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-lg backdrop:bg-gray-900/15 backdrop:backdrop-blur-[1px] dark:border-gray-800 dark:bg-gray-900 dark:backdrop:bg-gray-950/25"
+              className="m-auto flex max-h-[90vh] w-[calc(100%-1.5rem)] max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-0 shadow-theme-lg backdrop:bg-gray-900/15 backdrop:backdrop-blur-[1px] dark:border-gray-800 dark:bg-gray-900 dark:backdrop:bg-gray-950/25"
             >
-              <header className="flex items-center justify-between gap-4 border-b border-gray-100 pb-4 dark:border-gray-800">
+              <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white/95 px-5 py-4 backdrop-blur sm:px-6 dark:border-gray-800 dark:bg-gray-900/95">
                 <div className="flex min-w-0 items-center gap-3">
                   <span
                     aria-hidden="true"
@@ -283,13 +499,14 @@ export default function PlatformUsersDirectory({
                   Close
                 </button>
               </header>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
               {selectedUser.isPending ? (
                 <Loading columns={3} />
               ) : selectedUser.isError || !selectedUser.data ? (
                 <ErrorState retry={() => void selectedUser.refetch()} />
               ) : (
                 <>
-                  <dl className="grid gap-3 sm:grid-cols-3">
+                  <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                     <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
                       <dt className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
                         Status
@@ -365,7 +582,7 @@ export default function PlatformUsersDirectory({
                       />
                     ) : userOrganizations.data?.data.length ? (
                       <>
-                        <ul className="mt-2 space-y-2">
+                        <ul className="space-y-2">
                           {userOrganizations.data.data.map((membership) => (
                             <li
                               key={membership.organizationId}
@@ -404,85 +621,6 @@ export default function PlatformUsersDirectory({
                       />
                     )}
                   </section>
-                  {canManageUsers && (
-                    <section className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                      <div>
-                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                          Account actions
-                        </h3>
-                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-                          Profile edits are limited to the full name and avatar
-                          URL. Account lifecycle actions use the current record
-                          version.
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {!isArchived && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            disabled={updateUserProfile.isPending}
-                            onClick={openProfileEditor}
-                          >
-                            Edit profile
-                          </Button>
-                        )}
-                        {!isArchived &&
-                          selectedUser.data.id !== operatorId &&
-                          selectedUser.data.status === "ACTIVE" && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={changeUserStatus.isPending}
-                              onClick={() => {
-                                setUserActionAttempted(false);
-                                setStatusModalOpen(true);
-                              }}
-                            >
-                              Suspend account
-                            </Button>
-                          )}
-                        {!isArchived &&
-                          selectedUser.data.id !== operatorId &&
-                          selectedUser.data.status === "SUSPENDED" && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              disabled={changeUserStatus.isPending}
-                              onClick={() => {
-                                setUserActionAttempted(false);
-                                setStatusModalOpen(true);
-                              }}
-                            >
-                              Reactivate account
-                            </Button>
-                          )}
-                        {!isArchived &&
-                          selectedUser.data.id !== operatorId &&
-                          ["ACTIVE", "SUSPENDED"].includes(
-                            selectedUser.data.status,
-                          ) && (
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              className="border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
-                              disabled={archiveUser.isPending}
-                              onClick={() => {
-                                setArchiveAcknowledged(false);
-                                setUserActionAttempted(false);
-                                setArchiveModalOpen(true);
-                              }}
-                            >
-                              Archive user
-                            </Button>
-                          )}
-                      </div>
-                    </section>
-                  )}
                   {canReadSessions && (
                     <section
                       aria-labelledby="platform-user-sessions-title"
@@ -510,19 +648,29 @@ export default function PlatformUsersDirectory({
                           {userSessions.data.data.map((session) => (
                             <li
                               key={session.id}
-                              className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/50"
+                              className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-800/50"
                             >
-                              <span>
-                                <span className="font-mono">{session.id}</span>
-                                <span className="ms-2 text-gray-500">
-                                  {session.context} · {session.status} · expires{" "}
+                              <div className="min-w-0">
+                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span
+                                    className="max-w-full truncate font-mono text-gray-800 dark:text-gray-200"
+                                    title={session.id}
+                                  >
+                                    {session.id}
+                                  </span>
+                                  <span className="text-gray-500 dark:text-gray-400">
+                                    {session.context} · {session.status}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-gray-500 dark:text-gray-400">
+                                  expires{" "}
                                   {new Date(session.expiresAt).toLocaleString()}
-                                </span>
-                              </span>
+                                </p>
+                              </div>
                               {canManageSessions &&
                                 session.status === "ACTIVE" &&
                                 selectedUser.data.id !== operatorId && (
-                                  <div className="flex gap-2">
+                                  <div className="flex shrink-0 gap-2">
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -537,7 +685,11 @@ export default function PlatformUsersDirectory({
                                       size="sm"
                                       disabled={revokeSession.isPending}
                                       onClick={() => {
-                                        if (!window.confirm("Revoke this session?"))
+                                        if (
+                                          !window.confirm(
+                                            "Revoke this session?",
+                                          )
+                                        )
                                           return;
                                         void runOperation(() =>
                                           revokeSession.mutateAsync({
@@ -642,45 +794,51 @@ export default function PlatformUsersDirectory({
                   )}
                 </>
               )}
+              </div>
             </dialog>
           )}
-          {currentUser && (
+          {actionUser && (
             <>
               <Modal
                 isOpen={editModalOpen}
-                onClose={() => {
-                  if (!updateUserProfile.isPending) setEditModalOpen(false);
-                }}
+                onClose={closeEditProfile}
+                backdropClassName="bg-gray-950/40 backdrop-blur-sm dark:bg-gray-950/70"
                 showCloseButton={false}
-                className="mx-3 max-w-xl border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+                className="mx-3 max-h-[90vh] max-w-2xl overflow-y-auto border border-gray-200 p-0 shadow-theme-xl dark:border-gray-800"
               >
                 <section
                   role="dialog"
                   aria-modal="true"
                   aria-labelledby="platform-edit-user-title"
-                  className="space-y-5"
+                  className="overflow-hidden rounded-3xl"
                 >
-                  <header className="space-y-1 pr-10">
-                    <h2
-                      id="platform-edit-user-title"
-                      className="text-lg font-semibold text-gray-900 dark:text-white"
-                    >
-                      Edit user profile
-                    </h2>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Change the user’s display name or avatar. Account access
-                      and organization roles are not changed.
-                    </p>
+                  <header className="flex items-start gap-4 border-b border-gray-100 bg-gray-50/80 px-5 py-5 pe-12 sm:px-7 sm:py-6 dark:border-gray-800 dark:bg-gray-800/40">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300">
+                      <UserCircleIcon className="h-6 w-6" aria-hidden="true" />
+                    </span>
+                    <div className="space-y-1">
+                      <h2
+                        id="platform-edit-user-title"
+                        className="text-xl font-semibold tracking-tight text-gray-900 dark:text-white"
+                      >
+                        Edit user profile
+                      </h2>
+                      <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+                        Change the user’s display name or avatar. Account access
+                        and organization roles are not changed.
+                      </p>
+                    </div>
                   </header>
-                  <form className="space-y-4" onSubmit={submitProfile}>
+                  <form className="space-y-5 p-5 sm:p-7" onSubmit={submitProfile}>
                     <label
-                      className="block space-y-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+                      className="block space-y-2 text-sm font-medium text-gray-700 dark:text-gray-300"
                       htmlFor="platform-user-full-name"
                     >
                       Full name
                       <input
+                        ref={editFullNameRef}
                         id="platform-user-full-name"
-                        className={input}
+                        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-800 shadow-theme-xs outline-none transition-colors placeholder:text-gray-400 hover:border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-500 dark:hover:border-gray-600 dark:focus:border-brand-400 dark:focus:ring-brand-500/10"
                         autoComplete="name"
                         autoFocus
                         required
@@ -693,13 +851,13 @@ export default function PlatformUsersDirectory({
                       />
                     </label>
                     <label
-                      className="block space-y-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+                      className="block space-y-2 text-sm font-medium text-gray-700 dark:text-gray-300"
                       htmlFor="platform-user-avatar-url"
                     >
-                      Avatar URL <span className="font-normal text-gray-500">(optional)</span>
+                      Avatar URL <span className="font-normal text-gray-500 dark:text-gray-400">(optional)</span>
                       <input
                         id="platform-user-avatar-url"
-                        className={input}
+                        className="h-12 w-full rounded-xl border border-gray-200 bg-white px-4 text-sm text-gray-800 shadow-theme-xs outline-none transition-colors placeholder:text-gray-400 hover:border-gray-300 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:placeholder:text-gray-500 dark:hover:border-gray-600 dark:focus:border-brand-400 dark:focus:ring-brand-500/10"
                         type="url"
                         maxLength={2000}
                         placeholder="https://…"
@@ -712,25 +870,28 @@ export default function PlatformUsersDirectory({
                     {userActionAttempted && formMessage && (
                       <p
                         role="alert"
-                        className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                        className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
                       >
                         {formMessage}
                       </p>
                     )}
-                    <div className="flex flex-wrap justify-end gap-2 pt-2">
+                    <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end dark:border-gray-800">
                       <Button
                         type="button"
                         variant="outline"
-                        onClick={() => setEditModalOpen(false)}
+                        onClick={closeEditProfile}
                         disabled={updateUserProfile.isPending}
+                        className="w-full sm:w-auto"
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
                         disabled={
-                          updateUserProfile.isPending || !editFullName.trim()
+                          updateUserProfile.isPending ||
+                          !(editFullName ?? "").trim()
                         }
+                        className="w-full sm:w-auto"
                       >
                         {updateUserProfile.isPending
                           ? "Saving…"
@@ -743,9 +904,7 @@ export default function PlatformUsersDirectory({
 
               <Modal
                 isOpen={statusModalOpen}
-                onClose={() => {
-                  if (!changeUserStatus.isPending) setStatusModalOpen(false);
-                }}
+                onClose={closeStatusConfirmation}
                 showCloseButton={false}
                 className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
               >
@@ -755,21 +914,21 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-user-status-title"
                   className="space-y-5"
                 >
-                  <header className="space-y-1 pr-10">
+                  <header className="space-y-1 pe-10">
                     <h2
                       id="platform-user-status-title"
                       className="text-lg font-semibold text-gray-900 dark:text-white"
                     >
-                      {displayedStatus === "ACTIVE"
+                      {actionUserStatus === "ACTIVE"
                         ? "Suspend account?"
                         : "Reactivate account?"}
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {currentUser.fullName} · {currentUser.email}
+                      {actionUser.fullName} · {actionUser.email}
                     </p>
                   </header>
                   <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
-                    {displayedStatus === "ACTIVE"
+                    {actionUserStatus === "ACTIVE"
                       ? "Suspending blocks account access and revokes the user’s active sessions. Organization memberships are retained."
                       : "Reactivating restores account access. Existing organization memberships and roles remain unchanged."}
                   </p>
@@ -789,7 +948,7 @@ export default function PlatformUsersDirectory({
                       type="button"
                       variant="outline"
                       autoFocus
-                      onClick={() => setStatusModalOpen(false)}
+                      onClick={closeStatusConfirmation}
                       disabled={changeUserStatus.isPending}
                     >
                       Cancel
@@ -797,7 +956,7 @@ export default function PlatformUsersDirectory({
                     <Button type="submit" disabled={changeUserStatus.isPending}>
                       {changeUserStatus.isPending
                         ? "Updating…"
-                        : displayedStatus === "ACTIVE"
+                        : actionUserStatus === "ACTIVE"
                           ? "Suspend account"
                           : "Reactivate account"}
                     </Button>
@@ -807,9 +966,7 @@ export default function PlatformUsersDirectory({
 
               <Modal
                 isOpen={archiveModalOpen}
-                onClose={() => {
-                  if (!archiveUser.isPending) setArchiveModalOpen(false);
-                }}
+                onClose={closeArchiveConfirmation}
                 showCloseButton={false}
                 className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
               >
@@ -819,7 +976,7 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-user-archive-title"
                   className="space-y-5"
                 >
-                  <header className="space-y-1 pr-10">
+                  <header className="space-y-1 pe-10">
                     <h2
                       id="platform-user-archive-title"
                       className="text-lg font-semibold text-gray-900 dark:text-white"
@@ -827,14 +984,15 @@ export default function PlatformUsersDirectory({
                       Archive user?
                     </h2>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
-                      {currentUser.fullName} · {currentUser.email}
+                      {actionUser.fullName} · {actionUser.email}
                     </p>
                   </header>
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                     This keeps the account, organization memberships, and audit
                     history. The account will be suspended, marked archived,
-                    and all active sessions revoked. This action cannot be
-                    undone in this console.
+                    and all active sessions revoked. You can restore it to
+                    SUSPENDED from the Archived filter; use Reactivate separately
+                    to restore sign-in access.
                   </div>
                   <form className="space-y-4" onSubmit={submitArchive}>
                     <label className="flex items-start gap-2 text-sm leading-5 text-gray-700 dark:text-gray-300">
@@ -863,8 +1021,8 @@ export default function PlatformUsersDirectory({
                       <Button
                         type="button"
                         variant="outline"
-                      autoFocus
-                        onClick={() => setArchiveModalOpen(false)}
+                        autoFocus
+                        onClick={closeArchiveConfirmation}
                         disabled={archiveUser.isPending}
                       >
                         Cancel
@@ -876,6 +1034,62 @@ export default function PlatformUsersDirectory({
                         {archiveUser.isPending ? "Archiving…" : "Archive user"}
                       </Button>
                     </div>
+                  </form>
+                </section>
+              </Modal>
+
+              <Modal
+                isOpen={restoreModalOpen}
+                onClose={closeRestoreConfirmation}
+                showCloseButton={false}
+                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="platform-user-restore-title"
+                  className="space-y-5"
+                >
+                  <header className="space-y-1 pe-10">
+                    <h2
+                      id="platform-user-restore-title"
+                      className="text-lg font-semibold text-gray-900 dark:text-white"
+                    >
+                      {t("restoreTitle")}
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {actionUser.fullName} · {actionUser.email}
+                    </p>
+                  </header>
+                  <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                    {t("restoreDescription")}
+                  </p>
+                  {userActionAttempted && formMessage && (
+                    <p
+                      role="alert"
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                    >
+                      {formMessage}
+                    </p>
+                  )}
+                  <form
+                    className="flex flex-wrap justify-end gap-2"
+                    onSubmit={submitRestore}
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      autoFocus
+                      onClick={closeRestoreConfirmation}
+                      disabled={restoreUser.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={restoreUser.isPending}>
+                      {restoreUser.isPending
+                        ? t("restoring")
+                        : t("restore")}
+                    </Button>
                   </form>
                 </section>
               </Modal>

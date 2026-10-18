@@ -1,4 +1,4 @@
-import { ReactNode } from "react";
+import type { MouseEventHandler, ReactNode } from "react";
 
 interface ButtonProps {
   children: ReactNode; // Button text or content
@@ -6,7 +6,7 @@ interface ButtonProps {
   variant?: "primary" | "outline"; // Button variant
   startIcon?: ReactNode; // Icon before the text
   endIcon?: ReactNode; // Icon after the text
-  onClick?: () => void; // Click handler
+  onClick?: MouseEventHandler<HTMLButtonElement>; // Click handler
   ariaLabel?: string;
   autoFocus?: boolean;
   disabled?: boolean; // Disabled state

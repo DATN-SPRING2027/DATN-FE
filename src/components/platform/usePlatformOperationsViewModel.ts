@@ -6,6 +6,7 @@ import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConso
 import {
   usePlatformAiOperationsQuery,
   usePlatformArchiveUserMutation,
+  usePlatformRestoreUserMutation,
   usePlatformChangeProjectMetadataMutation,
   usePlatformChangeUserStatusMutation,
   usePlatformCreateIncidentMutation,
@@ -52,11 +53,15 @@ function operationErrorMessage(error: unknown) {
       return "This record changed after it was loaded. Current details are refreshing; review them before trying again.";
     case 422:
       return "Some values are invalid or the action is not allowed for this account state. Review the form and try again.";
+    case 429:
+      return "Too many requests were made. Wait a moment before trying this action again.";
     case 500:
       return "The Platform service could not complete this action. No success was confirmed.";
     case 503:
       return "The Platform service is temporarily unavailable. No success was confirmed.";
     default:
+      if (error.status >= 500)
+        return "The Platform service could not confirm this action. No success was confirmed.";
       return "The operation could not be confirmed. Refresh the record before trying again.";
   }
 }
@@ -176,6 +181,7 @@ export function usePlatformOperationsViewModel({
   const changeUserStatus = usePlatformChangeUserStatusMutation();
   const updateUserProfile = usePlatformUpdateUserProfileMutation();
   const archiveUser = usePlatformArchiveUserMutation();
+  const restoreUser = usePlatformRestoreUserMutation();
   const revokeSession = usePlatformRevokeSessionMutation();
   const projects = usePlatformProjectsQuery(
     {
@@ -316,6 +322,7 @@ export function usePlatformOperationsViewModel({
     changeUserStatus,
     updateUserProfile,
     archiveUser,
+    restoreUser,
     revokeSession,
     projects,
     selectedProject,

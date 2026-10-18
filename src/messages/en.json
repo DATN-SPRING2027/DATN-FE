@@ -2289,6 +2289,13 @@
     "footerAccount": "Your workspace",
     "copyright": "© 2026 Continuum AI. All rights reserved."
   },
+  "platformUserActions": {
+    "restore": "Restore account",
+    "restoreTitle": "Restore archived user?",
+    "restoreDescription": "This clears the archive marker and returns the user to the directory as suspended. The account stays suspended and cannot sign in until a separate Reactivate action is used.",
+    "restoring": "Restoring…",
+    "restoreSuccess": "Account restored to SUSPENDED. Use Reactivate to restore access."
+  },
   "authExperience": {
     "signupEyebrow": "START YOUR SHARED STORY",
     "signupTitle": "Create your account",
