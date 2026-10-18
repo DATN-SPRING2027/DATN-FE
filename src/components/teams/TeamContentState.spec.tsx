@@ -53,6 +53,33 @@ it("renders an error and invokes only the retry callback supplied by the caller"
   expect(onRetry).toHaveBeenCalledOnce();
 });
 
+it("supports caller-controlled error, retry, loading, and content transitions", () => {
+  const onRetry = vi.fn();
+  const { rerender } = render(
+    <TeamContentState
+      state="error"
+      title="Could not load"
+      message="Try again when the request can safely be repeated."
+      retry={{ label: "Retry", onRetry }}
+    />,
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+  expect(onRetry).toHaveBeenCalledOnce();
+
+  rerender(<TeamContentState state="loading" message="Loading records" />);
+  expect(screen.getByRole("status")).toHaveTextContent("Loading records");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button")).not.toBeInTheDocument();
+
+  rerender(
+    <TeamContentState state="content">
+      <p>Records provided by the caller</p>
+    </TeamContentState>,
+  );
+  expect(screen.getByText("Records provided by the caller")).toBeVisible();
+});
+
 it("does not expose a retry action unless the caller provides one", () => {
   render(
     <TeamContentState
