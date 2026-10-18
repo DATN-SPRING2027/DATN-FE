@@ -31,6 +31,7 @@ export const platformPermissions = [
   "platform.memberships.invitation.manage",
   "platform.memberships.lifecycle.manage",
   "platform.memberships.membership.read",
+  "platform.memberships.role.manage",
   "platform.organizations.organization.manage",
   "platform.organizations.organization.read",
   "platform.projects.project.manage",
