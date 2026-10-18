@@ -5,8 +5,11 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-client";
 import PlatformConsole from "./PlatformConsole";
+
+let originalDialogShowModal: PropertyDescriptor | undefined;
 
 const {
   routerReplace,
@@ -159,6 +162,23 @@ const { operationHooks, operationState } = vi.hoisted(() => {
     isFetching: false,
     refetch: vi.fn(),
   };
+  const usersQuery = {
+    data: {
+      data: [] as unknown[],
+      pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+    },
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
+  const userDetailQuery = {
+    data: undefined as unknown,
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
   const list = {
     data: [],
     isError: false,
@@ -205,8 +225,11 @@ const { operationHooks, operationState } = vi.hoisted(() => {
   };
   const state = {
     query,
+    usersQuery,
+    userDetailQuery,
     list,
     dashboard,
+    mutation,
     auditEvents,
     auditEventsQuery: vi.fn(),
     operationQuery: vi.fn(),
@@ -219,13 +242,15 @@ const { operationHooks, operationState } = vi.hoisted(() => {
       usePlatformDashboardQuery: vi.fn(() => dashboard),
       usePlatformUsersQuery: vi.fn((...args: unknown[]) => {
         state.operationQuery("users", ...args);
-        return query;
+        return state.usersQuery;
       }),
-      usePlatformUserQuery: vi.fn(() => query),
+      usePlatformUserQuery: vi.fn(() => state.userDetailQuery),
       usePlatformUserOrganizationsQuery: vi.fn(() => query),
       usePlatformUserSessionQuery: vi.fn(() => query),
       usePlatformUserSessionsQuery: vi.fn(() => query),
       usePlatformChangeUserStatusMutation: vi.fn(() => mutation),
+      usePlatformUpdateUserProfileMutation: vi.fn(() => mutation),
+      usePlatformArchiveUserMutation: vi.fn(() => mutation),
       usePlatformRevokeSessionMutation: vi.fn(() => mutation),
       usePlatformProjectsQuery: vi.fn(() => query),
       usePlatformProjectQuery: vi.fn(() => query),
@@ -295,7 +320,65 @@ vi.mock("next-intl", () => ({
     values ? `${key} ${Object.values(values).join(" ")}` : key,
 }));
 
+function makePlatformUser(
+  status: "ACTIVE" | "SUSPENDED" | "PENDING_INVITE",
+  archivedAt: string | null = null,
+) {
+  return {
+    id: "851a2b3c4d5e6f7a8b9c0d30",
+    email: "user@example.test",
+    fullName: "Directory User",
+    avatarUrl: null,
+    archivedAt,
+    status,
+    createdAt: "2026-10-01T00:00:00.000Z",
+    updatedAt: "2026-10-02T00:00:00.000Z",
+    memberships: [],
+    membershipsTruncated: false,
+    lastLoginAt: null,
+    effectivePlatformPermissions: [],
+  };
+}
+
+function openUserDetails(user: ReturnType<typeof makePlatformUser>) {
+  pathname.value = "/platform/users";
+  session.data.permissions = [
+    "platform.users.account.read",
+    "platform.users.account.manage",
+  ];
+  operationState.usersQuery.data = {
+    data: [user],
+    pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+  };
+  operationState.userDetailQuery.data = user;
+  originalDialogShowModal = Object.getOwnPropertyDescriptor(
+    HTMLDialogElement.prototype,
+    "showModal",
+  );
+  Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+    configurable: true,
+    value: function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    },
+  });
+  render(<PlatformConsole />);
+  fireEvent.click(screen.getByRole("button", { name: "Details" }));
+}
+
 describe("PlatformConsole", () => {
+  afterEach(() => {
+    if (originalDialogShowModal) {
+      Object.defineProperty(
+        HTMLDialogElement.prototype,
+        "showModal",
+        originalDialogShowModal,
+      );
+    } else {
+      Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
+    }
+    originalDialogShowModal = undefined;
+  });
+
   beforeEach(() => {
     routerReplace.mockReset();
     pathname.value = "/platform/memberships";
@@ -338,6 +421,17 @@ describe("PlatformConsole", () => {
     operationState.auditEvents.refetch.mockReset();
     operationState.auditEventsQuery.mockClear();
     operationState.operationQuery.mockClear();
+    operationState.usersQuery.data = {
+      data: [],
+      pagination: { page: 1, pageSize: 25, totalItems: 0, totalPages: 0 },
+    };
+    operationState.usersQuery.isError = false;
+    operationState.usersQuery.isPending = false;
+    operationState.userDetailQuery.data = undefined;
+    operationState.userDetailQuery.isError = false;
+    operationState.userDetailQuery.isPending = false;
+    operationState.userDetailQuery.refetch.mockReset();
+    operationState.mutation.mutateAsync.mockReset().mockResolvedValue({});
   });
 
   it("renders only the allowed Organization and Membership actions", () => {
@@ -500,6 +594,207 @@ describe("PlatformConsole", () => {
       true,
     );
     expect(lookup.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("allows profile review for pending invites without exposing suspend, reactivate, or archive actions", async () => {
+    pathname.value = "/platform/users";
+    session.data.permissions = [
+      "platform.users.account.read",
+      "platform.users.account.manage",
+    ];
+    const invite = {
+      id: "851a2b3c4d5e6f7a8b9c0d30",
+      email: "invite@example.test",
+      fullName: "Pending Invite",
+      avatarUrl: null,
+      archivedAt: null,
+      status: "PENDING_INVITE",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      updatedAt: "2026-10-02T00:00:00.000Z",
+      memberships: [],
+      membershipsTruncated: false,
+      lastLoginAt: null,
+      effectivePlatformPermissions: [],
+    };
+    operationState.usersQuery.data = {
+      data: [invite],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    };
+    operationState.userDetailQuery.data = invite;
+    originalDialogShowModal = Object.getOwnPropertyDescriptor(
+      HTMLDialogElement.prototype,
+      "showModal",
+    );
+    Object.defineProperty(HTMLDialogElement.prototype, "showModal", {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    });
+
+    render(<PlatformConsole />);
+    fireEvent.click(screen.getByRole("button", { name: "Details" }));
+
+    expect(await screen.findByRole("button", { name: "Edit profile" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Suspend account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reactivate account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive user" })).not.toBeInTheDocument();
+  });
+
+  it("edits only profile fields from the User detail modal and closes on success", async () => {
+    const user = makePlatformUser("ACTIVE");
+    openUserDetails(user);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    const profileDialog = screen.getByRole("dialog", {
+      name: "Edit user profile",
+    });
+    fireEvent.change(within(profileDialog).getByLabelText("Full name"), {
+      target: { value: "Updated Name" },
+    });
+    fireEvent.change(within(profileDialog).getByLabelText(/Avatar URL/), {
+      target: { value: "https://cdn.example.test/avatar.png" },
+    });
+    fireEvent.click(
+      within(profileDialog).getByRole("button", { name: "Save changes" }),
+    );
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        fullName: "Updated Name",
+        avatarUrl: "https://cdn.example.test/avatar.png",
+        expectedUpdatedAt: user.updatedAt,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Edit user profile" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("reactivates only a suspended account after a confirmation step", async () => {
+    const user = makePlatformUser("SUSPENDED");
+    openUserDetails(user);
+
+    expect(
+      await screen.findByRole("button", { name: "Reactivate account" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Suspend account" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate account" }));
+    const statusDialog = screen.getByRole("dialog", {
+      name: "Reactivate account?",
+    });
+    fireEvent.click(
+      within(statusDialog).getByRole("button", { name: "Reactivate account" }),
+    );
+
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        status: "ACTIVE",
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+  });
+
+  it("requires explicit acknowledgment before archiving and explains a CAS conflict", async () => {
+    const user = makePlatformUser("ACTIVE");
+    operationState.mutation.mutateAsync
+      .mockRejectedValueOnce(new ApiError(409, "USER_VERSION_STALE", "private detail"))
+      .mockResolvedValueOnce({});
+    openUserDetails(user);
+    fireEvent.click(await screen.findByRole("button", { name: "Archive user" }));
+    const archiveDialog = screen.getByRole("dialog", { name: "Archive user?" });
+    const archiveButton = within(archiveDialog).getByRole("button", {
+      name: "Archive user",
+    });
+
+    expect(archiveButton).toBeDisabled();
+    fireEvent.click(
+      within(archiveDialog).getByLabelText(/I understand the account/),
+    );
+    expect(archiveButton).toBeEnabled();
+    fireEvent.click(archiveButton);
+
+    expect(
+      await within(archiveDialog).findByRole("alert"),
+    ).toHaveTextContent("This record changed after it was loaded");
+    expect(within(archiveDialog).getByRole("alert")).not.toHaveTextContent(
+      "private detail",
+    );
+    fireEvent.click(archiveButton);
+    await waitFor(() =>
+      expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
+        userId: user.id,
+        expectedUpdatedAt: user.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", { name: "Archive user?" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  it("shows a permission-specific profile error without exposing backend detail", async () => {
+    const user = makePlatformUser("ACTIVE");
+    operationState.mutation.mutateAsync.mockRejectedValueOnce(
+      new ApiError(403, "PLATFORM_PERMISSION_DENIED", "sensitive server detail"),
+    );
+    openUserDetails(user);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    const profileDialog = screen.getByRole("dialog", {
+      name: "Edit user profile",
+    });
+    fireEvent.click(
+      within(profileDialog).getByRole("button", { name: "Save changes" }),
+    );
+
+    const alert = await within(profileDialog).findByRole("alert");
+    expect(alert).toHaveTextContent("does not have permission");
+    expect(alert).not.toHaveTextContent("sensitive server detail");
+  });
+
+  it.each([
+    [401, "session expired"],
+    [404, "no longer exists"],
+    [409, "changed after it was loaded"],
+    [422, "values are invalid"],
+    [500, "could not complete this action"],
+    [503, "temporarily unavailable"],
+  ])("shows safe contextual feedback for HTTP %i", async (status, message) => {
+    const user = makePlatformUser("ACTIVE");
+    operationState.mutation.mutateAsync.mockRejectedValueOnce(
+      new ApiError(status, "PLATFORM_USER_REQUEST_FAILED", "sensitive server detail"),
+    );
+    openUserDetails(user);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit profile" }));
+    const profileDialog = screen.getByRole("dialog", {
+      name: "Edit user profile",
+    });
+    fireEvent.click(
+      within(profileDialog).getByRole("button", { name: "Save changes" }),
+    );
+
+    const alert = await within(profileDialog).findByRole("alert");
+    expect(alert).toHaveTextContent(message);
+    expect(alert).not.toHaveTextContent("sensitive server detail");
+  });
+
+  it("shows archived status and withholds every mutation action", async () => {
+    const user = makePlatformUser("SUSPENDED", "2026-10-03T00:00:00.000Z");
+    openUserDetails(user);
+
+    expect(await screen.findAllByText("ARCHIVED")).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Edit profile" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Suspend account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Reactivate account" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Archive user" })).not.toBeInTheDocument();
   });
 
   it("limits exact active-account lookup to Organization creation", () => {

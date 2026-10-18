@@ -1,6 +1,8 @@
 "use client";
 
+import { useState, type FormEvent } from "react";
 import Button from "@/components/ui/button/Button";
+import { Modal } from "@/components/ui/modal";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
@@ -20,6 +22,13 @@ export default function PlatformUsersDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [editFullName, setEditFullName] = useState("");
+  const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [archiveAcknowledged, setArchiveAcknowledged] = useState(false);
+  const [userActionAttempted, setUserActionAttempted] = useState(false);
   const {
     canReadUsers,
     users,
@@ -43,6 +52,8 @@ export default function PlatformUsersDirectory({
     operatorId,
     handleSubmit,
     changeUserStatus,
+    updateUserProfile,
+    archiveUser,
     canReadSessions,
     userSessions,
     canManageSessions,
@@ -51,6 +62,62 @@ export default function PlatformUsersDirectory({
     selectedSession,
     formMessage,
   } = model;
+  const currentUser = selectedUser.data;
+  const isArchived = Boolean(currentUser?.archivedAt);
+  const displayedStatus = isArchived ? "ARCHIVED" : currentUser?.status;
+
+  function openProfileEditor() {
+    if (!currentUser) return;
+    setEditFullName(currentUser.fullName);
+    setEditAvatarUrl(currentUser.avatarUrl ?? "");
+    setUserActionAttempted(false);
+    setEditModalOpen(true);
+  }
+
+  async function submitProfile(event: FormEvent<HTMLFormElement>) {
+    if (!currentUser) return;
+    setUserActionAttempted(true);
+    const success = await handleSubmit(event, () =>
+      updateUserProfile.mutateAsync({
+        userId: currentUser.id,
+        fullName: editFullName.trim(),
+        avatarUrl: editAvatarUrl.trim() || null,
+        expectedUpdatedAt: currentUser.updatedAt,
+      }),
+    );
+    if (success) setEditModalOpen(false);
+  }
+
+  async function submitStatusChange(event: FormEvent<HTMLFormElement>) {
+    if (!currentUser || !displayedStatus) return;
+    const status = displayedStatus === "ACTIVE" ? "SUSPENDED" : "ACTIVE";
+    setUserActionAttempted(true);
+    const success = await handleSubmit(event, () =>
+      changeUserStatus.mutateAsync({
+        userId: currentUser.id,
+        status,
+        expectedUpdatedAt: currentUser.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    if (success) setStatusModalOpen(false);
+  }
+
+  async function submitArchive(event: FormEvent<HTMLFormElement>) {
+    if (!currentUser) return;
+    setUserActionAttempted(true);
+    const success = await handleSubmit(event, () =>
+      archiveUser.mutateAsync({
+        userId: currentUser.id,
+        expectedUpdatedAt: currentUser.updatedAt,
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+    if (success) {
+      setArchiveModalOpen(false);
+      setArchiveAcknowledged(false);
+    }
+  }
   return (
     <div className="space-y-6">
       {!canReadUsers ? (
@@ -92,6 +159,7 @@ export default function PlatformUsersDirectory({
                   <option value="ACTIVE">Active</option>
                   <option value="SUSPENDED">Suspended</option>
                   <option value="PENDING_INVITE">Pending invite</option>
+                  <option value="ARCHIVED">Archived</option>
                 </select>
               </div>
             </div>
@@ -118,7 +186,10 @@ export default function PlatformUsersDirectory({
                       </span>
                     </td>
                     <td className={cell}>
-                      <StatusBadge status={user.status} label={user.status} />
+                      <StatusBadge
+                        status={user.archivedAt ? "ARCHIVED" : user.status}
+                        label={user.archivedAt ? "ARCHIVED" : user.status}
+                      />
                     </td>
                     <td className={cell}>
                       {user.memberships.length}
@@ -225,8 +296,8 @@ export default function PlatformUsersDirectory({
                       </dt>
                       <dd className="mt-2">
                         <StatusBadge
-                          status={selectedUser.data.status}
-                          label={selectedUser.data.status}
+                          status={displayedStatus ?? selectedUser.data.status}
+                          label={displayedStatus ?? selectedUser.data.status}
                         />
                       </dd>
                     </div>
@@ -235,6 +306,14 @@ export default function PlatformUsersDirectory({
                         label="Created"
                         value={new Date(
                           selectedUser.data.createdAt,
+                        ).toLocaleString()}
+                      />
+                    </div>
+                    <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                      <TextField
+                        label="Updated"
+                        value={new Date(
+                          selectedUser.data.updatedAt,
                         ).toLocaleString()}
                       />
                     </div>
@@ -250,6 +329,16 @@ export default function PlatformUsersDirectory({
                         }
                       />
                     </div>
+                    {selectedUser.data.archivedAt && (
+                      <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                        <TextField
+                          label="Archived"
+                          value={new Date(
+                            selectedUser.data.archivedAt,
+                          ).toLocaleString()}
+                        />
+                      </div>
+                    )}
                   </dl>
                   <section
                     aria-labelledby="platform-user-organizations-title"
@@ -315,44 +404,84 @@ export default function PlatformUsersDirectory({
                       />
                     )}
                   </section>
-                  {canManageUsers && selectedUser.data.id !== operatorId && (
-                    <form
-                      className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800"
-                      onSubmit={(e) => {
-                        const status =
-                          selectedUser.data!.status === "ACTIVE"
-                            ? "SUSPENDED"
-                            : "ACTIVE";
-                        if (
-                          !window.confirm(`Change account status to ${status}?`)
-                        ) {
-                          e.preventDefault();
-                          return;
-                        }
-                        void handleSubmit(e, () =>
-                          changeUserStatus.mutateAsync({
-                            userId: selectedUser.data!.id,
-                            status,
-                            expectedUpdatedAt: selectedUser.data!.updatedAt,
-                            reasonCode: "ACCESS_REVIEW",
-                          }),
-                        );
-                      }}
-                    >
-                      <p className="max-w-2xl text-xs leading-5 text-gray-500 dark:text-gray-400">
-                        Account status changes require the displayed version and
-                        ACCESS_REVIEW reason.
-                      </p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={changeUserStatus.isPending}
-                      >
-                        {selectedUser.data.status === "ACTIVE"
-                          ? "Suspend account"
-                          : "Reactivate account"}
-                      </Button>
-                    </form>
+                  {canManageUsers && (
+                    <section className="space-y-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
+                      <div>
+                        <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                          Account actions
+                        </h3>
+                        <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
+                          Profile edits are limited to the full name and avatar
+                          URL. Account lifecycle actions use the current record
+                          version.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {!isArchived && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={updateUserProfile.isPending}
+                            onClick={openProfileEditor}
+                          >
+                            Edit profile
+                          </Button>
+                        )}
+                        {!isArchived &&
+                          selectedUser.data.id !== operatorId &&
+                          selectedUser.data.status === "ACTIVE" && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={changeUserStatus.isPending}
+                              onClick={() => {
+                                setUserActionAttempted(false);
+                                setStatusModalOpen(true);
+                              }}
+                            >
+                              Suspend account
+                            </Button>
+                          )}
+                        {!isArchived &&
+                          selectedUser.data.id !== operatorId &&
+                          selectedUser.data.status === "SUSPENDED" && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              disabled={changeUserStatus.isPending}
+                              onClick={() => {
+                                setUserActionAttempted(false);
+                                setStatusModalOpen(true);
+                              }}
+                            >
+                              Reactivate account
+                            </Button>
+                          )}
+                        {!isArchived &&
+                          selectedUser.data.id !== operatorId &&
+                          ["ACTIVE", "SUSPENDED"].includes(
+                            selectedUser.data.status,
+                          ) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-900 dark:text-rose-300 dark:hover:bg-rose-950/40"
+                              disabled={archiveUser.isPending}
+                              onClick={() => {
+                                setArchiveAcknowledged(false);
+                                setUserActionAttempted(false);
+                                setArchiveModalOpen(true);
+                              }}
+                            >
+                              Archive user
+                            </Button>
+                          )}
+                      </div>
+                    </section>
                   )}
                   {canReadSessions && (
                     <section
@@ -408,18 +537,17 @@ export default function PlatformUsersDirectory({
                                       size="sm"
                                       disabled={revokeSession.isPending}
                                       onClick={() => {
-                                        if (
-                                          window.confirm("Revoke this session?")
-                                        )
-                                          void runOperation(() =>
-                                            revokeSession.mutateAsync({
-                                              userId: selectedUser.data!.id,
-                                              sessionId: session.id,
-                                              expectedUpdatedAt:
-                                                session.updatedAt,
-                                              reasonCode: "ACCESS_REVIEW",
-                                            }),
-                                          );
+                                        if (!window.confirm("Revoke this session?"))
+                                          return;
+                                        void runOperation(() =>
+                                          revokeSession.mutateAsync({
+                                            userId: selectedUser.data!.id,
+                                            sessionId: session.id,
+                                            expectedUpdatedAt:
+                                              session.updatedAt,
+                                            reasonCode: "ACCESS_REVIEW",
+                                          }),
+                                        );
                                       }}
                                     >
                                       Revoke
@@ -504,7 +632,7 @@ export default function PlatformUsersDirectory({
                       )}
                     </section>
                   )}
-                  {formMessage && (
+                  {formMessage && !userActionAttempted && (
                     <p
                       className="rounded-lg bg-brand-50 px-3 py-2 text-xs text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
                       role="status"
@@ -515,6 +643,243 @@ export default function PlatformUsersDirectory({
                 </>
               )}
             </dialog>
+          )}
+          {currentUser && (
+            <>
+              <Modal
+                isOpen={editModalOpen}
+                onClose={() => {
+                  if (!updateUserProfile.isPending) setEditModalOpen(false);
+                }}
+                showCloseButton={false}
+                className="mx-3 max-w-xl border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="platform-edit-user-title"
+                  className="space-y-5"
+                >
+                  <header className="space-y-1 pr-10">
+                    <h2
+                      id="platform-edit-user-title"
+                      className="text-lg font-semibold text-gray-900 dark:text-white"
+                    >
+                      Edit user profile
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Change the user’s display name or avatar. Account access
+                      and organization roles are not changed.
+                    </p>
+                  </header>
+                  <form className="space-y-4" onSubmit={submitProfile}>
+                    <label
+                      className="block space-y-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+                      htmlFor="platform-user-full-name"
+                    >
+                      Full name
+                      <input
+                        id="platform-user-full-name"
+                        className={input}
+                        autoComplete="name"
+                        autoFocus
+                        required
+                        minLength={1}
+                        maxLength={200}
+                        value={editFullName}
+                        onChange={(event) =>
+                          setEditFullName(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label
+                      className="block space-y-1.5 text-sm font-medium text-gray-700 dark:text-gray-300"
+                      htmlFor="platform-user-avatar-url"
+                    >
+                      Avatar URL <span className="font-normal text-gray-500">(optional)</span>
+                      <input
+                        id="platform-user-avatar-url"
+                        className={input}
+                        type="url"
+                        maxLength={2000}
+                        placeholder="https://…"
+                        value={editAvatarUrl}
+                        onChange={(event) =>
+                          setEditAvatarUrl(event.target.value)
+                        }
+                      />
+                    </label>
+                    {userActionAttempted && formMessage && (
+                      <p
+                        role="alert"
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                      >
+                        {formMessage}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap justify-end gap-2 pt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setEditModalOpen(false)}
+                        disabled={updateUserProfile.isPending}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={
+                          updateUserProfile.isPending || !editFullName.trim()
+                        }
+                      >
+                        {updateUserProfile.isPending
+                          ? "Saving…"
+                          : "Save changes"}
+                      </Button>
+                    </div>
+                  </form>
+                </section>
+              </Modal>
+
+              <Modal
+                isOpen={statusModalOpen}
+                onClose={() => {
+                  if (!changeUserStatus.isPending) setStatusModalOpen(false);
+                }}
+                showCloseButton={false}
+                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="platform-user-status-title"
+                  className="space-y-5"
+                >
+                  <header className="space-y-1 pr-10">
+                    <h2
+                      id="platform-user-status-title"
+                      className="text-lg font-semibold text-gray-900 dark:text-white"
+                    >
+                      {displayedStatus === "ACTIVE"
+                        ? "Suspend account?"
+                        : "Reactivate account?"}
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {currentUser.fullName} · {currentUser.email}
+                    </p>
+                  </header>
+                  <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">
+                    {displayedStatus === "ACTIVE"
+                      ? "Suspending blocks account access and revokes the user’s active sessions. Organization memberships are retained."
+                      : "Reactivating restores account access. Existing organization memberships and roles remain unchanged."}
+                  </p>
+                  {userActionAttempted && formMessage && (
+                    <p
+                      role="alert"
+                      className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                    >
+                      {formMessage}
+                    </p>
+                  )}
+                  <form
+                    className="flex flex-wrap justify-end gap-2"
+                    onSubmit={submitStatusChange}
+                  >
+                    <Button
+                      type="button"
+                      variant="outline"
+                      autoFocus
+                      onClick={() => setStatusModalOpen(false)}
+                      disabled={changeUserStatus.isPending}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="submit" disabled={changeUserStatus.isPending}>
+                      {changeUserStatus.isPending
+                        ? "Updating…"
+                        : displayedStatus === "ACTIVE"
+                          ? "Suspend account"
+                          : "Reactivate account"}
+                    </Button>
+                  </form>
+                </section>
+              </Modal>
+
+              <Modal
+                isOpen={archiveModalOpen}
+                onClose={() => {
+                  if (!archiveUser.isPending) setArchiveModalOpen(false);
+                }}
+                showCloseButton={false}
+                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+              >
+                <section
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby="platform-user-archive-title"
+                  className="space-y-5"
+                >
+                  <header className="space-y-1 pr-10">
+                    <h2
+                      id="platform-user-archive-title"
+                      className="text-lg font-semibold text-gray-900 dark:text-white"
+                    >
+                      Archive user?
+                    </h2>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      {currentUser.fullName} · {currentUser.email}
+                    </p>
+                  </header>
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                    This keeps the account, organization memberships, and audit
+                    history. The account will be suspended, marked archived,
+                    and all active sessions revoked. This action cannot be
+                    undone in this console.
+                  </div>
+                  <form className="space-y-4" onSubmit={submitArchive}>
+                    <label className="flex items-start gap-2 text-sm leading-5 text-gray-700 dark:text-gray-300">
+                      <input
+                        type="checkbox"
+                        className="mt-1 size-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                        checked={archiveAcknowledged}
+                        onChange={(event) =>
+                          setArchiveAcknowledged(event.target.checked)
+                        }
+                      />
+                      <span>
+                        I understand the account will be suspended and archived,
+                        while its records and memberships are retained.
+                      </span>
+                    </label>
+                    {userActionAttempted && formMessage && (
+                      <p
+                        role="alert"
+                        className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950/30 dark:text-rose-200"
+                      >
+                        {formMessage}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap justify-end gap-2 pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                      autoFocus
+                        onClick={() => setArchiveModalOpen(false)}
+                        disabled={archiveUser.isPending}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        disabled={!archiveAcknowledged || archiveUser.isPending}
+                      >
+                        {archiveUser.isPending ? "Archiving…" : "Archive user"}
+                      </Button>
+                    </div>
+                  </form>
+                </section>
+              </Modal>
+            </>
           )}
         </>
       )}

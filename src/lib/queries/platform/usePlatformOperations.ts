@@ -14,6 +14,10 @@ const timestampPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const safeRequestIdPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const userStatuses = new Set(["ACTIVE", "SUSPENDED", "PENDING_INVITE"]);
+const userListStatuses = new Set([
+  ...userStatuses,
+  "ARCHIVED",
+]);
 const roles = new Set(["ADMIN", "MEMBER"]);
 const sessionStatuses = new Set(["ACTIVE", "REVOKED", "EXPIRED"]);
 const sessionContexts = new Set(["ACCOUNT", "ORGANIZATION", "PLATFORM"]);
@@ -55,6 +59,8 @@ const auditActions = new Set([
   "platform.authority.granted",
   "platform.authority.revoked",
   "platform.user.status.changed",
+  "platform.user.profile.updated",
+  "platform.user.archived",
   "platform.session.revoked",
   "platform.sessions.revoked_all",
   "ORGANIZATION_MEMBERSHIP_SUSPENDED",
@@ -82,6 +88,8 @@ export type PlatformUserRecord = Readonly<{
   id: string;
   email: string;
   fullName: string;
+  avatarUrl: string | null;
+  archivedAt: string | null;
   status: "ACTIVE" | "SUSPENDED" | "PENDING_INVITE";
   createdAt: string;
   updatedAt: string;
@@ -244,6 +252,7 @@ export type PlatformAuditEvent = Readonly<{
   organizationId?: string;
   reasonCode?: string;
   requestId?: string;
+  changedFields?: readonly ("fullName" | "avatarUrl")[];
   changes?: Readonly<
     Record<
       string,
@@ -264,7 +273,7 @@ export type PlatformPageFilter = Readonly<{ page?: number; pageSize?: number }>;
 export type PlatformUserFilters = PlatformPageFilter &
   Readonly<{
     search?: string;
-    status?: "ACTIVE" | "SUSPENDED" | "PENDING_INVITE";
+    status?: "ACTIVE" | "SUSPENDED" | "PENDING_INVITE" | "ARCHIVED";
     organizationId?: string;
     roleCode?: "ADMIN" | "MEMBER";
   }>;
@@ -310,6 +319,15 @@ function isTimestamp(value: unknown): value is string {
 }
 function optionalTimestamp(value: unknown): value is string | null {
   return value === null || isTimestamp(value);
+}
+function isSafeProfileAvatarUrl(value: string): boolean {
+  if (value.length > 2000) return false;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol);
+  } catch {
+    return false;
+  }
 }
 function invalidResponse(): ApiError {
   return new ApiError(
@@ -412,8 +430,16 @@ function pageValues(filter: PlatformPageFilter) {
 }
 function parseUser(value: unknown): PlatformUserRecord {
   const row = requireRecord(value);
+  const avatarUrl =
+    row.avatarUrl === undefined || row.avatarUrl === null
+      ? null
+      : requireText(row.avatarUrl, 2000);
   if (
     !userStatuses.has(String(row.status)) ||
+    (avatarUrl !== null && !isSafeProfileAvatarUrl(avatarUrl)) ||
+    (row.archivedAt !== undefined &&
+      row.archivedAt !== null &&
+      !isTimestamp(row.archivedAt)) ||
     !Array.isArray(row.memberships) ||
     row.memberships.length > 100 ||
     typeof row.membershipsTruncated !== "boolean"
@@ -439,6 +465,11 @@ function parseUser(value: unknown): PlatformUserRecord {
     id: requireId(row.id),
     email: requireText(row.email, 254),
     fullName: requireText(row.fullName, 200),
+    avatarUrl,
+    archivedAt:
+      row.archivedAt === undefined || row.archivedAt === null
+        ? null
+        : requireTimestamp(row.archivedAt),
     status: row.status as PlatformUserRecord["status"],
     createdAt: requireTimestamp(row.createdAt),
     updatedAt: requireTimestamp(row.updatedAt),
@@ -578,6 +609,19 @@ function parseAuditEvent(value: unknown): PlatformAuditEvent {
     Object.assign(optional, { reasonCode: requireText(row.reasonCode, 64) });
   if (row.requestId !== undefined)
     Object.assign(optional, { requestId: requireText(row.requestId, 128) });
+  if (row.changedFields !== undefined) {
+    if (
+      !Array.isArray(row.changedFields) ||
+      row.changedFields.length > 2 ||
+      row.changedFields.some(
+        (field) => field !== "fullName" && field !== "avatarUrl",
+      )
+    )
+      throw invalidResponse();
+    Object.assign(optional, {
+      changedFields: [...new Set(row.changedFields as ("fullName" | "avatarUrl")[])],
+    });
+  }
   if (row.changes !== undefined) {
     const changes = requireRecord(row.changes);
     const clean: Record<
@@ -672,6 +716,8 @@ export function usePlatformUsersQuery(
   filters: PlatformUserFilters,
   enabled: boolean,
 ) {
+  if (filters.status !== undefined && !userListStatuses.has(filters.status))
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid user filter");
   const query = queryString({
     ...pageValues(filters),
     search: filters.search?.trim(),
@@ -865,6 +911,107 @@ export function usePlatformChangeOrganizationMetadataMutation() {
     onError: (error) => invalidateOnConflict(client, error),
   });
 }
+export function usePlatformUpdateUserProfileMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        userId: string;
+        fullName?: string;
+        avatarUrl?: string | null;
+        expectedUpdatedAt: string;
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.userId) ||
+        !isTimestamp(input.expectedUpdatedAt) ||
+        (input.fullName === undefined && input.avatarUrl === undefined) ||
+        (input.fullName !== undefined &&
+          (!input.fullName.trim() || input.fullName.trim().length > 200)) ||
+        (input.avatarUrl !== undefined &&
+          input.avatarUrl !== null &&
+          !isSafeProfileAvatarUrl(input.avatarUrl))
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid Platform user profile update",
+        );
+      const body = {
+        ...(input.fullName === undefined
+          ? {}
+          : { fullName: input.fullName.trim() }),
+        ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl }),
+        expectedUpdatedAt: input.expectedUpdatedAt,
+      };
+      const updated = parseUser(
+        await platformApiClient<unknown>(
+          `/iam/platform/users/${encodeURIComponent(input.userId)}`,
+          {
+            method: "PATCH",
+            headers: mutationHeaders(),
+            body: JSON.stringify(body),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (updated.id !== input.userId) throw invalidResponse();
+      return updated;
+    },
+    retry: false,
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
+export function usePlatformArchiveUserMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        userId: string;
+        expectedUpdatedAt: string;
+        reasonCode: "SECURITY_INCIDENT" | "ACCESS_REVIEW";
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.userId) ||
+        !isTimestamp(input.expectedUpdatedAt) ||
+        !["SECURITY_INCIDENT", "ACCESS_REVIEW"].includes(input.reasonCode)
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid Platform user archive operation",
+        );
+      const archived = parseUser(
+        await platformApiClient<unknown>(
+          `/iam/platform/users/${encodeURIComponent(input.userId)}/archive`,
+          {
+            method: "POST",
+            headers: mutationHeaders(),
+            body: JSON.stringify({
+              expectedUpdatedAt: input.expectedUpdatedAt,
+              reasonCode: input.reasonCode,
+            }),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (
+        archived.id !== input.userId ||
+        archived.status !== "SUSPENDED" ||
+        !archived.archivedAt
+      )
+        throw invalidResponse();
+      return archived;
+    },
+    retry: false,
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
 export function usePlatformChangeUserStatusMutation() {
   const client = useQueryClient();
   return useMutation({
@@ -905,6 +1052,7 @@ export function usePlatformChangeUserStatusMutation() {
         throw invalidResponse();
       return updated;
     },
+    retry: false,
     onSuccess: () => invalidateOperations(client),
     onError: (error) => invalidateOnConflict(client, error),
   });

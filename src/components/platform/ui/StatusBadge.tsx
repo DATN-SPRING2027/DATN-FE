@@ -30,7 +30,7 @@ export default function StatusBadge({
   } else if (["ERROR", "FAILED", "REMOVED", "DISCONNECTED", "CRITICAL"].includes(normalized)) {
     colorClasses = "bg-rose-50 text-rose-700 border border-rose-200/60 dark:bg-rose-500/10 dark:text-rose-400 dark:border-rose-500/20";
     dotColor = "bg-rose-500";
-  } else if (["UNAVAILABLE", "DISABLED"].includes(normalized)) {
+  } else if (["UNAVAILABLE", "DISABLED", "ARCHIVED"].includes(normalized)) {
     colorClasses = "bg-gray-100 text-gray-600 border border-gray-200/70 dark:bg-gray-800/80 dark:text-gray-400 dark:border-gray-700/60";
     dotColor = "bg-gray-400";
   }
