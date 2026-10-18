@@ -605,7 +605,7 @@
 .signup {
   padding-block: 1rem;
 }
-.signupConfirmation {
+.authConfirmation {
   width: 100%;
   max-width: 38rem;
   margin-inline: auto;
@@ -615,7 +615,7 @@
   background: var(--auth-surface);
   box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 0.08);
 }
-.signupConfirmationIcon {
+.authConfirmationIcon {
   display: grid;
   width: 3.25rem;
   height: 3.25rem;
@@ -630,14 +630,26 @@
   );
   color: var(--color-brand-600);
 }
-.signupConfirmationIcon svg {
+.authConfirmationIcon svg {
   width: 1.5rem;
   height: 1.5rem;
 }
-:global(.dark) .signupConfirmationIcon {
+:global(.dark) .authConfirmationIcon {
   color: var(--color-brand-300);
 }
-.signupConfirmation h1 {
+.authConfirmationIconSuccess {
+  border-color: color-mix(in srgb, var(--color-success-500) 22%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-success-500) 10%,
+    var(--auth-surface)
+  );
+  color: var(--color-success-600);
+}
+:global(.dark) .authConfirmationIconSuccess {
+  color: var(--color-success-400);
+}
+.authConfirmation h1 {
   margin-block: 1.1rem 0.65rem;
   font-size: clamp(2rem, 3.4vw, 2.8rem);
   line-height: 1.12;
@@ -645,13 +657,13 @@
   font-weight: 600;
   text-wrap: balance;
 }
-.signupConfirmationMessage {
+.authConfirmationMessage {
   max-width: 32rem;
   color: var(--auth-muted);
   font-size: 0.95rem;
   line-height: 1.75;
 }
-.signupConfirmationRecipient {
+.authConfirmationRecipient {
   display: grid;
   gap: 0.35rem;
   min-width: 0;
@@ -661,17 +673,17 @@
   border-radius: 1rem;
   background: var(--auth-soft);
 }
-.signupConfirmationRecipient > span {
+.authConfirmationRecipient > span {
   color: var(--auth-muted);
   font-size: 0.75rem;
 }
-.signupConfirmationRecipient > strong {
+.authConfirmationRecipient > strong {
   color: var(--auth-ink);
   font-size: 0.9rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-.signupConfirmationLink {
+.authConfirmationLink {
   display: inline-flex;
   min-height: 44px;
   align-items: center;
@@ -682,19 +694,38 @@
   font-weight: 600;
   transition: color 0.2s;
 }
-:global(.dark) .signupConfirmationLink {
+:global(.dark) .authConfirmationLink {
   color: var(--color-brand-300);
 }
-.signupConfirmationLink:hover {
+.authConfirmationLink:hover {
   color: var(--color-brand-700);
 }
-:global(.dark) .signupConfirmationLink:hover {
+:global(.dark) .authConfirmationLink:hover {
   color: var(--color-brand-200);
 }
-.signupConfirmationLink svg {
+.authConfirmationLink svg {
   width: 1rem;
   height: 1rem;
   flex: 0 0 auto;
+}
+.authConfirmationAction {
+  display: flex;
+  width: 100%;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  margin-block-start: 1.25rem;
+  padding-inline: 1.25rem;
+  border-radius: 0.75rem;
+  background: var(--color-brand-500);
+  color: var(--color-white);
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: center;
+  transition: background-color 0.2s;
+}
+.authConfirmationAction:hover {
+  background: var(--color-brand-600);
 }
 .resetForm {
   display: flex;

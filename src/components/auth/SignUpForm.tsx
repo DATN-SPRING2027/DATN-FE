@@ -59,23 +59,23 @@ export default function SignUpForm() {
         <section
           aria-live="polite"
           aria-labelledby="signup-confirmation-title"
-          className={styles.signupConfirmation}
+          className={styles.authConfirmation}
           role="status"
         >
-          <div className={styles.signupConfirmationIcon}>
+          <div className={styles.authConfirmationIcon}>
             <EnvelopeIcon aria-hidden="true" />
           </div>
           <h1 id="signup-confirmation-title">
             {t("emailRegistrationRequestAcceptedTitle")}
           </h1>
-          <p className={styles.signupConfirmationMessage}>
+          <p className={styles.authConfirmationMessage}>
             {t("emailRegistrationRequestAcceptedMessage")}
           </p>
-          <div className={styles.signupConfirmationRecipient}>
+          <div className={styles.authConfirmationRecipient}>
             <span>{ui("email")}</span>
             <strong>{email.trim()}</strong>
           </div>
-          <Link href="/signin" className={styles.signupConfirmationLink}>
+          <Link href="/signin" className={styles.authConfirmationLink}>
             <ChevronLeftIcon aria-hidden="true" />
             <span>{t("backToSignIn")}</span>
           </Link>
