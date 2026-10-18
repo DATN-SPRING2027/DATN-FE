@@ -5,9 +5,27 @@ const localePageFiles = Object.keys(
 );
 const restrictedPlatformRouteSegment =
   /^(?:platform.*|operations?.*|ops(?:[-_].*)?|admin(?:istration)?.*|console.*|configuration.*|config(?:uration)?.*)$/i;
+const approvedPlatformRoutes = [
+  '/platform',
+  '/platform/account',
+  '/platform/ai',
+  '/platform/audit',
+  '/platform/diagnostics',
+  '/platform/incidents',
+  '/platform/integrations',
+  '/platform/jobs',
+  '/platform/memberships',
+  '/platform/organizations',
+  '/platform/organizations/[organizationId]',
+  '/platform/projects',
+  '/platform/security',
+  '/platform/services',
+  '/platform/signin',
+  '/platform/users',
+].sort();
 
 describe('Platform V1 route scope', () => {
-  it('does not register Platform, Operations or Configuration page routes', () => {
+  it('registers only approved Platform routes and no deferred routes', () => {
     expect(localePageFiles).toContain(
       '../app/[locale]/(admin)/dashboard/page.tsx',
     );
@@ -28,6 +46,14 @@ describe('Platform V1 route scope', () => {
       .map((segments) => `/${segments.join('/')}`)
       .sort();
 
-    expect(restrictedRoutes).toEqual([]);
+    const platformRoutes = restrictedRoutes.filter((route) =>
+      route.startsWith('/platform'),
+    );
+    const deferredRoutes = restrictedRoutes.filter(
+      (route) => !route.startsWith('/platform'),
+    );
+
+    expect(platformRoutes).toEqual(approvedPlatformRoutes);
+    expect(deferredRoutes).toEqual([]);
   });
 });

@@ -12,6 +12,7 @@ import styles from "./auth-experience.module.css";
 
 const redesignedRoutes = new Set([
   "/signin",
+  "/platform/signin",
   "/signup",
   "/reset-password",
   "/verify-email",
@@ -41,6 +42,8 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
             <Link href="/">{t("home")}</Link>
             {pathname === "/signin" ? (
               <Link href="/signup">{t("join")}</Link>
+            ) : pathname === "/platform/signin" ? (
+              <Link href="/signin">{t("signIn")}</Link>
             ) : pathname === "/signup" || pathname === "/reset-password" || pathname === "/verify-email" ? (
               <Link href="/signin">{t("signIn")}</Link>
             ) : (

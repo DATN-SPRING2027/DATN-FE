@@ -132,6 +132,14 @@
   flex-direction: column;
   gap: 1rem;
 }
+.formNote {
+  margin-block-start: 1.5rem;
+  padding-block-start: 1.2rem;
+  border-block-start: 1px solid var(--auth-line);
+  color: var(--auth-muted);
+  font-size: 0.75rem;
+  line-height: 1.75;
+}
 .signin > :global([role="alert"]) {
   margin-bottom: 1rem;
 }
