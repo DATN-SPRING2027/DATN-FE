@@ -11,7 +11,21 @@ export default function MemberDetails({
 }) {
   const t = useTranslations("projectMembers");
   const fields = [
-    { label: "userId", value: member.userId, Icon: UserCircleIcon },
+    ...(member.user?.email
+      ? [{ label: "email", value: member.user.email, Icon: UserCircleIcon }]
+      : []),
+    ...(member.user?.fullName
+      ? [
+          {
+            label: "userName",
+            value: member.user.fullName,
+            Icon: UserCircleIcon,
+          },
+        ]
+      : []),
+    ...(!member.user
+      ? [{ label: "userId", value: member.userId, Icon: UserCircleIcon }]
+      : []),
     { label: "membershipId", value: member.id, Icon: ListIcon },
     { label: "organizationId", value: member.organizationId, Icon: GroupIcon },
     { label: "projectId", value: member.projectId, Icon: FolderIcon },

@@ -1,5 +1,12 @@
 import { ApiError } from "@/lib/api-client";
 
+export type ProjectMemberUser = Readonly<{
+  id: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string | null;
+}>;
+
 export type ProjectMembership = Readonly<{
   id: string;
   organizationId: string;
@@ -7,7 +14,18 @@ export type ProjectMembership = Readonly<{
   userId: string;
   status: "ACTIVE" | "INACTIVE";
   joinedAt: string;
+  user?: ProjectMemberUser | null;
 }>;
+
+export type ProjectMemberCandidate = Readonly<{
+  userId: string;
+  email: string;
+  fullName?: string;
+  avatarUrl?: string | null;
+  organizationMembershipStatus: "ACTIVE";
+  isProjectMember: boolean;
+}>;
+
 export type ProjectMemberPage = Readonly<{
   data: readonly ProjectMembership[];
   pagination: Readonly<{
@@ -17,6 +35,7 @@ export type ProjectMemberPage = Readonly<{
     totalPages: number;
   }>;
 }>;
+
 export type ProjectMemberFilter = Readonly<{
   page: number;
   pageSize: number;
@@ -26,8 +45,10 @@ export type ProjectMemberFilter = Readonly<{
 // ResourceId is opaque in the accepted contract. Storage-format checks belong to BE.
 export const isResourceId = (value: unknown): value is string =>
   typeof value === "string" && value.trim().length > 0;
+
 const record = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
 function invalidResponse(): never {
   throw new ApiError(
     502,
@@ -35,6 +56,27 @@ function invalidResponse(): never {
     "Unexpected Project member response",
   );
 }
+
+export function parseCandidate(value: unknown): ProjectMemberCandidate {
+  if (
+    !record(value) ||
+    !isResourceId(value.userId) ||
+    typeof value.email !== "string" ||
+    value.organizationMembershipStatus !== "ACTIVE" ||
+    typeof value.isProjectMember !== "boolean"
+  ) {
+    return invalidResponse();
+  }
+  return {
+    userId: value.userId,
+    email: value.email,
+    ...(typeof value.fullName === "string" ? { fullName: value.fullName } : {}),
+    avatarUrl: typeof value.avatarUrl === "string" ? value.avatarUrl : null,
+    organizationMembershipStatus: "ACTIVE",
+    isProjectMember: value.isProjectMember,
+  };
+}
+
 export function parseMembership(
   value: unknown,
   organizationId: string,
@@ -51,7 +93,24 @@ export function parseMembership(
     !Number.isFinite(Date.parse(value.joinedAt))
   )
     return invalidResponse();
-  // Project responses do not include a user profile or role. Keep that projection explicit.
+
+  let user: ProjectMemberUser | undefined;
+  if (
+    record(value.user) &&
+    isResourceId(value.user.id) &&
+    typeof value.user.email === "string"
+  ) {
+    user = {
+      id: value.user.id,
+      email: value.user.email,
+      ...(typeof value.user.fullName === "string"
+        ? { fullName: value.user.fullName }
+        : {}),
+      avatarUrl:
+        typeof value.user.avatarUrl === "string" ? value.user.avatarUrl : null,
+    };
+  }
+
   return {
     id: value.id,
     organizationId,
@@ -59,8 +118,10 @@ export function parseMembership(
     userId: value.userId,
     status: value.status,
     joinedAt: value.joinedAt,
+    ...(user !== undefined ? { user } : {}),
   };
 }
+
 export function parseMemberPage(
   value: unknown,
   organizationId: string,
