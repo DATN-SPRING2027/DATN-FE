@@ -3,7 +3,8 @@
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
-import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
+import { canManageOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { useModal } from "@/hooks/useModal";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
@@ -40,17 +41,17 @@ import OrganizationMembershipActionDialog, {
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
 
-function getErrorMessageKey(error: unknown): string {
+function getErrorMessageKey(error: unknown, fallbackKey = "failure"): string {
   if (!(error instanceof ApiError)) return "network";
   if (error.code === "INVALID_ORGANIZATION_MEMBERSHIP_RESPONSE") return "invalidResponse";
-  if (error.status === 403) return "forbidden";
+  if (error.status === 403 || error.code === "ORGANIZATION_MEMBERSHIP_FORBIDDEN") return "forbidden";
   if (error.status === 401) return "unauthorized";
   if (error.status === 404) return "notFound";
   if (error.status === 409) return error.code === "LAST_ELIGIBLE_ADMIN" ? "lastAdmin" : "conflict";
   if (error.status === 422) return "validation";
   if (error.status === 429) return "rateLimit";
   if (error.status === 503) return "dependencyUnavailable";
-  return "failure";
+  return fallbackKey;
 }
 
 function LoadingPanel({ label }: { label: string }) {
@@ -77,9 +78,10 @@ function ListLoadingPanel({ label }: { label: string }) {
 
 function MembershipError({ error, retry, invitation = false }: { error: unknown; retry: () => void; invitation?: boolean }) {
   const t = useTranslations("organizationMembers");
+  const errorKey = getErrorMessageKey(error, invitation ? "invitationLoadError" : "loadError");
   return (
     <div role="alert" className="space-y-3">
-      <Alert variant="error" title={t("errorTitle")} message={t(invitation ? "invitationLoadError" : getErrorMessageKey(error))} />
+      <Alert variant="error" title={t("errorTitle")} message={t(errorKey)} />
       <Button size="sm" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={retry}>{t("retryLoad")}</Button>
     </div>
   );
@@ -107,8 +109,17 @@ function MembershipStatusSelect({ value, disabled, onChange }: { value: Membersh
   );
 }
 
-function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: string; organizationId: string }) {
+function ScopedOrganizationMemberships({
+  actorId,
+  organizationId,
+  currentUser,
+}: {
+  actorId: string;
+  organizationId: string;
+  currentUser?: CurrentUserResponse;
+}) {
   const t = useTranslations("organizationMembers");
+  const canManage = canManageOrganizationMemberships(currentUser);
   const inviteDialog = useModal();
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [membershipPage, setMembershipPage] = useState(1);
@@ -235,9 +246,11 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
           <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">{t("description")}</p>
         </div>
-        <Button onClick={openInviteDialog} startIcon={<UserIcon className="size-4" aria-hidden="true" />} className="w-full shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:w-auto">
-          {t("inviteButton")}
-        </Button>
+        {canManage && (
+          <Button onClick={openInviteDialog} startIcon={<UserIcon className="size-4" aria-hidden="true" />} className="w-full shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:w-auto">
+            {t("inviteButton")}
+          </Button>
+        )}
       </header>
 
       {notice && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("actionAccepted")}</div>}
@@ -268,7 +281,7 @@ function ScopedOrganizationMemberships({ actorId, organizationId }: { actorId: s
           <OrganizationMembershipList
             page={readyMembers}
             actorId={actorId}
-            actionsDisabled={hasUnresolvedMutation}
+            actionsDisabled={hasUnresolvedMutation || !canManage}
             onPageChange={setMembershipPage}
             onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
           />
@@ -328,5 +341,5 @@ export default function OrganizationMembershipManager() {
   if (!user || !organizationId || !isOrganizationResourceId(organizationId)) {
     return <div role="status" className="rounded-xl border border-warning-200 bg-warning-50 px-5 py-8 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">{t("noOrganization")}</div>;
   }
-  return <ScopedOrganizationMemberships key={`${user.id}:${organizationId}`} actorId={user.id} organizationId={organizationId} />;
+  return <ScopedOrganizationMemberships key={`${user.id}:${organizationId}`} actorId={user.id} organizationId={organizationId} currentUser={user} />;
 }

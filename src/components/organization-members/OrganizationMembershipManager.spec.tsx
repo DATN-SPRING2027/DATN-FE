@@ -25,7 +25,7 @@ const organizationId = "0123456789abcdef01234567";
 const memberId = "1123456789abcdef01234567";
 const userId = "2123456789abcdef01234567";
 const invitationId = "3123456789abcdef01234567";
-const user = { id: "9123456789abcdef01234567", email: "admin@example.com", name: "Viewer", organizationId, roles: ["MEMBER"] };
+const user = { id: "9123456789abcdef01234567", email: "admin@example.com", name: "Viewer", organizationId, roles: ["ADMIN"] };
 
 function membership(status: "PENDING_INVITE" | "ACTIVE" | "SUSPENDED" | "REMOVED", id = memberId) {
   return {
@@ -282,7 +282,7 @@ describe("Organization membership management page", () => {
       if (endpoint.includes("/memberships?")) return membershipPage([]);
       if (endpoint.includes("/invitations?")) {
         invitationReads += 1;
-        if (invitationReads === 1) throw new ApiError(503, "IAM_MEMBERSHIP_DEPENDENCY_UNAVAILABLE", "Unavailable");
+        if (invitationReads === 1) throw new ApiError(500, "UNKNOWN_ERROR", "Could not load invitations");
         return invitationPage();
       }
       throw new Error("Unexpected request");
@@ -292,6 +292,36 @@ describe("Organization membership management page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("There are no pending invitations.")).toBeVisible();
     expect(invitationReads).toBe(2);
+  });
+
+  it("renders a permission-aware error for invitation 403 rather than generic load error", async () => {
+    api.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([]);
+      if (endpoint.includes("/invitations?")) {
+        throw new ApiError(403, "ORGANIZATION_MEMBERSHIP_FORBIDDEN", "Forbidden");
+      }
+      throw new Error("Unexpected request");
+    });
+    mount();
+    expect(
+      await screen.findByText(
+        "You do not have permission to view or manage these Organization memberships.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText("Could not load pending invitations."),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not render invite user action when user lacks manage permission", async () => {
+    const memberUser = { ...user, roles: ["MEMBER"] };
+    respond({ currentUser: memberUser, memberships: membershipPage([]) });
+    mount();
+    await screen.findByText("No memberships match this status.");
+    expect(
+      screen.queryByRole("button", { name: "Invite user" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not query member data when the authenticated context has no Organization", async () => {
