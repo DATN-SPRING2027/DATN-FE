@@ -12,6 +12,8 @@ import type { ReactNode } from "react";
 import { beforeEach, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { projectMemberKeys } from "@/lib/queries/projects/useProjectMembers";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import ProjectMembers from "./ProjectMembers";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -43,6 +45,7 @@ vi.mock("@/icons", () =>
   ),
 );
 const api = vi.mocked(apiClient);
+let queryClient: QueryClient;
 const member = {
   id: "membership-1",
   organizationId: "org-1",
@@ -65,6 +68,7 @@ function mount(projectId = "project-1") {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  queryClient = client;
   const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
@@ -83,15 +87,45 @@ function respond(listResponse: unknown = page()) {
   );
 }
 async function findMember(id: string) {
-  return (await screen.findAllByText(id))[0];
+  const table = await screen.findByRole("table");
+  return (await within(table).findAllByText(id))[0];
 }
-function submitAdd(id = "user-2") {
+function addFormSubmitButton() {
+  const form = screen.getByRole("form", { name: "Add member" });
+  return within(form)
+    .getAllByRole("button")
+    .find((button) => button.getAttribute("type") === "submit")!;
+}
+async function selectCandidate(id = "user-2") {
   if (!screen.queryByRole("form", { name: "Add member" })) {
     fireEvent.click(
       screen.getByRole("button", { name: "Open Add member form" }),
     );
   }
-  fireEvent.change(screen.getByLabelText("User ID"), { target: { value: id } });
+  const input = screen.getByLabelText(/Search by email/i);
+  const email = id.trim() ? `${id}@example.test` : id;
+  const selectedCandidate = {
+    userId: id,
+    email,
+    fullName: id,
+    avatarUrl: null,
+    organizationMembershipStatus: "ACTIVE" as const,
+    isProjectMember: false,
+  };
+  if (email.trim()) {
+    queryClient.setQueryData(
+      projectMemberKeys.candidates("org-1", "project-1", email),
+      [selectedCandidate],
+    );
+  }
+  fireEvent.change(input, { target: { value: email } });
+  if (email.trim()) {
+    fireEvent.click(await screen.findByText(email));
+  }
+}
+
+async function submitAdd(id = "user-2") {
+  await selectCandidate(id);
   fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
 }
 beforeEach(() => {
@@ -135,7 +169,7 @@ it("adds an ordinary member with only userId and refreshes the list", async () =
   });
   mount();
   await findMember("user-1");
-  submitAdd();
+  await submitAdd();
   expect(await screen.findByText("Member added.")).toBeVisible();
   expect(await findMember("user-2")).toBeVisible();
   expect(api).toHaveBeenCalledWith(
@@ -207,17 +241,17 @@ it("denied add disables only add until access is checked again", async () => {
   });
   mount();
   await findMember("user-1");
-  submitAdd();
+  await submitAdd();
   expect(
     await screen.findByText(
       "You do not have permission to add Project members.",
     ),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeDisabled();
+  expect(addFormSubmitButton()).toBeDisabled();
   expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "Check access again" }));
   await waitFor(() =>
-    expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled(),
+    expect(addFormSubmitButton()).toBeEnabled(),
   );
 });
 it("denied remove disables remove and keeps the member visible", async () => {
@@ -287,7 +321,7 @@ it.each([
     });
     mount();
     await findMember("user-1");
-    submitAdd();
+    await submitAdd();
     expect(await screen.findByText(listText)).toBeVisible();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     fireEvent.click(screen.getByRole("button", { name: "Confirm removal" }));
@@ -306,8 +340,8 @@ it("rejects empty input locally and accepts opaque identifiers", async () => {
   respond();
   mount();
   await findMember("user-1");
-  submitAdd("   ");
-  expect(await screen.findByText("Enter a User ID.")).toBeVisible();
+  await submitAdd("   ");
+  expect(await screen.findByText("Enter a valid email address.")).toBeVisible();
   expect(api.mock.calls.some(([, options]) => options?.method === "POST")).toBe(
     false,
   );
@@ -383,8 +417,11 @@ it("prevents duplicate add requests while the server is deciding", async () => {
   });
   mount();
   await findMember("user-1");
-  submitAdd();
-  expect(await screen.findByRole("button", { name: "Adding…" })).toBeDisabled();
+  await submitAdd();
+  await waitFor(() =>
+    expect(addFormSubmitButton()).toHaveTextContent("Adding…"),
+  );
+  expect(addFormSubmitButton()).toBeDisabled();
   fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
   expect(
     api.mock.calls.filter(([, options]) => options?.method === "POST"),
@@ -436,7 +473,7 @@ it("resets form, confirmation and denied action when Project scope changes", asy
   });
   const view = mount();
   await findMember("user-1");
-  submitAdd();
+  await submitAdd();
   expect(
     await screen.findByText(
       "You do not have permission to add Project members.",
@@ -456,7 +493,7 @@ it("resets form, confirmation and denied action when Project scope changes", asy
     screen.getByRole("button", { name: "Open Add member form" }),
   ).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
-  expect(screen.getByLabelText("User ID")).toHaveValue("");
+  expect(screen.getByLabelText(/Search by email/i)).toHaveValue("");
 });
 it("resets denied action when the trusted Organization changes", async () => {
   let organizationId = "org-1";
@@ -474,14 +511,20 @@ it("resets denied action when the trusted Organization changes", async () => {
   });
   const view = mount();
   await findMember("user-1");
-  submitAdd();
+  await submitAdd();
   expect(
     await screen.findByText(
       "You do not have permission to add Project members.",
     ),
   ).toBeVisible();
   organizationId = "org-2";
-  await view.client.invalidateQueries({ queryKey: ["auth"] });
+  await act(async () => {
+    view.client.setQueryData(authKeys.currentUser(), {
+      ...user,
+      organizationId,
+    });
+  });
+  view.rerender(<ProjectMembers projectId="project-1" />);
   expect(await findMember("user-2")).toBeVisible();
   expect(screen.queryByText("user-1")).not.toBeInTheDocument();
   expect(
@@ -506,7 +549,9 @@ it("does not send any unsupported operations", async () => {
   expect(
     requests.every(
       ([endpoint, options]) =>
-        endpoint.startsWith("/iam/projects/project-1/memberships") &&
+        (endpoint.startsWith("/iam/projects/project-1/memberships") ||
+          endpoint ===
+            "/iam/projects/project-1/member-candidates?email=user-2%40example.test") &&
         ["GET", "POST", "DELETE"].includes(options?.method ?? "GET"),
     ),
   ).toBe(true);
@@ -532,15 +577,15 @@ it("retains input after a failed add following a previous success", async () => 
   });
   mount();
   await findMember("user-1");
-  submitAdd();
+  await submitAdd();
   expect(await screen.findByText("Member added.")).toBeVisible();
-  submitAdd("user-3");
+  await submitAdd("user-3");
   expect(
     await screen.findByText(
       "The request could not be completed. Check your connection and refresh the list before repeating a change.",
     ),
   ).toBeVisible();
-  expect(screen.getByLabelText("User ID")).toHaveValue("user-3");
+  expect(screen.getByLabelText(/Search by email/i)).toHaveValue("user-3@example.test");
 });
 it("rejects invalid Project context without leaving a loading screen", async () => {
   respond();
@@ -561,7 +606,7 @@ it("checks server validation rather than assuming opaque user IDs are ObjectIds"
   });
   mount();
   await findMember("user-1");
-  submitAdd("opaque/id");
+  await submitAdd("opaque/id");
   expect(
     await screen.findByText("Check the input and try again."),
   ).toBeVisible();
@@ -572,7 +617,7 @@ it("checks server validation rather than assuming opaque user IDs are ObjectIds"
       body: JSON.stringify({ userId: "opaque/id" }),
     }),
   );
-  expect(screen.getByRole("button", { name: "Add member" })).toBeEnabled();
+  expect(addFormSubmitButton()).toBeEnabled();
 });
 it("rejects malformed backend status without rendering a member row", async () => {
   respond(page([{ ...member, status: ["ACTIVE"] }]));
@@ -593,13 +638,13 @@ it("handles archived Project access denial without exposing a member list", asyn
   await screen.findByText(
     "You do not have permission to view Project members.",
   );
-  submitAdd();
+  await submitAdd();
   expect(
     await screen.findByText(
       "You do not have permission to add Project members.",
     ),
   ).toBeVisible();
-  expect(screen.getByRole("button", { name: "Add member" })).toBeDisabled();
+  expect(addFormSubmitButton()).toBeDisabled();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
 it("selects a member from the table without requesting new backend operations", async () => {
@@ -667,17 +712,15 @@ it.each(["add", "remove"] as const)(
     const view = mount();
     await findMember("user-1");
     if (action === "add") {
-      fireEvent.click(
-        screen.getByRole("button", { name: "Open Add member form" }),
-      );
-      await screen.findByRole("form", { name: "Add member" });
+      await selectCandidate();
     } else {
       fireEvent.click(screen.getByRole("button", { name: "Remove" }));
     }
     vi.useFakeTimers();
     try {
       await act(async () => {
-        if (action === "add") submitAdd();
+        if (action === "add")
+          fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
         else
           fireEvent.click(
             screen.getByRole("button", { name: "Confirm removal" }),
@@ -731,4 +774,119 @@ it("removes the intended table row by membership ID and offers only supported st
     "/iam/projects/project-1/memberships/membership-2",
     expect.objectContaining({ method: "DELETE" }),
   );
+});
+
+it("searches candidates by email within the Organization and adds selected candidate", async () => {
+  const candidate = {
+    userId: "candidate-user-1",
+    email: "colleague@datn-dev.example.test",
+    fullName: "Colleague Name",
+    avatarUrl: null,
+    organizationMembershipStatus: "ACTIVE",
+    isProjectMember: false,
+  };
+  api.mockImplementation(async (endpoint, options) => {
+    if (endpoint === "/auth/me") return user;
+    if (endpoint.includes("/member-candidates")) {
+      return { data: [candidate] };
+    }
+    if (options?.method === "POST") {
+      return {
+        ...member,
+        id: "membership-new",
+        userId: "candidate-user-1",
+        user: {
+          id: "candidate-user-1",
+          email: "colleague@datn-dev.example.test",
+          fullName: "Colleague Name",
+        },
+      };
+    }
+    return page([member]);
+  });
+
+  mount();
+  await findMember("user-1");
+
+  fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
+  const searchInput = screen.getByLabelText(/Search by email/i);
+  fireEvent.change(searchInput, {
+    target: { value: "colleague@datn-dev.example.test" },
+  });
+
+  expect(await screen.findByText("Colleague Name")).toBeVisible();
+  expect(screen.getByText("colleague@datn-dev.example.test")).toBeVisible();
+  expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+
+  const addCandidateButtons = screen.getAllByRole("button", {
+    name: "Add member",
+  });
+  const addCandidateButton = addCandidateButtons[addCandidateButtons.length - 1];
+  expect(addCandidateButton).toBeEnabled();
+
+  fireEvent.click(addCandidateButton);
+
+  await waitFor(() => {
+    expect(api).toHaveBeenCalledWith(
+      "/iam/projects/project-1/memberships",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "candidate-user-1" }),
+      }),
+    );
+  });
+  expect(await screen.findByText("Member added.")).toBeVisible();
+});
+
+it("shows already in project and disables addition when candidate is already a member", async () => {
+  const existingCandidate = {
+    userId: "user-1",
+    email: "user1@datn-dev.example.test",
+    fullName: "User One",
+    avatarUrl: null,
+    organizationMembershipStatus: "ACTIVE",
+    isProjectMember: true,
+  };
+  api.mockImplementation(async (endpoint) => {
+    if (endpoint === "/auth/me") return user;
+    if (endpoint.includes("/member-candidates")) {
+      return { data: [existingCandidate] };
+    }
+    return page([member]);
+  });
+
+  mount();
+  await findMember("user-1");
+
+  fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
+  const searchInput = screen.getByLabelText(/Search by email/i);
+  fireEvent.change(searchInput, {
+    target: { value: "user1@datn-dev.example.test" },
+  });
+
+  expect(await screen.findByText("Already in project")).toBeVisible();
+  expect(screen.queryByRole("button", { name: "Add" })).not.toBeInTheDocument();
+});
+
+it("shows empty state when no organization member candidate matches the search", async () => {
+  api.mockImplementation(async (endpoint) => {
+    if (endpoint === "/auth/me") return user;
+    if (endpoint.includes("/member-candidates")) {
+      return { data: [] };
+    }
+    return page([member]);
+  });
+
+  mount();
+  await findMember("user-1");
+
+  fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
+  const searchInput = screen.getByLabelText(/Search by email/i);
+  fireEvent.change(searchInput, {
+    target: { value: "nonexistent@datn-dev.example.test" },
+  });
+
+  expect(
+    await screen.findByText("No active organization member found."),
+  ).toBeVisible();
 });

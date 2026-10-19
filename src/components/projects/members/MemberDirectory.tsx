@@ -66,18 +66,38 @@ export default function MemberDirectory({
             >
               <TableCell className="min-w-64 px-5 py-4">
                 <div className="flex min-w-0 items-center gap-3">
-                  <span
-                    aria-hidden="true"
-                    className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                  >
-                    {member.userId.slice(-2).toUpperCase()}
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block break-all text-sm font-semibold text-gray-800 dark:text-gray-100">
-                      {member.userId}
+                  {member.user?.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={member.user.avatarUrl}
+                      alt={member.user.fullName || member.user.email}
+                      className="size-10 shrink-0 rounded-full object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden="true"
+                      className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                    >
+                      {(
+                        member.user?.fullName ||
+                        member.user?.email ||
+                        member.userId ||
+                        "M"
+                      )
+                        .charAt(0)
+                        .toUpperCase()}
                     </span>
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                      {t("projectMember")}
+                  )}
+                  <span className="min-w-0">
+                    <span className="block truncate text-sm font-semibold text-gray-800 dark:text-gray-100">
+                      {member.user?.fullName ||
+                        member.user?.email ||
+                        member.userId}
+                    </span>
+                    <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
+                      {member.user?.fullName
+                        ? member.user.email
+                        : t("projectMember")}
                     </span>
                   </span>
                 </div>
@@ -115,7 +135,12 @@ export default function MemberDirectory({
                   <button
                     type="button"
                     disabled={disabled}
-                    aria-label={t("viewMember", { userId: member.userId })}
+                    aria-label={t("viewMember", {
+                      userId:
+                        member.user?.fullName ||
+                        member.user?.email ||
+                        member.userId,
+                    })}
                     aria-pressed={selectedId === member.id}
                     onClick={() => onSelect(member.id)}
                     className="inline-flex size-10 shrink-0 items-center justify-center rounded-lg bg-white text-gray-600 ring-1 ring-inset ring-gray-300 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-white/3"

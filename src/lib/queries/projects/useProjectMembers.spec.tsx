@@ -4,6 +4,7 @@ import type { PropsWithChildren } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { apiClient, ApiError } from "@/lib/api-client";
 import {
+  useProjectMemberCandidatesQuery,
   useProjectMembersQuery,
   useAddProjectMember,
   useRemoveProjectMember,
@@ -49,6 +50,34 @@ it("lists the documented page and status without role inference", async () => {
     `/iam/projects/${projectId}/memberships?page=1&pageSize=20&status=ACTIVE`,
     expect.objectContaining({ signal: expect.any(AbortSignal) }),
   );
+});
+it("preserves a denied candidate search as a query error", async () => {
+  api.mockRejectedValue(new ApiError(403, "FORBIDDEN", "denied"));
+  const { result } = renderHook(
+    () =>
+      useProjectMemberCandidatesQuery("org", projectId, "member@example.test"),
+    { wrapper: wrapper() },
+  );
+
+  await waitFor(() => expect(result.current.isError).toBe(true));
+  expect(result.current.error).toBeInstanceOf(ApiError);
+  expect(result.current.error?.message).toBe("denied");
+  expect(api).toHaveBeenCalledTimes(1);
+});
+it("treats a malformed candidate response as an error rather than an empty result", async () => {
+  api.mockResolvedValue({ data: null });
+  const { result } = renderHook(
+    () =>
+      useProjectMemberCandidatesQuery("org", projectId, "member@example.test"),
+    { wrapper: wrapper() },
+  );
+
+  await waitFor(() => expect(result.current.isError).toBe(true));
+  expect(result.current.error).toBeInstanceOf(ApiError);
+  expect(result.current.error).toMatchObject({
+    status: 502,
+    code: "INVALID_PROJECT_MEMBER_RESPONSE",
+  });
 });
 it("adds only userId and removes by membershipId with an empty response", async () => {
   api

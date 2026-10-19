@@ -64,7 +64,7 @@ function ScopedProjectMembers({
     const previouslyFocused = document.activeElement;
     const frame = window.requestAnimationFrame(() => {
       addDialog.current
-        ?.querySelector<HTMLInputElement>("#project-member-user")
+        ?.querySelector<HTMLInputElement>("#project-member-email-search")
         ?.focus();
     });
     return () => {
@@ -96,9 +96,14 @@ function ScopedProjectMembers({
   }
   const visibleMembers =
     members.isSuccess && !members.isFetching ? members.data.data : [];
-  const listedMembers = visibleMembers.filter((member) =>
-    member.userId.toLowerCase().includes(search.toLowerCase().trim()),
-  );
+  const listedMembers = visibleMembers.filter((member) => {
+    const term = search.toLowerCase().trim();
+    if (!term) return true;
+    const matchEmail = member.user?.email.toLowerCase().includes(term);
+    const matchName = member.user?.fullName?.toLowerCase().includes(term);
+    const matchUserId = member.userId.toLowerCase().includes(term);
+    return Boolean(matchEmail || matchName || matchUserId);
+  });
   const focusedMember = listedMembers.find((member) => member.id === focusedId);
   function requestRemoval(member: ProjectMembership) {
     remove.reset();
@@ -321,6 +326,8 @@ function ScopedProjectMembers({
               </div>
               <MemberAddForm
                 key={addFormVersion}
+                organizationId={organizationId}
+                projectId={projectId}
                 pending={add.isPending}
                 disabled={busy || isMemberActionDenied(add.error)}
                 onAdd={(userId) => {
