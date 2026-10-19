@@ -20,6 +20,7 @@ import {
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
 import { isSidebarPathActive } from "@/utils/sidebar-active";
+import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import SidebarAccountFooter from "./SidebarAccountFooter";
 import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
 
@@ -50,6 +51,10 @@ const AppSidebar: React.FC = () => {
     (organization) => organization.id === organizationId,
   )?.name;
   const isExpandedView = isExpanded || isHovered || isMobileOpen;
+  const canViewMembers = canReadOrganizationMemberships(currentUser.data);
+  const visibleAdministrationItems = administrationItems.filter(
+    (item) => item.key !== "members" || canViewMembers,
+  );
 
   const renderItem = (
     item: (typeof primaryItems)[number] | (typeof administrationItems)[number],
@@ -171,7 +176,7 @@ const AppSidebar: React.FC = () => {
               {t("groups.administration")}
             </h2>
             <ul className="flex flex-col gap-1.5">
-              {administrationItems.map(renderItem)}
+              {visibleAdministrationItems.map(renderItem)}
             </ul>
           </section>
         </nav>

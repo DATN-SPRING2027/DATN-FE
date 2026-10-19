@@ -13,7 +13,7 @@ const { replace, logoutAsync, selectAsync, currentUser, organizations } =
         name: "Minh Anh",
         email: "minh@example.test",
         organizationId: "org-1",
-        roles: ["PROJECT_MANAGER"],
+        roles: ["ADMIN"],
       },
     },
     organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
@@ -124,7 +124,7 @@ describe("AppSidebar navigation", () => {
       name: "Minh Anh",
       email: "minh@example.test",
       organizationId: "org-1",
-      roles: ["PROJECT_MANAGER"],
+      roles: ["ADMIN"],
     };
     organizations.data = [{ id: "org-1", name: "North Star Company" }];
   });
@@ -205,6 +205,38 @@ describe("AppSidebar navigation", () => {
     );
   });
 
+  it("hides Organization Members from navigation when the user lacks organization.memberships.read", () => {
+    currentUser.data = {
+      ...currentUser.data,
+      roles: ["MEMBER"],
+    };
+    render(<AppSidebar />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .map((link) => link.textContent?.trim()),
+    ).toEqual(["Overview", "Projects", "Calendar"]);
+    expect(
+      within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps Organization Members hidden for non-admin roles even with an unsupported read permission claim", () => {
+    currentUser.data = {
+      ...currentUser.data,
+      roles: ["MEMBER"],
+      permissions: ["organization.memberships.read"],
+    } as typeof currentUser.data;
+    render(<AppSidebar />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+
+    expect(
+      within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("does not expose deferred Platform operations to a Platform Operator", () => {
     currentUser.data = {
       ...currentUser.data,
@@ -251,7 +283,7 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     expect(screen.getByText("Minh Anh")).toBeInTheDocument();
-    expect(screen.getByText("Project Manager")).toBeInTheDocument();
+    expect(screen.getByText("Administrator")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(logoutAsync).toHaveBeenCalledOnce();
