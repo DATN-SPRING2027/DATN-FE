@@ -2,18 +2,28 @@
 
 import { useMutationState } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { lazy, Suspense } from "react";
 import ProjectVisibilityNotification from "./ProjectVisibilityNotification";
 import ProjectOverview from "./ProjectOverview";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
+import TeamsWorkspace from "@/components/teams/TeamsWorkspace";
+
+const TeamFixturePreview = lazy(
+  () => import("@/components/team-preview/TeamPreview"),
+);
 
 function OrganizationProject({
   organizationId,
   projectId,
+  showTeams,
+  teamMode,
 }: {
   organizationId: string;
   projectId: string;
+  showTeams: boolean;
+  teamMode: "fixture" | "api";
 }) {
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
@@ -54,12 +64,33 @@ function OrganizationProject({
   return (
     <div className="space-y-3">
       {notice}
-      <ProjectOverview project={project.data} />
+      <ProjectOverview
+        project={project.data}
+        showTeams={showTeams}
+        initialTab={showTeams && teamMode === "fixture" ? "teams" : "overview"}
+        teamPanel={
+          !showTeams ? undefined : teamMode === "fixture" ? (
+            <Suspense fallback={null}>
+              <TeamFixturePreview embedded />
+            </Suspense>
+          ) : (
+            <TeamsWorkspace projectId={projectId} embedded />
+          )
+        }
+      />
     </div>
   );
 }
 
-export default function ProjectDetail({ projectId }: { projectId: string }) {
+export default function ProjectDetail({
+  projectId,
+  showTeams = false,
+  teamMode = "api",
+}: {
+  projectId: string;
+  showTeams?: boolean;
+  teamMode?: "fixture" | "api";
+}) {
   const user = useCurrentUserQuery();
   return (
     <div className="space-y-5">
@@ -72,6 +103,8 @@ export default function ProjectDetail({ projectId }: { projectId: string }) {
           key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
           organizationId={user.data.organizationId}
           projectId={projectId}
+          showTeams={showTeams}
+          teamMode={teamMode}
         />
       ) : (
         <ProjectState error={new Error("No trusted organization")} />

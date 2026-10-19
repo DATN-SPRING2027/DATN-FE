@@ -98,9 +98,13 @@ export function logoutSession(signal?: AbortSignal): Promise<void> {
   return logoutInFlight;
 }
 
+export interface ApiRequestOptions extends RequestInit {
+  onResponseHeaders?: (headers: Headers) => void;
+}
+
 export async function apiClient<T>(
   endpoint: string,
-  options?: RequestInit,
+  options?: ApiRequestOptions,
 ): Promise<T> {
   const baseUrl = getApiBaseUrl();
   const normalizedEndpoint = endpoint.startsWith("/")
@@ -118,8 +122,9 @@ export async function apiClient<T>(
     if (csrfCookie) headers.set("X-CSRF-Token", csrfCookie.slice("__Host-csrf=".length));
   }
 
+  const { onResponseHeaders, ...fetchOptions } = options ?? {};
   const requestOptions: RequestInit = {
-    ...options,
+    ...fetchOptions,
     headers,
     credentials: "include",
   };
@@ -187,6 +192,7 @@ export async function apiClient<T>(
     );
   }
 
+  onResponseHeaders?.(new Headers(response.headers));
   return response.status === 204
     ? (undefined as T)
     : (response.json() as Promise<T>);

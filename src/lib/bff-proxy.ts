@@ -10,6 +10,7 @@ const forwardedHeaders = [
   'cookie',
   'x-csrf-token',
   'idempotency-key',
+  'if-match',
   'x-request-id',
 ];
 

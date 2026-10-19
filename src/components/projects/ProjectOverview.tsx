@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useState, type ReactNode } from "react";
 import ProjectMembers from "./members/ProjectMembers";
 import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
@@ -10,11 +10,25 @@ import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
 import { GroupIcon, PlusIcon } from "@/icons";
 
-export default function ProjectOverview({ project }: { project: Project }) {
+type ProjectTab = "overview" | "members" | "settings" | "teams";
+
+export default function ProjectOverview({
+  project,
+  showTeams = false,
+  teamPanel,
+  initialTab = "overview",
+}: {
+  project: Project;
+  showTeams?: boolean;
+  teamPanel?: ReactNode;
+  initialTab?: ProjectTab;
+}) {
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
-  const [tab, setTab] = useState<"overview" | "members" | "settings">("overview");
+  const [tab, setTab] = useState<ProjectTab>(
+    initialTab === "teams" && !showTeams ? "overview" : initialTab,
+  );
   const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
   const date = (value: string) =>
@@ -34,14 +48,18 @@ export default function ProjectOverview({ project }: { project: Project }) {
     { label: "createdBy", value: project.createdBy },
     { label: "createdAt", value: date(project.createdAt) },
   ];
-  const tabs = ["overview", "members", "settings"] as const;
-  const tabLabel = (value: (typeof tabs)[number]) =>
+  const tabs: ProjectTab[] = showTeams
+    ? ["overview", "members", "settings", "teams"]
+    : ["overview", "members", "settings"];
+  const tabLabel = (value: ProjectTab) =>
     value === "overview"
       ? t("overview")
       : value === "members"
         ? memberLabels("title")
-        : t("settings");
-  const adjacentTab = (value: (typeof tabs)[number], direction: -1 | 1) => {
+        : value === "settings"
+          ? t("settings")
+          : t("teams");
+  const adjacentTab = (value: ProjectTab, direction: -1 | 1) => {
     const index = tabs.indexOf(value);
     return tabs[(index + direction + tabs.length) % tabs.length];
   };
@@ -94,11 +112,19 @@ export default function ProjectOverview({ project }: { project: Project }) {
             <GroupIcon className="size-5" />
           </span>
           <span title={memberLabels("shareUnavailable")}>
-            <Button variant="outline" disabled>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 shrink-0 bg-transparent! px-3! py-1.5! whitespace-nowrap"
+              disabled
+            >
               {memberLabels("share")}
             </Button>
           </span>
           <Button
+            variant="outline"
+            size="sm"
+            className="h-9 shrink-0 bg-transparent! px-3! py-1.5! whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             ariaLabel={memberLabels("openAdd")}
             startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
             onClick={() => {
@@ -110,10 +136,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
           </Button>
         </div>
       </header>
-      <nav
-        aria-label={t("sections")}
-        className="min-w-0 overflow-x-auto"
-      >
+      <nav aria-label={t("sections")} className="min-w-0 overflow-x-auto">
         <div className="flex w-full min-w-max items-stretch border-b border-gray-200 dark:border-gray-800">
           <div
             role="tablist"
@@ -133,7 +156,8 @@ export default function ProjectOverview({ project }: { project: Project }) {
                 onKeyDown={(event) => {
                   let next: (typeof tabs)[number];
                   if (event.key === "ArrowLeft") next = adjacentTab(value, -1);
-                  else if (event.key === "ArrowRight") next = adjacentTab(value, 1);
+                  else if (event.key === "ArrowRight")
+                    next = adjacentTab(value, 1);
                   else if (event.key === "Home") next = tabs[0];
                   else if (event.key === "End") next = tabs[tabs.length - 1];
                   else return;
@@ -141,7 +165,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
                   setTab(next);
                   document.getElementById(`${tabId}-${next}-tab`)?.focus();
                 }}
-                className={`flex-1 cursor-pointer whitespace-nowrap border-b-2 px-2 pb-3 text-center text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
+                className={`flex-1 cursor-pointer border-b-2 px-2 pb-3 text-center text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
               >
                 {tabLabel(value)}
               </button>
@@ -149,13 +173,13 @@ export default function ProjectOverview({ project }: { project: Project }) {
           </div>
           <Link
             href={`/projects/${encodeURIComponent(project.id)}/work`}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+            className="inline-flex flex-1 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
           >
             {t("work")}
           </Link>
           <Link
             href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+            className="inline-flex flex-1 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
           >
             {t("workNotes")}
           </Link>
@@ -163,7 +187,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
             type="button"
             disabled
             title={t("comingSoon")}
-            className="inline-flex flex-1 cursor-not-allowed items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+            className="inline-flex flex-1 cursor-not-allowed items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-70 dark:text-gray-500"
           >
             {t("activity")}
           </button>
@@ -171,7 +195,7 @@ export default function ProjectOverview({ project }: { project: Project }) {
             type="button"
             disabled
             title={t("comingSoon")}
-            className="inline-flex flex-1 cursor-not-allowed items-center justify-center whitespace-nowrap border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium text-gray-400 opacity-70 dark:text-gray-500"
+            className="inline-flex flex-1 cursor-not-allowed items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-70 dark:text-gray-500"
           >
             {t("knowledge")}
           </button>
@@ -258,6 +282,17 @@ export default function ProjectOverview({ project }: { project: Project }) {
           className="space-y-5"
         >
           <ProjectSettings project={project} />
+        </div>
+      )}
+      {showTeams && tab === "teams" && (
+        <div
+          id={`${tabId}-teams-panel`}
+          role="tabpanel"
+          aria-labelledby={`${tabId}-teams-tab`}
+          tabIndex={0}
+          className="min-w-0"
+        >
+          {teamPanel}
         </div>
       )}
     </div>

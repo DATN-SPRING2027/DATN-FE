@@ -29,6 +29,19 @@ vi.mock("@/i18n/navigation", () => ({
     <a href={href}>{children}</a>
   ),
 }));
+vi.mock("@/components/teams/TeamsWorkspace", () => ({
+  default: ({
+    projectId,
+    embedded,
+  }: {
+    projectId: string;
+    embedded?: boolean;
+  }) => (
+    <div data-testid="embedded-team-workspace">
+      {projectId}:{embedded ? "embedded" : "standalone"}
+    </div>
+  ),
+}));
 vi.mock("@/icons", () => ({
   ChevronDownIcon: () => null,
   FolderIcon: () => null,
@@ -94,6 +107,28 @@ beforeEach(() => {
   push.mockReset();
   useClientStateStore.setState({ activeProjectId: null });
 });
+it.each([true, false])(
+  "shows the Project Teams entry only when development opt-in is %s",
+  async (enabled) => {
+    api.mockImplementation(async (path) =>
+      path === "/auth/me" ? user : project,
+    );
+    mount(<ProjectDetail projectId="p1" showTeams={enabled} />);
+    await screen.findByRole("heading", { name: "Apollo" });
+    const entry = screen.queryByRole("tab", { name: "Teams" });
+    if (enabled) {
+      expect(entry).toBeVisible();
+      expect(screen.queryByTestId("embedded-team-workspace")).toBeNull();
+      fireEvent.click(entry!);
+      expect(
+        await screen.findByTestId("embedded-team-workspace"),
+      ).toHaveTextContent("p1:embedded");
+      expect(entry).toHaveAttribute("aria-selected", "true");
+    } else {
+      expect(entry).not.toBeInTheDocument();
+    }
+  },
+);
 it("shows loading while the server list is pending", async () => {
   api.mockImplementation(async (path) =>
     path === "/auth/me" ? user : new Promise(() => {}),
@@ -264,15 +299,14 @@ it("loads project detail by the accepted ID path", async () => {
     name: "Project sections",
   });
   const workLink = screen.getByRole("link", { name: "Work" });
-  expect(sections).toContainElement(screen.getByRole("tab", { name: "Overview" }));
+  expect(sections).toContainElement(
+    screen.getByRole("tab", { name: "Overview" }),
+  );
   expect(sections).toContainElement(
     screen.getByRole("tab", { name: "Project members" }),
   );
   expect(sections).toContainElement(workLink);
-  expect(workLink).toHaveAttribute(
-    "href",
-    "/projects/p1/work",
-  );
+  expect(workLink).toHaveAttribute("href", "/projects/p1/work");
   expect(screen.getByRole("button", { name: "Activity" })).toBeDisabled();
   expect(screen.getByRole("button", { name: "Knowledge" })).toBeDisabled();
   expect(
