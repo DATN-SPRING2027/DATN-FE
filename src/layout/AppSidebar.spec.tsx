@@ -223,7 +223,7 @@ describe("AppSidebar navigation", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows Organization Members in navigation when non-admin has effective organization.memberships.read permission", () => {
+  it("keeps Organization Members hidden for non-admin roles even with an unsupported read permission claim", () => {
     currentUser.data = {
       ...currentUser.data,
       roles: ["MEMBER"],
@@ -233,8 +233,8 @@ describe("AppSidebar navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
 
     expect(
-      within(nav).getByRole("link", { name: "Members" }),
-    ).toBeInTheDocument();
+      within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not expose deferred Platform operations to a Platform Operator", () => {
