@@ -128,7 +128,12 @@ export function useProjectMemberCandidatesQuery(
           cache: "no-store",
         },
       ).then((res) => {
-        if (!res || !Array.isArray(res.data)) return [];
+        if (!res || !Array.isArray(res.data))
+          throw new ApiError(
+            502,
+            "INVALID_PROJECT_MEMBER_RESPONSE",
+            "Unexpected Project member response",
+          );
         return res.data.map(parseCandidate);
       });
     },

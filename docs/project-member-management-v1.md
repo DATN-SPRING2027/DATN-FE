@@ -5,8 +5,8 @@
 Open a Project detail page and choose **Project members**, or visit
 `/projects/{projectId}/members`. The route remains inside the localized admin
 shell and uses the current authenticated Organization context through the BFF.
-This change does not add backend operations, schema, migrations or permission
-provisioning.
+The current member-management contract includes the candidate-search endpoint
+listed below. It adds no database schema or permission provisioning.
 
 The accepted references are DATN-BE's
 `docs/decisions/project-access-visibility-v1.md` and
@@ -18,14 +18,21 @@ not used to invent endpoints or additional fields.
 | Action | Backend operation                                                    | Request/result                                                                  |
 | ------ | -------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
 | List   | `GET /api/v1/iam/projects/{projectId}/memberships`                   | `page`, `pageSize=20`, optional `status`; membership projection plus pagination |
-| Add    | `POST /api/v1/iam/projects/{projectId}/memberships`                  | Body contains only `userId`; successful membership response                     |
+| Search | `GET /api/v1/iam/projects/{projectId}/member-candidates`             | `email` query; up to 50 active Organization members, with `isProjectMember`     |
+| Add    | `POST /api/v1/iam/projects/{projectId}/memberships`                  | Body contains only the explicitly selected candidate's `userId`                 |
 | Remove | `DELETE /api/v1/iam/projects/{projectId}/memberships/{membershipId}` | Confirmation required in UI; `204` has no JSON body                             |
 
-Browser requests use the existing `/api/backend/iam/...` BFF. Membership rows
-show only the documented User ID, membership status and joined timestamp.
-There is no user-directory dependency, profile lookup, role editor, membership
-PATCH, leader appointment or visibility mutation. Inactive records remain
-visible in the appropriate filter; only active records offer removal.
+Browser requests use the existing `/api/backend/iam/...` BFF. Candidate search
+uses case-insensitive literal email matching, searches only active Users with
+active Organization Membership in the Project's Organization, and marks
+current Project members as ineligible. The endpoint requires
+`project.members.add`; it is not a general user-directory operation. The FE
+debounces complete, valid email input by 250 ms and requires explicit candidate
+selection before adding. It never sends the email string as a `userId`.
+Membership rows show the documented membership fields and available user
+profile fields. There is no role editor, generic membership PATCH, leader
+appointment or visibility mutation. Inactive records remain visible in the
+appropriate filter; only active records offer removal.
 
 Resource IDs are opaque according to the accepted OpenAPI. FE rejects missing
 or whitespace-only inputs and encodes path segments; BE validates storage
@@ -41,7 +48,8 @@ projection. The FE therefore uses the documented responses themselves:
 - A list success never grants add/remove permission. A denied list does not
   infer denial of the independent add action.
 - A `403` locks the corresponding add/remove control and displays an explicit
-  denial. A denied list is shown as an error, never an empty list.
+  denial. A denied list or candidate search is shown as an error, never as an
+  empty result.
 - **Check access again** clears previous mutation results and refreshes the
   list. The next requested mutation is independently reauthorized by BE; this
   button does not assert that its permissions have been granted.
@@ -51,7 +59,7 @@ projection. The FE therefore uses the documented responses themselves:
   Archived Projects and invalid/inactive memberships remain subject to BE's
   fail-closed decisions.
 
-This provides response-driven controls within the accepted FE-only scope.
+This provides response-driven controls while keeping the server authoritative.
 If a future requirement is to hide or enable actions based on permissions
 _before the first attempt_, it needs a separately accepted server permission
 projection. This implementation does not fabricate such a field or endpoint.
@@ -88,6 +96,7 @@ horizontal scroll area on narrow screens.
 Automated coverage lives in:
 
 - `src/components/projects/members/ProjectMembers.spec.tsx`
+- `src/components/projects/members/MemberAddForm.spec.tsx`
 - `src/lib/queries/projects/useProjectMembers.spec.tsx`
 
 Coverage includes successful list/add/remove; independent denied actions;

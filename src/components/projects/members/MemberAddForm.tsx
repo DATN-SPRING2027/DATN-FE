@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
@@ -26,6 +26,7 @@ export default function MemberAddForm({
 }) {
   const t = useTranslations("projectMembers");
   const [emailInput, setEmailInput] = useState("");
+  const [debouncedEmail, setDebouncedEmail] = useState("");
   const [selectedCandidate, setSelectedCandidate] =
     useState<ProjectMemberCandidate | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -34,11 +35,25 @@ export default function MemberAddForm({
   const isValidEmailFormat =
     trimmedEmail.length === 0 ||
     /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail);
+  const isSearchReady =
+    trimmedEmail.length > 0 &&
+    isValidEmailFormat &&
+    debouncedEmail === trimmedEmail;
 
-  const { data: candidates = [], isFetching } = useProjectMemberCandidatesQuery(
+  useEffect(() => {
+    if (!trimmedEmail || !isValidEmailFormat) return;
+    const timer = window.setTimeout(() => setDebouncedEmail(trimmedEmail), 250);
+    return () => window.clearTimeout(timer);
+  }, [isValidEmailFormat, trimmedEmail]);
+
+  const {
+    data: candidates = [],
+    isFetching,
+    isError,
+  } = useProjectMemberCandidatesQuery(
     organizationId ?? "",
     projectId ?? "",
-    trimmedEmail.length > 0 ? trimmedEmail : undefined,
+    isSearchReady ? debouncedEmail : undefined,
   );
 
   function handleEmailChange(value: string) {
@@ -57,32 +72,9 @@ export default function MemberAddForm({
     const target = candidate ?? selectedCandidate;
     if (disabled || pending) return;
     if (!target) {
-      if (!trimmedEmail) {
-        setValidationError(t("requiredId"));
-        return;
-      }
-      const match = candidates.find(
-        (c) =>
-          c.email.toLowerCase() === trimmedEmail.toLowerCase() ||
-          c.userId === trimmedEmail,
+      setValidationError(
+        trimmedEmail ? t("selectCandidate") : t("requiredId"),
       );
-      if (match) {
-        if (match.isProjectMember) {
-          setValidationError(t("alreadyInProject"));
-          return;
-        }
-        onAdd(match.userId);
-        return;
-      }
-      if (candidates.length === 1 && !candidates[0].isProjectMember) {
-        onAdd(candidates[0].userId);
-        return;
-      }
-      if (candidates.length === 0) {
-        onAdd(trimmedEmail);
-        return;
-      }
-      setValidationError(t("noCandidates"));
       return;
     }
 
@@ -117,14 +109,18 @@ export default function MemberAddForm({
               type="email"
               value={emailInput}
               onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder={t("searchPlaceholder")}
+              placeholder={t("candidateSearchPlaceholder")}
               disabled={disabled}
               aria-invalid={
                 Boolean(validationError) ||
                 (!isValidEmailFormat && trimmedEmail.length > 0)
               }
               aria-describedby={
-                validationError ? "member-search-error" : "member-add-hint"
+                validationError
+                  ? "member-search-error"
+                  : isSearchReady && isError
+                    ? "member-search-failure"
+                    : "member-add-hint"
               }
               className="pl-10"
             />
@@ -134,6 +130,7 @@ export default function MemberAddForm({
           </div>
         </div>
         <Button
+          type="submit"
           disabled={disabled || pending}
           className="shrink-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
         >
@@ -163,20 +160,30 @@ export default function MemberAddForm({
 
       {trimmedEmail.length > 0 && (
         <div className="space-y-2">
-          {isFetching && (
+          {isSearchReady && isFetching && (
             <div className="flex items-center gap-2 p-3 text-sm text-gray-500 animate-pulse">
               <span className="size-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
               <span>{t("searching")}</span>
             </div>
           )}
 
-          {!isFetching && candidates.length === 0 && (
+          {isSearchReady && !isFetching && isError && (
+            <p
+              id="member-search-failure"
+              role="alert"
+              className="rounded-xl border border-error-200 bg-error-50 p-4 text-center text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+            >
+              {t("searchFailed")}
+            </p>
+          )}
+
+          {isSearchReady && !isFetching && !isError && candidates.length === 0 && (
             <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
               {t("noCandidates")}
             </div>
           )}
 
-          {!isFetching && candidates.length > 0 && (
+          {isSearchReady && !isFetching && !isError && candidates.length > 0 && (
             <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
               {candidates.map((candidate) => {
                 const isSelected =
