@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import { useTranslations } from "next-intl";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
@@ -20,6 +21,7 @@ export default function PlatformProjectsDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const roleLabels = useTranslations("roleLabels");
   const {
     canReadProjects,
     search,
@@ -172,7 +174,7 @@ export default function PlatformProjectsDirectory({
                     />
                   </dl>
                   <p className="mt-3 text-xs text-gray-500">
-                    Leaders:{" "}
+                    {roleLabels("teamLeaders")}:{" "}
                     {selectedProject.data.leaders
                       .map((leader) => `${leader.fullName} (${leader.email})`)
                       .join(", ") || "None"}

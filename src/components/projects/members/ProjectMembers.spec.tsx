@@ -286,7 +286,7 @@ it.each([
   [
     409,
     "PROJECT_LEADER_MUST_BE_REVOKED_FIRST",
-    "This member has a Project Leader appointment. An authorized Organization administrator must revoke it before removal.",
+    "This member has a Project Leader appointment. An authorized Organization Manager must revoke it before removal.",
   ],
   [429, "RATE_LIMITED", "Too many requests. Wait before trying again."],
   [401, "UNAUTHORIZED", "Your session has expired. Sign in again."],

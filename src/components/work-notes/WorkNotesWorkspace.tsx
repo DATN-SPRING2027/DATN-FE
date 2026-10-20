@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import ProjectState from "@/components/projects/ProjectState";
@@ -48,6 +49,7 @@ const CONTENT_TABS: readonly WorkNotesTab[] = ["ACTIVITY", "REPORTS", "KNOWLEDGE
 
 export default function WorkNotesWorkspace({ projectId }: { projectId: string }) {
   const t = useTranslations("workNotes");
+  const roleLabel = useRoleDisplayLabel();
   const user = useCurrentUserQuery();
   const organizationId = user.data?.organizationId ?? "";
   const project = useProjectQuery(organizationId, projectId);
@@ -239,10 +241,10 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
           <span
-            aria-label={t("currentRoleLabel", { role: t(`roles.${role}`) })}
+            aria-label={t("currentRoleLabel", { role: roleLabel(role) })}
             className="w-fit rounded-full border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
           >
-            {t(`roles.${role}`)}
+            {roleLabel(role)}
           </span>
           {role === "MEMBER" && (
             <Button

@@ -1,6 +1,7 @@
 "use client";
 
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import { LogOutIcon, SearchIcon } from "@/icons/index";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
@@ -15,13 +16,14 @@ type PlatformHeaderProps = {
 };
 
 export default function PlatformHeader({
-  userName = "Platform Operator",
+  userName = "Admin",
   userEmail = "operator@continuum.test",
   isSigningOut = false,
   onSignOut,
   onToggleSidebar,
 }: PlatformHeaderProps) {
   const t = useTranslations("platformConsole");
+  const roleLabel = useRoleDisplayLabel();
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
@@ -52,7 +54,7 @@ export default function PlatformHeader({
     .split(/\s+/)
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
-    .join("") || "PO";
+    .join("") || "AD";
 
   return (
     <header className="sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-gray-200/80 bg-white/95 px-4 backdrop-blur-md sm:px-6 dark:border-gray-800 dark:bg-gray-900/95">
@@ -127,7 +129,7 @@ export default function PlatformHeader({
                 <p className="text-xs font-semibold text-gray-900 dark:text-white">{userName}</p>
                 <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{userEmail}</p>
                 <span className="mt-1.5 inline-block rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                  PLATFORM OPERATOR
+                  {roleLabel("PLATFORM_OPERATOR")}
                 </span>
               </div>
 

@@ -253,7 +253,7 @@ describe("Organization membership management page", () => {
     const dialog = await screen.findByRole("dialog", { name: "Suspend Organization membership?" });
     fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
-    expect(await within(dialog).findByText("The server did not allow this change because it would remove the last eligible ADMIN.")).toBeVisible();
+    expect(await within(dialog).findByText("The server did not allow this change because it would remove the last eligible Manager.")).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "Confirm" })).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "Keep current state" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Create invitation" })).not.toBeInTheDocument();

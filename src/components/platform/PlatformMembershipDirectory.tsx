@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import RoleLabel from "@/components/common/RoleLabel";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import type {
   PlatformMembership,
@@ -299,7 +300,7 @@ export default function PlatformMembershipDirectory({
                               key={role}
                               className="inline-block rounded-md bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300"
                             >
-                              {role}
+                              <RoleLabel roleCode={role} />
                             </span>
                           ))
                         ) : (
