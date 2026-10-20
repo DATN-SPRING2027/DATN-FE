@@ -34,7 +34,11 @@ function ProjectDetailsForm({ project }: { project: Project }) {
   const [name, setName] = useState(project.name);
   const [description, setDescription] = useState(project.description ?? "");
   const [success, setSuccess] = useState(false);
-  const canEdit = access.data === true && !access.isFetching;
+  const canEdit =
+    access.data === true &&
+    access.isSuccess &&
+    !access.isFetching &&
+    !access.isError;
   const remoteChanged = baseline.updatedAt !== project.updatedAt;
   const dirty =
     name.trim() !== baseline.name || description !== baseline.description;

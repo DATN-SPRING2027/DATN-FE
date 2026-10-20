@@ -47,6 +47,11 @@ export default function ProjectLeaders({
     actions.assign.isPending ||
     actions.change.isPending ||
     actions.revoke.isPending;
+  const candidateResultsReady =
+    debouncedEmail === email.trim() &&
+    candidates.isSuccess &&
+    !candidates.isFetching &&
+    !candidates.isError;
   const actionError =
     actions.assign.error ?? actions.change.error ?? actions.revoke.error;
   const denied =
@@ -62,7 +67,7 @@ export default function ProjectLeaders({
   }
 
   async function appoint() {
-    if (!selected || pending) return;
+    if (!selected || !candidateResultsReady || pending) return;
     try {
       if (replacementFor) {
         await actions.change.mutateAsync({
@@ -277,13 +282,13 @@ export default function ProjectLeaders({
             </p>
           )}
           {debouncedEmail &&
-            candidates.isSuccess &&
+            candidateResultsReady &&
             candidates.data.length === 0 && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 {t("noCandidates")}
               </p>
             )}
-          {debouncedEmail === email.trim() &&
+          {candidateResultsReady &&
             candidates.data &&
             candidates.data.length > 0 && (
               <ul
@@ -334,7 +339,7 @@ export default function ProjectLeaders({
             </Button>
             <Button
               size="sm"
-              disabled={!selected || pending}
+              disabled={!selected || !candidateResultsReady || pending}
               onClick={() => void appoint()}
             >
               {pending

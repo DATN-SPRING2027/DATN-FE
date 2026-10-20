@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, expect, it, vi } from "vitest";
 import { apiClient, ApiError } from "@/lib/api-client";
+import { projectLeaderKeys } from "@/lib/queries/projects/useProjectLeaders";
 import messages from "@/messages/en.json";
 import ProjectLeaders from "./ProjectLeaders";
 
@@ -79,6 +80,58 @@ it("searches by email and appoints a selected eligible Project member", async ()
       }),
     );
   });
+});
+
+it("hides cached candidates and blocks appointment while a candidate refetch is pending or failed", async () => {
+  const client = mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Add Leader" }));
+  fireEvent.change(screen.getByLabelText(/search eligible project members/i), {
+    target: { value: "eligible@example.test" },
+  });
+  fireEvent.click(
+    await screen.findByRole("button", { name: /eligible member/i }),
+  );
+  const appointButton = screen.getByRole("button", { name: "Appoint Leader" });
+  expect(appointButton).toBeEnabled();
+
+  let rejectRefetch!: (error: Error) => void;
+  api.mockImplementation(async (path) => {
+    if (path.endsWith("/leaders")) return { data: [leader] };
+    if (path.includes("/leader-candidates"))
+      return new Promise((_, reject) => {
+        rejectRefetch = reject;
+      });
+    return undefined;
+  });
+  const refetch = client.refetchQueries({
+    queryKey: projectLeaderKeys.candidates(
+      "org-1",
+      "project-1",
+      "eligible@example.test",
+    ),
+    type: "active",
+  });
+
+  await waitFor(() => expect(rejectRefetch).toBeTypeOf("function"));
+  expect(await screen.findByRole("status")).toHaveTextContent(/searching/i);
+  expect(
+    screen.queryByRole("button", { name: /eligible member/i }),
+  ).not.toBeInTheDocument();
+  expect(appointButton).toBeDisabled();
+
+  rejectRefetch(new Error("Network failure"));
+  await refetch;
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    /could not be searched/i,
+  );
+  expect(
+    screen.queryByRole("button", { name: /eligible member/i }),
+  ).not.toBeInTheDocument();
+  expect(appointButton).toBeDisabled();
+  expect(api.mock.calls.some(([, options]) => options?.method === "POST")).toBe(
+    false,
+  );
 });
 
 it("replaces a selected Leader with a member in one PUT request", async () => {

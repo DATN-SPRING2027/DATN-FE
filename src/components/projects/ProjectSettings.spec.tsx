@@ -86,6 +86,39 @@ it("fails closed when the user is denied project.update", async () => {
   ).toBe(false);
 });
 
+it("disables editing when a settings access refetch fails after an earlier allow", async () => {
+  let accessCalls = 0;
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/settings-access")) {
+      accessCalls += 1;
+      if (accessCalls > 1) throw new Error("Network failure");
+      return { canUpdateProject: true };
+    }
+    if (options?.method === "PATCH")
+      return { ...project, updatedAt: "2026-10-20T10:00:00Z" };
+    if (path.endsWith("/visibility")) return { canManageVisibility: true };
+    throw new Error(`Unexpected API request: ${path}`);
+  });
+
+  const client = mount();
+  const name = await screen.findByLabelText("Name");
+  fireEvent.change(name, { target: { value: "Unsaved update" } });
+  const saveButton = screen.getByRole("button", { name: "Save changes" });
+  expect(saveButton).toBeEnabled();
+
+  await client.refetchQueries({
+    queryKey: ["project-settings-access", "org-1", "project-1"],
+    type: "active",
+  });
+
+  await waitFor(() => expect(name).toBeDisabled());
+  expect(saveButton).toBeDisabled();
+  expect(await screen.findByText(/access could not be checked/i)).toBeVisible();
+  expect(
+    api.mock.calls.some(([, options]) => options?.method === "PATCH"),
+  ).toBe(false);
+});
+
 it("validates and saves only modified fields, then refreshes the Project cache", async () => {
   const updated = {
     ...project,

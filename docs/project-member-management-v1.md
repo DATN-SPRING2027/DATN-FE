@@ -263,10 +263,10 @@ horizontal scroll area on narrow screens and TailAdmin light/dark theme tokens.
 
 ## Current Project MVP verification
 
-The Project MVP completion adds `ProjectLeaders.spec.tsx` coverage for safe
-leader projection parsing, admin visibility, candidate selection by email,
-assign/reassign/revoke, explicit confirmation, multiple or zero Leaders and
-query invalidation. Existing member controls remain independent of Leader
-appointment. On 2026-10-20, `npm run check` passed all 561 tests, ESLint,
-TypeScript and production build. Live authenticated browser checks were not run
-without an approved disposable runtime. No database schema or migration changed.
+`ProjectLeaders.spec.tsx` covers safe Leader fields, non-Admin denial, candidate
+search and selection by email, assign/reassign/revoke, and explicit revoke
+confirmation. It does not currently cover zero/multiple-Leader states or query
+invalidation. Existing member controls remain independent of Leader appointment.
+On 2026-10-20, `npm run check` passed all 563 tests, ESLint, TypeScript and
+production build. Live authenticated browser checks were not run without an
+approved disposable runtime. No database schema or migration changed.
