@@ -72,7 +72,7 @@ export default function TeamDirectoryTable({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 pb-4 dark:border-gray-800">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm">
           <span className="text-gray-500 dark:text-gray-400">
             {copy.statusFilter}
@@ -176,7 +176,7 @@ export default function TeamDirectoryTable({
       )}
 
       {items.length > 0 && totalPages > 0 && (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 dark:border-gray-800">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <span className="text-sm text-gray-500 dark:text-gray-400">
             {copy.pageSummary(page, totalPages)}
           </span>

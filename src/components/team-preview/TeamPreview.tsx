@@ -129,27 +129,19 @@ function TeamPreviewSession({
       aria-label={t("title")}
       className={`w-full min-w-0 space-y-6 text-gray-900 dark:text-white ${embedded ? "" : "mx-auto max-w-screen-2xl"}`}
     >
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="min-w-0 space-y-1">
-          {!embedded && (
-            <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">
-              {t("eyebrow")}
-            </p>
-          )}
-          {embedded ? (
-            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white/95">
-              {t("title")}
-            </h2>
-          ) : (
-            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white/95">
-              {t("title")}
-            </h1>
-          )}
+      {!embedded && (
+        <header className="space-y-1">
+          <p className="mb-2 text-sm text-gray-600 dark:text-gray-400">
+            {t("eyebrow")}
+          </p>
+          <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white/95">
+            {t("title")}
+          </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {t("subtitle")}
           </p>
-        </div>
-      </header>
+        </header>
+      )}
       {unavailable ? (
         <TeamPreviewState state={state} onRetry={() => setRecovered(true)} />
       ) : (

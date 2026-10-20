@@ -93,14 +93,13 @@ function ScopedTeams({
     });
   }
   return (
-    <section className="w-full min-w-0 space-y-6 text-gray-900 dark:text-white">
-      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div className="min-w-0 space-y-1">
-          {embedded ? (
-            <h2 className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white/95">
-              {t("title")}
-            </h2>
-          ) : (
+    <section
+      aria-label={t("title")}
+      className="w-full min-w-0 space-y-6 text-gray-900 dark:text-white"
+    >
+      {!embedded && (
+        <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="min-w-0 space-y-1">
             <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white/95">
               {t(
                 mode === "list"
@@ -112,33 +111,33 @@ function ScopedTeams({
                       : "detail",
               )}
             </h1>
-          )}
-          {mode === "list" && (
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {t("listDescription")}
-            </p>
-          )}
-        </div>
-        {mode === "list" ? (
-          <div className="flex flex-wrap items-center gap-3">
-            {!embedded && (
-              <Link
-                href={`/projects/${encodeURIComponent(scope.projectId)}`}
-                className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 transition-colors hover:text-brand-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
-              >
-                {t("backProject")}
-              </Link>
+            {mode === "list" && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                {t("listDescription")}
+              </p>
             )}
           </div>
-        ) : (
-          <Link
-            href={base}
-            className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 transition-colors hover:text-brand-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
-          >
-            {t("back")}
-          </Link>
-        )}
-      </header>
+          {mode === "list" ? (
+            <div className="flex flex-wrap items-center gap-3">
+              {!embedded && (
+                <Link
+                  href={`/projects/${encodeURIComponent(scope.projectId)}`}
+                  className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 transition-colors hover:text-brand-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
+                >
+                  {t("backProject")}
+                </Link>
+              )}
+            </div>
+          ) : (
+            <Link
+              href={base}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-gray-600 transition-colors hover:text-brand-600 focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:text-brand-400"
+            >
+              {t("back")}
+            </Link>
+          )}
+        </header>
+      )}
       {mode === "list" ? (
         <>
           <TeamDirectory scope={scope} actor={actor} onAction={openDialog} />
