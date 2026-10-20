@@ -3,6 +3,10 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
+  --color-landing-background: #000000;
+  --color-landing-panel: #1a1a1a;
+  --color-landing-soft: #111111;
+  --color-landing-border: #292929;
   --font-*: initial;
   --font-outfit: var(--font-sans), "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-sans: var(--font-sans), "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;

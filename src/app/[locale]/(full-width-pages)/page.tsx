@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
-import ContinuumLanding from "@/components/landing/rylo/ContinuumLanding";
+import ScotchLanding from "@/components/landing/scotch/ScotchLanding";
 
 export const metadata: Metadata = {
   title: "Continuum AI — Knowledge stays. Teams move forward.",
@@ -23,5 +23,5 @@ export default async function LandingPage({
   const { locale } = await params;
   setRequestLocale(locale);
 
-  return <ContinuumLanding />;
+  return <ScotchLanding />;
 }
