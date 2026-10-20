@@ -4,6 +4,7 @@ import {
   createIdempotencyKey,
   inviteOrganizationMember,
   listOrganizationMemberships,
+  setOrganizationMembershipRole,
   suspendOrganizationMembership,
 } from "./organization-memberships.service";
 
@@ -72,6 +73,49 @@ describe("Organization membership API service", () => {
     await suspendOrganizationMembership(orgId, membershipId, { expectedMembershipVersion: 3, reasonCode: "ACCESS_REVIEW" }, "0123456789abcdef");
     expect(JSON.parse(String((api.mock.calls[0]?.[1] as RequestInit).body))).toEqual({ expectedMembershipVersion: 3, reasonCode: "ACCESS_REVIEW" });
     await expect(listOrganizationMemberships("bad-id", { page: 1, pageSize: 20 })).rejects.toBeInstanceOf(ApiError);
+  });
+
+  it("sends role compare-and-set versions and validates the scoped role acknowledgement", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    api.mockResolvedValue({
+      operationId: "5123456789abcdef01234567",
+      membership: { id: membershipId, organizationId: orgId, userId: "2123456789abcdef01234567", status: "ACTIVE", version: 3 },
+      role: { roleCode: "ADMIN", version: 1 },
+    });
+    const result = await setOrganizationMembershipRole(
+      orgId,
+      membershipId,
+      { expectedMembershipVersion: 3, expectedRoleVersion: 0, roleCode: "ADMIN", reason: "  approved access review  " },
+      "0123456789abcdef",
+    );
+    const [path, options] = api.mock.calls[0] as [string, RequestInit];
+    expect(path).toBe(`/iam/organizations/${orgId}/memberships/${membershipId}/role`);
+    expect(JSON.parse(String(options.body))).toEqual({
+      expectedMembershipVersion: 3,
+      expectedRoleVersion: 0,
+      roleCode: "ADMIN",
+      reason: "approved access review",
+    });
+    expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
+    expect(new Headers(options.headers).get("Idempotency-Key")).toBe("0123456789abcdef");
+    expect(result.role).toEqual({ roleCode: "ADMIN", version: 1 });
+  });
+
+  it("rejects invalid role versions and blank reasons before sending", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    await expect(setOrganizationMembershipRole(
+      orgId,
+      membershipId,
+      { expectedMembershipVersion: 3, expectedRoleVersion: -1, roleCode: "MEMBER", reason: "review" },
+      "0123456789abcdef",
+    )).rejects.toMatchObject({ status: 422 });
+    await expect(setOrganizationMembershipRole(
+      orgId,
+      membershipId,
+      { expectedMembershipVersion: 3, expectedRoleVersion: 0, roleCode: "MEMBER", reason: "   " },
+      "0123456789abcdef",
+    )).rejects.toMatchObject({ status: 422 });
+    expect(api).not.toHaveBeenCalled();
   });
 
   it("creates idempotency keys accepted by the wire contract", () => {

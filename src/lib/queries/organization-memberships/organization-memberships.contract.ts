@@ -10,6 +10,7 @@ export const organizationMembershipStatuses = [
 export type OrganizationMembershipStatus =
   (typeof organizationMembershipStatuses)[number];
 export type MembershipListStatus = OrganizationMembershipStatus;
+export type OrganizationRoleCode = "ADMIN" | "MEMBER";
 export type MembershipActionReason = "ACCESS_REQUEST" | "ACCESS_REVIEW";
 export type SuspensionReason = "SECURITY_INCIDENT" | "ACCESS_REVIEW";
 
@@ -26,6 +27,8 @@ export type OrganizationMembership = Readonly<{
   userId: string;
   status: OrganizationMembershipStatus;
   version: number;
+  roleCode: OrganizationRoleCode | null;
+  roleVersion: number;
   createdAt: string;
   updatedAt: string;
   user: OrganizationMemberUser | null;
@@ -95,6 +98,18 @@ export type MembershipMutationAck = Readonly<{
   }>;
 }>;
 
+export type OrganizationRoleMutationAck = Readonly<{
+  operationId: string;
+  membership: Readonly<{
+    id: string;
+    organizationId: string;
+    userId: string;
+    status: OrganizationMembershipStatus;
+    version: number;
+  }>;
+  role: Readonly<{ roleCode: OrganizationRoleCode; version: number }>;
+}>;
+
 export type InviteMemberInput = Readonly<{
   email: string;
   reasonCode: MembershipActionReason;
@@ -102,6 +117,12 @@ export type InviteMemberInput = Readonly<{
 export type SuspendMembershipInput = Readonly<{
   expectedMembershipVersion: number;
   reasonCode: SuspensionReason;
+}>;
+export type SetOrganizationMembershipRoleInput = Readonly<{
+  expectedMembershipVersion: number;
+  expectedRoleVersion: number;
+  roleCode: OrganizationRoleCode;
+  reason: string;
 }>;
 export type ResendInvitationInput = Readonly<{
   expectedMembershipVersion: number;
@@ -125,6 +146,7 @@ const invitationStates = new Set<string>([
   "SUPERSEDED",
 ]);
 const accountStates = new Set<string>(["ACTIVE", "SUSPENDED", "PENDING_INVITE"]);
+const organizationRoleCodes = new Set<string>(["ADMIN", "MEMBER"]);
 
 export function isOrganizationResourceId(value: string): boolean {
   return resourceIdPattern.test(value);
@@ -198,6 +220,8 @@ function parseMembership(value: unknown, organizationId: string): OrganizationMe
     typeof value.userId !== "string" || !resourceIdPattern.test(value.userId) ||
     typeof value.status !== "string" || !membershipStates.has(value.status) ||
     !isVersion(value.version) ||
+    !(value.roleCode === null || (typeof value.roleCode === "string" && organizationRoleCodes.has(value.roleCode))) ||
+    !isNonnegativeInteger(value.roleVersion) ||
     !isDateTime(value.createdAt) ||
     !isDateTime(value.updatedAt)
   ) throw invalidResponse();
@@ -207,6 +231,8 @@ function parseMembership(value: unknown, organizationId: string): OrganizationMe
     userId: value.userId,
     status: value.status as OrganizationMembershipStatus,
     version: value.version,
+    roleCode: value.roleCode as OrganizationRoleCode | null,
+    roleVersion: value.roleVersion,
     createdAt: value.createdAt,
     updatedAt: value.updatedAt,
     user: parseUser(value.user),
@@ -355,5 +381,43 @@ export function parseMutationAck(
       version: rawMembership.version,
     },
     ...(invitation ? { invitation } : {}),
+  };
+}
+
+export function parseOrganizationRoleMutationAck(
+  value: unknown,
+  organizationId: string,
+): OrganizationRoleMutationAck {
+  if (
+    !isRecord(value) ||
+    typeof value.operationId !== "string" ||
+    !resourceIdPattern.test(value.operationId) ||
+    !isRecord(value.membership) ||
+    !isRecord(value.role)
+  ) throw invalidResponse();
+  const membership = value.membership;
+  const role = value.role;
+  if (
+    typeof membership.id !== "string" || !resourceIdPattern.test(membership.id) ||
+    membership.organizationId !== organizationId ||
+    typeof membership.userId !== "string" || !resourceIdPattern.test(membership.userId) ||
+    typeof membership.status !== "string" || !membershipStates.has(membership.status) ||
+    !isVersion(membership.version) ||
+    typeof role.roleCode !== "string" || !organizationRoleCodes.has(role.roleCode) ||
+    !isVersion(role.version)
+  ) throw invalidResponse();
+  return {
+    operationId: value.operationId,
+    membership: {
+      id: membership.id,
+      organizationId,
+      userId: membership.userId,
+      status: membership.status as OrganizationMembershipStatus,
+      version: membership.version,
+    },
+    role: {
+      roleCode: role.roleCode as OrganizationRoleCode,
+      version: role.version,
+    },
   };
 }

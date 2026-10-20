@@ -23,12 +23,15 @@ import {
   useInviteOrganizationMember,
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
+  useSetOrganizationMembershipRole,
   useSuspendOrganizationMembership,
   type IdempotentInput,
 } from "@/lib/queries/organization-memberships/useOrganizationMemberships";
 import type {
   OrganizationMembership,
   SuspendMembershipInput,
+  OrganizationRoleCode,
+  SetOrganizationMembershipRoleInput,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import OrganizationMembershipList from "./OrganizationMembershipList";
 import OrganizationInvitationList from "./OrganizationInvitationList";
@@ -37,6 +40,7 @@ import OrganizationMembershipActionDialog, {
   type MembershipActionReasonCode,
   type MembershipActionTarget,
 } from "./OrganizationMembershipActionDialog";
+import OrganizationMembershipRoleDialog from "./OrganizationMembershipRoleDialog";
 
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
@@ -125,9 +129,12 @@ function ScopedOrganizationMemberships({
   const [membershipPage, setMembershipPage] = useState(1);
   const [invitationPage, setInvitationPage] = useState(1);
   const [target, setTarget] = useState<MembershipActionTarget | null>(null);
+  const [roleTarget, setRoleTarget] = useState<OrganizationMembership | null>(null);
   const [notice, setNotice] = useState(false);
   const [isRefreshingAction, setIsRefreshingAction] = useState(false);
   const [actionRefreshFailed, setActionRefreshFailed] = useState(false);
+  const [isRefreshingRole, setIsRefreshingRole] = useState(false);
+  const [roleRefreshFailed, setRoleRefreshFailed] = useState(false);
   const filter: MembershipListFilter = {
     page: membershipPage,
     pageSize,
@@ -137,11 +144,16 @@ function ScopedOrganizationMemberships({
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
   const invite = useInviteOrganizationMember(actorId, organizationId);
   const suspend = useSuspendOrganizationMembership(actorId, organizationId);
+  const roleChange = useSetOrganizationMembershipRole(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
   const canSendInvitation = organizationMembershipReadiness.invitationCommands.status === "READY";
+  const roleAttempt = useRef<{
+    input: SetOrganizationMembershipRoleInput & { membershipId: string };
+    idempotencyKey: string;
+  } | null>(null);
   const actionMutation = target?.action === "suspend" ? suspend : undefined;
-  const hasUnresolvedMutation = Boolean(actionMutation?.isPending || actionMutation?.isError);
+  const hasUnresolvedMutation = Boolean(actionMutation?.isPending || actionMutation?.isError || roleChange.isPending || roleChange.isError);
 
   async function refreshLists(): Promise<boolean> {
     const results = await Promise.all([
@@ -177,6 +189,7 @@ function ScopedOrganizationMemberships({
   }
 
   function openInviteDialog() {
+    if (hasUnresolvedMutation) return;
     invite.reset();
     setInviteSuccess(false);
     inviteDialog.openModal();
@@ -188,7 +201,7 @@ function ScopedOrganizationMemberships({
   }
 
   async function submitInvite(input: InviteMemberInput) {
-    if (!canSendInvitation || invite.isPending) return;
+    if (!canSendInvitation || invite.isPending || hasUnresolvedMutation) return;
     const previousAttempt = inviteAttempt.current;
     const idempotencyKey =
       previousAttempt?.input.email === input.email && previousAttempt.input.reasonCode === input.reasonCode
@@ -231,6 +244,76 @@ function ScopedOrganizationMemberships({
     const key = actionMutation.variables.idempotencyKey;
     const reasonCode = actionMutation.variables.input.reasonCode;
     void executeAction(target, reasonCode, key).catch(() => undefined);
+  }
+
+  function openRoleDialog(membership: OrganizationMembership) {
+    if (
+      !canManage || hasUnresolvedMutation || membership.status !== "ACTIVE" ||
+      membership.userId.toLowerCase() === actorId.toLowerCase()
+    ) return;
+    roleChange.reset();
+    setRoleRefreshFailed(false);
+    setNotice(false);
+    setRoleTarget(membership);
+  }
+
+  async function executeRoleChange(
+    input: IdempotentInput<SetOrganizationMembershipRoleInput & { membershipId: string }>,
+  ) {
+    await roleChange.mutateAsync(input);
+    roleAttempt.current = null;
+    setRoleTarget(null);
+    setNotice(true);
+  }
+
+  function submitRoleChange(roleCode: OrganizationRoleCode, reason: string) {
+    if (!roleTarget || !canManage || hasUnresolvedMutation) return;
+    const input: SetOrganizationMembershipRoleInput & { membershipId: string } = {
+      membershipId: roleTarget.id,
+      expectedMembershipVersion: roleTarget.version,
+      expectedRoleVersion: roleTarget.roleVersion,
+      roleCode,
+      reason: reason.trim(),
+    };
+    const previousAttempt = roleAttempt.current;
+    const matchesPrevious = previousAttempt &&
+      previousAttempt.input.membershipId === input.membershipId &&
+      previousAttempt.input.expectedMembershipVersion === input.expectedMembershipVersion &&
+      previousAttempt.input.expectedRoleVersion === input.expectedRoleVersion &&
+      previousAttempt.input.roleCode === input.roleCode &&
+      previousAttempt.input.reason === input.reason;
+    const idempotencyKey = matchesPrevious ? previousAttempt.idempotencyKey : createIdempotencyKey();
+    roleAttempt.current = { input, idempotencyKey };
+    void executeRoleChange({ input, idempotencyKey }).catch(() => undefined);
+  }
+
+  function retryRoleChange() {
+    if (!roleChange.variables) return;
+    void executeRoleChange(roleChange.variables).catch(() => undefined);
+  }
+
+  function closeRoleDialog() {
+    if (roleChange.isPending || roleChange.isError || isRefreshingRole) return;
+    setRoleTarget(null);
+  }
+
+  async function recoverRoleBeforeNewAction() {
+    setIsRefreshingRole(true);
+    setRoleRefreshFailed(false);
+    try {
+      if (await refreshLists()) {
+        roleChange.reset();
+        roleAttempt.current = null;
+        setRoleTarget(null);
+        setNotice(false);
+      } else {
+        setRoleRefreshFailed(true);
+      }
+    } catch {
+      setRoleRefreshFailed(true);
+    } finally {
+      setIsRefreshingRole(false);
+    }
   }
 
   const readyMembers = memberships.isSuccess && !memberships.isFetching ? memberships.data : undefined;
@@ -284,6 +367,7 @@ function ScopedOrganizationMemberships({
             actionsDisabled={hasUnresolvedMutation || !canManage}
             onPageChange={setMembershipPage}
             onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
+            onSetRole={openRoleDialog}
           />
         )}
       </ComponentCard>
@@ -318,6 +402,18 @@ function ScopedOrganizationMemberships({
         onRefresh={() => void recoverActionBeforeNewCommand()}
         isRecovering={isRefreshingAction}
         refreshFailed={actionRefreshFailed}
+      />
+      <OrganizationMembershipRoleDialog
+        key={`role:${roleTarget?.id ?? "closed"}`}
+        membership={roleTarget}
+        error={roleChange.isError ? roleChange.error : undefined}
+        isPending={roleChange.isPending}
+        isRecovering={isRefreshingRole}
+        refreshFailed={roleRefreshFailed}
+        onClose={closeRoleDialog}
+        onSubmit={submitRoleChange}
+        onRetry={retryRoleChange}
+        onRefresh={() => void recoverRoleBeforeNewAction()}
       />
       {inviteDialog.isOpen && <OrganizationInvitationCreateDialog
         isOpen={inviteDialog.isOpen}

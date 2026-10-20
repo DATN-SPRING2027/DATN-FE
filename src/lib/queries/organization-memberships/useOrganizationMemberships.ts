@@ -4,7 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   CancelInvitationInput,
   InviteMemberInput,
+  OrganizationRoleMutationAck,
   ResendInvitationInput,
+  SetOrganizationMembershipRoleInput,
   SuspendMembershipInput,
 } from "./organization-memberships.contract";
 import type { MembershipMutationAck } from "./organization-memberships.contract";
@@ -14,6 +16,7 @@ import {
   listOrganizationInvitations,
   listOrganizationMemberships,
   resendOrganizationInvitation,
+  setOrganizationMembershipRole,
   suspendOrganizationMembership,
   type MembershipListFilter,
 } from "./organization-memberships.service";
@@ -126,4 +129,26 @@ export function useSuspendOrganizationMembership(actorId: string, organizationId
       return suspendOrganizationMembership(organizationId, membershipId, body, idempotencyKey);
     },
   );
+}
+
+export function useSetOrganizationMembershipRole(actorId: string, organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<
+    OrganizationRoleMutationAck,
+    Error,
+    IdempotentInput<SetOrganizationMembershipRoleInput & { membershipId: string }>
+  >({
+    retry: false,
+    throwOnError: false,
+    networkMode: "always",
+    mutationFn: ({ input, idempotencyKey }) => {
+      const { membershipId, ...body } = input;
+      return setOrganizationMembershipRole(organizationId, membershipId, body, idempotencyKey);
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: organizationMembershipKeys.scope(actorId, organizationId),
+      });
+    },
+  });
 }

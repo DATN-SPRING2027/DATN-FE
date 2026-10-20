@@ -33,12 +33,14 @@ export default function OrganizationMembershipList({
   actionsDisabled,
   onPageChange,
   onSuspend,
+  onSetRole,
 }: {
   page: OrganizationMembershipPage;
   actorId: string;
   actionsDisabled: boolean;
   onPageChange: (next: number) => void;
   onSuspend: (membership: OrganizationMembership) => void;
+  onSetRole: (membership: OrganizationMembership) => void;
 }) {
   const t = useTranslations("organizationMembers");
   const locale = useLocale();
@@ -49,9 +51,10 @@ export default function OrganizationMembershipList({
       <Table className="w-full table-fixed text-start">
         <TableHeader className="sr-only bg-gray-50 lg:not-sr-only lg:table-header-group dark:bg-white/2">
           <TableRow>
-            <TableCell isHeader className="w-1/2 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("memberColumn")}</TableCell>
-            <TableCell isHeader className="w-1/5 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("statusColumn")}</TableCell>
-            <TableCell isHeader className="w-1/5 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("createdColumn")}</TableCell>
+            <TableCell isHeader className="w-2/5 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("memberColumn")}</TableCell>
+            <TableCell isHeader className="w-1/5 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("roleColumn")}</TableCell>
+            <TableCell isHeader className="w-1/6 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("statusColumn")}</TableCell>
+            <TableCell isHeader className="w-1/6 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("createdColumn")}</TableCell>
             <TableCell isHeader className="px-5 py-3 text-end text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{t("actionsColumn")}</TableCell>
           </TableRow>
         </TableHeader>
@@ -60,6 +63,8 @@ export default function OrganizationMembershipList({
             const actions = getMembershipActions(membership, actorId);
             const name = membership.user?.fullName || t("nameUnavailable");
             const email = membership.user?.email ?? membership.userId;
+            const roleLabel = membership.roleCode === "ADMIN" ? t("roleAdmin") : membership.roleCode === "MEMBER" ? t("roleMember") : t("roleUnassigned");
+            const canChangeRole = membership.status === "ACTIVE" && membership.userId.toLowerCase() !== actorId.toLowerCase();
             return (
               <TableRow key={membership.id} className="grid grid-cols-2 gap-x-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 lg:table-row lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-gray-100 lg:p-0 lg:shadow-none dark:lg:border-gray-800">
                 <TableCell className="col-span-2 flex items-center gap-3 px-0 py-0 align-middle lg:table-cell lg:px-5 lg:py-4">
@@ -71,6 +76,10 @@ export default function OrganizationMembershipList({
                     <div className="mt-1 break-all text-sm text-gray-500 dark:text-gray-400">{email}</div>
                   </div>
                 </TableCell>
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-2 align-middle text-sm text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-4">
+                  <span className="text-theme-xs font-medium text-gray-500 lg:sr-only">{t("roleColumn")}</span>
+                  <span>{roleLabel}</span>
+                </TableCell>
                 <TableCell className="col-span-1 flex items-center gap-2 px-0 py-2 align-middle lg:table-cell lg:px-5 lg:py-4">
                   <span className="text-theme-xs font-medium text-gray-500 lg:sr-only">{t("statusColumn")}</span>
                   <OrganizationMembershipState status={membership.status} />
@@ -80,11 +89,19 @@ export default function OrganizationMembershipList({
                   <time dateTime={membership.createdAt}>{formatDate(membership.createdAt, locale)}</time>
                 </TableCell>
                 <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 px-0 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-4">
-                  {actions.includes("suspend") ? (
-                    <Button variant="outline" size="sm" className="w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:w-auto" disabled={actionsDisabled} onClick={() => onSuspend(membership)}>
-                      {t("suspend")}
-                    </Button>
-                  ) : <span aria-hidden="true" className="text-sm text-gray-400 lg:ms-auto">—</span>}
+                  <div className="flex w-full flex-wrap justify-end gap-2 lg:w-auto">
+                    {canChangeRole && (
+                      <Button variant="outline" size="sm" className="w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:w-auto" disabled={actionsDisabled} onClick={() => onSetRole(membership)}>
+                        {t("changeRole")}
+                      </Button>
+                    )}
+                    {actions.includes("suspend") && (
+                      <Button variant="outline" size="sm" className="w-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:w-auto" disabled={actionsDisabled} onClick={() => onSuspend(membership)}>
+                        {t("suspend")}
+                      </Button>
+                    )}
+                    {!canChangeRole && !actions.includes("suspend") && <span aria-hidden="true" className="text-sm text-gray-400 lg:ms-auto">—</span>}
+                  </div>
                 </TableCell>
               </TableRow>
             );
