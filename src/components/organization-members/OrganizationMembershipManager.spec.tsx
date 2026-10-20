@@ -174,7 +174,10 @@ describe("Organization membership management page", () => {
 
     expect(await screen.findByText("42 results")).toBeVisible();
     expect(screen.getAllByRole("heading", { name: "Members" })).toHaveLength(1);
-    expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeVisible();
+    const breadcrumb = screen.getByRole("navigation", { name: "Breadcrumb" });
+    expect(breadcrumb).toBeVisible();
+    expect(within(breadcrumb).getByText("Organization")).toBeVisible();
+    expect(within(breadcrumb).getByText("Members")).toBeVisible();
     expect(screen.getByText("AM")).toBeVisible();
     const table = screen.getByRole("table");
     expect(table).toHaveClass("table-fixed");

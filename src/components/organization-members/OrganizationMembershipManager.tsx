@@ -6,6 +6,7 @@ import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 import { canManageOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { useModal } from "@/hooks/useModal";
+import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
 import Label from "@/components/form/Label";
@@ -321,13 +322,13 @@ function ScopedOrganizationMemberships({
 
   return (
     <div className="space-y-4">
-      <nav aria-label={t("breadcrumbLabel")}>
-        <ol className="flex flex-wrap items-center gap-2 text-sm">
-          <li className="text-gray-500 dark:text-gray-400">{t("organizationBreadcrumb")}</li>
-          <li aria-hidden="true" className="text-gray-400">›</li>
-          <li aria-current="page" className="font-medium text-gray-800 dark:text-white/90">{t("membersTab")}</li>
-        </ol>
-      </nav>
+      <PageBreadcrumb
+        pageTitle={t("membersTab")}
+        homeLabel={t("home")}
+        breadcrumbLabel={t("breadcrumbLabel")}
+        items={[{ label: t("organizationBreadcrumb") }]}
+        showTitle={false}
+      />
 
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between sm:pb-6">
         <div>
