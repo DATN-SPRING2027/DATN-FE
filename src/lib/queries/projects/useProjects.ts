@@ -93,3 +93,58 @@ export function useCreateProjectMutation(organizationId: string) {
       client.invalidateQueries({ queryKey: projectKeys.scope(organizationId) }),
   });
 }
+
+export type UpdateProjectInput = Readonly<{
+  name?: string;
+  description?: string | null;
+}>;
+
+export function useUpdateProjectMutation(
+  organizationId: string,
+  projectId: string,
+) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ["project-update", organizationId, projectId],
+    retry: false,
+    networkMode: "always",
+    mutationFn: async (input: UpdateProjectInput) => {
+      const result = await apiClient<Project>(
+        `/iam/projects/${encodeURIComponent(projectId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(input),
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+      if (
+        !result ||
+        result.id !== projectId ||
+        result.organizationId !== organizationId ||
+        result.status !== "ACTIVE" ||
+        typeof result.name !== "string" ||
+        typeof result.code !== "string" ||
+        typeof result.createdBy !== "string" ||
+        (result.description != null &&
+          typeof result.description !== "string") ||
+        !Number.isFinite(Date.parse(result.createdAt)) ||
+        !Number.isFinite(Date.parse(result.updatedAt))
+      ) {
+        throw new Error("Invalid project update response");
+      }
+      return result;
+    },
+    onSuccess: async (updated) => {
+      await client.cancelQueries({
+        queryKey: projectKeys.detail(organizationId, projectId),
+      });
+      client.setQueryData(
+        projectKeys.detail(organizationId, projectId),
+        updated,
+      );
+      await client.invalidateQueries({
+        queryKey: [...projectKeys.scope(organizationId), "list"],
+      });
+    },
+  });
+}

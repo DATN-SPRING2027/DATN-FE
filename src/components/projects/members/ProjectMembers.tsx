@@ -23,6 +23,7 @@ import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
 import MemberRemoveConfirmation from "./MemberRemoveConfirmation";
+import ProjectLeaders from "./ProjectLeaders";
 import MemberError, { isMemberActionDenied } from "./MemberError";
 import { GroupIcon, SearchIcon } from "@/icons";
 import { Modal } from "@/components/ui/modal";
@@ -123,6 +124,7 @@ function ScopedProjectMembers({
   // to BE for authorization; a 403 locks only that action until an explicit retry.
   return (
     <div className="@container min-w-0 space-y-6">
+      <ProjectLeaders organizationId={organizationId} projectId={projectId} />
       {notice && <MemberNotification message={t(notice)} />}
       {(members.isError || add.isError || remove.isError) && (
         <Button

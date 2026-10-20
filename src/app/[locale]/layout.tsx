@@ -40,7 +40,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} dir={isRtl(locale as Locale) ? "rtl" : "ltr"}>
-      <body className={`${beVietnamPro.className} ${beVietnamPro.variable} font-sans dark:bg-gray-900`}>
+      <body suppressHydrationWarning className={`${beVietnamPro.className} ${beVietnamPro.variable} font-sans dark:bg-gray-900`}>
         <NextIntlClientProvider>
           <AppProviders>
             <ThemeProvider>
