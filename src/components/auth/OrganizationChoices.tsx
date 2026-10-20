@@ -1,7 +1,6 @@
 "use client";
 
-import Button from "@/components/ui/button/Button";
-import { ArrowRightIcon, GroupIcon, PlusIcon } from "@/icons";
+import { ArrowRightIcon, GroupIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import type { OrganizationOption } from "@/lib/queries/auth/useAccountOnboarding";
 
@@ -18,12 +17,10 @@ export default function OrganizationChoices({
   organizations,
   isBusy,
   onSelect,
-  onCreate,
 }: {
   organizations: readonly OrganizationOption[];
   isBusy: boolean;
   onSelect: (organizationId: string) => void;
-  onCreate: () => void;
 }) {
   const t = useTranslations("auth");
 
@@ -47,15 +44,6 @@ export default function OrganizationChoices({
             <p className="mt-1 text-sm leading-5 text-gray-600 dark:text-gray-400">
               {t("onboardingNoOrganization")}
             </p>
-            <Button
-              type="button"
-              size="sm"
-              className="mt-4"
-              startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
-              onClick={onCreate}
-            >
-              {t("onboardingCreateStartAction")}
-            </Button>
           </div>
         </div>
       </section>
@@ -64,7 +52,7 @@ export default function OrganizationChoices({
 
   return (
     <section aria-labelledby="organization-list-title" className="space-y-3">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div>
         <div>
           <h2 id="organization-list-title" className="text-sm font-semibold text-gray-900 dark:text-white">
             {t("onboardingAvailable")}
@@ -73,17 +61,6 @@ export default function OrganizationChoices({
             {t("onboardingChooseHint")}
           </p>
         </div>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          className="shrink-0"
-          startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
-          disabled={isBusy}
-          onClick={onCreate}
-        >
-          {t("onboardingCreateAdditionalAction")}
-        </Button>
       </div>
       <ul className="space-y-3">
         {organizations.map((organization) => (

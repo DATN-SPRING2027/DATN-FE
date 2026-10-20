@@ -3,6 +3,7 @@ import {
   parseAdminInvitationPage,
   parseMembershipPage,
   parseMutationAck,
+  parseOrganizationRoleMutationAck,
   parseRecipientInvitationPage,
 } from "./organization-memberships.contract";
 
@@ -13,6 +14,8 @@ const membership = (status: string) => ({
   userId: "2123456789abcdef01234567",
   status,
   version: 3,
+  roleCode: "MEMBER",
+  roleVersion: 2,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-02T00:00:00.000Z",
   user: {
@@ -91,5 +94,32 @@ describe("Organization membership accepted contract parsers", () => {
     expect(parseMutationAck(ack, orgId).membership.status).toBe("SUSPENDED");
     expect(() => parseMutationAck({ ...ack, membership: { ...ack.membership, organizationId: "3123456789abcdef01234567" } }, orgId)).toThrow();
     expect(() => parseMutationAck({ ...ack, membership: { ...ack.membership, status: "REMOVED" } }, orgId)).not.toThrow();
+  });
+
+  it("requires Organization role metadata and accepts an unassigned role at version zero", () => {
+    const value = membership("ACTIVE");
+    expect(parseMembershipPage({ data: [{ ...value, roleCode: null, roleVersion: 0 }], pagination }, orgId).data[0]).toMatchObject({
+      roleCode: null,
+      roleVersion: 0,
+    });
+    expect(() => parseMembershipPage({ data: [{ ...value, roleCode: "TEAM_LEADER" }], pagination }, orgId)).toThrow();
+    expect(() => parseMembershipPage({ data: [{ ...value, roleVersion: -1 }], pagination }, orgId)).toThrow();
+  });
+
+  it("validates role mutation acknowledgement role and Organization scope", () => {
+    const ack = {
+      operationId: "5123456789abcdef01234567",
+      membership: {
+        id: membership("ACTIVE").id,
+        organizationId: orgId,
+        userId: membership("ACTIVE").userId,
+        status: "ACTIVE",
+        version: 3,
+      },
+      role: { roleCode: "ADMIN", version: 1 },
+    };
+    expect(parseOrganizationRoleMutationAck(ack, orgId).role).toEqual(ack.role);
+    expect(() => parseOrganizationRoleMutationAck({ ...ack, role: { ...ack.role, roleCode: "TEAM_LEADER" } }, orgId)).toThrow();
+    expect(() => parseOrganizationRoleMutationAck({ ...ack, membership: { ...ack.membership, organizationId: "3123456789abcdef01234567" } }, orgId)).toThrow();
   });
 });

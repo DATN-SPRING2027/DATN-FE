@@ -11,6 +11,8 @@ const member = (status: OrganizationMembership["status"], hasUser = true): Organ
   userId: "2123456789abcdef01234567",
   status,
   version: 1,
+  roleCode: "MEMBER",
+  roleVersion: 0,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
   user: hasUser ? { id: "2123456789abcdef01234567", fullName: "Member", email: "m@example.com", accountStatus: "ACTIVE" } : null,
