@@ -23,7 +23,6 @@ import {
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
   useResendOrganizationInvitation,
-  useCancelOrganizationInvitation,
   useSetOrganizationMembershipRole,
   useSuspendOrganizationMembership,
   type IdempotentInput,

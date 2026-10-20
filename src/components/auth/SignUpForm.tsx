@@ -13,12 +13,13 @@ import { ApiError } from "@/lib/api-client";
 import { useRequestEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
 import { ArrowRightIcon, ChevronLeftIcon, EnvelopeIcon } from "@/icons";
 import styles from "./auth-experience.module.css";
-import { isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
+import { invitationIdFromReturnTo, isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
 
 export default function SignUpForm({ initialEmail, returnTo }: { initialEmail?: string; returnTo?: string }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(initialEmail ?? "");
   const safeReturnTo = isSafeInvitationReturnTo(returnTo) ? returnTo : undefined;
+  const returnToInvitationId = invitationIdFromReturnTo(safeReturnTo);
   const [isChecked, setIsChecked] = useState(false);
   const [requestAccepted, setRequestAccepted] = useState(false);
   const t = useTranslations("auth");
@@ -33,6 +34,7 @@ export default function SignUpForm({ initialEmail, returnTo }: { initialEmail?: 
       await registration.mutateAsync({
         fullName: fullName.trim(),
         email: email.trim(),
+        ...(returnToInvitationId ? { returnToInvitationId } : {}),
       });
       setRequestAccepted(true);
     } catch {

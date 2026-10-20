@@ -1742,7 +1742,7 @@
     "inviteDescription": "Invite someone by email to join this Organization.",
     "inviteButton": "Invite member",
     "inviteEmailLabel": "Email address",
-    "inviteEmailHelp": "The recipient must sign in with this exact account email to find and accept the in-app invitation. No email is sent automatically.",
+    "inviteEmailHelp": "An invitation email will be queued for this address. The recipient must sign in with the same email to accept it.",
     "inviteRoleTiming": "Organization role is managed after the invitation is accepted and the Membership becomes active.",
     "email": "Account email",
     "emailPlaceholder": "name@example.com",

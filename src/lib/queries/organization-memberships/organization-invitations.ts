@@ -100,3 +100,14 @@ export function isSafeInvitationReturnTo(value: string | null | undefined): valu
     return false;
   }
 }
+
+export function invitationIdFromReturnTo(value: string | null | undefined): string | undefined {
+  if (!isSafeInvitationReturnTo(value)) return undefined;
+  const invitationId = new URL(value, "https://continuum.invalid").searchParams.get("invitationId");
+  return invitationId && idPattern.test(invitationId) ? invitationId : undefined;
+}
+
+export function invitationReturnToFromId(invitationId: string | null | undefined): string | null {
+  if (!invitationId || !idPattern.test(invitationId)) return null;
+  return invitationReturnTo(invitationId);
+}

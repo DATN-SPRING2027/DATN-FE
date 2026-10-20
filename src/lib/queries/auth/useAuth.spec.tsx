@@ -8,6 +8,7 @@ import {
   useLoginMutation,
   useLogoutMutation,
   useRequestPasswordResetMutation,
+  useRequestEmailRegistrationMutation,
   useCompletePasswordResetMutation,
 } from "./useAuth";
 
@@ -115,6 +116,30 @@ describe("auth query hooks", () => {
         body: JSON.stringify({ email: "person@example.com" }),
       },
     );
+  });
+
+  it("passes the non-secret invitation ID through email registration", async () => {
+    mockedApiClient.mockResolvedValue({ status: "accepted" });
+    const { result } = renderHook(() => useRequestEmailRegistrationMutation(), {
+      wrapper: createWrapper(),
+    });
+
+    await act(() =>
+      result.current.mutateAsync({
+        fullName: "Invitee",
+        email: "invitee@example.test",
+        returnToInvitationId: "3123456789abcdef01234567",
+      }),
+    );
+
+    expect(mockedApiClient).toHaveBeenCalledWith("/auth/registrations", {
+      method: "POST",
+      body: JSON.stringify({
+        fullName: "Invitee",
+        email: "invitee@example.test",
+        returnToInvitationId: "3123456789abcdef01234567",
+      }),
+    });
   });
 
   it("confirms a password reset through the BFF without replaying credentials", async () => {

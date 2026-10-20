@@ -17,7 +17,7 @@ import {
   LockIcon,
 } from "@/icons";
 import styles from "./auth-experience.module.css";
-import { isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
+import { invitationReturnToFromId, isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
 
 function createRegistrationTokenStore() {
   let value = "";
@@ -30,6 +30,24 @@ function createRegistrationTokenStore() {
       return () => listeners.delete(onChange);
     },
     set: (next: string) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+function createInvitationReturnToStore() {
+  let value: string | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => value,
+    getServerSnapshot: () => null,
+    subscribe: (onChange: () => void) => {
+      listeners.add(onChange);
+      return () => listeners.delete(onChange);
+    },
+    set: (next: string | null) => {
       if (next === value) return;
       value = next;
       listeners.forEach((listener) => listener());
@@ -68,14 +86,25 @@ export default function EmailRegistrationForm() {
   const [passwordSubmitAttempted, setPasswordSubmitAttempted] = useState(false);
   const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const [verified, setVerified] = useState(false);
-  const invitationReturnTo = useSyncExternalStore(
+  const [invitationReturnToStore] = useState(createInvitationReturnToStore);
+  const storedInvitationReturnTo = useSyncExternalStore(
     subscribeToInvitationReturnTo,
     getInvitationReturnToSnapshot,
     getServerInvitationReturnToSnapshot,
   );
+  const returnToFromUrl = useSyncExternalStore(
+    invitationReturnToStore.subscribe,
+    invitationReturnToStore.getSnapshot,
+    invitationReturnToStore.getServerSnapshot,
+  );
+  const invitationReturnTo = returnToFromUrl ?? storedInvitationReturnTo;
   const verifyRegistration = useVerifyEmailRegistrationMutation();
 
   useLayoutEffect(() => {
+    const returnTo = invitationReturnToFromId(
+      new URLSearchParams(window.location.search).get("returnToInvitationId"),
+    );
+    if (returnTo) invitationReturnToStore.set(returnTo);
     if (!window.location.hash && !window.location.search) return;
     const verificationToken = new URLSearchParams(
       window.location.hash.slice(1),
@@ -87,7 +116,7 @@ export default function EmailRegistrationForm() {
         ? verificationToken
         : "",
     );
-  }, [registrationTokenStore]);
+  }, [invitationReturnToStore, registrationTokenStore]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
