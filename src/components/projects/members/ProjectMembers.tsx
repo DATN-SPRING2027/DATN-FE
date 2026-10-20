@@ -135,77 +135,78 @@ function ScopedProjectMembers({
           {t("checkAccess")}
         </Button>
       )}
-      <div className="flex flex-col gap-4 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs sm:p-5 xl:flex-row xl:items-center xl:justify-between dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            <GroupIcon aria-hidden="true" className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
-                {t("title")}
-              </h2>
-              {members.isSuccess && !members.isFetching && (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                  {format.number(members.data.pagination.totalItems)}{" "}
-                  {t("membersMetric")}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {t("directoryDescription")}
-            </p>
-          </div>
-        </div>
-        <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end xl:flex-1 xl:justify-end">
-          <div className="min-w-0 flex-1 sm:min-w-56 xl:w-64 xl:flex-none">
-            <Label htmlFor="member-roster-search" className="sr-only">
-              {t("searchPage")}
-            </Label>
-            <div className="relative">
-              <SearchIcon
-                aria-hidden="true"
-                className="pointer-events-none absolute start-3 top-3.5 size-4 text-gray-400"
-              />
-              <Input
-                id="member-roster-search"
-                value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setSelected(undefined);
-                  confirmation.closeModal();
-                }}
-                placeholder={t("searchPlaceholder")}
-                className="ps-10"
-              />
-            </div>
-          </div>
-          <MemberStatusFilter
-            value={status}
-            disabled={busy}
-            onChange={(value) => {
-              setStatus(value);
-              setPage(1);
-              setSelected(undefined);
-              setFocusedId(undefined);
-              confirmation.closeModal();
-            }}
-          />
-          {showAddButton && (
-            <Button
-              ariaLabel={t("openAdd")}
-              onClick={openAddModal}
-              className="shrink-0"
-            >
-              {t("add")}
-            </Button>
-          )}
-        </div>
-      </div>
       <section
         aria-label={t("list")}
         className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
       >
+        <div className="flex flex-col gap-4 border-b border-gray-100 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between dark:border-gray-800">
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+              <GroupIcon aria-hidden="true" className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
+                  {t("title")}
+                </h2>
+                {members.isSuccess && !members.isFetching && (
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                    {format.number(members.data.pagination.totalItems)}{" "}
+                    {t("membersMetric")}
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                {t("directoryDescription")}
+              </p>
+            </div>
+          </div>
+          <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end xl:flex-1 xl:justify-end">
+            <div className="min-w-0 flex-1 sm:min-w-64 sm:max-w-xs xl:w-80 xl:flex-none">
+              <Label htmlFor="member-roster-search" className="sr-only">
+                {t("searchPage")}
+              </Label>
+              <div className="relative">
+                <SearchIcon
+                  aria-hidden="true"
+                  className="pointer-events-none absolute start-3 top-3.5 size-4 text-gray-400"
+                />
+                <Input
+                  id="member-roster-search"
+                  value={search}
+                  onChange={(event) => {
+                    setSearch(event.target.value);
+                    setSelected(undefined);
+                    confirmation.closeModal();
+                  }}
+                  placeholder={t("searchPlaceholder")}
+                  className="ps-10"
+                />
+              </div>
+            </div>
+            <MemberStatusFilter
+              value={status}
+              disabled={busy}
+              onChange={(value) => {
+                setStatus(value);
+                setPage(1);
+                setSelected(undefined);
+                setFocusedId(undefined);
+                confirmation.closeModal();
+              }}
+            />
+            {showAddButton && (
+              <Button
+                ariaLabel={t("openAdd")}
+                onClick={openAddModal}
+                className="shrink-0"
+              >
+                {t("add")}
+              </Button>
+            )}
+          </div>
+        </div>
+
         {members.isFetching || members.isPending ? (
           <p
             role="status"
