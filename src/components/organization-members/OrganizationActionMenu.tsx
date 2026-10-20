@@ -45,6 +45,10 @@ export default function OrganizationActionMenu({
 
   function onMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const menuItems = [...(menuRef.current?.querySelectorAll<HTMLButtonElement>("[role='menuitem']:not(:disabled)") ?? [])];
+    if (event.key === "Tab") {
+      setIsOpen(false);
+      return;
+    }
     if (event.key === "Escape") {
       event.preventDefault();
       setIsOpen(false);

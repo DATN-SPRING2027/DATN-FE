@@ -153,6 +153,20 @@ describe("Organization membership management page", () => {
     await waitFor(() => expect(action).toHaveFocus());
   });
 
+  it("closes the action menu on Tab without preventing normal focus navigation", async () => {
+    respond();
+    mount();
+    await screen.findByText("Alex Member");
+
+    fireEvent.click(screen.getByRole("button", { name: "Member actions for Alex Member" }));
+    const action = await screen.findByRole("menuitem", { name: "Suspend" });
+    const tabEvent = new KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true });
+    fireEvent(action, tabEvent);
+
+    expect(tabEvent.defaultPrevented).toBe(false);
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
   it("keeps one page title and uses the server-paginated count in a responsive membership table", async () => {
     const page = membershipPage();
     respond({ memberships: { ...page, pagination: { ...page.pagination, totalItems: 42, totalPages: 3 } } });
@@ -295,7 +309,14 @@ describe("Organization membership management page", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Cancel invitation" }));
     const dialog = screen.getByRole("dialog", { name: "Cancel invitation?" });
     expect(within(dialog).getByText("pending@example.com")).toBeVisible();
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel invitation" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Keep invitation" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(api.mock.calls.some(([endpoint, options]) => endpoint.endsWith(`/invitations/${invitationId}/cancel`) && options?.method === "POST")).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Invitation actions for pending@example.com" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Cancel invitation" }));
+    const reopenedDialog = screen.getByRole("dialog", { name: "Cancel invitation?" });
+    fireEvent.click(within(reopenedDialog).getByRole("button", { name: "Cancel invitation" }));
 
     expect(await screen.findByText("The server accepted the request.")).toBeVisible();
     expect(await screen.findByText("Cancelled")).toBeVisible();

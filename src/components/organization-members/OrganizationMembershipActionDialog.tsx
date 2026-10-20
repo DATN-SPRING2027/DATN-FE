@@ -174,7 +174,7 @@ export default function OrganizationMembershipActionDialog({
         {isPending && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("working")}</p>}
         {isRecovering && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("refreshingBeforeNewAction")}</p>}
         <form onSubmit={submit} className="flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError} onClick={onClose}>{t("dialogCancel")}</Button>
+          <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError} onClick={onClose}>{t(activeTarget.action === "cancel" ? "keepInvitation" : "dialogCancel")}</Button>
           <Button type="submit" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError || (reasonOptions.length > 0 && !reason)}>{busy ? t("working") : t(getConfirmKey(activeTarget))}</Button>
         </form>
       </div>
