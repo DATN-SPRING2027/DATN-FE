@@ -11,10 +11,10 @@ import {
   type MembershipListStatus,
   type MembershipMutationAck,
   type OrganizationMembershipPage,
+  type OrganizationRoleMutationAck,
   type ResendInvitationInput,
   type SetOrganizationMembershipRoleInput,
   type SuspendMembershipInput,
-  type OrganizationRoleMutationAck,
 } from "./organization-memberships.contract";
 
 export type MembershipListFilter = Readonly<{

@@ -11,12 +11,29 @@ vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
 }));
+const readinessState = vi.hoisted(() => ({ invitationCommands: "BLOCKED" as "READY" | "BLOCKED" }));
+vi.mock("@/lib/queries/organization-memberships/organization-membership-readiness", () => ({
+  organizationMembershipReadiness: {
+    get invitationCommands() {
+      return { status: readinessState.invitationCommands, gates: [] };
+    },
+    recipientAcceptance: { status: "BLOCKED", gates: [] },
+  },
+}));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
 }));
 vi.mock("@/icons", () => ({
+  CheckCircleIcon: () => null,
+  CloseIcon: () => null,
+  EnvelopeIcon: () => null,
   GroupIcon: () => null,
+  LockIcon: () => null,
   MailIcon: () => null,
+  PaperPlaneIcon: () => null,
+  PencilIcon: () => null,
+  SearchIcon: () => null,
+  TimeIcon: () => null,
   UserIcon: () => null,
 }));
 
@@ -88,7 +105,10 @@ function respond(options: {
   });
 }
 
-beforeEach(() => api.mockReset());
+beforeEach(() => {
+  api.mockReset();
+  readinessState.invitationCommands = "BLOCKED";
+});
 afterEach(() => vi.restoreAllMocks());
 
 describe("Organization membership management page", () => {
@@ -97,13 +117,13 @@ describe("Organization membership management page", () => {
     respond({ memberships: { ...page, pagination: { ...page.pagination, totalItems: 42, totalPages: 3 } } });
     mount();
 
-    expect(await screen.findByText("42 results")).toBeVisible();
+    expect(await screen.findByText("Showing 1 to 1 of 42 members")).toBeVisible();
     expect(screen.getAllByRole("heading", { name: "Organization members" })).toHaveLength(1);
     expect(screen.getByRole("navigation", { name: "Breadcrumb" })).toBeVisible();
     expect(screen.getByText("AM")).toBeVisible();
     const table = screen.getByRole("table");
     expect(table).toHaveClass("table-fixed");
-    expect(within(table).getAllByRole("row").at(-1)).toHaveClass("grid", "lg:table-row");
+    expect(within(table).getAllByRole("row").at(-1)).toHaveClass("border-b");
   });
 
   it("shows all four approved states and leaves authority to the server", async () => {
@@ -168,18 +188,71 @@ describe("Organization membership management page", () => {
     expect(screen.queryByText(/Invitation creation is currently paused/)).not.toBeInTheDocument();
     expect(screen.queryByText(/This list is read-only/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Invite user" }));
-    const dialog = screen.getByRole("dialog", { name: "Invite user" });
-    expect(within(dialog).getByLabelText("Email address")).toBeVisible();
-    expect(within(dialog).getByLabelText("Reason")).toBeVisible();
-    expect(within(dialog).getByText(/Sending invitations is unavailable until/)).toHaveAttribute("role", "status");
-    fireEvent.change(within(dialog).getByLabelText("Email address"), { target: { value: "new-member@example.com" } });
-    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
-    expect(within(dialog).getByRole("button", { name: "Send invite" })).toBeDisabled();
+    const dialog = screen.getByRole("dialog", { name: "Invite user to organization" });
+    expect(within(dialog).getByLabelText(/Email address/)).toBeVisible();
+    expect(within(dialog).getByLabelText(/Reason/)).toBeVisible();
+    expect(within(dialog).getByText(/Invitation creation is paused until/)).toHaveAttribute("role", "status");
+    fireEvent.change(within(dialog).getByLabelText(/Email address/), { target: { value: "new-member@example.com" } });
+    fireEvent.change(within(dialog).getByLabelText(/^Reason/), { target: { value: "ACCESS_REQUEST" } });
+    expect(within(dialog).getByRole("button", { name: "Send invitation" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Resend invitation" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel invitation" })).not.toBeInTheDocument();
     expect(api.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Invite user" })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { action: "resend", button: "Resend invitation", title: "Resend invitation?", reason: "ACCESS_REQUEST", endpoint: "/resend", invitationStatus: "PENDING" },
+    { action: "cancel", button: "Cancel invitation", title: "Cancel invitation?", reason: undefined, endpoint: "/cancel", invitationStatus: "CANCELLED" },
+  ] as const)("runs the ready $action invitation command and refreshes both lists", async ({ button, title, reason, endpoint, invitationStatus }) => {
+    readinessState.invitationCommands = "READY";
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    let invitationReads = 0;
+    api.mockImplementation(async (url, options) => {
+      if (url === "/auth/me") return user;
+      if (url.includes("/memberships?")) return membershipPage([membership("PENDING_INVITE")]);
+      if (url.includes("/invitations?") && options?.method !== "POST") {
+        invitationReads += 1;
+        return invitationPage([invitation]);
+      }
+      if (url.endsWith(endpoint) && options?.method === "POST") {
+        return {
+          operationId: "7123456789abcdef01234567",
+          membership: { id: memberId, organizationId, userId, status: "PENDING_INVITE", version: 4 },
+          invitation: { id: invitationId, status: invitationStatus, version: 3, expiresAt: "2026-02-08T00:00:00.000Z" },
+        };
+      }
+      throw new Error(`Unexpected request ${url}`);
+    });
+
+    mount();
+    await screen.findAllByText("alex@example.com");
+    fireEvent.click(screen.getByRole("button", { name: button }));
+    const dialog = await screen.findByRole("dialog", { name: title });
+    if (reason) fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: reason } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Confirm" }));
+
+    expect(await screen.findByText("The server accepted the request.")).toBeVisible();
+    await waitFor(() => expect(invitationReads).toBeGreaterThanOrEqual(2));
+    const call = api.mock.calls.find(([url, options]) => url.endsWith(endpoint) && options?.method === "POST");
+    expect(call?.[0]).toContain(`/iam/organizations/${organizationId}/invitations/${invitationId}`);
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      expectedMembershipVersion: 3,
+      expectedInvitationVersion: 2,
+      reasonCode: reason ?? "INVITATION_CANCELLED",
+    });
+    expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
+    expect(new Headers(call?.[1]?.headers).get("Idempotency-Key")).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
+  });
+
+  it("does not expose invitation commands to a non-Admin when readiness is READY", async () => {
+    readinessState.invitationCommands = "READY";
+    respond({ currentUser: { ...user, roles: ["MEMBER"] }, invitations: invitationPage([invitation]) });
+    mount();
+    await screen.findAllByText("alex@example.com");
+    expect(screen.queryByRole("button", { name: "Resend invitation" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Cancel invitation" })).not.toBeInTheDocument();
   });
 
   it("shows empty member and invitation states", async () => {
@@ -264,7 +337,7 @@ describe("Organization membership management page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change role" }));
     const dialog = await screen.findByRole("dialog", { name: "Change Organization role" });
     fireEvent.change(within(dialog).getByLabelText("Organization role"), { target: { value: "ADMIN" } });
-    fireEvent.change(within(dialog).getByLabelText("Reason for this change"), { target: { value: "Approved access review" } });
+    fireEvent.change(within(dialog).getByLabelText("Reason for this role change"), { target: { value: "Approved access review" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
 
     expect(await screen.findByText("The server accepted the request.")).toBeVisible();
@@ -309,7 +382,7 @@ describe("Organization membership management page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change role" }));
     const dialog = await screen.findByRole("dialog", { name: "Change Organization role" });
     fireEvent.change(within(dialog).getByLabelText("Organization role"), { target: { value: "ADMIN" } });
-    fireEvent.change(within(dialog).getByLabelText("Reason for this change"), { target: { value: "Approved access review" } });
+    fireEvent.change(within(dialog).getByLabelText("Reason for this role change"), { target: { value: "Approved access review" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
 
     expect(await within(dialog).findByText(message)).toBeVisible();
@@ -341,7 +414,7 @@ describe("Organization membership management page", () => {
     fireEvent.click(screen.getByRole("button", { name: "Change role" }));
     const dialog = await screen.findByRole("dialog", { name: "Change Organization role" });
     fireEvent.change(within(dialog).getByLabelText("Organization role"), { target: { value: "ADMIN" } });
-    fireEvent.change(within(dialog).getByLabelText("Reason for this change"), { target: { value: "Approved access review" } });
+    fireEvent.change(within(dialog).getByLabelText("Reason for this role change"), { target: { value: "Approved access review" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Change role" }));
     expect(await within(dialog).findByText("A required Organization membership service is unavailable. No change was confirmed.")).toBeVisible();
     fireEvent.click(within(dialog).getByRole("button", { name: "Retry the same request" }));
