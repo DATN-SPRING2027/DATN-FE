@@ -100,14 +100,16 @@ function MembershipError({ error, retry, invitation = false }: { error: unknown;
 function MembershipStatusSelect({ value, disabled, onChange }: { value: MembershipStatusFilter; disabled: boolean; onChange: (status: MembershipStatusFilter) => void }) {
   const t = useTranslations("organizationMembers");
   return (
-    <div className="w-full sm:w-52">
-      <Label htmlFor="organization-members-status">{t("statusFilterLabel")}</Label>
+    <div className="flex items-center gap-2">
+      <Label htmlFor="organization-members-status" className="text-xs font-medium text-gray-500 dark:text-gray-400 shrink-0">
+        {t("statusFilterLabel")}
+      </Label>
       <select
         id="organization-members-status"
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as MembershipStatusFilter)}
-        className="h-10 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+        className="h-9 cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs sm:text-sm font-medium text-gray-700 shadow-theme-xs transition-colors hover:border-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
       >
         <option value="ALL">{t("allStatuses")}</option>
         <option value="PENDING_INVITE">{t("PENDING_INVITE")}</option>
@@ -383,26 +385,43 @@ function ScopedOrganizationMemberships({
         <div id="organization-members-panel" role="tabpanel" aria-labelledby="organization-members-tab" tabIndex={0} hidden={activeTab !== "members"} className="p-4 sm:p-6">
           {activeTab === "members" && (
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 dark:border-gray-800 sm:flex-row sm:items-end sm:justify-between">
-                {readyMembers ? (
-                  <p aria-live="polite" className="text-sm font-medium text-gray-600 dark:text-gray-300">{t("membersCount", { count: readyMembers.pagination.totalItems })}</p>
-                ) : memberships.isFetching ? (
-                  <div aria-hidden="true" className="h-4 w-24 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-                ) : <span />}
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-                  {status !== "ALL" && <Button size="sm" variant="outline" className="h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={() => { setStatus("ALL"); setMembershipPage(1); }}>{t("clearFilters")}</Button>}
+              <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-white/2">
+                <div className="flex flex-wrap items-center gap-2.5">
                   <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
+                  {status !== "ALL" && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-9 px-3 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                      onClick={() => { setStatus("ALL"); setMembershipPage(1); }}
+                    >
+                      {t("clearFilters")}
+                    </Button>
+                  )}
                 </div>
+                {readyMembers ? (
+                  <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-theme-xs sm:self-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                    <span className="size-1.5 rounded-full bg-brand-500" aria-hidden="true" />
+                    <span aria-live="polite">{t("membersCount", { count: readyMembers.pagination.totalItems })}</span>
+                  </div>
+                ) : memberships.isFetching ? (
+                  <div aria-hidden="true" className="h-6 w-20 animate-pulse rounded-md bg-gray-200 dark:bg-gray-800" />
+                ) : <span />}
               </div>
               {memberships.isFetching && <ListLoadingPanel label={t("membersLoading")} />}
               {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
               {readyMembers && readyMembers.data.length === 0 && (
-                <div role="status" className="flex flex-col gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
-                  <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{status === "ALL" ? t("noMembersYet") : t("membersEmpty")}</p>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{status === "ALL" ? t("noMembersDescription") : t("membersEmptyDescription")}</p>
-                  </div>
-                  {status === "ALL" && canManage && <Button size="sm" className="shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={openInviteDialog}>{t("inviteButton")}</Button>}
+                <div role="status" className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-10 px-4 text-center dark:border-gray-800">
+                  <span aria-hidden="true" className="mb-3 flex size-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-8 ring-brand-50/50 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-500/5">
+                    <UserIcon className="size-5" />
+                  </span>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white/90">{status === "ALL" ? t("noMembersYet") : t("membersEmpty")}</p>
+                  <p className="mt-1 max-w-sm text-xs text-gray-500 dark:text-gray-400">{status === "ALL" ? t("noMembersDescription") : t("membersEmptyDescription")}</p>
+                  {status === "ALL" && canManage && (
+                    <Button size="sm" className="mt-4 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={openInviteDialog}>
+                      {t("inviteButton")}
+                    </Button>
+                  )}
                 </div>
               )}
               {readyMembers && readyMembers.data.length > 0 && (
@@ -422,12 +441,17 @@ function ScopedOrganizationMemberships({
         <div id="organization-invitations-panel" role="tabpanel" aria-labelledby="organization-invitations-tab" tabIndex={0} hidden={activeTab !== "invitations"} className="p-4 sm:p-6">
           {activeTab === "invitations" && (
             <div className="space-y-4">
-              <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+              <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-white/2">
                 <div>
                   <h2 className="text-sm font-semibold text-gray-900 dark:text-white/90">{t("invitationsTitle")}</h2>
-                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("invitationsDescription")}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{t("invitationsDescription")}</p>
                 </div>
-                {readyInvitations && <p aria-live="polite" className="text-sm text-gray-500 dark:text-gray-400">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</p>}
+                {readyInvitations && (
+                  <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-theme-xs sm:self-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                    <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                    <span aria-live="polite">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</span>
+                  </div>
+                )}
               </div>
               {invitations.isFetching && <ListLoadingPanel label={t("invitationsLoading")} />}
               {invitations.isError && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
@@ -435,14 +459,12 @@ function ScopedOrganizationMemberships({
                 <p role="status" className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">{t("invitationActionsBlocked")}</p>
               )}
               {readyInvitations && readyInvitations.data.length === 0 && (
-                <div role="status" className="flex items-center gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-4 dark:border-gray-700">
-                  <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
-                    <MailIcon className="size-4" />
+                <div role="status" className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-10 px-4 text-center dark:border-gray-800">
+                  <span aria-hidden="true" className="mb-3 flex size-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-8 ring-brand-50/50 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-500/5">
+                    <MailIcon className="size-5" />
                   </span>
-                  <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{t("invitationsEmpty")}</p>
-                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{t("invitationsEmptyDescription")}</p>
-                  </div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white/90">{t("invitationsEmpty")}</p>
+                  <p className="mt-1 max-w-sm text-xs text-gray-500 dark:text-gray-400">{t("invitationsEmptyDescription")}</p>
                 </div>
               )}
               {readyInvitations && readyInvitations.data.length > 0 && (

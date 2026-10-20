@@ -1780,6 +1780,8 @@
     "actionsUnavailable": "No actions available",
     "selfActionsUnavailable": "You cannot change your own membership.",
     "permissionActionsUnavailable": "You do not have permission to manage this member.",
+    "you": "(You)",
+    "protected": "Protected",
     "memberActionsFor": "Member actions for {name}",
     "invitationActionsFor": "Invitation actions for {email}",
     "PENDING_INVITE": "Pending invite",

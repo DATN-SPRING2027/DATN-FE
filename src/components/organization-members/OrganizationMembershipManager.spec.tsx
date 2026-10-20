@@ -17,6 +17,7 @@ vi.mock("@/i18n/navigation", () => ({
 }));
 vi.mock("@/icons", () => ({
   GroupIcon: () => null,
+  LockIcon: () => null,
   MailIcon: () => null,
   MoreDotIcon: () => null,
   UserIcon: () => null,
@@ -449,6 +450,7 @@ describe("Organization membership management page", () => {
     mount();
     await screen.findAllByText("Alex Member");
     expect(screen.queryByRole("button", { name: "Suspend" })).not.toBeInTheDocument();
+    expect(screen.getByText("Protected")).toBeVisible();
     expect(screen.getByText("You cannot change your own membership.")).toBeVisible();
   });
 
