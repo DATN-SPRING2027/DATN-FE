@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import PlatformPagination from "@/components/platform/PlatformPagination";
@@ -28,6 +29,7 @@ export default function PlatformUsersDirectory({
   model: PlatformOperationsViewModel;
 }) {
   const t = useTranslations("platformUserActions");
+  const roleLabel = useRoleDisplayLabel();
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [restoreModalOpen, setRestoreModalOpen] = useState(false);
@@ -591,7 +593,7 @@ export default function PlatformUsersDirectory({
                               <strong>{membership.organizationName}</strong>
                               <span className="ms-2 text-gray-500">
                                 {membership.status} ·{" "}
-                                {membership.organizationRoles.join(", ") ||
+                                {membership.organizationRoles.map(roleLabel).join(", ") ||
                                   "No role"}
                               </span>
                               <span className="font-mono mt-1 block text-[10px] text-gray-500">

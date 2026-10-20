@@ -66,7 +66,7 @@ describe("sign in form", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a direct link to Platform Operator sign-in", () => {
+  it("keeps a direct link to Admin sign-in", () => {
     render(<SignInForm />);
 
     expect(

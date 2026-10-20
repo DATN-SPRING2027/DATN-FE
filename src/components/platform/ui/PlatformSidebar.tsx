@@ -46,7 +46,7 @@ type PlatformSidebarProps = {
 
 export default function PlatformSidebar({
   activeSection,
-  operatorName = "Platform Operator",
+  operatorName = "Admin",
   operatorEmail,
   onSignOut,
   isSigningOut = false,

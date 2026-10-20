@@ -9,6 +9,7 @@ import { LogOutIcon } from "@/icons/index";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn } from "@/utils";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 
 function getInitials(name?: string) {
   return (name || "?")
@@ -20,29 +21,21 @@ function getInitials(name?: string) {
     .toUpperCase();
 }
 
-function formatRole(roles?: readonly string[]) {
-  const role = roles?.[0];
-  if (!role) return "";
-  if (role === "ADMIN") return "Administrator";
-  return role
-    .toLowerCase()
-    .split(/[_\s]+/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
-
 export default function SidebarAccountFooter({
   isExpandedView,
 }: {
   isExpandedView: boolean;
 }) {
   const t = useTranslations("sidebar.account");
+  const roleLabel = useRoleDisplayLabel();
   const router = useRouter();
   const user = useCurrentUserQuery();
   const logout = useLogoutMutation();
   const [hasLogoutError, setHasLogoutError] = useState(false);
   const name = user.data?.name || user.data?.email || t("defaultName");
-  const role = formatRole(user.data?.roles) || t("defaultRole");
+  const role = user.data?.roles?.[0]
+    ? roleLabel(user.data.roles[0])
+    : t("defaultRole");
 
   const handleLogout = async () => {
     setHasLogoutError(false);

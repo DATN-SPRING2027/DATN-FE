@@ -522,7 +522,7 @@ export default function PlatformOrganizationsView({
                               {formatDate(row.updatedAt)}
                             </p>
                             <p className="text-[10px] text-gray-400">
-                              {index % 2 === 0 ? "by operator" : "by system"}
+                              {index % 2 === 0 ? "by Admin" : "by system"}
                             </p>
                           </td>
 
@@ -729,15 +729,15 @@ export default function PlatformOrganizationsView({
                 </div>
               </div>
 
-              {/* First ADMIN Lookup Card */}
+              {/* Initial Organization Manager lookup card */}
               <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/50">
                 <div className="mb-3">
                   <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200">
-                    First Organization ADMIN
+                    {t("organizations.firstAdminLabel")}
                   </h4>
                   <p className="text-[11px] text-gray-500">
                     Search for an existing active user account to assign as the
-                    primary administrator.
+                    primary Organization Manager.
                   </p>
                 </div>
 

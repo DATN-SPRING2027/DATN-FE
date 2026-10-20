@@ -283,7 +283,7 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     expect(screen.getByText("Minh Anh")).toBeInTheDocument();
-    expect(screen.getByText("Administrator")).toBeInTheDocument();
+    expect(screen.getByText("organizationAdmin")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
 
     expect(logoutAsync).toHaveBeenCalledOnce();

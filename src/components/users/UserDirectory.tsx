@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import ComponentCard from "@/components/common/ComponentCard";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Label from "@/components/form/Label";
 import Select from "@/components/form/Select";
 import Alert from "@/components/ui/alert/Alert";
@@ -20,6 +21,7 @@ const headingClass = "px-5 py-3 text-start text-theme-xs font-medium text-gray-5
 
 export default function UserDirectory() {
   const t = useTranslations("users");
+  const roleLabel = useRoleDisplayLabel();
   const currentUser = useCurrentUserQuery();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<UserStatus | undefined>();
@@ -49,9 +51,9 @@ export default function UserDirectory() {
             <Label htmlFor="user-filter-role">{t("role")}</Label>
             <Select id="user-filter-role" defaultValue="all" onChange={(value) => { setRoleCode(value === "all" ? undefined : value as RoleCode); setPage(1); }} options={[
               { value: "all", label: t("allRoles") },
-              { value: "ADMIN", label: "ADMIN" },
-              { value: "TEAM_LEADER", label: "TEAM_LEADER" },
-              { value: "MEMBER", label: "MEMBER" },
+              { value: "ADMIN", label: roleLabel("ADMIN") },
+              { value: "TEAM_LEADER", label: roleLabel("TEAM_LEADER") },
+              { value: "MEMBER", label: roleLabel("MEMBER") },
             ]} />
           </div>
         </div>
@@ -77,7 +79,7 @@ export default function UserDirectory() {
                       <TableRow key={user.id} className="border-b border-gray-100 last:border-b-0 dark:border-white/5">
                         <TableCell className={cellClass}>{user.fullName}</TableCell>
                         <TableCell className={cellClass}>{user.email}</TableCell>
-                        <TableCell className={cellClass}>{user.roleCodes.join(", ")}</TableCell>
+                        <TableCell className={cellClass}>{user.roleCodes.map(roleLabel).join(", ")}</TableCell>
                         <TableCell className={cellClass}><Badge size="sm" color={user.status === "ACTIVE" ? "success" : user.status === "SUSPENDED" ? "error" : "warning"}>{t(user.status === "ACTIVE" ? "active" : user.status === "SUSPENDED" ? "suspended" : "pendingInvite")}</Badge></TableCell>
                         <TableCell className={cellClass}><button type="button" onClick={() => { setSaved(false); setSelectedUserId(user.id); }} className="font-medium text-brand-500 hover:text-brand-600">{t("viewEdit")}</button></TableCell>
                       </TableRow>
