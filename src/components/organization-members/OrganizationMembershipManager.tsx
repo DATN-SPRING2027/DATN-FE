@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
@@ -8,28 +8,28 @@ import { canManageOrganizationMemberships } from "@/lib/queries/organization-mem
 import { useModal } from "@/hooks/useModal";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
-import ComponentCard from "@/components/common/ComponentCard";
-import PageBreadCrumb from "@/components/common/PageBreadCrumb";
 import Label from "@/components/form/Label";
-import { GroupIcon, MailIcon, UserIcon } from "@/icons";
+import { MailIcon, UserIcon } from "@/icons";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { organizationMembershipReadiness } from "@/lib/queries/organization-memberships/organization-membership-readiness";
+import { createIdempotencyKey, type MembershipListFilter } from "@/lib/queries/organization-memberships/organization-memberships.service";
+import type {
+  AdminInvitation,
+  CancelInvitationInput,
+  InviteMemberInput,
+  OrganizationMembership,
+  ResendInvitationInput,
+  SuspendMembershipInput,
+} from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import {
-  createIdempotencyKey,
-  type MembershipListFilter,
-} from "@/lib/queries/organization-memberships/organization-memberships.service";
-import type { InviteMemberInput } from "@/lib/queries/organization-memberships/organization-memberships.contract";
-import {
+  useCancelOrganizationInvitation,
   useInviteOrganizationMember,
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
+  useResendOrganizationInvitation,
   useSuspendOrganizationMembership,
   type IdempotentInput,
 } from "@/lib/queries/organization-memberships/useOrganizationMemberships";
-import type {
-  OrganizationMembership,
-  SuspendMembershipInput,
-} from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import OrganizationMembershipList from "./OrganizationMembershipList";
 import OrganizationInvitationList from "./OrganizationInvitationList";
 import OrganizationInvitationCreateDialog from "./OrganizationInvitationCreateDialog";
@@ -40,6 +40,7 @@ import OrganizationMembershipActionDialog, {
 
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
+type DirectoryTab = "members" | "invitations";
 
 function getErrorMessageKey(error: unknown, fallbackKey = "failure"): string {
   if (!(error instanceof ApiError)) return "network";
@@ -60,18 +61,26 @@ function LoadingPanel({ label }: { label: string }) {
 
 function ListLoadingPanel({ label }: { label: string }) {
   return (
-    <div role="status" aria-label={label} aria-busy="true" className="space-y-3">
+    <div role="status" aria-label={label} aria-busy="true" className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
       <span className="sr-only">{label}</span>
-      {Array.from({ length: 3 }, (_, index) => (
-        <div key={index} aria-hidden="true" className="flex animate-pulse items-center gap-4 rounded-xl border border-gray-100 px-4 py-3 dark:border-gray-800">
-          <div className="size-10 shrink-0 rounded-full bg-gray-100 dark:bg-gray-800" />
-          <div className="min-w-0 flex-1 space-y-2">
-            <div className="h-4 w-1/3 rounded bg-gray-100 dark:bg-gray-800" />
-            <div className="h-3 w-1/2 rounded bg-gray-100 dark:bg-gray-800" />
+      <div aria-hidden="true" className="hidden grid-cols-4 gap-4 border-b border-gray-100 bg-gray-50 px-5 py-3 lg:grid dark:border-gray-800 dark:bg-white/2">
+        <div className="h-3 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+      </div>
+      <div aria-hidden="true" className="divide-y divide-gray-100 dark:divide-gray-800">
+        {Array.from({ length: 4 }, (_, index) => (
+          <div key={index} className="flex items-center gap-4 px-4 py-4 sm:px-5">
+            <div className="size-10 shrink-0 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <div className="h-4 w-1/3 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+              <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+            </div>
+            <div className="hidden h-6 w-20 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800 sm:block" />
           </div>
-          <div className="hidden h-6 w-20 rounded-full bg-gray-100 dark:bg-gray-800 sm:block" />
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }
@@ -91,13 +100,13 @@ function MembershipStatusSelect({ value, disabled, onChange }: { value: Membersh
   const t = useTranslations("organizationMembers");
   return (
     <div className="w-full sm:w-52">
-      <Label htmlFor="organization-members-status">{t("statusColumn")}</Label>
+      <Label htmlFor="organization-members-status">{t("statusFilterLabel")}</Label>
       <select
         id="organization-members-status"
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as MembershipStatusFilter)}
-        className="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+        className="h-10 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
       >
         <option value="ALL">{t("allStatuses")}</option>
         <option value="PENDING_INVITE">{t("PENDING_INVITE")}</option>
@@ -121,6 +130,8 @@ function ScopedOrganizationMemberships({
   const t = useTranslations("organizationMembers");
   const canManage = canManageOrganizationMemberships(currentUser);
   const inviteDialog = useModal();
+  const [activeTab, setActiveTab] = useState<DirectoryTab>("members");
+  const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [membershipPage, setMembershipPage] = useState(1);
   const [invitationPage, setInvitationPage] = useState(1);
@@ -137,10 +148,19 @@ function ScopedOrganizationMemberships({
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
   const invite = useInviteOrganizationMember(actorId, organizationId);
   const suspend = useSuspendOrganizationMembership(actorId, organizationId);
+  const resend = useResendOrganizationInvitation(actorId, organizationId);
+  const cancelInvitation = useCancelOrganizationInvitation(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
-  const canSendInvitation = organizationMembershipReadiness.invitationCommands.status === "READY";
-  const actionMutation = target?.action === "suspend" ? suspend : undefined;
+  const canSendInvitation = canManage && organizationMembershipReadiness.invitationCommands.status === "READY";
+  const canManageInvitationCommands = canManage && organizationMembershipReadiness.invitationCommands.status === "READY";
+  const actionMutation = target?.action === "suspend"
+    ? suspend
+    : target?.action === "resend"
+      ? resend
+      : target?.action === "cancel"
+        ? cancelInvitation
+        : undefined;
   const hasUnresolvedMutation = Boolean(actionMutation?.isPending || actionMutation?.isError);
 
   async function refreshLists(): Promise<boolean> {
@@ -151,12 +171,18 @@ function ScopedOrganizationMemberships({
     return results.every((result) => !result.isError);
   }
 
+  function resetActionMutation(actionTarget: MembershipActionTarget | null) {
+    if (actionTarget?.action === "suspend") suspend.reset();
+    if (actionTarget?.action === "resend") resend.reset();
+    if (actionTarget?.action === "cancel") cancelInvitation.reset();
+  }
+
   async function recoverActionBeforeNewCommand() {
     setIsRefreshingAction(true);
     setActionRefreshFailed(false);
     try {
       if (await refreshLists()) {
-        actionMutation?.reset();
+        resetActionMutation(target);
         setTarget(null);
         setNotice(false);
       } else {
@@ -170,9 +196,13 @@ function ScopedOrganizationMemberships({
   }
 
   function openAction(next: MembershipActionTarget) {
-    if (hasUnresolvedMutation || next.action !== "suspend") return;
+    if (hasUnresolvedMutation || !canManage) return;
+    if ((next.action === "resend" || next.action === "cancel") && !canManageInvitationCommands) return;
     suspend.reset();
+    resend.reset();
+    cancelInvitation.reset();
     setNotice(false);
+    setActionRefreshFailed(false);
     setTarget(next);
   }
 
@@ -211,39 +241,98 @@ function ScopedOrganizationMemberships({
     setTarget(null);
   }
 
-  async function executeAction(actionTarget: Extract<MembershipActionTarget, { action: "suspend" }>, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
-    const input: IdempotentInput<SuspendMembershipInput & { membershipId: string }> = {
-      input: { membershipId: actionTarget.membership.id, expectedMembershipVersion: actionTarget.membership.version, reasonCode: reasonCode as SuspendMembershipInput["reasonCode"] },
-      idempotencyKey,
-    };
-    await suspend.mutateAsync(input);
+  async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
+    if (actionTarget.action === "suspend") {
+      const input: IdempotentInput<SuspendMembershipInput & { membershipId: string }> = {
+        input: {
+          membershipId: actionTarget.membership.id,
+          expectedMembershipVersion: actionTarget.membership.version,
+          reasonCode: reasonCode as SuspendMembershipInput["reasonCode"],
+        },
+        idempotencyKey,
+      };
+      await suspend.mutateAsync(input);
+    } else if (actionTarget.action === "resend") {
+      const input: IdempotentInput<ResendInvitationInput & { invitationId: string }> = {
+        input: {
+          invitationId: actionTarget.invitation.id,
+          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
+          expectedInvitationVersion: actionTarget.invitation.version,
+          reasonCode: reasonCode as ResendInvitationInput["reasonCode"],
+        },
+        idempotencyKey,
+      };
+      await resend.mutateAsync(input);
+    } else {
+      const input: IdempotentInput<CancelInvitationInput & { invitationId: string }> = {
+        input: {
+          invitationId: actionTarget.invitation.id,
+          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
+          expectedInvitationVersion: actionTarget.invitation.version,
+          reasonCode: "INVITATION_CANCELLED",
+        },
+        idempotencyKey,
+      };
+      await cancelInvitation.mutateAsync(input);
+    }
     setTarget(null);
     setNotice(true);
   }
 
   function confirmAction(reasonCode: MembershipActionReasonCode) {
-    if (!target || target.action !== "suspend") return;
+    if (!target || hasUnresolvedMutation) return;
     void executeAction(target, reasonCode).catch(() => undefined);
   }
 
   function retryAction() {
-    if (!target || target.action !== "suspend" || !actionMutation?.variables) return;
-    const key = actionMutation.variables.idempotencyKey;
-    const reasonCode = actionMutation.variables.input.reasonCode;
-    void executeAction(target, reasonCode, key).catch(() => undefined);
+    if (!target) return;
+    if (target.action === "suspend" && suspend.variables) {
+      void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.idempotencyKey).catch(() => undefined);
+    }
+    if (target.action === "resend" && resend.variables) {
+      void executeAction(target, resend.variables.input.reasonCode, resend.variables.idempotencyKey).catch(() => undefined);
+    }
+    if (target.action === "cancel" && cancelInvitation.variables) {
+      void executeAction(target, cancelInvitation.variables.input.reasonCode, cancelInvitation.variables.idempotencyKey).catch(() => undefined);
+    }
   }
 
   const readyMembers = memberships.isSuccess && !memberships.isFetching ? memberships.data : undefined;
   const readyInvitations = invitations.isSuccess && !invitations.isFetching ? invitations.data : undefined;
   const modalError = actionMutation?.isError ? actionMutation.error : undefined;
 
+  function changeTab(next: DirectoryTab) {
+    setActiveTab(next);
+    tabRefs.current[next]?.focus();
+  }
+
+  function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, current: DirectoryTab) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const next: DirectoryTab = event.key === "Home"
+      ? "members"
+      : event.key === "End"
+        ? "invitations"
+        : current === "members"
+          ? "invitations"
+          : "members";
+    changeTab(next);
+  }
+
   return (
-    <div className="space-y-6">
-      <PageBreadCrumb pageTitle={t("title")} homeLabel={t("home")} showTitle={false} breadcrumbLabel={t("breadcrumbLabel")} />
+    <div className="space-y-4">
+      <nav aria-label={t("breadcrumbLabel")}>
+        <ol className="flex flex-wrap items-center gap-2 text-sm">
+          <li className="text-gray-500 dark:text-gray-400">{t("organizationBreadcrumb")}</li>
+          <li aria-hidden="true" className="text-gray-400">›</li>
+          <li aria-current="page" className="font-medium text-gray-800 dark:text-white/90">{t("membersTab")}</li>
+        </ol>
+      </nav>
+
       <header className="flex flex-col gap-4 border-b border-gray-200 pb-5 dark:border-gray-800 sm:flex-row sm:items-start sm:justify-between sm:pb-6">
         <div>
           <p className="text-sm font-medium text-brand-600 dark:text-brand-400">{t("organizationScope")}</p>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-white/90">{t("membersTab")}</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-300">{t("description")}</p>
         </div>
         {canManage && (
@@ -256,56 +345,117 @@ function ScopedOrganizationMemberships({
       {notice && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("actionAccepted")}</div>}
       {inviteSuccess && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("inviteAccepted")}</div>}
 
-      <ComponentCard title={t("membersTitle")} desc={t("membersDescription")}>
-        <div className="flex flex-col gap-4 border-b border-gray-100 pb-4 dark:border-gray-800 sm:flex-row sm:items-end sm:justify-between">
-          {readyMembers ? (
-            <p aria-live="polite" className="text-sm font-medium text-gray-600 dark:text-gray-300">
-              {t("membersCount", { count: readyMembers.pagination.totalItems })}
-            </p>
-          ) : memberships.isFetching ? (
-            <div aria-hidden="true" className="h-4 w-24 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-          ) : <span />}
-          <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
+      <section aria-label={t("directoryLabel")} className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
+        <div role="tablist" aria-label={t("directoryTabsLabel")} className="flex gap-6 border-b border-gray-100 px-4 sm:px-6 dark:border-gray-800">
+          <button
+            ref={(element) => { tabRefs.current.members = element; }}
+            id="organization-members-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "members"}
+            aria-controls="organization-members-panel"
+            tabIndex={activeTab === "members" ? 0 : -1}
+            onClick={() => setActiveTab("members")}
+            onKeyDown={(event) => onTabKeyDown(event, "members")}
+            className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${activeTab === "members" ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"}`}
+          >
+            {t("membersTab")}
+            {readyMembers && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{readyMembers.pagination.totalItems}</span>}
+          </button>
+          <button
+            ref={(element) => { tabRefs.current.invitations = element; }}
+            id="organization-invitations-tab"
+            type="button"
+            role="tab"
+            aria-selected={activeTab === "invitations"}
+            aria-controls="organization-invitations-panel"
+            tabIndex={activeTab === "invitations" ? 0 : -1}
+            onClick={() => setActiveTab("invitations")}
+            onKeyDown={(event) => onTabKeyDown(event, "invitations")}
+            className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${activeTab === "invitations" ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"}`}
+          >
+            {t("invitationsTab")}
+            {readyInvitations && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{readyInvitations.pagination.totalItems}</span>}
+          </button>
         </div>
-        {memberships.isFetching && <ListLoadingPanel label={t("membersLoading")} />}
-        {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
-        {readyMembers && readyMembers.data.length === 0 && (
-          <div role="status" className="flex items-center gap-4 rounded-xl border border-dashed border-gray-300 px-4 py-5 dark:border-gray-700">
-            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-gray-50 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
-              <GroupIcon className="size-5" />
-            </span>
-            <p className="text-sm text-gray-600 dark:text-gray-300">{t("membersEmpty")}</p>
-          </div>
-        )}
-        {readyMembers && readyMembers.data.length > 0 && (
-          <OrganizationMembershipList
-            page={readyMembers}
-            actorId={actorId}
-            actionsDisabled={hasUnresolvedMutation || !canManage}
-            onPageChange={setMembershipPage}
-            onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
-          />
-        )}
-      </ComponentCard>
 
-      <ComponentCard title={t("invitationsTitle")} desc={t("invitationsDescription")}>
-        {invitations.isFetching && <ListLoadingPanel label={t("invitationsLoading")} />}
-        {invitations.isError && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
-        {readyInvitations && readyInvitations.data.length === 0 && (
-          <div role="status" className="flex items-center gap-4 rounded-xl border border-dashed border-gray-300 px-4 py-5 dark:border-gray-700">
-            <span aria-hidden="true" className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
-              <MailIcon className="size-5" />
-            </span>
-            <div>
-              <p className="text-sm font-medium text-gray-800 dark:text-white/90">{t("invitationsEmpty")}</p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("invitationsEmptyDescription")}</p>
+        <div id="organization-members-panel" role="tabpanel" aria-labelledby="organization-members-tab" tabIndex={0} hidden={activeTab !== "members"} className="p-4 sm:p-6">
+          {activeTab === "members" && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 dark:border-gray-800 sm:flex-row sm:items-end sm:justify-between">
+                {readyMembers ? (
+                  <p aria-live="polite" className="text-sm font-medium text-gray-600 dark:text-gray-300">{t("membersCount", { count: readyMembers.pagination.totalItems })}</p>
+                ) : memberships.isFetching ? (
+                  <div aria-hidden="true" className="h-4 w-24 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                ) : <span />}
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                  {status !== "ALL" && <Button size="sm" variant="outline" className="h-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={() => { setStatus("ALL"); setMembershipPage(1); }}>{t("clearFilters")}</Button>}
+                  <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
+                </div>
+              </div>
+              {memberships.isFetching && <ListLoadingPanel label={t("membersLoading")} />}
+              {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
+              {readyMembers && readyMembers.data.length === 0 && (
+                <div role="status" className="flex flex-col gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-700">
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{status === "ALL" ? t("noMembersYet") : t("membersEmpty")}</p>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{status === "ALL" ? t("noMembersDescription") : t("membersEmptyDescription")}</p>
+                  </div>
+                  {status === "ALL" && canManage && <Button size="sm" className="shrink-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" onClick={openInviteDialog}>{t("inviteButton")}</Button>}
+                </div>
+              )}
+              {readyMembers && readyMembers.data.length > 0 && (
+                <OrganizationMembershipList
+                  page={readyMembers}
+                  actorId={actorId}
+                  canManageActions={canManage}
+                  actionsDisabled={hasUnresolvedMutation}
+                  onPageChange={setMembershipPage}
+                  onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
+                />
+              )}
             </div>
-          </div>
-        )}
-        {readyInvitations && readyInvitations.data.length > 0 && (
-          <OrganizationInvitationList page={readyInvitations} actionsEnabled={organizationMembershipReadiness.invitationCommands.status === "READY"} onPageChange={setInvitationPage} onAction={(action, invitation) => openAction({ action, invitation })} />
-        )}
-      </ComponentCard>
+          )}
+        </div>
+
+        <div id="organization-invitations-panel" role="tabpanel" aria-labelledby="organization-invitations-tab" tabIndex={0} hidden={activeTab !== "invitations"} className="p-4 sm:p-6">
+          {activeTab === "invitations" && (
+            <div className="space-y-4">
+              <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white/90">{t("invitationsTitle")}</h2>
+                  <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("invitationsDescription")}</p>
+                </div>
+                {readyInvitations && <p aria-live="polite" className="text-sm text-gray-500 dark:text-gray-400">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</p>}
+              </div>
+              {invitations.isFetching && <ListLoadingPanel label={t("invitationsLoading")} />}
+              {invitations.isError && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
+              {readyInvitations && readyInvitations.data.some((invitation) => invitation.status === "PENDING") && canManage && !canManageInvitationCommands && (
+                <p role="status" className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">{t("invitationActionsBlocked")}</p>
+              )}
+              {readyInvitations && readyInvitations.data.length === 0 && (
+                <div role="status" className="flex items-center gap-3 rounded-xl border border-dashed border-gray-300 px-4 py-4 dark:border-gray-700">
+                  <span aria-hidden="true" className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
+                    <MailIcon className="size-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-white/90">{t("invitationsEmpty")}</p>
+                    <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">{t("invitationsEmptyDescription")}</p>
+                  </div>
+                </div>
+              )}
+              {readyInvitations && readyInvitations.data.length > 0 && (
+                <OrganizationInvitationList
+                  page={readyInvitations}
+                  actionsEnabled={canManageInvitationCommands && !hasUnresolvedMutation}
+                  onPageChange={setInvitationPage}
+                  onAction={(action, invitation: AdminInvitation) => openAction({ action, invitation })}
+                />
+              )}
+            </div>
+          )}
+        </div>
+      </section>
 
       <OrganizationMembershipActionDialog
         key={target ? `${target.action}:${target.action === "suspend" ? target.membership.id : target.invitation.id}` : "closed"}

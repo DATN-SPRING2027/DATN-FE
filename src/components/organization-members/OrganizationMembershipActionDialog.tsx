@@ -41,6 +41,10 @@ function getHintKey(target: MembershipActionTarget): string {
   return target.action === "suspend" ? "suspendHint" : target.action === "resend" ? "resendHint" : "cancelHint";
 }
 
+function getConfirmKey(target: MembershipActionTarget): string {
+  return target.action === "suspend" ? "confirmSuspend" : target.action === "resend" ? "confirmResend" : "confirmCancelInvitation";
+}
+
 export default function OrganizationMembershipActionDialog({
   target,
   error,
@@ -123,7 +127,7 @@ export default function OrganizationMembershipActionDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="organization-members-action-title"
-        aria-describedby="organization-members-action-hint"
+        aria-describedby="organization-members-action-hint organization-members-action-target"
         onKeyDown={trapFocus}
         className="rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
       >
@@ -131,6 +135,10 @@ export default function OrganizationMembershipActionDialog({
           <div>
         <h2 id="organization-members-action-title" className="text-lg font-semibold text-gray-900 dark:text-white/90">{t(getTitleKey(activeTarget))}</h2>
             <p id="organization-members-action-hint" className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{t(getHintKey(activeTarget))}</p>
+            <p id="organization-members-action-target" className="mt-3 text-sm text-gray-700 dark:text-gray-200">
+              <span className="font-medium">{t("actionTargetLabel")}:</span>{" "}
+              <span>{activeTarget.action === "suspend" ? activeTarget.membership.user?.fullName || activeTarget.membership.user?.email || t("nameUnavailable") : activeTarget.invitation.email}</span>
+            </p>
           </div>
           <button type="button" onClick={onClose} disabled={busy || hasUnresolvedError} aria-label={t("close")} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:hover:bg-gray-800">
             <span aria-hidden="true">×</span>
@@ -166,8 +174,8 @@ export default function OrganizationMembershipActionDialog({
         {isPending && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("working")}</p>}
         {isRecovering && <p role="status" className="mb-4 text-sm text-gray-500 dark:text-gray-400">{t("refreshingBeforeNewAction")}</p>}
         <form onSubmit={submit} className="flex flex-wrap justify-end gap-3">
-          <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError} onClick={onClose}>{t("cancel")}</Button>
-          <Button type="submit" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError || (reasonOptions.length > 0 && !reason)}>{busy ? t("working") : t("confirm")}</Button>
+          <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError} onClick={onClose}>{t("dialogCancel")}</Button>
+          <Button type="submit" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={busy || hasUnresolvedError || (reasonOptions.length > 0 && !reason)}>{busy ? t("working") : t(getConfirmKey(activeTarget))}</Button>
         </form>
       </div>
     </Modal>
