@@ -250,9 +250,7 @@ it("denied add disables only add until access is checked again", async () => {
   expect(addFormSubmitButton()).toBeDisabled();
   expect(screen.getByRole("button", { name: "Remove" })).toBeEnabled();
   fireEvent.click(screen.getByRole("button", { name: "Check access again" }));
-  await waitFor(() =>
-    expect(addFormSubmitButton()).toBeEnabled(),
-  );
+  await waitFor(() => expect(addFormSubmitButton()).toBeEnabled());
 });
 it("denied remove disables remove and keeps the member visible", async () => {
   api.mockImplementation(async (endpoint, options) => {
@@ -540,7 +538,12 @@ it("does not offer removal for inactive memberships", async () => {
   ).not.toBeInTheDocument();
 });
 it("does not send any unsupported operations", async () => {
-  respond();
+  api.mockImplementation(async (endpoint) => {
+    if (endpoint === "/auth/me") return user;
+    if (endpoint === "/iam/projects/project-1/leaders")
+      throw new ApiError(403, "FORBIDDEN", "Forbidden");
+    return page();
+  });
   mount();
   await findMember("user-1");
   const requests = api.mock.calls.filter(
@@ -551,16 +554,18 @@ it("does not send any unsupported operations", async () => {
       ([endpoint, options]) =>
         (endpoint.startsWith("/iam/projects/project-1/memberships") ||
           endpoint ===
-            "/iam/projects/project-1/member-candidates?email=user-2%40example.test") &&
-        ["GET", "POST", "DELETE"].includes(options?.method ?? "GET"),
+            "/iam/projects/project-1/member-candidates?email=user-2%40example.test" ||
+          endpoint === "/iam/projects/project-1/leaders") &&
+        ["GET", "POST", "DELETE", "PUT"].includes(options?.method ?? "GET"),
     ),
   ).toBe(true);
   expect(
     requests.some(
       ([endpoint, options]) =>
-        endpoint.includes("leaders") ||
+        (endpoint.includes("leaders") &&
+          (options?.method ?? "GET") !== "GET") ||
         options?.method === "PATCH" ||
-        options?.method === "PUT",
+        (options?.method === "PUT" && !endpoint.endsWith("/leaders")),
     ),
   ).toBe(false);
 });
@@ -585,7 +590,9 @@ it("retains input after a failed add following a previous success", async () => 
       "The request could not be completed. Check your connection and refresh the list before repeating a change.",
     ),
   ).toBeVisible();
-  expect(screen.getByLabelText(/Search by email/i)).toHaveValue("user-3@example.test");
+  expect(screen.getByLabelText(/Search by email/i)).toHaveValue(
+    "user-3@example.test",
+  );
 });
 it("rejects invalid Project context without leaving a loading screen", async () => {
   respond();
@@ -821,7 +828,8 @@ it("searches candidates by email within the Organization and adds selected candi
   const addCandidateButtons = screen.getAllByRole("button", {
     name: "Add member",
   });
-  const addCandidateButton = addCandidateButtons[addCandidateButtons.length - 1];
+  const addCandidateButton =
+    addCandidateButtons[addCandidateButtons.length - 1];
   expect(addCandidateButton).toBeEnabled();
 
   fireEvent.click(addCandidateButton);

@@ -1,5 +1,7 @@
 # Project visibility — completed approved amendment
 
+> **Current-contract note (2026-10-20):** The earlier Admin-only visibility rule below is superseded. Both an Organization ADMIN with the exact Organization-scoped permission and a Project-scoped TEAM_LEADER with the exact Project permission may manage visibility. See `DATN-BE/docs/decisions/project-access-visibility-v1.md` and `research-docs/Workspace/13-project-mvp-contract-v1.md` for the canonical contract.
+
 ## Current scope
 
 The requester approved PRIVATE to PUBLIC and PUBLIC to PRIVATE, then authorized
@@ -14,9 +16,10 @@ GET /api/v1/iam/projects/{projectId}/visibility uses exactly the existing PATCH
 authorization guard. A 200 returns {canManageVisibility:true}; 403 means denied.
 This is a read-only access check, not a mutation probe, and does not create audit
 entries. PATCH on the same path accepts only visibility PRIVATE or PUBLIC. Both
-directions use project.visibility.manage, ACTIVE OrganizationMembership and the
-existing Organization-scoped ADMIN assignment/Role.permissions checks. Mutation
-authorization is checked again inside the MongoDB transaction with audit.
+directions use `project.visibility.manage` and an ACTIVE OrganizationMembership.
+Authorization accepts either an Organization-scoped ADMIN assignment or a
+Project-scoped TEAM_LEADER assignment with the permission in its proper scope.
+Mutation authorization is checked again inside the MongoDB transaction with audit.
 A same-state request returns 409. Archived/cross-organization Projects fail closed.
 No new permission, role, persistent field, schema or migration is introduced.
 

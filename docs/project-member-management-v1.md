@@ -1,12 +1,16 @@
 # Project member management V1 — frontend
 
+> **Current-contract note (2026-10-20):** This document's original response-driven member controls describe the earlier member-only UI. They are superseded where they conflict with the Project MVP contract below. The current FE includes Project Leaders management for Organization ADMIN and an exact-permission TEAM_LEADER workflow. The canonical shared contract is `DATN-BE/docs/decisions/project-access-visibility-v1.md` and `research-docs/Workspace/13-project-mvp-contract-v1.md`.
+
 ## Scope and entry point
 
 Open a Project detail page and choose **Project members**, or visit
 `/projects/{projectId}/members`. The route remains inside the localized admin
 shell and uses the current authenticated Organization context through the BFF.
-The current member-management contract includes the candidate-search endpoint
-listed below. It adds no database schema or permission provisioning.
+The member-management contract includes the candidate-search endpoint listed
+below. The Project MVP additionally supports safe Project Leader assignment,
+replacement and revocation through the endpoints documented below. It adds no
+database schema or permission provisioning.
 
 The accepted references are DATN-BE's
 `docs/decisions/project-access-visibility-v1.md` and
@@ -21,6 +25,11 @@ not used to invent endpoints or additional fields.
 | Search | `GET /api/v1/iam/projects/{projectId}/member-candidates`             | `email` query; up to 50 active Organization members, with `isProjectMember`     |
 | Add    | `POST /api/v1/iam/projects/{projectId}/memberships`                  | Body contains only the explicitly selected candidate's `userId`                 |
 | Remove | `DELETE /api/v1/iam/projects/{projectId}/memberships/{membershipId}` | Confirmation required in UI; `204` has no JSON body                             |
+| Leaders | `GET /api/v1/iam/projects/{projectId}/leaders`                       | Safe profile projection; Organization ADMIN only                                |
+| Candidate | `GET /api/v1/iam/projects/{projectId}/leader-candidates?email=...` | Active Project MEMBER email matches; Organization ADMIN only                     |
+| Assign | `POST /api/v1/iam/projects/{projectId}/leaders`                      | Body contains selected `userId`; Organization ADMIN only                         |
+| Replace | `PUT /api/v1/iam/projects/{projectId}/leaders`                      | Body contains current `previousUserId` and selected `nextUserId`; ADMIN only      |
+| Revoke | `DELETE /api/v1/iam/projects/{projectId}/leaders/{userId}`            | Organization ADMIN only; membership remains and assignment demotes to MEMBER    |
 
 Browser requests use the existing `/api/backend/iam/...` BFF. Candidate search
 uses case-insensitive literal email matching, searches only active Users with
@@ -30,9 +39,11 @@ current Project members as ineligible. The endpoint requires
 debounces complete, valid email input by 250 ms and requires explicit candidate
 selection before adding. It never sends the email string as a `userId`.
 Membership rows show the documented membership fields and available user
-profile fields. There is no role editor, generic membership PATCH, leader
-appointment or visibility mutation. Inactive records remain visible in the
-appropriate filter; only active records offer removal.
+profile fields. There is no generic role editor or membership PATCH. Dedicated
+Leader controls are separate from ordinary membership removal: only an
+Organization ADMIN can assign, replace or revoke Leaders, and Leader changes
+do not remove membership. Inactive records remain visible in the appropriate
+filter; only active records offer removal.
 
 Resource IDs are opaque according to the accepted OpenAPI. FE rejects missing
 or whitespace-only inputs and encodes path segments; BE validates storage
@@ -53,17 +64,19 @@ projection. The FE therefore uses the documented responses themselves:
 - **Check access again** clears previous mutation results and refreshes the
   list. The next requested mutation is independently reauthorized by BE; this
   button does not assert that its permissions have been granted.
-- No role code, title, Project visibility or creator identity is used for
+- No role title, Project visibility or creator identity is used for
   authorization. The server remains authoritative for every request.
-- Organization ADMIN (displayed as “Manager”) does not implicitly gain Project
-  member management.
+- A Project-scoped TEAM_LEADER gets member operations only through the exact
+  Project permissions. Organization ADMIN does not implicitly gain ordinary
+  membership add/remove rights. The separate Leader-management endpoints are
+  Organization ADMIN-only and require `project.leader.manage`.
   Archived Projects and invalid/inactive memberships remain subject to BE's
   fail-closed decisions.
 
-This provides response-driven controls while keeping the server authoritative.
-If a future requirement is to hide or enable actions based on permissions
-_before the first attempt_, it needs a separately accepted server permission
-projection. This implementation does not fabricate such a field or endpoint.
+The FE uses the dedicated `settings-access` signal for Project detail editing,
+and responses/denials for member mutations. Leader management is displayed only
+for an Organization ADMIN context, while every action is independently
+reauthorized by BE. This presentation never replaces server authorization.
 
 ## Errors, state and concurrency
 
@@ -247,3 +260,13 @@ cross-Project counts are not shown because the accepted membership response
 does not contain them. Search remains local to the loaded page; API operations,
 authorization behavior and payloads are unchanged. The table retains its own
 horizontal scroll area on narrow screens and TailAdmin light/dark theme tokens.
+
+## Current Project MVP verification
+
+The Project MVP completion adds `ProjectLeaders.spec.tsx` coverage for safe
+leader projection parsing, admin visibility, candidate selection by email,
+assign/reassign/revoke, explicit confirmation, multiple or zero Leaders and
+query invalidation. Existing member controls remain independent of Leader
+appointment. On 2026-10-20, `npm run check` passed all 561 tests, ESLint,
+TypeScript and production build. Live authenticated browser checks were not run
+without an approved disposable runtime. No database schema or migration changed.
