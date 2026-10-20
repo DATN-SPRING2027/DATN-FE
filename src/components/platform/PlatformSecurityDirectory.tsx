@@ -1,6 +1,7 @@
 "use client";
 
 import Button from "@/components/ui/button/Button";
+import { useTranslations } from "next-intl";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
@@ -19,6 +20,7 @@ export default function PlatformSecurityDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const t = useTranslations("platformConsole.security");
   const {
     canReadSessions,
     userSessions,
@@ -41,7 +43,7 @@ export default function PlatformSecurityDirectory({
       ) : (
         <section className={`${box} overflow-hidden`}>
           <div className="border-b border-gray-100 p-5 dark:border-gray-800">
-            <h2 className="text-sm font-bold">Operator sessions</h2>
+            <h2 className="text-sm font-bold">{t("adminSessions")}</h2>
             <p className="mt-1 text-xs text-gray-500">
               Session metadata for the authenticated Platform account.
             </p>
@@ -122,7 +124,7 @@ export default function PlatformSecurityDirectory({
           )}
           {userSessions.data?.pagination && (
             <PlatformPagination
-              ariaLabel="Operator sessions"
+              ariaLabel={t("adminSessions")}
               page={userSessions.data.pagination.page}
               totalPages={userSessions.data.pagination.totalPages}
               totalItems={userSessions.data.pagination.totalItems}
@@ -133,8 +135,7 @@ export default function PlatformSecurityDirectory({
             (session) => session.userId === operatorId,
           ) && (
             <p className="border-t border-gray-100 px-5 py-3 text-[11px] text-amber-700 dark:border-gray-800 dark:text-amber-400">
-              Revoke is withheld for current-operator sessions because the API
-              does not identify which session belongs to this browser.
+              {t("currentAdminSessionGuard")}
             </p>
           )}
           {selectedSessionId && (

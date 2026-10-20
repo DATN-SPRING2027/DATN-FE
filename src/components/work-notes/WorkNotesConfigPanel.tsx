@@ -3,12 +3,14 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import { CheckCircleIcon, PlusIcon, SettingsIcon, TrashBinIcon } from "@/icons";
 
 const FIELD_CLASS = "h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300";
 
 export default function WorkNotesConfigPanel() {
   const t = useTranslations("workNotes");
+  const roleLabel = useRoleDisplayLabel();
   const weekdays = (["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"] as const).map((value) => ({
     value,
     label: t(`config.days.${value}`),
@@ -73,7 +75,7 @@ export default function WorkNotesConfigPanel() {
         <ConfigSection title={t("config.permissionsTitle")} description={t("config.permissionsDescription")} className="@4xl:col-span-2">
           <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
             <table className="w-full min-w-[38rem] text-start text-xs">
-              <thead className="bg-gray-50 dark:bg-gray-950/60"><tr><th scope="col" className="px-4 py-3 text-start font-semibold uppercase tracking-wide text-gray-500">{t("config.capability")}</th>{["MEMBER", "LEADER", "ADMIN"].map((role) => <th key={role} scope="col" className="px-4 py-3 text-center font-semibold uppercase tracking-wide text-gray-500">{t(`roles.${role}`)}</th>)}</tr></thead>
+              <thead className="bg-gray-50 dark:bg-gray-950/60"><tr><th scope="col" className="px-4 py-3 text-start font-semibold uppercase tracking-wide text-gray-500">{t("config.capability")}</th>{["MEMBER", "LEADER", "ADMIN"].map((role) => <th key={role} scope="col" className="px-4 py-3 text-center font-semibold uppercase tracking-wide text-gray-500">{roleLabel(role)}</th>)}</tr></thead>
               <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
                 {(["viewProjectContent", "createNotes", "submitWeeklyReports", "reviewKnowledge", "manageConfiguration"] as const).map((capability) => (
                   <tr key={capability}><th scope="row" className="px-4 py-3 text-start font-medium text-gray-700 dark:text-gray-300">{t(`config.capabilities.${capability}`)}</th>{(["MEMBER", "LEADER", "ADMIN"] as const).map((role) => {

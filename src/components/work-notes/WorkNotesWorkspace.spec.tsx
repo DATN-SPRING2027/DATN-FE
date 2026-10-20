@@ -75,7 +75,7 @@ beforeEach(() => {
 it("shows only the signed-in Member experience", () => {
   renderWorkspace(["MEMBER"]);
 
-  expect(screen.getByText("workNotes.roles.MEMBER")).toBeVisible();
+  expect(screen.getByText("roleLabels.member")).toBeVisible();
   expect(screen.getByRole("button", { name: "workNotes.createNote" })).toBeVisible();
   expect(screen.queryByRole("group", { name: "workNotes.rolePreviewLabel" })).not.toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "workNotes.leaderSummaryLabel" })).not.toBeInTheDocument();
@@ -148,7 +148,7 @@ it("uses the requested note type when a mounted create dialog opens", () => {
 it("shows only the signed-in Leader experience", () => {
   renderWorkspace(["TEAM_LEADER"]);
 
-  expect(screen.getByText("workNotes.roles.LEADER")).toBeVisible();
+  expect(screen.getByText("roleLabels.teamLeader")).toBeVisible();
   expect(screen.getByRole("region", { name: "workNotes.leaderSummaryLabel" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "workNotes.createNote" })).not.toBeInTheDocument();
   expect(screen.queryByRole("tab", { name: "workNotes.tabs.CONFIG" })).not.toBeInTheDocument();
@@ -157,7 +157,7 @@ it("shows only the signed-in Leader experience", () => {
 it("shows only the signed-in Organization Admin experience", () => {
   renderWorkspace(["ADMIN"]);
 
-  expect(screen.getByText("workNotes.roles.ADMIN")).toBeVisible();
+  expect(screen.getByText("roleLabels.organizationAdmin")).toBeVisible();
   expect(screen.getByRole("tab", { name: "workNotes.tabs.CONFIG" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "workNotes.createNote" })).not.toBeInTheDocument();
   expect(screen.queryByRole("region", { name: "workNotes.leaderSummaryLabel" })).not.toBeInTheDocument();

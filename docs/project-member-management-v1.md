@@ -55,7 +55,8 @@ projection. The FE therefore uses the documented responses themselves:
   button does not assert that its permissions have been granted.
 - No role code, title, Project visibility or creator identity is used for
   authorization. The server remains authoritative for every request.
-- Organization ADMIN does not implicitly gain Project member management.
+- Organization ADMIN (displayed as “Manager”) does not implicitly gain Project
+  member management.
   Archived Projects and invalid/inactive memberships remain subject to BE's
   fail-closed decisions.
 

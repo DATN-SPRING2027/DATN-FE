@@ -8,6 +8,19 @@ to the existing user directory and detail view, backed by versioned Platform
 API mutations and atomic audit writes. The existing `/platform` console and
 shared API/query patterns remain in use.
 
+## Role display labels
+
+The console uses business-facing labels for role codes. This is a display-only
+mapping; stored role codes, API values, permissions, and authorization behavior
+remain unchanged.
+
+| Role code | Display label |
+| --- | --- |
+| `PLATFORM_OPERATOR` | Admin |
+| `ADMIN` | Manager |
+| `TEAM_LEADER` | Project Leader |
+| `MEMBER` | Member |
+
 The FE branch is `feat/Thang-platform-user-management-fe-ui`, based on FE
 `origin/main` at `099516fc3732d212a960d25792a558d20a981a10`. The BE branch is
 `feat/Thang-platform-user-management-be-api`, based on BE `origin/main` at
