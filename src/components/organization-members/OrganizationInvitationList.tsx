@@ -41,7 +41,7 @@ export default function OrganizationInvitationList({
             const actions = getInvitationActions(invitation);
             return (
               <TableRow key={invitation.id} className="grid grid-cols-2 gap-x-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 lg:table-row lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-gray-100 lg:p-0 lg:shadow-none dark:lg:border-gray-800">
-                <TableCell className="col-span-2 min-w-0 break-all px-0 py-0 text-sm font-medium text-gray-800 dark:text-white/90 lg:table-cell lg:px-5 lg:py-4">{invitation.email}</TableCell>
+                <TableCell className="col-span-2 min-w-0 break-all px-0 py-0 text-sm font-medium text-gray-800 dark:text-white/90 lg:table-cell lg:px-5 lg:py-4">{invitation.invitedEmail}</TableCell>
                 <TableCell className="col-span-1 flex items-center gap-2 px-0 py-2 text-sm text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-4">
                   <span className="text-theme-xs font-medium text-gray-500 lg:sr-only">{t("invitationState")}</span>
                   {t("invitationPending")}

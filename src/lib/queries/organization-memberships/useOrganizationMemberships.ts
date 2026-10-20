@@ -9,7 +9,7 @@ import type {
   SetOrganizationMembershipRoleInput,
   SuspendMembershipInput,
 } from "./organization-memberships.contract";
-import type { MembershipMutationAck } from "./organization-memberships.contract";
+import type { OrganizationMutationAck } from "./organization-memberships.contract";
 import {
   cancelOrganizationInvitation,
   inviteOrganizationMember,
@@ -72,10 +72,10 @@ export function useOrganizationInvitationsQuery(
 function useMembershipMutation<TInput>(
   actorId: string,
   organizationId: string,
-  mutationFn: (input: TInput) => Promise<MembershipMutationAck>,
+  mutationFn: (input: TInput) => Promise<OrganizationMutationAck>,
 ) {
   const queryClient = useQueryClient();
-  return useMutation<MembershipMutationAck, Error, TInput>({
+  return useMutation<OrganizationMutationAck, Error, TInput>({
     retry: false,
     throwOnError: false,
     networkMode: "always",

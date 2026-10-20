@@ -17,15 +17,21 @@ import { ArrowRightIcon, EnvelopeIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
 import styles from "./auth-experience.module.css";
+import { isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
 
 export default function SignInForm({
   googleStatus,
+  returnTo,
+  initialEmail,
 }: {
   googleStatus?: "organization-required" | "failed" | "cancelled";
+  returnTo?: string;
+  initialEmail?: string;
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
-  const [email, setEmail] = useState("");
+  const safeReturnTo = isSafeInvitationReturnTo(returnTo) ? returnTo : undefined;
+  const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
   const [organizations, setOrganizations] = useState<
@@ -40,9 +46,9 @@ export default function SignInForm({
 
   useEffect(() => {
     if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
-      router.replace("/select-organization");
+      router.replace((safeReturnTo ?? "/select-organization") as never);
     }
-  }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router]);
+  }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router, safeReturnTo]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,7 +104,7 @@ export default function SignInForm({
           <span aria-hidden="true">.</span>
         </h1>
         <p className={styles.introduction}>
-          {ui("signinHint")} <Link href="/signup">{ui("signinJoin")}</Link>
+          {ui("signinHint")} <Link href={safeReturnTo ? `/signup?returnTo=${encodeURIComponent(safeReturnTo)}&email=${encodeURIComponent(initialEmail ?? "")}` as never : "/signup"}>{ui("signinJoin")}</Link>
         </p>
       </header>
       {googleMessage && (

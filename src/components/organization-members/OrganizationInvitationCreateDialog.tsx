@@ -7,7 +7,6 @@ import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { Modal } from "@/components/ui/modal";
-import { CloseIcon, EnvelopeIcon, GroupIcon, PaperPlaneIcon } from "@/icons";
 import { ApiError } from "@/lib/api-client";
 import type { InviteMemberInput } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 
@@ -26,14 +25,12 @@ function getErrorMessageKey(error: unknown): string {
 
 export default function OrganizationInvitationCreateDialog({
   isOpen,
-  canSend,
   isPending,
   error,
   onClose,
   onSubmit,
 }: {
   isOpen: boolean;
-  canSend: boolean;
   isPending: boolean;
   error?: unknown;
   onClose: () => void;
@@ -61,7 +58,7 @@ export default function OrganizationInvitationCreateDialog({
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedEmail = email.trim();
-    if (!canSend || isPending || !normalizedEmail || !reasonCode) return;
+    if (isPending || !normalizedEmail || !reasonCode) return;
     onSubmit({ email: normalizedEmail, reasonCode });
   }
 
@@ -87,7 +84,7 @@ export default function OrganizationInvitationCreateDialog({
       isOpen={isOpen}
       onClose={() => { if (!isPending) onClose(); }}
       showCloseButton={false}
-      className="mx-4 w-full max-w-xl"
+      className="mx-4 w-full max-w-lg"
     >
       <div
         ref={dialogRef}
@@ -97,112 +94,84 @@ export default function OrganizationInvitationCreateDialog({
         aria-describedby={descriptionId}
         aria-busy={isPending}
         onKeyDown={trapFocus}
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-gray-800 dark:bg-gray-900"
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
       >
-        <div className="px-6 pt-6 sm:px-8 sm:pt-8">
-          <div className="mb-6 flex items-start justify-between gap-4">
-            <div>
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-300">
-                {t("organizationScope")}
-              </p>
-              <h2 id={titleId} className="text-title-sm font-semibold text-gray-900 dark:text-white/90">
-                {t("inviteTitle")}
-              </h2>
-              <p id={descriptionId} className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
-                {t("inviteDescription")}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-white/90">
+              {t("inviteTitle")}
+            </h2>
+            <p id={descriptionId} className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {t("inviteDescription")}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isPending}
+            aria-label={t("close")}
+            className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        {hasError && (
+          <div className="mb-6" role="alert">
+            <Alert variant="error" title={t("inviteErrorTitle")} message={t(getErrorMessageKey(error))} />
+          </div>
+        )}
+
+        <form onSubmit={submit} className="space-y-5">
+          <div>
+            <Label htmlFor="organization-invite-email">{t("inviteEmailLabel")}</Label>
+            <Input
+              id="organization-invite-email"
+              name="email"
+              type="email"
+              autoComplete="email"
+              maxLength={254}
+              required
+              value={email}
               disabled={isPending}
-              aria-label={t("close")}
-              className="rounded-lg p-2 text-gray-500 transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800"
-            >
-              <CloseIcon aria-hidden="true" className="size-5" />
-            </button>
+              placeholder={t("emailPlaceholder")}
+              onChange={(event) => setEmail(event.target.value)}
+            />
           </div>
 
-          {!canSend && (
-            <p role="status" aria-live="polite" className="mb-6 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm leading-6 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
-              {t("inviteReadinessBlocked")}
-            </p>
-          )}
+          <div>
+            <Label htmlFor="organization-invite-reason">{t("reason")}</Label>
+            <select
+              id="organization-invite-reason"
+              name="reasonCode"
+              required
+              value={reasonCode}
+              disabled={isPending}
+              onChange={(event) => setReasonCode(event.target.value as InviteMemberInput["reasonCode"] | "")}
+              className="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+            >
+              <option value="">{t("selectReason")}</option>
+              <option value="ACCESS_REQUEST">{t("accessRequest")}</option>
+              <option value="ACCESS_REVIEW">{t("accessReview")}</option>
+            </select>
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{t("reasonHelp")}</p>
+          </div>
 
-          {hasError && (
-            <div className="mb-6" role="alert">
-              <Alert variant="error" title={t("inviteErrorTitle")} message={t(getErrorMessageKey(error))} />
-            </div>
-          )}
+          {isPending && <p role="status" className="text-sm text-gray-500 dark:text-gray-400">{t("inviting")}</p>}
 
-          <form onSubmit={submit} className="space-y-5">
-            <div>
-              <Label htmlFor="organization-invite-email" className="text-gray-800 dark:text-gray-200">
-                {t("inviteEmailLabel")} <span aria-hidden="true" className="text-error-500">*</span>
-              </Label>
-              <div className="relative">
-                <Input
-                  id="organization-invite-email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  maxLength={254}
-                  required
-                  value={email}
-                  disabled={isPending}
-                  placeholder={t("emailPlaceholder")}
-                  className="ps-11"
-                  onChange={(event) => setEmail(event.target.value)}
-                />
-                <EnvelopeIcon aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-gray-500 dark:text-gray-400" />
-              </div>
-              <p className="mt-1.5 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("inviteEmailHelp")}</p>
-            </div>
-
-            <div>
-              <Label htmlFor="organization-invite-reason" className="text-gray-800 dark:text-gray-200">
-                {t("reason")} <span aria-hidden="true" className="text-error-500">*</span>
-              </Label>
-              <select
-                id="organization-invite-reason"
-                name="reasonCode"
-                required
-                value={reasonCode}
-                disabled={isPending}
-                onChange={(event) => setReasonCode(event.target.value as InviteMemberInput["reasonCode"] | "")}
-                className="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              >
-                <option value="">{t("selectReason")}</option>
-                <option value="ACCESS_REQUEST">{t("accessRequest")}</option>
-                <option value="ACCESS_REVIEW">{t("accessReview")}</option>
-              </select>
-              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">{t("reasonHelp")}</p>
-            </div>
-
-            <div className="flex items-start gap-3 rounded-xl border border-brand-100 bg-brand-50/70 px-4 py-3 dark:border-brand-500/20 dark:bg-brand-500/10">
-              <span aria-hidden="true" className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-white text-brand-600 shadow-theme-xs dark:bg-gray-900 dark:text-brand-300">
-                <GroupIcon className="size-4" />
-              </span>
-              <p className="text-sm leading-6 text-gray-700 dark:text-gray-300">{t("inviteRoleTiming")}</p>
-            </div>
-
-            {isPending && <p role="status" className="text-sm text-gray-500 dark:text-gray-400">{t("inviting")}</p>}
-
-            <div className="-mx-6 mt-6 flex flex-wrap justify-end gap-3 border-t border-gray-100 px-6 py-5 dark:border-gray-800 sm:-mx-8 sm:px-8">
-              <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={isPending} onClick={onClose}>
-                {t("inviteCancel")}
-              </Button>
-              <Button
-                type="submit"
-                className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-                startIcon={<PaperPlaneIcon aria-hidden="true" className="size-4" />}
-                disabled={!canSend || isPending || !email.trim() || !reasonCode}
-              >
-                {isPending ? t("inviting") : t("sendInvite")}
-              </Button>
-            </div>
-          </form>
-        </div>
+          <div className="flex flex-wrap justify-end gap-3 border-t border-gray-100 pt-5 dark:border-gray-800">
+            <Button type="button" variant="outline" className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500" disabled={isPending} onClick={onClose}>
+              {t("inviteCancel")}
+            </Button>
+            <Button
+              type="submit"
+              className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              disabled={isPending || !email.trim() || !reasonCode}
+            >
+              {isPending ? t("inviting") : t("sendInvite")}
+            </Button>
+          </div>
+        </form>
       </div>
     </Modal>
   );

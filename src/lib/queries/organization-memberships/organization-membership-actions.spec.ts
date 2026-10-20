@@ -20,15 +20,12 @@ const member = (status: OrganizationMembership["status"], hasUser = true): Organ
 
 const invitation = (status: AdminInvitation["status"]): AdminInvitation => ({
   id: "3123456789abcdef01234567",
-  membershipId: "1123456789abcdef01234567",
   organizationId: "0123456789abcdef01234567",
   status,
   version: 1,
   expiresAt: "2026-02-01T00:00:00.000Z",
   createdAt: "2026-01-01T00:00:00.000Z",
-  membershipVersion: 1,
-  targetUserId: "2123456789abcdef01234567",
-  email: "m@example.com",
+  invitedEmail: "m@example.com",
 });
 
 describe("documented Organization lifecycle affordances", () => {

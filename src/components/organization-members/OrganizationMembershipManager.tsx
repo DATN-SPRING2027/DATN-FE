@@ -12,7 +12,6 @@ import Alert from "@/components/ui/alert/Alert";
 import Label from "@/components/form/Label";
 import { GroupIcon, MailIcon, SearchIcon, TimeIcon, UserIcon } from "@/icons";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
-import { organizationMembershipReadiness } from "@/lib/queries/organization-memberships/organization-membership-readiness";
 import {
   createIdempotencyKey,
   type MembershipListFilter,
@@ -24,6 +23,7 @@ import {
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
   useResendOrganizationInvitation,
+  useCancelOrganizationInvitation,
   useSetOrganizationMembershipRole,
   useSuspendOrganizationMembership,
   type IdempotentInput,
@@ -158,7 +158,6 @@ function ScopedOrganizationMemberships({
     input: SetOrganizationMembershipRoleInput & { membershipId: string };
     idempotencyKey: string;
   } | null>(null);
-  const canSendInvitation = organizationMembershipReadiness.invitationCommands.status === "READY";
   const actionMutation =
     target?.action === "suspend" ? suspend :
       target?.action === "resend" ? resend :
@@ -194,7 +193,7 @@ function ScopedOrganizationMemberships({
   }
 
   function openAction(next: MembershipActionTarget) {
-    if (hasUnresolvedMutation || !canManage || (next.action !== "suspend" && !canSendInvitation)) return;
+    if (hasUnresolvedMutation || !canManage) return;
     suspend.reset();
     resend.reset();
     cancel.reset();
@@ -215,7 +214,7 @@ function ScopedOrganizationMemberships({
   }
 
   async function submitInvite(input: InviteMemberInput) {
-    if (!canSendInvitation || invite.isPending || hasUnresolvedMutation) return;
+    if (!canManage || invite.isPending || hasUnresolvedMutation) return;
     const previousAttempt = inviteAttempt.current;
     const idempotencyKey =
       previousAttempt?.input.email === input.email && previousAttempt.input.reasonCode === input.reasonCode
@@ -239,7 +238,7 @@ function ScopedOrganizationMemberships({
   }
 
   async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
-    if (!canManage || (actionTarget.action !== "suspend" && !canSendInvitation)) return;
+    if (!canManage) return;
     if (actionTarget.action === "suspend") {
       await suspend.mutateAsync({
         input: {
@@ -253,7 +252,6 @@ function ScopedOrganizationMemberships({
       await resend.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
-          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
           expectedInvitationVersion: actionTarget.invitation.version,
           reasonCode: reasonCode as ResendInvitationInput["reasonCode"],
         },
@@ -263,7 +261,6 @@ function ScopedOrganizationMemberships({
       await cancel.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
-          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
           expectedInvitationVersion: actionTarget.invitation.version,
           reasonCode: "INVITATION_CANCELLED" satisfies CancelInvitationInput["reasonCode"],
         },
@@ -275,19 +272,15 @@ function ScopedOrganizationMemberships({
   }
 
   function confirmAction(reasonCode: MembershipActionReasonCode) {
-    if (!target || (target.action !== "suspend" && !canSendInvitation)) return;
+    if (!target || !canManage) return;
     void executeAction(target, reasonCode).catch(() => undefined);
   }
 
   function retryAction() {
-    if (!target) return;
-    if (target.action === "suspend" && suspend.variables) {
-      void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.idempotencyKey).catch(() => undefined);
-    } else if (target.action === "resend" && resend.variables) {
-      void executeAction(target, resend.variables.input.reasonCode, resend.variables.idempotencyKey).catch(() => undefined);
-    } else if (target.action === "cancel" && cancel.variables) {
-      void executeAction(target, cancel.variables.input.reasonCode, cancel.variables.idempotencyKey).catch(() => undefined);
-    }
+    if (!target || !actionMutation?.variables) return;
+    const key = actionMutation.variables.idempotencyKey;
+    const reasonCode = actionMutation.variables.input.reasonCode;
+    void executeAction(target, reasonCode, key).catch(() => undefined);
   }
 
   function openRoleDialog(membership: OrganizationMembership) {
@@ -477,7 +470,7 @@ function ScopedOrganizationMemberships({
             </div>
           )}
           {readyInvitations && readyInvitations.data.length > 0 && (
-            <OrganizationInvitationList page={readyInvitations} actionsEnabled={canManage && canSendInvitation && !hasUnresolvedMutation} onPageChange={setInvitationPage} onAction={(action, invitation) => openAction({ action, invitation })} />
+            <OrganizationInvitationList page={readyInvitations} actionsEnabled={canManage && !hasUnresolvedMutation} onPageChange={setInvitationPage} onAction={(action, invitation) => openAction({ action, invitation })} />
           )}
         </div>
       </section>
@@ -508,7 +501,6 @@ function ScopedOrganizationMemberships({
       />
       {inviteDialog.isOpen && <OrganizationInvitationCreateDialog
         isOpen={inviteDialog.isOpen}
-        canSend={canSendInvitation}
         isPending={invite.isPending}
         error={invite.isError ? invite.error : undefined}
         onClose={closeInviteDialog}
