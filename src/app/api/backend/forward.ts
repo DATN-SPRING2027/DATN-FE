@@ -5,6 +5,7 @@ import {
   trustedEdgeHops,
 } from "@/lib/bff-proxy";
 import type { NextRequest } from "next/server";
+import { isTeamPath } from "@/lib/teams-development";
 
 export async function forwardBackendRequest(
   request: NextRequest,
@@ -48,16 +49,30 @@ export async function forwardBackendRequest(
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
     : await request.arrayBuffer();
-  const backendResponse = await fetch(
-    buildBackendUrl(getServerApiBaseUrl(), path, request.nextUrl.search),
-    {
-      method: request.method,
-      headers,
-      body,
-      cache: "no-store",
-      redirect: options.redirect ?? "manual",
-    },
-  );
+  let backendResponse: Response;
+  try {
+    backendResponse = await fetch(
+      buildBackendUrl(getServerApiBaseUrl(), path, request.nextUrl.search),
+      {
+        method: request.method,
+        headers,
+        body,
+        cache: "no-store",
+        redirect: options.redirect ?? "manual",
+      },
+    );
+  } catch (error) {
+    if (!isTeamPath(path)) throw error;
+    return Response.json(
+      {
+        code: "RETRY_LATER",
+        message: "Team service is unavailable.",
+        details: {},
+        requestId: headers.get("x-request-id"),
+      },
+      { status: 503, headers: { "cache-control": "no-store" } },
+    );
+  }
   const responseHeaders = new Headers();
   const requestId = headers.get("x-request-id");
   if (requestId) responseHeaders.set("x-request-id", requestId);
@@ -67,6 +82,8 @@ export async function forwardBackendRequest(
     "location",
     "referrer-policy",
     "x-csrf-token",
+    "etag",
+    "idempotency-replayed",
   ]) {
     const value = backendResponse.headers.get(name);
     if (value) responseHeaders.set(name, value);
@@ -74,6 +91,7 @@ export async function forwardBackendRequest(
   for (const cookie of backendResponse.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
+  if (isTeamPath(path)) responseHeaders.set("cache-control", "no-store");
   return new Response(backendResponse.body, {
     status: backendResponse.status,
     headers: responseHeaders,
