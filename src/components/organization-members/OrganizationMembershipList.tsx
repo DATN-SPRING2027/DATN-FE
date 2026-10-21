@@ -5,7 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Button from "@/components/ui/button/Button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
-import { LockIcon, PencilIcon } from "@/icons";
+import { CheckCircleIcon, LockIcon, PencilIcon, TrashBinIcon } from "@/icons";
 import type { OrganizationMembership, OrganizationMembershipPage } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { getMembershipActions } from "@/lib/queries/organization-memberships/organization-membership-actions";
 import OrganizationMembershipState from "./OrganizationMembershipState";
@@ -66,6 +66,8 @@ export default function OrganizationMembershipList({
   searchTerm,
   onPageChange,
   onSuspend,
+  onResume,
+  onRemove,
   onSetRole,
 }: {
   page: OrganizationMembershipPage;
@@ -75,6 +77,8 @@ export default function OrganizationMembershipList({
   searchTerm: string;
   onPageChange: (next: number) => void;
   onSuspend: (membership: OrganizationMembership) => void;
+  onResume?: (membership: OrganizationMembership) => void;
+  onRemove?: (membership: OrganizationMembership) => void;
   onSetRole: (membership: OrganizationMembership) => void;
 }) {
   const t = useTranslations("organizationMembers");
@@ -106,19 +110,19 @@ export default function OrganizationMembershipList({
         <Table className="table-fixed block w-full min-w-0 text-start lg:table lg:min-w-full">
           <TableHeader className="hidden bg-gray-50/75 lg:table-header-group dark:bg-white/2">
             <TableRow className="border-b border-gray-100 dark:border-gray-800">
-              <TableCell isHeader className="w-[32%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[28%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("memberColumn")}
               </TableCell>
-              <TableCell isHeader className="w-[18%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[13%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("roleColumn")}
               </TableCell>
-              <TableCell isHeader className="w-[16%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[12%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("statusColumn")}
               </TableCell>
-              <TableCell isHeader className="w-[16%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[13%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("createdColumn")}
               </TableCell>
-              <TableCell isHeader className="w-[18%] px-4 py-3 text-end text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[34%] px-4 py-3 text-end text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("actionsColumn")}
               </TableCell>
             </TableRow>
@@ -184,12 +188,12 @@ export default function OrganizationMembershipList({
                   </TableCell>
                   <TableCell className="col-span-1 flex items-center gap-2 px-0 py-1 text-sm text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
                     <span className="text-xs font-medium text-gray-500 lg:sr-only">{t("createdColumn")}</span>
-                    <time dateTime={membership.createdAt} className="font-normal text-xs sm:text-sm text-gray-600 dark:text-gray-300">
+                    <time dateTime={membership.createdAt} className="font-normal text-xs sm:text-sm text-gray-600 tabular-nums dark:text-gray-300">
                       {formatDate(membership.createdAt, locale)}
                     </time>
                   </TableCell>
                   <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-3.5 lg:pt-0">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
+                    <div className="flex flex-wrap items-center justify-end gap-1.5 xl:flex-nowrap">
                       {canChangeRole && (
                         <Button
                           variant="outline"
@@ -197,7 +201,7 @@ export default function OrganizationMembershipList({
                           disabled={actionsDisabled}
                           onClick={() => onSetRole(membership)}
                           startIcon={<PencilIcon className="size-3.5" aria-hidden="true" />}
-                          className="whitespace-nowrap px-3 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                          className="whitespace-nowrap px-2.5 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
                         >
                           {t("changeRole")}
                         </Button>
@@ -209,18 +213,42 @@ export default function OrganizationMembershipList({
                           disabled={actionsDisabled}
                           onClick={() => onSuspend(membership)}
                           startIcon={<LockIcon className="size-3.5" aria-hidden="true" />}
-                          className="whitespace-nowrap px-3 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                          className="whitespace-nowrap px-2.5 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
                         >
                           {t("suspend")}
                         </Button>
                       )}
-                      {isSelf && !canChangeRole && !actions.includes("suspend") && (
+                      {actions.includes("resume") && onResume && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={actionsDisabled}
+                          onClick={() => onResume(membership)}
+                          startIcon={<CheckCircleIcon className="size-3.5" aria-hidden="true" />}
+                          className="whitespace-nowrap px-2.5 py-1.5 text-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                        >
+                          {t("resume")}
+                        </Button>
+                      )}
+                      {actions.includes("remove") && onRemove && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={actionsDisabled}
+                          onClick={() => onRemove(membership)}
+                          startIcon={<TrashBinIcon className="size-3.5" aria-hidden="true" />}
+                          className="whitespace-nowrap px-2.5 py-1.5 text-xs text-error-600 hover:text-error-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-error-400"
+                        >
+                          {t("remove")}
+                        </Button>
+                      )}
+                      {isSelf && !canChangeRole && actions.length === 0 && (
                         <ProtectedActionBadge
                           label={t("protected")}
                           tooltipText={unavailableText}
                         />
                       )}
-                      {!isSelf && !canChangeRole && !actions.includes("suspend") && (
+                      {!isSelf && !canChangeRole && actions.length === 0 && (
                         <span className="text-xs text-gray-400 dark:text-gray-500" title={unavailableText}>
                           {unavailableText}
                         </span>
@@ -235,7 +263,7 @@ export default function OrganizationMembershipList({
       </div>
 
       <div className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-center sm:justify-between">
-        <p aria-live="polite" className="text-sm text-gray-500 dark:text-gray-400">
+        <p aria-live="polite" className="text-sm text-gray-500 tabular-nums dark:text-gray-400">
           {query ? t("searchMatchesOnPage", { count: visibleMembers.length }) : t("showingMembers", { from: start, to: end, total: page.pagination.totalItems })}
         </p>
         {totalPages > 1 && (
@@ -250,7 +278,7 @@ export default function OrganizationMembershipList({
             >
               <span aria-hidden="true" className="rtl:rotate-180">‹</span>
             </Button>
-            <span aria-current="page" className="flex size-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white">
+            <span aria-current="page" className="flex size-9 items-center justify-center rounded-lg bg-brand-500 text-sm font-semibold text-white tabular-nums">
               {page.pagination.page}
             </span>
             <span className="sr-only">{t("pageOf", { page: page.pagination.page, total: totalPages })}</span>

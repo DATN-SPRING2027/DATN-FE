@@ -4,17 +4,24 @@ import {
   parseAdminInvitationPage,
   parseMembershipPage,
   parseMutationAck,
+  parseOrganizationOverview,
   parseOrganizationRoleMutationAck,
+  parseOrganizationSettings,
   type AdminInvitationPage,
   type CancelInvitationInput,
   type InviteMemberInput,
   type MembershipListStatus,
   type OrganizationMutationAck,
   type OrganizationMembershipPage,
+  type OrganizationOverviewSummary,
   type OrganizationRoleMutationAck,
+  type OrganizationSettingsSummary,
+  type RemoveMembershipInput,
   type ResendInvitationInput,
+  type ResumeMembershipInput,
   type SetOrganizationMembershipRoleInput,
   type SuspendMembershipInput,
+  type UpdateOrganizationSettingsInput,
 } from "./organization-memberships.contract";
 
 export type MembershipListFilter = Readonly<{
@@ -72,8 +79,7 @@ function requireIdempotencyKey(value: string): string {
   return value;
 }
 
-function csrfHeaders(idempotencyKey: string): Headers {
-  const key = requireIdempotencyKey(idempotencyKey);
+function readCsrfToken(): string {
   if (typeof document === "undefined") {
     throw new ApiError(403, "AUTH_CSRF_INVALID", "CSRF context is unavailable");
   }
@@ -85,6 +91,12 @@ function csrfHeaders(idempotencyKey: string): Headers {
   if (!csrfToken) {
     throw new ApiError(403, "AUTH_CSRF_INVALID", "CSRF token is unavailable");
   }
+  return csrfToken;
+}
+
+function csrfHeaders(idempotencyKey: string): Headers {
+  const key = requireIdempotencyKey(idempotencyKey);
+  const csrfToken = readCsrfToken();
   return new Headers({ "X-CSRF-Token": csrfToken, "Idempotency-Key": key });
 }
 
@@ -131,6 +143,65 @@ export async function listOrganizationInvitations(
     { signal: timeout(signal), cache: "no-store" },
   );
   return parseAdminInvitationPage(response, organizationId);
+}
+
+export async function getOrganizationOverview(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationOverviewSummary> {
+  const organization = requireOrganizationId(organizationId);
+  const response = await apiClient<unknown>(
+    `/iam/organizations/${organization}/overview`,
+    { signal: timeout(signal), cache: "no-store" },
+  );
+  return parseOrganizationOverview(response, organizationId);
+}
+
+export async function getOrganizationSettings(
+  organizationId: string,
+  signal?: AbortSignal,
+): Promise<OrganizationSettingsSummary> {
+  const organization = requireOrganizationId(organizationId);
+  const response = await apiClient<unknown>(
+    `/iam/organizations/${organization}/settings`,
+    { signal: timeout(signal), cache: "no-store" },
+  );
+  return parseOrganizationSettings(response, organizationId);
+}
+
+export async function updateOrganizationSettings(
+  organizationId: string,
+  input: UpdateOrganizationSettingsInput,
+): Promise<OrganizationSettingsSummary> {
+  const organization = requireOrganizationId(organizationId);
+  const csrfToken = readCsrfToken();
+  const body: Record<string, unknown> = {
+    expectedUpdatedAt: input.expectedUpdatedAt,
+  };
+  if (input.name !== undefined) {
+    const trimmed = input.name.trim();
+    if (!trimmed || trimmed.length > 100) {
+      throw new ApiError(422, "VALIDATION_FAILED", "Invalid organization name");
+    }
+    body.name = trimmed;
+  }
+  if (input.description !== undefined) {
+    if (input.description !== null && input.description.length > 500) {
+      throw new ApiError(422, "VALIDATION_FAILED", "Invalid organization description");
+    }
+    body.description = input.description;
+  }
+  const response = await apiClient<unknown>(
+    `/iam/organizations/${organization}/settings`,
+    {
+      method: "PATCH",
+      headers: new Headers({ "X-CSRF-Token": csrfToken }),
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(15_000),
+      cache: "no-store",
+    },
+  );
+  return parseOrganizationSettings(response, organizationId);
 }
 
 function mutationOptions(idempotencyKey: string, body: unknown): RequestInit {
@@ -244,6 +315,42 @@ export function suspendOrganizationMembership(
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid suspension reason");
   }
   return mutate(`/iam/organizations/${organization}/memberships/${membership}/suspend`, organizationId, idempotencyKey, body);
+}
+
+export function resumeOrganizationMembership(
+  organizationId: string,
+  membershipId: string,
+  input: ResumeMembershipInput,
+  idempotencyKey: string,
+): Promise<OrganizationMutationAck> {
+  const organization = requireOrganizationId(organizationId);
+  const membership = requireResourceId(membershipId, "membership identifier");
+  const body = {
+    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    reasonCode: input.reasonCode,
+  };
+  if (!["ACCESS_REQUEST", "ACCESS_REVIEW", "SECURITY_INCIDENT"].includes(input.reasonCode)) {
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid reactivation reason");
+  }
+  return mutate(`/iam/organizations/${organization}/memberships/${membership}/resume`, organizationId, idempotencyKey, body);
+}
+
+export function removeOrganizationMembership(
+  organizationId: string,
+  membershipId: string,
+  input: RemoveMembershipInput,
+  idempotencyKey: string,
+): Promise<OrganizationMutationAck> {
+  const organization = requireOrganizationId(organizationId);
+  const membership = requireResourceId(membershipId, "membership identifier");
+  const body = {
+    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    reasonCode: input.reasonCode,
+  };
+  if (!["SECURITY_INCIDENT", "ACCESS_REVIEW"].includes(input.reasonCode)) {
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid removal reason");
+  }
+  return mutate(`/iam/organizations/${organization}/memberships/${membership}/remove`, organizationId, idempotencyKey, body);
 }
 
 export async function setOrganizationMembershipRole(

@@ -21,7 +21,10 @@ import type {
 import { ApiError } from "@/lib/api-client";
 
 export type MembershipActionTarget =
-  | Readonly<{ action: "suspend"; membership: OrganizationMembership }>
+  | Readonly<{
+      action: "suspend" | "resume" | "remove";
+      membership: OrganizationMembership;
+    }>
   | Readonly<{ action: "resend" | "cancel"; invitation: AdminInvitation }>;
 export type MembershipActionReasonCode =
   | MembershipActionReason
@@ -39,6 +42,11 @@ function getErrorMessageKey(error: unknown): string {
   if (error.status === 404) return "notFound";
   if (error.status === 409 && error.code === "LAST_ELIGIBLE_ADMIN")
     return "lastAdmin";
+  if (
+    error.status === 409 &&
+    error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP"
+  )
+    return "activeProjectLeaderBlocker";
   if (error.status === 409) return "conflict";
   if (error.status === 422) return "validation";
   if (error.status === 429) return "rateLimit";
@@ -54,27 +62,27 @@ function isIneligibleResendError(error: unknown): boolean {
 }
 
 function getTitleKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "suspendTitle"
-    : target.action === "resend"
-      ? "resendTitle"
-      : "cancelTitle";
+  if (target.action === "suspend") return "suspendTitle";
+  if (target.action === "resume") return "resumeTitle";
+  if (target.action === "remove") return "removeTitle";
+  if (target.action === "resend") return "resendTitle";
+  return "cancelTitle";
 }
 
 function getHintKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "suspendHint"
-    : target.action === "resend"
-      ? "resendHint"
-      : "cancelHint";
+  if (target.action === "suspend") return "suspendHint";
+  if (target.action === "resume") return "resumeHint";
+  if (target.action === "remove") return "removeHint";
+  if (target.action === "resend") return "resendHint";
+  return "cancelHint";
 }
 
 function getConfirmKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "confirmSuspend"
-    : target.action === "resend"
-      ? "confirmResend"
-      : "confirmCancelInvitation";
+  if (target.action === "suspend") return "confirmSuspend";
+  if (target.action === "resume") return "confirmResume";
+  if (target.action === "remove") return "confirmRemove";
+  if (target.action === "resend") return "confirmResend";
+  return "confirmCancelInvitation";
 }
 
 function getEmailInitials(email: string): string {
@@ -123,7 +131,11 @@ export default function OrganizationMembershipActionDialog({
   refreshFailed: boolean;
 }) {
   const t = useTranslations("organizationMembers");
-  const [reason, setReason] = useState<MembershipActionReasonCode | "">("");
+  const [reason, setReason] = useState<MembershipActionReasonCode | "">(
+    target?.action === "resume" || target?.action === "remove"
+      ? "ACCESS_REVIEW"
+      : "",
+  );
   const [resendReasonMode, setResendReasonMode] =
     useState<ResendReasonMode>("NONE");
   const [presetReason, setPresetReason] = useState<string>("");
@@ -661,12 +673,18 @@ export default function OrganizationMembershipActionDialog({
     value: MembershipActionReasonCode;
     label: string;
   }[] =
-    activeTarget.action === "suspend"
+    activeTarget.action === "resume"
       ? [
-          { value: "SECURITY_INCIDENT", label: t("securityIncident") },
+          { value: "ACCESS_REQUEST", label: t("accessRequest") },
           { value: "ACCESS_REVIEW", label: t("accessReview") },
+          { value: "SECURITY_INCIDENT", label: t("securityIncident") },
         ]
-      : [];
+      : "membership" in activeTarget
+        ? [
+            { value: "SECURITY_INCIDENT", label: t("securityIncident") },
+            { value: "ACCESS_REVIEW", label: t("accessReview") },
+          ]
+        : [];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -716,7 +734,7 @@ export default function OrganizationMembershipActionDialog({
             >
               <span className="font-medium">{t("actionTargetLabel")}:</span>{" "}
               <span>
-                {activeTarget.action === "suspend"
+                {"membership" in activeTarget
                   ? activeTarget.membership.user?.fullName ||
                     activeTarget.membership.user?.email ||
                     t("nameUnavailable")
@@ -734,6 +752,11 @@ export default function OrganizationMembershipActionDialog({
             <span aria-hidden="true">×</span>
           </button>
         </div>
+        {activeTarget.action === "remove" && (
+          <div className="mb-5 rounded-xl border border-warning-200 bg-warning-50/80 px-4 py-3 text-xs leading-5 text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            {t("removeDependencyNotice")}
+          </div>
+        )}
         {reasonOptions.length > 0 && (
           <div className="mb-5">
             <Label htmlFor="organization-members-action-reason">

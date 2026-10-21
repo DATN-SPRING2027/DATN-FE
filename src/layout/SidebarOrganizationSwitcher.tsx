@@ -19,7 +19,11 @@ function resolveSwitchDestination(
   if (pathname === "/projects" || pathname.startsWith("/projects/")) {
     return "/projects";
   }
-  if (pathname === "/organization/members" || pathname === "/users") {
+  if (
+    pathname === "/organization/members" ||
+    pathname === "/organization/settings" ||
+    pathname === "/users"
+  ) {
     if (Array.isArray(user?.roles) && !user.roles.includes("ADMIN")) {
       return "/dashboard";
     }

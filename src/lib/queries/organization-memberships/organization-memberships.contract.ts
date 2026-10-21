@@ -450,3 +450,214 @@ export function parseOrganizationRoleMutationAck(
     },
   };
 }
+
+
+export type ResumeMembershipInput = Readonly<{
+  expectedMembershipVersion: number;
+  reasonCode: MembershipActionReason | SuspensionReason;
+}>;
+export type RemoveMembershipInput = Readonly<{
+  expectedMembershipVersion: number;
+  reasonCode: SuspensionReason;
+}>;
+export type OrganizationManagerSummary = Readonly<{
+  userId: string;
+  fullName: string;
+  email: string;
+  accountStatus: string;
+}>;
+export type LeaderlessProjectItem = Readonly<{
+  id: string;
+  name: string;
+  code: string;
+  visibility: "PRIVATE" | "PUBLIC";
+  status: "ACTIVE" | "ARCHIVED";
+  activeMemberCount: number;
+  effectiveLeaderCount: number;
+  updatedAt: string;
+}>;
+export type OrganizationOverviewSummary = Readonly<{
+  organization: Readonly<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    plan: "FREE" | "ENTERPRISE";
+    status: "ACTIVE";
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  metrics: Readonly<{
+    activeMembers: number;
+    suspendedMembers: number;
+    pendingInvitations: number;
+    totalProjects: number;
+    activeProjects: number;
+    archivedProjects: number;
+    leaderlessProjectsCount: number;
+  }>;
+  leaderlessProjects: readonly LeaderlessProjectItem[];
+  managers: readonly OrganizationManagerSummary[];
+}>;
+export type OrganizationSettingsSummary = Readonly<{
+  organization: Readonly<{
+    id: string;
+    name: string;
+    slug: string;
+    description: string | null;
+    plan: "FREE" | "ENTERPRISE";
+    status: "ACTIVE";
+    createdAt: string;
+    updatedAt: string;
+  }>;
+  editableFields: readonly ("name" | "description")[];
+  managers: readonly OrganizationManagerSummary[];
+  availablePermissions: readonly string[];
+}>;
+export type UpdateOrganizationSettingsInput = Readonly<{
+  expectedUpdatedAt: string;
+  name?: string;
+  description?: string | null;
+}>;
+
+function parseOrganizationCore(
+  value: unknown,
+  organizationId: string,
+): OrganizationOverviewSummary["organization"] {
+  if (
+    !isRecord(value) ||
+    value.id !== organizationId ||
+    typeof value.name !== "string" ||
+    typeof value.slug !== "string" ||
+    !(value.description === null || value.description === undefined || typeof value.description === "string") ||
+    !(value.plan === "FREE" || value.plan === "ENTERPRISE") ||
+    value.status !== "ACTIVE" ||
+    !isDateTime(value.createdAt) ||
+    !isDateTime(value.updatedAt)
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    id: organizationId,
+    name: value.name,
+    slug: value.slug,
+    description: typeof value.description === "string" ? value.description : null,
+    plan: value.plan,
+    status: "ACTIVE",
+    createdAt: value.createdAt,
+    updatedAt: value.updatedAt,
+  };
+}
+
+function parseManagerSummary(value: unknown): OrganizationManagerSummary {
+  if (
+    !isRecord(value) ||
+    typeof value.userId !== "string" ||
+    !resourceIdPattern.test(value.userId) ||
+    typeof value.fullName !== "string" ||
+    !isEmail(value.email) ||
+    typeof value.accountStatus !== "string"
+  ) {
+    throw invalidResponse();
+  }
+  return {
+    userId: value.userId,
+    fullName: value.fullName,
+    email: value.email,
+    accountStatus: value.accountStatus,
+  };
+}
+
+export function parseOrganizationOverview(
+  value: unknown,
+  organizationId: string,
+): OrganizationOverviewSummary {
+  if (!isOrganizationResourceId(organizationId) || !isRecord(value)) {
+    throw invalidResponse();
+  }
+  const organization = parseOrganizationCore(value.organization, organizationId);
+  const metrics = value.metrics;
+  if (
+    !isRecord(metrics) ||
+    !isNonnegativeInteger(metrics.activeMembers) ||
+    !isNonnegativeInteger(metrics.suspendedMembers) ||
+    !isNonnegativeInteger(metrics.pendingInvitations) ||
+    !isNonnegativeInteger(metrics.totalProjects) ||
+    !isNonnegativeInteger(metrics.activeProjects) ||
+    !isNonnegativeInteger(metrics.archivedProjects) ||
+    !isNonnegativeInteger(metrics.leaderlessProjectsCount) ||
+    !Array.isArray(value.leaderlessProjects) ||
+    !Array.isArray(value.managers)
+  ) {
+    throw invalidResponse();
+  }
+  const leaderlessProjects: LeaderlessProjectItem[] = value.leaderlessProjects.map((item) => {
+    if (
+      !isRecord(item) ||
+      typeof item.id !== "string" ||
+      !resourceIdPattern.test(item.id) ||
+      typeof item.name !== "string" ||
+      typeof item.code !== "string" ||
+      !(item.visibility === "PRIVATE" || item.visibility === "PUBLIC") ||
+      !(item.status === "ACTIVE" || item.status === "ARCHIVED") ||
+      !isNonnegativeInteger(item.activeMemberCount) ||
+      !isNonnegativeInteger(item.effectiveLeaderCount) ||
+      !isDateTime(item.updatedAt)
+    ) {
+      throw invalidResponse();
+    }
+    return {
+      id: item.id,
+      name: item.name,
+      code: item.code,
+      visibility: item.visibility,
+      status: item.status,
+      activeMemberCount: item.activeMemberCount,
+      effectiveLeaderCount: item.effectiveLeaderCount,
+      updatedAt: item.updatedAt,
+    };
+  });
+  return {
+    organization,
+    metrics: {
+      activeMembers: metrics.activeMembers,
+      suspendedMembers: metrics.suspendedMembers,
+      pendingInvitations: metrics.pendingInvitations,
+      totalProjects: metrics.totalProjects,
+      activeProjects: metrics.activeProjects,
+      archivedProjects: metrics.archivedProjects,
+      leaderlessProjectsCount: metrics.leaderlessProjectsCount,
+    },
+    leaderlessProjects,
+    managers: value.managers.map(parseManagerSummary),
+  };
+}
+
+export function parseOrganizationSettings(
+  value: unknown,
+  organizationId: string,
+): OrganizationSettingsSummary {
+  if (!isOrganizationResourceId(organizationId) || !isRecord(value)) {
+    throw invalidResponse();
+  }
+  const organization = parseOrganizationCore(value.organization, organizationId);
+  if (
+    !Array.isArray(value.editableFields) ||
+    !Array.isArray(value.managers) ||
+    !Array.isArray(value.availablePermissions)
+  ) {
+    throw invalidResponse();
+  }
+  const editableFields = value.editableFields.filter(
+    (field): field is "name" | "description" => field === "name" || field === "description",
+  );
+  const availablePermissions = value.availablePermissions.filter(
+    (perm): perm is string => typeof perm === "string",
+  );
+  return {
+    organization,
+    editableFields,
+    managers: value.managers.map(parseManagerSummary),
+    availablePermissions,
+  };
+}

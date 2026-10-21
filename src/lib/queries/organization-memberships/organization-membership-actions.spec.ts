@@ -31,8 +31,8 @@ const invitation = (status: AdminInvitation["status"]): AdminInvitation => ({
 describe("documented Organization lifecycle affordances", () => {
   it.each([
     ["PENDING_INVITE", []],
-    ["ACTIVE", ["suspend"]],
-    ["SUSPENDED", []],
+    ["ACTIVE", ["suspend", "remove"]],
+    ["SUSPENDED", ["resume", "remove"]],
     ["REMOVED", []],
   ] as const)("maps %s membership state to approved actions", (status, expected) => {
     expect(getMembershipActions(member(status), "9123456789abcdef01234567")).toEqual(expected);
@@ -42,7 +42,7 @@ describe("documented Organization lifecycle affordances", () => {
     expect(getMembershipActions(member("ACTIVE", false), "9123456789abcdef01234567")).toEqual([]);
   });
 
-  it("does not offer self-suspension", () => {
+  it("does not offer self-suspension or self-removal", () => {
     expect(getMembershipActions(member("ACTIVE"), "2123456789abcdef01234567")).toEqual([]);
   });
 

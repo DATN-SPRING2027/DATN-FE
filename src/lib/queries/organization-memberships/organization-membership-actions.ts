@@ -3,7 +3,7 @@ import type {
   OrganizationMembership,
 } from "./organization-memberships.contract";
 
-export type MembershipAction = "suspend";
+export type MembershipAction = "suspend" | "resume" | "remove";
 export type InvitationAction = "resend" | "cancel";
 
 /** Returns presentation affordances only. The server still authorizes every command. */
@@ -11,8 +11,14 @@ export function getMembershipActions(
   membership: OrganizationMembership,
   actorId: string,
 ): readonly MembershipAction[] {
-  if (membership.status === "ACTIVE" && membership.user !== null && membership.userId !== actorId) {
-    return ["suspend"];
+  if (membership.user === null || membership.userId === actorId) {
+    return [];
+  }
+  if (membership.status === "ACTIVE") {
+    return ["suspend", "remove"];
+  }
+  if (membership.status === "SUSPENDED") {
+    return ["resume", "remove"];
   }
   return [];
 }

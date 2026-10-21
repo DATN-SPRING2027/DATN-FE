@@ -11,6 +11,8 @@ import {
   GridIcon,
   ListIcon,
   LockIcon,
+  PlusIcon,
+  SearchIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -20,6 +22,13 @@ import {
 import ProjectState from "./ProjectState";
 import ProjectCard from "./ProjectCard";
 
+function isProjectLeaderless(project: Project): boolean {
+  return (
+    Boolean(project.requiresLeaderRecovery) ||
+    (project.status === "ACTIVE" && project.effectiveLeaderCount === 0)
+  );
+}
+
 function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const t = useTranslations("projects");
   const [page, setPage] = useState(1);
@@ -27,6 +36,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const [visibilityFilter, setVisibilityFilter] = useState<
     "all" | Project["visibility"]
   >("all");
+  const [onlyLeaderless, setOnlyLeaderless] = useState(false);
   const [search, setSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("grid");
   const [sort, setSort] = useState<"updated" | "name" | "code">("updated");
@@ -57,6 +67,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const publicCount = loadedProjects.filter(
     (item) => item.visibility === "PUBLIC",
   ).length;
+  const leaderlessCount = loadedProjects.filter(isProjectLeaderless).length;
 
   const normalizedQuery = search.trim().toLowerCase();
   const filteredProjects = loadedProjects
@@ -65,6 +76,9 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
         visibilityFilter !== "all" &&
         item.visibility !== visibilityFilter
       ) {
+        return false;
+      }
+      if (onlyLeaderless && !isProjectLeaderless(item)) {
         return false;
       }
       if (!normalizedQuery) return true;
@@ -82,17 +96,50 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     });
 
   const hasActiveFilters =
-    Boolean(status) || visibilityFilter !== "all" || normalizedQuery.length > 0;
+    Boolean(status) ||
+    visibilityFilter !== "all" ||
+    onlyLeaderless ||
+    normalizedQuery.length > 0;
 
   const resetFilters = () => {
     setStatus(undefined);
     setVisibilityFilter("all");
+    setOnlyLeaderless(false);
     setSearch("");
     setPage(1);
   };
 
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
+      {/* Leaderless Projects Warning Banner */}
+      {projects.isSuccess && !projects.isFetching && leaderlessCount > 0 && (
+        <section
+          aria-label={t("leaderlessProjectsBannerTitle", {
+            count: leaderlessCount,
+          })}
+          className="flex flex-col justify-between gap-3 rounded-2xl border border-error-200 bg-error-50/80 p-4 sm:flex-row sm:items-center dark:border-error-500/30 dark:bg-error-500/10"
+        >
+          <div className="space-y-0.5">
+            <p className="text-sm font-semibold text-error-900 dark:text-error-200">
+              {t("leaderlessProjectsBannerTitle", { count: leaderlessCount })}
+            </p>
+            <p className="text-xs text-error-700 dark:text-error-300/90">
+              {t("leaderlessProjectsBannerDescription")}
+            </p>
+          </div>
+          <button
+            type="button"
+            aria-pressed={onlyLeaderless}
+            onClick={() => setOnlyLeaderless((prev) => !prev)}
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center rounded-xl border border-error-300 bg-white px-3 text-xs font-semibold text-error-700 shadow-theme-xs transition hover:bg-error-50 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-300 dark:hover:bg-error-500/15"
+          >
+            {onlyLeaderless
+              ? t("showAllProjectsFilter")
+              : t("filterLeaderlessOnly")}
+          </button>
+        </section>
+      )}
+
       {/* B2B KPI Summary Strip */}
       {projects.isSuccess && !projects.isFetching && (
         <section
@@ -194,25 +241,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-gray-400"
               >
-                <svg
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-4 w-4"
-                >
-                  <circle
-                    cx="7.25"
-                    cy="7.25"
-                    r="4.5"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                  />
-                  <path
-                    d="M10.6 10.6L13.5 13.5"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <SearchIcon className="h-4 w-4" />
               </span>
               <input
                 id="project-search"
@@ -466,19 +495,7 @@ export default function ProjectWorkspace() {
           href="/projects/new"
           className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-xl bg-brand-500 px-4 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-brand-500 dark:hover:bg-brand-600"
         >
-          <svg
-            viewBox="0 0 16 16"
-            fill="none"
-            aria-hidden="true"
-            className="h-4 w-4 shrink-0"
-          >
-            <path
-              d="M8 3.25V12.75M3.25 8H12.75"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-            />
-          </svg>
+          <PlusIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
           <span>{t("create")}</span>
         </Link>
       </header>
