@@ -232,7 +232,7 @@ export default function PlatformOrganizationsView({
     } catch (err: unknown) {
       if (err instanceof ApiError && err.status === 401) {
         setOperationMessage(
-          "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại tại /platform/signin.",
+          "Phiên làm việc đã hết hạn. Vui lòng đăng nhập lại tại /signin.",
         );
       } else {
         setOperationMessage(

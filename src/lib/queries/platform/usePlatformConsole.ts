@@ -345,55 +345,39 @@ export const platformKeys = {
   audit: () => [...platformKeys.all, "audit"] as const,
 };
 
+export async function loadPlatformSession() {
+  const value: unknown = await platformApiClient("/auth/platform/me", {
+    cache: "no-store",
+  });
+  if (
+    !record(value) ||
+    typeof value.id !== "string" ||
+    !resourceIdPattern.test(value.id) ||
+    typeof value.email !== "string" ||
+    typeof value.name !== "string" ||
+    value.context !== "PLATFORM" ||
+    !Array.isArray(value.permissions) ||
+    value.permissions.some(
+      (permission) =>
+        typeof permission !== "string" || !permissionSet.has(permission),
+    )
+  )
+    throw invalidResponse();
+  return {
+    id: value.id,
+    email: value.email,
+    name: value.name,
+    context: "PLATFORM" as const,
+    permissions: [...new Set(value.permissions)] as PlatformPermission[],
+  } satisfies PlatformSession;
+}
+
 export function usePlatformSessionQuery() {
   return useQuery({
     queryKey: platformKeys.session(),
-    queryFn: async () => {
-      const value: unknown = await platformApiClient("/auth/platform/me", {
-        cache: "no-store",
-      });
-      if (
-        !record(value) ||
-        typeof value.id !== "string" ||
-        !resourceIdPattern.test(value.id) ||
-        typeof value.email !== "string" ||
-        typeof value.name !== "string" ||
-        value.context !== "PLATFORM" ||
-        !Array.isArray(value.permissions) ||
-        value.permissions.some(
-          (permission) =>
-            typeof permission !== "string" || !permissionSet.has(permission),
-        )
-      )
-        throw invalidResponse();
-      return {
-        id: value.id,
-        email: value.email,
-        name: value.name,
-        context: "PLATFORM" as const,
-        permissions: [...new Set(value.permissions)] as PlatformPermission[],
-      } satisfies PlatformSession;
-    },
+    queryFn: loadPlatformSession,
     retry: false,
     staleTime: 20_000,
-  });
-}
-
-export function usePlatformLoginMutation() {
-  const client = useQueryClient();
-  return useMutation({
-    mutationKey: ["login", "platform"],
-    mutationFn: (credentials: Readonly<{ email: string; password: string }>) =>
-      platformApiClient<{
-        context: "PLATFORM";
-        user: { id: string; email: string; name: string };
-      }>("/auth/platform/login", {
-        method: "POST",
-        body: JSON.stringify(credentials),
-        cache: "no-store",
-      }),
-    onSuccess: () =>
-      client.invalidateQueries({ queryKey: platformKeys.session() }),
   });
 }
 
@@ -572,9 +556,12 @@ export function usePlatformAuditQuery(enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.audit(),
     queryFn: async () => {
-      const value: unknown = await platformApiClient<unknown>("/iam/platform/audit", {
-        cache: "no-store",
-      });
+      const value: unknown = await platformApiClient<unknown>(
+        "/iam/platform/audit",
+        {
+          cache: "no-store",
+        },
+      );
       if (!Array.isArray(value) || value.length > 100) throw invalidResponse();
       return value.flatMap((item): PlatformAuditRecord[] => {
         if (
