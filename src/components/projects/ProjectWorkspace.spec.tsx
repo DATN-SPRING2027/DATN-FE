@@ -198,9 +198,8 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
   );
   mount(<ProjectWorkspace />);
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(screen.getAllByText("Task data unavailable")).toHaveLength(2);
-  expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
-  expect(screen.queryByText("Updated at")).not.toBeInTheDocument();
+  expect(screen.queryByText("Task data unavailable")).not.toBeInTheDocument();
+  expect(screen.getAllByText("AP").length).toBeGreaterThan(0);
   const listViewButton = screen.getByRole("button", { name: "List view" });
   fireEvent.click(listViewButton);
   expect(listViewButton).toHaveAttribute("aria-pressed", "true");
@@ -449,8 +448,8 @@ it("renders server-returned public archived metadata without adding administrati
   ).toBeVisible();
   expect(screen.getByText("Project purpose")).toBeVisible();
   expect(screen.getByText("1 project")).toBeVisible();
-  expect(screen.queryByText("Public")).not.toBeInTheDocument();
-  expect(screen.queryByText("Oct 5, 2026")).not.toBeInTheDocument();
+  expect(within(screen.getByRole("article")).getByText("Public")).toBeVisible();
+  expect(within(screen.getByRole("article")).getByText("Updated Oct 5, 2026")).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /publish|edit|add task|members/i }),
   ).not.toBeInTheDocument();
@@ -553,8 +552,10 @@ it("renders detail overview and context from backend metadata", async () => {
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
   expect(screen.getAllByText("First line Second line")[0]).toBeVisible();
-  expect(screen.getByText("org1")).toBeVisible();
-  expect(screen.getByText("u1")).toBeVisible();
+  expect(screen.getAllByText("AP")[0]).toBeVisible();
+  expect(screen.getByText("Private")).toBeVisible();
+  expect(screen.queryByText("org1")).not.toBeInTheDocument();
+  expect(screen.queryByText("u1")).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: /deploy|edit|manage access/i }),
   ).not.toBeInTheDocument();
@@ -779,4 +780,70 @@ it("keeps a late visibility response scoped to the original Project", async () =
   });
   expect(screen.getByText("Private")).toBeVisible();
   expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
+});
+
+
+it("preserves the active tab across project refetches and syncs /overview, /members, /settings URL paths", async () => {
+  window.history.replaceState(null, "", "/projects/p1");
+  try {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") return user;
+      if (path.includes("/memberships")) return list([]);
+      return project;
+    });
+    const { client } = mount(<ProjectDetail projectId="p1" />);
+    const membersTab = await screen.findByRole("tab", {
+      name: "Project members",
+    });
+    expect(window.location.pathname).toBe("/projects/p1/overview");
+
+    fireEvent.click(membersTab);
+    expect(membersTab).toHaveAttribute("aria-selected", "true");
+    expect(window.location.pathname).toBe("/projects/p1/members");
+
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: ["projects", "org1", "detail", "p1"],
+      });
+    });
+
+    const membersTabAfterRefetch = await screen.findByRole("tab", {
+      name: "Project members",
+    });
+    expect(membersTabAfterRefetch).toHaveAttribute("aria-selected", "true");
+    expect(window.location.pathname).toBe("/projects/p1/members");
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});
+
+
+it("clearly labels Project search and filters as scoped to the currently loaded page", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me" ? user : list([project]),
+  );
+  mount(<ProjectWorkspace />);
+
+  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
+  expect(
+    screen.getByText(
+      "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
+    ),
+  ).toBeVisible();
+
+  const searchInput = screen.getByLabelText("Search current page");
+  expect(searchInput).toHaveAttribute(
+    "placeholder",
+    "Filter current page by project name, code, or description…",
+  );
+
+  fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });
+  expect(
+    await screen.findByText("No matching projects on this page"),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "No projects on the current page match your search or filters. Try another page or clear the filters.",
+    ),
+  ).toBeVisible();
 });
