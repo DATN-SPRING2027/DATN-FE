@@ -150,7 +150,7 @@ export default function PlatformConsole() {
   );
 
   useEffect(() => {
-    if (session.isError) router.replace("/platform/signin");
+    if (session.isError) router.replace("/signin");
   }, [router, session.isError]);
 
   const pageTitle = t(`pages.${activeSection}.title`);
@@ -159,7 +159,7 @@ export default function PlatformConsole() {
   async function signOut() {
     try {
       await logout.mutateAsync();
-      router.replace("/platform/signin");
+      router.replace("/signin");
     } catch {
       setOperationMessage(t("errors.signOut"));
     }

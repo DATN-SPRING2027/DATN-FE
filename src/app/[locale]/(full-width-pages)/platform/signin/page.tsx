@@ -1,11 +1,10 @@
-import PlatformSignIn from "@/components/platform/PlatformSignIn";
-import type { Metadata } from "next";
+import { redirect } from "@/i18n/navigation";
 
-export const metadata: Metadata = {
-  title: "Admin Sign In | Continuum AI",
-  description: "Sign in to the permission-scoped platform console.",
-};
-
-export default function PlatformSignInPage() {
-  return <PlatformSignIn />;
+export default async function LegacyPlatformSignInPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  redirect({ href: "/signin", locale });
 }

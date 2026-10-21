@@ -2,9 +2,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import SignInForm from "./SignInForm";
 import {
-  useCurrentUserQuery,
-  useLoginMutation,
-} from "@/lib/queries/auth/useAuth";
+  useSignInSessionQuery,
+  useSharedLoginMutation,
+} from "@/lib/queries/auth/useSharedSignIn";
 import { ApiError } from "@/lib/api-client";
 
 const replace = vi.fn();
@@ -23,9 +23,9 @@ vi.mock("@/icons", () => ({
   EyeIcon: () => null,
   ChevronDownIcon: () => null,
 }));
-vi.mock("@/lib/queries/auth/useAuth", () => ({
-  useCurrentUserQuery: vi.fn(),
-  useLoginMutation: vi.fn(),
+vi.mock("@/lib/queries/auth/useSharedSignIn", () => ({
+  useSignInSessionQuery: vi.fn(),
+  useSharedLoginMutation: vi.fn(),
 }));
 
 describe("sign in form", () => {
@@ -36,12 +36,12 @@ describe("sign in form", () => {
     replace.mockReset();
     refetch.mockReset();
     mutateAsync.mockReset();
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: undefined,
       isFetching: false,
       refetch,
     } as never);
-    vi.mocked(useLoginMutation).mockReturnValue({
+    vi.mocked(useSharedLoginMutation).mockReturnValue({
       mutateAsync,
       isPending: false,
       error: null,
@@ -66,12 +66,12 @@ describe("sign in form", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps a direct link to Admin sign-in", () => {
+  it("uses a single sign-in form without a separate Admin link", () => {
     render(<SignInForm />);
 
     expect(
-      screen.getByRole("link", { name: "platformSignIn" }),
-    ).toHaveAttribute("href", "/platform/signin");
+      screen.queryByRole("link", { name: "platformSignIn" }),
+    ).not.toBeInTheDocument();
   });
 
   it("does not offer account creation from an Organization invitation sign-in", () => {
@@ -86,7 +86,7 @@ describe("sign in form", () => {
   });
 
   it("routes an authenticated organization member to Organization selection", async () => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: {
         id: "user-1",
         email: "user@example.com",
@@ -108,7 +108,7 @@ describe("sign in form", () => {
   });
 
   it("routes an authenticated account without an organization to Organization selection", async () => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: {
         id: "user-1",
         email: "user@example.com",
@@ -125,6 +125,30 @@ describe("sign in form", () => {
     await waitFor(() =>
       expect(replace).toHaveBeenCalledWith("/select-organization"),
     );
+  });
+
+  it("routes a verified Platform session to system administration", async () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: { id: "operator", context: "PLATFORM", permissions: [] },
+      isSuccess: true,
+      isFetching: false,
+      refetch,
+    } as never);
+    render(<SignInForm />);
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/platform"));
+    expect(replace).not.toHaveBeenCalledWith("/select-organization");
+  });
+
+  it("does not redirect on a failed session verification", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: undefined,
+      isSuccess: false,
+      isFetching: false,
+      isError: true,
+      refetch,
+    } as never);
+    render(<SignInForm />);
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("submits credentials and verifies the cookie session through /auth/me", async () => {
@@ -152,6 +176,24 @@ describe("sign in form", () => {
       }),
     );
     await waitFor(() => expect(refetch).toHaveBeenCalledOnce());
+  });
+
+  it("shows a session error instead of navigating after failed cookie verification", async () => {
+    mutateAsync.mockResolvedValue({
+      context: "PLATFORM",
+      user: { id: "operator" },
+    });
+    refetch.mockResolvedValue({ isError: true, data: undefined });
+    render(<SignInForm />);
+    fireEvent.change(screen.getByLabelText("email"), {
+      target: { value: "op@example.test" },
+    });
+    fireEvent.change(screen.getByLabelText("password"), {
+      target: { value: "secret" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "signIn" }));
+    expect(await screen.findByText("sessionError")).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 
   it("offers Google sign-in and shows the organization provisioning message", () => {
@@ -213,7 +255,7 @@ describe("sign in form", () => {
     [422, "invalidInput"],
     [429, "rateLimited"],
   ])("shows the existing alert for HTTP %i", (status, message) => {
-    vi.mocked(useLoginMutation).mockReturnValue({
+    vi.mocked(useSharedLoginMutation).mockReturnValue({
       mutateAsync,
       isPending: false,
       error: new ApiError(status, undefined, "Failed"),

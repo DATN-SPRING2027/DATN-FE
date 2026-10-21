@@ -22,6 +22,7 @@ function schedulePlatformSessionRecheck(client: QueryClient): void {
 
 export function currentSessionIdentityKey(key: readonly unknown[]): readonly unknown[] | undefined {
   if (isCurrentUserKey(key)) return authKeys.currentUser();
+  if (matchesQueryKey(key, authKeys.session())) return authKeys.session();
   if (matchesQueryKey(key, platformSessionQueryKey)) return platformSessionQueryKey;
   return undefined;
 }

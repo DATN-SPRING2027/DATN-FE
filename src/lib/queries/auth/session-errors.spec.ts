@@ -3,10 +3,21 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
 import { platformSessionQueryKey } from "@/lib/queries/platform/platform-session.key";
-import { handleSessionError } from "./session-errors";
+import { handleSessionError, currentSessionIdentityKey } from "./session-errors";
 
 describe("protected request session errors", () => {
   afterEach(() => vi.useRealTimers());
+
+
+  it("recognizes the shared sign-in identity and keeps its terminal error", () => {
+    const client = new QueryClient();
+    client.setQueryData(authKeys.session(), null);
+    client.setQueryData(["users"], [{ id: "private" }]);
+    expect(currentSessionIdentityKey(authKeys.session())).toEqual(authKeys.session());
+    handleSessionError(client, new ApiError(401, "UNAUTHORIZED", "Expired"), currentSessionIdentityKey(authKeys.session()), authKeys.session());
+    expect(client.getQueryData(authKeys.session())).toBeNull();
+    expect(client.getQueryData(["users"])).toBeUndefined();
+  });
 
   it("rechecks a previously successful /auth/me when Users receives 401", async () => {
     vi.useFakeTimers();

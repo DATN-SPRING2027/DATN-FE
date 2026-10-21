@@ -10,9 +10,9 @@ import Select from "@/components/form/Select";
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import {
-  useCurrentUserQuery,
-  useLoginMutation,
-} from "@/lib/queries/auth/useAuth";
+  useSignInSessionQuery,
+  useSharedLoginMutation,
+} from "@/lib/queries/auth/useSharedSignIn";
 import { ArrowRightIcon, EnvelopeIcon, EyeCloseIcon, EyeIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useState, type FormEvent } from "react";
@@ -30,7 +30,9 @@ export default function SignInForm({
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
-  const safeReturnTo = isSafeInvitationReturnTo(returnTo) ? returnTo : undefined;
+  const safeReturnTo = isSafeInvitationReturnTo(returnTo)
+    ? returnTo
+    : undefined;
   const [email, setEmail] = useState(initialEmail ?? "");
   const [password, setPassword] = useState("");
   const [organizationId, setOrganizationId] = useState("");
@@ -41,14 +43,24 @@ export default function SignInForm({
   const t = useTranslations("auth");
   const ui = useTranslations("authExperience");
   const router = useRouter();
-  const currentUser = useCurrentUserQuery();
-  const login = useLoginMutation();
+  const currentUser = useSignInSessionQuery();
+  const login = useSharedLoginMutation();
 
   useEffect(() => {
     if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
-      router.replace((safeReturnTo ?? "/select-organization") as never);
+      router.replace(
+        (currentUser.data.context === "PLATFORM"
+          ? "/platform"
+          : (safeReturnTo ?? "/select-organization")) as never,
+      );
     }
-  }, [currentUser.isSuccess, currentUser.isFetching, currentUser.data, router, safeReturnTo]);
+  }, [
+    currentUser.isSuccess,
+    currentUser.isFetching,
+    currentUser.data,
+    router,
+    safeReturnTo,
+  ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -60,7 +72,7 @@ export default function SignInForm({
         ...(organizationId ? { organizationId: organizationId.trim() } : {}),
       });
       const session = await currentUser.refetch();
-      if (!session.data) setSessionError(true);
+      if (session.isError || !session.data) setSessionError(true);
     } catch (error) {
       if (
         error instanceof ApiError &&
@@ -104,7 +116,8 @@ export default function SignInForm({
           <span aria-hidden="true">.</span>
         </h1>
         <p className={styles.introduction}>
-          {ui("signinHint")} {safeReturnTo ? null : <Link href="/signup">{ui("signinJoin")}</Link>}
+          {ui("signinHint")}{" "}
+          {safeReturnTo ? null : <Link href="/signup">{ui("signinJoin")}</Link>}
         </p>
       </header>
       {googleMessage && (
@@ -217,9 +230,6 @@ export default function SignInForm({
       <div className={styles.googleButton}>
         <GoogleOAuthButton label={t("continueWithGoogle")} />
       </div>
-      <p className="mt-5 text-center text-sm text-brand-600 hover:underline dark:text-brand-300">
-        <Link href="/platform/signin">{t("platformSignIn")}</Link>
-      </p>
     </main>
   );
 }
