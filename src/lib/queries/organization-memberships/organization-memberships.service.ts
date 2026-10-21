@@ -167,7 +167,26 @@ export function inviteOrganizationMember(
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) || input.email.length > 254 ||
     !["ACCESS_REQUEST", "ACCESS_REVIEW"].includes(input.reasonCode)
   ) throw new ApiError(422, "VALIDATION_FAILED", "Invalid invitation input");
-  const body = { email: input.email, reasonCode: input.reasonCode };
+  if (
+    (input.roleCode !== undefined && !["ADMIN", "MEMBER"].includes(input.roleCode)) ||
+    (input.accessScope !== undefined && !["ORGANIZATION", "SPECIFIC_PROJECTS"].includes(input.accessScope)) ||
+    (input.projectIds !== undefined && (!Array.isArray(input.projectIds) || input.projectIds.some((id) => !isOrganizationResourceId(id)))) ||
+    (input.message !== undefined && (typeof input.message !== "string" || input.message.length > 500)) ||
+    (input.expiresInDays !== undefined && ![7, 14, 30].includes(input.expiresInDays)) ||
+    (input.requireApproval !== undefined && typeof input.requireApproval !== "boolean")
+  ) {
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid invitation input");
+  }
+  const body = {
+    email: input.email,
+    reasonCode: input.reasonCode,
+    ...(input.roleCode !== undefined ? { roleCode: input.roleCode } : {}),
+    ...(input.accessScope !== undefined ? { accessScope: input.accessScope } : {}),
+    ...(input.projectIds !== undefined ? { projectIds: input.projectIds } : {}),
+    ...(input.message !== undefined ? { message: input.message } : {}),
+    ...(input.expiresInDays !== undefined ? { expiresInDays: input.expiresInDays } : {}),
+    ...(input.requireApproval !== undefined ? { requireApproval: input.requireApproval } : {}),
+  };
   return mutate(`/iam/organizations/${organization}/invitations`, organizationId, idempotencyKey, body);
 }
 

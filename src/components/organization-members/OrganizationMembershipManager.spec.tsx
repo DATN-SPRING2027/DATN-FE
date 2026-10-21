@@ -257,18 +257,18 @@ describe("Organization membership management page", () => {
     expect(screen.queryByText(/Invitation creation is currently paused/)).not.toBeInTheDocument();
     expect(screen.queryByText(/This list is read-only/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
-    const dialog = screen.getByRole("dialog", { name: "Invite member" });
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
     expect(within(dialog).getByLabelText(/Email address/)).toBeVisible();
     expect(within(dialog).getByLabelText(/Reason/)).toBeVisible();
     expect(within(dialog).getByText(/Sending invitations is unavailable until/)).toHaveAttribute("role", "status");
     fireEvent.change(within(dialog).getByLabelText(/Email address/), { target: { value: "new-member@example.com" } });
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "ACCESS_REQUEST" } });
-    expect(within(dialog).getByRole("button", { name: "Send invite" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Send invitation" })).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Resend invitation" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Cancel invitation" })).not.toBeInTheDocument();
     expect(api.mock.calls.filter(([, options]) => options?.method === "POST")).toHaveLength(0);
     fireEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog", { name: "Invite member" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: "Invite member to Organization" })).not.toBeInTheDocument();
   });
 
   it("submits the existing email and reason payload when invitation readiness is approved", async () => {
@@ -284,14 +284,22 @@ describe("Organization membership management page", () => {
     mount();
     await screen.findByRole("tab", { name: /Members/ });
     fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
-    const dialog = screen.getByRole("dialog", { name: "Invite member" });
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
     fireEvent.change(within(dialog).getByLabelText(/Email address/), { target: { value: "  new-member@example.com  " } });
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "ACCESS_REQUEST" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Send invite" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
 
     expect(await screen.findByText("Invitation created. Email delivery is queued.")).toBeVisible();
     const call = api.mock.calls.find(([endpoint, options]) => endpoint === `/iam/organizations/${organizationId}/invitations` && options?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ email: "new-member@example.com", reasonCode: "ACCESS_REQUEST" });
+    expect(await within(dialog).findByText("Invitation sent")).toBeVisible();
+    expect(within(dialog).getByText("An invitation has been sent to new-member@example.com.")).toBeVisible();
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      email: "new-member@example.com",
+      reasonCode: "ACCESS_REQUEST",
+      roleCode: "MEMBER",
+      accessScope: "ORGANIZATION",
+      expiresInDays: 7,
+    });
     expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
     expect(new Headers(call?.[1]?.headers).get("Idempotency-Key")).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
   });
@@ -352,7 +360,7 @@ describe("Organization membership management page", () => {
     await screen.findByText("pending@example.com");
     fireEvent.click(screen.getByRole("button", { name: "Invitation actions for pending@example.com" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Resend invitation" }));
-    const dialog = screen.getByRole("dialog", { name: "Resend invitation?" });
+    const dialog = screen.getByRole("dialog", { name: "Resend invitation" });
     fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Resend invitation" }));
 
@@ -363,7 +371,7 @@ describe("Organization membership management page", () => {
   });
 
   it.each([
-    { action: "resend", button: "Resend invitation", title: "Resend invitation?", reason: "ACCESS_REQUEST", endpoint: "/resend", invitationStatus: "PENDING" },
+    { action: "resend", button: "Resend invitation", title: "Resend invitation", reason: "ACCESS_REQUEST", endpoint: "/resend", invitationStatus: "PENDING" },
     { action: "cancel", button: "Cancel invitation", title: "Cancel invitation?", reason: undefined, endpoint: "/cancel", invitationStatus: "CANCELLED" },
   ] as const)("runs the ready $action invitation command and refreshes both lists", async ({ button, title, reason, endpoint, invitationStatus }) => {
     readinessState.invitationCommands = "READY";
@@ -744,5 +752,100 @@ describe("Organization membership management page", () => {
     expect(await screen.findByText("An active Organization membership is required to view this page.")).toBeVisible();
     await waitFor(() => expect(api).toHaveBeenCalledWith("/auth/me"));
     expect(api.mock.calls.some(([endpoint]) => endpoint.includes("/memberships?"))).toBe(false);
+  });
+
+  it("shows inline validation errors, supports Invite another reset, and renders ineligible account state", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    invitationReadiness.status = "READY";
+    let shouldFailIneligible = false;
+    api.mockImplementation(async (endpoint, options) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([]);
+      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage();
+      if (endpoint === `/iam/organizations/${organizationId}/invitations` && options?.method === "POST") {
+        if (shouldFailIneligible) {
+          throw new ApiError(422, "INVITATION_TARGET_NOT_ELIGIBLE", "Account not eligible");
+        }
+        return mutationAck();
+      }
+      throw new Error(`Unexpected request ${endpoint}`);
+    });
+    mount();
+    await screen.findByRole("tab", { name: /Members/ });
+    fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
+
+    const emailInput = within(dialog).getByLabelText(/Email address/);
+    fireEvent.change(emailInput, { target: { value: "invalid-email" } });
+    fireEvent.blur(emailInput);
+    expect(within(dialog).getByText("Please enter a valid email address.")).toBeVisible();
+
+    const roleSelect = within(dialog).getByLabelText(/^Role/);
+    fireEvent.change(roleSelect, { target: { value: "" } });
+    expect(within(dialog).getByText("Please select a role.")).toBeVisible();
+    expect(within(dialog).getByRole("button", { name: "Send invitation" })).toBeDisabled();
+
+    fireEvent.change(emailInput, { target: { value: "eligible@example.com" } });
+    fireEvent.change(roleSelect, { target: { value: "ADMIN" } });
+    fireEvent.change(within(dialog).getByLabelText(/Message to recipient/), { target: { value: "Welcome aboard!" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+
+    expect(await within(dialog).findByText("Invitation sent")).toBeVisible();
+    expect(within(dialog).getByText("An invitation has been sent to eligible@example.com.")).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Invite another" }));
+    expect(within(dialog).getByLabelText(/Email address/)).toHaveValue("");
+
+    shouldFailIneligible = true;
+    fireEvent.change(within(dialog).getByLabelText(/Email address/), { target: { value: "ineligible@example.com" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+
+    expect(await within(dialog).findByText("This account is not eligible to join this Organization.")).toBeVisible();
+    expect(within(dialog).getByText("Please check the account status or contact an administrator.")).toBeVisible();
+  });
+
+  it("supports redesigned resend modal reason modes, success state, Resend again, and error state", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    invitationReadiness.status = "READY";
+    let failResend = false;
+    api.mockImplementation(async (endpoint, options) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([]);
+      if (endpoint.includes("/invitations?") && options?.method !== "POST") {
+        return invitationPage([{ ...invitation, invitedEmail: "trankimthang0207@gmail.com" }]);
+      }
+      if (endpoint.endsWith(`/invitations/${invitationId}/resend`) && options?.method === "POST") {
+        if (failResend) throw new ApiError(422, "INVITATION_TARGET_NOT_ELIGIBLE", "Not eligible");
+        return {
+          operationId: "7123456789abcdef01234567",
+          invitation: { id: invitationId, status: "PENDING", version: 3, expiresAt: "2026-02-08T00:00:00.000Z" },
+        };
+      }
+      throw new Error(`Unexpected request ${endpoint}`);
+    });
+    mount();
+    await screen.findByRole("tab", { name: /Members/ });
+    fireEvent.click(screen.getByRole("tab", { name: /Invitations/ }));
+    await screen.findByText("trankimthang0207@gmail.com");
+    fireEvent.click(screen.getByRole("button", { name: "Invitation actions for trankimthang0207@gmail.com" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Resend invitation" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Resend invitation" });
+    expect(within(dialog).getByText("No reason (resend only)")).toBeVisible();
+    expect(within(dialog).getByText("The current invitation will remain valid until the new one is generated successfully.")).toBeVisible();
+
+    const customTextarea = within(dialog).getByPlaceholderText("Add a note (optional, up to 500 characters)");
+    fireEvent.change(customTextarea, { target: { value: "Người dùng phản hồi chưa nhận được email." } });
+    expect(within(dialog).getByText("41/500")).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Resend invitation" }));
+    expect(await within(dialog).findByText("Invitation resent successfully!")).toBeVisible();
+    expect(within(dialog).getByText("A new invitation link has been sent to trankimthang0207@gmail.com.")).toBeVisible();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Resend again" }));
+    failResend = true;
+    fireEvent.click(within(dialog).getByRole("button", { name: "Resend invitation" }));
+    expect(await within(dialog).findByText("Cannot resend invitation")).toBeVisible();
+    expect(within(dialog).getByText("This account is not eligible to join this Organization.")).toBeVisible();
   });
 });
