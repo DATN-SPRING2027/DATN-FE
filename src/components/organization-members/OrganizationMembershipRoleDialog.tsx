@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
@@ -48,6 +49,7 @@ export default function OrganizationMembershipRoleDialog({
   onRefresh: () => void;
 }) {
   const t = useTranslations("organizationMembers");
+  const roleLabel = useRoleDisplayLabel();
   const [roleCode, setRoleCode] = useState<OrganizationRoleCode | "">(membership?.roleCode ?? "");
   const [reason, setReason] = useState("");
   const titleId = useId();
@@ -155,8 +157,8 @@ export default function OrganizationMembershipRoleDialog({
               className="h-11 w-full cursor-pointer rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
             >
               <option value="" disabled>{t("roleUnassigned")}</option>
-              <option value="ADMIN">{t("roleAdmin")}</option>
-              <option value="MEMBER">{t("roleMember")}</option>
+              <option value="ADMIN">{roleLabel("ADMIN")}</option>
+              <option value="MEMBER">{roleLabel("MEMBER")}</option>
             </select>
           </div>
 

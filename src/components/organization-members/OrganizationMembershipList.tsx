@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Button from "@/components/ui/button/Button";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { LockIcon, PencilIcon } from "@/icons";
@@ -77,11 +78,12 @@ export default function OrganizationMembershipList({
   onSetRole: (membership: OrganizationMembership) => void;
 }) {
   const t = useTranslations("organizationMembers");
+  const displayRoleLabel = useRoleDisplayLabel();
   const locale = useLocale();
   const query = searchTerm.trim().toLocaleLowerCase(locale);
   const visibleMembers = query
     ? page.data.filter((membership) => {
-        const role = membership.roleCode === "ADMIN" ? t("roleAdmin") : membership.roleCode === "MEMBER" ? t("roleMember") : t("roleUnassigned");
+        const role = membership.roleCode === "ADMIN" || membership.roleCode === "MEMBER" ? displayRoleLabel(membership.roleCode) : t("roleUnassigned");
         const searchable = [membership.user?.fullName, membership.user?.email, membership.userId, role]
           .filter(Boolean)
           .join(" ")
@@ -128,7 +130,7 @@ export default function OrganizationMembershipList({
               const name = membership.user?.fullName || t("nameUnavailable");
               const email = membership.user?.email ?? membership.userId;
               const canChangeRole = canManageActions && membership.status === "ACTIVE" && membership.user !== null && membership.userId.toLowerCase() !== actorId.toLowerCase();
-              const roleLabel = membership.roleCode === "ADMIN" ? t("roleAdmin") : membership.roleCode === "MEMBER" ? t("roleMember") : t("roleUnassigned");
+              const roleLabel = membership.roleCode === "ADMIN" || membership.roleCode === "MEMBER" ? displayRoleLabel(membership.roleCode) : t("roleUnassigned");
               const roleTone = membership.roleCode === "ADMIN"
                 ? "bg-brand-50 text-brand-700 ring-brand-100 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-500/20"
                 : membership.roleCode === "MEMBER"
