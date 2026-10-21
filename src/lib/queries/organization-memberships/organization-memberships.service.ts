@@ -4,13 +4,16 @@ import {
   parseAdminInvitationPage,
   parseMembershipPage,
   parseMutationAck,
+  parseOrganizationRoleMutationAck,
   type AdminInvitationPage,
   type CancelInvitationInput,
   type InviteMemberInput,
   type MembershipListStatus,
   type MembershipMutationAck,
   type OrganizationMembershipPage,
+  type OrganizationRoleMutationAck,
   type ResendInvitationInput,
+  type SetOrganizationMembershipRoleInput,
   type SuspendMembershipInput,
 } from "./organization-memberships.contract";
 
@@ -40,6 +43,13 @@ function requireResourceId(value: string, name: string): string {
 function requireVersion(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1) {
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid expected version");
+  }
+  return value;
+}
+
+function requireNonnegativeVersion(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 0) {
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid expected role version");
   }
   return value;
 }
@@ -204,4 +214,31 @@ export function suspendOrganizationMembership(
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid suspension reason");
   }
   return mutate(`/iam/organizations/${organization}/memberships/${membership}/suspend`, organizationId, idempotencyKey, body);
+}
+
+export async function setOrganizationMembershipRole(
+  organizationId: string,
+  membershipId: string,
+  input: SetOrganizationMembershipRoleInput,
+  idempotencyKey: string,
+): Promise<OrganizationRoleMutationAck> {
+  const organization = requireOrganizationId(organizationId);
+  const membership = requireResourceId(membershipId, "membership identifier");
+  const reason = input.reason.trim();
+  if (
+    !["ADMIN", "MEMBER"].includes(input.roleCode) ||
+    !reason ||
+    input.reason.length > 500
+  ) throw new ApiError(422, "VALIDATION_FAILED", "Invalid organization role input");
+  const body = {
+    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    expectedRoleVersion: requireNonnegativeVersion(input.expectedRoleVersion),
+    roleCode: input.roleCode,
+    reason,
+  };
+  const response = await apiClient<unknown>(
+    `/iam/organizations/${organization}/memberships/${membership}/role`,
+    mutationOptions(idempotencyKey, body),
+  );
+  return parseOrganizationRoleMutationAck(response, organizationId);
 }

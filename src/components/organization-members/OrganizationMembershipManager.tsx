@@ -10,7 +10,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Button from "@/components/ui/button/Button";
 import Alert from "@/components/ui/alert/Alert";
 import Label from "@/components/form/Label";
-import { MailIcon, UserIcon } from "@/icons";
+import { MailIcon, SearchIcon, UserIcon } from "@/icons";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { organizationMembershipReadiness } from "@/lib/queries/organization-memberships/organization-membership-readiness";
 import { createIdempotencyKey, type MembershipListFilter } from "@/lib/queries/organization-memberships/organization-memberships.service";
@@ -19,7 +19,9 @@ import type {
   CancelInvitationInput,
   InviteMemberInput,
   OrganizationMembership,
+  OrganizationRoleCode,
   ResendInvitationInput,
+  SetOrganizationMembershipRoleInput,
   SuspendMembershipInput,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import {
@@ -28,9 +30,11 @@ import {
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
   useResendOrganizationInvitation,
+  useSetOrganizationMembershipRole,
   useSuspendOrganizationMembership,
   type IdempotentInput,
 } from "@/lib/queries/organization-memberships/useOrganizationMemberships";
+import OrganizationMembershipStats from "./OrganizationMembershipStats";
 import OrganizationMembershipList from "./OrganizationMembershipList";
 import OrganizationInvitationList from "./OrganizationInvitationList";
 import OrganizationInvitationCreateDialog from "./OrganizationInvitationCreateDialog";
@@ -38,6 +42,7 @@ import OrganizationMembershipActionDialog, {
   type MembershipActionReasonCode,
   type MembershipActionTarget,
 } from "./OrganizationMembershipActionDialog";
+import OrganizationMembershipRoleDialog from "./OrganizationMembershipRoleDialog";
 
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
@@ -136,12 +141,16 @@ function ScopedOrganizationMemberships({
   const [activeTab, setActiveTab] = useState<DirectoryTab>("members");
   const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
+  const [searchTerm, setSearchTerm] = useState("");
   const [membershipPage, setMembershipPage] = useState(1);
   const [invitationPage, setInvitationPage] = useState(1);
   const [target, setTarget] = useState<MembershipActionTarget | null>(null);
+  const [roleTarget, setRoleTarget] = useState<OrganizationMembership | null>(null);
   const [notice, setNotice] = useState(false);
   const [isRefreshingAction, setIsRefreshingAction] = useState(false);
   const [actionRefreshFailed, setActionRefreshFailed] = useState(false);
+  const [isRefreshingRole, setIsRefreshingRole] = useState(false);
+  const [roleRefreshFailed, setRoleRefreshFailed] = useState(false);
   const filter: MembershipListFilter = {
     page: membershipPage,
     pageSize,
@@ -150,21 +159,25 @@ function ScopedOrganizationMemberships({
   const memberships = useOrganizationMembershipsQuery(actorId, organizationId, filter);
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
   const invite = useInviteOrganizationMember(actorId, organizationId);
-  const suspend = useSuspendOrganizationMembership(actorId, organizationId);
   const resend = useResendOrganizationInvitation(actorId, organizationId);
-  const cancelInvitation = useCancelOrganizationInvitation(actorId, organizationId);
+  const cancel = useCancelOrganizationInvitation(actorId, organizationId);
+  const suspend = useSuspendOrganizationMembership(actorId, organizationId);
+  const roleChange = useSetOrganizationMembershipRole(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
+  const roleAttempt = useRef<{
+    input: SetOrganizationMembershipRoleInput & { membershipId: string };
+    idempotencyKey: string;
+  } | null>(null);
   const canSendInvitation = canManage && organizationMembershipReadiness.invitationCommands.status === "READY";
   const canManageInvitationCommands = canManage && organizationMembershipReadiness.invitationCommands.status === "READY";
-  const actionMutation = target?.action === "suspend"
-    ? suspend
-    : target?.action === "resend"
-      ? resend
-      : target?.action === "cancel"
-        ? cancelInvitation
-        : undefined;
-  const hasUnresolvedMutation = Boolean(actionMutation?.isPending || actionMutation?.isError);
+  const actionMutation =
+    target?.action === "suspend" ? suspend :
+      target?.action === "resend" ? resend :
+        target?.action === "cancel" ? cancel : undefined;
+  const hasUnresolvedMutation = Boolean(
+    actionMutation?.isPending || actionMutation?.isError || roleChange.isPending || roleChange.isError,
+  );
 
   async function refreshLists(): Promise<boolean> {
     const results = await Promise.all([
@@ -177,7 +190,7 @@ function ScopedOrganizationMemberships({
   function resetActionMutation(actionTarget: MembershipActionTarget | null) {
     if (actionTarget?.action === "suspend") suspend.reset();
     if (actionTarget?.action === "resend") resend.reset();
-    if (actionTarget?.action === "cancel") cancelInvitation.reset();
+    if (actionTarget?.action === "cancel") cancel.reset();
   }
 
   async function recoverActionBeforeNewCommand() {
@@ -203,13 +216,14 @@ function ScopedOrganizationMemberships({
     if ((next.action === "resend" || next.action === "cancel") && !canManageInvitationCommands) return;
     suspend.reset();
     resend.reset();
-    cancelInvitation.reset();
+    cancel.reset();
     setNotice(false);
     setActionRefreshFailed(false);
     setTarget(next);
   }
 
   function openInviteDialog() {
+    if (hasUnresolvedMutation) return;
     invite.reset();
     setInviteSuccess(false);
     inviteDialog.openModal();
@@ -221,7 +235,7 @@ function ScopedOrganizationMemberships({
   }
 
   async function submitInvite(input: InviteMemberInput) {
-    if (!canSendInvitation || invite.isPending) return;
+    if (!canSendInvitation || invite.isPending || hasUnresolvedMutation) return;
     const previousAttempt = inviteAttempt.current;
     const idempotencyKey =
       previousAttempt?.input.email === input.email && previousAttempt.input.reasonCode === input.reasonCode
@@ -245,18 +259,18 @@ function ScopedOrganizationMemberships({
   }
 
   async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
+    if (!canManage || (actionTarget.action !== "suspend" && !canManageInvitationCommands)) return;
     if (actionTarget.action === "suspend") {
-      const input: IdempotentInput<SuspendMembershipInput & { membershipId: string }> = {
+      await suspend.mutateAsync({
         input: {
           membershipId: actionTarget.membership.id,
           expectedMembershipVersion: actionTarget.membership.version,
           reasonCode: reasonCode as SuspendMembershipInput["reasonCode"],
         },
         idempotencyKey,
-      };
-      await suspend.mutateAsync(input);
+      });
     } else if (actionTarget.action === "resend") {
-      const input: IdempotentInput<ResendInvitationInput & { invitationId: string }> = {
+      await resend.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
           expectedMembershipVersion: actionTarget.invitation.membershipVersion,
@@ -264,19 +278,17 @@ function ScopedOrganizationMemberships({
           reasonCode: reasonCode as ResendInvitationInput["reasonCode"],
         },
         idempotencyKey,
-      };
-      await resend.mutateAsync(input);
+      });
     } else {
-      const input: IdempotentInput<CancelInvitationInput & { invitationId: string }> = {
+      await cancel.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
           expectedMembershipVersion: actionTarget.invitation.membershipVersion,
           expectedInvitationVersion: actionTarget.invitation.version,
-          reasonCode: "INVITATION_CANCELLED",
+          reasonCode: "INVITATION_CANCELLED" satisfies CancelInvitationInput["reasonCode"],
         },
         idempotencyKey,
-      };
-      await cancelInvitation.mutateAsync(input);
+      });
     }
     setTarget(null);
     setNotice(true);
@@ -284,6 +296,7 @@ function ScopedOrganizationMemberships({
 
   function confirmAction(reasonCode: MembershipActionReasonCode) {
     if (!target || hasUnresolvedMutation) return;
+    if (target.action !== "suspend" && !canManageInvitationCommands) return;
     void executeAction(target, reasonCode).catch(() => undefined);
   }
 
@@ -291,12 +304,86 @@ function ScopedOrganizationMemberships({
     if (!target) return;
     if (target.action === "suspend" && suspend.variables) {
       void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.idempotencyKey).catch(() => undefined);
-    }
-    if (target.action === "resend" && resend.variables) {
+    } else if (target.action === "resend" && resend.variables) {
       void executeAction(target, resend.variables.input.reasonCode, resend.variables.idempotencyKey).catch(() => undefined);
+    } else if (target.action === "cancel" && cancel.variables) {
+      void executeAction(target, cancel.variables.input.reasonCode, cancel.variables.idempotencyKey).catch(() => undefined);
     }
-    if (target.action === "cancel" && cancelInvitation.variables) {
-      void executeAction(target, cancelInvitation.variables.input.reasonCode, cancelInvitation.variables.idempotencyKey).catch(() => undefined);
+  }
+
+  function openRoleDialog(membership: OrganizationMembership) {
+    if (
+      !canManage ||
+      hasUnresolvedMutation ||
+      membership.status !== "ACTIVE" ||
+      membership.userId.toLowerCase() === actorId.toLowerCase()
+    ) return;
+    roleChange.reset();
+    setRoleRefreshFailed(false);
+    setNotice(false);
+    setRoleTarget(membership);
+  }
+
+  async function executeRoleChange(
+    input: IdempotentInput<SetOrganizationMembershipRoleInput & { membershipId: string }>,
+  ) {
+    await roleChange.mutateAsync(input);
+    roleAttempt.current = null;
+    setRoleTarget(null);
+    setNotice(true);
+  }
+
+  function submitRoleChange(roleCode: OrganizationRoleCode, reason: string) {
+    if (!roleTarget || !canManage || hasUnresolvedMutation) return;
+    const input: SetOrganizationMembershipRoleInput & { membershipId: string } = {
+      membershipId: roleTarget.id,
+      expectedMembershipVersion: roleTarget.version,
+      expectedRoleVersion: roleTarget.roleVersion,
+      roleCode,
+      reason: reason.trim(),
+    };
+    const previousAttempt = roleAttempt.current;
+    const matchesPrevious = Boolean(
+      previousAttempt &&
+      previousAttempt.input.membershipId === input.membershipId &&
+      previousAttempt.input.expectedMembershipVersion === input.expectedMembershipVersion &&
+      previousAttempt.input.expectedRoleVersion === input.expectedRoleVersion &&
+      previousAttempt.input.roleCode === input.roleCode &&
+      previousAttempt.input.reason === input.reason,
+    );
+    const idempotencyKey = matchesPrevious
+      ? previousAttempt!.idempotencyKey
+      : createIdempotencyKey();
+    roleAttempt.current = { input, idempotencyKey };
+    void executeRoleChange({ input, idempotencyKey }).catch(() => undefined);
+  }
+
+  function retryRoleChange() {
+    if (!roleChange.variables) return;
+    void executeRoleChange(roleChange.variables).catch(() => undefined);
+  }
+
+  function closeRoleDialog() {
+    if (roleChange.isPending || roleChange.isError || isRefreshingRole) return;
+    setRoleTarget(null);
+  }
+
+  async function recoverRoleBeforeNewAction() {
+    setIsRefreshingRole(true);
+    setRoleRefreshFailed(false);
+    try {
+      if (await refreshLists()) {
+        roleChange.reset();
+        roleAttempt.current = null;
+        setRoleTarget(null);
+        setNotice(false);
+      } else {
+        setRoleRefreshFailed(true);
+      }
+    } catch {
+      setRoleRefreshFailed(true);
+    } finally {
+      setIsRefreshingRole(false);
     }
   }
 
@@ -348,6 +435,13 @@ function ScopedOrganizationMemberships({
       {notice && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("actionAccepted")}</div>}
       {inviteSuccess && <div role="status" aria-live="polite" className="rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400">{t("inviteAccepted")}</div>}
 
+      <OrganizationMembershipStats
+        actorId={actorId}
+        organizationId={organizationId}
+        pendingCount={readyInvitations?.pagination.totalItems}
+        pendingCountUnavailable={invitations.isError}
+      />
+
       <section aria-label={t("directoryLabel")} className="overflow-visible rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-white/3">
         <div role="tablist" aria-label={t("directoryTabsLabel")} className="flex gap-6 border-b border-gray-100 px-4 sm:px-6 dark:border-gray-800">
           <button
@@ -386,7 +480,23 @@ function ScopedOrganizationMemberships({
           {activeTab === "members" && (
             <div className="space-y-4">
               <div className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/60 p-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-white/2">
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <div className="w-full sm:w-64">
+                    <label htmlFor="organization-members-search" className="sr-only">{t("searchMembers")}</label>
+                    <div className="relative">
+                      <SearchIcon className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+                      <input
+                        id="organization-members-search"
+                        type="search"
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder={t("searchMembers")}
+                        aria-describedby="organization-members-search-hint"
+                        className="h-9 w-full rounded-lg border border-gray-200 bg-white ps-9 pe-3 text-xs sm:text-sm text-gray-800 shadow-theme-xs outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:placeholder:text-gray-500"
+                      />
+                    </div>
+                    <span id="organization-members-search-hint" className="sr-only">{t("searchLoadedPageHint")}</span>
+                  </div>
                   <MembershipStatusSelect value={status} disabled={memberships.isFetching} onChange={(next) => { setStatus(next); setMembershipPage(1); }} />
                   {status !== "ALL" && (
                     <Button
@@ -430,8 +540,10 @@ function ScopedOrganizationMemberships({
                   actorId={actorId}
                   canManageActions={canManage}
                   actionsDisabled={hasUnresolvedMutation}
+                  searchTerm={searchTerm}
                   onPageChange={setMembershipPage}
                   onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
+                  onSetRole={openRoleDialog}
                 />
               )}
             </div>
@@ -448,7 +560,7 @@ function ScopedOrganizationMemberships({
                 </div>
                 {readyInvitations && (
                   <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-theme-xs sm:self-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                    <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
+                    <span className="size-1.5 rounded-full bg-warning-500" aria-hidden="true" />
                     <span aria-live="polite">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</span>
                   </div>
                 )}
@@ -491,6 +603,18 @@ function ScopedOrganizationMemberships({
         onRefresh={() => void recoverActionBeforeNewCommand()}
         isRecovering={isRefreshingAction}
         refreshFailed={actionRefreshFailed}
+      />
+      <OrganizationMembershipRoleDialog
+        key={`role:${roleTarget?.id ?? "closed"}`}
+        membership={roleTarget}
+        error={roleChange.isError ? roleChange.error : undefined}
+        isPending={roleChange.isPending}
+        isRecovering={isRefreshingRole}
+        refreshFailed={roleRefreshFailed}
+        onClose={closeRoleDialog}
+        onSubmit={submitRoleChange}
+        onRetry={retryRoleChange}
+        onRefresh={() => void recoverRoleBeforeNewAction()}
       />
       {inviteDialog.isOpen && <OrganizationInvitationCreateDialog
         isOpen={inviteDialog.isOpen}
