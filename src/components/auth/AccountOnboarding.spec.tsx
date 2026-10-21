@@ -7,6 +7,7 @@ import { ApiError } from "@/lib/api-client";
 import { clearOrganizationInvitationAcceptanceKey } from "@/lib/queries/organization-memberships/organization-invitation-acceptance-idempotency";
 import {
   useAcceptOrganizationInvitationMutation,
+  useCreateOrganizationMutation,
   useMyOrganizationInvitationsQuery,
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
@@ -14,6 +15,7 @@ import {
 
 const replace = vi.fn();
 const select = vi.fn();
+const createOrganization = vi.fn();
 const accept = vi.fn();
 const refetchOrganizations = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
@@ -23,6 +25,7 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/icons", () => ({
   ArrowRightIcon: () => <span aria-hidden="true" />,
   GroupIcon: () => <span aria-hidden="true" />,
+  PlusIcon: () => <span aria-hidden="true" />,
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/queries/auth/useAuth", () => ({
@@ -31,6 +34,7 @@ vi.mock("@/lib/queries/auth/useAuth", () => ({
 }));
 vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   useAcceptOrganizationInvitationMutation: vi.fn(),
+  useCreateOrganizationMutation: vi.fn(),
   useMyOrganizationInvitationsQuery: vi.fn(),
   useOrganizationOptionsQuery: vi.fn(),
   useSelectOrganizationMutation: vi.fn(),
@@ -42,6 +46,7 @@ describe("account onboarding invitations", () => {
     clearOrganizationInvitationAcceptanceKey("organizationInvitationAccept:951a2b3c4d5e6f7a8b9c0d1e:4");
     replace.mockReset();
     select.mockReset();
+    createOrganization.mockReset();
     accept.mockReset().mockResolvedValue({});
     refetchOrganizations.mockReset().mockResolvedValue({});
     vi.mocked(useCurrentUserQuery).mockReturnValue({
@@ -70,6 +75,9 @@ describe("account onboarding invitations", () => {
     } as never);
     vi.mocked(useSelectOrganizationMutation).mockReturnValue({
       mutateAsync: select, isPending: false, isError: false,
+    } as never);
+    vi.mocked(useCreateOrganizationMutation).mockReturnValue({
+      mutateAsync: createOrganization, isPending: false, isError: false,
     } as never);
   });
 
@@ -159,6 +167,7 @@ describe("account onboarding invitations", () => {
     expect(screen.queryByRole("button", { name: "onboardingAcceptInvitation" })).not.toBeInTheDocument();
     expect(screen.getByText("onboardingInvitationNotPending")).toBeInTheDocument();
   });
+
   it("shows an explicit empty state when the recipient inbox is empty", () => {
     vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
       data: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
@@ -185,12 +194,17 @@ describe("account onboarding invitations", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
-  it("does not offer self-service Organization creation to an account without membership", () => {
+  it("offers organization creation when none are available and opens the form on demand", () => {
     render(<AccountOnboarding />);
 
     expect(screen.getByText("onboardingNoOrganization")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "onboardingCreateStartAction" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "onboardingCreateStartAction" })).toBeInTheDocument();
     expect(screen.queryByLabelText("onboardingName")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingCreateStartAction" }));
+
+    expect(screen.getByLabelText("onboardingName")).toBeInTheDocument();
+    expect(screen.getByLabelText("onboardingSlug")).toBeInTheDocument();
   });
 
   it("lists and selects organizations for an already organization-scoped user", async () => {
@@ -218,8 +232,12 @@ describe("account onboarding invitations", () => {
     expect(useOrganizationOptionsQuery).toHaveBeenCalledWith(true);
     expect(screen.getByText("North Star")).toBeInTheDocument();
     expect(screen.getByText("Sunrise Institute")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "onboardingCreateAdditionalAction" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" })).toBeInTheDocument();
     expect(screen.queryByText("onboardingInvited")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" }));
+    expect(screen.getByLabelText("onboardingName")).toBeInTheDocument();
+    expect(screen.getByLabelText("onboardingSlug")).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /Sunrise Institute/ }));
 
@@ -227,7 +245,7 @@ describe("account onboarding invitations", () => {
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
-  it("does not offer creation when an organization-scoped user switches context", async () => {
+  it("lets a member create another organization and enters it", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
         id: "user-1", email: "member@example.com", name: "Member", context: "ORGANIZATION",
@@ -242,11 +260,68 @@ describe("account onboarding invitations", () => {
       isSuccess: true,
       refetch: vi.fn().mockResolvedValue({}),
     } as never);
+    createOrganization.mockResolvedValue({ id: "org-created", name: "New Organization" });
+    select.mockResolvedValue({ user: { organizationId: "org-created" } });
 
     render(<AccountOnboarding />);
 
-    expect(screen.getByRole("button", { name: /North Star/ })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "onboardingCreateAdditionalAction" })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("onboardingName")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" }));
+    fireEvent.change(screen.getByLabelText("onboardingName"), { target: { value: "New Organization" } });
+    fireEvent.change(screen.getByLabelText("onboardingSlug"), { target: { value: "new-organization" } });
+    const form = screen.getByLabelText("onboardingName").closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
+    await waitFor(() => expect(createOrganization).toHaveBeenCalledWith({
+      name: "New Organization",
+      slug: "new-organization",
+    }));
+    await waitFor(() => expect(select).toHaveBeenCalledWith("org-created"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("disables organization actions while creating another organization", () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1", email: "member@example.com", name: "Member", context: "ORGANIZATION",
+        organizationId: "org-1", roles: ["MEMBER"],
+      },
+      isError: false,
+    } as never);
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: [{ id: "org-1", name: "North Star" }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+    vi.mocked(useCreateOrganizationMutation).mockReturnValue({
+      mutateAsync: createOrganization, isPending: true, isError: false,
+    } as never);
+
+    render(<AccountOnboarding />);
+
+    expect(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /North Star/ })).toBeDisabled();
+  });
+
+  it("creates an organization, selects it, then enters its workspace", async () => {
+    createOrganization.mockResolvedValue({ id: "org-created", name: "New Organization" });
+    select.mockResolvedValue({ user: { organizationId: "org-created" } });
+    render(<AccountOnboarding />);
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingCreateStartAction" }));
+    fireEvent.change(screen.getByLabelText("onboardingName"), { target: { value: "New Organization" } });
+    fireEvent.change(screen.getByLabelText("onboardingSlug"), { target: { value: "new-organization" } });
+    const form = screen.getByLabelText("onboardingName").closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.submit(form!);
+
+    await waitFor(() => expect(createOrganization).toHaveBeenCalledWith({
+      name: "New Organization",
+      slug: "new-organization",
+    }));
+    await waitFor(() => expect(select).toHaveBeenCalledWith("org-created"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 });

@@ -18,7 +18,7 @@ remain unchanged.
 | --- | --- |
 | `PLATFORM_OPERATOR` | Admin |
 | `ADMIN` | Manager |
-| `TEAM_LEADER` | Project Leader |
+| `TEAM_LEADER` | Leader |
 | `MEMBER` | Member |
 
 The FE branch is `feat/Thang-platform-user-management-fe-ui`, based on FE

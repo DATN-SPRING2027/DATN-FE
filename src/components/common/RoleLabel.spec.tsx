@@ -7,7 +7,8 @@ import RoleLabel from "./RoleLabel";
 it.each([
   ["PLATFORM_OPERATOR", "Admin"],
   ["ADMIN", "Manager"],
-  ["TEAM_LEADER", "Project Leader"],
+  ["TEAM_LEADER", "Leader"],
+  ["LEADER", "Leader"],
   ["MEMBER", "Member"],
 ] as const)("renders %s with its business display label", (roleCode, label) => {
   render(

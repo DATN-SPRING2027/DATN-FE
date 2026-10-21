@@ -7,13 +7,10 @@ export function teamDevelopmentEnabled(): boolean {
   );
 }
 
-/** Show the clearly labeled local fixture when development API wiring is off. */
+/** Keep the local fixture hidden from the shared UI while Team scope is deferred. */
 export function teamFixturePreviewEnabled(requestedMode?: string): boolean {
-  return (
-    process.env.NODE_ENV === "development" &&
-    (requestedMode === "fixture" ||
-      (!teamDevelopmentEnabled() && requestedMode !== "api"))
-  );
+  void requestedMode;
+  return false;
 }
 
 export function isTeamPath(path: readonly string[]): boolean {

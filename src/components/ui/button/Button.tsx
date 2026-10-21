@@ -8,6 +8,7 @@ interface ButtonProps {
   endIcon?: ReactNode; // Icon after the text
   onClick?: MouseEventHandler<HTMLButtonElement>; // Click handler
   ariaLabel?: string;
+  title?: string;
   autoFocus?: boolean;
   disabled?: boolean; // Disabled state
   className?: string; // Disabled state
@@ -22,6 +23,7 @@ const Button: React.FC<ButtonProps> = ({
   endIcon,
   onClick,
   ariaLabel,
+  title,
   autoFocus = false,
   className = "",
   disabled = false,
@@ -52,6 +54,7 @@ const Button: React.FC<ButtonProps> = ({
         disabled ? "cursor-not-allowed opacity-50" : ""
       }`}
       aria-label={ariaLabel}
+      title={title}
       autoFocus={autoFocus}
       onClick={onClick}
       disabled={disabled}
