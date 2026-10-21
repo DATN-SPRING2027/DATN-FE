@@ -1,6 +1,7 @@
 "use client";
 
-import { ArrowRightIcon, GroupIcon } from "@/icons";
+import Button from "@/components/ui/button/Button";
+import { ArrowRightIcon, GroupIcon, PlusIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import type { OrganizationOption } from "@/lib/queries/auth/useAccountOnboarding";
 
@@ -17,10 +18,12 @@ export default function OrganizationChoices({
   organizations,
   isBusy,
   onSelect,
+  onCreate,
 }: {
   organizations: readonly OrganizationOption[];
   isBusy: boolean;
   onSelect: (organizationId: string) => void;
+  onCreate: () => void;
 }) {
   const t = useTranslations("auth");
 
@@ -44,6 +47,15 @@ export default function OrganizationChoices({
             <p className="mt-1 text-sm leading-5 text-gray-600 dark:text-gray-400">
               {t("onboardingNoOrganization")}
             </p>
+            <Button
+              type="button"
+              size="sm"
+              className="mt-4"
+              startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
+              onClick={onCreate}
+            >
+              {t("onboardingCreateStartAction")}
+            </Button>
           </div>
         </div>
       </section>
@@ -52,15 +64,29 @@ export default function OrganizationChoices({
 
   return (
     <section aria-labelledby="organization-list-title" className="space-y-3">
-      <div>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 id="organization-list-title" className="text-sm font-semibold text-gray-900 dark:text-white">
+          <h2
+            id="organization-list-title"
+            className="text-sm font-semibold text-gray-900 dark:text-white"
+          >
             {t("onboardingAvailable")}
           </h2>
           <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
             {t("onboardingChooseHint")}
           </p>
         </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="shrink-0"
+          startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
+          disabled={isBusy}
+          onClick={onCreate}
+        >
+          {t("onboardingCreateAdditionalAction")}
+        </Button>
       </div>
       <ul className="space-y-3">
         {organizations.map((organization) => (
@@ -72,7 +98,10 @@ export default function OrganizationChoices({
               onClick={() => onSelect(organization.id)}
               className="group flex min-h-18 w-full items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 text-start shadow-theme-xs transition hover:border-brand-300 hover:bg-brand-25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-wait disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/5"
             >
-              <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+              <span
+                aria-hidden="true"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+              >
                 {organizationInitials(organization.name)}
               </span>
               <span className="min-w-0 flex-1">
@@ -83,7 +112,10 @@ export default function OrganizationChoices({
                   {t("onboardingOpenWorkspace")}
                 </span>
               </span>
-              <ArrowRightIcon aria-hidden="true" className="size-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
+              <ArrowRightIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
+              />
             </button>
           </li>
         ))}
