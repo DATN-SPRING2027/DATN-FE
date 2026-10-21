@@ -6,6 +6,7 @@ import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
+import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
 import { GroupIcon, PlusIcon } from "@/icons";
@@ -26,6 +27,21 @@ export default function ProjectOverview({
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
+  const memberSummary = useProjectMembersQuery(
+    project.organizationId,
+    project.id,
+    { page: 1, pageSize: 1, status: "ACTIVE" },
+  );
+  const activeMemberTotal =
+    memberSummary.isPending || memberSummary.isError
+      ? undefined
+      : memberSummary.data?.pagination.totalItems;
+  const activeMemberValue =
+    activeMemberTotal === undefined
+      ? memberSummary.isPending
+        ? memberLabels("loading")
+        : t("memberDataUnavailable")
+      : format.number(activeMemberTotal);
   const [tab, setTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
@@ -41,6 +57,7 @@ export default function ProjectOverview({
     { label: "code", value: project.code },
     { label: "visibility", value: t(project.visibility) },
     { label: "updatedAt", value: date(project.updatedAt) },
+    { label: "activeMembers", value: activeMemberValue },
   ];
   const context = [
     { label: "projectId", value: project.id },
@@ -208,7 +225,7 @@ export default function ProjectOverview({
         hidden={tab !== "overview"}
         className="space-y-5 sm:space-y-6"
       >
-        <dl className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
+        <dl className="grid grid-cols-1 gap-4 @xl:grid-cols-3 @4xl:grid-cols-4">
           {summary.map(({ label, value }) => (
             <div
               key={label}
@@ -217,7 +234,10 @@ export default function ProjectOverview({
               <dt className="text-sm text-gray-500 dark:text-gray-400">
                 {t(label)}
               </dt>
-              <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90">
+              <dd
+                aria-live={label === "activeMembers" ? "polite" : undefined}
+                className={`mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90 ${label === "activeMembers" && activeMemberTotal !== undefined ? "tabular-nums" : ""}`}
+              >
                 {label === "updatedAt" ? (
                   <time dateTime={project.updatedAt}>{value}</time>
                 ) : (
