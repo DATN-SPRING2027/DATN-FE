@@ -1,12 +1,35 @@
 "use client";
 
-import type { OrganizationOption } from "@/lib/queries/auth/useAccountOnboarding";
+import type {
+  OrganizationOption,
+  SelectOrganizationResponse,
+} from "@/lib/queries/auth/useAccountOnboarding";
 import { useSelectOrganizationMutation } from "@/lib/queries/auth/useAccountOnboarding";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { CheckCircleIcon, ChevronDownIcon } from "@/icons/index";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/utils";
+
+function resolveSwitchDestination(
+  pathname: string | undefined,
+  user?: SelectOrganizationResponse["user"],
+): string {
+  if (!pathname || pathname === "/") return "/dashboard";
+  if (pathname === "/projects" || pathname.startsWith("/projects/")) {
+    return "/projects";
+  }
+  if (pathname === "/organization/members" || pathname === "/users") {
+    if (Array.isArray(user?.roles) && !user.roles.includes("ADMIN")) {
+      return "/dashboard";
+    }
+    return pathname;
+  }
+  if (pathname === "/dashboard" || pathname === "/calendar" || pathname === "/profile") {
+    return pathname;
+  }
+  return "/dashboard";
+}
 
 function getInitials(name: string) {
   return name
@@ -37,9 +60,11 @@ export default function SidebarOrganizationSwitcher({
   onRetry,
 }: SidebarOrganizationSwitcherProps) {
   const t = useTranslations("sidebar");
+  const pathname = usePathname();
   const router = useRouter();
   const select = useSelectOrganizationMutation();
   const [isOpen, setIsOpen] = useState(false);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const name = organizationName || t("organizationUnavailable");
@@ -73,12 +98,15 @@ export default function SidebarOrganizationSwitcher({
     }
 
     select.reset();
+    setSwitchingId(nextOrganizationId);
     try {
-      await select.mutateAsync(nextOrganizationId);
+      const result = await select.mutateAsync(nextOrganizationId);
       setIsOpen(false);
-      router.replace("/");
+      router.replace(resolveSwitchDestination(pathname, result?.user));
     } catch {
       // Keep the menu open so the switch failure and retry choice remain visible.
+    } finally {
+      setSwitchingId(null);
     }
   };
 
@@ -154,15 +182,24 @@ export default function SidebarOrganizationSwitcher({
             <ul className="space-y-1">
               {organizations.map((organization) => {
                 const isCurrent = organization.id === organizationId;
+                const isSwitchingTarget =
+                  select.isPending && switchingId === organization.id;
                 return (
                   <li key={organization.id}>
                     <button
                       type="button"
                       aria-pressed={isCurrent}
-                      aria-busy={select.isPending && !isCurrent}
+                      aria-busy={isSwitchingTarget}
                       disabled={select.isPending || isCurrent}
                       onClick={() => void handleSelect(organization.id)}
-                      className="flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start transition-colors hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default disabled:bg-brand-50 disabled:text-brand-700 dark:text-gray-200 dark:hover:bg-white/5 dark:disabled:bg-brand-500/10 dark:disabled:text-brand-300"
+                      className={cn(
+                        "flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
+                        isCurrent
+                          ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                          : isSwitchingTarget
+                            ? "bg-brand-50/70 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                            : "text-gray-700 hover:bg-gray-100 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-white/5",
+                      )}
                     >
                       <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         {getInitials(organization.name)}

@@ -2,22 +2,29 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar from "./AppSidebar";
 
-const { replace, logoutAsync, selectAsync, currentUser, organizations } =
-  vi.hoisted(() => ({
-    replace: vi.fn(),
-    logoutAsync: vi.fn(),
-    selectAsync: vi.fn(),
-    currentUser: {
-      data: {
-        id: "user-1",
-        name: "Minh Anh",
-        email: "minh@example.test",
-        organizationId: "org-1",
-        roles: ["ADMIN"],
-      },
+const {
+  replace,
+  logoutAsync,
+  selectAsync,
+  currentUser,
+  organizations,
+  routeState,
+} = vi.hoisted(() => ({
+  replace: vi.fn(),
+  logoutAsync: vi.fn(),
+  selectAsync: vi.fn(),
+  currentUser: {
+    data: {
+      id: "user-1",
+      name: "Minh Anh",
+      email: "minh@example.test",
+      organizationId: "org-1",
+      roles: ["ADMIN"],
     },
-    organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
-  }));
+  },
+  organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
+  routeState: { pathname: "/projects" },
+}));
 
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
@@ -29,7 +36,7 @@ vi.mock("@/i18n/navigation", () => ({
       {children}
     </a>
   ),
-  usePathname: () => "/projects",
+  usePathname: () => routeState.pathname,
   useRouter: () => ({ replace }),
 }));
 vi.mock("@/context/SidebarContext", () => ({
@@ -119,6 +126,7 @@ describe("AppSidebar navigation", () => {
     replace.mockReset();
     logoutAsync.mockReset().mockResolvedValue(undefined);
     selectAsync.mockReset().mockResolvedValue(undefined);
+    routeState.pathname = "/projects";
     currentUser.data = {
       id: "user-1",
       name: "Minh Anh",
@@ -170,7 +178,38 @@ describe("AppSidebar navigation", () => {
     });
 
     expect(selectAsync).toHaveBeenCalledWith("org-2");
-    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/projects"));
+  });
+
+  it("routes to /dashboard when switching from /organization/members to an organization without ADMIN access", async () => {
+    routeState.pathname = "/organization/members";
+    organizations.data = [
+      { id: "org-1", name: "North Star Company" },
+      { id: "org-2", name: "Sunrise Institute" },
+    ];
+    selectAsync.mockResolvedValueOnce({
+      user: {
+        id: "user-1",
+        name: "Minh Anh",
+        email: "minh@example.test",
+        organizationId: "org-2",
+        roles: [],
+      },
+    });
+    render(<AppSidebar />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose organization" }),
+    );
+    const list = screen.getByRole("region", { name: "Organizations" });
+
+    await act(async () => {
+      fireEvent.click(
+        within(list).getByRole("button", { name: /Sunrise Institute/ }),
+      );
+    });
+
+    expect(selectAsync).toHaveBeenCalledWith("org-2");
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
   it("closes the organization dropdown with Escape and restores trigger focus", () => {
