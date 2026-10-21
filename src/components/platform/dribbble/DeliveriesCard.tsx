@@ -31,7 +31,7 @@ export default function DeliveriesCard({
           </div>
         ))}
       </dl>
-      <p className={styles.simulationNotice}>{t("liveDashboard.simulated")}</p>
+      <p className="sr-only">{t("liveDashboard.simulated")}</p>
     </section>
   );
 }

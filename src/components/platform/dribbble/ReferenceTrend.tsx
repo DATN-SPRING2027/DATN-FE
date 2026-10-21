@@ -1,5 +1,7 @@
 "use client";
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
+import type { PointerEvent as ReactPointerEvent } from "react";
+import PlatformPagination from "../PlatformPagination";
 import { useLocale, useTranslations } from "next-intl";
 import { referenceSeries } from "./reference-series";
 import styles from "../ui/operator.module.css";
@@ -8,8 +10,21 @@ export default function ReferenceTrend({ title }: { title: string }) {
   const locale = useLocale();
   const gradient = useId();
   const [hover, setHover] = useState(26);
+  const [page, setPage] = useState(1);
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    left: number;
+    top: number;
+  } | null>(null);
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const [pageSize, setPageSize] = useState(10);
+  const totalDays = referenceSeries[0].length;
   const [visible, setVisible] = useState([true, true, true]);
-  const colors = ["var(--op-green)", "var(--op-dark)", "var(--op-coral)"];
+  const colors = [
+    "var(--op-chart-primary)",
+    "var(--op-chart-teal)",
+    "var(--op-chart-violet)",
+  ];
   const names = [
     t("referenceCharts.active"),
     t("referenceCharts.pending"),
@@ -24,10 +39,51 @@ export default function ReferenceTrend({ title }: { title: string }) {
     locale,
     { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" },
   );
+  const selectPoint = (event: ReactPointerEvent<SVGSVGElement>) => {
+    const svg = event.currentTarget;
+    const bounds = svg.getBoundingClientRect();
+    const matrix = svg.getScreenCTM?.();
+    let viewX: number;
+    if (matrix && typeof DOMPoint !== "undefined") {
+      viewX = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+        matrix.inverse(),
+      ).x;
+    } else {
+      const scale = Math.min(bounds.width / 800, bounds.height / 300);
+      if (!scale) return;
+      viewX =
+        (event.clientX - bounds.left - (bounds.width - 800 * scale) / 2) /
+        scale;
+    }
+    setHover(
+      Math.max(
+        0,
+        Math.min(
+          totalDays - 1,
+          Math.round(((viewX - 38) / 714) * (totalDays - 1)),
+        ),
+      ),
+    );
+    const canvas = canvasRef.current?.getBoundingClientRect();
+    if (!canvas) return;
+    const width =
+      tooltipRef.current?.offsetWidth || Math.min(200, canvas.width - 16);
+    const height = tooltipRef.current?.offsetHeight || 145;
+    const cursorX = event.clientX - canvas.left;
+    const cursorY = event.clientY - canvas.top;
+    const left =
+      cursorX + width + 16 <= canvas.width
+        ? cursorX + 12
+        : cursorX - width - 12;
+    setTooltipPosition({
+      left: Math.max(8, Math.min(canvas.width - width - 8, left)),
+      top: Math.max(8, Math.min(canvas.height - height - 8, cursorY - 30)),
+    });
+  };
   return (
     <div className={styles.referenceTrend}>
-      <p className={styles.simulationNotice}>{t("liveDashboard.simulated")}</p>
-      <div className={styles.trendCanvas}>
+      <p className="sr-only">{t("liveDashboard.simulated")}</p>
+      <div className={styles.trendCanvas} ref={canvasRef}>
         <svg
           viewBox="0 0 800 300"
           role="img"
@@ -36,6 +92,7 @@ export default function ReferenceTrend({ title }: { title: string }) {
           onKeyDown={(event) => {
             if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
               event.preventDefault();
+              setTooltipPosition(null);
               setHover((i) =>
                 Math.max(
                   0,
@@ -44,27 +101,21 @@ export default function ReferenceTrend({ title }: { title: string }) {
               );
             }
           }}
-          onPointerMove={(event) => {
-            const bounds = event.currentTarget.getBoundingClientRect();
-            setHover(
-              Math.max(
-                0,
-                Math.min(
-                  30,
-                  Math.round(
-                    (((event.clientX - bounds.left) / bounds.width) * 800 -
-                      38) /
-                      714,
-                  ),
-                ),
-              ),
-            );
-          }}
+          onPointerMove={selectPoint}
+          onPointerDown={selectPoint}
         >
           <defs>
             <linearGradient id={gradient} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--op-green)" stopOpacity=".12" />
-              <stop offset="100%" stopColor="var(--op-green)" stopOpacity="0" />
+              <stop
+                offset="0%"
+                stopColor="var(--op-chart-primary)"
+                stopOpacity=".12"
+              />
+              <stop
+                offset="100%"
+                stopColor="var(--op-chart-primary)"
+                stopOpacity="0"
+              />
             </linearGradient>
           </defs>
           {[7000, 8000, 9000, 10000, 11000].map((value) => (
@@ -105,6 +156,15 @@ export default function ReferenceTrend({ title }: { title: string }) {
               fill={`url(#${gradient})`}
             />
           )}
+          {visible[2] && (
+            <path
+              d={paths[2]}
+              fill="none"
+              stroke="var(--op-chart-yellow-edge)"
+              strokeWidth="3"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
           {paths.map(
             (path, index) =>
               visible[index] && (
@@ -135,16 +195,16 @@ export default function ReferenceTrend({ title }: { title: string }) {
                   cy={y(values[hover])}
                   r="3.5"
                   fill={colors[index]}
-                  stroke="white"
+                  stroke={index === 2 ? "var(--op-chart-yellow-edge)" : "white"}
                   strokeWidth="2"
                 />
               ),
           )}
           {[
             [0, "20"],
-            [11, "Aug"],
+            [12, "Aug"],
             [21, "10"],
-            [30, "20"],
+            [30, "19"],
           ].map(([i, label]) => (
             <text
               key={i}
@@ -159,21 +219,31 @@ export default function ReferenceTrend({ title }: { title: string }) {
         </svg>
         <div
           className={styles.referenceTooltip}
-          style={{
-            insetInlineStart: `${Math.min(63, Math.max(7, (hover / 30) * 67 - 15))}%`,
-          }}
+          ref={tooltipRef}
+          role="tooltip"
+          style={
+            tooltipPosition
+              ? { left: tooltipPosition.left, top: tooltipPosition.top }
+              : {
+                  left: `${(x(hover) / 800) * 100}%`,
+                  transform:
+                    hover > 18
+                      ? "translateX(calc(-100% - 12px))"
+                      : "translateX(12px)",
+                }
+          }
           aria-hidden="true"
         >
           <p>{date}</p>
           {names.map(
             (name, index) =>
               visible[index] && (
-                <div key={name}>
+                <div key={name} data-series={index}>
                   <span>
                     <i style={{ background: colors[index] }} />
                     {name}
                   </span>
-                  <strong>
+                  <strong style={{ color: colors[index] }}>
                     {referenceSeries[index][hover].toLocaleString(locale)}
                   </strong>
                 </div>
@@ -202,7 +272,9 @@ export default function ReferenceTrend({ title }: { title: string }) {
         <summary>{t("liveDashboard.chartData")}</summary>
         <div className="overflow-x-auto">
           <table>
-            <caption>{t("liveDashboard.simulated")}</caption>
+            <caption className="sr-only">
+              {t("liveDashboard.simulated")}
+            </caption>
             <thead>
               <tr>
                 <th>{t("liveDashboard.day")}</th>
@@ -212,9 +284,24 @@ export default function ReferenceTrend({ title }: { title: string }) {
               </tr>
             </thead>
             <tbody>
-              {referenceSeries[0].map((_, day) => (
+              {Array.from(
+                {
+                  length: Math.min(pageSize, totalDays - (page - 1) * pageSize),
+                },
+                (_, index) => (page - 1) * pageSize + index,
+              ).map((day) => (
                 <tr key={day}>
-                  <td>{day + 1}</td>
+                  <td>
+                    {new Date(Date.UTC(2026, 6, 20 + day)).toLocaleDateString(
+                      locale,
+                      {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                        timeZone: "UTC",
+                      },
+                    )}
+                  </td>
                   {referenceSeries.map((values, i) => (
                     <td key={i}>{values[day].toLocaleString(locale)}</td>
                   ))}
@@ -223,6 +310,19 @@ export default function ReferenceTrend({ title }: { title: string }) {
             </tbody>
           </table>
         </div>
+        <PlatformPagination
+          alwaysShow
+          pageSize={pageSize}
+          onPageSizeChange={(size) => {
+            setPageSize(size);
+            setPage(1);
+          }}
+          page={page}
+          totalPages={Math.ceil(totalDays / pageSize)}
+          totalItems={totalDays}
+          ariaLabel={t("liveDashboard.chartData")}
+          onPageChange={setPage}
+        />
       </details>
     </div>
   );

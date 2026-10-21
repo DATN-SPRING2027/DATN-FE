@@ -110,3 +110,28 @@ The existing two-column card composition is retained and light background is whi
 ### Approved reference simulation and continuous layout
 
 The user explicitly chose labelled simulation to reproduce the reference chart shapes. Removed rounded card outlines and shadows and joined the dashboard columns with thin shared separators. Reference charts use green/black/pink lines, translucent green area fill, fine grids, a crosshair tooltip, green/pink balance columns with dark target marks, compact equalizer/gauge/sparkline visuals, and a green/lime/pale category strip. Demo series live in reference-series.ts and chart-local constants only; they never feed totals, API query caches or writes. Each simulated chart has a visible notice; real totals and the Organizations directory still use backend queries. The line tooltip supports keyboard navigation and has a readable data-table disclosure. Mobile tooltip is constrained to its chart. Full check passed: 662 tests, lint, typecheck and production build. Component proof uses fixture API responses; no backend or database modifications, commits or pushes.
+
+
+### Project blue chart palette
+
+All dashboard reference plots, equalizers, balance bars, gauges, category strips and real distribution tracks now share project brand blue tokens. Primary brand-500, deep brand-800 and light brand-400 separate the line series, with softer brand shades for small segments; dark theme uses lighter blue variants. Removed the rendered PlatformSubheader so the administration/dashboard breadcrumb and its row are absent. Layout, simulated fixtures, real backend totals and API operations are unchanged. Verified visually in component preview; full npm run check passed (662 tests, lint, typecheck and production build).
+
+
+### Chart data pages, pointer alignment and percentages
+
+Removed visible simulation notice text while retaining accessible provenance. Chart data now shows ten dates per page with Previous/Next controls and a one-row last page. Tooltip selection uses inverse SVG screen coordinates, with a preserveAspectRatio-aware fallback; the panel follows the pointer and flips/clamps within the chart. Keyboard navigation remains available. Fixed the final x-axis date to match the underlying series. Added teal/violet accents beside project blue, shrank the row disclosure menu, and removed the final directory/activity table separator. Organization Total shows 100% for a nonempty dataset (0% if empty); Free/Enterprise percentages use the bounded response page, with an explanatory title because the API has no global per-plan aggregate. New tests cover pagination boundaries, a horizontally letterboxed pointer target, current-page percentages and empty results. No backend/database or API contract changes.
+
+
+### Palette sampled from the user image
+
+Sampled the provided PNG at the center of each swatch: yellow #F9F45A, green #57BC7C and blue #1E4AF5. Applied the palette to line charts, balance columns, compact gauges/equalizers and Organizations/Services distribution tracks. Category tails use lighter mixes of the same palette. Yellow lines receive a thin darker edge for visibility on white. Data, layout and interactions are unchanged. Visually checked the component preview.
+
+
+### Users softness, matching numeric colors and numbered chart pages
+
+Applied a gentle .65px blur only to Users chart bars, preserving sharp headings and marker strokes. Metric values and percentages now match their corresponding yellow/green/blue tracks; pale yellow numbers have a subtle darker edge. Tooltip and category values follow their series colors. Chart data uses numbered page buttons with aria-current instead of Previous/Next text; other pagination variants remain unchanged. Existing ten-record pagination test now verifies direct page-number navigation and absence of Previous/Next controls. Visually verified page two and the softened bars in the component fixture preview. npm run check passed: 666 tests, lint, typecheck, build.
+
+
+### Compact pagination and black dashboard text
+
+Chart data now uses the reference Show by selector, current/total page indicator and arrow controls, sharing the Organizations compact pagination component. Selecting a new page size resets the table to page one; regression coverage verifies the 20-record size and reset. Removed the unused numbered pagination variant. Scoped dashboard typography, placeholders, axis text, percentages and tooltip values to black without changing chart strokes/fills. Dashboard surfaces remain light to support black text even when the app dark setting is active. Other platform pages retain their theme. Visual fixture preview verified black text and page-two navigation; npm run check passed (666 tests, lint, types and build).

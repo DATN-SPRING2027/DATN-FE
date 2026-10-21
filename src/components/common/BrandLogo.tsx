@@ -3,7 +3,7 @@ import Image from "next/image";
 type BrandLogoProps = {
   className?: string;
   priority?: boolean;
-  variant?: "adaptive" | "mark" | "inverse";
+  variant?: "adaptive" | "light" | "mark" | "inverse";
 };
 
 const markSource = "/images/logo/continuum-mark.png";
@@ -26,9 +26,11 @@ export default function BrandLogo({
     );
   }
 
-  if (variant === "inverse") {
+  if (variant === "inverse" || variant === "light") {
+    const textColor = variant === "inverse" ? "text-white" : "text-gray-950";
+
     return (
-      <span className={`inline-flex items-center gap-3 ${className}`}>
+      <span className={`inline-flex items-center gap-2 ${className}`}>
         <Image
           src={markSource}
           alt=""
@@ -38,7 +40,9 @@ export default function BrandLogo({
           className="h-full w-auto"
           priority={priority}
         />
-        <span className="text-xl font-semibold tracking-tight text-white">
+        <span
+          className={`font-sans text-lg font-semibold tracking-tight ${textColor}`}
+        >
           Continuum AI
         </span>
       </span>

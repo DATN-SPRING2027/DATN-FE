@@ -2,7 +2,6 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import PlatformHeader from "./PlatformHeader";
-import PlatformSubheader from "./PlatformSubheader";
 import styles from "./operator.module.css";
 
 export default function PlatformShell({
@@ -22,7 +21,9 @@ export default function PlatformShell({
 }) {
   const t = useTranslations("platformConsole");
   return (
-    <div className={styles.shell}>
+    <div
+      className={`${styles.shell} ${activeSection === "dashboard" ? styles.dashboardPage : ""}`}
+    >
       <a
         href="#operator-content"
         className="sr-only focus:not-sr-only focus:absolute focus:z-99999 focus:bg-white focus:p-3 focus:text-gray-900 dark:focus:bg-gray-900 dark:focus:text-white"
@@ -36,7 +37,6 @@ export default function PlatformShell({
         isSigningOut={isSigningOut}
         onSignOut={onSignOut}
       />
-      {activeSection === "dashboard" && <PlatformSubheader />}
       <main id="operator-content" className={styles.main} tabIndex={-1}>
         <div
           className={activeSection === "dashboard" ? undefined : styles.content}

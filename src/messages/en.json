@@ -75,7 +75,7 @@
       "chartData": "Chart data",
       "demoGroup": "Group {number}",
       "realTotal": "Actual total",
-      "day": "Day",
+      "day": "Date",
       "removed": "Removed"
     },
     "eyebrow": "Platform operations",
@@ -387,6 +387,7 @@
       "search": "Search this page…",
       "allPlans": "All plans",
       "pageFilterNote": "Search and plan filters apply to the current page. Clear them or move to another page to inspect more records.",
+      "planPercentNote": "Share of organizations on the current page; not a system-wide plan breakdown.",
       "updated": "Updated",
       "created": "Created",
       "id": "Organization ID",

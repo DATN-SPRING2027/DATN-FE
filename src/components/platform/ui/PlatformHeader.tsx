@@ -2,9 +2,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import BrandLogo from "@/components/common/BrandLogo";
-import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import Button from "@/components/ui/button/Button";
-import { ChevronDownIcon } from "@/icons";
 import styles from "./operator.module.css";
 
 const primary = ["dashboard", "users", "projects", "services", "audit"];
@@ -43,12 +41,11 @@ export default function PlatformHeader({
   return (
     <header className={styles.header}>
       <Link
-        href="/platform"
+        href="/"
         className={styles.brand}
         aria-label={t("operatorDesign.home")}
       >
-        <BrandLogo variant="mark" className="size-7" />
-        <span>Continuum</span>
+        <BrandLogo variant="light" className="h-7 w-auto" priority />
       </Link>
       <nav className={styles.nav} aria-label={t("operatorDesign.navigation")}>
         {primary.map((id) => (
@@ -72,10 +69,7 @@ export default function PlatformHeader({
             }
           }}
         >
-          <summary>
-            {t("operatorDesign.more")}
-            <ChevronDownIcon className="size-3" aria-hidden="true" />
-          </summary>
+          <summary>{t("operatorDesign.more")}</summary>
           <div className={styles.menu}>
             {primary.slice(3).map((id) => (
               <Link
@@ -100,7 +94,6 @@ export default function PlatformHeader({
         </details>
       </nav>
       <div className={styles.actions}>
-        <ThemeToggleButton />
         <details
           key={`account-${activeSection}`}
           className={styles.more}

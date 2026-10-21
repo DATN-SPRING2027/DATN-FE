@@ -33,10 +33,10 @@ export default function SnapshotChart({
                 style={{
                   height: `${(item.value / max) * 100}%`,
                   background: [
-                    "var(--op-green)",
-                    "var(--op-dark)",
-                    "var(--op-coral)",
-                    "var(--op-amber)",
+                    "var(--op-chart-primary)",
+                    "var(--op-chart-deep)",
+                    "var(--op-chart-light)",
+                    "var(--op-chart-muted)",
                   ][index % 4],
                 }}
               />

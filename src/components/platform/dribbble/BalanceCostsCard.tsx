@@ -16,7 +16,7 @@ export default function BalanceCostsCard({
           {t("operatorDesign.accountDistribution")}
         </h2>
       </div>
-      <p className={styles.simulationNotice}>{t("liveDashboard.simulated")}</p>
+      <p className="sr-only">{t("liveDashboard.simulated")}</p>
       <div
         className={styles.referenceBalance}
         role="img"
@@ -28,9 +28,11 @@ export default function BalanceCostsCard({
               style={{
                 height: `${value}%`,
                 background:
-                  index < 6 || index === 12 || index === 22
-                    ? "var(--op-coral)"
-                    : "var(--op-green)",
+                  index % 7 === 0
+                    ? "var(--op-chart-yellow)"
+                    : index < 6 || index === 12 || index === 22
+                      ? "var(--op-chart-teal)"
+                      : "var(--op-chart-primary)",
               }}
             />
             <i style={{ bottom: `${Math.min(99, value + 16)}%` }} />

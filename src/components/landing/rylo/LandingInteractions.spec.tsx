@@ -2,12 +2,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import messages from "@/messages/en.json";
-import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import KnowledgeJourney from "./KnowledgeJourney";
 import LandingNavigation from "./LandingNavigation";
 import WorkspaceLink from "./WorkspaceLink";
 
-vi.mock("@/lib/queries/auth/useAuth", () => ({ useCurrentUserQuery: vi.fn() }));
+vi.mock("@/lib/queries/auth/useSharedSignIn", () => ({
+  useSignInSessionQuery: vi.fn(),
+}));
 vi.mock("@/i18n/navigation", () => ({
   Link: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
     <a {...props} />
@@ -34,7 +36,7 @@ function renderLanding(element: React.ReactNode) {
 }
 
 beforeEach(() => {
-  vi.mocked(useCurrentUserQuery).mockReturnValue({
+  vi.mocked(useSignInSessionQuery).mockReturnValue({
     data: undefined,
     isPending: false,
   } as never);
@@ -83,7 +85,7 @@ describe("Rylo-inspired landing interactions", () => {
   });
 
   it("keeps a sign-in recovery path when the session cannot be loaded", () => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: undefined,
       isPending: false,
       isError: true,
@@ -99,8 +101,8 @@ describe("Rylo-inspired landing interactions", () => {
     ["ACCOUNT", "/onboarding"],
     ["ORGANIZATION", "/dashboard"],
   ])("routes a signed-in %s user to %s", (context, href) => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: { context },
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: { context } as never,
       isPending: false,
     } as never);
     renderLanding(<WorkspaceLink />);
@@ -112,8 +114,28 @@ describe("Rylo-inspired landing interactions", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("keeps a Platform operator session and routes its action to the console", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: {
+        id: "operator-1",
+        email: "operator@example.test",
+        name: "Operator",
+        context: "PLATFORM",
+        permissions: [],
+      },
+      isPending: false,
+    } as never);
+    renderLanding(<WorkspaceLink guestLabel="Get started" hideIcon />);
+    expect(
+      screen.getByRole("link", { name: "Open your workspace" }),
+    ).toHaveAttribute("href", "/platform");
+    expect(
+      screen.queryByRole("link", { name: "Get started" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("announces session loading before showing an account action", () => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: undefined,
       isPending: true,
     } as never);

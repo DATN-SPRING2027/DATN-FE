@@ -4,12 +4,16 @@ import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatform
 import styles from "../ui/operator.module.css";
 // Simulation for the reference composition; the total remains the API value.
 const categories = [
-  { value: 89200, percent: 35, color: "var(--op-green)" },
-  { value: 63700, percent: 25, color: "#4bd329" },
-  { value: 38200, percent: 15, color: "var(--op-lime)" },
-  { value: 25500, percent: 10, color: "#f1e982" },
-  { value: 17800, percent: 7, color: "#eddda1" },
-  { value: 12700, percent: 5, color: "#dedfdd" },
+  { value: 89200, percent: 35, color: "var(--op-chart-primary)" },
+  { value: 63700, percent: 25, color: "var(--op-chart-teal)" },
+  { value: 38200, percent: 15, color: "var(--op-chart-violet)" },
+  { value: 25500, percent: 10, color: "var(--op-chart-light)" },
+  { value: 17800, percent: 7, color: "var(--op-chart-muted)" },
+  {
+    value: 12700,
+    percent: 5,
+    color: "color-mix(in srgb, var(--op-chart-yellow) 35%, white)",
+  },
 ];
 export default function CostsByCategoryCard({
   data,
@@ -25,7 +29,7 @@ export default function CostsByCategoryCard({
           {t("operatorDesign.projectDistribution")}
         </h2>
       </div>
-      <p className={styles.simulationNotice}>{t("liveDashboard.simulated")}</p>
+      <p className="sr-only">{t("liveDashboard.simulated")}</p>
       <div className={styles.liveDistribution} aria-hidden="true">
         {categories.map((item, index) => (
           <span
@@ -33,7 +37,7 @@ export default function CostsByCategoryCard({
             style={{ flexGrow: item.percent, background: item.color }}
           />
         ))}
-        <span style={{ flexGrow: 3, background: "#f1f2f0" }} />
+        <span style={{ flexGrow: 3, background: "var(--op-panel)" }} />
       </div>
       <dl className={styles.referenceCategoryList}>
         {categories.map((item, index) => (
@@ -42,7 +46,7 @@ export default function CostsByCategoryCard({
               <i aria-hidden="true" style={{ background: item.color }} />
               {t("liveDashboard.demoGroup", { number: index + 1 })}
             </dt>
-            <dd>
+            <dd style={{ color: item.color }} data-category={index}>
               {(item.value / 1000).toLocaleString(locale)}K{" "}
               <span>{item.percent}%</span>
             </dd>

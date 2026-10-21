@@ -17,10 +17,6 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 vi.mock("@/components/common/BrandLogo", () => ({ default: () => null }));
-vi.mock("@/components/common/ThemeToggleButton", () => ({
-  ThemeToggleButton: () => null,
-}));
-vi.mock("@/icons", () => ({ ChevronDownIcon: () => null }));
 describe("Operator top navigation", () => {
   it("marks the active route and exposes supplementary routes through More", () => {
     render(

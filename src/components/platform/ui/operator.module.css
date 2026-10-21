@@ -12,11 +12,11 @@
   --op-text: #172b4d;
   --op-muted: #626f86;
   --op-accent: #0c66e4;
-  --op-green: #10b981;
-  --op-coral: #f43f5e;
-  --op-dark: #1e293b;
-  --op-amber: #f59e0b;
-  --op-lime: #84cc16;
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-light: #f43f5e;
+  --op-chart-deep: #1e293b;
+  --op-chart-muted: #f59e0b;
+  --op-chart-soft: var(--color-brand-300);
   min-height: 100vh;
   background: var(--op-bg);
   color: var(--op-text);
@@ -34,11 +34,11 @@
   --op-text: #f8fafc;
   --op-muted: #94a3b8;
   --op-accent: #38bdf8;
-  --op-green: #34d399;
-  --op-coral: #fb7185;
-  --op-dark: #0f172a;
-  --op-amber: #fbbf24;
-  --op-lime: #a3e635;
+  --op-chart-primary: #34d399;
+  --op-chart-light: #fb7185;
+  --op-chart-deep: #0f172a;
+  --op-chart-muted: var(--color-brand-200);
+  --op-chart-soft: #a3e635;
 }
 .header {
   position: sticky;
@@ -56,11 +56,7 @@
 .brand {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
   white-space: nowrap;
-  font-size: 1rem;
-  font-weight: 500;
-  letter-spacing: -0.025em;
 }
 .nav {
   display: flex;
@@ -720,12 +716,12 @@
   background: var(--color-blue-light-500);
 }
 
-/* One inset focus border avoids stacking the shared outline and input ring. */
+/* Keep the search field visually unchanged when it receives focus. */
 .directorySearch input:focus,
 .directorySearch input:focus-visible {
   outline: none !important;
-  box-shadow: inset 0 0 0 1px var(--color-brand-500) !important;
-  border-color: var(--color-brand-500);
+  box-shadow: none !important;
+  border-color: var(--color-gray-300) !important;
 }
 .directorySearch {
   padding: 2px;
@@ -936,10 +932,10 @@
   border-radius: 9999px;
   background: linear-gradient(
     90deg,
-    #f97316 0%,
-    #fbbf24 45%,
-    #84cc16 75%,
-    #10b981 100%
+    var(--color-brand-100) 0%,
+    var(--color-brand-200) 45%,
+    var(--color-brand-300) 75%,
+    var(--color-brand-500) 100%
   );
 }
 
@@ -948,7 +944,7 @@
   align-items: center;
   font-size: 0.6875rem;
   font-weight: 600;
-  color: #10b981;
+  color: var(--color-brand-500);
   margin-left: 0.35rem;
 }
 
@@ -1015,7 +1011,7 @@
 .liveMetricTrack span {
   display: block;
   height: 100%;
-  background: var(--op-green);
+  background: var(--op-chart-primary);
 }
 .liveDistribution {
   display: flex;
@@ -1036,10 +1032,10 @@
 
 /* Continuous reference layout: white sections with only shared dividers. */
 .shell {
-  --op-green: #08c447;
-  --op-coral: #ed4d7c;
-  --op-dark: #171d18;
-  --op-lime: #c5e63b;
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-light: #ed4d7c;
+  --op-chart-deep: #171d18;
+  --op-chart-soft: var(--color-brand-300);
   --op-text: #101410;
   --op-line-subtle: #f0f1f0;
 }
@@ -1184,7 +1180,7 @@
 }
 .miniEqualizer span {
   flex: 1;
-  background: var(--op-green);
+  background: var(--op-chart-primary);
   border-radius: 1px;
 }
 .referenceGauge {
@@ -1203,11 +1199,11 @@
   height: 0.4rem;
   background: linear-gradient(
     90deg,
-    #ffb719 0%,
-    #f9dc3c 30%,
-    #c5e63b 45%,
-    #08c447 96%,
-    #e2e4e3 96%
+    var(--color-brand-100) 0%,
+    var(--color-brand-200) 30%,
+    var(--color-brand-300) 45%,
+    var(--color-brand-500) 96%,
+    var(--color-brand-50) 96%
   );
   border-radius: 2px;
 }
@@ -1233,7 +1229,7 @@
   position: absolute;
   width: 3px;
   height: 2px;
-  background: var(--op-dark);
+  background: var(--op-chart-deep);
   inset-inline-start: 30%;
 }
 @media (max-width: 1200px) {
@@ -1262,12 +1258,12 @@
 
 /* Match the reference green/lime distribution palette without changing counts. */
 .totalTrack {
-  --track-fill: var(--op-green);
-  background: color-mix(in srgb, var(--op-green) 12%, white);
+  --track-fill: var(--op-chart-primary);
+  background: color-mix(in srgb, var(--op-chart-primary) 12%, white);
 }
 .primaryTrack {
-  --track-fill: var(--op-lime);
-  background: color-mix(in srgb, var(--op-lime) 16%, white);
+  --track-fill: var(--op-chart-soft);
+  background: color-mix(in srgb, var(--op-chart-soft) 16%, white);
 }
 .secondaryTrack {
   --track-fill: #dfe2de;
@@ -1313,9 +1309,234 @@
   text-align: end;
   margin-inline-start: 0.75rem;
 }
-@media (max-width: 639px) {
-  .referenceTooltip {
-    inset-inline-start: auto !important;
-    inset-inline-end: 1rem;
-  }
+
+/* Project blue palette, shared by every dashboard chart and distribution track. */
+.shell {
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-deep: var(--color-brand-800);
+  --op-chart-light: var(--color-brand-400);
+  --op-chart-soft: var(--color-brand-300);
+  --op-chart-muted: var(--color-brand-200);
+}
+:global(.dark) .shell {
+  --op-chart-primary: var(--color-brand-400);
+  --op-chart-deep: var(--color-brand-200);
+  --op-chart-light: var(--color-blue-light-400);
+  --op-chart-soft: var(--color-brand-600);
+  --op-chart-muted: var(--color-brand-800);
+}
+.totalTrack {
+  --track-fill: var(--op-chart-deep);
+  background: var(--color-brand-100);
+}
+.primaryTrack {
+  --track-fill: var(--op-chart-primary);
+  background: var(--color-brand-50);
+}
+.secondaryTrack {
+  --track-fill: var(--op-chart-soft);
+  background: var(--color-brand-25);
+}
+.mutedTrack {
+  --track-fill: var(--op-chart-muted);
+  background: var(--color-brand-25);
+}
+.primaryTone dt,
+.primaryTone dd {
+  color: var(--color-brand-700);
+}
+:global(.dark) .primaryTone dt,
+:global(.dark) .primaryTone dd {
+  color: var(--color-brand-300);
+}
+
+/* Distinct cool accents keep the project blue dominant and improve recognition. */
+.shell {
+  --op-chart-teal: #0d9488;
+  --op-chart-violet: #8b5cf6;
+}
+:global(.dark) .shell {
+  --op-chart-teal: #2dd4bf;
+  --op-chart-violet: #c4b5fd;
+}
+.summaryPercent {
+  margin-top: 1.5rem;
+  color: var(--op-muted);
+  font-size: 0.75rem;
+}
+.orgPanel .rowActions > div {
+  min-width: 5.25rem;
+  padding: 0.2rem;
+  border-radius: 0.25rem;
+}
+.orgPanel .rowActions a {
+  min-height: 28px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-brand-700);
+  border-radius: 0.2rem;
+}
+.orgPanel .rowActions a[href$="#edit"] {
+  color: #7c3aed;
+}
+.orgPanel .rowActions a:hover {
+  background: var(--color-brand-50);
+}
+.orgPanel .rowActions a[href$="#edit"]:hover {
+  background: #f5f3ff;
+}
+:global(.dark) .orgPanel .rowActions a {
+  color: var(--color-brand-300);
+}
+:global(.dark) .orgPanel .rowActions a[href$="#edit"] {
+  color: #c4b5fd;
+}
+:global(.dark) .orgPanel .rowActions a:hover {
+  background: var(--color-brand-950);
+}
+:global(.dark) .orgPanel .rowActions a[href$="#edit"]:hover {
+  background: #2e1065;
+}
+.dribbbleDashboard .directoryCard,
+.dribbbleDashboard .activity,
+.table tbody tr:last-child td,
+.demoDataTable nav {
+  border-bottom: 0;
+}
+.demoDataTable nav {
+  border-top: 0;
+}
+.referenceTooltip {
+  max-width: calc(100% - 16px);
+}
+
+/* Colors sampled directly from the user-provided palette image. */
+.shell {
+  --op-chart-yellow: #f9f45a;
+  --op-chart-green: #57bc7c;
+  --op-chart-blue: #1e4af5;
+  --op-chart-primary: var(--op-chart-blue);
+  --op-chart-teal: var(--op-chart-green);
+  --op-chart-violet: var(--op-chart-yellow);
+  --op-chart-deep: color-mix(in srgb, var(--op-chart-blue) 75%, black);
+  --op-chart-light: color-mix(in srgb, var(--op-chart-blue) 35%, white);
+  --op-chart-soft: var(--op-chart-yellow);
+  --op-chart-muted: color-mix(in srgb, var(--op-chart-green) 30%, white);
+  --op-chart-yellow-edge: #b3a933;
+}
+:global(.dark) .shell {
+  --op-chart-primary: var(--op-chart-blue);
+  --op-chart-teal: var(--op-chart-green);
+  --op-chart-violet: var(--op-chart-yellow);
+  --op-chart-soft: var(--op-chart-yellow);
+  --op-chart-deep: color-mix(in srgb, var(--op-chart-blue) 50%, white);
+  --op-chart-light: color-mix(in srgb, var(--op-chart-blue) 35%, white);
+  --op-chart-muted: color-mix(in srgb, var(--op-chart-green) 30%, transparent);
+}
+.totalTrack {
+  --track-fill: var(--op-chart-yellow);
+  background: color-mix(in srgb, var(--op-chart-yellow) 18%, white);
+}
+.primaryTrack {
+  --track-fill: var(--op-chart-green);
+  background: color-mix(in srgb, var(--op-chart-green) 15%, white);
+}
+.secondaryTrack {
+  --track-fill: var(--op-chart-blue);
+  background: color-mix(in srgb, var(--op-chart-blue) 10%, white);
+}
+.mutedTrack {
+  --track-fill: color-mix(in srgb, var(--op-chart-blue) 30%, white);
+  background: color-mix(in srgb, var(--op-chart-blue) 5%, white);
+}
+.referenceGauge > div,
+.gradientSliderTrack {
+  background: linear-gradient(
+    90deg,
+    var(--op-chart-yellow) 0% 33%,
+    var(--op-chart-green) 33% 66%,
+    var(--op-chart-blue) 66% 96%,
+    var(--op-panel) 96%
+  );
+}
+.referenceTooltip i,
+.referenceCategoryList dt i {
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+}
+
+/* Gentle softness is limited to decorative User chart bars. */
+.referenceBalance > div > span {
+  filter: blur(0.65px);
+  opacity: 0.95;
+}
+.totalTone {
+  --metric-color: var(--op-chart-yellow);
+}
+.primaryTone {
+  --metric-color: var(--op-chart-green);
+}
+.secondaryTone {
+  --metric-color: var(--op-chart-blue);
+}
+.mutedTone {
+  --metric-color: color-mix(in srgb, var(--op-chart-blue) 30%, white);
+}
+.shell .totalTone dd,
+.shell .primaryTone dd,
+.shell .secondaryTone dd,
+.shell .mutedTone dd,
+.totalTone .summaryPercent,
+.primaryTone .summaryPercent,
+.secondaryTone .summaryPercent,
+.mutedTone .summaryPercent {
+  color: var(--metric-color);
+}
+.totalTone dd,
+.totalTone .summaryPercent,
+.referenceTooltip [data-series="2"] strong,
+.referenceCategoryList [data-category="2"],
+.referenceCategoryList [data-category="5"] {
+  -webkit-text-stroke: 0.35px var(--op-chart-yellow-edge);
+}
+.mutedTone dd,
+.mutedTone .summaryPercent {
+  -webkit-text-stroke: 0.25px var(--op-chart-blue);
+}
+
+.summary .metric dd {
+  color: var(--op-chart-primary);
+}
+.referenceCategoryList dd {
+  -webkit-text-stroke: 0.2px color-mix(in srgb, currentColor 55%, black);
+}
+
+/* Dashboard typography is uniformly black; chart fills and strokes stay colored. */
+.dashboardPage,
+:global(.dark) .dashboardPage {
+  --op-bg: #fff;
+  --op-surface: #fff;
+  --op-panel: #f9fafb;
+  --op-text: #000;
+  --op-muted: #000;
+  --op-line: #e4e7ec;
+  --op-line-subtle: #f0f1f0;
+  color: #000;
+}
+.dashboardPage :where(*) {
+  color: #000 !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow: none !important;
+}
+.dashboardPage svg text {
+  fill: #000 !important;
+}
+.dashboardPage input::placeholder {
+  color: #000 !important;
+  opacity: 1;
+}
+.dashboardPage :is(input:not([type="checkbox"]), select, option) {
+  background-color: #fff !important;
+}
+.dashboardPage .rowActions a:hover {
+  background: #f5f3ff !important;
 }

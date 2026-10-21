@@ -3,7 +3,7 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
-import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import styles from "./landing.module.css";
 
 interface WorkspaceLinkProps {
@@ -20,8 +20,8 @@ export default function WorkspaceLink({
   hideIcon = false,
 }: WorkspaceLinkProps) {
   const t = useTranslations("landingRylo");
-  const user = useCurrentUserQuery();
-  if (user.isPending) {
+  const session = useSignInSessionQuery();
+  if (session.isPending) {
     return (
       <span
         className={styles.sessionLoading}
@@ -31,14 +31,16 @@ export default function WorkspaceLink({
       />
     );
   }
-  const href = user.data
-    ? user.data.context === "ACCOUNT"
-      ? "/onboarding"
-      : "/dashboard"
-    : "/signin";
+  const href = !session.data
+    ? "/signin"
+    : session.data.context === "PLATFORM"
+      ? "/platform"
+      : session.data.context === "ACCOUNT"
+        ? "/onboarding"
+        : "/dashboard";
   return (
     <Link href={href} className={subtle ? styles.textLink : styles.button}>
-      {user.data
+      {session.data
         ? t(compact ? "workspaceShort" : "workspace")
         : (guestLabel ?? t("signin"))}
       {!hideIcon && (

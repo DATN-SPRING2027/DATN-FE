@@ -85,6 +85,32 @@ export default function OrganizationDirectory({
                   >
                     <dt>{label}</dt>
                     <dd>{value}</dd>
+                    <p
+                      className={styles.summaryPercent}
+                      title={
+                        index === 0
+                          ? t("organizations.total", {
+                              count: organizations.data!.pagination.totalItems,
+                            })
+                          : t("organizations.planPercentNote")
+                      }
+                    >
+                      {new Intl.NumberFormat(locale, {
+                        style: "percent",
+                        maximumFractionDigits: 1,
+                      }).format(
+                        (
+                          index === 0
+                            ? organizations.data!.pagination.totalItems
+                            : organizations.data!.data.length
+                        )
+                          ? Number(value) /
+                              (index === 0
+                                ? organizations.data!.pagination.totalItems
+                                : organizations.data!.data.length)
+                          : 0,
+                      )}
+                    </p>
                   </div>
                 ))}
               </dl>
