@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient, ApiError } from "@/lib/api-client";
 import {
+  cancelOrganizationInvitation,
   createIdempotencyKey,
   inviteOrganizationMember,
   listOrganizationMemberships,
   setOrganizationMembershipRole,
+  resendOrganizationInvitation,
   suspendOrganizationMembership,
 } from "./organization-memberships.service";
 
@@ -17,6 +19,7 @@ vi.mock("@/lib/api-client", () => ({
 
 const orgId = "0123456789abcdef01234567";
 const membershipId = "1123456789abcdef01234567";
+const invitationId = "4123456789abcdef01234567";
 
 describe("Organization membership API service", () => {
   const api = vi.mocked(apiClient);
@@ -41,13 +44,7 @@ describe("Organization membership API service", () => {
     vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
     api.mockResolvedValue({
       operationId: "5123456789abcdef01234567",
-      membership: {
-        id: membershipId,
-        organizationId: orgId,
-        userId: "2123456789abcdef01234567",
-        status: "PENDING_INVITE",
-        version: 1,
-      },
+      invitation: { id: invitationId, status: "PENDING", version: 1, expiresAt: "2026-02-01T00:00:00.000Z" },
     });
     await inviteOrganizationMember(orgId, { email: "member@example.com", reasonCode: "ACCESS_REQUEST" }, "0123456789abcdef");
     const [path, options] = api.mock.calls[0] as [string, RequestInit];
@@ -55,6 +52,16 @@ describe("Organization membership API service", () => {
     expect(JSON.parse(String(options.body))).toEqual({ email: "member@example.com", reasonCode: "ACCESS_REQUEST" });
     expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
     expect(new Headers(options.headers).get("Idempotency-Key")).toBe("0123456789abcdef");
+  });
+
+  it("sends membership and invitation versions for resend and cancel commands", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    const ack = { operationId: "5123456789abcdef01234567", invitation: { id: invitationId, status: "PENDING", version: 1, expiresAt: "2026-02-01T00:00:00.000Z" } };
+    api.mockResolvedValue(ack);
+    await resendOrganizationInvitation(orgId, invitationId, { expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "ACCESS_REVIEW" }, "0123456789abcdef");
+    expect(JSON.parse(String((api.mock.calls[0]?.[1] as RequestInit).body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "ACCESS_REVIEW" });
+    await cancelOrganizationInvitation(orgId, invitationId, { expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "INVITATION_CANCELLED" }, "1123456789abcdef");
+    expect(JSON.parse(String((api.mock.calls[1]?.[1] as RequestInit).body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "INVITATION_CANCELLED" });
   });
 
   it("does not send mutation requests without the readable CSRF cookie", async () => {

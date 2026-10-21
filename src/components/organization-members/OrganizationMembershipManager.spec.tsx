@@ -86,15 +86,13 @@ function mutationAck(status: "PENDING_INVITE" | "ACTIVE" | "SUSPENDED" | "REMOVE
 
 const invitation = {
   id: invitationId,
-  membershipId: memberId,
   organizationId,
   status: "PENDING",
   version: 2,
   expiresAt: "2026-02-01T00:00:00.000Z",
   createdAt: "2026-01-01T00:00:00.000Z",
   membershipVersion: 3,
-  targetUserId: userId,
-  email: "alex@example.com",
+  invitedEmail: "alex@example.com",
 };
 
 function mount() {
@@ -145,7 +143,7 @@ describe("Organization membership management page", () => {
   it("separates membership and invitation records into accessible tabs", async () => {
     respond({
       memberships: membershipPage(),
-      invitations: invitationPage([{ ...invitation, email: "pending@example.com" }]),
+      invitations: invitationPage([{ ...invitation, invitedEmail: "pending@example.com" }]),
     });
     mount();
 
@@ -292,7 +290,7 @@ describe("Organization membership management page", () => {
     fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: "ACCESS_REQUEST" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Send invite" }));
 
-    expect(await screen.findByText("The server accepted the invitation request.")).toBeVisible();
+    expect(await screen.findByText("Invitation created. Email delivery is queued.")).toBeVisible();
     const call = api.mock.calls.find(([endpoint, options]) => endpoint === `/iam/organizations/${organizationId}/invitations` && options?.method === "POST");
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({ email: "new-member@example.com", reasonCode: "ACCESS_REQUEST" });
     expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
@@ -307,7 +305,7 @@ describe("Organization membership management page", () => {
       if (endpoint === "/auth/me") return user;
       if (endpoint.includes("/memberships?")) return membershipPage([]);
       if (endpoint.includes("/invitations?") && options?.method !== "POST") {
-        return invitationPage([{ ...invitation, email: "pending@example.com", status: invitationStatus }]);
+        return invitationPage([{ ...invitation, invitedEmail: "pending@example.com", status: invitationStatus }]);
       }
       if (endpoint.endsWith(`/invitations/${invitationId}/cancel`) && options?.method === "POST") {
         invitationStatus = "CANCELLED";
@@ -345,7 +343,7 @@ describe("Organization membership management page", () => {
     api.mockImplementation(async (endpoint, options) => {
       if (endpoint === "/auth/me") return user;
       if (endpoint.includes("/memberships?")) return membershipPage([]);
-      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage([{ ...invitation, email: "pending@example.com" }]);
+      if (endpoint.includes("/invitations?") && options?.method !== "POST") return invitationPage([{ ...invitation, invitedEmail: "pending@example.com" }]);
       if (endpoint.endsWith(`/invitations/${invitationId}/resend`) && options?.method === "POST") return mutationAck();
       throw new Error(`Unexpected request ${endpoint}`);
     });

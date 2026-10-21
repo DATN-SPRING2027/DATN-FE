@@ -10,10 +10,12 @@ export const metadata: Metadata = {
 export default async function SignIn({
   searchParams,
 }: {
-  searchParams: Promise<{ google?: string | string[] }>;
+  searchParams: Promise<{ google?: string | string[]; returnTo?: string | string[]; email?: string | string[] }>;
 }) {
   const query = await searchParams;
   const value = Array.isArray(query.google) ? query.google[0] : query.google;
+  const returnTo = Array.isArray(query.returnTo) ? query.returnTo[0] : query.returnTo;
+  const email = Array.isArray(query.email) ? query.email[0] : query.email;
   const googleStatus =
     value === "organization-required" ||
     value === "failed" ||
@@ -21,5 +23,5 @@ export default async function SignIn({
       ? value
       : undefined;
 
-  return <SignInForm googleStatus={googleStatus} />;
+  return <SignInForm googleStatus={googleStatus} returnTo={returnTo} initialEmail={email} />;
 }

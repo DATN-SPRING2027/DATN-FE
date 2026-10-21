@@ -48,15 +48,13 @@ export type OrganizationMembershipPage = Readonly<{
 
 export type AdminInvitation = Readonly<{
   id: string;
-  membershipId: string;
   organizationId: string;
   status: "PENDING" | "ACCEPTED" | "CANCELLED" | "EXPIRED" | "SUPERSEDED";
   version: number;
+  membershipVersion: number;
   expiresAt: string;
   createdAt: string;
-  membershipVersion: number;
-  targetUserId: string;
-  email: string;
+  invitedEmail: string;
 }>;
 
 export type AdminInvitationPage = Readonly<{
@@ -66,13 +64,12 @@ export type AdminInvitationPage = Readonly<{
 
 export type RecipientInvitation = Readonly<{
   id: string;
-  membershipId: string;
   organizationId: string;
   status: AdminInvitation["status"];
   version: number;
   expiresAt: string;
   createdAt: string;
-  membershipVersion: number;
+  invitedEmail: string;
   organizationName: string;
 }>;
 
@@ -110,6 +107,20 @@ export type OrganizationRoleMutationAck = Readonly<{
   role: Readonly<{ roleCode: OrganizationRoleCode; version: number }>;
 }>;
 
+export type InvitationMutationAck = Readonly<{
+  operationId: string;
+  invitation: Readonly<{
+    id: string;
+    status: AdminInvitation["status"];
+    version: number;
+    expiresAt: string;
+  }>;
+}>;
+
+export type OrganizationMutationAck =
+  | MembershipMutationAck
+  | InvitationMutationAck
+  | OrganizationRoleMutationAck;
 export type InviteMemberInput = Readonly<{
   email: string;
   reasonCode: MembershipActionReason;
@@ -269,27 +280,23 @@ export function parseAdminInvitationPage(
     if (
       !isRecord(item) ||
       typeof item.id !== "string" || !resourceIdPattern.test(item.id) ||
-      typeof item.membershipId !== "string" || !resourceIdPattern.test(item.membershipId) ||
       item.organizationId !== organizationId ||
       typeof item.status !== "string" || !invitationStates.has(item.status) ||
       !isVersion(item.version) ||
+      !isVersion(item.membershipVersion) ||
       !isDateTime(item.expiresAt) ||
       !isDateTime(item.createdAt) ||
-      !isVersion(item.membershipVersion) ||
-      typeof item.targetUserId !== "string" || !resourceIdPattern.test(item.targetUserId) ||
-      !isEmail(item.email)
+      !isEmail(item.invitedEmail)
     ) throw invalidResponse();
     return {
       id: item.id,
-      membershipId: item.membershipId,
       organizationId,
       status: item.status as AdminInvitation["status"],
       version: item.version,
+      membershipVersion: item.membershipVersion,
       expiresAt: item.expiresAt,
       createdAt: item.createdAt,
-      membershipVersion: item.membershipVersion,
-      targetUserId: item.targetUserId,
-      email: item.email,
+      invitedEmail: item.invitedEmail,
     };
   });
 }
@@ -300,13 +307,12 @@ export function parseRecipientInvitationPage(
   return parsePage(value, (item) => {
     const fields = [
       "id",
-      "membershipId",
       "organizationId",
       "status",
       "version",
       "expiresAt",
       "createdAt",
-      "membershipVersion",
+      "invitedEmail",
       "organizationName",
     ];
     if (
@@ -314,24 +320,22 @@ export function parseRecipientInvitationPage(
       Object.keys(item).length !== fields.length ||
       fields.some((field) => !Object.hasOwn(item, field)) ||
       typeof item.id !== "string" || !resourceIdPattern.test(item.id) ||
-      typeof item.membershipId !== "string" || !resourceIdPattern.test(item.membershipId) ||
       typeof item.organizationId !== "string" || !resourceIdPattern.test(item.organizationId) ||
       typeof item.status !== "string" || !invitationStates.has(item.status) ||
       !isVersion(item.version) ||
       !isDateTime(item.expiresAt) ||
       !isDateTime(item.createdAt) ||
-      !isVersion(item.membershipVersion) ||
+      !isEmail(item.invitedEmail) ||
       typeof item.organizationName !== "string"
     ) throw invalidResponse();
     return {
       id: item.id,
-      membershipId: item.membershipId,
       organizationId: item.organizationId,
       status: item.status as RecipientInvitation["status"],
       version: item.version,
       expiresAt: item.expiresAt,
       createdAt: item.createdAt,
-      membershipVersion: item.membershipVersion,
+      invitedEmail: item.invitedEmail,
       organizationName: item.organizationName,
     };
   });
@@ -340,9 +344,29 @@ export function parseRecipientInvitationPage(
 export function parseMutationAck(
   value: unknown,
   organizationId: string,
-): MembershipMutationAck {
+): OrganizationMutationAck {
   if (!isRecord(value) || typeof value.operationId !== "string" || !resourceIdPattern.test(value.operationId)) {
     throw invalidResponse();
+  }
+  if (value.membership === undefined) {
+    const rawInvitation = value.invitation;
+    if (
+      Object.keys(value).length !== 2 ||
+      !isRecord(rawInvitation) ||
+      typeof rawInvitation.id !== "string" || !resourceIdPattern.test(rawInvitation.id) ||
+      typeof rawInvitation.status !== "string" || !invitationStates.has(rawInvitation.status) ||
+      !isVersion(rawInvitation.version) ||
+      !isDateTime(rawInvitation.expiresAt)
+    ) throw invalidResponse();
+    return {
+      operationId: value.operationId,
+      invitation: {
+        id: rawInvitation.id,
+        status: rawInvitation.status as AdminInvitation["status"],
+        version: rawInvitation.version,
+        expiresAt: rawInvitation.expiresAt,
+      },
+    };
   }
   const rawMembership = value.membership;
   if (
