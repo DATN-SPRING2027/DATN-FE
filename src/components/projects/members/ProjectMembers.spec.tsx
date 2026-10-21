@@ -898,3 +898,107 @@ it("shows empty state when no organization member candidate matches the search",
     await screen.findByText("No active organization member found."),
   ).toBeVisible();
 });
+
+
+it("prevents revoking or removing the sole Project Leader until a second Leader is appointed", async () => {
+  let activeLeaders = [
+    {
+      userId: "user-1",
+      fullName: "Leader One",
+      email: "user1@datn-dev.example.test",
+      avatarUrl: null,
+      role: "TEAM_LEADER" as const,
+      status: "ACTIVE" as const,
+    },
+  ];
+  const secondMember = {
+    ...member,
+    id: "membership-2",
+    userId: "user-2",
+    user: {
+      id: "user-2",
+      email: "user2@datn-dev.example.test",
+      fullName: "Member Two",
+    },
+  };
+
+  api.mockImplementation(async (endpoint, options) => {
+    if (endpoint === "/auth/me") return { ...user, roles: ["ADMIN"] };
+    if (endpoint === "/iam/projects/project-1/leaders") {
+      if (options?.method === "POST") {
+        activeLeaders = [
+          ...activeLeaders,
+          {
+            userId: "user-2",
+            fullName: "Member Two",
+            email: "user2@datn-dev.example.test",
+            avatarUrl: null,
+            role: "TEAM_LEADER",
+            status: "ACTIVE",
+          },
+        ];
+        return undefined;
+      }
+      return { data: activeLeaders };
+    }
+    if (
+      endpoint === "/iam/projects/project-1/leaders/user-1" &&
+      options?.method === "DELETE"
+    ) {
+      activeLeaders = activeLeaders.filter((item) => item.userId !== "user-1");
+      return undefined;
+    }
+    return page([member, secondMember]);
+  });
+
+  mount();
+  const row1 = (
+    await screen.findByRole("button", { name: "View member user-1" })
+  ).closest("tr")!;
+  const row2 = (
+    await screen.findByRole("button", { name: "View member Member Two" })
+  ).closest("tr")!;
+
+  const revokeBtn1 = await within(row1).findByRole("button", {
+    name: "Revoke Leader",
+  });
+  const removeBtn1 = within(row1).getByRole("button", { name: "Remove" });
+  const appointBtn2 = within(row2).getByRole("button", {
+    name: "Set as Leader",
+  });
+
+  expect(revokeBtn1).toBeDisabled();
+  expect(revokeBtn1).toHaveAttribute(
+    "title",
+    "Cannot revoke the only Project Leader. Appoint another member as Leader first.",
+  );
+  expect(removeBtn1).toBeDisabled();
+  expect(appointBtn2).toBeEnabled();
+
+  fireEvent.click(appointBtn2);
+
+  await waitFor(() => {
+    expect(api).toHaveBeenCalledWith(
+      "/iam/projects/project-1/leaders",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ userId: "user-2" }),
+      }),
+    );
+  });
+
+  await waitFor(() => {
+    expect(
+      within(row1).getByRole("button", { name: "Revoke Leader" }),
+    ).toBeEnabled();
+  });
+
+  fireEvent.click(within(row1).getByRole("button", { name: "Revoke Leader" }));
+
+  await waitFor(() => {
+    expect(api).toHaveBeenCalledWith(
+      "/iam/projects/project-1/leaders/user-1",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+  });
+});

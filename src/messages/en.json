@@ -2095,7 +2095,9 @@
     "revokingLeader": "Revoking…",
     "leaderAppointed": "Member appointed as Project Leader.",
     "leaderRevoked": "Project Leader role revoked.",
-    "leaderActionFailed": "The Leader change could not be completed. Refresh and try again."
+    "leaderActionFailed": "The Leader change could not be completed. Refresh and try again.",
+    "soleLeaderCannotRevoke": "Cannot revoke the only Project Leader. Appoint another member as Leader first.",
+    "leaderCannotBeRemoved": "Appoint another Leader and revoke this Leader role before removing this member."
   },
   "workNotes": {
     "title": "Work Notes",

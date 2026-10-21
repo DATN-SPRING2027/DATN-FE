@@ -40,6 +40,7 @@ export default function MemberDirectory({
 }) {
   const t = useTranslations("projectMembers");
   const format = useFormatter();
+  const activeLeaderCount = leaderUserIds?.size ?? 0;
 
   if (!members.length) {
     return (
@@ -101,6 +102,7 @@ export default function MemberDirectory({
         <TableBody className="block w-full space-y-3 lg:table-row-group lg:space-y-0 lg:divide-y lg:divide-gray-100 dark:lg:divide-gray-800">
           {members.map((member) => {
             const isLeader = Boolean(leaderUserIds?.has(member.userId));
+            const isSoleLeader = isLeader && activeLeaderCount <= 1;
             const isBusyLeader = leaderBusyUserId === member.userId;
             return (
               <TableRow
@@ -284,12 +286,21 @@ export default function MemberDirectory({
                       onToggleLeader && (
                         <button
                           type="button"
-                          disabled={disabled || Boolean(leaderBusyUserId)}
+                          disabled={
+                            disabled ||
+                            Boolean(leaderBusyUserId) ||
+                            isSoleLeader
+                          }
+                          title={
+                            isSoleLeader
+                              ? t("soleLeaderCannotRevoke")
+                              : undefined
+                          }
                           onClick={() => onToggleLeader(member, isLeader)}
-                          className={`inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                          className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
                             isLeader
-                              ? "border-warning-200 bg-warning-50/60 text-warning-700 hover:border-warning-300 hover:bg-warning-100/70 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
-                              : "border-brand-200 bg-brand-50/60 text-brand-700 hover:border-brand-300 hover:bg-brand-100/70 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                              ? "border-warning-200 bg-warning-50/60 text-warning-700 enabled:hover:border-warning-300 enabled:hover:bg-warning-100/70 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:enabled:hover:bg-warning-500/20"
+                              : "border-brand-200 bg-brand-50/60 text-brand-700 enabled:hover:border-brand-300 enabled:hover:bg-brand-100/70 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:enabled:hover:bg-brand-500/20"
                           }`}
                         >
                           <svg
@@ -319,7 +330,14 @@ export default function MemberDirectory({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={removeDisabled}
+                        disabled={removeDisabled || isLeader}
+                        title={
+                          isSoleLeader
+                            ? t("soleLeaderCannotRevoke")
+                            : isLeader
+                              ? t("leaderCannotBeRemoved")
+                              : undefined
+                        }
                         startIcon={
                           <svg
                             aria-hidden="true"
@@ -337,7 +355,7 @@ export default function MemberDirectory({
                           </svg>
                         }
                         onClick={() => onRemove(member)}
-                        className="h-8 cursor-pointer border-gray-200 px-2.5 text-xs text-error-600! hover:border-error-200 hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:hover:bg-error-950/20"
+                        className="h-8 border-gray-200 px-2.5 text-xs text-error-600! enabled:cursor-pointer enabled:hover:border-error-200 enabled:hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:enabled:hover:bg-error-950/20"
                       >
                         {t("remove")}
                       </Button>

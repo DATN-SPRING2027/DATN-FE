@@ -61,6 +61,7 @@ function ScopedProjectMembers({
     "added" | "removed" | "leaderAppointed" | "leaderRevoked"
   >();
   const [leaderBusyUserId, setLeaderBusyUserId] = useState<string>();
+  const [soleLeaderBlocked, setSoleLeaderBlocked] = useState(false);
 
   useEffect(() => {
     if (!notice) return;
@@ -125,6 +126,7 @@ function ScopedProjectMembers({
     leaderActions.revoke.reset();
     setSelected(undefined);
     setNotice(undefined);
+    setSoleLeaderBlocked(false);
     void members.refetch();
     void leaders.refetch();
   }
@@ -134,8 +136,13 @@ function ScopedProjectMembers({
     isCurrentlyLeader: boolean,
   ) {
     if (mutationInFlight.current || busy || !canManageLeaders) return;
+    if (isCurrentlyLeader && leaderUserIds.size <= 1) {
+      setSoleLeaderBlocked(true);
+      return;
+    }
     mutationInFlight.current = true;
     setNotice(undefined);
+    setSoleLeaderBlocked(false);
     setLeaderBusyUserId(member.userId);
     leaderActions.assign.reset();
     leaderActions.revoke.reset();
@@ -176,8 +183,15 @@ function ScopedProjectMembers({
   const focusedMember = listedMembers.find((member) => member.id === focusedId);
 
   function requestRemoval(member: ProjectMembership) {
+    if (leaderUserIds.has(member.userId)) {
+      if (leaderUserIds.size <= 1) {
+        setSoleLeaderBlocked(true);
+      }
+      return;
+    }
     remove.reset();
     setNotice(undefined);
+    setSoleLeaderBlocked(false);
     setSelected(member);
     confirmation.openModal();
   }
@@ -204,12 +218,14 @@ function ScopedProjectMembers({
           {t("checkAccess")}
         </Button>
       )}
-      {leaderError && (
+      {(leaderError || soleLeaderBlocked) && (
         <p
           role="alert"
           className="rounded-xl border border-error-200 bg-error-50/60 px-4 py-3 text-sm text-error-700 dark:border-error-500/25 dark:bg-error-500/10 dark:text-error-300"
         >
-          {t("leaderActionFailed")}
+          {soleLeaderBlocked
+            ? t("soleLeaderCannotRevoke")
+            : t("leaderActionFailed")}
         </p>
       )}
       <section
