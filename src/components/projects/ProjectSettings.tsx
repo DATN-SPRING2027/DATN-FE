@@ -10,11 +10,11 @@ import {
   useUpdateProjectMutation,
 } from "@/lib/queries/projects/useProjects";
 import { useProjectSettingsAccess } from "@/lib/queries/projects/useProjectSettings";
-import { SettingsIcon, TrashBinIcon } from "@/icons";
+import { SettingsIcon } from "@/icons";
 import ProjectVisibility from "./ProjectVisibility";
 
 const inputClassName =
-  "mt-1.5 block min-h-11 w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 dark:disabled:bg-gray-800/30 dark:disabled:text-gray-500";
+  "mt-1.5 block min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-theme-xs transition-colors outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 dark:disabled:bg-gray-800/30 dark:disabled:text-gray-500";
 
 function ProjectDetailsForm({ project }: { project: Project }) {
   const t = useTranslations("projects.settingsPanel");
@@ -147,12 +147,25 @@ function ProjectDetailsForm({ project }: { project: Project }) {
             <span
               id={`${id}-name-error`}
               role="alert"
-              className="mt-1 block text-xs text-error-600 dark:text-error-400"
+              className="mt-1.5 block text-xs text-error-600 dark:text-error-400"
             >
               {nameError}
             </span>
           )}
         </label>
+
+        <div>
+          <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            {projectText("code")}
+          </span>
+          <div className="mt-1.5 flex min-h-11 w-full items-center justify-between rounded-xl border border-gray-200/80 bg-gray-50/80 px-3.5 py-2.5 font-mono text-sm font-semibold text-gray-600 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300">
+            <span>{project.code}</span>
+            <span className="rounded bg-gray-200/70 px-2 py-0.5 font-sans text-[11px] font-medium text-gray-500 dark:bg-gray-700 dark:text-gray-400">
+              Immutable
+            </span>
+          </div>
+        </div>
+
         <label
           htmlFor={`${id}-description`}
           className="block text-sm font-medium text-gray-700 @xl:col-span-2 dark:text-gray-300"
@@ -178,14 +191,14 @@ function ProjectDetailsForm({ project }: { project: Project }) {
             <span
               id={`${id}-description-error`}
               role="alert"
-              className="mt-1 block text-xs text-error-600 dark:text-error-400"
+              className="mt-1.5 block text-xs text-error-600 dark:text-error-400"
             >
               {descriptionError}
             </span>
           )}
         </label>
       </div>
-      <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
+      <div className="mt-5 flex flex-col gap-3 border-t border-gray-100 pt-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800">
         <div className="min-h-6 flex-1">
           {accessMessage && (
             <div
@@ -220,13 +233,13 @@ function ProjectDetailsForm({ project }: { project: Project }) {
           {success && (
             <p
               role="status"
-              className="text-sm text-success-700 dark:text-success-400"
+              className="text-sm font-medium text-success-700 dark:text-success-400"
             >
               {t("saveSuccess")}
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2 self-end sm:self-auto">
+        <div className="flex items-center gap-2.5 self-end sm:self-auto">
           <Button
             type="button"
             size="sm"
@@ -259,17 +272,18 @@ export default function ProjectSettings({ project }: { project: Project }) {
   const t = useTranslations("projects.settingsPanel");
   const projectText = useTranslations("projects");
   const id = useId();
+  const isPrivate = project.visibility === "PRIVATE";
 
   return (
     <section aria-labelledby={`${id}-heading`} className="space-y-5">
-      <header className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+      <header className="flex items-start gap-3.5 rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <span className="mt-0.5 flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-500/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20">
           <SettingsIcon className="size-5" aria-hidden="true" />
         </span>
         <div>
           <h2
             id={`${id}-heading`}
-            className="text-lg font-semibold text-gray-900 dark:text-white/90"
+            className="text-lg font-semibold tracking-tight text-gray-900 dark:text-white/90"
           >
             {t("title")}
           </h2>
@@ -304,12 +318,56 @@ export default function ProjectSettings({ project }: { project: Project }) {
             )}
           </div>
           <span
-            className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${project.visibility === "PUBLIC" ? "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300" : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"}`}
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium whitespace-nowrap ${
+              !isPrivate
+                ? "border-blue-light-200 bg-blue-light-50/70 text-blue-light-700 dark:border-blue-light-500/20 dark:bg-blue-light-500/10 dark:text-blue-light-300"
+                : "border-warning-200 bg-warning-50/70 text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300"
+            }`}
           >
-            <span
-              aria-hidden="true"
-              className={`size-1.5 rounded-full ${project.visibility === "PUBLIC" ? "bg-brand-500" : "bg-gray-400"}`}
-            />
+            {isPrivate ? (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="h-3.5 w-3.5 shrink-0"
+              >
+                <rect
+                  x="3.25"
+                  y="7.25"
+                  width="9.5"
+                  height="6.5"
+                  rx="1.5"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            ) : (
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="h-3.5 w-3.5 shrink-0"
+              >
+                <circle
+                  cx="8"
+                  cy="8"
+                  r="5.75"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                />
+                <path
+                  d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                />
+              </svg>
+            )}
             {projectText(project.visibility)}
           </span>
         </div>
@@ -317,24 +375,39 @@ export default function ProjectSettings({ project }: { project: Project }) {
 
       <section
         aria-labelledby={`${id}-danger-zone-heading`}
-        className="rounded-2xl border border-error-200 bg-white p-5 shadow-theme-xs dark:border-error-500/20 dark:bg-gray-900"
+        className="rounded-2xl border border-error-200/90 bg-error-50/20 p-5 shadow-theme-xs sm:p-6 dark:border-error-500/25 dark:bg-error-500/5"
       >
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3
               id={`${id}-danger-zone-heading`}
-              className="font-semibold text-gray-900 dark:text-white/90"
+              className="text-base font-semibold text-gray-900 dark:text-white/90"
             >
               {t("dangerZoneTitle")}
             </h3>
-            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">
+            <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600 dark:text-gray-400">
               {t("deleteUnavailable")}
             </p>
           </div>
           <Button
             variant="outline"
             disabled
-            startIcon={<TrashBinIcon className="size-4" aria-hidden="true" />}
+            startIcon={
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 16 16"
+                fill="none"
+                className="h-4 w-4 shrink-0"
+              >
+                <path
+                  d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            }
           >
             {t("deleteProject")}
           </Button>

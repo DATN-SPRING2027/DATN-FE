@@ -8,7 +8,6 @@ import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon, PlusIcon } from "@/icons";
 
 type ProjectTab = "overview" | "members" | "settings" | "teams";
 
@@ -37,20 +36,14 @@ export default function ProjectOverview({
       timeStyle: "short",
       timeZone: "UTC",
     });
-  const summary = [
-    { label: "code", value: project.code },
-    { label: "visibility", value: t(project.visibility) },
-    { label: "updatedAt", value: date(project.updatedAt) },
-  ];
-  const context = [
-    { label: "projectId", value: project.id },
-    { label: "organizationId", value: project.organizationId },
-    { label: "createdBy", value: project.createdBy },
-    { label: "createdAt", value: date(project.createdAt) },
-  ];
+
+  const isPrivate = project.visibility === "PRIVATE";
+  const isActive = project.status === "ACTIVE";
+
   const tabs: ProjectTab[] = showTeams
     ? ["overview", "members", "settings", "teams"]
     : ["overview", "members", "settings"];
+
   const tabLabel = (value: ProjectTab) =>
     value === "overview"
       ? t("overview")
@@ -59,148 +52,286 @@ export default function ProjectOverview({
         : value === "settings"
           ? t("settings")
           : t("teams");
+
   const adjacentTab = (value: ProjectTab, direction: -1 | 1) => {
     const index = tabs.indexOf(value);
     return tabs[(index + direction + tabs.length) % tabs.length];
   };
+
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
-      <nav className="mb-4 flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-        <Link
-          href="/projects"
-          className="hover:text-brand-600 dark:hover:text-brand-400"
-        >
-          {t("title")}
-        </Link>
-        <span>/</span>
-        <span className="font-medium text-gray-800 dark:text-white/90">
-          {project.name}
-        </span>
+      {/* Breadcrumb */}
+      <nav
+        aria-label={t("breadcrumb")}
+        className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+      >
+        <ol className="flex min-w-0 items-center gap-1.5">
+          <li>
+            <Link
+              href="/projects"
+              className="font-medium text-gray-500 transition-colors hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"
+            >
+              {t("title")}
+            </Link>
+          </li>
+          <li aria-hidden="true" className="text-gray-300 dark:text-gray-600">
+            /
+          </li>
+          <li className="truncate font-semibold text-gray-800 dark:text-white/90">
+            {project.name}
+          </li>
+        </ol>
       </nav>
-      <header className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
-        <div className="flex min-w-0 items-center gap-4">
-          <span
-            aria-hidden="true"
-            className="flex size-14 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-lg font-bold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-          >
-            {project.code.slice(0, 2).toUpperCase()}
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="max-w-full min-w-0 text-2xl font-bold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
-                {project.name}
-              </h1>
-              <span
-                className={`flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${project.status === "ACTIVE" ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400" : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300"}`}
-              >
+
+      {/* Unified Swiss Modernism 2.0 Hero Card + Section Navigation */}
+      <div className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <header className="flex flex-col justify-between gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
+          <div className="flex min-w-0 items-start gap-4 sm:items-center">
+            <span
+              aria-hidden="true"
+              className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-lg font-bold tracking-tight text-brand-600 ring-1 ring-brand-500/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20"
+            >
+              {project.code.slice(0, 2).toUpperCase()}
+            </span>
+            <div className="min-w-0 space-y-1.5">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                <h1 className="max-w-full min-w-0 text-xl font-bold tracking-tight [overflow-wrap:anywhere] text-gray-900 sm:text-2xl dark:text-white/90">
+                  {project.name}
+                </h1>
+                <span className="inline-flex shrink-0 items-center rounded-md border border-gray-200/80 bg-gray-100 px-2.5 py-0.5 font-mono text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  {project.code}
+                </span>
                 <span
-                  className={`inline-block h-1.5 w-1.5 rounded-full ${project.status === "ACTIVE" ? "bg-success-500" : "bg-gray-500"}`}
-                ></span>
-                {t(project.status === "ACTIVE" ? "active" : "archived")}
-              </span>
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                    isActive
+                      ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/20 dark:bg-success-500/10 dark:text-success-400"
+                      : "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`h-1.5 w-1.5 rounded-full ${
+                      isActive ? "bg-success-500" : "bg-gray-400"
+                    }`}
+                  />
+                  {t(isActive ? "active" : "archived")}
+                </span>
+                <span
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                    isPrivate
+                      ? "border-warning-200 bg-warning-50/70 text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300"
+                      : "border-blue-light-200 bg-blue-light-50/70 text-blue-light-700 dark:border-blue-light-500/20 dark:bg-blue-light-500/10 dark:text-blue-light-300"
+                  }`}
+                >
+                  {isPrivate ? (
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      className="h-3 w-3 shrink-0"
+                    >
+                      <rect
+                        x="3.25"
+                        y="7.25"
+                        width="9.5"
+                        height="6.5"
+                        rx="1.5"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                      />
+                      <path
+                        d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  ) : (
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      className="h-3 w-3 shrink-0"
+                    >
+                      <circle
+                        cx="8"
+                        cy="8"
+                        r="5.75"
+                        stroke="currentColor"
+                        strokeWidth="1.4"
+                      />
+                      <path
+                        d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
+                        stroke="currentColor"
+                        strokeWidth="1.3"
+                      />
+                    </svg>
+                  )}
+                  {t(isPrivate ? "privateWorkspaceBadge" : "publicWorkspaceBadge")}
+                </span>
+              </div>
+              <p className="line-clamp-2 max-w-3xl text-sm leading-relaxed text-gray-500 dark:text-gray-400">
+                {project.description || t("overviewHint")}
+              </p>
             </div>
-            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {project.description || t("overviewHint")}
-            </p>
           </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="mr-2 flex size-10 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-          >
-            <GroupIcon className="size-5" />
-          </span>
-          <span title={memberLabels("shareUnavailable")}>
+
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
             <Button
               variant="outline"
               size="sm"
-              className="h-9 shrink-0 bg-transparent! px-3! py-1.5! whitespace-nowrap"
-              disabled
+              className="h-9 shrink-0 rounded-xl bg-white! px-3.5! py-2! text-xs font-semibold whitespace-nowrap shadow-theme-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-gray-800!"
+              ariaLabel={memberLabels("openAdd")}
+              startIcon={
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3.5 w-3.5 shrink-0"
+                >
+                  <path
+                    d="M8 3.25v9.5M3.25 8h9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.6"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              }
+              onClick={() => {
+                setTab("members");
+                setShowAddModal(true);
+              }}
             >
-              {memberLabels("share")}
+              {memberLabels("add")}
             </Button>
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-9 shrink-0 bg-transparent! px-3! py-1.5! whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-            ariaLabel={memberLabels("openAdd")}
-            startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
-            onClick={() => {
-              setTab("members");
-              setShowAddModal(true);
-            }}
-          >
-            {memberLabels("add")}
-          </Button>
-        </div>
-      </header>
-      <nav aria-label={t("sections")} className="min-w-0 overflow-x-auto">
-        <div className="flex w-full min-w-max items-stretch border-b border-gray-200 dark:border-gray-800">
-          <div
-            role="tablist"
-            aria-label={project.name}
-            className="flex flex-[3] items-stretch"
-          >
-            {tabs.map((value) => (
-              <button
-                key={value}
-                id={`${tabId}-${value}-tab`}
-                role="tab"
-                type="button"
-                aria-selected={tab === value}
-                aria-controls={`${tabId}-${value}-panel`}
-                tabIndex={tab === value ? 0 : -1}
-                onClick={() => setTab(value)}
-                onKeyDown={(event) => {
-                  let next: (typeof tabs)[number];
-                  if (event.key === "ArrowLeft") next = adjacentTab(value, -1);
-                  else if (event.key === "ArrowRight")
-                    next = adjacentTab(value, 1);
-                  else if (event.key === "Home") next = tabs[0];
-                  else if (event.key === "End") next = tabs[tabs.length - 1];
-                  else return;
-                  event.preventDefault();
-                  setTab(next);
-                  document.getElementById(`${tabId}-${next}-tab`)?.focus();
-                }}
-                className={`flex-1 cursor-pointer border-b-2 px-2 pb-3 text-center text-sm font-medium whitespace-nowrap focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${tab === value ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-600 hover:text-brand-600 dark:text-gray-400 dark:hover:text-brand-400"}`}
-              >
-                {tabLabel(value)}
-              </button>
-            ))}
           </div>
-          <Link
-            href={`/projects/${encodeURIComponent(project.id)}/work`}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-          >
-            {t("work")}
-          </Link>
-          <Link
-            href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
-            className="inline-flex flex-1 cursor-pointer items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-          >
-            {t("workNotes")}
-          </Link>
-          <button
-            type="button"
-            disabled
-            title={t("comingSoon")}
-            className="inline-flex flex-1 cursor-not-allowed items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-70 dark:text-gray-500"
-          >
-            {t("activity")}
-          </button>
-          <button
-            type="button"
-            disabled
-            title={t("comingSoon")}
-            className="inline-flex flex-1 cursor-not-allowed items-center justify-center border-b-2 border-transparent px-2 pb-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-70 dark:text-gray-500"
-          >
-            {t("knowledge")}
-          </button>
-        </div>
-      </nav>
+        </header>
+
+        {/* Left-aligned B2B Section Navigation Bar */}
+        <nav
+          aria-label={t("sections")}
+          className="min-w-0 overflow-x-auto border-t border-gray-100 bg-gray-50/50 px-4 sm:px-6 dark:border-gray-800/80 dark:bg-gray-800/30"
+        >
+          <div className="flex w-full min-w-max items-center justify-start gap-2">
+            <div
+              role="tablist"
+              aria-label={project.name}
+              className="flex items-stretch gap-1 sm:gap-2"
+            >
+              {tabs.map((value) => (
+                <button
+                  key={value}
+                  id={`${tabId}-${value}-tab`}
+                  role="tab"
+                  type="button"
+                  aria-selected={tab === value}
+                  aria-controls={`${tabId}-${value}-panel`}
+                  tabIndex={tab === value ? 0 : -1}
+                  onClick={() => setTab(value)}
+                  onKeyDown={(event) => {
+                    let next: (typeof tabs)[number];
+                    if (event.key === "ArrowLeft") next = adjacentTab(value, -1);
+                    else if (event.key === "ArrowRight")
+                      next = adjacentTab(value, 1);
+                    else if (event.key === "Home") next = tabs[0];
+                    else if (event.key === "End") next = tabs[tabs.length - 1];
+                    else return;
+                    event.preventDefault();
+                    setTab(next);
+                    document.getElementById(`${tabId}-${next}-tab`)?.focus();
+                  }}
+                  className={`cursor-pointer border-b-2 px-3 py-3 text-center text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                    tab === value
+                      ? "border-brand-500 text-brand-600 dark:text-brand-400"
+                      : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
+                  }`}
+                >
+                  {tabLabel(value)}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-stretch gap-1 sm:gap-2">
+              <span
+                aria-hidden="true"
+                className="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-700"
+              />
+              <Link
+                href={`/projects/${encodeURIComponent(project.id)}/work`}
+                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+              >
+                {t("work")}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3 w-3 shrink-0 opacity-60"
+                >
+                  <path
+                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+              <Link
+                href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
+                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+              >
+                {t("workNotes")}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3 w-3 shrink-0 opacity-60"
+                >
+                  <path
+                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
+              <button
+                type="button"
+                disabled
+                aria-label={t("activity")}
+                title={t("comingSoon")}
+                className="inline-flex cursor-not-allowed items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-75 dark:text-gray-500"
+              >
+                <span>{t("activity")}</span>
+                <span
+                  aria-hidden="true"
+                  className="rounded bg-gray-200/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  Soon
+                </span>
+              </button>
+              <button
+                type="button"
+                disabled
+                aria-label={t("knowledge")}
+                title={t("comingSoon")}
+                className="inline-flex cursor-not-allowed items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-75 dark:text-gray-500"
+              >
+                <span>{t("knowledge")}</span>
+                <span
+                  aria-hidden="true"
+                  className="rounded bg-gray-200/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                >
+                  Soon
+                </span>
+              </button>
+            </div>
+          </div>
+        </nav>
+      </div>
+
+      {/* Overview Tab Panel — Bento Grid 8:4 (Zero Backend IDs) */}
       <div
         id={`${tabId}-overview-panel`}
         role="tabpanel"
@@ -208,57 +339,370 @@ export default function ProjectOverview({
         hidden={tab !== "overview"}
         className="space-y-5 sm:space-y-6"
       >
-        <dl className="grid grid-cols-1 gap-4 @xl:grid-cols-3">
-          {summary.map(({ label, value }) => (
-            <div
-              key={label}
-              className="min-w-0 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs @xl:p-5 dark:border-gray-800 dark:bg-gray-900"
-            >
-              <dt className="text-sm text-gray-500 dark:text-gray-400">
-                {t(label)}
+        {/* 4-Card B2B Metric Strip */}
+        <dl className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 @3xl:grid-cols-4">
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("code")}
               </dt>
-              <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-800 dark:text-white/90">
-                {label === "updatedAt" ? (
-                  <time dateTime={project.updatedAt}>{value}</time>
-                ) : (
-                  value
-                )}
-              </dd>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3.5 w-3.5"
+                >
+                  <path
+                    d="M5.5 5L2.5 8l3 3M10.5 5l3 3-3 3M9 3.5l-2 9"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </span>
             </div>
-          ))}
+            <dd className="mt-2 font-mono text-base font-semibold tracking-tight [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
+              {project.code}
+            </dd>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t("codeMetricHint")}
+            </p>
+          </div>
+
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("visibility")}
+              </dt>
+              <span
+                className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                  isPrivate
+                    ? "bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-300"
+                    : "bg-blue-light-50 text-blue-light-600 dark:bg-blue-light-500/15 dark:text-blue-light-300"
+                }`}
+              >
+                {isPrivate ? (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="h-3.5 w-3.5"
+                  >
+                    <rect
+                      x="3.25"
+                      y="7.25"
+                      width="9.5"
+                      height="6.5"
+                      rx="1.5"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M5.25 7.25V5.25a2.75 2.75 0 1 1 5.5 0v2"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                ) : (
+                  <svg
+                    aria-hidden="true"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="h-3.5 w-3.5"
+                  >
+                    <circle
+                      cx="8"
+                      cy="8"
+                      r="5.75"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M2.5 8h11M8 2.25c1.6 1.55 2.4 3.47 2.4 5.75S9.6 12.2 8 13.75c-1.6-1.55-2.4-3.47-2.4-5.75S6.4 3.8 8 2.25Z"
+                      stroke="currentColor"
+                      strokeWidth="1.3"
+                    />
+                  </svg>
+                )}
+              </span>
+            </div>
+            <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
+              {t(project.visibility)}
+            </dd>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t(isPrivate ? "privateOverviewHint" : "publicOverviewHint")}
+            </p>
+          </div>
+
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("status")}
+              </dt>
+              <span
+                className={`flex h-7 w-7 items-center justify-center rounded-lg ${
+                  isActive
+                    ? "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400"
+                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-2 w-2 rounded-full ${
+                    isActive ? "bg-success-500" : "bg-gray-400"
+                  }`}
+                />
+              </span>
+            </div>
+            <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
+              {t(isActive ? "active" : "archived")}
+            </dd>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t(isActive ? "statusActiveHint" : "statusArchivedHint")}
+            </p>
+          </div>
+
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+            <div className="flex items-center justify-between gap-2">
+              <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("updatedAt")}
+              </dt>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3.5 w-3.5"
+                >
+                  <circle
+                    cx="8"
+                    cy="8"
+                    r="5.75"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M8 5v3.25l2.25 1.25"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
+              </span>
+            </div>
+            <dd className="mt-2 text-sm font-semibold tabular-nums [overflow-wrap:anywhere] text-gray-900 sm:text-base dark:text-white/90">
+              <time dateTime={project.updatedAt}>{date(project.updatedAt)}</time>
+            </dd>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t("updatedMetricHint")}
+            </p>
+          </div>
         </dl>
-        <div className="grid min-w-0 grid-cols-1 items-start gap-4 @4xl:grid-cols-3 @4xl:gap-6">
+
+        {/* Bento Grid 8:4 — Description + Workspace Modules (8 cols) | Governance & Lifecycle (4 cols) */}
+        <div className="grid min-w-0 grid-cols-1 items-start gap-5 @4xl:grid-cols-3 @4xl:gap-6">
+          <div className="min-w-0 space-y-5 @4xl:col-span-2">
+            <ComponentCard title={t("description")} className="min-w-0">
+              <p className="text-sm leading-6 [overflow-wrap:anywhere] whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                {project.description || t("noDescription")}
+              </p>
+            </ComponentCard>
+
+            <ComponentCard
+              title={t("workspaceModulesTitle")}
+              desc={t("workspaceModulesHint")}
+              className="min-w-0"
+            >
+              <div className="grid grid-cols-1 gap-3.5 @2xl:grid-cols-3">
+                <Link
+                  href={`/projects/${encodeURIComponent(project.id)}/work`}
+                  aria-label={t("openWorkModule")}
+                  className="group flex flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="h-4 w-4"
+                        >
+                          <rect
+                            x="2.25"
+                            y="2.75"
+                            width="11.5"
+                            height="10.5"
+                            rx="1.75"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                          />
+                          <path
+                            d="M5.25 6.5h5.5M5.25 9.5h3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
+                        →
+                      </span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">
+                      {t("work")}
+                    </h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                      {t("workModuleDesc")}
+                    </p>
+                  </div>
+                </Link>
+
+                <Link
+                  href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
+                  aria-label={t("openWorkNotesModule")}
+                  className="group flex flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-light-50 text-blue-light-600 dark:bg-blue-light-500/15 dark:text-blue-light-300">
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="h-4 w-4"
+                        >
+                          <path
+                            d="M4 2.5h5.5L12.5 5.5v8a1 1 0 0 1-1 1h-7.5a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1Z"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinejoin="round"
+                          />
+                          <path
+                            d="M9 2.5v3h3M5.5 8.5h5M5.5 11h3.5"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
+                        →
+                      </span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">
+                      {t("workNotes")}
+                    </h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                      {t("workNotesModuleDesc")}
+                    </p>
+                  </div>
+                </Link>
+
+                <button
+                  type="button"
+                  onClick={() => setTab("members")}
+                  aria-label={t("openMembersModule")}
+                  className="group flex cursor-pointer flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 text-start transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="h-4 w-4"
+                        >
+                          <circle
+                            cx="6.25"
+                            cy="5.5"
+                            r="2.25"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                          />
+                          <path
+                            d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                          />
+                          <path
+                            d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                          />
+                        </svg>
+                      </span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">
+                        →
+                      </span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">
+                      {memberLabels("title")}
+                    </h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                      {t("membersModuleDesc")}
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </ComponentCard>
+          </div>
+
+          {/* Right 4-Col Aside: Governance & Lifecycle (No Raw IDs) */}
           <ComponentCard
-            title={t("description")}
-            className="min-w-0 @4xl:col-span-2"
+            title={t("governanceTitle")}
+            desc={t("governanceHint")}
+            className="min-w-0"
           >
-            <p className="text-sm leading-6 [overflow-wrap:anywhere] whitespace-pre-wrap text-gray-600 dark:text-gray-300">
-              {project.description || t("noDescription")}
-            </p>
-          </ComponentCard>
-          <ComponentCard title={t("projectContext")} className="min-w-0">
-            <dl className="space-y-5">
-              {context.map(({ label, value }) => (
-                <div key={label}>
-                  <dt className="text-sm text-gray-500 dark:text-gray-400">
-                    {t(label)}
-                  </dt>
-                  <dd className="mt-1 text-sm font-medium break-all text-gray-800 dark:text-gray-200">
-                    {label === "createdAt" ? (
-                      <time dateTime={project.createdAt}>{value}</time>
-                    ) : (
-                      value
-                    )}
-                  </dd>
-                </div>
-              ))}
+            <dl className="space-y-4">
+              <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                  {t("accessPolicyLabel")}
+                </dt>
+                <dd className="mt-1.5 text-xs leading-5 text-gray-700 dark:text-gray-300">
+                  {t(isPrivate ? "privatePolicySummary" : "publicPolicySummary")}
+                </dd>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3.5 dark:border-gray-800">
+                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {t("createdAt")}
+                </dt>
+                <dd className="text-xs font-semibold tabular-nums text-gray-900 dark:text-white/90">
+                  <time dateTime={project.createdAt}>{date(project.createdAt)}</time>
+                </dd>
+              </div>
+
+              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3.5 dark:border-gray-800">
+                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {t("updatedAt")}
+                </dt>
+                <dd className="text-xs font-semibold tabular-nums text-gray-900 dark:text-white/90">
+                  <time dateTime={project.updatedAt}>{date(project.updatedAt)}</time>
+                </dd>
+              </div>
             </dl>
-            <p className="border-t border-gray-100 pt-4 text-xs leading-5 text-gray-500 dark:border-gray-800 dark:text-gray-400">
-              {t("contextHint")}
-            </p>
+
+            <div className="border-t border-gray-100 pt-4 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setTab("settings")}
+                className="inline-flex w-full cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-700 transition-colors hover:border-brand-300 hover:bg-gray-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-400"
+              >
+                <span>{t("configureSettings")}</span>
+                <span aria-hidden="true">→</span>
+              </button>
+            </div>
           </ComponentCard>
         </div>
       </div>
+
       {tab === "members" && (
         <div
           id={`${tabId}-members-panel`}

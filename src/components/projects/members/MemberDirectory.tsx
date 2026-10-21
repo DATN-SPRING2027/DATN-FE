@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Button from "@/components/ui/button/Button";
-import { ArrowRightIcon, GroupIcon, TrashBinIcon } from "@/icons";
+import { GroupIcon } from "@/icons";
 import type { ProjectMembership } from "@/lib/queries/projects/useProjectMembers";
 
 export default function MemberDirectory({
@@ -34,7 +34,7 @@ export default function MemberDirectory({
     return (
       <div
         role="status"
-        className="flex flex-col items-center justify-center py-12 px-4 text-center"
+        className="flex flex-col items-center justify-center px-4 py-12 text-center"
       >
         <span
           aria-hidden="true"
@@ -57,31 +57,31 @@ export default function MemberDirectory({
           <TableRow className="border-b border-gray-100 dark:border-gray-800">
             <TableCell
               isHeader
-              className="w-[36%] px-5 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+              className="w-[36%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("memberColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[18%] px-5 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+              className="w-[18%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("accessLevel")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[16%] px-5 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+              className="w-[16%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("joinedAt")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[14%] px-5 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+              className="w-[14%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("statusColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[16%] px-5 py-3 text-end text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400"
+              className="w-[16%] px-5 py-3 text-end text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("actions")}
             </TableCell>
@@ -127,7 +127,7 @@ export default function MemberDirectory({
                         member.user?.email ||
                         member.userId}
                     </span>
-                    <span className="block truncate text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
                       {member.user?.fullName
                         ? member.user.email
                         : t("projectMember")}
@@ -136,25 +136,62 @@ export default function MemberDirectory({
                 </div>
               </TableCell>
 
-              <TableCell className="col-span-1 flex items-center gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5">
+              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5">
                 <span className="text-xs font-medium text-gray-500 lg:sr-only">
                   {t("accessLevel")}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50/70 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                  <GroupIcon
+                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50/70 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                  <svg
                     aria-hidden="true"
-                    className="size-3.5 text-gray-400"
-                  />
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    className="h-3.5 w-3.5 shrink-0 text-gray-400"
+                  >
+                    <circle
+                      cx="6.25"
+                      cy="5.5"
+                      r="2.25"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                    />
+                    <path
+                      d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                    <path
+                      d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
+                      stroke="currentColor"
+                      strokeWidth="1.4"
+                      strokeLinecap="round"
+                    />
+                  </svg>
                   {t("projectScope")}
                 </span>
               </TableCell>
 
-              <TableCell className="col-span-1 flex items-center justify-end gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5 lg:justify-start">
+              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
+                <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                  {t("joinedAt")}
+                </span>
+                <time
+                  dateTime={member.joinedAt}
+                  className="text-xs font-medium tabular-nums sm:text-sm lg:font-normal"
+                >
+                  {format.dateTime(new Date(member.joinedAt), {
+                    dateStyle: "medium",
+                    timeZone: "UTC",
+                  })}
+                </time>
+              </TableCell>
+
+              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:justify-start lg:px-5 lg:py-3.5">
                 <span className="text-xs font-medium text-gray-500 lg:sr-only">
                   {t("statusColumn")}
                 </span>
                 <span
-                  className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
                     member.status === "ACTIVE"
                       ? "bg-success-50 text-success-700 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400"
                       : "bg-gray-100 text-gray-600 ring-1 ring-gray-400/20 dark:bg-gray-800 dark:text-gray-400"
@@ -170,18 +207,6 @@ export default function MemberDirectory({
                   />
                   {t(member.status)}
                 </span>
-              </TableCell>
-
-              <TableCell className="col-span-1 flex items-center gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
-                <span className="text-xs font-medium text-gray-500 lg:sr-only">
-                  {t("joinedAt")}
-                </span>
-                <time dateTime={member.joinedAt} className="text-xs sm:text-sm">
-                  {format.dateTime(new Date(member.joinedAt), {
-                    dateStyle: "medium",
-                    timeZone: "UTC",
-                  })}
-                </time>
               </TableCell>
 
               <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-3.5 lg:pt-0">
@@ -204,10 +229,20 @@ export default function MemberDirectory({
                         : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                     }`}
                   >
-                    <ArrowRightIcon
+                    <svg
                       aria-hidden="true"
-                      className="size-3.5 rtl:rotate-180"
-                    />
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
+                    >
+                      <path
+                        d="M3.5 8h9M9 4.5L12.5 8 9 11.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                    </svg>
                   </button>
                   {member.status === "ACTIVE" && (
                     <Button
@@ -215,7 +250,20 @@ export default function MemberDirectory({
                       size="sm"
                       disabled={removeDisabled}
                       startIcon={
-                        <TrashBinIcon aria-hidden="true" className="size-3.5" />
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="h-3.5 w-3.5 shrink-0"
+                        >
+                          <path
+                            d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
+                            stroke="currentColor"
+                            strokeWidth="1.4"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
                       }
                       onClick={() => onRemove(member)}
                       className="h-8 cursor-pointer border-gray-200 px-2.5 text-xs text-error-600! hover:border-error-200 hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:hover:bg-error-950/20"

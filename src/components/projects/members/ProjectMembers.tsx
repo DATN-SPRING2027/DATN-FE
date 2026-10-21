@@ -150,7 +150,7 @@ function ScopedProjectMembers({
                   {t("title")}
                 </h2>
                 {members.isSuccess && !members.isFetching && (
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                     {format.number(members.data.pagination.totalItems)}{" "}
                     {t("membersMetric")}
                   </span>
@@ -169,7 +169,7 @@ function ScopedProjectMembers({
               <div className="relative">
                 <SearchIcon
                   aria-hidden="true"
-                  className="pointer-events-none absolute start-3 top-3.5 size-4 text-gray-400"
+                  className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-gray-400"
                 />
                 <Input
                   id="member-roster-search"
@@ -229,7 +229,7 @@ function ScopedProjectMembers({
               onRemove={requestRemoval}
             />
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
                 {t("pageOf", {
                   page: members.data.pagination.page,
                   total: Math.max(1, members.data.pagination.totalPages),

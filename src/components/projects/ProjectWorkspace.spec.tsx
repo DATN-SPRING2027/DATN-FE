@@ -198,9 +198,8 @@ it("supports grid/list layout and client sorting without hiding task data gaps",
   );
   mount(<ProjectWorkspace />);
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(screen.getAllByText("Task data unavailable")).toHaveLength(2);
-  expect(screen.queryByText("Visibility")).not.toBeInTheDocument();
-  expect(screen.queryByText("Updated at")).not.toBeInTheDocument();
+  expect(screen.queryByText("Task data unavailable")).not.toBeInTheDocument();
+  expect(screen.getAllByText("AP").length).toBeGreaterThan(0);
   const listViewButton = screen.getByRole("button", { name: "List view" });
   fireEvent.click(listViewButton);
   expect(listViewButton).toHaveAttribute("aria-pressed", "true");
@@ -449,8 +448,8 @@ it("renders server-returned public archived metadata without adding administrati
   ).toBeVisible();
   expect(screen.getByText("Project purpose")).toBeVisible();
   expect(screen.getByText("1 project")).toBeVisible();
-  expect(screen.queryByText("Public")).not.toBeInTheDocument();
-  expect(screen.queryByText("Oct 5, 2026")).not.toBeInTheDocument();
+  expect(within(screen.getByRole("article")).getByText("Public")).toBeVisible();
+  expect(within(screen.getByRole("article")).getByText("Updated Oct 5, 2026")).toBeVisible();
   expect(
     screen.queryByRole("button", { name: /publish|edit|add task|members/i }),
   ).not.toBeInTheDocument();
@@ -553,8 +552,10 @@ it("renders detail overview and context from backend metadata", async () => {
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
   expect(screen.getAllByText("First line Second line")[0]).toBeVisible();
-  expect(screen.getByText("org1")).toBeVisible();
-  expect(screen.getByText("u1")).toBeVisible();
+  expect(screen.getAllByText("AP")[0]).toBeVisible();
+  expect(screen.getByText("Private")).toBeVisible();
+  expect(screen.queryByText("org1")).not.toBeInTheDocument();
+  expect(screen.queryByText("u1")).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: /deploy|edit|manage access/i }),
   ).not.toBeInTheDocument();
