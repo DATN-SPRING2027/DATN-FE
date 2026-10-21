@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import Alert from "@/components/ui/alert/Alert";
@@ -39,6 +39,8 @@ export default function OrganizationInvitationAcceptance() {
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const logout = useLogoutMutation();
+  const urlCapturedRef = useRef(false);
+  const resolvingTokenRef = useRef("");
   const [token, setToken] = useState("");
   const [invitationIdFromUrl, setInvitationIdFromUrl] = useState("");
   const [invitation, setInvitation] = useState<ResolvedOrganizationInvitation | null>(null);
@@ -48,6 +50,8 @@ export default function OrganizationInvitationAcceptance() {
   const [acceptError, setAcceptError] = useState<unknown>();
 
   useLayoutEffect(() => {
+    if (urlCapturedRef.current) return;
+    urlCapturedRef.current = true;
     const rawToken = window.location.hash.slice(1);
     const invitationId = new URLSearchParams(window.location.search).get("invitationId") ?? "";
     if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
@@ -58,6 +62,8 @@ export default function OrganizationInvitationAcceptance() {
 
   useLayoutEffect(() => {
     if (token) {
+      if (resolvingTokenRef.current === token) return;
+      resolvingTokenRef.current = token;
       setLoadState("loading");
       void resolveOrganizationInvitation(token).then((result) => {
         setInvitation(result);
@@ -129,7 +135,21 @@ export default function OrganizationInvitationAcceptance() {
 
   if (invitation?.status === "EXPIRED") return <InvitationPanel title={t("invitationTitle")}><p role="status" className="text-sm text-gray-600 dark:text-gray-300">{t("invitationExpired")}</p></InvitationPanel>;
   if (invitation?.status === "ACCEPTED") return <InvitationPanel title={t("invitationTitle")}><p role="status" className="text-sm text-gray-600 dark:text-gray-300">{t("invitationAlreadyAccepted")}</p><Link className="mt-5 inline-flex font-medium text-brand-600 hover:underline dark:text-brand-400" href="/signin">{t("signIn")}</Link></InvitationPanel>;
-  if (invitation && invitation.status !== "PENDING") return <InvitationPanel title={t("invitationTitle")}><p role="status" className="text-sm text-gray-600 dark:text-gray-300">{t("invitationUnavailable")}</p></InvitationPanel>;
+  if (invitation && invitation.status !== "PENDING") {
+    return (
+      <InvitationPanel title={t("invitationTitle")}>
+        <p role="status" className="text-sm text-gray-600 dark:text-gray-300">{t("invitationUnavailable")}</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          <Link
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600"
+            href={(loggedIn ? "/onboarding" : "/signin") as never}
+          >
+            {loggedIn ? t("invitationsTitle") : t("signIn")}
+          </Link>
+        </div>
+      </InvitationPanel>
+    );
+  }
 
   if (invitation && !loggedIn) {
     return <InvitationPanel title={t("invitationTitle")}>

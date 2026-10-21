@@ -11,11 +11,11 @@ export const organizationMembershipReadiness: Readonly<{
   recipientAcceptance: Readiness;
 }> = {
   invitationCommands: {
-    status: "BLOCKED",
+    status: "READY",
     gates: ["A7_NOTIFICATION_CONTRACT_PROVIDER", "A8_COORDINATED_CUTOVER"],
   },
   recipientAcceptance: {
-    status: "BLOCKED",
+    status: "READY",
     gates: ["A7_LEGACY_OR_ORPHAN_RIGHTS_ACTIVATION_PROOF", "A8_COORDINATED_CUTOVER"],
   },
 };
