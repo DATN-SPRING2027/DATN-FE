@@ -6,6 +6,7 @@ import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
+import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
 
@@ -76,6 +77,21 @@ export default function ProjectOverview({
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
+  const memberSummary = useProjectMembersQuery(
+    project.organizationId,
+    project.id,
+    { page: 1, pageSize: 1, status: "ACTIVE" },
+  );
+  const activeMemberTotal =
+    memberSummary.isPending || memberSummary.isError
+      ? undefined
+      : memberSummary.data?.pagination.totalItems;
+  const activeMemberValue =
+    activeMemberTotal === undefined
+      ? memberSummary.isPending
+        ? memberLabels("loading")
+        : t("memberDataUnavailable")
+      : format.number(activeMemberTotal);
   const [internalTab, setInternalTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
@@ -407,7 +423,7 @@ export default function ProjectOverview({
         </nav>
       </div>
 
-      {/* Overview Tab Panel — Bento Grid 8:4 (Zero Backend IDs) */}
+      {/* Overview Tab Panel */}
       <div
         id={`${tabId}-overview-panel`}
         role="tabpanel"
@@ -516,25 +532,44 @@ export default function ProjectOverview({
           <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
-                {t("status")}
+                {t("activeMembers")}
               </dt>
-              <span
-                className={`flex h-7 w-7 items-center justify-center rounded-lg ${
-                  isActive
-                    ? "bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
-                }`}
-              >
-                <span
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
+                <svg
                   aria-hidden="true"
-                  className={`h-2 w-2 rounded-full ${
-                    isActive ? "bg-success-500" : "bg-gray-400"
-                  }`}
-                />
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3.5 w-3.5"
+                >
+                  <circle
+                    cx="6.25"
+                    cy="5.5"
+                    r="2.25"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                  />
+                  <path
+                    d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
+                    stroke="currentColor"
+                    strokeWidth="1.4"
+                    strokeLinecap="round"
+                  />
+                </svg>
               </span>
             </div>
-            <dd className="mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90">
-              {t(isActive ? "active" : "archived")}
+            <dd
+              aria-live="polite"
+              className={`mt-2 text-base font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white/90 ${
+                activeMemberTotal !== undefined ? "tabular-nums" : ""
+              }`}
+            >
+              {activeMemberValue}
             </dd>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t(isActive ? "statusActiveHint" : "statusArchivedHint")}

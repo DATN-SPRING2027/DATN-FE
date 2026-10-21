@@ -1536,6 +1536,7 @@
     "visibility": "Visibility",
     "createdAt": "Created at",
     "updatedAt": "Updated at",
+    "activeMembers": "Active members",
     "noDescription": "No description",
     "back": "Back to projects",
     "workspace": "Project Workspace",
