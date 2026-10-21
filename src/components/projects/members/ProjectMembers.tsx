@@ -37,6 +37,7 @@ function ScopedProjectMembers({
   canAppointLeaders,
   showAddButton,
   addModalOpen: controlledAddModalOpen,
+  onOpenAdd,
   onCloseAdd,
 }: {
   organizationId: string;
@@ -44,6 +45,7 @@ function ScopedProjectMembers({
   canAppointLeaders: boolean;
   showAddButton: boolean;
   addModalOpen?: boolean;
+  onOpenAdd?: () => void;
   onCloseAdd?: () => void;
 }) {
   const t = useTranslations("projectMembers");
@@ -57,7 +59,7 @@ function ScopedProjectMembers({
   const [addFormVersion, setAddFormVersion] = useState(0);
   const [localAddModalOpen, setLocalAddModalOpen] = useState(false);
   const [appointLeaderOnAdd, setAppointLeaderOnAdd] = useState(false);
-  const addModalOpen = controlledAddModalOpen ?? localAddModalOpen;
+  const addModalOpen = Boolean(controlledAddModalOpen || localAddModalOpen);
   const mutationInFlight = useRef(false);
   const addDialog = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState<
@@ -238,6 +240,7 @@ function ScopedProjectMembers({
   function openAddModal(shouldAppointLeader = false) {
     setAppointLeaderOnAdd(shouldAppointLeader);
     setLocalAddModalOpen(true);
+    onOpenAdd?.();
   }
   function closeAddModal() {
     if (busy) return;
@@ -617,6 +620,9 @@ function ScopedProjectMembers({
                         setNotice("added");
                       }
                     },
+                    onError: () => {
+                      mutationInFlight.current = false;
+                    },
                     onSettled: () => {
                       if (!shouldAppoint) {
                         mutationInFlight.current = false;
@@ -690,11 +696,13 @@ export default function ProjectMembers({
   projectId,
   showAddButton = true,
   addModalOpen,
+  onOpenAdd,
   onCloseAdd,
 }: {
   projectId: string;
   showAddButton?: boolean;
   addModalOpen?: boolean;
+  onOpenAdd?: () => void;
   onCloseAdd?: () => void;
 }) {
   const user = useCurrentUserQuery();
@@ -719,6 +727,7 @@ export default function ProjectMembers({
       canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
       showAddButton={showAddButton}
       addModalOpen={addModalOpen}
+      onOpenAdd={onOpenAdd}
       onCloseAdd={onCloseAdd}
     />
   );

@@ -458,7 +458,7 @@ export type ResumeMembershipInput = Readonly<{
 }>;
 export type RemoveMembershipInput = Readonly<{
   expectedMembershipVersion: number;
-  reasonCode: SuspensionReason;
+  reasonCode: MembershipActionReason | SuspensionReason;
 }>;
 export type OrganizationManagerSummary = Readonly<{
   userId: string;

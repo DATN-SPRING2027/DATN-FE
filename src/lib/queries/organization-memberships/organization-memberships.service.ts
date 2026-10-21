@@ -347,7 +347,11 @@ export function removeOrganizationMembership(
     expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
     reasonCode: input.reasonCode,
   };
-  if (!["SECURITY_INCIDENT", "ACCESS_REVIEW"].includes(input.reasonCode)) {
+  if (
+    !["ACCESS_REQUEST", "ACCESS_REVIEW", "SECURITY_INCIDENT"].includes(
+      input.reasonCode,
+    )
+  ) {
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid removal reason");
   }
   return mutate(`/iam/organizations/${organization}/memberships/${membership}/remove`, organizationId, idempotencyKey, body);
