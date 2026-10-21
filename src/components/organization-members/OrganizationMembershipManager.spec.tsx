@@ -176,6 +176,26 @@ describe("Organization membership management page", () => {
     expect(within(table).getAllByRole("row").at(-1)).toHaveClass("border-b");
   });
 
+  it("keeps pagination available when a search has no matches on the loaded page", async () => {
+    const page = membershipPage();
+    respond({ memberships: { ...page, pagination: { ...page.pagination, totalItems: 42, totalPages: 3 } } });
+    mount();
+
+    await screen.findByText("Alex Member");
+    fireEvent.change(screen.getByLabelText("Search members…"), { target: { value: "no matching member" } });
+
+    expect(await screen.findByText("No members on this page match your search.")).toBeVisible();
+    const pagination = screen.getByRole("navigation", { name: "Membership pages" });
+    const nextButton = within(pagination).getByRole("button", { name: "Next" });
+    expect(nextButton).toBeEnabled();
+
+    fireEvent.click(nextButton);
+    await waitFor(() => expect(api).toHaveBeenCalledWith(
+      `/iam/organizations/${organizationId}/memberships?page=2&pageSize=20`,
+      expect.objectContaining({ cache: "no-store" }),
+    ));
+  });
+
   it("shows all four approved states and leaves authority to the server", async () => {
     respond({ memberships: membershipPage([
       membership("PENDING_INVITE"),

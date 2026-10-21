@@ -93,18 +93,14 @@ export default function OrganizationMembershipList({
   const start = page.data.length === 0 ? 0 : (page.pagination.page - 1) * page.pagination.pageSize + 1;
   const end = start === 0 ? 0 : start + page.data.length - 1;
 
-  if (visibleMembers.length === 0) {
-    return (
-      <div role="status" className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
-        <p className="text-sm font-medium text-gray-800 dark:text-white/90">{query ? t("searchEmpty") : t("membersEmpty")}</p>
-        {query && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("searchLoadedPageHint")}</p>}
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      <div className="w-full max-w-full overflow-x-auto">
+      {visibleMembers.length === 0 && (
+        <div role="status" className="rounded-xl border border-dashed border-gray-300 px-5 py-10 text-center dark:border-gray-700">
+          <p className="text-sm font-medium text-gray-800 dark:text-white/90">{query ? t("searchEmpty") : t("membersEmpty")}</p>
+        </div>
+      )}
+      <div className="w-full max-w-full overflow-x-auto" hidden={visibleMembers.length === 0}>
         <Table className="table-fixed block w-full min-w-0 text-start lg:table lg:min-w-full">
           <TableHeader className="hidden bg-gray-50/75 lg:table-header-group dark:bg-white/2">
             <TableRow className="border-b border-gray-100 dark:border-gray-800">
