@@ -570,9 +570,15 @@ it("switches member management inline without navigating away from Project detai
   const overview = await screen.findByRole("tab", { name: "Overview" });
   const members = screen.getByRole("tab", { name: "Project members" });
   expect(overview).toHaveAttribute("aria-selected", "true");
-  expect(api.mock.calls.some(([path]) => path.includes("/memberships"))).toBe(
-    false,
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      "/iam/projects/p1/memberships?page=1&pageSize=1&status=ACTIVE",
+      expect.any(Object),
+    ),
   );
+  expect(
+    api.mock.calls.some(([path]) => path.includes("pageSize=20")),
+  ).toBe(false);
   fireEvent.click(members);
   await waitFor(() =>
     expect(

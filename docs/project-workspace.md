@@ -43,7 +43,7 @@ Typography and toolbar alignment: Project pages inherit the system Outfit font, 
 
 ## Detail overview reference update
 
-The user-provided TailAdmin detail HTML informed a breadcrumb/name/status header, three summary cards (code, visibility, updated time), a description card and a project-context sidebar. Only metadata from the accepted detail response is rendered; creator is labeled as a user ID and never inferred to be an owner. Unsupported deployment, pipeline, telemetry, repository, runtime and membership controls are omitted. Existing Outfit font, theme tokens, dark mode and responsive grids are reused. Denied or pending revalidation continues to hide Project metadata.
+The user-provided TailAdmin detail HTML informed a breadcrumb/name/status header, summary cards for code, visibility, updated time and active member total, a description card and a project-context sidebar. Project metadata comes from the accepted detail response; creator is labeled as a user ID and never inferred to be an owner. The active member total comes from the accepted paginated membership-list API, requesting one row and using the server-reported `totalItems`. It shows a loading label while the request is pending and “Member data unavailable” when permission is denied or the response fails; the UI never presents an unknown total as zero. The backend remains the authorization boundary, and successful add/remove mutations invalidate the same Project membership query scope. Unsupported deployment, pipeline, telemetry, repository and runtime controls are omitted. Existing Outfit font, theme tokens, dark mode and responsive grids are reused. Denied or pending revalidation continues to hide Project metadata.
 
 ## Responsive sizing update
 
