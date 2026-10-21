@@ -19,6 +19,17 @@ describe("logout feedback", () => {
   beforeEach(() => { vi.restoreAllMocks(); replace.mockReset(); });
   afterEach(() => { onlineManager.setOnline(true); vi.useRealTimers(); });
 
+  it("uses the authenticated directory avatar instead of a template image", async () => {
+    vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+      if (String(url).endsWith("/auth/me")) return new Response('{"id":"user","name":"User Example","email":"user@example.test","organizationId":"org-a","roles":["ADMIN"]}');
+      if (String(url).endsWith("/iam/users/user")) return new Response('{"id":"user","fullName":"User Example","avatarUrl":"https://cdn.example.test/avatar.png"}');
+      throw new Error(`Unexpected request: ${String(url)}`);
+    });
+    render(<AppProviders><UserDropdown /></AppProviders>);
+    await waitFor(() => expect(document.querySelector('img[src="https://cdn.example.test/avatar.png"]')).not.toBeNull());
+    expect(document.querySelector('img[src="/images/user/owner.png"]')).toBeNull();
+  });
+
   it("ends a stalled logout after ten seconds and enables retry", async () => {
     vi.spyOn(global, "fetch").mockImplementation(async (url, options) => {
       if (String(url).endsWith("/auth/me")) return new Response('{"id":"user","name":"User"}');
