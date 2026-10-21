@@ -25,6 +25,7 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/icons", () => ({
   ArrowRightIcon: () => <span aria-hidden="true" />,
   GroupIcon: () => <span aria-hidden="true" />,
+  LogOutIcon: () => <span aria-hidden="true" />,
   PlusIcon: () => <span aria-hidden="true" />,
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -177,6 +178,20 @@ describe("account onboarding invitations", () => {
     expect(screen.getByText("onboardingNoInvitations")).toBeInTheDocument();
   });
 
+  it("shows an error alert instead of the empty message when refetching an empty inbox fails", () => {
+    vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
+      data: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
+      isLoading: false,
+      isError: true,
+      refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+
+    render(<AccountOnboarding />);
+
+    expect(screen.getByText("onboardingInvitationError")).toBeInTheDocument();
+    expect(screen.queryByText("onboardingNoInvitations")).not.toBeInTheDocument();
+  });
+
   it("enters the dashboard after an account user selects an organization", async () => {
     vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
       data: [{ id: "org-1", name: "North Star" }],
@@ -231,6 +246,7 @@ describe("account onboarding invitations", () => {
 
     expect(useOrganizationOptionsQuery).toHaveBeenCalledWith(true);
     expect(screen.getByText("North Star")).toBeInTheDocument();
+    expect(screen.getByText("onboardingCurrentOrganization")).toBeInTheDocument();
     expect(screen.getByText("Sunrise Institute")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" })).toBeInTheDocument();
     expect(screen.queryByText("onboardingInvited")).not.toBeInTheDocument();
@@ -242,6 +258,46 @@ describe("account onboarding invitations", () => {
     fireEvent.click(screen.getByRole("button", { name: /Sunrise Institute/ }));
 
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-2"));
+    await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("marks only the selected organization button as aria-busy while selection is pending", async () => {
+    let resolveSelect!: (value: { user: { organizationId: string } }) => void;
+    select.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveSelect = resolve;
+        }),
+    );
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1", email: "member@example.com", name: "Member", context: "ORGANIZATION",
+        organizationId: "org-1", roles: ["MEMBER"],
+      },
+      isError: false,
+    } as never);
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: [
+        { id: "org-1", name: "North Star" },
+        { id: "org-2", name: "Sunrise Institute" },
+      ],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+
+    render(<AccountOnboarding />);
+
+    const northStarButton = screen.getByRole("button", { name: /North Star/ });
+    const sunriseButton = screen.getByRole("button", { name: /Sunrise Institute/ });
+
+    fireEvent.click(sunriseButton);
+
+    expect(sunriseButton).toHaveAttribute("aria-busy", "true");
+    expect(northStarButton).toHaveAttribute("aria-busy", "false");
+
+    resolveSelect({ user: { organizationId: "org-2" } });
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
@@ -303,6 +359,7 @@ describe("account onboarding invitations", () => {
 
     expect(screen.getByRole("button", { name: "onboardingCreateAdditionalAction" })).toBeDisabled();
     expect(screen.getByRole("button", { name: /North Star/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /North Star/ })).toHaveAttribute("aria-busy", "false");
   });
 
   it("creates an organization, selects it, then enters its workspace", async () => {
