@@ -381,13 +381,20 @@ export function usePlatformSessionQuery() {
   });
 }
 
-export function usePlatformOrganizationsQuery(enabled: boolean, page = 1) {
+export function usePlatformOrganizationsQuery(
+  enabled: boolean,
+  page = 1,
+  pageSize = 100,
+) {
   return useQuery({
-    queryKey: platformKeys.organizationsPage(page),
+    queryKey:
+      pageSize === 100
+        ? platformKeys.organizationsPage(page)
+        : [...platformKeys.organizationsPage(page), pageSize],
     queryFn: async () =>
       parsePage(
         await platformApiClient<unknown>(
-          `/iam/platform/organizations?page=${page}&pageSize=100`,
+          `/iam/platform/organizations?page=${page}&pageSize=${pageSize}`,
           { cache: "no-store" },
         ),
         parseOrganization,
@@ -531,8 +538,7 @@ export function useCreatePlatformOrganizationMutation() {
         }),
       );
     },
-    onSuccess: () =>
-      client.invalidateQueries({ queryKey: platformKeys.organizations() }),
+    onSuccess: () => client.invalidateQueries({ queryKey: platformKeys.all }),
   });
 }
 

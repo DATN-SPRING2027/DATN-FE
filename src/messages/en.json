@@ -69,6 +69,15 @@
     "deleteAccountUnavailable": "Account deletion is not available here. Contact support for help with account access."
   },
   "platformConsole": {
+    "liveDashboard": {
+      "snapshot": "Current snapshot",
+      "simulated": "Simulated chart · real totals shown separately",
+      "chartData": "Chart data",
+      "demoGroup": "Group {number}",
+      "realTotal": "Actual total",
+      "day": "Day",
+      "removed": "Removed"
+    },
     "eyebrow": "Platform operations",
     "title": "Administration Console",
     "loading": "Loading your platform session…",
@@ -87,6 +96,7 @@
     "save": "Save",
     "saving": "Saving…",
     "pagination": {
+      "showBy": "Show by",
       "summary": "Page {page} of {totalPages} · {totalItems} total records",
       "previous": "Previous",
       "next": "Next"
@@ -281,13 +291,32 @@
       "iamHealth": "IAM process health",
       "iamHealthDetail": "Liveness only; not dependency readiness or service metrics.",
       "openHealth": "Open service health",
-      "recentActivity": "Recent operational activity",
+      "recentActivity": "Activity",
       "recentActivityNote": "Latest events from the fixed projection, limited to records returned by the audit API.",
       "openAudit": "Open audit activity",
       "auditError": "Audit activity could not be loaded.",
       "noRecentActivity": "No events are present in the returned bounded projection.",
       "noFabricatedMetrics": "Unavailable metrics are omitted instead of being estimated from partial data.",
-      "open": "Open"
+      "open": "Open",
+      "memberships": "Memberships",
+      "generatedAt": "Updated:",
+      "lastChecked": "Checked:",
+      "userBreakdown": "{active} active · {suspended} suspended · {pending} pending invitation",
+      "projectBreakdown": "{active} active · {archived} archived",
+      "membershipBreakdown": "{active} active · {suspended} suspended · {pending} pending invitation · {removed} removed",
+      "serviceHealth": "Services",
+      "serviceHealthNote": "The latest bounded service projection reported by the backend. Unavailable measurements are shown explicitly.",
+      "healthCounts": {
+        "total": "Services reported",
+        "ready": "Ready",
+        "degraded": "Degraded",
+        "unavailable": "Unavailable"
+      },
+      "activityColumns": {
+        "action": "Action",
+        "resource": "Resource type",
+        "occurredAt": "Occurred at"
+      }
     },
     "sections": {
       "organizations": "Organizations",
@@ -324,7 +353,8 @@
       "membershipList": "Memberships could not be loaded.",
       "membershipSuspend": "Membership was not suspended. Refresh the Organization and check its current state.",
       "health": "IAM health could not be checked.",
-      "audit": "Audit activity could not be loaded."
+      "audit": "Audit activity could not be loaded.",
+      "organizationConflict": "This organization changed or its slug is already in use. Refresh the details and review the latest information before retrying."
     },
     "noCapabilities": {
       "title": "No active console permissions",
@@ -332,15 +362,20 @@
       "organizationReadNeeded": "Organization creation is available, but this session cannot read the Organization directory. Ask for the exact Organization read permission to review the result."
     },
     "organizations": {
-      "directory": "Organization directory",
+      "directory": "Organizations",
+      "actions": "Actions",
+      "rowActions": "Actions for {name}",
+      "viewManage": "View / edit",
+      "view": "View",
+      "editAction": "Edit",
       "directoryHelp": "A bounded list of Organization metadata. No tenant content is included.",
       "open": "Open",
       "emptyTitle": "No Organizations found",
       "emptyBody": "There are no Organization records in this page.",
       "createTitle": "Create an Organization",
       "createHelp": "The selected active account becomes the first Organization Manager in the same backend transaction.",
-      "name": "Organization name",
-      "slug": "URL slug",
+      "name": "Name",
+      "slug": "Slug",
       "plan": "Plan",
       "creating": "Creating…",
       "create": "Create Organization",
@@ -348,7 +383,20 @@
       "firstAdminLabel": "First Organization Manager",
       "findFirstAdmin": "Find active account",
       "selectedAdmin": "Selected: {name} · {email}",
-      "selected": "Selected Organization"
+      "selected": "Selected Organization",
+      "search": "Search this page…",
+      "allPlans": "All plans",
+      "pageFilterNote": "Search and plan filters apply to the current page. Clear them or move to another page to inspect more records.",
+      "updated": "Updated",
+      "created": "Created",
+      "id": "Organization ID",
+      "noMatches": "No organizations on this page match the filters.",
+      "total": "{count, plural, one {# organization in total} other {# organizations in total}}",
+      "back": "Back to organizations",
+      "edit": "Edit organization information",
+      "save": "Save changes",
+      "saving": "Saving…",
+      "reloadBeforeEdit": "Close this form, refresh the organization, then reopen it before trying again."
     },
     "users": {
       "accountLookupPermissionNeeded": "The exact account lookup permission is required to select the first Organization Manager.",
@@ -424,7 +472,8 @@
     },
     "results": {
       "organizationCreated": "Organization {name} was created.",
-      "membershipSuspended": "Membership for {name} was suspended."
+      "membershipSuspended": "Membership for {name} was suspended.",
+      "organizationUpdated": "Organization information was updated."
     },
     "signIn": {
       "backToAccount": "Back to account sign in",
@@ -439,6 +488,43 @@
       "notAuthorized": "This account is not authorized for Admin sign in.",
       "unavailable": "The Platform session could not be verified. Try again.",
       "accessNote": "There is no self-service bootstrap, grant, or revoke action in this console."
+    },
+    "operatorDesign": {
+      "home": "Continuum system administration",
+      "navigation": "System administration navigation",
+      "more": "More",
+      "account": "Operator account",
+      "role": "System administrator",
+      "skip": "Skip to main content",
+      "snapshot": "Latest snapshot",
+      "systemOverview": "Platform overview",
+      "membershipDistribution": "Memberships",
+      "accountDistribution": "Users",
+      "projectDistribution": "Projects",
+      "active": "Active",
+      "suspended": "Suspended",
+      "pending": "Pending",
+      "removed": "Removed",
+      "archived": "Archived",
+      "noDistribution": "No records in the reported states.",
+      "openMetric": "Open {name}"
+    },
+    "referenceCharts": {
+      "simulated": "Simulated chart",
+      "notice": "Chart uses simulated frontend data, not backend history. Summary totals and table records come from the API.",
+      "active": "Active",
+      "pending": "Pending",
+      "suspended": "Suspended",
+      "previous": "Previous period",
+      "line": "Line chart",
+      "bars": "Bar chart",
+      "compare": "Vs. previous period",
+      "selectSeries": "Select a series",
+      "all": "All",
+      "total": "Total",
+      "freePage": "Free",
+      "enterprisePage": "Enterprise",
+      "archived": "Archived"
     }
   },
   "sidebar": {
@@ -678,7 +764,6 @@
     "googleSelectOrganization": "Choose an organization",
     "googleSelectOrganizationDescription": "This Google account belongs to more than one organization. Choose where you want to continue.",
     "organizationDataScopeNotice": "Projects, members, and knowledge are scoped to the organization you choose.",
-    "backToSignIn": "Back to sign in",
     "or": "Or",
     "invalidCredentials": "Email or password is incorrect.",
     "organizationRequired": "Choose an organization to continue.",
@@ -2500,7 +2585,6 @@
     "fullName": "Full name",
     "signupAction": "Create account",
     "signupAgreement": "By creating an account, you agree to the Terms and Conditions and Privacy Policy.",
-
     "home": "Home",
     "join": "Create account",
     "workspaceSetup": "Workspace setup",
