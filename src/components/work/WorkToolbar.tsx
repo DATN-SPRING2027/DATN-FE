@@ -184,6 +184,8 @@ export default function WorkToolbar({
           <span className="sr-only">{t("searchLabel")}</span>
           <SearchIcon
             aria-hidden="true"
+            width={16}
+            height={16}
             className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
           />
           <input
@@ -191,7 +193,7 @@ export default function WorkToolbar({
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-white ps-9 pe-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
+            className="h-9 w-full rounded-lg border border-gray-200 bg-white ps-10 pe-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
           />
         </label>
 

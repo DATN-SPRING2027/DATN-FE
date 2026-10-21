@@ -251,6 +251,8 @@ export default function WorkTimelineView({
             <span className="sr-only">Search timeline</span>
             <SearchIcon
               aria-hidden="true"
+              width={16}
+              height={16}
               className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
             />
             <input

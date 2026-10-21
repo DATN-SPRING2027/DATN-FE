@@ -227,6 +227,8 @@ export default function WorkListView({
           <div className="relative mb-2.5">
             <SearchIcon
               aria-hidden="true"
+              width={14}
+              height={14}
               className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
             />
             <input
