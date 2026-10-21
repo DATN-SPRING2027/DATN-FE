@@ -769,11 +769,13 @@ describe("PlatformConsole", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps domain navigation while Organizations lives in the dashboard", () => {
+  it("keeps domain navigation and exposes Organizations through More", () => {
     render(<PlatformConsole />);
     fireEvent.click(screen.getByText("operatorDesign.more"));
 
-    expect(screen.queryByRole("link", { name: "navigation.organizations" })).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "navigation.organizations" }),
+    ).toHaveAttribute("href", "/platform/organizations");
     for (const label of [
       "navigation.dashboard",
       "navigation.users",

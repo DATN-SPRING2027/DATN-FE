@@ -11,6 +11,7 @@ describe("labelled reference simulation", () => {
     const chart = screen.getByRole("img", {
       name: "Memberships · liveDashboard.simulated",
     });
+    expect(screen.getByText("referenceCharts.simulated")).toBeVisible();
     expect(screen.getByText("Aug 15, 2026")).toBeInTheDocument();
     fireEvent.keyDown(chart, { key: "ArrowLeft" });
     expect(screen.getByText("Aug 14, 2026")).toBeInTheDocument();

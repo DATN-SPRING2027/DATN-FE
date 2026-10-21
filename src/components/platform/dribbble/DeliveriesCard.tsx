@@ -1,6 +1,7 @@
 "use client";
 import { useLocale, useTranslations } from "next-intl";
 import MiniReference from "./MiniReference";
+import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/operator.module.css";
 export default function DeliveriesCard({
   metrics,
@@ -21,6 +22,7 @@ export default function DeliveriesCard({
         <h2 className={styles.cardTitle}>
           {t("operatorDesign.systemOverview")}
         </h2>
+        <SimulationBadge />
       </div>
       <dl className={styles.metrics}>
         {metrics.map((metric, index) => (
@@ -31,7 +33,6 @@ export default function DeliveriesCard({
           </div>
         ))}
       </dl>
-      <p className="sr-only">{t("liveDashboard.simulated")}</p>
     </section>
   );
 }

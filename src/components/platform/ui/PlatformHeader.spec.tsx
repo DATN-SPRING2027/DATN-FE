@@ -36,6 +36,9 @@ describe("Operator top navigation", () => {
     expect(
       screen.getByRole("link", { name: "navigation.incidents" }),
     ).toHaveAttribute("href", "/platform/incidents");
+    expect(
+      screen.getByRole("link", { name: "navigation.organizations" }),
+    ).toHaveAttribute("href", "/platform/organizations");
     fireEvent.keyDown(summary, { key: "Escape" });
     expect(summary.closest("details")).not.toHaveAttribute("open");
     expect(summary).toHaveFocus();

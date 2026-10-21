@@ -4,6 +4,7 @@ import type { PointerEvent as ReactPointerEvent } from "react";
 import PlatformPagination from "../PlatformPagination";
 import { useLocale, useTranslations } from "next-intl";
 import { referenceSeries } from "./reference-series";
+import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/operator.module.css";
 export default function ReferenceTrend({ title }: { title: string }) {
   const t = useTranslations("platformConsole");
@@ -82,7 +83,9 @@ export default function ReferenceTrend({ title }: { title: string }) {
   };
   return (
     <div className={styles.referenceTrend}>
-      <p className="sr-only">{t("liveDashboard.simulated")}</p>
+      <div className={styles.chartHeader}>
+        <SimulationBadge />
+      </div>
       <div className={styles.trendCanvas} ref={canvasRef}>
         <svg
           viewBox="0 0 800 300"

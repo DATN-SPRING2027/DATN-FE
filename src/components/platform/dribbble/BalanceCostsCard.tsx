@@ -2,6 +2,7 @@
 import { useTranslations } from "next-intl";
 import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatformOperations";
 import { referenceBars } from "./reference-series";
+import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/operator.module.css";
 export default function BalanceCostsCard({
   data,
@@ -15,8 +16,8 @@ export default function BalanceCostsCard({
         <h2 className={styles.cardTitle}>
           {t("operatorDesign.accountDistribution")}
         </h2>
+        <SimulationBadge />
       </div>
-      <p className="sr-only">{t("liveDashboard.simulated")}</p>
       <div
         className={styles.referenceBalance}
         role="img"

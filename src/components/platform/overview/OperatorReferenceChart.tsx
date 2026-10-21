@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { ApexOptions } from "apexcharts";
 import { operatorDemoDates, operatorDemoSeries } from "./operator-demo";
+import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/operator.module.css";
 const Chart = dynamic(() => import("react-apexcharts"), {
   ssr: false,
@@ -110,6 +111,7 @@ export default function OperatorReferenceChart({
       {!compact && (
         <div className={styles.chartHeader}>
           <h2 className={styles.heading}>{title}</h2>
+          <SimulationBadge />
         </div>
       )}
       <div role="img" aria-label={t("referenceCharts.notice")}>
@@ -120,7 +122,6 @@ export default function OperatorReferenceChart({
           height={compact ? 45 : 250}
         />
       </div>
-      <span className="sr-only">{t("referenceCharts.notice")}</span>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import styles from "./operator.module.css";
 
 const primary = ["dashboard", "users", "projects", "services", "audit"];
 const additional = [
+  "organizations",
   "memberships",
   "security",
   "jobs",

@@ -1,6 +1,7 @@
 "use client";
 import { useLocale, useTranslations } from "next-intl";
 import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatformOperations";
+import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/operator.module.css";
 // Simulation for the reference composition; the total remains the API value.
 const categories = [
@@ -28,8 +29,8 @@ export default function CostsByCategoryCard({
         <h2 className={styles.cardTitle}>
           {t("operatorDesign.projectDistribution")}
         </h2>
+        <SimulationBadge />
       </div>
-      <p className="sr-only">{t("liveDashboard.simulated")}</p>
       <div className={styles.liveDistribution} aria-hidden="true">
         {categories.map((item, index) => (
           <span
