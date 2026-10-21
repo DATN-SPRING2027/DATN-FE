@@ -7,12 +7,14 @@ import {
   useLogoutMutation,
 } from "@/lib/queries/auth/useAuth";
 import {
+  useCreateOrganizationMutation,
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
 } from "@/lib/queries/auth/useAccountOnboarding";
 import { useTranslations } from "next-intl";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import OrganizationChoices from "./OrganizationChoices";
+import OrganizationCreateForm from "./OrganizationCreateForm";
 import OrganizationInvitations from "./OrganizationInvitations";
 import styles from "./auth-experience.module.css";
 
@@ -24,8 +26,10 @@ export default function AccountOnboarding() {
   const isAccount = current.data?.context === "ACCOUNT";
   const canSelectOrganization = Boolean(current.data);
   const organizations = useOrganizationOptionsQuery(canSelectOrganization);
+  const create = useCreateOrganizationMutation();
   const select = useSelectOrganizationMutation();
   const logout = useLogoutMutation();
+  const [showCreateForm, setShowCreateForm] = useState(false);
 
   useEffect(() => {
     if (current.isError) router.replace("/signin");
@@ -37,6 +41,15 @@ export default function AccountOnboarding() {
       router.replace("/dashboard");
     } catch {
       // The mutation error is shown below the organization choices.
+    }
+  }
+
+  async function createAndEnter(input: { name: string; slug: string }) {
+    try {
+      const result = await create.mutateAsync(input);
+      await selectAndEnter(result.id);
+    } catch {
+      // Keep the form open and show the mutation error below it.
     }
   }
 
@@ -90,18 +103,26 @@ export default function AccountOnboarding() {
             message={t("onboardingAccessErrorDetail")}
           />
         )}
-        {organizations.isSuccess && (
-          <OrganizationChoices
-            organizations={organizations.data}
-            isBusy={select.isPending}
-            onSelect={(id) => void selectAndEnter(id)}
+        {showCreateForm && (
+          <OrganizationCreateForm
+            disabled={create.isPending || select.isPending}
+            onCreate={(input) => void createAndEnter(input)}
+            onCancel={() => setShowCreateForm(false)}
           />
         )}
-        {select.isError && (
+        {(create.isError || select.isError) && (
           <Alert
             variant="error"
             title={t("onboardingActionError")}
             message={t("onboardingActionErrorDetail")}
+          />
+        )}
+        {organizations.isSuccess && (
+          <OrganizationChoices
+            organizations={organizations.data}
+            isBusy={select.isPending || create.isPending}
+            onSelect={(id) => void selectAndEnter(id)}
+            onCreate={() => setShowCreateForm(true)}
           />
         )}
 
