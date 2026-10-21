@@ -273,7 +273,7 @@ function ScopedOrganizationMemberships({
       await resend.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
-          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
+          expectedMembershipVersion: 0,
           expectedInvitationVersion: actionTarget.invitation.version,
           reasonCode: reasonCode as ResendInvitationInput["reasonCode"],
         },
@@ -283,7 +283,7 @@ function ScopedOrganizationMemberships({
       await cancel.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
-          expectedMembershipVersion: actionTarget.invitation.membershipVersion,
+          expectedMembershipVersion: 0,
           expectedInvitationVersion: actionTarget.invitation.version,
           reasonCode: "INVITATION_CANCELLED" satisfies CancelInvitationInput["reasonCode"],
         },

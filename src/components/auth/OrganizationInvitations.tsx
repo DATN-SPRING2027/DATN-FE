@@ -4,6 +4,7 @@ import Alert from "@/components/ui/alert/Alert";
 import { GroupIcon } from "@/icons";
 import { useMyOrganizationInvitationsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 
 export default function OrganizationInvitations({
   enabled,
@@ -46,9 +47,9 @@ export default function OrganizationInvitations({
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {t("onboardingInvitationExpiry", { date: new Date(invitation.expiresAt).toISOString().slice(0, 10) })}
               </p>
-              <p role="status" className="mt-2 text-sm text-warning-700 dark:text-warning-400">
-                {t("onboardingInvitationUnavailable")}
-              </p>
+              <Link className="mt-3 inline-flex min-h-10 items-center rounded-lg bg-brand-500 px-4 text-sm font-medium text-white hover:bg-brand-600" href={`/organization/invitations?invitationId=${encodeURIComponent(invitation.id)}` as never}>
+                {t("onboardingOpenInvitation")}
+              </Link>
             </li>
           ))}
         </ul>

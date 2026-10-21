@@ -137,7 +137,7 @@ export default function OrganizationMembershipActionDialog({
             <p id="organization-members-action-hint" className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">{t(getHintKey(activeTarget))}</p>
             <p id="organization-members-action-target" className="mt-3 text-sm text-gray-700 dark:text-gray-200">
               <span className="font-medium">{t("actionTargetLabel")}:</span>{" "}
-              <span>{activeTarget.action === "suspend" ? activeTarget.membership.user?.fullName || activeTarget.membership.user?.email || t("nameUnavailable") : activeTarget.invitation.email}</span>
+              <span>{activeTarget.action === "suspend" ? activeTarget.membership.user?.fullName || activeTarget.membership.user?.email || t("nameUnavailable") : activeTarget.invitation.invitedEmail}</span>
             </p>
           </div>
           <button type="button" onClick={onClose} disabled={busy || hasUnresolvedError} aria-label={t("close")} className="rounded-lg p-2 text-gray-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:hover:bg-gray-800">

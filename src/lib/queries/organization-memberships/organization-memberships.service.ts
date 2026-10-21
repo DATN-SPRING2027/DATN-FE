@@ -9,7 +9,7 @@ import {
   type CancelInvitationInput,
   type InviteMemberInput,
   type MembershipListStatus,
-  type MembershipMutationAck,
+  type OrganizationMutationAck,
   type OrganizationMembershipPage,
   type OrganizationRoleMutationAck,
   type ResendInvitationInput,
@@ -52,6 +52,17 @@ function requireNonnegativeVersion(value: number): number {
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid expected role version");
   }
   return value;
+}
+
+function requireNoInvitationMembership(value: number): 0 {
+  if (value !== 0) {
+    throw new ApiError(
+      422,
+      "VALIDATION_FAILED",
+      "V3 invitations use 0 when no Membership row exists",
+    );
+  }
+  return 0;
 }
 
 function requireIdempotencyKey(value: string): string {
@@ -137,7 +148,7 @@ async function mutate(
   organizationId: string,
   idempotencyKey: string,
   body: unknown,
-): Promise<MembershipMutationAck> {
+): Promise<OrganizationMutationAck> {
   const response = await apiClient<unknown>(path, mutationOptions(idempotencyKey, body));
   return parseMutationAck(response, organizationId);
 }
@@ -150,7 +161,7 @@ export function inviteOrganizationMember(
   organizationId: string,
   input: InviteMemberInput,
   idempotencyKey: string,
-): Promise<MembershipMutationAck> {
+): Promise<OrganizationMutationAck> {
   const organization = requireOrganizationId(organizationId);
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email) || input.email.length > 254 ||
@@ -165,11 +176,11 @@ export function resendOrganizationInvitation(
   invitationId: string,
   input: ResendInvitationInput,
   idempotencyKey: string,
-): Promise<MembershipMutationAck> {
+): Promise<OrganizationMutationAck> {
   const organization = requireOrganizationId(organizationId);
   const invitation = requireResourceId(invitationId, "invitation identifier");
   const body = {
-    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    expectedMembershipVersion: requireNoInvitationMembership(input.expectedMembershipVersion),
     expectedInvitationVersion: requireVersion(input.expectedInvitationVersion),
     reasonCode: input.reasonCode,
   };
@@ -184,11 +195,11 @@ export function cancelOrganizationInvitation(
   invitationId: string,
   input: CancelInvitationInput,
   idempotencyKey: string,
-): Promise<MembershipMutationAck> {
+): Promise<OrganizationMutationAck> {
   const organization = requireOrganizationId(organizationId);
   const invitation = requireResourceId(invitationId, "invitation identifier");
   const body = {
-    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    expectedMembershipVersion: requireNoInvitationMembership(input.expectedMembershipVersion),
     expectedInvitationVersion: requireVersion(input.expectedInvitationVersion),
     reasonCode: input.reasonCode,
   };
@@ -203,7 +214,7 @@ export function suspendOrganizationMembership(
   membershipId: string,
   input: SuspendMembershipInput,
   idempotencyKey: string,
-): Promise<MembershipMutationAck> {
+): Promise<OrganizationMutationAck> {
   const organization = requireOrganizationId(organizationId);
   const membership = requireResourceId(membershipId, "membership identifier");
   const body = {

@@ -40,43 +40,36 @@ describe("Organization membership accepted contract parsers", () => {
     expect(() => parseMembershipPage({ data: [{ ...membership("ACTIVE"), organizationId: "3123456789abcdef01234567" }], pagination }, orgId)).toThrow();
   });
 
-  it("validates invitation association and scope", () => {
+  it("validates email-bound invitation scope without requiring a Membership", () => {
     const invitation = {
       id: "4123456789abcdef01234567",
-      membershipId: "1123456789abcdef01234567",
       organizationId: orgId,
       status: "PENDING",
       version: 2,
       expiresAt: "2026-02-01T00:00:00.000Z",
       createdAt: "2026-01-01T00:00:00.000Z",
-      membershipVersion: 3,
-      targetUserId: "2123456789abcdef01234567",
-      email: "member@example.com",
+      invitedEmail: "member@example.com",
     };
-    expect(parseAdminInvitationPage({ data: [invitation], pagination }, orgId).data[0]?.membershipId).toBe(membership("ACTIVE").id);
+    expect(parseAdminInvitationPage({ data: [invitation], pagination }, orgId).data[0]?.invitedEmail).toBe(invitation.invitedEmail);
     expect(() => parseAdminInvitationPage({ data: [{ ...invitation, organizationId: "3123456789abcdef01234567" }], pagination }, orgId)).toThrow();
   });
 
   it("parses the recipient invitation page without accepting admin-only fields", () => {
     const invitation = {
       id: "4123456789abcdef01234567",
-      membershipId: "1123456789abcdef01234567",
       organizationId: orgId,
       status: "PENDING",
       version: 2,
       expiresAt: "2026-02-01T00:00:00.000Z",
       createdAt: "2026-01-01T00:00:00.000Z",
-      membershipVersion: 3,
+      invitedEmail: "member@example.com",
       organizationName: "Continuum",
     };
     expect(
       parseRecipientInvitationPage({ data: [invitation], pagination }).data[0],
     ).toEqual(invitation);
     expect(() =>
-      parseRecipientInvitationPage({
-        data: [{ ...invitation, targetUserId: membership("ACTIVE").userId }],
-        pagination,
-      }),
+      parseRecipientInvitationPage({ data: [{ ...invitation, targetUserId: membership("ACTIVE").userId }], pagination }),
     ).toThrow();
   });
 
@@ -91,7 +84,8 @@ describe("Organization membership accepted contract parsers", () => {
         version: 4,
       },
     };
-    expect(parseMutationAck(ack, orgId).membership.status).toBe("SUSPENDED");
+    const parsed = parseMutationAck(ack, orgId);
+    expect("membership" in parsed && parsed.membership.status).toBe("SUSPENDED");
     expect(() => parseMutationAck({ ...ack, membership: { ...ack.membership, organizationId: "3123456789abcdef01234567" } }, orgId)).toThrow();
     expect(() => parseMutationAck({ ...ack, membership: { ...ack.membership, status: "REMOVED" } }, orgId)).not.toThrow();
   });
@@ -121,5 +115,19 @@ describe("Organization membership accepted contract parsers", () => {
     expect(parseOrganizationRoleMutationAck(ack, orgId).role).toEqual(ack.role);
     expect(() => parseOrganizationRoleMutationAck({ ...ack, role: { ...ack.role, roleCode: "TEAM_LEADER" } }, orgId)).toThrow();
     expect(() => parseOrganizationRoleMutationAck({ ...ack, membership: { ...ack.membership, organizationId: "3123456789abcdef01234567" } }, orgId)).toThrow();
+  });
+
+  it("parses invitation-only mutation acknowledgements", () => {
+    const ack = {
+      operationId: "5123456789abcdef01234567",
+      invitation: {
+        id: "4123456789abcdef01234567",
+        status: "PENDING",
+        version: 1,
+        expiresAt: "2026-02-01T00:00:00.000Z",
+      },
+    };
+    expect(parseMutationAck(ack, orgId)).toEqual(ack);
+    expect(() => parseMutationAck({ ...ack, membership: {} }, orgId)).toThrow();
   });
 });

@@ -12,7 +12,7 @@ import {
 const replace = vi.fn();
 const select = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
-  Link: ({ children }: { children: ReactNode }) => <span>{children}</span>,
+  Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
   useRouter: () => ({ replace }),
 }));
 vi.mock("@/icons", () => ({
@@ -44,9 +44,9 @@ describe("account onboarding invitations", () => {
     } as never);
     vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
       data: { data: [{
-        id: "invite-1", membershipId: "member-1", organizationId: "org-1",
+        id: "invite-1", organizationId: "org-1",
         organizationName: "Continuum", status: "PENDING", version: 1,
-        membershipVersion: 1, expiresAt: "2026-10-18T10:00:00.000Z",
+        invitedEmail: "invitee@example.com", expiresAt: "2026-10-18T10:00:00.000Z",
         createdAt: "2026-10-11T10:00:00.000Z",
       }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
       isLoading: false, isError: false, refetch: vi.fn(),
@@ -56,11 +56,14 @@ describe("account onboarding invitations", () => {
     } as never);
   });
 
-  it("shows pending invitations without exposing the blocked legacy accept action", () => {
+  it("routes pending invitations through the email-bound acceptance page", () => {
     render(<AccountOnboarding />);
 
     expect(screen.getByText("Continuum")).toBeInTheDocument();
-    expect(screen.getByText("onboardingInvitationUnavailable")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "onboardingOpenInvitation" })).toHaveAttribute(
+      "href",
+      "/organization/invitations?invitationId=invite-1",
+    );
     expect(screen.queryByRole("button", { name: "onboardingAcceptInvitation" })).not.toBeInTheDocument();
     expect(select).not.toHaveBeenCalled();
   });

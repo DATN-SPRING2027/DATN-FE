@@ -52,7 +52,7 @@ export default function OrganizationInvitationList({
         <TableBody className="block w-full space-y-3 lg:table-row-group lg:space-y-0">
           {page.data.map((invitation) => {
             const actions = getInvitationActions(invitation);
-            const actionLabel = t("invitationActionsFor", { email: invitation.email });
+            const actionLabel = t("invitationActionsFor", { email: invitation.invitedEmail });
             const actionItems = actionsEnabled
               ? actions.map((action) => ({
                   key: action,
@@ -72,7 +72,7 @@ export default function OrganizationInvitationList({
                       <MailIcon className="size-4" />
                     </span>
                     <span className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
-                      {invitation.email}
+                      {invitation.invitedEmail}
                     </span>
                   </div>
                 </TableCell>

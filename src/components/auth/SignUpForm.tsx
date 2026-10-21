@@ -13,10 +13,13 @@ import { ApiError } from "@/lib/api-client";
 import { useRequestEmailRegistrationMutation } from "@/lib/queries/auth/useAuth";
 import { ArrowRightIcon, ChevronLeftIcon, EnvelopeIcon } from "@/icons";
 import styles from "./auth-experience.module.css";
+import { invitationIdFromReturnTo, isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
 
-export default function SignUpForm() {
+export default function SignUpForm({ initialEmail, returnTo }: { initialEmail?: string; returnTo?: string }) {
   const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(initialEmail ?? "");
+  const safeReturnTo = isSafeInvitationReturnTo(returnTo) ? returnTo : undefined;
+  const returnToInvitationId = invitationIdFromReturnTo(safeReturnTo);
   const [isChecked, setIsChecked] = useState(false);
   const [requestAccepted, setRequestAccepted] = useState(false);
   const t = useTranslations("auth");
@@ -26,10 +29,12 @@ export default function SignUpForm() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setRequestAccepted(false);
+    if (safeReturnTo) sessionStorage.setItem("organizationInvitationReturnTo", safeReturnTo);
     try {
       await registration.mutateAsync({
         fullName: fullName.trim(),
         email: email.trim(),
+        ...(returnToInvitationId ? { returnToInvitationId } : {}),
       });
       setRequestAccepted(true);
     } catch {
@@ -50,7 +55,7 @@ export default function SignUpForm() {
             <span>.</span>
           </h1>
           <p className={styles.introduction}>
-            {ui("signupHint")} <Link href="/signin">{ui("signIn")}</Link>
+            {ui("signupHint")} <Link href={safeReturnTo ? `/signin?returnTo=${encodeURIComponent(safeReturnTo)}&email=${encodeURIComponent(email)}` as never : "/signin"}>{ui("signIn")}</Link>
           </p>
         </header>
       ) : null}
@@ -75,7 +80,7 @@ export default function SignUpForm() {
             <span>{ui("email")}</span>
             <strong>{email.trim()}</strong>
           </div>
-          <Link href="/signin" className={styles.authConfirmationLink}>
+          <Link href={safeReturnTo ? `/signin?returnTo=${encodeURIComponent(safeReturnTo)}&email=${encodeURIComponent(email.trim())}` as never : "/signin"} className={styles.authConfirmationLink}>
             <ChevronLeftIcon aria-hidden="true" />
             <span>{t("backToSignIn")}</span>
           </Link>
@@ -116,6 +121,7 @@ export default function SignUpForm() {
               autoComplete="email"
               maxLength={320}
               required
+              readOnly={Boolean(safeReturnTo && initialEmail)}
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               placeholder={ui("emailPlaceholder")}

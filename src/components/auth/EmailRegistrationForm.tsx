@@ -1,6 +1,6 @@
 "use client";
 
-import { useLayoutEffect, useState, type FormEvent } from "react";
+import { useLayoutEffect, useState, useSyncExternalStore, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -17,11 +17,68 @@ import {
   LockIcon,
 } from "@/icons";
 import styles from "./auth-experience.module.css";
+import { invitationReturnToFromId, isSafeInvitationReturnTo } from "@/lib/queries/organization-memberships/organization-invitations";
+
+function createRegistrationTokenStore() {
+  let value = "";
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => value,
+    getServerSnapshot: () => "",
+    subscribe: (onChange: () => void) => {
+      listeners.add(onChange);
+      return () => listeners.delete(onChange);
+    },
+    set: (next: string) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+function createInvitationReturnToStore() {
+  let value: string | null = null;
+  const listeners = new Set<() => void>();
+  return {
+    getSnapshot: () => value,
+    getServerSnapshot: () => null,
+    subscribe: (onChange: () => void) => {
+      listeners.add(onChange);
+      return () => listeners.delete(onChange);
+    },
+    set: (next: string | null) => {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+  };
+}
+
+function subscribeToInvitationReturnTo(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function getInvitationReturnToSnapshot(): string | null {
+  if (typeof window === "undefined") return null;
+  const value = window.sessionStorage.getItem("organizationInvitationReturnTo");
+  return isSafeInvitationReturnTo(value) ? value : null;
+}
+
+function getServerInvitationReturnToSnapshot(): null {
+  return null;
+}
 
 export default function EmailRegistrationForm() {
   const t = useTranslations("auth");
   const ui = useTranslations("authExperience");
-  const [token, setToken] = useState("");
+  const [registrationTokenStore] = useState(createRegistrationTokenStore);
+  const token = useSyncExternalStore(
+    registrationTokenStore.subscribe,
+    registrationTokenStore.getSnapshot,
+    registrationTokenStore.getServerSnapshot,
+  );
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -29,22 +86,37 @@ export default function EmailRegistrationForm() {
   const [passwordSubmitAttempted, setPasswordSubmitAttempted] = useState(false);
   const [passwordPolicyError, setPasswordPolicyError] = useState(false);
   const [verified, setVerified] = useState(false);
+  const [invitationReturnToStore] = useState(createInvitationReturnToStore);
+  const storedInvitationReturnTo = useSyncExternalStore(
+    subscribeToInvitationReturnTo,
+    getInvitationReturnToSnapshot,
+    getServerInvitationReturnToSnapshot,
+  );
+  const returnToFromUrl = useSyncExternalStore(
+    invitationReturnToStore.subscribe,
+    invitationReturnToStore.getSnapshot,
+    invitationReturnToStore.getServerSnapshot,
+  );
+  const invitationReturnTo = returnToFromUrl ?? storedInvitationReturnTo;
   const verifyRegistration = useVerifyEmailRegistrationMutation();
 
   useLayoutEffect(() => {
+    const returnTo = invitationReturnToFromId(
+      new URLSearchParams(window.location.search).get("returnToInvitationId"),
+    );
+    if (returnTo) invitationReturnToStore.set(returnTo);
     if (!window.location.hash && !window.location.search) return;
     const verificationToken = new URLSearchParams(
       window.location.hash.slice(1),
     ).get("token");
     window.history.replaceState(null, "", window.location.pathname);
     // Capture this client-only credential before removing it from browser history.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setToken(
+    registrationTokenStore.set(
       verificationToken && /^[A-Za-z0-9_-]{43}$/.test(verificationToken)
         ? verificationToken
         : "",
     );
-  }, []);
+  }, [invitationReturnToStore, registrationTokenStore]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,6 +131,7 @@ export default function EmailRegistrationForm() {
 
     try {
       await verifyRegistration.mutateAsync({ token, password });
+      registrationTokenStore.set("");
       setVerified(true);
       setPassword("");
       setConfirmPassword("");
@@ -83,7 +156,7 @@ export default function EmailRegistrationForm() {
       {!verified ? (
         <div className="mx-auto mb-6 w-full max-w-md">
           <Link
-            href="/signin"
+            href={invitationReturnTo ? `/signin?returnTo=${encodeURIComponent(invitationReturnTo)}` as never : "/signin"}
             className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 transition-colors hover:text-gray-800 dark:text-gray-400 dark:hover:text-white"
           >
             <ChevronLeftIcon className="h-4 w-4 rtl:rotate-180" />
@@ -112,7 +185,7 @@ export default function EmailRegistrationForm() {
               {t("emailRegistrationSuccessMessage")}
             </p>
             <Link
-              href="/signin"
+              href={invitationReturnTo ? `/signin?returnTo=${encodeURIComponent(invitationReturnTo)}` as never : "/signin"}
               className={styles.authConfirmationAction}
             >
               {t("backToSignIn")}
