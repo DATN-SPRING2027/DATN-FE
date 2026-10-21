@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { ApiError } from "@/lib/api-client";
@@ -12,18 +12,21 @@ import {
   useRemoveProjectMember,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
+import {
+  useProjectLeaderActions,
+  useProjectLeadersQuery,
+} from "@/lib/queries/projects/useProjectLeaders";
 import ProjectState from "../ProjectState";
 import MemberAddForm from "./MemberAddForm";
 import MemberNotification from "./MemberNotification";
 import MemberDirectory from "./MemberDirectory";
-import MemberDetails from "./MemberDetails";
+import MemberDetails, { type LeaderRoleStatus } from "./MemberDetails";
 import MemberLifecycle from "./MemberLifecycle";
 import MemberStatusFilter from "./MemberStatusFilter";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
 import MemberRemoveConfirmation from "./MemberRemoveConfirmation";
-import ProjectLeaders from "./ProjectLeaders";
 import MemberError, { isMemberActionDenied } from "./MemberError";
 import { GroupIcon, SearchIcon } from "@/icons";
 import { Modal } from "@/components/ui/modal";
@@ -31,12 +34,14 @@ import { Modal } from "@/components/ui/modal";
 function ScopedProjectMembers({
   organizationId,
   projectId,
+  canAppointLeaders,
   showAddButton,
   addModalOpen: controlledAddModalOpen,
   onCloseAdd,
 }: {
   organizationId: string;
   projectId: string;
+  canAppointLeaders: boolean;
   showAddButton: boolean;
   addModalOpen?: boolean;
   onCloseAdd?: () => void;
@@ -54,12 +59,18 @@ function ScopedProjectMembers({
   const addModalOpen = controlledAddModalOpen ?? localAddModalOpen;
   const mutationInFlight = useRef(false);
   const addDialog = useRef<HTMLDivElement>(null);
-  const [notice, setNotice] = useState<"added" | "removed">();
+  const [notice, setNotice] = useState<
+    "added" | "removed" | "leaderAppointed" | "leaderRevoked"
+  >();
+  const [leaderBusyUserId, setLeaderBusyUserId] = useState<string>();
+  const [soleLeaderBlocked, setSoleLeaderBlocked] = useState(false);
+
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(undefined), 4000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
   useEffect(() => {
     if (!addModalOpen) return;
     const previouslyFocused = document.activeElement;
@@ -78,23 +89,95 @@ function ScopedProjectMembers({
       }
     };
   }, [addModalOpen]);
+
   const members = useProjectMembersQuery(organizationId, projectId, {
     page,
     pageSize: 20,
     status,
   });
+  const leaders = useProjectLeadersQuery(organizationId, projectId);
+  const leaderActions = useProjectLeaderActions(organizationId, projectId);
   const add = useAddProjectMember(organizationId, projectId);
   const remove = useRemoveProjectMember(organizationId, projectId);
-  const busy = add.isPending || remove.isPending;
+
+  const leaderRoleStatus: LeaderRoleStatus =
+    leaders.isPending || leaders.isFetching
+      ? "loading"
+      : leaders.isError
+        ? "unavailable"
+        : "ready";
+  const leaderRolesKnown = leaderRoleStatus === "ready";
+  const canManageLeaders = leaderRolesKnown && canAppointLeaders;
+  const leaderUserIds = useMemo(
+    () =>
+      new Set(
+        leaders.isSuccess
+          ? leaders.data
+              .filter((leader) => leader.status === "ACTIVE")
+              .map((leader) => leader.userId)
+          : [],
+      ),
+    [leaders.isSuccess, leaders.data],
+  );
+
+  const leaderPending =
+    leaderActions.assign.isPending || leaderActions.revoke.isPending;
+  const leaderError = leaderActions.assign.error ?? leaderActions.revoke.error;
+  const busy = add.isPending || remove.isPending || leaderPending;
+
   function checkAccess() {
     if (busy) return;
     confirmation.closeModal();
     add.reset();
     remove.reset();
+    leaderActions.assign.reset();
+    leaderActions.revoke.reset();
     setSelected(undefined);
     setNotice(undefined);
+    setSoleLeaderBlocked(false);
     void members.refetch();
+    void leaders.refetch();
   }
+
+  function handleToggleLeader(
+    member: ProjectMembership,
+    isCurrentlyLeader: boolean,
+  ) {
+    if (mutationInFlight.current || busy || !canManageLeaders) return;
+    if (isCurrentlyLeader && leaderUserIds.size <= 1) {
+      setSoleLeaderBlocked(true);
+      return;
+    }
+    mutationInFlight.current = true;
+    setNotice(undefined);
+    setSoleLeaderBlocked(false);
+    setLeaderBusyUserId(member.userId);
+    leaderActions.assign.reset();
+    leaderActions.revoke.reset();
+
+    if (isCurrentlyLeader) {
+      leaderActions.revoke.mutate(member.userId, {
+        onSuccess: () => {
+          setNotice("leaderRevoked");
+        },
+        onSettled: () => {
+          mutationInFlight.current = false;
+          setLeaderBusyUserId(undefined);
+        },
+      });
+    } else {
+      leaderActions.assign.mutate(member.userId, {
+        onSuccess: () => {
+          setNotice("leaderAppointed");
+        },
+        onSettled: () => {
+          mutationInFlight.current = false;
+          setLeaderBusyUserId(undefined);
+        },
+      });
+    }
+  }
+
   const visibleMembers =
     members.isSuccess && !members.isFetching ? members.data.data : [];
   const listedMembers = visibleMembers.filter((member) => {
@@ -106,9 +189,18 @@ function ScopedProjectMembers({
     return Boolean(matchEmail || matchName || matchUserId);
   });
   const focusedMember = listedMembers.find((member) => member.id === focusedId);
+
   function requestRemoval(member: ProjectMembership) {
+    if (!leaderRolesKnown) return;
+    if (leaderUserIds.has(member.userId)) {
+      if (leaderUserIds.size <= 1) {
+        setSoleLeaderBlocked(true);
+      }
+      return;
+    }
     remove.reset();
     setNotice(undefined);
+    setSoleLeaderBlocked(false);
     setSelected(member);
     confirmation.openModal();
   }
@@ -120,11 +212,11 @@ function ScopedProjectMembers({
     setLocalAddModalOpen(false);
     onCloseAdd?.();
   }
+
   // A successful list does not grant mutation permissions. Each action is sent
   // to BE for authorization; a 403 locks only that action until an explicit retry.
   return (
     <div className="@container min-w-0 space-y-6">
-      <ProjectLeaders organizationId={organizationId} projectId={projectId} />
       {notice && <MemberNotification message={t(notice)} />}
       {(members.isError || add.isError || remove.isError) && (
         <Button
@@ -134,6 +226,26 @@ function ScopedProjectMembers({
         >
           {t("checkAccess")}
         </Button>
+      )}
+      {leaderRoleStatus === "unavailable" &&
+        members.isSuccess &&
+        !members.isFetching && (
+          <p
+            role="status"
+            className="rounded-xl border border-warning-200 bg-warning-50/70 px-4 py-3 text-xs font-medium text-warning-800 sm:text-sm dark:border-warning-500/25 dark:bg-warning-500/10 dark:text-warning-300"
+          >
+            {t("leaderRoleUnverifiedNotice")}
+          </p>
+        )}
+      {(leaderError || soleLeaderBlocked) && (
+        <p
+          role="alert"
+          className="rounded-xl border border-error-200 bg-error-50/60 px-4 py-3 text-sm text-error-700 dark:border-error-500/25 dark:bg-error-500/10 dark:text-error-300"
+        >
+          {soleLeaderBlocked
+            ? t("soleLeaderCannotRevoke")
+            : t("leaderActionFailed")}
+        </p>
       )}
       <section
         aria-label={t("list")}
@@ -150,26 +262,26 @@ function ScopedProjectMembers({
                   {t("title")}
                 </h2>
                 {members.isSuccess && !members.isFetching && (
-                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                     {format.number(members.data.pagination.totalItems)}{" "}
                     {t("membersMetric")}
                   </span>
                 )}
               </div>
-              <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 sm:text-sm dark:text-gray-400">
                 {t("directoryDescription")}
               </p>
             </div>
           </div>
           <div className="flex min-w-0 flex-col gap-3 sm:flex-row sm:items-end xl:flex-1 xl:justify-end">
-            <div className="min-w-0 flex-1 sm:min-w-64 sm:max-w-xs xl:w-80 xl:flex-none">
+            <div className="min-w-0 flex-1 sm:max-w-xs sm:min-w-64 xl:w-80 xl:flex-none">
               <Label htmlFor="member-roster-search" className="sr-only">
                 {t("searchPage")}
               </Label>
               <div className="relative">
                 <SearchIcon
                   aria-hidden="true"
-                  className="pointer-events-none absolute start-3 top-3.5 size-4 text-gray-400"
+                  className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-gray-400"
                 />
                 <Input
                   id="member-roster-search"
@@ -224,12 +336,19 @@ function ScopedProjectMembers({
               members={listedMembers}
               selectedId={focusedMember?.id}
               disabled={busy}
-              removeDisabled={busy || isMemberActionDenied(remove.error)}
+              removeDisabled={
+                busy || isMemberActionDenied(remove.error) || !leaderRolesKnown
+              }
+              leaderUserIds={leaderUserIds}
+              leaderRoleStatus={leaderRoleStatus}
+              canManageLeaders={canManageLeaders}
+              leaderBusyUserId={leaderBusyUserId}
               onSelect={setFocusedId}
               onRemove={requestRemoval}
+              onToggleLeader={handleToggleLeader}
             />
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+              <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
                 {t("pageOf", {
                   page: members.data.pagination.page,
                   total: Math.max(1, members.data.pagination.totalPages),
@@ -361,7 +480,11 @@ function ScopedProjectMembers({
       </div>
       {focusedMember && (
         <div className="grid gap-4 @2xl:grid-cols-2">
-          <MemberDetails member={focusedMember} />
+          <MemberDetails
+            member={focusedMember}
+            isLeader={leaderUserIds.has(focusedMember.userId)}
+            leaderRoleStatus={leaderRoleStatus}
+          />
           <MemberLifecycle member={focusedMember} />
         </div>
       )}
@@ -441,6 +564,7 @@ export default function ProjectMembers({
       key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
       organizationId={user.data.organizationId}
       projectId={projectId}
+      canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
       showAddButton={showAddButton}
       addModalOpen={addModalOpen}
       onCloseAdd={onCloseAdd}

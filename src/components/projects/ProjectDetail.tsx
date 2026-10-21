@@ -2,9 +2,12 @@
 
 import { useMutationState } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useState } from "react";
 import ProjectVisibilityNotification from "./ProjectVisibilityNotification";
-import ProjectOverview from "./ProjectOverview";
+import ProjectOverview, {
+  type ProjectTab,
+  resolveTabFromPathname,
+} from "./ProjectOverview";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
@@ -19,12 +22,25 @@ function OrganizationProject({
   projectId,
   showTeams,
   teamMode,
+  initialTab,
 }: {
   organizationId: string;
   projectId: string;
   showTeams: boolean;
   teamMode: "fixture" | "api";
+  initialTab?: ProjectTab;
 }) {
+  const [activeTab, setActiveTab] = useState<ProjectTab>(() => {
+    if (initialTab) return initialTab;
+    if (typeof window !== "undefined") {
+      const fromUrl = resolveTabFromPathname(
+        window.location.pathname,
+        projectId,
+      );
+      if (fromUrl) return fromUrl;
+    }
+    return showTeams && teamMode === "fixture" ? "teams" : "overview";
+  });
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
   const changes = useMutationState({
@@ -67,7 +83,9 @@ function OrganizationProject({
       <ProjectOverview
         project={project.data}
         showTeams={showTeams}
-        initialTab={showTeams && teamMode === "fixture" ? "teams" : "overview"}
+        initialTab={activeTab}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
         teamPanel={
           !showTeams ? undefined : teamMode === "fixture" ? (
             <Suspense fallback={null}>
@@ -86,10 +104,12 @@ export default function ProjectDetail({
   projectId,
   showTeams = false,
   teamMode = "api",
+  initialTab,
 }: {
   projectId: string;
   showTeams?: boolean;
   teamMode?: "fixture" | "api";
+  initialTab?: ProjectTab;
 }) {
   const user = useCurrentUserQuery();
   return (
@@ -105,6 +125,7 @@ export default function ProjectDetail({
           projectId={projectId}
           showTeams={showTeams}
           teamMode={teamMode}
+          initialTab={initialTab}
         />
       ) : (
         <ProjectState error={new Error("No trusted organization")} />

@@ -27,7 +27,7 @@ export default function MemberLifecycle({
             </p>
             <time
               dateTime={member.joinedAt}
-              className="mt-2 block text-sm font-medium text-gray-800 dark:text-gray-200"
+              className="mt-2 block text-sm font-medium tabular-nums text-gray-800 dark:text-gray-200"
             >
               {format.dateTime(new Date(member.joinedAt), {
                 dateStyle: "medium",
