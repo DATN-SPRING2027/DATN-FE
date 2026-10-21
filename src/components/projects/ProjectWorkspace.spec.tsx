@@ -775,3 +775,38 @@ it("keeps a late visibility response scoped to the original Project", async () =
   expect(screen.getByText("Private")).toBeVisible();
   expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
 });
+
+
+it("preserves the active tab across project refetches and syncs /overview, /members, /settings URL paths", async () => {
+  window.history.replaceState(null, "", "/projects/p1");
+  try {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") return user;
+      if (path.includes("/memberships")) return list([]);
+      return project;
+    });
+    const { client } = mount(<ProjectDetail projectId="p1" />);
+    const membersTab = await screen.findByRole("tab", {
+      name: "Project members",
+    });
+    expect(window.location.pathname).toBe("/projects/p1/overview");
+
+    fireEvent.click(membersTab);
+    expect(membersTab).toHaveAttribute("aria-selected", "true");
+    expect(window.location.pathname).toBe("/projects/p1/members");
+
+    await act(async () => {
+      await client.invalidateQueries({
+        queryKey: ["projects", "org1", "detail", "p1"],
+      });
+    });
+
+    const membersTabAfterRefetch = await screen.findByRole("tab", {
+      name: "Project members",
+    });
+    expect(membersTabAfterRefetch).toHaveAttribute("aria-selected", "true");
+    expect(window.location.pathname).toBe("/projects/p1/members");
+  } finally {
+    window.history.replaceState(null, "", "/");
+  }
+});

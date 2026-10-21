@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useState, type ReactNode } from "react";
 import ProjectMembers from "./members/ProjectMembers";
 import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
@@ -9,25 +9,101 @@ import type { Project } from "@/lib/queries/projects/useProjects";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
 
-type ProjectTab = "overview" | "members" | "settings" | "teams";
+export type ProjectTab = "overview" | "members" | "settings" | "teams";
+
+const VALID_TABS: readonly ProjectTab[] = [
+  "overview",
+  "members",
+  "settings",
+  "teams",
+];
+
+export function resolveTabFromPathname(
+  pathname: string,
+  projectId: string,
+): ProjectTab | null {
+  const clean = pathname.replace(/\/+$/, "");
+  for (const prefix of [
+    `/projects/${encodeURIComponent(projectId)}/`,
+    `/projects/${projectId}/`,
+  ]) {
+    const idx = clean.indexOf(prefix);
+    if (idx !== -1) {
+      const rest = clean.slice(idx + prefix.length);
+      if ((VALID_TABS as readonly string[]).includes(rest)) {
+        return rest as ProjectTab;
+      }
+    }
+  }
+  return null;
+}
+
+export function syncProjectTabUrl(projectId: string, nextTab: ProjectTab) {
+  if (typeof window === "undefined") return;
+  const pathname = window.location.pathname;
+  const encodedMarker = `/projects/${encodeURIComponent(projectId)}`;
+  const rawMarker = `/projects/${projectId}`;
+  const marker = pathname.includes(encodedMarker)
+    ? encodedMarker
+    : pathname.includes(rawMarker)
+      ? rawMarker
+      : null;
+  if (!marker) return;
+  const idx = pathname.indexOf(marker);
+  const basePath = pathname.slice(0, idx + marker.length);
+  const targetPath = `${basePath}/${nextTab}${window.location.search}${window.location.hash}`;
+  const currentFull = `${pathname}${window.location.search}${window.location.hash}`;
+  if (currentFull !== targetPath) {
+    window.history.replaceState(window.history.state, "", targetPath);
+  }
+}
 
 export default function ProjectOverview({
   project,
   showTeams = false,
   teamPanel,
   initialTab = "overview",
+  activeTab,
+  onTabChange,
 }: {
   project: Project;
   showTeams?: boolean;
   teamPanel?: ReactNode;
   initialTab?: ProjectTab;
+  activeTab?: ProjectTab;
+  onTabChange?: (tab: ProjectTab) => void;
 }) {
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
-  const [tab, setTab] = useState<ProjectTab>(
+  const [internalTab, setInternalTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
+  const currentTab = activeTab ?? internalTab;
+  const tab: ProjectTab =
+    currentTab === "teams" && !showTeams ? "overview" : currentTab;
+  const setTab = (next: ProjectTab) => {
+    setInternalTab(next);
+    onTabChange?.(next);
+    syncProjectTabUrl(project.id, next);
+  };
+  useEffect(() => {
+    syncProjectTabUrl(project.id, tab);
+  }, [project.id, tab]);
+  useEffect(() => {
+    const handlePopState = () => {
+      const fromUrl = resolveTabFromPathname(
+        window.location.pathname,
+        project.id,
+      );
+      if (fromUrl) {
+        setInternalTab(fromUrl);
+        onTabChange?.(fromUrl);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [project.id, onTabChange]);
   const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
   const date = (value: string) =>
