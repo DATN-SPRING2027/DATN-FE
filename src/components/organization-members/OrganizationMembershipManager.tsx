@@ -663,7 +663,7 @@ function ScopedOrganizationMemberships({
 export default function OrganizationMembershipManager() {
   const t = useTranslations("organizationMembers");
   const currentUser = useCurrentUserQuery();
-  if (currentUser.isFetching) return <LoadingPanel label={t("contextLoading")} />;
+  if (currentUser.isPending) return <LoadingPanel label={t("contextLoading")} />;
   if (currentUser.isError) return <MembershipError error={currentUser.error} retry={() => { void currentUser.refetch(); }} />;
   const user = currentUser.data;
   const organizationId = user?.organizationId;
