@@ -35,10 +35,11 @@ it("allows page development only with explicit opt-in", () => {
     "development",
   );
 });
-it("shows a fixture-only Team tab in development when API integration is off", () => {
+it("keeps the fixture Team tab hidden in development while Teams UI is deferred", () => {
   vi.stubEnv("NODE_ENV", "development");
   vi.stubEnv("TEAM_FOUNDATION_DEV_INTEGRATION", "false");
-  expect(teamFixturePreviewEnabled()).toBe(true);
+  expect(teamFixturePreviewEnabled()).toBe(false);
+  expect(teamFixturePreviewEnabled("fixture")).toBe(false);
 });
 it("uses the API workspace only after the development integration opt-in", () => {
   vi.stubEnv("NODE_ENV", "development");

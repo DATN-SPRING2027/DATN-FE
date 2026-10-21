@@ -1,9 +1,6 @@
 import ProjectDetail from "@/components/projects/ProjectDetail";
 import { setRequestLocale } from "next-intl/server";
-import {
-  teamDevelopmentEnabled,
-  teamFixturePreviewEnabled,
-} from "@/lib/teams-development";
+import { teamFixturePreviewEnabled } from "@/lib/teams-development";
 
 export default async function ProjectPage({
   params,
@@ -17,12 +14,11 @@ export default async function ProjectPage({
     searchParams,
   ]);
   setRequestLocale(locale);
-  const apiEnabled = teamDevelopmentEnabled();
   const fixturePreview = teamFixturePreviewEnabled(teamPreview);
   return (
     <ProjectDetail
       projectId={projectId}
-      showTeams={apiEnabled || fixturePreview}
+      showTeams={false}
       teamMode={fixturePreview ? "fixture" : "api"}
     />
   );
