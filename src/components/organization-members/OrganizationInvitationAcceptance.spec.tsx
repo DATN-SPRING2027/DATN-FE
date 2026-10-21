@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-client";
 import OrganizationInvitationAcceptance from "./OrganizationInvitationAcceptance";
 
 const mocks = vi.hoisted(() => ({
@@ -115,6 +116,7 @@ describe("Organization invitation acceptance", () => {
     await waitFor(() => expect(mocks.accept).toHaveBeenCalledWith(
       invitationId,
       organizationId,
+      0,
       invitation.version,
       "0123456789abcdef",
     ));
@@ -141,5 +143,35 @@ describe("Organization invitation acceptance", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("invitationWrongEmail");
     expect(mocks.accept).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "invitationAccept" })).toBeNull();
+  });
+
+  it("shows a stale conflict and refreshes current invitation version only after a user action", async () => {
+    mocks.currentUser.mockReturnValue({
+      data: { id: "6123456789abcdef01234567", email: "invitee@example.test" },
+      isFetching: false,
+      isError: false,
+    });
+    const refreshedInvitation = { ...invitation, version: 4 };
+    mocks.get.mockResolvedValueOnce(invitation).mockResolvedValueOnce(refreshedInvitation);
+    mocks.accept.mockRejectedValueOnce(new ApiError(409, "INVITATION_VERSION_CONFLICT", "stale"));
+    window.history.replaceState(null, "", `/organization/invitations?invitationId=${invitationId}`);
+
+    render(<OrganizationInvitationAcceptance />);
+    fireEvent.click(await screen.findByRole("button", { name: "invitationAccept" }));
+    expect(await screen.findByText("invitationStale")).toBeVisible();
+    expect(mocks.accept).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "invitationRefresh" }));
+    await waitFor(() => expect(mocks.get).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText("invitationStale")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "invitationAccept" }));
+    await waitFor(() => expect(mocks.accept).toHaveBeenCalledTimes(2));
+    expect(mocks.accept).toHaveBeenLastCalledWith(
+      invitationId,
+      organizationId,
+      0,
+      refreshedInvitation.version,
+      "0123456789abcdef",
+    );
   });
 });

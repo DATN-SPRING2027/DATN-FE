@@ -73,15 +73,17 @@ export async function getOrganizationInvitation(invitationId: string): Promise<R
 export async function acceptOrganizationInvitation(
   invitationId: string,
   organizationId: string,
+  expectedMembershipVersion: 0,
   expectedInvitationVersion: number,
   idempotencyKey: string,
 ): Promise<OrganizationMutationAck> {
   const invitation = requireId(invitationId);
+  if (expectedMembershipVersion !== 0) throw new ApiError(422, "VALIDATION_FAILED", "V3 invitations use 0 when no Membership row exists");
   if (!Number.isSafeInteger(expectedInvitationVersion) || expectedInvitationVersion < 1) throw new ApiError(422, "VALIDATION_FAILED", "Invalid invitation version");
   return parseMutationAck(await apiClient<unknown>(`/auth/invitations/${invitation}/accept`, {
     method: "POST",
     headers: csrfHeaders(idempotencyKey),
-    body: JSON.stringify({ expectedInvitationVersion }),
+    body: JSON.stringify({ expectedMembershipVersion, expectedInvitationVersion }),
     cache: "no-store",
     signal: AbortSignal.timeout(15_000),
   }), organizationId);

@@ -51,7 +51,6 @@ export type AdminInvitation = Readonly<{
   organizationId: string;
   status: "PENDING" | "ACCEPTED" | "CANCELLED" | "EXPIRED" | "SUPERSEDED";
   version: number;
-  membershipVersion: number;
   expiresAt: string;
   createdAt: string;
   invitedEmail: string;
@@ -136,12 +135,12 @@ export type SetOrganizationMembershipRoleInput = Readonly<{
   reason: string;
 }>;
 export type ResendInvitationInput = Readonly<{
-  expectedMembershipVersion: number;
+  expectedMembershipVersion: 0;
   expectedInvitationVersion: number;
   reasonCode: MembershipActionReason;
 }>;
 export type CancelInvitationInput = Readonly<{
-  expectedMembershipVersion: number;
+  expectedMembershipVersion: 0;
   expectedInvitationVersion: number;
   reasonCode: "INVITATION_CANCELLED";
 }>;
@@ -283,7 +282,6 @@ export function parseAdminInvitationPage(
       item.organizationId !== organizationId ||
       typeof item.status !== "string" || !invitationStates.has(item.status) ||
       !isVersion(item.version) ||
-      !isVersion(item.membershipVersion) ||
       !isDateTime(item.expiresAt) ||
       !isDateTime(item.createdAt) ||
       !isEmail(item.invitedEmail)
@@ -293,7 +291,6 @@ export function parseAdminInvitationPage(
       organizationId,
       status: item.status as AdminInvitation["status"],
       version: item.version,
-      membershipVersion: item.membershipVersion,
       expiresAt: item.expiresAt,
       createdAt: item.createdAt,
       invitedEmail: item.invitedEmail,

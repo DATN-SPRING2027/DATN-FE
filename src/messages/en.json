@@ -1771,6 +1771,8 @@
     "invitationExpiry": "Expires {date}",
     "invitationAlreadyAccepted": "This invitation has already been accepted.",
     "invitationUnavailable": "This invitation is no longer pending.",
+    "invitationStale": "This invitation changed since it was loaded. Refresh its current details before trying again.",
+    "invitationRefresh": "Refresh invitation",
     "invitationExpired": "This invitation has expired. Ask an organization manager to send a new invitation.",
     "invitationWrongEmail": "You are signed in with a different email address. Sign in with the invited account to accept this invitation.",
     "invitationInvalid": "This invitation link is invalid or no longer available.",

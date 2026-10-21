@@ -23,7 +23,6 @@ const invitation = (status: AdminInvitation["status"]): AdminInvitation => ({
   organizationId: "0123456789abcdef01234567",
   status,
   version: 1,
-  membershipVersion: 1,
   expiresAt: "2026-02-01T00:00:00.000Z",
   createdAt: "2026-01-01T00:00:00.000Z",
   invitedEmail: "m@example.com",

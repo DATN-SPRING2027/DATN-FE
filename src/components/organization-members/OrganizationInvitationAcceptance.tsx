@@ -22,7 +22,7 @@ function errorKey(error: unknown): string {
   if (!(error instanceof ApiError)) return "invitationServerError";
   if (error.status === 410 || error.code === "INVITATION_EXPIRED") return "invitationExpired";
   if (error.status === 403 && error.code === "INVITATION_EMAIL_MISMATCH") return "invitationWrongEmail";
-  if (error.status === 409 || error.code === "INVITATION_NOT_ACCEPTABLE") return "invitationUnavailable";
+  if (error.status === 409 || error.code === "INVITATION_NOT_ACCEPTABLE") return "invitationStale";
   if (error.status === 404) return "invitationInvalid";
   return "invitationServerError";
 }
@@ -86,7 +86,7 @@ export default function OrganizationInvitationAcceptance() {
     setAccepting(true);
     setAcceptError(undefined);
     try {
-      await acceptOrganizationInvitation(invitation.id, invitation.organizationId, invitation.version, createIdempotencyKey());
+      await acceptOrganizationInvitation(invitation.id, invitation.organizationId, 0, invitation.version, createIdempotencyKey());
       router.replace("/onboarding");
     } catch (error) {
       setAcceptError(error);
@@ -94,6 +94,22 @@ export default function OrganizationInvitationAcceptance() {
       setAccepting(false);
     }
   }
+
+  async function refreshInvitation() {
+    if (!invitationId) return;
+    setLoadState("loading");
+    setLoadError(undefined);
+    try {
+      setInvitation(await getOrganizationInvitation(invitationId));
+      setAcceptError(undefined);
+      setLoadState("idle");
+    } catch (error) {
+      setLoadError(error);
+      setLoadState("error");
+    }
+  }
+
+  const acceptanceConflict = acceptError instanceof ApiError && acceptError.status === 409;
 
   if (loadState === "loading" || currentUser.isFetching) {
     return <main className="mx-auto flex min-h-[60vh] w-full max-w-xl items-center px-4"><p role="status" aria-busy="true" className="w-full animate-pulse rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{t("invitationLoading")}</p></main>;
@@ -132,7 +148,7 @@ export default function OrganizationInvitationAcceptance() {
     return <InvitationPanel title={t("invitationTitle")}>
       <p className="text-sm leading-6 text-gray-600 dark:text-gray-300">{t("invitationFor", { organization: invitation.organizationName, email: invitation.invitedEmail })}</p>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("invitationExpiry", { date: new Date(invitation.expiresAt).toLocaleDateString() })}</p>
-      {acceptError !== undefined && <div className="mt-5"><Alert variant="error" title={t("invitationUnavailableTitle")} message={t(errorKey(acceptError))} /></div>}
+      {acceptError !== undefined && <div className="mt-5"><Alert variant="error" title={t("invitationUnavailableTitle")} message={t(errorKey(acceptError))} />{acceptanceConflict && <Button className="mt-3" variant="outline" onClick={() => void refreshInvitation()}>{t("invitationRefresh")}</Button>}</div>}
       <Button className="mt-6 w-full sm:w-auto" disabled={accepting} onClick={() => void accept()}>{accepting ? t("invitationAccepting") : t("invitationAccept")}</Button>
     </InvitationPanel>;
   }

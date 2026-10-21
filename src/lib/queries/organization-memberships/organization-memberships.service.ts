@@ -54,6 +54,17 @@ function requireNonnegativeVersion(value: number): number {
   return value;
 }
 
+function requireNoInvitationMembership(value: number): 0 {
+  if (value !== 0) {
+    throw new ApiError(
+      422,
+      "VALIDATION_FAILED",
+      "V3 invitations use 0 when no Membership row exists",
+    );
+  }
+  return 0;
+}
+
 function requireIdempotencyKey(value: string): string {
   if (!idempotencyPattern.test(value)) {
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid idempotency key");
@@ -169,7 +180,7 @@ export function resendOrganizationInvitation(
   const organization = requireOrganizationId(organizationId);
   const invitation = requireResourceId(invitationId, "invitation identifier");
   const body = {
-    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    expectedMembershipVersion: requireNoInvitationMembership(input.expectedMembershipVersion),
     expectedInvitationVersion: requireVersion(input.expectedInvitationVersion),
     reasonCode: input.reasonCode,
   };
@@ -188,7 +199,7 @@ export function cancelOrganizationInvitation(
   const organization = requireOrganizationId(organizationId);
   const invitation = requireResourceId(invitationId, "invitation identifier");
   const body = {
-    expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
+    expectedMembershipVersion: requireNoInvitationMembership(input.expectedMembershipVersion),
     expectedInvitationVersion: requireVersion(input.expectedInvitationVersion),
     reasonCode: input.reasonCode,
   };

@@ -46,7 +46,6 @@ describe("Organization membership accepted contract parsers", () => {
       organizationId: orgId,
       status: "PENDING",
       version: 2,
-      membershipVersion: 3,
       expiresAt: "2026-02-01T00:00:00.000Z",
       createdAt: "2026-01-01T00:00:00.000Z",
       invitedEmail: "member@example.com",

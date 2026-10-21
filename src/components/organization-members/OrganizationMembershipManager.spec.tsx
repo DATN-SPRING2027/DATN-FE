@@ -91,7 +91,6 @@ const invitation = {
   version: 2,
   expiresAt: "2026-02-01T00:00:00.000Z",
   createdAt: "2026-01-01T00:00:00.000Z",
-  membershipVersion: 3,
   invitedEmail: "alex@example.com",
 };
 
@@ -333,7 +332,7 @@ describe("Organization membership management page", () => {
     expect(await screen.findByText("The server accepted the request.")).toBeVisible();
     expect(await screen.findByText("Cancelled")).toBeVisible();
     const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith(`/invitations/${invitationId}/cancel`) && options?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "INVITATION_CANCELLED" });
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 0, expectedInvitationVersion: 2, reasonCode: "INVITATION_CANCELLED" });
     expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 
@@ -359,7 +358,7 @@ describe("Organization membership management page", () => {
 
     expect(await screen.findByText("The server accepted the request.")).toBeVisible();
     const call = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith(`/invitations/${invitationId}/resend`) && options?.method === "POST");
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, expectedInvitationVersion: 2, reasonCode: "ACCESS_REVIEW" });
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 0, expectedInvitationVersion: 2, reasonCode: "ACCESS_REVIEW" });
     expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 
@@ -407,7 +406,7 @@ describe("Organization membership management page", () => {
     const call = api.mock.calls.find(([url, options]) => url.endsWith(endpoint) && options?.method === "POST");
     expect(call?.[0]).toContain(`/iam/organizations/${organizationId}/invitations/${invitationId}`);
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({
-      expectedMembershipVersion: 3,
+      expectedMembershipVersion: 0,
       expectedInvitationVersion: 2,
       reasonCode: reason ?? "INVITATION_CANCELLED",
     });
