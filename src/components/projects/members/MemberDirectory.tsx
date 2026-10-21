@@ -17,15 +17,26 @@ export default function MemberDirectory({
   selectedId,
   disabled,
   removeDisabled,
+  leaderUserIds,
+  canManageLeaders = false,
+  leaderBusyUserId,
   onSelect,
   onRemove,
+  onToggleLeader,
 }: {
   members: readonly ProjectMembership[];
   selectedId?: string;
   disabled: boolean;
   removeDisabled: boolean;
+  leaderUserIds?: ReadonlySet<string>;
+  canManageLeaders?: boolean;
+  leaderBusyUserId?: string;
   onSelect: (id: string) => void;
   onRemove: (member: ProjectMembership) => void;
+  onToggleLeader?: (
+    member: ProjectMembership,
+    isCurrentlyLeader: boolean,
+  ) => void;
 }) {
   const t = useTranslations("projectMembers");
   const format = useFormatter();
@@ -57,199 +68,95 @@ export default function MemberDirectory({
           <TableRow className="border-b border-gray-100 dark:border-gray-800">
             <TableCell
               isHeader
-              className="w-[36%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="w-[26%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("memberColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[18%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="w-[23%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("accessLevel")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[16%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="w-[13%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("joinedAt")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[14%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="w-[10%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("statusColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[16%] px-5 py-3 text-end text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="w-[28%] px-5 py-3 text-end text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
             >
               {t("actions")}
             </TableCell>
           </TableRow>
         </TableHeader>
         <TableBody className="block w-full space-y-3 lg:table-row-group lg:space-y-0 lg:divide-y lg:divide-gray-100 dark:lg:divide-gray-800">
-          {members.map((member) => (
-            <TableRow
-              key={member.id}
-              className={`grid w-full grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 lg:table-row lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-gray-100 lg:p-0 dark:lg:border-gray-800 ${
-                selectedId === member.id
-                  ? "bg-brand-50/50 dark:bg-brand-500/10"
-                  : ""
-              }`}
-            >
-              <TableCell className="col-span-2 px-0 py-0 align-middle lg:table-cell lg:px-5 lg:py-3.5">
-                <div className="flex min-w-0 items-center gap-3">
-                  {member.user?.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={member.user.avatarUrl}
-                      alt={member.user.fullName || member.user.email}
-                      className="size-9.5 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
-                    />
-                  ) : (
-                    <span
-                      aria-hidden="true"
-                      className="flex size-9.5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 ring-1 ring-brand-500/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20"
-                    >
-                      {(
-                        member.user?.fullName ||
-                        member.user?.email ||
-                        member.userId ||
-                        "M"
-                      )
-                        .charAt(0)
-                        .toUpperCase()}
-                    </span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-gray-900 dark:text-white/90">
-                      {member.user?.fullName ||
-                        member.user?.email ||
-                        member.userId}
-                    </span>
-                    <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
-                      {member.user?.fullName
-                        ? member.user.email
-                        : t("projectMember")}
-                    </span>
-                  </div>
-                </div>
-              </TableCell>
-
-              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5">
-                <span className="text-xs font-medium text-gray-500 lg:sr-only">
-                  {t("accessLevel")}
-                </span>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50/70 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    className="h-3.5 w-3.5 shrink-0 text-gray-400"
-                  >
-                    <circle
-                      cx="6.25"
-                      cy="5.5"
-                      r="2.25"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                    />
-                    <path
-                      d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                    />
-                    <path
-                      d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                      strokeLinecap="round"
-                    />
-                  </svg>
-                  {t("projectScope")}
-                </span>
-              </TableCell>
-
-              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
-                <span className="text-xs font-medium text-gray-500 lg:sr-only">
-                  {t("joinedAt")}
-                </span>
-                <time
-                  dateTime={member.joinedAt}
-                  className="text-xs font-medium tabular-nums sm:text-sm lg:font-normal"
-                >
-                  {format.dateTime(new Date(member.joinedAt), {
-                    dateStyle: "medium",
-                    timeZone: "UTC",
-                  })}
-                </time>
-              </TableCell>
-
-              <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:justify-start lg:px-5 lg:py-3.5">
-                <span className="text-xs font-medium text-gray-500 lg:sr-only">
-                  {t("statusColumn")}
-                </span>
-                <span
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
-                    member.status === "ACTIVE"
-                      ? "bg-success-50 text-success-700 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400"
-                      : "bg-gray-100 text-gray-600 ring-1 ring-gray-400/20 dark:bg-gray-800 dark:text-gray-400"
-                  }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`size-1.5 rounded-full ${
-                      member.status === "ACTIVE"
-                        ? "bg-success-600 dark:bg-success-400"
-                        : "bg-gray-400 dark:bg-gray-500"
-                    }`}
-                  />
-                  {t(member.status)}
-                </span>
-              </TableCell>
-
-              <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-3.5 lg:pt-0">
-                <div className="flex items-center justify-end gap-1.5">
-                  <button
-                    type="button"
-                    disabled={disabled}
-                    title={t("memberDetails")}
-                    aria-label={t("viewMember", {
-                      userId:
-                        member.user?.fullName ||
-                        member.user?.email ||
-                        member.userId,
-                    })}
-                    aria-pressed={selectedId === member.id}
-                    onClick={() => onSelect(member.id)}
-                    className={`inline-flex size-8 shrink-0 items-center justify-center rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 ${
-                      selectedId === member.id
-                        ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                        : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                    }`}
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
-                    >
-                      <path
-                        d="M3.5 8h9M9 4.5L12.5 8 9 11.5"
-                        stroke="currentColor"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
+          {members.map((member) => {
+            const isLeader = Boolean(leaderUserIds?.has(member.userId));
+            const isBusyLeader = leaderBusyUserId === member.userId;
+            return (
+              <TableRow
+                key={member.id}
+                className={`grid w-full grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 lg:table-row lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-gray-100 lg:p-0 dark:lg:border-gray-800 ${
+                  selectedId === member.id
+                    ? "bg-brand-50/50 dark:bg-brand-500/10"
+                    : ""
+                }`}
+              >
+                <TableCell className="col-span-2 px-0 py-0 align-middle lg:table-cell lg:px-5 lg:py-3.5">
+                  <div className="flex min-w-0 items-center gap-3">
+                    {member.user?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={member.user.avatarUrl}
+                        alt={member.user.fullName || member.user.email}
+                        className="size-9.5 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
                       />
-                    </svg>
-                  </button>
-                  {member.status === "ACTIVE" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={removeDisabled}
-                      startIcon={
+                    ) : (
+                      <span
+                        aria-hidden="true"
+                        className="flex size-9.5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 ring-1 ring-brand-500/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20"
+                      >
+                        {(
+                          member.user?.fullName ||
+                          member.user?.email ||
+                          member.userId ||
+                          "M"
+                        )
+                          .charAt(0)
+                          .toUpperCase()}
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium text-gray-900 dark:text-white/90">
+                        {member.user?.fullName ||
+                          member.user?.email ||
+                          member.userId}
+                      </span>
+                      <span className="mt-0.5 block truncate text-xs text-gray-500 dark:text-gray-400">
+                        {member.user?.fullName
+                          ? member.user.email
+                          : t("projectMember")}
+                      </span>
+                    </div>
+                  </div>
+                </TableCell>
+
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                    {t("accessLevel")}
+                  </span>
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap lg:justify-start">
+                    {isLeader && (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
                         <svg
                           aria-hidden="true"
                           viewBox="0 0 16 16"
@@ -257,24 +164,189 @@ export default function MemberDirectory({
                           className="h-3.5 w-3.5 shrink-0"
                         >
                           <path
-                            d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
+                            d="M8 2.25l1.65 3.35 3.7.54-2.68 2.61.63 3.68L8 10.7l-3.3 1.73.63-3.68L2.65 6.14l3.7-.54L8 2.25Z"
                             stroke="currentColor"
-                            strokeWidth="1.4"
-                            strokeLinecap="round"
+                            strokeWidth="1.35"
                             strokeLinejoin="round"
                           />
                         </svg>
-                      }
-                      onClick={() => onRemove(member)}
-                      className="h-8 cursor-pointer border-gray-200 px-2.5 text-xs text-error-600! hover:border-error-200 hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:hover:bg-error-950/20"
+                        {t("projectLeaderBadge")}
+                      </span>
+                    )}
+                    <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50/70 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        className="h-3.5 w-3.5 shrink-0 text-gray-400"
+                      >
+                        <circle
+                          cx="6.25"
+                          cy="5.5"
+                          r="2.25"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                        />
+                        <path
+                          d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                        />
+                        <path
+                          d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
+                          stroke="currentColor"
+                          strokeWidth="1.4"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      {t("projectScope")}
+                    </span>
+                  </div>
+                </TableCell>
+
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                    {t("joinedAt")}
+                  </span>
+                  <time
+                    dateTime={member.joinedAt}
+                    className="text-xs font-medium tabular-nums sm:text-sm lg:font-normal"
+                  >
+                    {format.dateTime(new Date(member.joinedAt), {
+                      dateStyle: "medium",
+                      timeZone: "UTC",
+                    })}
+                  </time>
+                </TableCell>
+
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:justify-start lg:px-5 lg:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                    {t("statusColumn")}
+                  </span>
+                  <span
+                    className={`inline-flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium whitespace-nowrap ${
+                      member.status === "ACTIVE"
+                        ? "bg-success-50 text-success-700 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400"
+                        : "bg-gray-100 text-gray-600 ring-1 ring-gray-400/20 dark:bg-gray-800 dark:text-gray-400"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`size-1.5 rounded-full ${
+                        member.status === "ACTIVE"
+                          ? "bg-success-600 dark:bg-success-400"
+                          : "bg-gray-400 dark:bg-gray-500"
+                      }`}
+                    />
+                    {t(member.status)}
+                  </span>
+                </TableCell>
+
+                <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-3.5 lg:pt-0">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      title={t("memberDetails")}
+                      aria-label={t("viewMember", {
+                        userId:
+                          member.user?.fullName ||
+                          member.user?.email ||
+                          member.userId,
+                      })}
+                      aria-pressed={selectedId === member.id}
+                      onClick={() => onSelect(member.id)}
+                      className={`inline-flex size-8 shrink-0 items-center justify-center rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                        selectedId === member.id
+                          ? "border-brand-500 bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      }`}
                     >
-                      {t("remove")}
-                    </Button>
-                  )}
-                </div>
-              </TableCell>
-            </TableRow>
-          ))}
+                      <svg
+                        aria-hidden="true"
+                        viewBox="0 0 16 16"
+                        fill="none"
+                        className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
+                      >
+                        <path
+                          d="M3.5 8h9M9 4.5L12.5 8 9 11.5"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </svg>
+                    </button>
+
+                    {canManageLeaders &&
+                      member.status === "ACTIVE" &&
+                      onToggleLeader && (
+                        <button
+                          type="button"
+                          disabled={disabled || Boolean(leaderBusyUserId)}
+                          onClick={() => onToggleLeader(member, isLeader)}
+                          className={`inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 ${
+                            isLeader
+                              ? "border-warning-200 bg-warning-50/60 text-warning-700 hover:border-warning-300 hover:bg-warning-100/70 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:hover:bg-warning-500/20"
+                              : "border-brand-200 bg-brand-50/60 text-brand-700 hover:border-brand-300 hover:bg-brand-100/70 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                          }`}
+                        >
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            className="h-3.5 w-3.5 shrink-0"
+                          >
+                            <path
+                              d="M8 2.25l1.65 3.35 3.7.54-2.68 2.61.63 3.68L8 10.7l-3.3 1.73.63-3.68L2.65 6.14l3.7-.54L8 2.25Z"
+                              stroke="currentColor"
+                              strokeWidth="1.35"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          {isLeader
+                            ? t(isBusyLeader ? "revokingLeader" : "revokeLeader")
+                            : t(
+                                isBusyLeader
+                                  ? "appointingLeader"
+                                  : "appointLeader",
+                              )}
+                        </button>
+                      )}
+
+                    {member.status === "ACTIVE" && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={removeDisabled}
+                        startIcon={
+                          <svg
+                            aria-hidden="true"
+                            viewBox="0 0 16 16"
+                            fill="none"
+                            className="h-3.5 w-3.5 shrink-0"
+                          >
+                            <path
+                              d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
+                              stroke="currentColor"
+                              strokeWidth="1.4"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                        }
+                        onClick={() => onRemove(member)}
+                        className="h-8 cursor-pointer border-gray-200 px-2.5 text-xs text-error-600! hover:border-error-200 hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:hover:bg-error-950/20"
+                      >
+                        {t("remove")}
+                      </Button>
+                    )}
+                  </div>
+                </TableCell>
+              </TableRow>
+            );
+          })}
         </TableBody>
       </Table>
     </div>

@@ -109,8 +109,10 @@ function FieldIcon({ kind }: { kind: "user" | "scope" | "status" | "date" }) {
 
 export default function MemberDetails({
   member,
+  isLeader = false,
 }: {
   member: ProjectMembership;
+  isLeader?: boolean;
 }) {
   const t = useTranslations("projectMembers");
   const format = useFormatter();
@@ -152,7 +154,9 @@ export default function MemberDetails({
       : []),
     {
       label: "accessLevel",
-      value: t("projectScope"),
+      value: isLeader
+        ? `${t("projectLeaderBadge")} · ${t("projectScope")}`
+        : t("projectScope"),
       icon: "scope",
       isDate: false,
     },

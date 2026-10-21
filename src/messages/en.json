@@ -678,7 +678,6 @@
     "googleSelectOrganization": "Choose an organization",
     "googleSelectOrganizationDescription": "This Google account belongs to more than one organization. Choose where you want to continue.",
     "organizationDataScopeNotice": "Projects, members, and knowledge are scoped to the organization you choose.",
-    "backToSignIn": "Back to sign in",
     "or": "Or",
     "invalidCredentials": "Email or password is incorrect.",
     "organizationRequired": "Choose an organization to continue.",
@@ -2079,7 +2078,15 @@
     "joinedProject": "Joined Project",
     "currentStatus": "Current membership status",
     "membershipRecordHint": "Status reflects the stored membership record.",
-    "addDescription": "Add an existing active member of this Organization."
+    "addDescription": "Add an existing active member of this Organization.",
+    "projectLeaderBadge": "Leader",
+    "appointLeader": "Set as Leader",
+    "appointingLeader": "Saving…",
+    "revokeLeader": "Revoke Leader",
+    "revokingLeader": "Revoking…",
+    "leaderAppointed": "Member appointed as Project Leader.",
+    "leaderRevoked": "Project Leader role revoked.",
+    "leaderActionFailed": "The Leader change could not be completed. Refresh and try again."
   },
   "workNotes": {
     "title": "Work Notes",
@@ -2549,7 +2556,6 @@
     "fullName": "Full name",
     "signupAction": "Create account",
     "signupAgreement": "By creating an account, you agree to the Terms and Conditions and Privacy Policy.",
-
     "home": "Home",
     "join": "Create account",
     "workspaceSetup": "Workspace setup",
