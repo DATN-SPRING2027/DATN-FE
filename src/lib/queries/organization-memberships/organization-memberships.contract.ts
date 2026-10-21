@@ -11,6 +11,8 @@ export type OrganizationMembershipStatus =
   (typeof organizationMembershipStatuses)[number];
 export type MembershipListStatus = OrganizationMembershipStatus;
 export type OrganizationRoleCode = "ADMIN" | "MEMBER";
+export type InvitationAccessScope = "ORGANIZATION" | "SPECIFIC_PROJECTS";
+export type InvitationExpiryDays = 7 | 14 | 30;
 export type MembershipActionReason = "ACCESS_REQUEST" | "ACCESS_REVIEW";
 export type SuspensionReason = "SECURITY_INCIDENT" | "ACCESS_REVIEW";
 
@@ -121,6 +123,12 @@ export type OrganizationMutationAck =
   | InvitationMutationAck
   | OrganizationRoleMutationAck;
 export type InviteMemberInput = Readonly<{
+  roleCode?: OrganizationRoleCode;
+  accessScope?: InvitationAccessScope;
+  projectIds?: readonly string[];
+  message?: string;
+  expiresInDays?: InvitationExpiryDays;
+  requireApproval?: boolean;
   email: string;
   reasonCode: MembershipActionReason;
 }>;

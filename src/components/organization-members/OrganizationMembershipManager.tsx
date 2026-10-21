@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
@@ -137,6 +138,9 @@ function ScopedOrganizationMemberships({
 }) {
   const t = useTranslations("organizationMembers");
   const canManage = canManageOrganizationMemberships(currentUser);
+  const queryClient = useQueryClient();
+  const cachedOrganizations = queryClient.getQueryData<readonly { id: string; name: string }[]>(["auth", "organizations"]);
+  const organizationName = cachedOrganizations?.find((org) => org.id === organizationId)?.name;
   const inviteDialog = useModal();
   const [activeTab, setActiveTab] = useState<DirectoryTab>("members");
   const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
@@ -164,6 +168,7 @@ function ScopedOrganizationMemberships({
   const suspend = useSuspendOrganizationMembership(actorId, organizationId);
   const roleChange = useSetOrganizationMembershipRole(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
   const inviteAttempt = useRef<{ input: InviteMemberInput; idempotencyKey: string } | null>(null);
   const roleAttempt = useRef<{
     input: SetOrganizationMembershipRoleInput & { membershipId: string };
@@ -201,6 +206,7 @@ function ScopedOrganizationMemberships({
         resetActionMutation(target);
         setTarget(null);
         setNotice(false);
+        setResendSuccess(false);
       } else {
         setActionRefreshFailed(true);
       }
@@ -218,6 +224,7 @@ function ScopedOrganizationMemberships({
     resend.reset();
     cancel.reset();
     setNotice(false);
+    setResendSuccess(false);
     setActionRefreshFailed(false);
     setTarget(next);
   }
@@ -238,7 +245,7 @@ function ScopedOrganizationMemberships({
     if (!canSendInvitation || invite.isPending || hasUnresolvedMutation) return;
     const previousAttempt = inviteAttempt.current;
     const idempotencyKey =
-      previousAttempt?.input.email === input.email && previousAttempt.input.reasonCode === input.reasonCode
+      previousAttempt && JSON.stringify(previousAttempt.input) === JSON.stringify(input)
         ? previousAttempt.idempotencyKey
         : createIdempotencyKey();
     inviteAttempt.current = { input, idempotencyKey };
@@ -246,7 +253,6 @@ function ScopedOrganizationMemberships({
     try {
       await invite.mutateAsync({ input, idempotencyKey });
       inviteAttempt.current = null;
-      inviteDialog.closeModal();
       setInviteSuccess(true);
     } catch {
       // Keep the exact request and idempotency key available for a safe retry.
@@ -255,6 +261,7 @@ function ScopedOrganizationMemberships({
 
   function closeAction() {
     if (actionMutation?.isPending || actionMutation?.isError) return;
+    setResendSuccess(false);
     setTarget(null);
   }
 
@@ -270,7 +277,7 @@ function ScopedOrganizationMemberships({
         idempotencyKey,
       });
     } else if (actionTarget.action === "resend") {
-      await resend.mutateAsync({
+      const ack = await resend.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
           expectedMembershipVersion: 0,
@@ -279,6 +286,20 @@ function ScopedOrganizationMemberships({
         },
         idempotencyKey,
       });
+      if ("invitation" in ack && ack.invitation) {
+        setTarget({
+          action: "resend",
+          invitation: {
+            ...actionTarget.invitation,
+            status: ack.invitation.status,
+            version: ack.invitation.version,
+            expiresAt: ack.invitation.expiresAt,
+          },
+        });
+      }
+      setResendSuccess(true);
+      setNotice(true);
+      return;
     } else {
       await cancel.mutateAsync({
         input: {
@@ -321,6 +342,7 @@ function ScopedOrganizationMemberships({
     roleChange.reset();
     setRoleRefreshFailed(false);
     setNotice(false);
+    setResendSuccess(false);
     setRoleTarget(membership);
   }
 
@@ -377,6 +399,7 @@ function ScopedOrganizationMemberships({
         roleAttempt.current = null;
         setRoleTarget(null);
         setNotice(false);
+        setResendSuccess(false);
       } else {
         setRoleRefreshFailed(true);
       }
@@ -597,6 +620,9 @@ function ScopedOrganizationMemberships({
         target={target}
         error={modalError}
         isPending={actionMutation?.isPending ?? false}
+        isSuccess={target?.action === "resend" && resendSuccess}
+        onDismissError={() => { resetActionMutation(target); setResendSuccess(false); setTarget(null); }}
+        onResendAgain={() => { resend.reset(); setResendSuccess(false); }}
         onClose={closeAction}
         onConfirm={confirmAction}
         onRetry={retryAction}
@@ -620,6 +646,12 @@ function ScopedOrganizationMemberships({
         isOpen={inviteDialog.isOpen}
         canSend={canSendInvitation}
         isPending={invite.isPending}
+        isSuccess={inviteSuccess}
+        organizationId={organizationId}
+        organizationName={organizationName}
+        allowedRoles={currentUser?.roles?.includes("ADMIN") ? ["MEMBER", "ADMIN"] : ["MEMBER"]}
+        onInviteAnother={() => { setInviteSuccess(false); invite.reset(); inviteAttempt.current = null; }}
+        onClearError={() => { invite.reset(); }}
         error={invite.isError ? invite.error : undefined}
         onClose={closeInviteDialog}
         onSubmit={(input) => { void submitInvite(input); }}
