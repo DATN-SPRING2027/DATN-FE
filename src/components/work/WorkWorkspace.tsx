@@ -528,7 +528,11 @@ export default function WorkWorkspace({
             onClick={() => setCreateOpen(true)}
             className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
           >
-            <PlusIcon className="h-4 w-4" aria-hidden="true" />
+            <PlusIcon
+              viewBox="0 0 12 12"
+              className="h-4 w-4"
+              aria-hidden="true"
+            />
             {t("create")}
           </button>
         </div>

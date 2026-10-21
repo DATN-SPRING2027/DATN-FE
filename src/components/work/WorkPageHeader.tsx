@@ -180,7 +180,11 @@ export default function WorkPageHeader({
               onClick={onCreate}
               className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 text-sm font-medium text-white shadow-theme-xs transition-colors hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
-              <PlusIcon className="h-4 w-4" aria-hidden="true" />
+              <PlusIcon
+                viewBox="0 0 12 12"
+                className="h-4 w-4"
+                aria-hidden="true"
+              />
               {t("create")}
             </button>
           )}
@@ -207,7 +211,11 @@ export default function WorkPageHeader({
                     : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"
                 }`}
               >
-                <Icon className="h-4 w-4" aria-hidden="true" />
+                <Icon
+                  viewBox="0 0 24 24"
+                  className="h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
                 {label}
               </button>
             );

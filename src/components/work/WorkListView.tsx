@@ -216,7 +216,7 @@ export default function WorkListView({
   const totalColSpan = visibleColumns.length + 2; // Checkbox + visible columns + Config/More col
 
   return (
-    <div className="relative min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+    <div className="relative min-w-0 overflow-hidden rounded-xl border border-gray-300 bg-white shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
       {/* Column Manager Popover (+ button or [|||] button) */}
       {columnPopoverOpen && (
         <div
@@ -227,6 +227,7 @@ export default function WorkListView({
           <div className="relative mb-2.5">
             <SearchIcon
               aria-hidden="true"
+              viewBox="0 0 24 24"
               width={14}
               height={14}
               className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
@@ -279,11 +280,11 @@ export default function WorkListView({
       <div className="min-w-0 overflow-x-auto">
         <Table className="min-w-max border-collapse text-sm">
           <caption className="sr-only">{t("listCaption")}</caption>
-          <thead className="border-b border-gray-200 bg-gray-50/90 dark:border-gray-800 dark:bg-gray-800/70">
+          <thead className="border-b border-gray-300 bg-gray-100/80 dark:border-gray-700 dark:bg-gray-800/80">
             <tr>
               <th
                 scope="col"
-                className="w-10 border-e border-gray-200/70 px-3 py-2.5 text-start dark:border-gray-800"
+                className="w-10 border-b border-e border-gray-300 px-3 py-2.5 text-start dark:border-gray-700"
               >
                 <input
                   type="checkbox"
@@ -302,7 +303,7 @@ export default function WorkListView({
                     width: `${col.width}px`,
                     minWidth: `${col.minWidth}px`,
                   }}
-                  className="group relative select-none border-e border-gray-200/70 px-3 py-2.5 text-start text-xs font-semibold text-gray-600 dark:border-gray-800 dark:text-gray-300"
+                  className="group relative select-none border-b border-e border-gray-300 px-3 py-2.5 text-start text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-200"
                 >
                   <div className="flex items-center justify-between gap-1.5">
                     <div className="flex items-center gap-1.5">
@@ -350,7 +351,7 @@ export default function WorkListView({
               {/* Rightmost Configure Columns Header [|||] (Jira Figure 4) */}
               <th
                 scope="col"
-                className="w-11 px-2 py-2.5 text-center text-xs font-semibold text-gray-500"
+                className="w-11 border-b border-gray-300 px-2 py-2.5 text-center text-xs font-semibold text-gray-500 dark:border-gray-700"
               >
                 <button
                   type="button"
@@ -369,7 +370,7 @@ export default function WorkListView({
             </tr>
           </thead>
 
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+          <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
             {groups.map((group) => {
               const isGroupCollapsed = collapsedGroups.has(group.id);
               return (
@@ -378,12 +379,12 @@ export default function WorkListView({
                     <tr
                       key={`${group.id}-heading`}
                       onClick={() => toggleGroupCollapse(group.id)}
-                      className="cursor-pointer bg-gray-50/90 transition hover:bg-gray-100/80 dark:bg-gray-800/50 dark:hover:bg-gray-800"
+                      className="cursor-pointer border-b border-gray-200 bg-gray-100/70 transition hover:bg-gray-200/60 dark:border-gray-700 dark:bg-gray-800/70 dark:hover:bg-gray-800"
                     >
                       <th
                         colSpan={totalColSpan}
                         scope="rowgroup"
-                        className="px-3.5 py-2 text-start text-xs font-semibold text-gray-700 dark:text-gray-300"
+                        className="border-b border-gray-200 px-3.5 py-2 text-start text-xs font-semibold text-gray-700 dark:border-gray-700 dark:text-gray-300"
                       >
                         <span className="inline-flex items-center gap-2">
                           <span
@@ -429,7 +430,7 @@ export default function WorkListView({
                         <Fragment key={item.id}>
                           <tr className={`transition-colors ${rowBgClass}`}>
                             {/* Checkbox cell */}
-                            <td className="border-e border-gray-100 px-3 py-2.5 align-middle dark:border-gray-800/70">
+                            <td className="border-b border-e border-gray-200 px-3 py-2.5 align-middle dark:border-gray-700">
                               <input
                                 type="checkbox"
                                 aria-label={t("selectWorkItem", {
@@ -449,7 +450,7 @@ export default function WorkListView({
                                   width: `${col.width}px`,
                                   minWidth: `${col.minWidth}px`,
                                 }}
-                                className="border-e border-gray-100 px-3 py-2.5 align-middle dark:border-gray-800/70"
+                                className="border-b border-e border-gray-200 px-3 py-2.5 align-middle dark:border-gray-700"
                               >
                                 {renderCellContent({
                                   colKey: col.key,
@@ -477,7 +478,7 @@ export default function WorkListView({
                             ))}
 
                             {/* Rightmost Row Actions (···) — Jira Figure 1 */}
-                            <td className="relative px-2 py-2.5 text-center align-middle">
+                            <td className="relative border-b border-gray-200 px-2 py-2.5 text-center align-middle dark:border-gray-700">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -607,9 +608,9 @@ export default function WorkListView({
                             item.subtaskItems?.map((sub) => (
                               <tr
                                 key={sub.id}
-                                className="bg-gray-50/60 dark:bg-gray-950/40"
+                                className="bg-gray-50/80 dark:bg-gray-950/40"
                               >
-                                <td className="border-e border-gray-100 px-3 py-2 align-middle dark:border-gray-800/70">
+                                <td className="border-b border-e border-gray-200 px-3 py-2 align-middle dark:border-gray-700">
                                   <input
                                     type="checkbox"
                                     checked={sub.done}
@@ -623,7 +624,7 @@ export default function WorkListView({
                                 {visibleColumns.map((col) => (
                                   <td
                                     key={col.key}
-                                    className="border-e border-gray-100 px-3 py-2 align-middle text-xs dark:border-gray-800/70"
+                                    className="border-b border-e border-gray-200 px-3 py-2 align-middle text-xs dark:border-gray-700"
                                   >
                                     {col.key === "work" ? (
                                       <div className="flex items-center gap-2 ps-5">
@@ -669,7 +670,7 @@ export default function WorkListView({
                                     )}
                                   </td>
                                 ))}
-                                <td className="px-2 py-2 text-center text-[10px] text-gray-400">
+                                <td className="border-b border-gray-200 px-2 py-2 text-center text-[10px] text-gray-400 dark:border-gray-700">
                                   Sub
                                 </td>
                               </tr>
@@ -684,8 +685,11 @@ export default function WorkListView({
             {/* Inline Spreadsheet Quick Create Row (`inlineCreate.js`) */}
             {inlineCreating && onInlineCreate && (
               <tr className="bg-brand-50/30 dark:bg-brand-500/5">
-                <td className="border-e border-gray-100 px-3 py-2.5 dark:border-gray-800" />
-                <td colSpan={totalColSpan - 1} className="px-3 py-2">
+                <td className="border-b border-e border-gray-200 px-3 py-2.5 dark:border-gray-700" />
+                <td
+                  colSpan={totalColSpan - 1}
+                  className="border-b border-gray-200 px-3 py-2 dark:border-gray-700"
+                >
                   <form
                     onSubmit={submitInlineCreate}
                     className="flex flex-wrap items-center gap-2"
@@ -733,7 +737,7 @@ export default function WorkListView({
       </div>
 
       {/* Jira Spreadsheet Sticky Footer (`table-footer`) */}
-      <footer className="flex flex-col gap-2 border-t border-gray-200 bg-gray-50/60 px-4 py-2.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
+      <footer className="flex flex-col gap-2 border-t border-gray-300 bg-gray-50/90 px-4 py-2.5 text-xs text-gray-500 dark:border-gray-700 dark:bg-gray-900/80 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           {onInlineCreate && !inlineCreating && (
             <button
@@ -741,7 +745,11 @@ export default function WorkListView({
               onClick={() => setInlineCreating(true)}
               className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md border border-transparent px-2 font-semibold text-gray-700 transition hover:border-gray-200 hover:bg-white hover:text-brand-600 dark:text-gray-200 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-brand-400"
             >
-              <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              <PlusIcon
+                viewBox="0 0 12 12"
+                className="h-3.5 w-3.5"
+                aria-hidden="true"
+              />
               <span>Create</span>
             </button>
           )}

@@ -22,35 +22,64 @@ export default function WorkOverviewRecentItemsPanel({
       title={overview("recentTitle")}
       description={overview("recentDescription")}
     >
-      <ul className="divide-y divide-gray-100 dark:divide-gray-800">
+      <ul className="space-y-2.5">
         {latestItems.map((item) => {
           const createdDate = format.dateTime(new Date(item.createdAt), {
             dateStyle: "medium",
             timeZone: "UTC",
           });
+          const typeBadge =
+            item.type === "BUG"
+              ? {
+                  symbol: "🐛",
+                  cls: "border-error-200 bg-error-50 text-error-600 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-400",
+                }
+              : item.type === "STORY"
+                ? {
+                    symbol: "🔖",
+                    cls: "border-success-200 bg-success-50 text-success-600 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-400",
+                  }
+                : {
+                    symbol: "✓",
+                    cls: "border-brand-200 bg-brand-50 text-brand-600 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-400",
+                  };
+
           return (
             <li key={item.id}>
               <button
                 type="button"
                 aria-label={t("openWorkItem", { key: item.key, title: item.title })}
                 onClick={(event) => onOpenItem(item, event.currentTarget)}
-                className="flex w-full cursor-pointer items-center gap-3 py-3 text-start transition-colors first:pt-0 last:pb-0 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800/50"
+                className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-start transition-colors hover:border-brand-300 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500 dark:hover:bg-gray-800/60"
               >
-                <span aria-hidden="true" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                  {item.assignee.initials}
+                <span
+                  aria-hidden="true"
+                  className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-bold ${typeBadge.cls}`}
+                >
+                  {typeBadge.symbol}
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium text-gray-900 dark:text-white/90">
-                    <span className="text-brand-600 dark:text-brand-400">{item.key}</span>
+                    <span className="font-semibold text-brand-600 dark:text-brand-400">
+                      {item.key}
+                    </span>
                     <span aria-hidden="true"> · </span>
                     {item.title}
                   </span>
-                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                    {overview("createdOn", { date: createdDate })}
+                  <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
+                    {overview("createdOn", { date: createdDate })} ·{" "}
+                    {item.assignee.name}
                   </span>
                 </span>
-                <span className="hidden shrink-0 sm:inline-flex">
+                <span className="hidden shrink-0 items-center gap-2 sm:inline-flex">
                   <WorkStatusBadge status={item.status} />
+                  <span
+                    aria-hidden="true"
+                    title={item.assignee.name}
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[10px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                  >
+                    {item.assignee.initials}
+                  </span>
                 </span>
               </button>
             </li>

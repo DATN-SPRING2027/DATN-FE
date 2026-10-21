@@ -154,25 +154,49 @@ export default function WorkOverviewView({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetricCard
-          icon={<TaskIcon className="h-5 w-5" aria-hidden="true" />}
+          icon={
+            <TaskIcon
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+          }
           label={overview("totalItems")}
           value={items.length}
           hint={overview("currentView")}
         />
         <OverviewMetricCard
-          icon={<CheckCircleIcon className="h-5 w-5" aria-hidden="true" />}
+          icon={
+            <CheckCircleIcon
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+          }
           label={overview("completedItems")}
           value={statusCounts.DONE}
           hint={overview("currentView")}
         />
         <OverviewMetricCard
-          icon={<TimeIcon className="h-5 w-5" aria-hidden="true" />}
+          icon={
+            <TimeIcon
+              viewBox="0 0 20 20"
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+          }
           label={overview("inProgressItems")}
           value={statusCounts.IN_PROGRESS}
           hint={overview("currentView")}
         />
         <OverviewMetricCard
-          icon={<CalenderIcon className="h-5 w-5" aria-hidden="true" />}
+          icon={
+            <CalenderIcon
+              viewBox="0 0 24 24"
+              className="h-5 w-5"
+              aria-hidden="true"
+            />
+          }
           label={overview("unscheduledItems")}
           value={unscheduledCount}
           hint={overview("currentView")}

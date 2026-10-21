@@ -115,6 +115,7 @@ export default function WorkItemDetailDialog({
               >
                 <span className="inline-flex items-center gap-1.5">
                   <TaskIcon
+                    viewBox="0 0 24 24"
                     className="h-3.5 w-3.5 text-brand-500"
                     aria-hidden="true"
                   />
@@ -147,7 +148,11 @@ export default function WorkItemDetailDialog({
               aria-label={t("closeDetails")}
               className="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-50 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
             >
-              <CloseLineIcon className="h-5 w-5" aria-hidden="true" />
+              <CloseLineIcon
+                viewBox="0 0 17 16"
+                className="h-5 w-5"
+                aria-hidden="true"
+              />
             </button>
           </header>
 

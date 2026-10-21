@@ -162,7 +162,11 @@ export default function WorkBoardView({
                       }}
                       className="inline-flex w-full cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-white"
                     >
-                      <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                      <PlusIcon
+                        viewBox="0 0 12 12"
+                        className="h-3.5 w-3.5"
+                        aria-hidden="true"
+                      />
                       Create issue
                     </button>
                   )}
@@ -235,7 +239,11 @@ function WorkCard({
 
         <div className="mt-3 flex items-center justify-between border-t border-gray-100 pt-2.5 dark:border-gray-800">
           <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-            <TaskIcon className="h-3.5 w-3.5" aria-hidden="true" />
+            <TaskIcon
+              viewBox="0 0 24 24"
+              className="h-3.5 w-3.5"
+              aria-hidden="true"
+            />
             {t("subtasks")}
             <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] dark:bg-gray-800">
               {t("subtaskProgress", {
