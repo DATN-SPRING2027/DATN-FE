@@ -228,7 +228,19 @@ describe("Organization membership management page", () => {
         return mutationAck("ACTIVE");
       }
       if (endpoint.endsWith("/remove") && options?.method === "POST") {
-        throw new ApiError(409, "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP", "Active leader");
+        throw new ApiError(
+          409,
+          "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP",
+          "Active leader",
+          undefined,
+          false,
+          {
+            projectIds: ["6123456789abcdef01234567"],
+            blockingProjects: [
+              { id: "6123456789abcdef01234567", code: "CORE-AI", name: "Continuum Core Engine" },
+            ],
+          },
+        );
       }
       throw new Error(`Unexpected request ${endpoint}`);
     });
@@ -248,6 +260,10 @@ describe("Organization membership management page", () => {
     expect(within(removeDialog).getByText(/Removing a member deactivates their non-leader project memberships/)).toBeVisible();
     fireEvent.click(within(removeDialog).getByRole("button", { name: "Confirm removal" }));
     expect(await within(removeDialog).findByText(/This member is currently an active Project Leader/)).toBeVisible();
+    expect(within(removeDialog).getByRole("link", { name: /Continuum Core Engine \(CORE-AI\)/ })).toHaveAttribute(
+      "href",
+      "/projects/6123456789abcdef01234567/members",
+    );
   });
 
   it("renders a permission denial as an error rather than an empty directory", async () => {

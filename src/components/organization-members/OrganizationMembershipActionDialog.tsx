@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Alert from "@/components/ui/alert/Alert";
@@ -673,7 +674,7 @@ export default function OrganizationMembershipActionDialog({
     value: MembershipActionReasonCode;
     label: string;
   }[] =
-    activeTarget.action === "resume"
+    activeTarget.action === "resume" || activeTarget.action === "remove"
       ? [
           { value: "ACCESS_REQUEST", label: t("accessRequest") },
           { value: "ACCESS_REVIEW", label: t("accessReview") },
@@ -685,6 +686,27 @@ export default function OrganizationMembershipActionDialog({
             { value: "ACCESS_REVIEW", label: t("accessReview") },
           ]
         : [];
+
+  const blockingProjects: readonly {
+    id: string;
+    code?: string;
+    name?: string;
+  }[] =
+    error instanceof ApiError &&
+    error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP"
+      ? Array.isArray(error.details?.blockingProjects)
+        ? error.details.blockingProjects.filter(
+            (item): item is { id: string; code?: string; name?: string } =>
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as Record<string, unknown>).id === "string",
+          )
+        : Array.isArray(error.details?.projectIds)
+          ? error.details.projectIds
+              .filter((id): id is string => typeof id === "string")
+              .map((id) => ({ id }))
+          : []
+      : [];
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -793,6 +815,24 @@ export default function OrganizationMembershipActionDialog({
               title={t("errorTitle")}
               message={t(getErrorMessageKey(error))}
             />
+            {blockingProjects.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {blockingProjects.map((project) => (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${encodeURIComponent(project.id)}/members`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-error-200 bg-white px-3 py-1.5 text-xs font-semibold text-error-700 transition hover:bg-error-50 dark:border-error-500/30 dark:bg-gray-900 dark:text-error-300 dark:hover:bg-error-500/15"
+                  >
+                    <span>
+                      {project.name
+                        ? `${project.name}${project.code ? ` (${project.code})` : ""}`
+                        : project.id}
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                ))}
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 size="sm"

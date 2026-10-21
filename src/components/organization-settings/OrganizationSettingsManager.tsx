@@ -54,7 +54,7 @@ function SettingsForm({
   organizationId: string;
   settings: OrganizationSettingsSummary;
   canEdit: boolean;
-  onRefetch: () => void;
+  onRefetch: () => Promise<OrganizationSettingsSummary | undefined>;
 }) {
   const t = useTranslations("organizationSettings");
   const format = useFormatter();
@@ -176,7 +176,20 @@ function SettingsForm({
               title={t("errorTitle")}
               message={t(getSettingsErrorKey(update.error))}
             />
-            <Button size="sm" variant="outline" onClick={onRefetch}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                update.reset();
+                setValidationMessage(null);
+                setSavedNotice(false);
+                const latest = await onRefetch();
+                if (latest) {
+                  setName(latest.organization.name);
+                  setDescription(latest.organization.description ?? "");
+                }
+              }}
+            >
               {t("reloadLatest")}
             </Button>
           </div>
@@ -492,8 +505,9 @@ export default function OrganizationSettingsManager() {
         organizationId={organizationId}
         settings={settings.data}
         canEdit={canManage}
-        onRefetch={() => {
-          void settings.refetch();
+        onRefetch={async () => {
+          const result = await settings.refetch();
+          return result.data;
         }}
       />
     </div>
