@@ -2,6 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+import { acceptOrganizationInvitation } from "@/lib/queries/organization-memberships/organization-invitations";
 import {
   parseRecipientInvitationPage,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
@@ -39,6 +40,32 @@ export function useMyOrganizationInvitationsQuery(enabled: boolean) {
         await apiClient<unknown>("/auth/invitations?page=1&pageSize=20"),
       ),
     enabled,
+    retry: false,
+  });
+}
+
+export interface AcceptOrganizationInvitationInput {
+  invitationId: string;
+  organizationId: string;
+  expectedInvitationVersion: number;
+  idempotencyKey: string;
+}
+
+export function useAcceptOrganizationInvitationMutation() {
+  return useMutation({
+    mutationFn: ({
+      invitationId,
+      organizationId,
+      expectedInvitationVersion,
+      idempotencyKey,
+    }: AcceptOrganizationInvitationInput) =>
+      acceptOrganizationInvitation(
+        invitationId,
+        organizationId,
+        0,
+        expectedInvitationVersion,
+        idempotencyKey,
+      ),
     retry: false,
   });
 }

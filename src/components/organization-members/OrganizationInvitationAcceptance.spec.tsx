@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
+import { clearOrganizationInvitationAcceptanceKey } from "@/lib/queries/organization-memberships/organization-invitation-acceptance-idempotency";
 import OrganizationInvitationAcceptance from "./OrganizationInvitationAcceptance";
 
 const mocks = vi.hoisted(() => ({
@@ -69,6 +70,8 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
   window.localStorage.clear();
   window.sessionStorage.clear();
+  clearOrganizationInvitationAcceptanceKey(`organizationInvitationAccept:${invitationId}:3`);
+  clearOrganizationInvitationAcceptanceKey(`organizationInvitationAccept:${invitationId}:4`);
 });
 
 describe("Organization invitation acceptance", () => {

@@ -14,7 +14,10 @@ import {
   resolveOrganizationInvitation,
   type ResolvedOrganizationInvitation,
 } from "@/lib/queries/organization-memberships/organization-invitations";
-import { createIdempotencyKey } from "@/lib/queries/organization-memberships/organization-memberships.service";
+import {
+  clearOrganizationInvitationAcceptanceKey,
+  getOrganizationInvitationAcceptanceKey,
+} from "@/lib/queries/organization-memberships/organization-invitation-acceptance-idempotency";
 
 type LoadState = "idle" | "loading" | "error";
 
@@ -29,21 +32,6 @@ function errorKey(error: unknown): string {
 
 function sameEmail(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
-}
-
-function getAcceptanceIdempotencyKey(invitationId: string, version: number) {
-  const storageKey = `organizationInvitationAccept:${invitationId}:${version}`;
-  const existing = window.sessionStorage.getItem(storageKey);
-  if (existing && /^[A-Za-z0-9._:-]{16,128}$/.test(existing)) {
-    return { storageKey, idempotencyKey: existing };
-  }
-
-  const idempotencyKey = createIdempotencyKey();
-  if (!/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
-    throw new Error("Invitation acceptance could not be safely retried.");
-  }
-  window.sessionStorage.setItem(storageKey, idempotencyKey);
-  return { storageKey, idempotencyKey };
 }
 
 export default function OrganizationInvitationAcceptance() {
@@ -101,16 +89,12 @@ export default function OrganizationInvitationAcceptance() {
     setAccepting(true);
     setAcceptError(undefined);
     try {
-      const { storageKey, idempotencyKey } = getAcceptanceIdempotencyKey(
+      const { storageKey, idempotencyKey } = getOrganizationInvitationAcceptanceKey(
         invitation.id,
         invitation.version,
       );
       await acceptOrganizationInvitation(invitation.id, invitation.organizationId, 0, invitation.version, idempotencyKey);
-      try {
-        window.sessionStorage.removeItem(storageKey);
-      } catch {
-        // A completed server operation remains safe to retry with its saved key.
-      }
+      clearOrganizationInvitationAcceptanceKey(storageKey);
       router.replace("/onboarding");
     } catch (error) {
       setAcceptError(error);
