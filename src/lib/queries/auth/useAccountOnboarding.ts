@@ -44,6 +44,17 @@ export function useMyOrganizationInvitationsQuery(enabled: boolean) {
   });
 }
 
+export function useCreateOrganizationMutation() {
+  return useMutation({
+    mutationFn: (input: { name: string; slug: string }) =>
+      apiClient<OrganizationOption>("/iam/organizations", {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
 export interface AcceptOrganizationInvitationInput {
   invitationId: string;
   organizationId: string;
