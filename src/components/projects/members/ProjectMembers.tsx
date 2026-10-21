@@ -242,7 +242,7 @@ function ScopedProjectMembers({
           role="alert"
           className="rounded-xl border border-error-200 bg-error-50/60 px-4 py-3 text-sm text-error-700 dark:border-error-500/25 dark:bg-error-500/10 dark:text-error-300"
         >
-          {soleLeaderBlocked
+          {soleLeaderBlocked || (leaderError instanceof ApiError && leaderError.code === "LAST_PROJECT_LEADER_REQUIRED")
             ? t("soleLeaderCannotRevoke")
             : t("leaderActionFailed")}
         </p>

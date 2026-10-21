@@ -8,6 +8,7 @@ import {
   usePlatformChangeUserStatusMutation,
   usePlatformIncidentHistoryQuery,
   usePlatformIncidentQuery,
+  usePlatformOrganizationInvitationsQuery,
   usePlatformUpdateUserProfileMutation,
   usePlatformUserOrganizationsQuery,
   usePlatformUserSessionQuery,
@@ -378,5 +379,40 @@ describe("Platform user operations", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data?.data[0]?.note).toHaveLength(2000);
+  });
+
+  it("normalizes the exact BE C02AdminInvitation payload (invitedEmail without membershipId/targetUserId/membershipVersion)", async () => {
+    const organizationId = "651a2b3c4d5e6f7a8b9c0d23";
+    mockedApiClient.mockResolvedValue({
+      data: [
+        {
+          id: "751a2b3c4d5e6f7a8b9c0d23",
+          organizationId,
+          status: "PENDING",
+          version: 1,
+          expiresAt: "2026-10-23T00:00:00.000Z",
+          createdAt: "2026-10-16T00:00:00.000Z",
+          invitedEmail: "invitee@example.test",
+        },
+      ],
+      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+    });
+
+    const { result } = renderHook(
+      () => usePlatformOrganizationInvitationsQuery(organizationId, true),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.data[0]).toEqual({
+      id: "751a2b3c4d5e6f7a8b9c0d23",
+      organizationId,
+      status: "PENDING",
+      version: 1,
+      expiresAt: "2026-10-23T00:00:00.000Z",
+      createdAt: "2026-10-16T00:00:00.000Z",
+      invitedEmail: "invitee@example.test",
+      email: "invitee@example.test",
+    });
   });
 });
