@@ -44,8 +44,8 @@ afterEach(() => {
   window.sessionStorage.clear();
 });
 
-describe("EmailRegistrationForm invitation continuation", () => {
-  it("returns to the invitation after verification without retaining either credential in the URL", async () => {
+describe("EmailRegistrationForm", () => {
+  it("does not resume an Organization invitation from a legacy registration URL", async () => {
     render(<EmailRegistrationForm />);
 
     expect(await screen.findByLabelText("newPassword")).toBeVisible();
@@ -73,11 +73,11 @@ describe("EmailRegistrationForm invitation continuation", () => {
     await waitFor(() =>
       expect(signIn).toHaveAttribute(
         "href",
-        `/signin?returnTo=${encodeURIComponent(`/organization/invitations?invitationId=${invitationId}`)}`,
+        "/signin",
       ),
     );
     expect(window.location.href).not.toContain(token);
     expect(window.localStorage.length).toBe(0);
-    expect(window.sessionStorage.length).toBe(0);
+    expect(window.sessionStorage.getItem("organizationInvitationReturnTo")).toBeNull();
   });
 });

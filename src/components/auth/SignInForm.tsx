@@ -104,7 +104,7 @@ export default function SignInForm({
           <span aria-hidden="true">.</span>
         </h1>
         <p className={styles.introduction}>
-          {ui("signinHint")} <Link href={safeReturnTo ? `/signup?returnTo=${encodeURIComponent(safeReturnTo)}&email=${encodeURIComponent(initialEmail ?? "")}` as never : "/signup"}>{ui("signinJoin")}</Link>
+          {ui("signinHint")} {safeReturnTo ? null : <Link href="/signup">{ui("signinJoin")}</Link>}
         </p>
       </header>
       {googleMessage && (

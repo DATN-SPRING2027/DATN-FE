@@ -1765,7 +1765,7 @@
     "invitationLoading": "Checking your invitation…",
     "invitationUnavailableTitle": "Invitation unavailable",
     "invitationFor": "You were invited to {organization} as {email}.",
-    "invitationSignInRequired": "Sign in with the invited email address, or create an account using that address to continue.",
+    "invitationSignInRequired": "Sign in with the existing account that matches the invited email address to continue.",
     "invitationAccept": "Accept invitation",
     "invitationAccepting": "Accepting…",
     "invitationExpiry": "Expires {date}",

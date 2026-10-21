@@ -7,9 +7,8 @@ export const metadata: Metadata = {
   // other metadata
 };
 
-export default async function SignUp({ searchParams }: { searchParams: Promise<{ email?: string | string[]; returnTo?: string | string[] }> }) {
+export default async function SignUp({ searchParams }: { searchParams: Promise<{ email?: string | string[] }> }) {
   const query = await searchParams;
   const email = Array.isArray(query.email) ? query.email[0] : query.email;
-  const returnTo = Array.isArray(query.returnTo) ? query.returnTo[0] : query.returnTo;
-  return <SignUpForm initialEmail={email} returnTo={returnTo} />;
+  return <SignUpForm initialEmail={email} />;
 }

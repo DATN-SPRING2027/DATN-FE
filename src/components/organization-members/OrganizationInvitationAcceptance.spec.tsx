@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   accept: vi.fn(),
   currentUser: vi.fn(),
   logout: vi.fn(),
+  createIdempotencyKey: vi.fn(),
 }));
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
@@ -28,7 +29,7 @@ vi.mock("@/lib/queries/organization-memberships/organization-invitations", () =>
   resolveOrganizationInvitation: mocks.resolve,
 }));
 vi.mock("@/lib/queries/organization-memberships/organization-memberships.service", () => ({
-  createIdempotencyKey: () => "0123456789abcdef",
+  createIdempotencyKey: mocks.createIdempotencyKey,
 }));
 
 const invitationId = "3123456789abcdef01234567";
@@ -59,6 +60,7 @@ beforeEach(() => {
     },
     invitation: { id: invitationId, status: "ACCEPTED", version: 4, expiresAt: invitation.expiresAt },
   });
+  mocks.createIdempotencyKey.mockReturnValue("0123456789abcdef");
   mocks.logout.mockReturnValue({ isPending: false, mutateAsync: vi.fn() });
 });
 
@@ -93,8 +95,8 @@ describe("Organization invitation acceptance", () => {
       "href",
       `/signin?returnTo=${encodeURIComponent(`/organization/invitations?invitationId=${invitationId}`)}`,
     );
-    expect(screen.getByRole("link", { name: "createAccount" }).getAttribute("href"))
-      .toContain(`email=${encodeURIComponent(invitation.invitedEmail)}`);
+    expect(screen.queryByRole("link", { name: "createAccount" })).toBeNull();
+    expect(screen.getByText("invitationSignInRequired")).toBeVisible();
   });
 
   it("loads the non-secret invitation ID after authentication and accepts with the server-bound account", async () => {
@@ -143,6 +145,56 @@ describe("Organization invitation acceptance", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("invitationWrongEmail");
     expect(mocks.accept).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: "invitationAccept" })).toBeNull();
+  });
+
+  it("reuses the same idempotency key after an uncertain request and page reload", async () => {
+    mocks.currentUser.mockReturnValue({
+      data: { id: "6123456789abcdef01234567", email: "invitee@example.test" },
+      isFetching: false,
+      isError: false,
+    });
+    mocks.createIdempotencyKey
+      .mockReturnValueOnce("0123456789abcdef")
+      .mockReturnValueOnce("1123456789abcdef");
+    mocks.accept
+      .mockRejectedValueOnce(new TypeError("network connection interrupted"))
+      .mockResolvedValueOnce({
+        operationId: "4123456789abcdef01234567",
+        membership: {
+          id: "5123456789abcdef01234567",
+          organizationId,
+          userId: "6123456789abcdef01234567",
+          status: "ACTIVE",
+          version: 1,
+        },
+        invitation: { id: invitationId, status: "ACCEPTED", version: 4, expiresAt: invitation.expiresAt },
+      });
+    window.history.replaceState(null, "", `/organization/invitations?invitationId=${invitationId}`);
+
+    const firstRender = render(<OrganizationInvitationAcceptance />);
+    fireEvent.click(await screen.findByRole("button", { name: "invitationAccept" }));
+    expect(await screen.findByText("invitationServerError")).toBeVisible();
+    expect(mocks.accept).toHaveBeenCalledWith(
+      invitationId,
+      organizationId,
+      0,
+      invitation.version,
+      "0123456789abcdef",
+    );
+
+    firstRender.unmount();
+    render(<OrganizationInvitationAcceptance />);
+    fireEvent.click(await screen.findByRole("button", { name: "invitationAccept" }));
+
+    await waitFor(() => expect(mocks.accept).toHaveBeenCalledTimes(2));
+    expect(mocks.accept).toHaveBeenLastCalledWith(
+      invitationId,
+      organizationId,
+      0,
+      invitation.version,
+      "0123456789abcdef",
+    );
+    expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(1);
   });
 
   it("shows a stale conflict and refreshes current invitation version only after a user action", async () => {

@@ -31,6 +31,21 @@ function sameEmail(left: string, right: string): boolean {
   return left.trim().toLowerCase() === right.trim().toLowerCase();
 }
 
+function getAcceptanceIdempotencyKey(invitationId: string, version: number) {
+  const storageKey = `organizationInvitationAccept:${invitationId}:${version}`;
+  const existing = window.sessionStorage.getItem(storageKey);
+  if (existing && /^[A-Za-z0-9._:-]{16,128}$/.test(existing)) {
+    return { storageKey, idempotencyKey: existing };
+  }
+
+  const idempotencyKey = createIdempotencyKey();
+  if (!/^[A-Za-z0-9._:-]{16,128}$/.test(idempotencyKey)) {
+    throw new Error("Invitation acceptance could not be safely retried.");
+  }
+  window.sessionStorage.setItem(storageKey, idempotencyKey);
+  return { storageKey, idempotencyKey };
+}
+
 export default function OrganizationInvitationAcceptance() {
   const t = useTranslations("organizationMembers");
   const router = useRouter();
@@ -86,7 +101,16 @@ export default function OrganizationInvitationAcceptance() {
     setAccepting(true);
     setAcceptError(undefined);
     try {
-      await acceptOrganizationInvitation(invitation.id, invitation.organizationId, 0, invitation.version, createIdempotencyKey());
+      const { storageKey, idempotencyKey } = getAcceptanceIdempotencyKey(
+        invitation.id,
+        invitation.version,
+      );
+      await acceptOrganizationInvitation(invitation.id, invitation.organizationId, 0, invitation.version, idempotencyKey);
+      try {
+        window.sessionStorage.removeItem(storageKey);
+      } catch {
+        // A completed server operation remains safe to retry with its saved key.
+      }
       router.replace("/onboarding");
     } catch (error) {
       setAcceptError(error);
@@ -129,7 +153,6 @@ export default function OrganizationInvitationAcceptance() {
       <p className="mt-3 text-sm text-gray-600 dark:text-gray-300">{t("invitationSignInRequired")}</p>
       <div className="mt-6 flex flex-wrap gap-3">
         <Link className="inline-flex h-11 items-center justify-center rounded-lg bg-brand-500 px-5 text-sm font-medium text-white hover:bg-brand-600" href={`/signin?returnTo=${encodeURIComponent(returnTo)}` as never}>{t("signIn")}</Link>
-        <Link className="inline-flex h-11 items-center justify-center rounded-lg border border-gray-300 px-5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800" href={`/signup?email=${encodeURIComponent(invitation.invitedEmail)}&returnTo=${encodeURIComponent(returnTo)}` as never}>{t("createAccount")}</Link>
       </div>
     </InvitationPanel>;
   }
