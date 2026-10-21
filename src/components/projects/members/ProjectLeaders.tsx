@@ -138,15 +138,15 @@ export default function ProjectLeaders({
       aria-labelledby="project-leaders-heading"
       className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
     >
-      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2
             id="project-leaders-heading"
-            className="font-semibold text-gray-900 dark:text-white/90"
+            className="text-base font-semibold text-gray-900 dark:text-white/90"
           >
             {t("title")}
           </h2>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-xs sm:text-sm text-gray-500 dark:text-gray-400">
             {t("description")}
           </p>
         </div>
@@ -177,31 +177,45 @@ export default function ProjectLeaders({
           {leaders.data.map((leader) => (
             <li
               key={leader.userId}
-              className="flex flex-col gap-3 py-3 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 py-3.5 first:pt-1 last:pb-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div className="flex min-w-0 items-center gap-3">
                 <span
                   aria-hidden="true"
-                  className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                  className="flex size-9.5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-600 ring-1 ring-brand-500/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20"
                 >
                   {(leader.fullName || leader.email).slice(0, 1).toUpperCase()}
                 </span>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
-                    {leader.fullName || leader.email}
-                  </p>
-                  <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
+                      {leader.fullName || leader.email}
+                    </p>
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium ${
+                        leader.status === "ACTIVE"
+                          ? "bg-success-50 text-success-700 ring-1 ring-success-500/20 dark:bg-success-500/10 dark:text-success-400"
+                          : "bg-gray-100 text-gray-600 ring-1 ring-gray-400/20 dark:bg-gray-800 dark:text-gray-400"
+                      }`}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`size-1.5 rounded-full ${
+                          leader.status === "ACTIVE"
+                            ? "bg-success-500"
+                            : "bg-gray-400 dark:bg-gray-500"
+                        }`}
+                      />
+                      {t(leader.status === "ACTIVE" ? "active" : "inactive")}
+                    </span>
+                  </div>
+                  <p className="truncate text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                     {leader.email}
                   </p>
                 </div>
-                <span
-                  className={`rounded-full px-2 py-1 text-xs font-medium ${leader.status === "ACTIVE" ? "bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}
-                >
-                  {t(leader.status === "ACTIVE" ? "active" : "inactive")}
-                </span>
               </div>
               {leader.status === "ACTIVE" && (
-                <div className="flex shrink-0 gap-2">
+                <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
                   <Button
                     size="sm"
                     variant="outline"
@@ -216,6 +230,7 @@ export default function ProjectLeaders({
                       setEmail("");
                       setDebouncedEmail("");
                     }}
+                    className="h-8 border-gray-200 text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
                     {t("replace")}
                   </Button>
@@ -229,6 +244,7 @@ export default function ProjectLeaders({
                       actions.revoke.reset();
                       setRevokeTarget(leader);
                     }}
+                    className="h-8 border-gray-200 text-xs text-gray-700 hover:border-error-200 hover:bg-error-50 hover:text-error-600 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-error-950/20 dark:hover:text-error-400"
                   >
                     {t("revoke")}
                   </Button>

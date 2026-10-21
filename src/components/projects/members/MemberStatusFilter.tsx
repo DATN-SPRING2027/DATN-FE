@@ -16,7 +16,9 @@ export default function MemberStatusFilter({
   const t = useTranslations("projectMembers");
   return (
     <div className="w-full sm:w-44">
-      <Label htmlFor="member-status-filter">{t("status")}</Label>
+      <Label htmlFor="member-status-filter" className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+        {t("status")}
+      </Label>
       <div className="relative">
         <select
           id="member-status-filter"
@@ -25,7 +27,7 @@ export default function MemberStatusFilter({
           onChange={(event) =>
             onChange(event.target.value as "ACTIVE" | "INACTIVE")
           }
-          className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white px-4 pe-10 text-sm text-gray-700 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          className="h-11 w-full cursor-pointer appearance-none rounded-lg border border-gray-300 bg-white px-3.5 pe-9 text-xs sm:text-sm font-medium text-gray-700 shadow-theme-xs transition-colors hover:border-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         >
           <option value="ACTIVE">{t("ACTIVE")}</option>
           <option value="INACTIVE">{t("INACTIVE")}</option>

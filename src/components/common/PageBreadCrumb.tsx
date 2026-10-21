@@ -3,7 +3,7 @@ import { Link } from "@/i18n/navigation";
 interface BreadcrumbProps {
   pageTitle: string;
   homeLabel?: string;
-  items?: readonly { label: string; href: string }[];
+  items?: readonly { label: string; href?: string }[];
   showTitle?: boolean;
   breadcrumbLabel?: string;
 }
@@ -48,17 +48,18 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
               </svg>
             </Link>
           </li>
-          {items.map((item) => (
+          {items.map((item, index) => (
             <li
-              key={item.href}
+              key={`${item.href ?? "current"}:${item.label}:${index}`}
               className="flex items-center gap-1.5 text-sm text-gray-500 dark:text-gray-400"
             >
-              <Link
-                href={item.href}
-                className="hover:text-brand-600 dark:hover:text-brand-400"
-              >
-                {item.label}
-              </Link>
+              {item.href ? (
+                <Link href={item.href} className="hover:text-brand-600 dark:hover:text-brand-400">
+                  {item.label}
+                </Link>
+              ) : (
+                <span>{item.label}</span>
+              )}
               <span aria-hidden="true" className="rtl:rotate-180">
                 ›
               </span>
