@@ -303,9 +303,10 @@ describe("AppSidebar navigation", () => {
     ).toBe(false);
   });
 
-  it("shows not-yet-routed features as disabled items instead of broken links", () => {
+  it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
     render(<AppSidebar />);
 
+    expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
     for (const label of [
       "Work Notes",
       "Knowledge",
@@ -314,7 +315,9 @@ describe("AppSidebar navigation", () => {
       "Integrations",
       "Settings",
     ]) {
-      expect(screen.getByRole("button", { name: label })).toBeDisabled();
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toBeDisabled();
+      expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
     }
   });
 

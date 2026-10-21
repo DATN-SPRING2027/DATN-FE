@@ -103,7 +103,7 @@ const AppSidebar: React.FC = () => {
             }
             disabled
             className={cn(
-              "group menu-item min-h-11 cursor-not-allowed text-start opacity-60",
+              "group menu-item min-h-11 cursor-not-allowed text-start text-gray-500 opacity-75 dark:text-gray-400",
               !isExpandedView && "justify-center px-2",
             )}
           >
@@ -123,7 +123,7 @@ const AppSidebar: React.FC = () => {
   return (
     <aside
       className={cn(
-        "fixed inset-y-0 start-0 z-50 flex h-full flex-col border-e border-gray-200 bg-white px-4 text-gray-900 transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900",
+        "fixed inset-y-0 start-0 z-50 flex h-full flex-col border-e border-gray-200 bg-white px-4 text-gray-900 transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100",
         isExpanded || isMobileOpen || isHovered ? "w-72.5" : "w-22.5",
         isMobileOpen
           ? "translate-x-0"
@@ -169,7 +169,7 @@ const AppSidebar: React.FC = () => {
             <h2
               id="sidebar-administration"
               className={cn(
-                "mb-3 px-3 text-theme-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                "mb-3 px-3 text-theme-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-400",
                 !isExpandedView && "sr-only",
               )}
             >
