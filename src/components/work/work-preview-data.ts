@@ -2,11 +2,30 @@ import type {
   WorkDocArticle,
   WorkIntakeForm,
   WorkItem,
+  WorkListColumn,
   WorkPerson,
   WorkTimelineEpic,
 } from "./work-types";
 
 export const PREVIEW_PROJECT = "Internal Knowledge Hub";
+
+export const DEFAULT_WORK_LIST_COLUMNS: readonly WorkListColumn[] = [
+  { key: "work", label: "Work", category: "Core", visible: true, width: 340, minWidth: 220 },
+  { key: "assignee", label: "Assignee", category: "People", visible: true, width: 170, minWidth: 120 },
+  { key: "reporter", label: "Reporter", category: "People", visible: true, width: 160, minWidth: 120 },
+  { key: "priority", label: "Priority", category: "Attributes", visible: true, width: 115, minWidth: 90 },
+  { key: "status", label: "Status", category: "Attributes", visible: true, width: 135, minWidth: 100 },
+  { key: "resolution", label: "Resolution", category: "Attributes", visible: true, width: 115, minWidth: 90 },
+  { key: "created", label: "Created", category: "Dates", visible: true, width: 130, minWidth: 100 },
+  { key: "updated", label: "Updated", category: "Dates", visible: true, width: 130, minWidth: 100 },
+  { key: "due", label: "Due date", category: "Dates", visible: true, width: 115, minWidth: 90 },
+  { key: "parent", label: "Parent", category: "Core", visible: false, width: 160, minWidth: 110 },
+  { key: "progress", label: "∑ Progress", category: "Estimates", visible: false, width: 110, minWidth: 80 },
+  { key: "labels", label: "Labels", category: "Attributes", visible: false, width: 140, minWidth: 100 },
+  { key: "storyPoints", label: "Story Points", category: "Estimates", visible: false, width: 110, minWidth: 80 },
+  { key: "comments", label: "Comments", category: "Content", visible: false, width: 110, minWidth: 80 },
+  { key: "team", label: "Team", category: "People", visible: false, width: 130, minWidth: 90 },
+];
 
 export const PREVIEW_PEOPLE: readonly WorkPerson[] = [
   { id: "minh-anh", name: "Minh Anh", initials: "MA" },

@@ -51,9 +51,53 @@ export type WorkItem = Readonly<{
   parent?: Readonly<{ key: string; summary: string }>;
   labels?: readonly string[];
   team?: string;
+  flagged?: boolean;
+  storyPoints?: number;
+  sprint?: string;
   subtasks: Readonly<{ completed: number; total: number }>;
   subtaskItems?: readonly WorkSubtaskItem[];
   comments?: readonly WorkCommentItem[];
+}>;
+
+export type WorkFilterOperator = "is" | "is_not" | "contains";
+export type WorkFilterField =
+  | "status"
+  | "priority"
+  | "assignee"
+  | "type"
+  | "reporter";
+
+export type WorkFilterCondition = Readonly<{
+  id: string;
+  field: WorkFilterField;
+  operator: WorkFilterOperator;
+  value: string;
+}>;
+
+export type WorkListColumnKey =
+  | "work"
+  | "assignee"
+  | "reporter"
+  | "priority"
+  | "status"
+  | "resolution"
+  | "created"
+  | "updated"
+  | "due"
+  | "parent"
+  | "progress"
+  | "labels"
+  | "storyPoints"
+  | "comments"
+  | "team";
+
+export type WorkListColumn = Readonly<{
+  key: WorkListColumnKey;
+  label: string;
+  category: string;
+  visible: boolean;
+  width: number;
+  minWidth: number;
 }>;
 
 export type CreatePreviewWorkItem = Readonly<{

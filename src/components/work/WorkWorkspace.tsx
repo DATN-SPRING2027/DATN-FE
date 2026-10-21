@@ -29,6 +29,9 @@ import {
 import {
   WORK_STATUS_ORDER,
   type CreatePreviewWorkItem,
+  type WorkFilterCondition,
+  type WorkFilterField,
+  type WorkFilterOperator,
   type WorkGroupBy,
   type WorkItem,
   type WorkItemGroup,
@@ -75,6 +78,11 @@ export default function WorkWorkspace({
   const [priority, setPriority] = useState<WorkPriority | "ALL">("ALL");
   const [assigneeId, setAssigneeId] = useState<string | "ALL">("ALL");
   const [groupBy, setGroupBy] = useState<WorkGroupBy>("STATUS");
+  const [filterConditions, setFilterConditions] = useState<WorkFilterCondition[]>([]);
+  const [hideDone, setHideDone] = useState(false);
+  const [showHierarchy, setShowHierarchy] = useState(true);
+  const [highlightHighPriority, setHighlightHighPriority] = useState(false);
+  const [highlightDoneRows, setHighlightDoneRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
@@ -92,6 +100,7 @@ export default function WorkWorkspace({
     const normalizedQuery = normalizeSearch(query.trim());
     return items
       .filter((item) => {
+        if (hideDone && item.status === "DONE") return false;
         const matchesQuery =
           !normalizedQuery ||
           normalizeSearch(
@@ -99,15 +108,46 @@ export default function WorkWorkspace({
               " ",
             ),
           ).includes(normalizedQuery);
-        return (
-          matchesQuery &&
-          (status === "ALL" || item.status === status) &&
-          (priority === "ALL" || item.priority === priority) &&
-          (assigneeId === "ALL" || item.assignee.id === assigneeId)
-        );
+        if (
+          !matchesQuery ||
+          (status !== "ALL" && item.status !== status) ||
+          (priority !== "ALL" && item.priority !== priority) ||
+          (assigneeId !== "ALL" && item.assignee.id !== assigneeId)
+        ) {
+          return false;
+        }
+        for (const cond of filterConditions) {
+          const actualVal = (
+            cond.field === "status"
+              ? item.status
+              : cond.field === "priority"
+                ? item.priority
+                : cond.field === "assignee"
+                  ? item.assignee.name
+                  : cond.field === "type"
+                    ? item.type
+                    : item.reporter.name
+          ).toLowerCase();
+          const targetVal = cond.value.toLowerCase();
+          if (cond.operator === "is" && actualVal !== targetVal) return false;
+          if (cond.operator === "is_not" && actualVal === targetVal)
+            return false;
+          if (cond.operator === "contains" && !actualVal.includes(targetVal))
+            return false;
+        }
+        return true;
       })
       .map((item) => ({ ...item, projectName }));
-  }, [assigneeId, items, priority, projectName, query, status]);
+  }, [
+    assigneeId,
+    filterConditions,
+    hideDone,
+    items,
+    priority,
+    projectName,
+    query,
+    status,
+  ]);
 
   const activeWorkItem = useMemo(
     () =>
@@ -165,7 +205,46 @@ export default function WorkWorkspace({
     setStatus("ALL");
     setPriority("ALL");
     setAssigneeId("ALL");
+    setFilterConditions([]);
+    setHideDone(false);
     setSelectedIds(new Set());
+  }
+
+  function addFilterCondition(
+    field: WorkFilterField,
+    operator: WorkFilterOperator,
+    value: string,
+  ) {
+    setFilterConditions((current) => [
+      ...current,
+      {
+        id: `cond-${current.length + 1}-${field}`,
+        field,
+        operator,
+        value,
+      },
+    ]);
+  }
+
+  function removeFilterCondition(id: string) {
+    setFilterConditions((current) => current.filter((c) => c.id !== id));
+  }
+
+  function toggleItemFlag(id: string) {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, flagged: !item.flagged } : item,
+      ),
+    );
+  }
+
+  function deleteSingleItem(id: string) {
+    setItems((current) => current.filter((item) => item.id !== id));
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      next.delete(id);
+      return next;
+    });
   }
 
   function addPreviewItem(input: CreatePreviewWorkItem) {
@@ -316,18 +395,44 @@ export default function WorkWorkspace({
     setSelectedIds(new Set());
   }
 
-  function exportCsv() {
+  function exportCsv(allFields = true) {
     if (typeof window === "undefined") return;
-    const header = ["Key", "Summary", "Type", "Status", "Priority", "Assignee", "Reporter"];
-    const rows = visibleItems.map((item) => [
-      item.key,
-      `"${item.title.replace(/"/g, '""')}"`,
-      item.type,
-      item.status,
-      item.priority,
-      `"${item.assignee.name}"`,
-      `"${item.reporter.name}"`,
-    ]);
+    const header = allFields
+      ? [
+          "Key",
+          "Summary",
+          "Type",
+          "Status",
+          "Priority",
+          "Assignee",
+          "Reporter",
+          "Resolution",
+          "Created",
+          "DueDate",
+        ]
+      : ["Key", "Summary", "Status", "Priority", "Assignee"];
+    const rows = visibleItems.map((item) =>
+      allFields
+        ? [
+            item.key,
+            `"${item.title.replace(/"/g, '""')}"`,
+            item.type,
+            item.status,
+            item.priority,
+            `"${item.assignee.name}"`,
+            `"${item.reporter.name}"`,
+            item.resolution,
+            item.createdAt,
+            item.dueDate ?? "",
+          ]
+        : [
+            item.key,
+            `"${item.title.replace(/"/g, '""')}"`,
+            item.status,
+            item.priority,
+            `"${item.assignee.name}"`,
+          ],
+    );
     const csvContent = [header.join(","), ...rows.map((r) => r.join(","))].join("\n");
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -337,6 +442,17 @@ export default function WorkWorkspace({
     link.click();
     URL.revokeObjectURL(url);
     setAnnouncement("Exported work items to CSV.");
+  }
+
+  function importCsvItem(fileName: string) {
+    addPreviewItem({
+      title: `[IMPORTED] Work item imported from ${fileName}`,
+      type: "TASK",
+      priority: "MEDIUM",
+      assignee: PREVIEW_PEOPLE[0],
+      dueDate: null,
+      status: "TODO",
+    });
   }
 
   const showFilterToolbar =
@@ -433,14 +549,32 @@ export default function WorkWorkspace({
               priority={priority}
               assigneeId={assigneeId}
               groupBy={groupBy}
+              filterConditions={filterConditions}
+              hideDone={hideDone}
+              showHierarchy={showHierarchy}
+              highlightHighPriority={highlightHighPriority}
+              highlightDoneRows={highlightDoneRows}
+              items={items}
               onQueryChange={setQuery}
               onStatusChange={setStatus}
               onPriorityChange={setPriority}
               onAssigneeChange={setAssigneeId}
               onGroupByChange={setGroupBy}
               onClearFilters={clearFilters}
+              onAddFilterCondition={addFilterCondition}
+              onRemoveFilterCondition={removeFilterCondition}
+              onToggleHideDone={setHideDone}
+              onToggleShowHierarchy={setShowHierarchy}
+              onToggleHighlightHighPriority={setHighlightHighPriority}
+              onToggleHighlightDoneRows={setHighlightDoneRows}
               onOpenAiCopilot={() => setAiCopilotOpen(true)}
               onExportCsv={exportCsv}
+              onImportCsvItem={importCsvItem}
+              onBulkSelectAll={() =>
+                setSelectedIds(new Set(visibleItems.map((i) => i.id)))
+              }
+              onGoToReports={() => setView("reports")}
+              onRefresh={() => void project.refetch()}
             />
           )}
 
@@ -526,22 +660,31 @@ export default function WorkWorkspace({
           ) : view === "list" ? (
             <WorkListView
               groups={groups}
+              totalCount={items.length}
               selectedIds={selectedIds}
               allVisibleSelected={allVisibleSelected}
+              showHierarchy={showHierarchy}
+              highlightHighPriority={highlightHighPriority}
+              highlightDoneRows={highlightDoneRows}
               onToggleItem={toggleItem}
               onToggleAll={toggleAllVisible}
               onOpenItem={openWorkItem}
               onStatusChange={updateItemStatus}
+              onPriorityChange={updateItemPriority}
+              onAssigneeChange={updateItemAssignee}
+              onToggleFlag={toggleItemFlag}
+              onDeleteItem={deleteSingleItem}
               onToggleSubtask={toggleSubtask}
-              onInlineCreate={(title) =>
+              onInlineCreate={(title, type) =>
                 addPreviewItem({
                   title,
-                  type: "TASK",
+                  type: type ?? "TASK",
                   priority: "MEDIUM",
                   assignee: PREVIEW_PEOPLE[0],
                   dueDate: null,
                 })
               }
+              onRefresh={() => void project.refetch()}
             />
           ) : view === "overview" ? (
             <WorkOverviewView
