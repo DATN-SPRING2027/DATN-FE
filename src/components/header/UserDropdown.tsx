@@ -7,9 +7,10 @@ import type { Locale } from "@/i18n/routing";
 import { ChevronDownIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
+import { useUserQuery } from "@/lib/queries/users/useUsers";
+import UserAvatar from "@/components/common/UserAvatar";
 import Alert from "@/components/ui/alert/Alert";
 import { useLocale, useTranslations } from "next-intl";
-import Image from "next/image";
 import { useRef, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
@@ -22,6 +23,10 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
   const user = useCurrentUserQuery();
+  const organizationId = user.data?.context === "ACCOUNT" ? "" : user.data?.organizationId ?? "";
+  const directory = useUserQuery(organizationId, user.data?.id ?? "");
+  const directoryUser = directory.data?.id === user.data?.id ? directory.data : undefined;
+  const displayName = directoryUser?.fullName || user.data?.name || "";
   const logout = useLogoutMutation();
   const subDropdownRef = useRef<HTMLLIElement>(null);
 
@@ -65,16 +70,9 @@ export default function UserDropdown() {
         onClick={toggleDropdown}
         className="dropdown-toggle flex items-center text-gray-700 dark:text-gray-400"
       >
-        <span className="me-3 h-11 w-11 overflow-hidden rounded-full">
-          <Image
-            width={44}
-            height={44}
-            src="/images/user/owner.png"
-            alt="User"
-          />
-        </span>
+        <UserAvatar name={displayName} avatarUrl={directoryUser?.avatarUrl} alt="" className="me-3 size-11 text-sm" />
 
-        <span className="me-1 block text-theme-sm font-medium">{user.data?.name}</span>
+        <span className="me-1 block text-theme-sm font-medium">{displayName}</span>
 
         <ChevronDownIcon
           className={`size-5 text-gray-500 transition-transform duration-200 dark:text-gray-400 ${
@@ -90,7 +88,7 @@ export default function UserDropdown() {
       >
         <div>
           <span className="block text-theme-sm font-medium text-gray-700 dark:text-gray-400">
-            {user.data?.name}
+            {displayName}
           </span>
           <span className="mt-0.5 block text-theme-xs text-gray-500 dark:text-gray-400">
             {user.data?.email}
