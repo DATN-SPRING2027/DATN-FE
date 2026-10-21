@@ -74,6 +74,17 @@ describe("sign in form", () => {
     ).toHaveAttribute("href", "/platform/signin");
   });
 
+  it("does not offer account creation from an Organization invitation sign-in", () => {
+    render(
+      <SignInForm
+        returnTo="/organization/invitations?invitationId=3123456789abcdef01234567"
+        initialEmail="invitee@example.test"
+      />,
+    );
+
+    expect(screen.queryByRole("link", { name: "signinJoin" })).toBeNull();
+  });
+
   it("routes an authenticated organization member to Organization selection", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {

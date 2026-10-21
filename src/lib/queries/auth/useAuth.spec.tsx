@@ -118,7 +118,7 @@ describe("auth query hooks", () => {
     );
   });
 
-  it("passes the non-secret invitation ID through email registration", async () => {
+  it("keeps public email registration independent from invitation continuation", async () => {
     mockedApiClient.mockResolvedValue({ status: "accepted" });
     const { result } = renderHook(() => useRequestEmailRegistrationMutation(), {
       wrapper: createWrapper(),
@@ -128,7 +128,6 @@ describe("auth query hooks", () => {
       result.current.mutateAsync({
         fullName: "Invitee",
         email: "invitee@example.test",
-        returnToInvitationId: "3123456789abcdef01234567",
       }),
     );
 
@@ -137,7 +136,6 @@ describe("auth query hooks", () => {
       body: JSON.stringify({
         fullName: "Invitee",
         email: "invitee@example.test",
-        returnToInvitationId: "3123456789abcdef01234567",
       }),
     });
   });

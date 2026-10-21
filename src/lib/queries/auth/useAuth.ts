@@ -29,7 +29,6 @@ export type PasswordResetConfirmInput = Readonly<{
 export type EmailRegistrationRequestInput = Readonly<{
   fullName: string;
   email: string;
-  returnToInvitationId?: string;
 }>;
 export type EmailRegistrationRequestResponse = Readonly<{
   status: "accepted";
@@ -149,10 +148,10 @@ export function useRequestEmailRegistrationMutation(
     ...options,
     mutationKey: ["email-registration-request"],
     retry: false,
-    mutationFn: ({ fullName, email, returnToInvitationId }) =>
+    mutationFn: ({ fullName, email }) =>
       apiClient<EmailRegistrationRequestResponse>("/auth/registrations", {
         method: "POST",
-        body: JSON.stringify({ fullName, email, returnToInvitationId }),
+        body: JSON.stringify({ fullName, email }),
       }),
   });
 }
