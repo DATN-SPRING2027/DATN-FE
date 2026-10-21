@@ -502,9 +502,8 @@ export default function ProjectOverview({
           </div>
         </dl>
 
-        {/* Bento Grid 8:4 — Description + Workspace Modules (8 cols) | Governance & Lifecycle (4 cols) */}
-        <div className="grid min-w-0 grid-cols-1 items-start gap-5 @4xl:grid-cols-3 @4xl:gap-6">
-          <div className="min-w-0 space-y-5 @4xl:col-span-2">
+        {/* Description + Workspace Modules */}
+        <div className="min-w-0 space-y-5">
             <ComponentCard title={t("description")} className="min-w-0">
               <p className="text-sm leading-6 [overflow-wrap:anywhere] whitespace-pre-wrap text-gray-700 dark:text-gray-300">
                 {project.description || t("noDescription")}
@@ -652,54 +651,6 @@ export default function ProjectOverview({
                 </button>
               </div>
             </ComponentCard>
-          </div>
-
-          {/* Right 4-Col Aside: Governance & Lifecycle (No Raw IDs) */}
-          <ComponentCard
-            title={t("governanceTitle")}
-            desc={t("governanceHint")}
-            className="min-w-0"
-          >
-            <dl className="space-y-4">
-              <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
-                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-                  {t("accessPolicyLabel")}
-                </dt>
-                <dd className="mt-1.5 text-xs leading-5 text-gray-700 dark:text-gray-300">
-                  {t(isPrivate ? "privatePolicySummary" : "publicPolicySummary")}
-                </dd>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3.5 dark:border-gray-800">
-                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {t("createdAt")}
-                </dt>
-                <dd className="text-xs font-semibold tabular-nums text-gray-900 dark:text-white/90">
-                  <time dateTime={project.createdAt}>{date(project.createdAt)}</time>
-                </dd>
-              </div>
-
-              <div className="flex items-center justify-between gap-3 border-t border-gray-100 pt-3.5 dark:border-gray-800">
-                <dt className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {t("updatedAt")}
-                </dt>
-                <dd className="text-xs font-semibold tabular-nums text-gray-900 dark:text-white/90">
-                  <time dateTime={project.updatedAt}>{date(project.updatedAt)}</time>
-                </dd>
-              </div>
-            </dl>
-
-            <div className="border-t border-gray-100 pt-4 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => setTab("settings")}
-                className="inline-flex w-full cursor-pointer items-center justify-between rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-gray-700 transition-colors hover:border-brand-300 hover:bg-gray-50 hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:border-brand-500/40 dark:hover:text-brand-400"
-              >
-                <span>{t("configureSettings")}</span>
-                <span aria-hidden="true">→</span>
-              </button>
-            </div>
-          </ComponentCard>
         </div>
       </div>
 
