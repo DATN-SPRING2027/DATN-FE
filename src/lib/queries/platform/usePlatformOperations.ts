@@ -127,14 +127,15 @@ export type PlatformProjectRecord = Readonly<{
 }>;
 export type PlatformOrganizationInvitation = Readonly<{
   id: string;
-  membershipId: string | null;
+  membershipId?: string | null;
   organizationId: string;
   status: "PENDING";
   version: number;
   expiresAt: string;
   createdAt: string;
-  membershipVersion: number;
-  targetUserId: string | null;
+  membershipVersion?: number;
+  targetUserId?: string | null;
+  invitedEmail: string;
   email: string;
 }>;
 export type PlatformDashboardRecord = Readonly<{
@@ -850,15 +851,16 @@ export function usePlatformOrganizationInvitationsQuery(
           if (invitation.status !== "PENDING") throw invalidResponse();
           return {
             id: requireId(invitation.id),
-            membershipId: invitation.membershipId === null ? null : requireId(invitation.membershipId),
+            ...(invitation.membershipId === undefined ? {} : { membershipId: invitation.membershipId === null ? null : requireId(invitation.membershipId) }),
             organizationId: requireId(invitation.organizationId),
             status: "PENDING" as const,
             version: requireInteger(invitation.version, 1),
             expiresAt: requireTimestamp(invitation.expiresAt),
             createdAt: requireTimestamp(invitation.createdAt),
-            membershipVersion: requireInteger(invitation.membershipVersion, 0),
-            targetUserId: invitation.targetUserId === null ? null : requireId(invitation.targetUserId),
-            email: requireText(invitation.email, 254),
+            ...(invitation.membershipVersion === undefined ? {} : { membershipVersion: requireInteger(invitation.membershipVersion, 0) }),
+            ...(invitation.targetUserId === undefined ? {} : { targetUserId: invitation.targetUserId === null ? null : requireId(invitation.targetUserId) }),
+            invitedEmail: requireText(invitation.invitedEmail ?? invitation.email, 254),
+            email: requireText(invitation.invitedEmail ?? invitation.email, 254),
           } satisfies PlatformOrganizationInvitation;
         },
       ),
