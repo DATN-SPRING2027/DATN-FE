@@ -212,7 +212,6 @@
   position: relative;
   isolation: isolate;
   padding-block: 5.5rem;
-  border-bottom: 1px solid var(--line);
 }
 .heroCopy {
   max-width: 43rem;
@@ -621,8 +620,6 @@
   justify-content: space-between;
   gap: 2rem;
   padding: 1rem 1rem 1rem 3.5rem;
-  border: 1px solid var(--line);
-  border-radius: 0.625rem;
   overflow: hidden;
 }
 .integrationCopy {

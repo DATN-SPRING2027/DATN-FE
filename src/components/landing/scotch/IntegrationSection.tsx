@@ -15,7 +15,7 @@ export default async function IntegrationSection() {
   return (
     <section
       id="workflow"
-      className={`${styles.container} ${styles.integration}`}
+      className={styles.integration}
       aria-labelledby="workflow-title"
     >
       <div className={styles.integrationCard}>
