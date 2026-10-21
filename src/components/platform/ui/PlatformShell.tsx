@@ -1,17 +1,8 @@
 "use client";
-
-import { ReactNode, useState } from "react";
+import type { ReactNode } from "react";
+import { useTranslations } from "next-intl";
 import PlatformHeader from "./PlatformHeader";
-import PlatformSidebar from "./PlatformSidebar";
-
-type PlatformShellProps = {
-  activeSection: string;
-  operatorName?: string;
-  operatorEmail?: string;
-  isSigningOut?: boolean;
-  onSignOut: () => void;
-  children: ReactNode;
-};
+import styles from "./operator.module.css";
 
 export default function PlatformShell({
   activeSection,
@@ -20,40 +11,39 @@ export default function PlatformShell({
   isSigningOut,
   onSignOut,
   children,
-}: PlatformShellProps) {
-  const [isMobileNavOpen, setIsMobileNavOpen] = useState(false);
-
+}: {
+  activeSection: string;
+  operatorName?: string;
+  operatorEmail?: string;
+  isSigningOut?: boolean;
+  onSignOut: () => void;
+  children: ReactNode;
+}) {
+  const t = useTranslations("platformConsole");
   return (
-    <div className="min-h-screen bg-gray-50/50 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100">
-      {/* Fixed Sidebar */}
-      <PlatformSidebar
+    <div
+      className={`${styles.shell} ${activeSection === "dashboard" ? styles.dashboardPage : ""}`}
+    >
+      <a
+        href="#operator-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:z-99999 focus:bg-white focus:p-3 focus:text-gray-900 dark:focus:bg-gray-900 dark:focus:text-white"
+      >
+        {t("operatorDesign.skip")}
+      </a>
+      <PlatformHeader
         activeSection={activeSection}
-        operatorName={operatorName}
-        operatorEmail={operatorEmail}
-        onSignOut={onSignOut}
+        userName={operatorName}
+        userEmail={operatorEmail}
         isSigningOut={isSigningOut}
-        isOpenMobile={isMobileNavOpen}
-        onCloseMobile={() => setIsMobileNavOpen(false)}
+        onSignOut={onSignOut}
       />
-
-      {/* Main Layout Area */}
-      <div className="flex min-h-screen flex-col lg:ps-[260px]">
-        {/* Sticky Header */}
-        <PlatformHeader
-          userName={operatorName}
-          userEmail={operatorEmail}
-          isSigningOut={isSigningOut}
-          onSignOut={onSignOut}
-          onToggleSidebar={() => setIsMobileNavOpen((prev) => !prev)}
-        />
-
-        {/* Content Body */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8">
-          <div className="mx-auto max-w-7xl space-y-6">
-            {children}
-          </div>
-        </main>
-      </div>
+      <main id="operator-content" className={styles.main} tabIndex={-1}>
+        <div
+          className={activeSection === "dashboard" ? undefined : styles.content}
+        >
+          {children}
+        </div>
+      </main>
     </div>
   );
 }

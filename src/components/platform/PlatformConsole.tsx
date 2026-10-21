@@ -11,9 +11,7 @@ import StatusBadge from "@/components/platform/ui/StatusBadge";
 import Button from "@/components/ui/button/Button";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
-import {
-  usePlatformChangeOrganizationMetadataMutation,
-} from "@/lib/queries/platform/usePlatformOperations";
+import { usePlatformChangeOrganizationMetadataMutation } from "@/lib/queries/platform/usePlatformOperations";
 import {
   useCreatePlatformOrganizationMutation,
   usePlatformHealthQuery,
@@ -107,7 +105,7 @@ export default function PlatformConsole() {
   const shouldLoadHealth = activeSection === "services";
   const [organizationPage, setOrganizationPage] = useState(1);
   const organizations = usePlatformOrganizationsQuery(
-    canReadOrganizations && shouldLoadOrganizations,
+    canReadOrganizations && shouldLoadOrganizations && !routeOrganizationId,
     organizationPage,
   );
   const health = usePlatformHealthQuery(canReadHealth && shouldLoadHealth);
@@ -139,8 +137,11 @@ export default function PlatformConsole() {
     effectiveSelectedOrganizationId,
     canReadOrganizations &&
       activeSection === "organizations" &&
-      Boolean(effectiveSelectedOrganizationId),
+      hasValidRouteOrganizationId,
   );
+  const organizationRequest = routeOrganizationId
+    ? organization
+    : organizations;
   const changeOrganizationMetadata =
     usePlatformChangeOrganizationMetadataMutation();
   const lookup = usePlatformUserLookupMutation();
@@ -165,8 +166,9 @@ export default function PlatformConsole() {
     }
   }
 
-  async function runLookup(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function runLookup() {
+    if (!canCreateOrganization || !canLookupUsers || lookup.isPending)
+      return false;
     setOperationMessage("");
     setSelectedUser(null);
     try {
@@ -176,15 +178,24 @@ export default function PlatformConsole() {
         email: user.email,
         fullName: user.fullName,
       });
+      return true;
     } catch {
       setOperationMessage(t("errors.userLookup"));
+      return false;
     }
   }
 
   async function runCreateOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setOperationMessage("");
-    if (!selectedUser) return;
+    if (
+      !canCreateOrganization ||
+      !canLookupUsers ||
+      createOrganization.isPending ||
+      !selectedUser ||
+      selectedUser.email.toLowerCase() !== lookupEmail.trim().toLowerCase()
+    )
+      return false;
     try {
       const created = await createOrganization.mutateAsync({
         name: organizationName.trim(),
@@ -200,8 +211,10 @@ export default function PlatformConsole() {
       setOrganizationSlug("");
       setSelectedUser(null);
       setLookupEmail("");
+      return true;
     } catch (error) {
       setOperationMessage(apiMessage(error, t("errors.organizationCreate")));
+      return false;
     }
   }
 
@@ -246,34 +259,6 @@ export default function PlatformConsole() {
     );
   }
 
-  const getSectionCategory = (section: Section): string => {
-    switch (section) {
-      case "dashboard":
-        return "Overview";
-      case "organizations":
-      case "users":
-      case "memberships":
-      case "projects":
-        return "Administration";
-      case "security":
-        return "Security";
-      case "services":
-      case "jobs":
-      case "ai":
-      case "integrations":
-      case "incidents":
-        return "Operations";
-      case "diagnostics":
-        return "Support";
-      case "audit":
-        return "Governance";
-      case "account":
-        return "Account";
-      default:
-        return "Platform";
-    }
-  };
-
   return (
     <PlatformShell
       activeSection={activeSection}
@@ -283,48 +268,57 @@ export default function PlatformConsole() {
       onSignOut={() => void signOut()}
     >
       {/* Top Page Header */}
-      <PageHeader
-        category={getSectionCategory(activeSection)}
-        title={pageTitle}
-        description={pageDescription}
-        actions={
-          <div className="flex items-center gap-2">
-            {activeSection === "organizations" && canCreateOrganization && !routeOrganizationId && (
-              <Button
-                size="sm"
-                ariaLabel={t("organizations.create")}
-                onClick={() => setIsCreateModalOpen(true)}
-                className="h-9 gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-theme-xs hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
-              >
-                <span className="text-sm font-bold leading-none">+</span>
-                {t("organizations.create")}
-              </Button>
-            )}
-            {activeSection === "organizations" && canReadOrganizations && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={organizations.isFetching}
-                onClick={() => void organizations.refetch()}
-                className="h-8 text-xs"
-              >
-                {organizations.isFetching ? t("refreshing") : t("refresh")}
-              </Button>
-            )}
-            {activeSection === "services" && canReadHealth && (
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={health.isFetching}
-                onClick={() => void health.refetch()}
-                className="h-8 text-xs"
-              >
-                {health.isFetching ? t("refreshing") : t("refresh")}
-              </Button>
-            )}
-          </div>
-        }
-      />
+      {activeSection === "dashboard" ? (
+        <h1 className="sr-only">{pageTitle}</h1>
+      ) : (
+        <PageHeader
+          title={pageTitle}
+          description={pageDescription}
+          actions={
+            <div className="flex items-center gap-2">
+              {activeSection === "organizations" &&
+                canCreateOrganization &&
+                !routeOrganizationId && (
+                  <Button
+                    size="sm"
+                    ariaLabel={t("organizations.create")}
+                    onClick={() => setIsCreateModalOpen(true)}
+                    className="h-9 gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-theme-xs hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
+                  >
+                    <span className="text-sm leading-none font-bold">+</span>
+                    {t("organizations.create")}
+                  </Button>
+                )}
+              {activeSection === "organizations" &&
+                canReadOrganizations &&
+                (!routeOrganizationId || hasValidRouteOrganizationId) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={organizationRequest.isFetching}
+                    onClick={() => void organizationRequest.refetch()}
+                    className="h-8 text-xs"
+                  >
+                    {organizationRequest.isFetching
+                      ? t("refreshing")
+                      : t("refresh")}
+                  </Button>
+                )}
+              {activeSection === "services" && canReadHealth && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={health.isFetching}
+                  onClick={() => void health.refetch()}
+                  className="h-8 text-xs"
+                >
+                  {health.isFetching ? t("refreshing") : t("refresh")}
+                </Button>
+              )}
+            </div>
+          }
+        />
+      )}
 
       {/* Operation Notice / Toast Banner */}
       {operationMessage && (
@@ -352,6 +346,7 @@ export default function PlatformConsole() {
       {activeSection === "organizations" && (
         <div className="space-y-6">
           <PlatformOrganizationsView
+            key={routeOrganizationId || "directory"}
             organizations={organizations}
             setOrganizationPage={setOrganizationPage}
             canReadOrganizations={canReadOrganizations}

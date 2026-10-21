@@ -116,11 +116,6 @@
 .logo {
   flex-shrink: 0;
 }
-.logo > span > span {
-  font-family: ScotchMori, Arial, sans-serif;
-  font-size: 1.15rem;
-  font-weight: 600;
-}
 .navigation {
   display: flex;
   gap: 2.5rem;
@@ -1848,9 +1843,6 @@
   }
   .footerArt {
     display: none;
-  }
-  .headerInner .logo > span > span {
-    font-size: 1rem;
   }
   .trust > div {
     gap: 1.75rem 2rem;
