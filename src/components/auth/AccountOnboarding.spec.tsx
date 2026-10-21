@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import AccountOnboarding from "./AccountOnboarding";
 import { useCurrentUserQuery, useLogoutMutation } from "@/lib/queries/auth/useAuth";
+import { ApiError } from "@/lib/api-client";
+import { clearOrganizationInvitationAcceptanceKey } from "@/lib/queries/organization-memberships/organization-invitation-acceptance-idempotency";
 import {
+  useAcceptOrganizationInvitationMutation,
   useMyOrganizationInvitationsQuery,
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
@@ -11,6 +14,8 @@ import {
 
 const replace = vi.fn();
 const select = vi.fn();
+const accept = vi.fn();
+const refetchOrganizations = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ children, href }: { children: ReactNode; href: string }) => <a href={href}>{children}</a>,
   useRouter: () => ({ replace }),
@@ -25,6 +30,7 @@ vi.mock("@/lib/queries/auth/useAuth", () => ({
   useLogoutMutation: vi.fn(),
 }));
 vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
+  useAcceptOrganizationInvitationMutation: vi.fn(),
   useMyOrganizationInvitationsQuery: vi.fn(),
   useOrganizationOptionsQuery: vi.fn(),
   useSelectOrganizationMutation: vi.fn(),
@@ -32,45 +38,131 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
 
 describe("account onboarding invitations", () => {
   beforeEach(() => {
+    sessionStorage.clear();
+    clearOrganizationInvitationAcceptanceKey("organizationInvitationAccept:951a2b3c4d5e6f7a8b9c0d1e:4");
     replace.mockReset();
     select.mockReset();
+    accept.mockReset().mockResolvedValue({});
+    refetchOrganizations.mockReset().mockResolvedValue({});
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: { id: "user-1", email: "invitee@example.com", name: "Invitee", context: "ACCOUNT" },
       isError: false,
     } as never);
     vi.mocked(useLogoutMutation).mockReturnValue({ mutateAsync: vi.fn() } as never);
     vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
-      data: [], isLoading: false, isError: false, isSuccess: true, refetch: vi.fn(),
+      data: [], isLoading: false, isError: false, isSuccess: true, refetch: refetchOrganizations,
     } as never);
     vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
       data: { data: [{
-        id: "invite-1", organizationId: "org-1",
-        organizationName: "Continuum", status: "PENDING", version: 1,
-        invitedEmail: "invitee@example.com", expiresAt: "2026-10-18T10:00:00.000Z",
+        id: "951a2b3c4d5e6f7a8b9c0d1e", organizationId: "851a2b3c4d5e6f7a8b9c0d1f",
+        organizationName: "Continuum", status: "PENDING", version: 4,
+        invitedEmail: "invitee@example.com", expiresAt: "2026-10-28T10:00:00.000Z",
         createdAt: "2026-10-11T10:00:00.000Z",
       }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
-      isLoading: false, isError: false, refetch: vi.fn(),
+      isLoading: false, isError: false, refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+    vi.mocked(useAcceptOrganizationInvitationMutation).mockReturnValue({
+      mutateAsync: accept,
+      isPending: false,
+      isError: false,
+      error: null,
+      reset: vi.fn(),
     } as never);
     vi.mocked(useSelectOrganizationMutation).mockReturnValue({
       mutateAsync: select, isPending: false, isError: false,
     } as never);
   });
 
-  it("routes pending invitations through the email-bound acceptance page", () => {
+  it("shows the pending state and a direct accept action in the authenticated recipient inbox", () => {
     render(<AccountOnboarding />);
 
     expect(screen.getByText("Continuum")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "onboardingOpenInvitation" })).toHaveAttribute(
-      "href",
-      "/organization/invitations?invitationId=invite-1",
-    );
-    expect(screen.queryByRole("button", { name: "onboardingAcceptInvitation" })).not.toBeInTheDocument();
+    expect(screen.getByText("onboardingInvitationPending")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "onboardingAcceptInvitation" })).toBeEnabled();
     expect(select).not.toHaveBeenCalled();
+  });
+
+  it("accepts the listed invitation through the shared operation and refreshes without creating an organization session", async () => {
+    const refetchInvitations = vi.fn();
+    vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
+      data: { data: [{
+        id: "951a2b3c4d5e6f7a8b9c0d1e", organizationId: "851a2b3c4d5e6f7a8b9c0d1f",
+        organizationName: "Continuum", status: "PENDING", version: 4,
+        invitedEmail: "invitee@example.com", expiresAt: "2026-10-28T10:00:00.000Z",
+        createdAt: "2026-10-11T10:00:00.000Z",
+      }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
+      isLoading: false, isError: false, refetch: refetchInvitations.mockResolvedValue({}),
+    } as never);
+    render(<AccountOnboarding />);
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingAcceptInvitation" }));
+
+    await waitFor(() => expect(accept).toHaveBeenCalledWith({
+      invitationId: "951a2b3c4d5e6f7a8b9c0d1e",
+      organizationId: "851a2b3c4d5e6f7a8b9c0d1f",
+      expectedInvitationVersion: 4,
+      idempotencyKey: expect.stringMatching(/^[A-Za-z0-9._:-]{16,128}$/),
+    }));
+    await waitFor(() => expect(refetchInvitations).toHaveBeenCalled());
+    await waitFor(() => expect(refetchOrganizations).toHaveBeenCalled());
+    expect(select).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("reuses the same idempotency key after an uncertain acceptance response", async () => {
+    accept.mockRejectedValueOnce(new TypeError("network connection interrupted"));
+    const refetchInvitations = vi.fn();
+    vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
+      data: { data: [{
+        id: "951a2b3c4d5e6f7a8b9c0d1e", organizationId: "851a2b3c4d5e6f7a8b9c0d1f",
+        organizationName: "Continuum", status: "PENDING", version: 4,
+        invitedEmail: "invitee@example.com", expiresAt: "2026-10-28T10:00:00.000Z",
+        createdAt: "2026-10-11T10:00:00.000Z",
+      }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
+      isLoading: false, isError: false, refetch: refetchInvitations.mockResolvedValue({}),
+    } as never);
+    render(<AccountOnboarding />);
+    const button = screen.getByRole("button", { name: "onboardingAcceptInvitation" });
+
+    fireEvent.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("onboardingInvitationAcceptError");
+    fireEvent.click(button);
+
+    await waitFor(() => expect(accept).toHaveBeenCalledTimes(2));
+    expect(accept.mock.calls[1][0].idempotencyKey).toBe(accept.mock.calls[0][0].idempotencyKey);
+  });
+
+  it("keeps the readiness 503 visible and does not claim that acceptance succeeded", async () => {
+    accept.mockRejectedValueOnce(new ApiError(503, "IAM_MEMBERSHIP_DEPENDENCY_UNAVAILABLE", "Unavailable"));
+    render(<AccountOnboarding />);
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingAcceptInvitation" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("onboardingInvitationUnavailable");
+    expect(select).not.toHaveBeenCalled();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
+  it("does not offer acceptance for a non-pending invitation", () => {
+    vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
+      data: { data: [{
+        id: "951a2b3c4d5e6f7a8b9c0d1e", organizationId: "851a2b3c4d5e6f7a8b9c0d1f",
+        organizationName: "Continuum", status: "ACCEPTED", version: 5,
+        invitedEmail: "invitee@example.com", expiresAt: "2026-10-28T10:00:00.000Z",
+        createdAt: "2026-10-11T10:00:00.000Z",
+      }], pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 } },
+      isLoading: false, isError: false, refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+
+    render(<AccountOnboarding />);
+
+    expect(screen.queryByRole("button", { name: "onboardingAcceptInvitation" })).not.toBeInTheDocument();
+    expect(screen.getByText("onboardingInvitationNotPending")).toBeInTheDocument();
   });
   it("shows an explicit empty state when the recipient inbox is empty", () => {
     vi.mocked(useMyOrganizationInvitationsQuery).mockReturnValue({
       data: { data: [], pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 } },
-      isLoading: false, isError: false, refetch: vi.fn(),
+      isLoading: false, isError: false, refetch: vi.fn().mockResolvedValue({}),
     } as never);
     render(<AccountOnboarding />);
     expect(screen.getByText("onboardingNoInvitations")).toBeInTheDocument();
@@ -82,7 +174,7 @@ describe("account onboarding invitations", () => {
       isLoading: false,
       isError: false,
       isSuccess: true,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue({}),
     } as never);
     select.mockResolvedValue({ user: { organizationId: "org-1" } });
 
@@ -117,7 +209,7 @@ describe("account onboarding invitations", () => {
       isLoading: false,
       isError: false,
       isSuccess: true,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue({}),
     } as never);
     select.mockResolvedValue({ user: { organizationId: "org-2" } });
 
@@ -148,7 +240,7 @@ describe("account onboarding invitations", () => {
       isLoading: false,
       isError: false,
       isSuccess: true,
-      refetch: vi.fn(),
+      refetch: vi.fn().mockResolvedValue({}),
     } as never);
 
     render(<AccountOnboarding />);

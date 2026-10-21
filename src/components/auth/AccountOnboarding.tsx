@@ -108,7 +108,7 @@ export default function AccountOnboarding() {
         {isAccount && (
           <OrganizationInvitations
             enabled={isAccount}
-            onCheckOrganizations={() => void organizations.refetch()}
+            onCheckOrganizations={() => organizations.refetch()}
           />
         )}
 
