@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { useProjectQuery } from "@/lib/queries/projects/useProjects";
+import { useProjectQuery, type Project } from "@/lib/queries/projects/useProjects";
 import ProjectState from "@/components/projects/ProjectState";
 import Button from "@/components/ui/button/Button";
 import {
@@ -47,12 +47,21 @@ const FIELD_CLASS =
 
 const CONTENT_TABS: readonly WorkNotesTab[] = ["ACTIVITY", "REPORTS", "KNOWLEDGE"];
 
-export default function WorkNotesWorkspace({ projectId }: { projectId: string }) {
+export default function WorkNotesWorkspace({
+  projectId,
+  project: projectProp,
+  embedded = false,
+}: {
+  projectId: string;
+  project?: Project;
+  embedded?: boolean;
+}) {
   const t = useTranslations("workNotes");
   const roleLabel = useRoleDisplayLabel();
   const user = useCurrentUserQuery();
-  const organizationId = user.data?.organizationId ?? "";
-  const project = useProjectQuery(organizationId, projectId);
+  const organizationId = projectProp?.organizationId ?? user.data?.organizationId ?? "";
+  const project = useProjectQuery(projectProp ? "" : organizationId, projectId);
+  const resolvedProject = projectProp ?? project.data;
   const currentUser: WorkNotesIdentity = {
     id: user.data?.id ?? "",
     name: user.data?.name ?? "",
@@ -74,8 +83,8 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
   const [createKind, setCreateKind] = useState<WorkNoteKind>("WORK_UPDATE");
   const [announcement, setAnnouncement] = useState("");
 
-  const projectName = project.data?.name ?? "";
-  const projectCode = project.data?.code ?? "";
+  const projectName = resolvedProject?.name ?? "";
+  const projectCode = resolvedProject?.code ?? "";
   const filteredNotes = useMemo(() => {
     const normalizedSearch = normalize(search);
     return notes.filter((note) => {
@@ -118,14 +127,14 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
     (report) => report.member === currentUser.name && report.week === "THIS_WEEK" && report.status === "SUBMITTED",
   );
 
-  if (user.isPending || (organizationId && project.isPending)) return <ProjectState />;
+  if (user.isPending || (!projectProp && organizationId && project.isPending)) return <ProjectState />;
   if (user.isError) return <ProjectState error={user.error} />;
   if (!organizationId) return <ProjectState error={new Error("No trusted organization")} />;
   if (!role) return <ProjectState error={new Error("No supported Work Notes role")} />;
-  if (project.isError) {
+  if (!projectProp && project.isError) {
     return <ProjectState error={project.error} retry={() => void project.refetch()} />;
   }
-  if (!project.data) return <ProjectState />;
+  if (!resolvedProject) return <ProjectState />;
 
   const pendingKnowledge = notes.filter(
     (note) => note.kind === "KNOWLEDGE" && note.knowledgeStatus === "PENDING",
@@ -222,22 +231,30 @@ export default function WorkNotesWorkspace({ projectId }: { projectId: string })
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       <header className="flex flex-col justify-between gap-4 xl:flex-row xl:items-end">
         <div className="min-w-0">
-          <nav aria-label={t("breadcrumb")} className="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-            <span>{projectName}</span><span aria-hidden="true">/</span><span>{t("title")}</span>
-          </nav>
+          {!embedded && (
+            <nav aria-label={t("breadcrumb")} className="mb-3 flex flex-wrap items-center gap-2 text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <span>{projectName}</span><span aria-hidden="true">/</span><span>{t("title")}</span>
+            </nav>
+          )}
           <div className="flex flex-wrap items-center gap-3">
             <span aria-hidden="true" className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
               <DocsIcon className="size-5" />
             </span>
             <div className="min-w-0">
-              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
+              {embedded ? (
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h2>
+              ) : (
+                <h1 className="text-2xl font-semibold text-gray-900 dark:text-white/90">{t("title")}</h1>
+              )}
               <p className="mt-1 max-w-3xl text-sm text-gray-500 dark:text-gray-400">{t("subtitle", { project: projectName })}</p>
             </div>
             <span className="rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
               {t("previewBadge")}
             </span>
           </div>
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("projectCode", { code: projectCode })}</p>
+          {!embedded && (
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{t("projectCode", { code: projectCode })}</p>
+          )}
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between xl:justify-end">
           <span

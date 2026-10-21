@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import {
   CalenderIcon,
@@ -7,7 +8,6 @@ import {
   TaskIcon,
   TimeIcon,
 } from "@/icons";
-import type { ReactNode } from "react";
 import WorkOverviewBreakdownPanel from "./WorkOverviewBreakdownPanel";
 import WorkOverviewRecentItemsPanel from "./WorkOverviewRecentItemsPanel";
 import WorkOverviewStatusPanel from "./WorkOverviewStatusPanel";
@@ -38,12 +38,16 @@ const typeColors: Record<WorkItemType, string> = {
 export default function WorkOverviewView({
   items,
   onOpenItem,
+  onOpenReports,
 }: {
   items: readonly WorkItem[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
+  onOpenReports?: () => void;
 }) {
   const t = useTranslations("work");
   const overview = useTranslations("work.overviewPanel");
+  const [bannerDismissed, setBannerDismissed] = useState(false);
+
   const statusCounts: Record<WorkStatus, number> = {
     TODO: 0,
     IN_PROGRESS: 0,
@@ -67,7 +71,10 @@ export default function WorkOverviewView({
     statusCounts[item.status] += 1;
     priorityCounts[item.priority] += 1;
     typeCounts[item.type] += 1;
-    assigneeCounts.set(item.assignee.id, (assigneeCounts.get(item.assignee.id) ?? 0) + 1);
+    assigneeCounts.set(
+      item.assignee.id,
+      (assigneeCounts.get(item.assignee.id) ?? 0) + 1,
+    );
     if (!item.dueDate) unscheduledCount += 1;
   }
 
@@ -89,11 +96,62 @@ export default function WorkOverviewView({
     const value = assigneeCounts.get(person.id) ?? 0;
     return value === 0
       ? []
-      : [{ id: person.id, label: person.name, initials: person.initials, value, colorClass: "bg-brand-500" }];
+      : [
+          {
+            id: person.id,
+            label: person.name,
+            initials: person.initials,
+            value,
+            colorClass: "bg-brand-500",
+          },
+        ];
   });
 
   return (
-    <section aria-label={overview("dashboardLabel")} className="min-w-0 space-y-4">
+    <section
+      aria-label={overview("dashboardLabel")}
+      className="min-w-0 space-y-4"
+    >
+      {!bannerDismissed && (
+        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+          <div className="flex items-start gap-3">
+            <span
+              aria-hidden="true"
+              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500 text-xs font-bold text-white"
+            >
+              i
+            </span>
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                Customize your Reports view to suit your space
+              </h2>
+              <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                Head to the Reports tab to explore sprint burndown, velocity, and
+                distribution analytics tailored to this project workspace.
+              </p>
+              <div className="mt-2 flex items-center gap-3 text-xs font-semibold">
+                {onOpenReports && (
+                  <button
+                    type="button"
+                    onClick={onOpenReports}
+                    className="cursor-pointer text-brand-600 hover:underline dark:text-brand-400"
+                  >
+                    Take me to Reports
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setBannerDismissed(true)}
+                  className="cursor-pointer text-gray-500 hover:underline dark:text-gray-400"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetricCard
           icon={<TaskIcon className="h-5 w-5" aria-hidden="true" />}
@@ -161,7 +219,10 @@ function OverviewMetricCard({
 }) {
   return (
     <div className="flex min-h-24 items-center gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-      <span aria-hidden="true" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+      <span
+        aria-hidden="true"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+      >
         {icon}
       </span>
       <span className="min-w-0">

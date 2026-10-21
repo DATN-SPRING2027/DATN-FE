@@ -1,10 +1,16 @@
 "use client";
 
+import { Fragment, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { Fragment } from "react";
 import { Table } from "@/components/ui/table";
+import { PlusIcon } from "@/icons";
 import { WorkPriorityLabel, WorkStatusBadge } from "./WorkStatusBadge";
-import type { WorkItemGroup, WorkPriority, WorkStatus } from "./work-types";
+import {
+  WORK_STATUS_ORDER,
+  type WorkItemGroup,
+  type WorkPriority,
+  type WorkStatus,
+} from "./work-types";
 
 export default function WorkListView({
   groups,
@@ -13,15 +19,57 @@ export default function WorkListView({
   onToggleItem,
   onToggleAll,
   onOpenItem,
+  onStatusChange,
+  onToggleSubtask,
+  onInlineCreate,
 }: {
   groups: readonly WorkItemGroup[];
   selectedIds: ReadonlySet<string>;
   allVisibleSelected: boolean;
   onToggleItem: (id: string) => void;
   onToggleAll: () => void;
-  onOpenItem: (item: WorkItemGroup["items"][number], trigger: HTMLButtonElement) => void;
+  onOpenItem: (
+    item: WorkItemGroup["items"][number],
+    trigger: HTMLButtonElement,
+  ) => void;
+  onStatusChange?: (id: string, status: WorkStatus) => void;
+  onToggleSubtask?: (itemId: string, subtaskId: string) => void;
+  onInlineCreate?: (title: string) => void;
 }) {
   const t = useTranslations("work");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
+  const [inlineCreating, setInlineCreating] = useState(false);
+  const [inlineTitle, setInlineTitle] = useState("");
+
+  const allItems = groups.flatMap((group) => group.items);
+  const expandableIds = allItems
+    .filter((item) => (item.subtaskItems?.length ?? 0) > 0)
+    .map((item) => item.id);
+
+  function toggleExpandRow(id: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleExpandAll() {
+    const allExpanded =
+      expandableIds.length > 0 &&
+      expandableIds.every((id) => expandedIds.has(id));
+    setExpandedIds(allExpanded ? new Set() : new Set(expandableIds));
+  }
+
+  function submitInlineCreate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const trimmed = inlineTitle.trim();
+    if (!trimmed || !onInlineCreate) return;
+    onInlineCreate(trimmed);
+    setInlineTitle("");
+    setInlineCreating(false);
+  }
 
   return (
     <div className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
@@ -39,21 +87,75 @@ export default function WorkListView({
                   className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-950"
                 />
               </th>
-              <th scope="col" className="min-w-80 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("workColumn")}</th>
-              <th scope="col" className="min-w-40 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("assignee")}</th>
-              <th scope="col" className="min-w-40 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("reporter")}</th>
-              <th scope="col" className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("priority")}</th>
-              <th scope="col" className="min-w-36 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("status")}</th>
-              <th scope="col" className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("resolution")}</th>
-              <th scope="col" className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300">{t("created")}</th>
+              <th
+                scope="col"
+                className="min-w-80 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                <div className="flex items-center gap-1.5">
+                  {expandableIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={toggleExpandAll}
+                      title="Expand or collapse all subtasks"
+                      className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
+                    >
+                      ▾
+                    </button>
+                  )}
+                  <span>{t("workColumn")}</span>
+                </div>
+              </th>
+              <th
+                scope="col"
+                className="min-w-40 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("assignee")}
+              </th>
+              <th
+                scope="col"
+                className="min-w-40 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("reporter")}
+              </th>
+              <th
+                scope="col"
+                className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("priority")}
+              </th>
+              <th
+                scope="col"
+                className="min-w-36 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("status")}
+              </th>
+              <th
+                scope="col"
+                className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("resolution")}
+              </th>
+              <th
+                scope="col"
+                className="min-w-32 px-3 py-3 text-start text-xs font-semibold text-gray-600 dark:text-gray-300"
+              >
+                {t("created")}
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {groups.map((group) => (
               <Fragment key={group.id}>
                 {group.label && (
-                  <tr key={`${group.id}-heading`} className="bg-gray-50/70 dark:bg-gray-800/40">
-                    <th colSpan={8} scope="rowgroup" className="px-4 py-2.5 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <tr
+                    key={`${group.id}-heading`}
+                    className="bg-gray-50/70 dark:bg-gray-800/40"
+                  >
+                    <th
+                      colSpan={8}
+                      scope="rowgroup"
+                      className="px-4 py-2.5 text-start text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400"
+                    >
                       <span className="inline-flex items-center gap-2">
                         {group.labelKind === "status"
                           ? t(`statuses.${group.label as WorkStatus}`)
@@ -67,62 +169,235 @@ export default function WorkListView({
                     </th>
                   </tr>
                 )}
-                {group.items.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
-                    <td className="px-3 py-3 align-middle">
-                      <input
-                        type="checkbox"
-                        aria-label={t("selectWorkItem", { key: item.key })}
-                        checked={selectedIds.has(item.id)}
-                        onChange={() => onToggleItem(item.id)}
-                        className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-950"
-                      />
-                    </td>
-                    <td className="max-w-96 px-3 py-3 align-middle">
-                      <div className="flex min-w-0 items-start gap-2.5">
-                        <span aria-hidden="true" className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-brand-200 text-[10px] text-brand-600 dark:border-brand-500/30 dark:text-brand-400">✓</span>
-                        <button
-                          type="button"
-                          onClick={(event) => onOpenItem(item, event.currentTarget)}
-                          aria-label={t("openWorkItem", { key: item.key, title: item.title })}
-                          className="min-w-0 cursor-pointer text-start focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
-                        >
-                          <span className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400">{item.title}</span>
-                          <span className="mt-0.5 block text-xs font-medium text-brand-600 dark:text-brand-400">{item.key}</span>
-                        </button>
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 align-middle">
-                      <PersonLabel person={item.assignee} />
-                    </td>
-                    <td className="px-3 py-3 align-middle">
-                      <PersonLabel person={item.reporter} />
-                    </td>
-                    <td className="px-3 py-3 align-middle"><WorkPriorityLabel priority={item.priority} /></td>
-                    <td className="px-3 py-3 align-middle"><WorkStatusBadge status={item.status} /></td>
-                    <td className="px-3 py-3 align-middle">
-                      <span className={`whitespace-nowrap text-sm ${item.resolution === "RESOLVED" ? "text-success-700 dark:text-success-400" : "text-gray-500 dark:text-gray-400"}`}>
-                        {t(`resolutions.${item.resolution}`)}
-                      </span>
-                    </td>
-                    <td className="px-3 py-3 align-middle text-sm text-gray-500 dark:text-gray-400">
-                      {new Intl.DateTimeFormat("en-US", {
-                        month: "2-digit",
-                        day: "2-digit",
-                        year: "numeric",
-                        timeZone: "UTC",
-                      }).format(new Date(item.createdAt))}
-                    </td>
-                  </tr>
-                ))}
+                {group.items.map((item) => {
+                  const hasSubtasks = (item.subtaskItems?.length ?? 0) > 0;
+                  const isExpanded = expandedIds.has(item.id);
+                  const isDone = item.status === "DONE";
+
+                  return (
+                    <Fragment key={item.id}>
+                      <tr className="transition-colors hover:bg-gray-50/70 dark:hover:bg-gray-800/40">
+                        <td className="px-3 py-3 align-middle">
+                          <input
+                            type="checkbox"
+                            aria-label={t("selectWorkItem", { key: item.key })}
+                            checked={selectedIds.has(item.id)}
+                            onChange={() => onToggleItem(item.id)}
+                            className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-950"
+                          />
+                        </td>
+                        <td className="max-w-96 px-3 py-3 align-middle">
+                          <div className="flex min-w-0 items-start gap-2">
+                            {hasSubtasks ? (
+                              <button
+                                type="button"
+                                onClick={() => toggleExpandRow(item.id)}
+                                aria-label={`Toggle subtasks for ${item.key}`}
+                                className="mt-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+                              >
+                                {isExpanded ? "▾" : "▸"}
+                              </button>
+                            ) : (
+                              <span className="w-5 shrink-0" />
+                            )}
+                            <span
+                              aria-hidden="true"
+                              className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border border-brand-200 text-[10px] text-brand-600 dark:border-brand-500/30 dark:text-brand-400"
+                            >
+                              ✓
+                            </span>
+                            <button
+                              type="button"
+                              onClick={(event) =>
+                                onOpenItem(item, event.currentTarget)
+                              }
+                              aria-label={t("openWorkItem", {
+                                key: item.key,
+                                title: item.title,
+                              })}
+                              className="min-w-0 cursor-pointer text-start focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+                            >
+                              <span className="block truncate text-sm font-medium text-gray-900 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400">
+                                {item.title}
+                              </span>
+                              <span
+                                className={`mt-0.5 inline-flex items-center gap-2 text-xs font-medium text-brand-600 dark:text-brand-400 ${
+                                  isDone ? "line-through opacity-75" : ""
+                                }`}
+                              >
+                                {item.key}
+                                {item.subtasks.total > 0 && (
+                                  <span className="no-underline rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                    {item.subtasks.completed}/
+                                    {item.subtasks.total} subtasks
+                                  </span>
+                                )}
+                              </span>
+                            </button>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <PersonLabel person={item.assignee} />
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <PersonLabel person={item.reporter} />
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <WorkPriorityLabel priority={item.priority} />
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <div className="flex items-center gap-1.5">
+                            <WorkStatusBadge status={item.status} />
+                            {onStatusChange && (
+                              <select
+                                aria-label={`Change status for ${item.key}`}
+                                value={item.status}
+                                onChange={(event) =>
+                                  onStatusChange(
+                                    item.id,
+                                    event.target.value as WorkStatus,
+                                  )
+                                }
+                                className="h-7 cursor-pointer rounded border border-gray-200 bg-transparent px-1.5 text-[11px] text-gray-600 outline-none dark:border-gray-700 dark:text-gray-300"
+                              >
+                                {WORK_STATUS_ORDER.map((st) => (
+                                  <option key={st} value={st}>
+                                    {t(`statuses.${st}`)}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 align-middle">
+                          <span
+                            className={`whitespace-nowrap text-sm ${
+                              item.resolution === "RESOLVED"
+                                ? "text-success-700 dark:text-success-400"
+                                : "text-gray-500 dark:text-gray-400"
+                            }`}
+                          >
+                            {t(`resolutions.${item.resolution}`)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-3 align-middle text-sm text-gray-500 dark:text-gray-400">
+                          {new Intl.DateTimeFormat("en-US", {
+                            month: "2-digit",
+                            day: "2-digit",
+                            year: "numeric",
+                            timeZone: "UTC",
+                          }).format(new Date(item.createdAt))}
+                        </td>
+                      </tr>
+
+                      {/* Subtask hierarchy rows */}
+                      {hasSubtasks &&
+                        isExpanded &&
+                        item.subtaskItems?.map((sub) => (
+                          <tr
+                            key={sub.id}
+                            className="bg-gray-50/50 dark:bg-gray-950/40"
+                          >
+                            <td className="px-3 py-2 align-middle" />
+                            <td
+                              colSpan={4}
+                              className="ps-12 pe-3 py-2 align-middle"
+                            >
+                              <label className="inline-flex cursor-pointer items-center gap-2.5 text-xs">
+                                <input
+                                  type="checkbox"
+                                  checked={sub.done}
+                                  onChange={() =>
+                                    onToggleSubtask?.(item.id, sub.id)
+                                  }
+                                  className="h-3.5 w-3.5 rounded border-gray-300 text-brand-600"
+                                />
+                                <span className="font-semibold text-brand-600 dark:text-brand-400">
+                                  {sub.key}
+                                </span>
+                                <span
+                                  className={
+                                    sub.done
+                                      ? "line-through text-gray-400 dark:text-gray-500"
+                                      : "text-gray-800 dark:text-gray-200"
+                                  }
+                                >
+                                  {sub.summary}
+                                </span>
+                              </label>
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <WorkStatusBadge status={sub.status} />
+                            </td>
+                            <td
+                              colSpan={2}
+                              className="px-3 py-2 align-middle text-xs text-gray-400"
+                            >
+                              Child work item
+                            </td>
+                          </tr>
+                        ))}
+                    </Fragment>
+                  );
+                })}
               </Fragment>
             ))}
           </tbody>
         </Table>
       </div>
+
+      {/* Inline Quick Create Row & Footer */}
       <div className="flex flex-col gap-2 border-t border-gray-100 px-4 py-3 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400 sm:flex-row sm:items-center sm:justify-between">
-        <span>{t("createHint")}</span>
-        <span>{t("workItemCount", { count: groups.reduce((total, group) => total + group.items.length, 0) })}</span>
+        <div className="flex flex-wrap items-center gap-3">
+          {onInlineCreate &&
+            (inlineCreating ? (
+              <form
+                onSubmit={submitInlineCreate}
+                className="flex flex-wrap items-center gap-2"
+              >
+                <input
+                  value={inlineTitle}
+                  onChange={(event) => setInlineTitle(event.target.value)}
+                  placeholder="What needs to be done?"
+                  className="h-8 w-64 rounded-lg border border-brand-300 bg-white px-2.5 text-xs text-gray-900 outline-none dark:border-brand-500 dark:bg-gray-950 dark:text-white"
+                />
+                <button
+                  type="submit"
+                  className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                >
+                  Add
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInlineCreating(false);
+                    setInlineTitle("");
+                  }}
+                  className="h-8 cursor-pointer rounded-lg px-2 text-xs text-gray-500 hover:text-gray-800 dark:hover:text-white"
+                >
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setInlineCreating(true)}
+                className="inline-flex cursor-pointer items-center gap-1.5 font-semibold text-brand-600 hover:text-brand-700 dark:text-brand-400"
+              >
+                <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+                Create inline work item
+              </button>
+            ))}
+          <span>{t("createHint")}</span>
+        </div>
+        <span>
+          {t("workItemCount", {
+            count: groups.reduce(
+              (total, group) => total + group.items.length,
+              0,
+            ),
+          })}
+        </span>
       </div>
     </div>
   );
@@ -135,7 +410,10 @@ function PersonLabel({
 }) {
   return (
     <span className="inline-flex items-center gap-2 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-      <span aria-hidden="true" className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-[10px] font-semibold text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300">
+      <span
+        aria-hidden="true"
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-cyan-100 text-[10px] font-semibold text-cyan-700 dark:bg-cyan-500/15 dark:text-cyan-300"
+      >
         {person.initials}
       </span>
       {person.name}

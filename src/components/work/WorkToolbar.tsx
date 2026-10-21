@@ -21,6 +21,8 @@ export default function WorkToolbar({
   onAssigneeChange,
   onGroupByChange,
   onClearFilters,
+  onOpenAiCopilot,
+  onExportCsv,
 }: {
   query: string;
   status: WorkStatus | "ALL";
@@ -33,6 +35,8 @@ export default function WorkToolbar({
   onAssigneeChange: (assigneeId: string | "ALL") => void;
   onGroupByChange: (groupBy: WorkGroupBy) => void;
   onClearFilters: () => void;
+  onOpenAiCopilot?: () => void;
+  onExportCsv?: () => void;
 }) {
   const t = useTranslations("work");
   const activeFilterCount =
@@ -47,6 +51,17 @@ export default function WorkToolbar({
       className="flex min-w-0 flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 sm:p-4"
     >
       <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center">
+        {onOpenAiCopilot && (
+          <button
+            type="button"
+            onClick={onOpenAiCopilot}
+            className="inline-flex h-10 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+          >
+            <span aria-hidden="true">✨</span>
+            <span>Ask AI</span>
+          </button>
+        )}
+
         <label className="relative min-w-0 flex-1 xl:max-w-80">
           <span className="sr-only">{t("searchLabel")}</span>
           <SearchIcon
@@ -87,7 +102,7 @@ export default function WorkToolbar({
           })}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:ms-auto">
           <details className="group relative">
             <summary className="inline-flex h-10 cursor-pointer list-none items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
               <FilterIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" aria-hidden="true" />
@@ -166,6 +181,16 @@ export default function WorkToolbar({
             <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
             <option value="DONE">{t("statuses.DONE")}</option>
           </select>
+
+          {onExportCsv && (
+            <button
+              type="button"
+              onClick={onExportCsv}
+              className="h-10 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              Export CSV
+            </button>
+          )}
 
           {hasActiveCriteria && (
             <button

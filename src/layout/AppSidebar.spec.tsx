@@ -87,6 +87,7 @@ vi.mock("next-intl", () => ({
       "sidebar.groups.administration": "Administration",
       "sidebar.items.overview": "Overview",
       "sidebar.items.projects": "Projects",
+      "sidebar.items.workspace": "Workspace",
       "sidebar.items.workNotes": "Work Notes",
       "sidebar.items.knowledge": "Knowledge",
       "sidebar.items.aiSearch": "AI Search",
@@ -197,8 +198,12 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar", "Members"]);
-    expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
+    ).toEqual(["Overview", "Projects", "Workspace", "Calendar", "Members"]);
+    expect(within(nav).queryByRole("button", { name: "Work Notes" })).not.toBeInTheDocument();
+    expect(within(nav).getByRole("link", { name: "Workspace" })).toHaveAttribute(
+      "href",
+      "/workspace",
+    );
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -217,7 +222,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar"]);
+    ).toEqual(["Overview", "Projects", "Workspace", "Calendar"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -268,7 +273,6 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     for (const label of [
-      "Work Notes",
       "Knowledge",
       "AI Search",
       "Handover",

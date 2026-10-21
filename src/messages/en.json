@@ -655,7 +655,8 @@
       "aiSearch": "AI Search",
       "handover": "Handover",
       "members": "Members",
-      "settings": "Settings"
+      "settings": "Settings",
+      "workspace": "Workspace"
     },
     "organizationLabel": "Organization",
     "organizationSwitcherLabel": "Choose organization",
@@ -1673,6 +1674,14 @@
     "createNew": "Create New Project",
     "createPageHint": "Configure and provision a new project workspace in your organization.",
     "overview": "Overview",
+    "list": "List",
+    "board": "Board",
+    "calendar": "Calendar",
+    "timeline": "Timeline",
+    "development": "Development",
+    "forms": "Forms",
+    "docs": "Docs",
+    "reports": "Reports",
     "teams": "Teams",
     "work": "Work",
     "workNotes": "Work Notes",
@@ -1783,7 +1792,7 @@
     "title": "Work",
     "breadcrumb": "Work breadcrumb",
     "projects": "Projects",
-    "projectSpace": "Project space",
+    "projectSpace": "Project workspace",
     "previewData": "Preview data",
     "create": "Create",
     "tabs": {
@@ -1791,7 +1800,10 @@
       "list": "List",
       "board": "Board",
       "calendar": "Calendar",
+      "workNotes": "Work Notes",
       "timeline": "Timeline",
+      "development": "Development",
+      "forms": "Forms",
       "docs": "Docs",
       "reports": "Reports"
     },
@@ -1919,7 +1931,13 @@
     "titleRequired": "Enter a summary.",
     "cancel": "Cancel",
     "addToPreview": "Add to preview",
-    "createAdded": "Preview item added. It has not been saved."
+    "createAdded": "Preview item added. It has not been saved.",
+    "workspaceTitle": "Workspace",
+    "selectProject": "Select project workspace",
+    "memberScopeBadge": "Member workspace",
+    "emptyProjectsTitle": "No active projects in this workspace",
+    "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",
+    "browseProjects": "View projects"
   },
   "organizationMembers": {
     "title": "Organization members",
