@@ -177,7 +177,7 @@ it("requires explicit confirmation before revoking a Leader", async () => {
 it("does not expose Leader data or actions to a non-Admin", async () => {
   api.mockRejectedValue(new ApiError(403, "FORBIDDEN", "Forbidden"));
   mount();
-  expect(await screen.findByText(/only an organization admin/i)).toBeVisible();
+  expect(await screen.findByText(/only an organization manager/i)).toBeVisible();
   expect(
     screen.queryByRole("button", { name: "Add Leader" }),
   ).not.toBeInTheDocument();
