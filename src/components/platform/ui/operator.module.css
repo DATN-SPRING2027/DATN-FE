@@ -1,0 +1,1542 @@
+:root {
+  --jira-font:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+}
+.shell {
+  --op-bg: #ffffff;
+  --op-surface: #ffffff;
+  --op-panel: #fafbfc;
+  --op-line: #dfe1e6;
+  --op-line-subtle: #ebecf0;
+  --op-text: #172b4d;
+  --op-muted: #626f86;
+  --op-accent: #0c66e4;
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-light: #f43f5e;
+  --op-chart-deep: #1e293b;
+  --op-chart-muted: #f59e0b;
+  --op-chart-soft: var(--color-brand-300);
+  min-height: 100vh;
+  background: var(--op-bg);
+  color: var(--op-text);
+  font-size: 0.875rem;
+  font-family: var(--jira-font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+:global(.dark) .shell {
+  --op-bg: #0f172a;
+  --op-surface: #1e293b;
+  --op-panel: #1e293b;
+  --op-line: #334155;
+  --op-line-subtle: #1e293b;
+  --op-text: #f8fafc;
+  --op-muted: #94a3b8;
+  --op-accent: #38bdf8;
+  --op-chart-primary: #34d399;
+  --op-chart-light: #fb7185;
+  --op-chart-deep: #0f172a;
+  --op-chart-muted: var(--color-brand-200);
+  --op-chart-soft: #a3e635;
+}
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-inline: 1.25rem;
+  border-bottom: 1px solid var(--op-line);
+  background: var(--op-bg);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  white-space: nowrap;
+}
+.nav {
+  display: flex;
+  align-items: stretch;
+  gap: 1.6rem;
+  align-self: stretch;
+}
+.nav > a,
+.more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 3.5rem;
+  white-space: nowrap;
+  font-size: 0.8125rem;
+  color: var(--op-muted);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+}
+.nav > a:hover,
+.more > summary:hover {
+  color: var(--op-text);
+}
+.nav > a[aria-current="page"],
+.more[data-active="true"] > summary {
+  border-bottom-color: var(--op-text);
+  color: var(--op-text);
+}
+.more {
+  position: relative;
+}
+.more summary {
+  list-style: none;
+  gap: 0.4rem;
+}
+.more summary::-webkit-details-marker {
+  display: none;
+}
+.menu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 60;
+  min-width: 14rem;
+  padding: 0.5rem;
+  border: 1px solid var(--op-line);
+  border-radius: 0.5rem;
+  background: var(--op-bg);
+  box-shadow: var(--shadow-theme-md);
+}
+.menu a {
+  display: block;
+  padding: 0.65rem 0.75rem;
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}
+.menu a:hover,
+.menu a[aria-current="page"] {
+  background: var(--op-panel);
+}
+.actions {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.avatar {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--op-panel);
+  border: 1px solid var(--op-line);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+.menuIdentity {
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--op-line);
+  margin-bottom: 0.5rem;
+}
+.menuIdentity span {
+  display: block;
+  color: var(--op-muted);
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
+}
+.main {
+  width: 100%;
+}
+.content {
+  padding: 1.75rem;
+}
+.dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+.left {
+  min-width: 0;
+  border-inline-end: 1px solid var(--op-line);
+}
+.right {
+  min-width: 0;
+}
+.section {
+  min-width: 0;
+  padding: 2rem;
+  border-bottom: 1px solid var(--op-line);
+}
+.heading {
+  margin-bottom: 1.75rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+.metric {
+  min-width: 0;
+}
+.metric + .metric {
+  border-inline-start: 1px solid var(--op-line);
+  padding-inline-start: 1.25rem;
+}
+.metric dt {
+  color: var(--op-muted);
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.metric dd {
+  margin-block: 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+}
+.subgrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.subgrid > section + section {
+  border-inline-start: 1px solid var(--op-line);
+}
+.bar {
+  display: flex;
+  gap: 0.2rem;
+  height: 0.55rem;
+  overflow: hidden;
+  margin-block: 1.5rem;
+}
+.empty {
+  color: var(--op-muted);
+  font-size: 0.8125rem;
+  line-height: 1.7;
+}
+.table {
+  width: 100%;
+  font-size: 0.75rem;
+}
+.table th,
+.table td {
+  padding-block: 1rem;
+  padding-inline: 0.75rem;
+  border-bottom: 1px solid var(--op-line);
+  text-align: start;
+}
+.table th:first-child,
+.table td:first-child {
+  padding-inline-start: 0;
+}
+.table th {
+  font-weight: 500;
+  color: var(--op-muted);
+}
+.orgPanel {
+  min-width: 0;
+  padding: 2rem;
+}
+.orgPanel :global(section) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.orgPanel :global(section > header) {
+  padding: 0;
+  margin-bottom: 1.5rem;
+}
+.orgPanel :global(section > header h2) {
+  font-size: 1.25rem;
+  letter-spacing: -0.04em;
+  font-weight: 600;
+}
+.orgPanel :global(table thead) {
+  background: transparent;
+}
+.orgPanel :global(th),
+.orgPanel :global(td) {
+  padding-inline: 0.5rem;
+  padding-block: 1rem;
+}
+.orgPanel :global(th:first-child),
+.orgPanel :global(td:first-child) {
+  padding-inline-start: 0;
+}
+.orgPanel :global(input),
+.orgPanel :global(select) {
+  height: 2.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+.orgPanel :global(button) {
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+}
+.orgPanel :global(td a) {
+  color: var(--op-text);
+}
+.shell :is(a, button, summary, input, select):focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 3px;
+}
+.shell :global(.rounded-2xl) {
+  border-radius: 0.25rem;
+  box-shadow: none;
+}
+.shell :global(.rounded-xl) {
+  border-radius: 0.25rem;
+}
+.shell :global(.shadow-theme-xs),
+.shell :global(.shadow-theme-sm) {
+  box-shadow: none;
+}
+@media (max-width: 1279px) {
+  .header {
+    gap: 1rem;
+  }
+  .nav {
+    gap: 1rem;
+  }
+  .identity > span:last-child {
+    display: none;
+  }
+  .section,
+  .orgPanel {
+    padding: 1.5rem;
+  }
+  .metrics {
+    gap: 0.75rem;
+  }
+  .metric + .metric {
+    padding-inline-start: 0.75rem;
+  }
+}
+@media (max-width: 1023px) {
+  .more[data-mobile-active="true"] > summary {
+    border-bottom-color: var(--op-text);
+    color: var(--op-text);
+  }
+  .header {
+    flex-wrap: wrap;
+    padding-top: 0.75rem;
+    gap: 0.5rem;
+  }
+  .nav {
+    order: 3;
+    width: 100%;
+    gap: 1.5rem;
+  }
+  .nav > a,
+  .more > summary {
+    min-height: 3rem;
+  }
+  .nav > a:nth-of-type(n + 4) {
+    display: none;
+  }
+  .more .mobileExtra {
+    display: block;
+  }
+  .dashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .left {
+    border-inline-end: 0;
+  }
+}
+@media (min-width: 1024px) {
+  .more .mobileExtra {
+    display: none;
+  }
+}
+@media (max-width: 479px) {
+  .section,
+  .orgPanel {
+    padding: 1.25rem;
+  }
+  .metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+  }
+  .metric:nth-child(3) {
+    border-inline-start: 0;
+    padding-inline-start: 0;
+  }
+  .subgrid {
+    grid-template-columns: 1fr;
+  }
+  .subgrid > section + section {
+    border-inline-start: 0;
+  }
+  .content {
+    padding: 1.25rem;
+  }
+}
+
+.orgPanel :global(section > header h2) {
+  font-weight: 500;
+}
+.orgPanel :global(button) {
+  min-height: 2.25rem;
+}
+.orgPanel :global(td:first-child a) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.chartHeader {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 0.5rem;
+}
+.chartHeader .heading {
+  margin: 0;
+}
+.demoBadge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--op-line);
+  border-radius: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  color: var(--op-muted);
+  font-size: 0.625rem;
+  line-height: 1.4;
+  font-weight: 400;
+}
+.chartModes {
+  margin-inline-start: auto;
+  display: flex;
+  gap: 0.4rem;
+}
+.chartModes button {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--op-muted);
+  border-radius: 0.25rem;
+}
+.chartModes button[aria-pressed="true"] {
+  background: var(--op-panel);
+  color: var(--op-text);
+}
+.chartControls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 0.5rem;
+}
+.chartControls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.6875rem;
+  color: var(--op-muted);
+  cursor: pointer;
+}
+
+.chartToggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem;
+}
+.sparkline {
+  height: 45px;
+  margin-top: 1rem;
+}
+.chartLoading {
+  min-height: 45px;
+  background: var(--op-panel);
+}
+.referenceChart {
+  min-width: 0;
+}
+.subgrid .chartHeader .heading {
+  font-size: 1.1rem;
+}
+.subgrid .chartControls {
+  gap: 0.5rem;
+}
+.filterTabs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.filterTabs button {
+  padding: 0.45rem 0.7rem;
+  min-height: 2rem;
+  color: var(--op-muted);
+  font-size: 0.75rem;
+  border: 0;
+  border-radius: 0.25rem;
+}
+.filterTabs button[aria-pressed="true"] {
+  color: var(--op-text);
+  background: var(--op-panel);
+}
+.directorySummary dl {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+  padding-block: 1.25rem;
+}
+.directorySummary dl > div + div {
+  border-inline-start: 1px solid var(--op-line);
+  padding-inline-start: 1rem;
+}
+.directorySummary dt {
+  font-size: 0.625rem;
+  color: var(--op-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.directorySummary dd {
+  margin-top: 0.5rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.directorySummary .bar {
+  margin-block: 0.5rem 1.75rem;
+}
+
+.shell .content :global(section) {
+  border-color: var(--op-line);
+  border-radius: 0;
+  box-shadow: none;
+}
+.shell .content :global(table thead) {
+  background: transparent;
+  text-transform: none;
+}
+.shell .content :global(table th) {
+  font-weight: 500;
+  color: var(--op-text);
+}
+.shell .content :global(table th),
+.shell .content :global(table td) {
+  padding-block: 1rem;
+  font-size: 0.8125rem;
+  border-color: var(--op-line);
+}
+.shell .content :global(input:not([type="checkbox"])),
+.shell .content :global(select) {
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}
+.shell .content :global(button) {
+  border-radius: 0.25rem;
+  box-shadow: none;
+}
+.shell .content :global(h2),
+.shell .content :global(h3) {
+  font-weight: 500;
+}
+
+/* Shared rows keep the activity panel aligned with the lower charts and services. */
+.dashboard {
+  grid-template-areas: "summary organizations" "trend organizations" "details activity" "services activity";
+}
+.left,
+.right {
+  display: contents;
+}
+.summary {
+  grid-area: summary;
+}
+.trend {
+  grid-area: trend;
+}
+.subgrid {
+  grid-area: details;
+}
+.services {
+  grid-area: services;
+}
+.activity {
+  grid-area: activity;
+}
+.orgPanel {
+  grid-area: organizations;
+  border-bottom: 1px solid var(--op-line);
+}
+.summary,
+.trend,
+.subgrid,
+.services {
+  border-inline-end: 1px solid var(--op-line);
+}
+.directoryToolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.directorySearch {
+  order: 2;
+  width: 12rem;
+  max-width: 100%;
+  min-width: 0;
+  margin-inline-start: auto;
+}
+.directoryToolbar .filterTabs {
+  order: 1;
+}
+@media (max-width: 1023px) {
+  .dashboard {
+    grid-template-areas: "summary" "trend" "details" "services" "organizations" "activity";
+  }
+  .summary,
+  .trend,
+  .subgrid,
+  .services {
+    border-inline-end: 0;
+  }
+}
+
+/* Distribution segments use one continuous, subtly rounded track. */
+.bar {
+  gap: 0.2rem;
+  height: 0.55rem;
+  border-radius: 0.2rem;
+  background: var(--op-panel);
+}
+.bar > span {
+  min-width: 0;
+  border-radius: 0.15rem;
+}
+.rowActions {
+  position: relative;
+}
+.rowActions > summary {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  cursor: pointer;
+  list-style: none;
+  border-radius: 0.25rem;
+  color: var(--op-muted);
+  font-size: 1.25rem;
+}
+.rowActions > summary::-webkit-details-marker {
+  display: none;
+}
+.rowActions > summary:hover {
+  background: var(--op-panel);
+}
+.rowActions > div {
+  position: absolute;
+  z-index: 10;
+  inset-inline-end: 0;
+  top: 100%;
+  min-width: 8rem;
+  padding: 0.35rem;
+  border: 1px solid var(--op-line);
+  border-radius: 0.35rem;
+  background: var(--op-bg);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.08);
+}
+.rowActions a {
+  display: block;
+  padding: 0.6rem;
+  white-space: nowrap;
+  font-weight: 400;
+}
+.rowActions a:hover {
+  background: var(--op-panel);
+}
+.orgPanel :global(td:first-child a) {
+  font-weight: 400;
+}
+
+.totalTone dt,
+.totalTone dd {
+  color: var(--color-gray-700);
+}
+.primaryTone dt,
+.primaryTone dd {
+  color: var(--color-brand-500);
+}
+.secondaryTone dt,
+.secondaryTone dd {
+  color: var(--color-blue-light-700);
+}
+.mutedTone dt,
+.mutedTone dd {
+  color: var(--color-gray-500);
+}
+.totalTone dt::before,
+.primaryTone dt::before,
+.secondaryTone dt::before,
+.mutedTone dt::before {
+  content: "";
+  display: inline-block;
+  width: 0.4rem;
+  height: 0.4rem;
+  margin-inline-end: 0.4rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+:global(.dark) .totalTone dt,
+:global(.dark) .totalTone dd {
+  color: var(--color-gray-200);
+}
+:global(.dark) .primaryTone dt,
+:global(.dark) .primaryTone dd {
+  color: var(--color-brand-400);
+}
+:global(.dark) .secondaryTone dt,
+:global(.dark) .secondaryTone dd {
+  color: var(--color-blue-light-400);
+}
+:global(.dark) .mutedTone dt,
+:global(.dark) .mutedTone dd {
+  color: var(--color-gray-400);
+}
+
+.rowActions > div {
+  top: auto;
+  bottom: 100%;
+}
+
+.secondaryTone dt::before {
+  background: var(--color-blue-light-500);
+}
+
+/* Keep the search field visually unchanged when it receives focus. */
+.directorySearch input:focus,
+.directorySearch input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border-color: var(--color-gray-300) !important;
+}
+.directorySearch {
+  padding: 2px;
+  box-sizing: border-box;
+}
+.totalTone dt::before,
+.primaryTone dt::before,
+.secondaryTone dt::before,
+.mutedTone dt::before {
+  content: none;
+}
+.statBars {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin-block: 1.5rem;
+}
+.serviceBars {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.statBars > span {
+  height: 0.55rem;
+  border-radius: 0.15rem;
+  overflow: hidden;
+}
+.statBars i {
+  display: block;
+  height: 100%;
+  background: var(--track-fill);
+}
+.totalTrack {
+  --track-fill: var(--color-gray-600);
+  background: var(--color-gray-200);
+}
+.primaryTrack {
+  --track-fill: var(--color-brand-500);
+  background: var(--color-brand-100);
+}
+.secondaryTrack {
+  --track-fill: var(--color-blue-light-500);
+  background: var(--color-blue-light-100);
+}
+.mutedTrack {
+  --track-fill: var(--color-gray-400);
+  background: var(--color-gray-100);
+}
+:global(.dark) .statBars > span {
+  background: color-mix(in srgb, var(--track-fill) 20%, transparent);
+}
+
+/* Dribbble Dashboard & Jira Typography Layout */
+.subheader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 0.85rem 1.75rem;
+  border-bottom: 1px solid var(--op-line-subtle);
+  background: var(--op-bg);
+}
+
+.dribbbleDashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .dribbbleDashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.dribbbleCard {
+  background: var(--op-surface);
+  border: 1px solid var(--op-line-subtle);
+  border-radius: 1rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow:
+    0 1px 3px rgba(9, 30, 66, 0.04),
+    0 0 1px rgba(9, 30, 66, 0.08);
+  position: relative;
+  transition: box-shadow 0.2s ease;
+}
+
+.dribbbleCard:hover {
+  box-shadow:
+    0 4px 12px rgba(9, 30, 66, 0.08),
+    0 0 1px rgba(9, 30, 66, 0.08);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.cardTitle {
+  font-size: 1.0625rem;
+  font-weight: 600;
+  color: var(--op-text);
+  letter-spacing: -0.01em;
+}
+
+.iconButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.375rem;
+  color: var(--op-muted);
+  transition: all 0.15s;
+}
+
+.iconButton:hover {
+  color: var(--op-text);
+  background: var(--op-panel);
+}
+
+.deliveriesGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.25rem;
+}
+
+@media (max-width: 640px) {
+  .deliveriesGrid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+}
+
+.deliveryMetric {
+  display: flex;
+  flex-direction: column;
+}
+
+.metricLabel {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--op-muted);
+  margin-bottom: 0.35rem;
+}
+
+.metricValueLarge {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--op-text);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.equalizerContainer {
+  position: relative;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.equalizerMarker {
+  position: absolute;
+  top: -10px;
+  transform: translateX(-50%);
+  font-size: 7px;
+  color: var(--op-text);
+  line-height: 1;
+}
+
+.equalizerBars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 26px;
+  width: 100%;
+}
+
+.equalizerBars > span {
+  flex: 1;
+  min-width: 2px;
+  border-radius: 1px;
+}
+
+.sliderContainer {
+  position: relative;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.sliderMarker {
+  position: absolute;
+  top: -10px;
+  transform: translateX(-50%);
+  font-size: 7px;
+  color: var(--op-text);
+  line-height: 1;
+}
+
+.gradientSliderTrack {
+  height: 6px;
+  width: 100%;
+  border-radius: 9999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-100) 0%,
+    var(--color-brand-200) 45%,
+    var(--color-brand-300) 75%,
+    var(--color-brand-500) 100%
+  );
+}
+
+.trendBadgePositive {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--color-brand-500);
+  margin-left: 0.35rem;
+}
+
+.miniSparkline {
+  margin-top: 0.35rem;
+}
+
+.snapshotPlot {
+  display: flex;
+  align-items: stretch;
+  justify-content: space-around;
+  gap: 1rem;
+  padding: 1rem 0.5rem 0;
+  border-bottom: 1px solid var(--op-line-subtle);
+  background: repeating-linear-gradient(
+    to top,
+    transparent 0,
+    transparent 24.5%,
+    var(--op-line-subtle) 25%,
+    transparent 25.5%
+  );
+}
+.snapshotColumn {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+}
+.snapshotBarSpace {
+  flex: 1;
+  width: 65%;
+  display: flex;
+  align-items: flex-end;
+}
+.snapshotBarSpace > span {
+  display: block;
+  width: 100%;
+  border-radius: 0.15rem 0.15rem 0 0;
+}
+.snapshotLabel {
+  min-height: 2rem;
+  font-size: 0.65rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+.snapshotValue {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.snapshotNote {
+  margin-top: 1rem;
+  color: var(--op-muted);
+  font-size: 0.7rem;
+}
+.liveMetricTrack {
+  height: 0.5rem;
+  margin-top: 1.5rem;
+  background: var(--op-panel);
+  border-radius: 0.1rem;
+  overflow: hidden;
+}
+.liveMetricTrack span {
+  display: block;
+  height: 100%;
+  background: var(--op-chart-primary);
+}
+.liveDistribution {
+  display: flex;
+  height: 0.5rem;
+  background: var(--op-panel);
+  gap: 0.2rem;
+  margin-block: 1rem 2rem;
+  border-radius: 0.15rem;
+  overflow: hidden;
+}
+.liveDistribution > span {
+  flex-basis: 0;
+}
+.directoryCard > div {
+  padding: 0;
+  border: 0;
+}
+
+/* Continuous reference layout: white sections with only shared dividers. */
+.shell {
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-light: #ed4d7c;
+  --op-chart-deep: #171d18;
+  --op-chart-soft: var(--color-brand-300);
+  --op-text: #101410;
+  --op-line-subtle: #f0f1f0;
+}
+.dribbbleDashboard {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0;
+  padding: 0;
+}
+.dribbbleDashboard > div + div {
+  border-inline-start: 1px solid var(--op-line-subtle);
+}
+.dribbbleDashboard > div > * + * {
+  margin-top: 0 !important;
+}
+.dribbbleCard,
+.dribbbleCard:hover {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--op-surface);
+  padding: 2rem;
+}
+.dribbbleCard {
+  border-bottom: 1px solid var(--op-line-subtle);
+}
+.dribbbleDashboard :global(.sm\:grid-cols-2) > section + section {
+  border-inline-start: 1px solid var(--op-line-subtle);
+}
+.cardTitle {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--op-text);
+}
+.simulationNotice {
+  font-size: 0.65rem;
+  color: var(--op-muted);
+  margin-block: 0.65rem;
+}
+.trendCanvas {
+  position: relative;
+}
+.trendCanvas svg {
+  display: block;
+  width: 100%;
+  min-height: 240px;
+}
+.chartGrid {
+  stroke: var(--op-line);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+}
+.chartVerticalGrid {
+  stroke: var(--op-line-subtle);
+  stroke-width: 0.7;
+}
+.chartAxis {
+  fill: var(--op-muted);
+  font-size: 11px;
+  font-family: inherit;
+}
+.referenceTooltip {
+  position: absolute;
+  top: 30%;
+  width: 12.5rem;
+  padding: 1rem;
+  background: var(--op-surface);
+  box-shadow: 0 4px 24px rgb(0 0 0 / 0.06);
+  border-radius: 0.35rem;
+  pointer-events: none;
+  font-size: 0.75rem;
+}
+.referenceTooltip p {
+  font-size: 0.65rem;
+  color: var(--op-muted);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+}
+.referenceTooltip > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.referenceTooltip span {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--op-muted);
+}
+.referenceTooltip i {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 1px;
+}
+.referenceTooltip strong {
+  font-weight: 500;
+}
+.referenceLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  margin-block: 1rem 0.5rem;
+  font-size: 0.75rem;
+}
+.referenceLegend label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.referenceLegend input {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+.demoDataTable {
+  font-size: 0.65rem;
+  color: var(--op-muted);
+  margin-top: 0.8rem;
+}
+.demoDataTable summary {
+  cursor: pointer;
+}
+.demoDataTable table {
+  width: 100%;
+  text-align: start;
+}
+.demoDataTable th,
+.demoDataTable td {
+  padding: 0.4rem;
+}
+.miniReference {
+  width: 100%;
+  height: 40px;
+  margin-top: 1rem;
+}
+.miniEqualizer {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 40px;
+  margin-top: 1rem;
+  padding-top: 0.5rem;
+}
+.miniEqualizer span {
+  flex: 1;
+  background: var(--op-chart-primary);
+  border-radius: 1px;
+}
+.referenceGauge {
+  height: 40px;
+  margin-top: 1rem;
+  position: relative;
+  padding-top: 30px;
+}
+.referenceGauge > span {
+  position: absolute;
+  inset-inline-end: 2%;
+  top: 12px;
+  font-size: 9px;
+}
+.referenceGauge > div {
+  height: 0.4rem;
+  background: linear-gradient(
+    90deg,
+    var(--color-brand-100) 0%,
+    var(--color-brand-200) 30%,
+    var(--color-brand-300) 45%,
+    var(--color-brand-500) 96%,
+    var(--color-brand-50) 96%
+  );
+  border-radius: 2px;
+}
+.referenceBalance {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 170px;
+  margin-top: 1.5rem;
+}
+.referenceBalance > div {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+}
+.referenceBalance span {
+  display: block;
+  width: 100%;
+}
+.referenceBalance i {
+  position: absolute;
+  width: 3px;
+  height: 2px;
+  background: var(--op-chart-deep);
+  inset-inline-start: 30%;
+}
+@media (max-width: 1200px) {
+  .dribbbleDashboard {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dribbbleDashboard > div + div {
+    border-inline-start: 0;
+  }
+}
+@media (max-width: 639px) {
+  .dribbbleCard {
+    padding: 1.25rem;
+  }
+  .dribbbleDashboard :global(.sm\:grid-cols-2) > section + section {
+    border-inline-start: 0;
+  }
+  .referenceTooltip {
+    width: 10rem;
+    font-size: 0.65rem;
+  }
+  .trendCanvas svg {
+    min-height: 200px;
+  }
+}
+
+/* Match the reference green/lime distribution palette without changing counts. */
+.totalTrack {
+  --track-fill: var(--op-chart-primary);
+  background: color-mix(in srgb, var(--op-chart-primary) 12%, white);
+}
+.primaryTrack {
+  --track-fill: var(--op-chart-soft);
+  background: color-mix(in srgb, var(--op-chart-soft) 16%, white);
+}
+.secondaryTrack {
+  --track-fill: #dfe2de;
+  background: #f2f3f2;
+}
+.primaryTone dt,
+.primaryTone dd {
+  color: #4d6711;
+}
+.secondaryTone dt,
+.secondaryTone dd,
+.totalTone dt,
+.totalTone dd {
+  color: var(--op-text);
+}
+
+.referenceCategoryList > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-block: 0.85rem;
+  font-size: 0.75rem;
+}
+.referenceCategoryList dt {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--op-muted);
+}
+.referenceCategoryList dt i {
+  width: 0.35rem;
+  height: 0.35rem;
+  border-radius: 1px;
+}
+.referenceCategoryList dd {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.referenceCategoryList dd span {
+  display: inline-block;
+  width: 2.5rem;
+  text-align: end;
+  margin-inline-start: 0.75rem;
+}
+
+/* Project blue palette, shared by every dashboard chart and distribution track. */
+.shell {
+  --op-chart-primary: var(--color-brand-500);
+  --op-chart-deep: var(--color-brand-800);
+  --op-chart-light: var(--color-brand-400);
+  --op-chart-soft: var(--color-brand-300);
+  --op-chart-muted: var(--color-brand-200);
+}
+:global(.dark) .shell {
+  --op-chart-primary: var(--color-brand-400);
+  --op-chart-deep: var(--color-brand-200);
+  --op-chart-light: var(--color-blue-light-400);
+  --op-chart-soft: var(--color-brand-600);
+  --op-chart-muted: var(--color-brand-800);
+}
+.totalTrack {
+  --track-fill: var(--op-chart-deep);
+  background: var(--color-brand-100);
+}
+.primaryTrack {
+  --track-fill: var(--op-chart-primary);
+  background: var(--color-brand-50);
+}
+.secondaryTrack {
+  --track-fill: var(--op-chart-soft);
+  background: var(--color-brand-25);
+}
+.mutedTrack {
+  --track-fill: var(--op-chart-muted);
+  background: var(--color-brand-25);
+}
+.primaryTone dt,
+.primaryTone dd {
+  color: var(--color-brand-700);
+}
+:global(.dark) .primaryTone dt,
+:global(.dark) .primaryTone dd {
+  color: var(--color-brand-300);
+}
+
+/* Distinct cool accents keep the project blue dominant and improve recognition. */
+.shell {
+  --op-chart-teal: #0d9488;
+  --op-chart-violet: #8b5cf6;
+}
+:global(.dark) .shell {
+  --op-chart-teal: #2dd4bf;
+  --op-chart-violet: #c4b5fd;
+}
+.summaryPercent {
+  margin-top: 1.5rem;
+  color: var(--op-muted);
+  font-size: 0.75rem;
+}
+.orgPanel .rowActions > div {
+  min-width: 5.25rem;
+  padding: 0.2rem;
+  border-radius: 0.25rem;
+}
+.orgPanel .rowActions a {
+  min-height: 28px;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.7rem;
+  color: var(--color-brand-700);
+  border-radius: 0.2rem;
+}
+.orgPanel .rowActions a[href$="#edit"] {
+  color: #7c3aed;
+}
+.orgPanel .rowActions a:hover {
+  background: var(--color-brand-50);
+}
+.orgPanel .rowActions a[href$="#edit"]:hover {
+  background: #f5f3ff;
+}
+:global(.dark) .orgPanel .rowActions a {
+  color: var(--color-brand-300);
+}
+:global(.dark) .orgPanel .rowActions a[href$="#edit"] {
+  color: #c4b5fd;
+}
+:global(.dark) .orgPanel .rowActions a:hover {
+  background: var(--color-brand-950);
+}
+:global(.dark) .orgPanel .rowActions a[href$="#edit"]:hover {
+  background: #2e1065;
+}
+.dribbbleDashboard .directoryCard,
+.dribbbleDashboard .activity,
+.table tbody tr:last-child td,
+.demoDataTable nav {
+  border-bottom: 0;
+}
+.demoDataTable nav {
+  border-top: 0;
+}
+.referenceTooltip {
+  max-width: calc(100% - 16px);
+}
+
+/* Colors sampled directly from the user-provided palette image. */
+.shell {
+  --op-chart-yellow: #f9f45a;
+  --op-chart-green: #57bc7c;
+  --op-chart-blue: #1e4af5;
+  --op-chart-primary: var(--op-chart-blue);
+  --op-chart-teal: var(--op-chart-green);
+  --op-chart-violet: var(--op-chart-yellow);
+  --op-chart-deep: color-mix(in srgb, var(--op-chart-blue) 75%, black);
+  --op-chart-light: color-mix(in srgb, var(--op-chart-blue) 35%, white);
+  --op-chart-soft: var(--op-chart-yellow);
+  --op-chart-muted: color-mix(in srgb, var(--op-chart-green) 30%, white);
+  --op-chart-yellow-edge: #b3a933;
+}
+:global(.dark) .shell {
+  --op-chart-primary: var(--op-chart-blue);
+  --op-chart-teal: var(--op-chart-green);
+  --op-chart-violet: var(--op-chart-yellow);
+  --op-chart-soft: var(--op-chart-yellow);
+  --op-chart-deep: color-mix(in srgb, var(--op-chart-blue) 50%, white);
+  --op-chart-light: color-mix(in srgb, var(--op-chart-blue) 35%, white);
+  --op-chart-muted: color-mix(in srgb, var(--op-chart-green) 30%, transparent);
+}
+.totalTrack {
+  --track-fill: var(--op-chart-yellow);
+  background: color-mix(in srgb, var(--op-chart-yellow) 18%, white);
+}
+.primaryTrack {
+  --track-fill: var(--op-chart-green);
+  background: color-mix(in srgb, var(--op-chart-green) 15%, white);
+}
+.secondaryTrack {
+  --track-fill: var(--op-chart-blue);
+  background: color-mix(in srgb, var(--op-chart-blue) 10%, white);
+}
+.mutedTrack {
+  --track-fill: color-mix(in srgb, var(--op-chart-blue) 30%, white);
+  background: color-mix(in srgb, var(--op-chart-blue) 5%, white);
+}
+.referenceGauge > div,
+.gradientSliderTrack {
+  background: linear-gradient(
+    90deg,
+    var(--op-chart-yellow) 0% 33%,
+    var(--op-chart-green) 33% 66%,
+    var(--op-chart-blue) 66% 96%,
+    var(--op-panel) 96%
+  );
+}
+.referenceTooltip i,
+.referenceCategoryList dt i {
+  box-shadow: inset 0 0 0 0.5px rgb(0 0 0 / 0.12);
+}
+
+/* Gentle softness is limited to decorative User chart bars. */
+.referenceBalance > div > span {
+  filter: blur(0.65px);
+  opacity: 0.95;
+}
+.totalTone {
+  --metric-color: var(--op-chart-yellow);
+}
+.primaryTone {
+  --metric-color: var(--op-chart-green);
+}
+.secondaryTone {
+  --metric-color: var(--op-chart-blue);
+}
+.mutedTone {
+  --metric-color: color-mix(in srgb, var(--op-chart-blue) 30%, white);
+}
+.shell .totalTone dd,
+.shell .primaryTone dd,
+.shell .secondaryTone dd,
+.shell .mutedTone dd,
+.totalTone .summaryPercent,
+.primaryTone .summaryPercent,
+.secondaryTone .summaryPercent,
+.mutedTone .summaryPercent {
+  color: var(--metric-color);
+}
+.totalTone dd,
+.totalTone .summaryPercent,
+.referenceTooltip [data-series="2"] strong,
+.referenceCategoryList [data-category="2"],
+.referenceCategoryList [data-category="5"] {
+  -webkit-text-stroke: 0.35px var(--op-chart-yellow-edge);
+}
+.mutedTone dd,
+.mutedTone .summaryPercent {
+  -webkit-text-stroke: 0.25px var(--op-chart-blue);
+}
+
+.summary .metric dd {
+  color: var(--op-chart-primary);
+}
+.referenceCategoryList dd {
+  -webkit-text-stroke: 0.2px color-mix(in srgb, currentColor 55%, black);
+}
+
+/* Dashboard typography is uniformly black; chart fills and strokes stay colored. */
+.dashboardPage,
+:global(.dark) .dashboardPage {
+  --op-bg: #fff;
+  --op-surface: #fff;
+  --op-panel: #f9fafb;
+  --op-text: #000;
+  --op-muted: #000;
+  --op-line: #e4e7ec;
+  --op-line-subtle: #f0f1f0;
+  color: #000;
+}
+.dashboardPage :where(*) {
+  color: #000 !important;
+  -webkit-text-stroke: 0 !important;
+  text-shadow: none !important;
+}
+.dashboardPage svg text {
+  fill: #000 !important;
+}
+.dashboardPage input::placeholder {
+  color: #000 !important;
+  opacity: 1;
+}
+.dashboardPage :is(input:not([type="checkbox"]), select, option) {
+  background-color: #fff !important;
+}
+.dashboardPage .rowActions a:hover {
+  background: #f5f3ff !important;
+}

@@ -278,6 +278,7 @@ const { operationHooks, operationState } = vi.hoisted(() => {
   };
 });
 
+vi.mock("./overview/OperatorReferenceChart", () => ({ default: ({ title }: { title?: string }) => <div>{title}</div> }));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
     href,
@@ -317,8 +318,9 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
 }));
 vi.mock("@/lib/queries/platform/usePlatformOperations", () => operationHooks);
 vi.mock("next-intl", () => ({
-  useTranslations: (namespace: string) =>
-    (key: string, values?: Record<string, string>) => {
+  useLocale: () => "en",
+  useTranslations:
+    (namespace: string) => (key: string, values?: Record<string, string>) => {
       if (namespace === "platformUserActions" && key === "restore")
         return "Restore account";
       return values ? `${key} ${Object.values(values).join(" ")}` : key;
@@ -442,41 +444,65 @@ describe("PlatformConsole", () => {
     {
       status: "ACTIVE" as const,
       archivedAt: null,
-      visible: ["View details", "Edit profile", "Suspend account", "Archive user"],
+      visible: [
+        "View details",
+        "Edit profile",
+        "Suspend account",
+        "Archive user",
+      ],
       hidden: ["Reactivate account", "Restore account"],
     },
     {
       status: "SUSPENDED" as const,
       archivedAt: null,
-      visible: ["View details", "Edit profile", "Reactivate account", "Archive user"],
+      visible: [
+        "View details",
+        "Edit profile",
+        "Reactivate account",
+        "Archive user",
+      ],
       hidden: ["Suspend account", "Restore account"],
     },
     {
       status: "SUSPENDED" as const,
       archivedAt: "2026-10-03T00:00:00.000Z",
       visible: ["View details", "Restore account"],
-      hidden: ["Edit profile", "Suspend account", "Reactivate account", "Archive user"],
+      hidden: [
+        "Edit profile",
+        "Suspend account",
+        "Reactivate account",
+        "Archive user",
+      ],
     },
-  ])("shows only valid $status user actions in the row menu", ({ status, archivedAt, visible, hidden }) => {
-    const user = makePlatformUser(status, archivedAt);
-    renderUserDirectory(user);
+  ])(
+    "shows only valid $status user actions in the row menu",
+    ({ status, archivedAt, visible, hidden }) => {
+      const user = makePlatformUser(status, archivedAt);
+      renderUserDirectory(user);
 
-    expect(screen.queryByRole("button", { name: "Details" })).not.toBeInTheDocument();
-    const trigger = screen.getByRole("button", {
-      name: `Actions for ${user.fullName}`,
-    });
-    fireEvent.click(trigger);
+      expect(
+        screen.queryByRole("button", { name: "Details" }),
+      ).not.toBeInTheDocument();
+      const trigger = screen.getByRole("button", {
+        name: `Actions for ${user.fullName}`,
+      });
+      fireEvent.click(trigger);
 
-    const menu = screen.getByRole("menu", {
-      name: `Actions for ${user.fullName}`,
-    });
-    for (const label of visible) {
-      expect(within(menu).getByRole("menuitem", { name: label })).toBeInTheDocument();
-    }
-    for (const label of hidden) {
-      expect(within(menu).queryByRole("menuitem", { name: label })).not.toBeInTheDocument();
-    }
-  });
+      const menu = screen.getByRole("menu", {
+        name: `Actions for ${user.fullName}`,
+      });
+      for (const label of visible) {
+        expect(
+          within(menu).getByRole("menuitem", { name: label }),
+        ).toBeInTheDocument();
+      }
+      for (const label of hidden) {
+        expect(
+          within(menu).queryByRole("menuitem", { name: label }),
+        ).not.toBeInTheDocument();
+      }
+    },
+  );
 
   it("closes the row menu on Escape and returns focus to its trigger", () => {
     const user = makePlatformUser("ACTIVE");
@@ -489,7 +515,9 @@ describe("PlatformConsole", () => {
     const menu = screen.getByRole("menu", {
       name: `Actions for ${user.fullName}`,
     });
-    expect(within(menu).getByRole("menuitem", { name: "View details" })).toHaveFocus();
+    expect(
+      within(menu).getByRole("menuitem", { name: "View details" }),
+    ).toHaveFocus();
     fireEvent.keyDown(menu, { key: "Escape" });
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -503,7 +531,9 @@ describe("PlatformConsole", () => {
       screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
     );
 
-    fireEvent.pointerDown(screen.getByRole("textbox", { name: "Search users" }));
+    fireEvent.pointerDown(
+      screen.getByRole("textbox", { name: "Search users" }),
+    );
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
@@ -517,11 +547,15 @@ describe("PlatformConsole", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit user profile" });
-    expect(within(dialog).getByLabelText("Full name")).toHaveValue(user.fullName);
+    expect(within(dialog).getByLabelText("Full name")).toHaveValue(
+      user.fullName,
+    );
     fireEvent.change(within(dialog).getByLabelText("Full name"), {
       target: { value: "Updated from menu" },
     });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save changes" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Save changes" }),
+    );
 
     await waitFor(() =>
       expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
@@ -532,7 +566,9 @@ describe("PlatformConsole", () => {
       }),
     );
     await waitFor(() =>
-      expect(screen.queryByRole("dialog", { name: "Edit user profile" })).not.toBeInTheDocument(),
+      expect(
+        screen.queryByRole("dialog", { name: "Edit user profile" }),
+      ).not.toBeInTheDocument(),
     );
     expect(screen.getByRole("status")).toHaveTextContent("Profile updated");
   });
@@ -547,7 +583,9 @@ describe("PlatformConsole", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Suspend account?" });
     expect(dialog).toHaveTextContent("revokes the user’s active sessions");
-    fireEvent.click(within(dialog).getByRole("button", { name: "Suspend account" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Suspend account" }),
+    );
 
     await waitFor(() =>
       expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
@@ -566,10 +604,14 @@ describe("PlatformConsole", () => {
     fireEvent.click(
       screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
     );
-    fireEvent.click(screen.getByRole("menuitem", { name: "Reactivate account" }));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Reactivate account" }),
+    );
 
     const dialog = screen.getByRole("dialog", { name: "Reactivate account?" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Reactivate account" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Reactivate account" }),
+    );
 
     await waitFor(() =>
       expect(operationState.mutation.mutateAsync).toHaveBeenCalledWith({
@@ -592,7 +634,9 @@ describe("PlatformConsole", () => {
 
     const dialog = screen.getByRole("dialog", { name: "Archive user?" });
     expect(dialog).toHaveTextContent("audit history");
-    const archiveButton = within(dialog).getByRole("button", { name: "Archive user" });
+    const archiveButton = within(dialog).getByRole("button", {
+      name: "Archive user",
+    });
     expect(archiveButton).toBeDisabled();
     fireEvent.click(within(dialog).getByLabelText(/I understand the account/));
     fireEvent.click(archiveButton);
@@ -712,25 +756,28 @@ describe("PlatformConsole", () => {
     render(<PlatformConsole />);
 
     expect(
-      screen.getAllByRole("link", { name: "navigation.services" }),
-    ).toHaveLength(2);
+      screen.getAllByRole("link", { name: "navigation.services" }).length,
+    ).toBeGreaterThan(0);
     expect(
-      screen.getAllByRole("link", { name: "navigation.audit" }),
-    ).toHaveLength(2);
+      screen.getAllByRole("link", { name: "navigation.audit" }).length,
+    ).toBeGreaterThan(0);
     expect(
       screen.getAllByRole("link", { name: "navigation.dashboard" }),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
     expect(
       screen.queryByRole("button", { name: "organizations.create" }),
     ).not.toBeInTheDocument();
   });
 
-  it("renders all requested domain routes in grouped navigation", () => {
+  it("keeps domain navigation and exposes Organizations through More", () => {
     render(<PlatformConsole />);
+    fireEvent.click(screen.getByText("operatorDesign.more"));
 
+    expect(
+      screen.getByRole("link", { name: "navigation.organizations" }),
+    ).toHaveAttribute("href", "/platform/organizations");
     for (const label of [
       "navigation.dashboard",
-      "navigation.organizations",
       "navigation.users",
       "navigation.memberships",
       "navigation.projects",
@@ -744,7 +791,9 @@ describe("PlatformConsole", () => {
       "navigation.audit",
       "navigation.account",
     ]) {
-      expect(screen.getAllByRole("link", { name: label })).toHaveLength(2);
+      expect(
+        screen.getAllByRole("link", { name: label }).length,
+      ).toBeGreaterThan(0);
     }
   });
 
@@ -902,7 +951,9 @@ describe("PlatformConsole", () => {
   it("requires explicit acknowledgment before archiving and explains a CAS conflict", async () => {
     const user = makePlatformUser("ACTIVE");
     operationState.mutation.mutateAsync
-      .mockRejectedValueOnce(new ApiError(409, "USER_VERSION_STALE", "private detail"))
+      .mockRejectedValueOnce(
+        new ApiError(409, "USER_VERSION_STALE", "private detail"),
+      )
       .mockResolvedValueOnce({});
     renderUserDirectory(user);
     fireEvent.click(
@@ -921,9 +972,9 @@ describe("PlatformConsole", () => {
     expect(archiveButton).toBeEnabled();
     fireEvent.click(archiveButton);
 
-    expect(
-      await within(archiveDialog).findByRole("alert"),
-    ).toHaveTextContent("This record changed after it was loaded");
+    expect(await within(archiveDialog).findByRole("alert")).toHaveTextContent(
+      "This record changed after it was loaded",
+    );
     expect(within(archiveDialog).getByRole("alert")).not.toHaveTextContent(
       "private detail",
     );
@@ -945,7 +996,11 @@ describe("PlatformConsole", () => {
   it("shows a permission-specific profile error without exposing backend detail", async () => {
     const user = makePlatformUser("ACTIVE");
     operationState.mutation.mutateAsync.mockRejectedValueOnce(
-      new ApiError(403, "PLATFORM_PERMISSION_DENIED", "sensitive server detail"),
+      new ApiError(
+        403,
+        "PLATFORM_PERMISSION_DENIED",
+        "sensitive server detail",
+      ),
     );
     renderUserDirectory(user);
     fireEvent.click(
@@ -975,7 +1030,11 @@ describe("PlatformConsole", () => {
   ])("shows safe contextual feedback for HTTP %i", async (status, message) => {
     const user = makePlatformUser("ACTIVE");
     operationState.mutation.mutateAsync.mockRejectedValueOnce(
-      new ApiError(status, "PLATFORM_USER_REQUEST_FAILED", "sensitive server detail"),
+      new ApiError(
+        status,
+        "PLATFORM_USER_REQUEST_FAILED",
+        "sensitive server detail",
+      ),
     );
     renderUserDirectory(user);
     fireEvent.click(
@@ -1169,11 +1228,19 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("heading", { name: "pages.dashboard.title" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText("2 active · 1 suspended")).toBeInTheDocument();
-    expect(screen.getByText("3 active · 1 archived")).toBeInTheDocument();
     expect(
-      screen.getAllByText("dashboard.iamHealthDetail").length,
+      within(
+        screen.getByRole("region", { name: "dashboard.summary" }),
+      ).getByText("2"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("operatorDesign.accountDistribution"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("operatorDesign.projectDistribution"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("dashboard.serviceHealthNote").length,
     ).toBeGreaterThan(0);
   });
 

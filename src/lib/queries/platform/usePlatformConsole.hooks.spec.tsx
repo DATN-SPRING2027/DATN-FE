@@ -46,9 +46,12 @@ describe("useCreatePlatformOrganizationMutation", () => {
   });
 
   it("sends the CSRF cookie value as the request header", async () => {
-    const { result } = renderHook(() => useCreatePlatformOrganizationMutation(), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => useCreatePlatformOrganizationMutation(),
+      {
+        wrapper: createWrapper(),
+      },
+    );
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -76,9 +79,12 @@ describe("Platform paginated list queries", () => {
   });
 
   it("requests the selected Organization directory page", async () => {
-    const { result } = renderHook(() => usePlatformOrganizationsQuery(true, 2), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => usePlatformOrganizationsQuery(true, 2),
+      {
+        wrapper: createWrapper(),
+      },
+    );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApiClient).toHaveBeenCalledWith(
@@ -92,9 +98,12 @@ describe("Platform paginated list queries", () => {
 
   it("requests the selected membership page within one Organization", async () => {
     const organizationId = "651a2b3c4d5e6f7a8b9c0d21";
-    const { result } = renderHook(() => usePlatformMembershipsQuery(organizationId, true, 3), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => usePlatformMembershipsQuery(organizationId, true, 3),
+      {
+        wrapper: createWrapper(),
+      },
+    );
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(mockedApiClient).toHaveBeenCalledWith(
@@ -113,11 +122,48 @@ describe("Platform Organization detail query", () => {
   });
 
   it("does not send a request for an invalid Organization ID", async () => {
-    const { result } = renderHook(() => usePlatformOrganizationQuery("not-an-object-id", true), {
-      wrapper: createWrapper(),
-    });
+    const { result } = renderHook(
+      () => usePlatformOrganizationQuery("not-an-object-id", true),
+      {
+        wrapper: createWrapper(),
+      },
+    );
 
     await waitFor(() => expect(result.current.fetchStatus).toBe("idle"));
     expect(mockedApiClient).not.toHaveBeenCalled();
+  });
+});
+
+describe("Organization projections after creation", () => {
+  it("invalidates dashboard counts and the directory after a confirmed create", async () => {
+    mockedApiClient.mockResolvedValue({
+      id: "651a2b3c4d5e6f7a8b9c0d21",
+      name: "New Organization",
+      slug: "new-organization",
+      plan: "FREE",
+      createdAt: "2026-10-21T00:00:00.000Z",
+      updatedAt: "2026-10-21T00:00:00.000Z",
+    });
+    const client = new QueryClient();
+    client.setQueryData(["platform-console", "dashboard"], {
+      organizations: { total: 1 },
+    });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    const { result } = renderHook(useCreatePlatformOrganizationMutation, {
+      wrapper,
+    });
+    await act(() =>
+      result.current.mutateAsync({
+        name: "New Organization",
+        slug: "new-organization",
+        plan: "FREE",
+        firstAdminUserId: "751a2b3c4d5e6f7a8b9c0d21",
+      }),
+    );
+    expect(
+      client.getQueryState(["platform-console", "dashboard"])?.isInvalidated,
+    ).toBe(true);
   });
 });
