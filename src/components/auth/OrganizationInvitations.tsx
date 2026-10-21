@@ -78,7 +78,9 @@ export default function OrganizationInvitations({
   }
 
   const invitationItems = invitations.data?.data ?? [];
-  const isEmpty = Boolean(invitations.data && invitationItems.length === 0);
+  const isEmpty = Boolean(
+    invitations.data && invitationItems.length === 0 && !invitations.isError,
+  );
 
   if (isEmpty) {
     return (
@@ -118,20 +120,6 @@ export default function OrganizationInvitations({
             }}
             className="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 self-start rounded-lg border border-gray-200/90 bg-white px-3 py-1.5 text-xs font-medium text-brand-600 shadow-2xs transition hover:border-brand-300 hover:bg-brand-50/60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:self-center dark:border-gray-700 dark:bg-gray-800 dark:text-brand-300 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/10"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 16 16"
-              fill="none"
-              className={`size-3.5 ${invitations.isFetching ? "animate-spin" : ""}`}
-            >
-              <path
-                d="M13.5 8a5.5 5.5 0 1 1-1.61-3.89L13.5 5.5V2"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
             {t("onboardingCheckAgain")}
           </button>
         </div>

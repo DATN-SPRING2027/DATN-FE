@@ -1,6 +1,7 @@
 "use client";
 
 import Alert from "@/components/ui/alert/Alert";
+import { LogOutIcon } from "@/icons";
 import { useRouter } from "@/i18n/navigation";
 import {
   useCurrentUserQuery,
@@ -179,20 +180,7 @@ export default function AccountOnboarding() {
             }
             className="inline-flex min-h-9 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200/80 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 shadow-2xs transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-60 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-white"
           >
-            <svg
-              aria-hidden="true"
-              viewBox="0 0 16 16"
-              fill="none"
-              className="size-3.5"
-            >
-              <path
-                d="M6 14H3.333A1.333 1.333 0 0 1 2 12.667V3.333A1.333 1.333 0 0 1 3.333 2H6M10.667 11.333 14 8l-3.333-3.333M14 8H6"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <LogOutIcon aria-hidden="true" className="size-3.5" />
             {t("onboardingSignOut")}
           </button>
         </div>

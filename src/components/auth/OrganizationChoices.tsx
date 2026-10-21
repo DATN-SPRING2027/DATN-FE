@@ -108,7 +108,7 @@ export default function OrganizationChoices({
               <button
                 type="button"
                 disabled={isBusy}
-                aria-busy={isSelectingThis || isBusy}
+                aria-busy={isSelectingThis}
                 onClick={() => onSelect(organization.id)}
                 className={`group flex min-h-17 w-full cursor-pointer items-center gap-3.5 rounded-2xl border px-4 py-3.5 text-start transition-all duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-wait ${
                   isSelectingThis
@@ -129,11 +129,8 @@ export default function OrganizationChoices({
                       {organization.name}
                     </span>
                     {isCurrentOrg && (
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/25"
-                      >
-                        Active
+                      <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-emerald-400/25">
+                        {t("onboardingCurrentOrganization")}
                       </span>
                     )}
                   </span>

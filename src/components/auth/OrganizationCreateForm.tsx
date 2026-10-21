@@ -95,7 +95,7 @@ export default function OrganizationCreateForm({
             required
             maxLength={200}
             autoComplete="organization"
-            placeholder="e.g. Acme Engineering"
+            placeholder={t("onboardingNamePlaceholder")}
           />
         </div>
         <div>
@@ -105,7 +105,9 @@ export default function OrganizationCreateForm({
               aria-hidden="true"
               className="truncate font-mono text-[11px] text-gray-400 dark:text-gray-500"
             >
-              continuum.ai/{slug || "workspace-slug"}
+              {t("onboardingSlugPreview", {
+                slug: slug || t("onboardingSlugDefault"),
+              })}
             </span>
           </div>
           <Input
@@ -120,7 +122,7 @@ export default function OrganizationCreateForm({
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
             autoComplete="off"
             aria-describedby="organization-slug-help"
-            placeholder="acme-engineering"
+            placeholder={t("onboardingSlugPlaceholder")}
           />
           <p
             id="organization-slug-help"
