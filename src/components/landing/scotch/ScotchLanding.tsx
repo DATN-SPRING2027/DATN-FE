@@ -68,10 +68,10 @@ export default async function ScotchLanding() {
         <IntegrationSection />
         <section
           id="cach-hoat-dong"
-          className={`${styles.container} ${styles.payments}`}
+          className={styles.payments}
           aria-labelledby="payments-title"
         >
-          <div className={styles.centerHeading}>
+          <div className={`${styles.container} ${styles.centerHeading}`}>
             <p className={styles.label}>
               <ReferenceImage file="handover-icon.svg" width={24} height={24} />
               {t("paymentLabel")}
@@ -83,16 +83,18 @@ export default async function ScotchLanding() {
             </a>
           </div>
           <ProductVideo />
-          <ul className={styles.paymentBenefits}>
-            {["source-icon.svg", "review-icon.svg", "access-icon.svg"].map(
-              (file, i) => (
-                <li key={file}>
-                  <ReferenceImage file={file} width={26} height={25} />
-                  <span>{t(`paymentBenefit${i + 1}`)}</span>
-                </li>
-              ),
-            )}
-          </ul>
+          <div className={styles.container}>
+            <ul className={styles.paymentBenefits}>
+              {["source-icon.svg", "review-icon.svg", "access-icon.svg"].map(
+                (file, i) => (
+                  <li key={file}>
+                    <ReferenceImage file={file} width={26} height={25} />
+                    <span>{t(`paymentBenefit${i + 1}`)}</span>
+                  </li>
+                ),
+              )}
+            </ul>
+          </div>
         </section>
         <ApproachSection />
         <TeamStories />
