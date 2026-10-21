@@ -695,6 +695,7 @@ export default function WorkWorkspace({
               items={visibleItems}
               onOpenItem={openWorkItem}
               onOpenReports={() => setView("reports")}
+              onOpenList={() => setView("list")}
             />
           ) : view === "board" ? (
             <WorkBoardView

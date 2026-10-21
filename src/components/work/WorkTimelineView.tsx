@@ -714,6 +714,40 @@ export default function WorkTimelineView({
                   );
                 })}
               </div>
+
+              {/* Jira Bottom Floating Zoom Widget Pill */}
+              <div className="flex items-center justify-end border-t border-gray-100 bg-gray-50/60 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-950/40">
+                <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200 bg-white px-2 py-1 shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimeScale("months");
+                      setOffset(0);
+                    }}
+                    className="cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                  >
+                    Today
+                  </button>
+                  <span className="h-3.5 w-px bg-gray-200 dark:bg-gray-700" />
+                  {(["weeks", "months", "quarters"] as const).map((scale) => (
+                    <button
+                      key={`floating-${scale}`}
+                      type="button"
+                      onClick={() => {
+                        setTimeScale(scale);
+                        setOffset(0);
+                      }}
+                      className={`cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold capitalize transition ${
+                        timeScale === scale
+                          ? "bg-brand-50 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
+                          : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
+                      }`}
+                    >
+                      {scale}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
