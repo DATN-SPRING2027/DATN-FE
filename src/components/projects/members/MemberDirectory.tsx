@@ -11,6 +11,7 @@ import {
 import Button from "@/components/ui/button/Button";
 import { GroupIcon } from "@/icons";
 import type { ProjectMembership } from "@/lib/queries/projects/useProjectMembers";
+import type { LeaderRoleStatus } from "./MemberDetails";
 
 export default function MemberDirectory({
   members,
@@ -18,6 +19,7 @@ export default function MemberDirectory({
   disabled,
   removeDisabled,
   leaderUserIds,
+  leaderRoleStatus = "ready",
   canManageLeaders = false,
   leaderBusyUserId,
   onSelect,
@@ -29,6 +31,7 @@ export default function MemberDirectory({
   disabled: boolean;
   removeDisabled: boolean;
   leaderUserIds?: ReadonlySet<string>;
+  leaderRoleStatus?: LeaderRoleStatus;
   canManageLeaders?: boolean;
   leaderBusyUserId?: string;
   onSelect: (id: string) => void;
@@ -101,7 +104,9 @@ export default function MemberDirectory({
         </TableHeader>
         <TableBody className="block w-full space-y-3 lg:table-row-group lg:space-y-0 lg:divide-y lg:divide-gray-100 dark:lg:divide-gray-800">
           {members.map((member) => {
-            const isLeader = Boolean(leaderUserIds?.has(member.userId));
+            const isLeader =
+              leaderRoleStatus === "ready" &&
+              Boolean(leaderUserIds?.has(member.userId));
             const isSoleLeader = isLeader && activeLeaderCount <= 1;
             const isBusyLeader = leaderBusyUserId === member.userId;
             return (
@@ -157,6 +162,16 @@ export default function MemberDirectory({
                     {t("accessLevel")}
                   </span>
                   <div className="flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap lg:justify-start">
+                    {leaderRoleStatus === "loading" && (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                        {t("leaderRoleLoading")}
+                      </span>
+                    )}
+                    {leaderRoleStatus === "unavailable" && (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
+                        {t("leaderRoleUnavailable")}
+                      </span>
+                    )}
                     {isLeader && (
                       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
                         <svg
@@ -330,13 +345,19 @@ export default function MemberDirectory({
                       <Button
                         variant="outline"
                         size="sm"
-                        disabled={removeDisabled || isLeader}
+                        disabled={
+                          removeDisabled ||
+                          isLeader ||
+                          leaderRoleStatus !== "ready"
+                        }
                         title={
-                          isSoleLeader
-                            ? t("soleLeaderCannotRevoke")
-                            : isLeader
-                              ? t("leaderCannotBeRemoved")
-                              : undefined
+                          leaderRoleStatus !== "ready"
+                            ? t("leaderRoleRequiredForRemove")
+                            : isSoleLeader
+                              ? t("soleLeaderCannotRevoke")
+                              : isLeader
+                                ? t("leaderCannotBeRemoved")
+                                : undefined
                         }
                         startIcon={
                           <svg

@@ -816,3 +816,34 @@ it("preserves the active tab across project refetches and syncs /overview, /memb
     window.history.replaceState(null, "", "/");
   }
 });
+
+
+it("clearly labels Project search and filters as scoped to the currently loaded page", async () => {
+  api.mockImplementation(async (path) =>
+    path === "/auth/me" ? user : list([project]),
+  );
+  mount(<ProjectWorkspace />);
+
+  expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
+  expect(
+    screen.getByText(
+      "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
+    ),
+  ).toBeVisible();
+
+  const searchInput = screen.getByLabelText("Search current page");
+  expect(searchInput).toHaveAttribute(
+    "placeholder",
+    "Filter current page by project name, code, or description…",
+  );
+
+  fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });
+  expect(
+    await screen.findByText("No matching projects on this page"),
+  ).toBeVisible();
+  expect(
+    screen.getByText(
+      "No projects on the current page match your search or filters. Try another page or clear the filters.",
+    ),
+  ).toBeVisible();
+});

@@ -20,7 +20,7 @@ import ProjectState from "../ProjectState";
 import MemberAddForm from "./MemberAddForm";
 import MemberNotification from "./MemberNotification";
 import MemberDirectory from "./MemberDirectory";
-import MemberDetails from "./MemberDetails";
+import MemberDetails, { type LeaderRoleStatus } from "./MemberDetails";
 import MemberLifecycle from "./MemberLifecycle";
 import MemberStatusFilter from "./MemberStatusFilter";
 import Input from "@/components/form/input/InputField";
@@ -34,12 +34,14 @@ import { Modal } from "@/components/ui/modal";
 function ScopedProjectMembers({
   organizationId,
   projectId,
+  canAppointLeaders,
   showAddButton,
   addModalOpen: controlledAddModalOpen,
   onCloseAdd,
 }: {
   organizationId: string;
   projectId: string;
+  canAppointLeaders: boolean;
   showAddButton: boolean;
   addModalOpen?: boolean;
   onCloseAdd?: () => void;
@@ -98,8 +100,14 @@ function ScopedProjectMembers({
   const add = useAddProjectMember(organizationId, projectId);
   const remove = useRemoveProjectMember(organizationId, projectId);
 
-  const canManageLeaders =
-    leaders.isSuccess && !leaders.isFetching && !leaders.isError;
+  const leaderRoleStatus: LeaderRoleStatus =
+    leaders.isPending || leaders.isFetching
+      ? "loading"
+      : leaders.isError
+        ? "unavailable"
+        : "ready";
+  const leaderRolesKnown = leaderRoleStatus === "ready";
+  const canManageLeaders = leaderRolesKnown && canAppointLeaders;
   const leaderUserIds = useMemo(
     () =>
       new Set(
@@ -183,6 +191,7 @@ function ScopedProjectMembers({
   const focusedMember = listedMembers.find((member) => member.id === focusedId);
 
   function requestRemoval(member: ProjectMembership) {
+    if (!leaderRolesKnown) return;
     if (leaderUserIds.has(member.userId)) {
       if (leaderUserIds.size <= 1) {
         setSoleLeaderBlocked(true);
@@ -218,6 +227,16 @@ function ScopedProjectMembers({
           {t("checkAccess")}
         </Button>
       )}
+      {leaderRoleStatus === "unavailable" &&
+        members.isSuccess &&
+        !members.isFetching && (
+          <p
+            role="status"
+            className="rounded-xl border border-warning-200 bg-warning-50/70 px-4 py-3 text-xs font-medium text-warning-800 sm:text-sm dark:border-warning-500/25 dark:bg-warning-500/10 dark:text-warning-300"
+          >
+            {t("leaderRoleUnverifiedNotice")}
+          </p>
+        )}
       {(leaderError || soleLeaderBlocked) && (
         <p
           role="alert"
@@ -317,8 +336,11 @@ function ScopedProjectMembers({
               members={listedMembers}
               selectedId={focusedMember?.id}
               disabled={busy}
-              removeDisabled={busy || isMemberActionDenied(remove.error)}
+              removeDisabled={
+                busy || isMemberActionDenied(remove.error) || !leaderRolesKnown
+              }
               leaderUserIds={leaderUserIds}
+              leaderRoleStatus={leaderRoleStatus}
               canManageLeaders={canManageLeaders}
               leaderBusyUserId={leaderBusyUserId}
               onSelect={setFocusedId}
@@ -461,6 +483,7 @@ function ScopedProjectMembers({
           <MemberDetails
             member={focusedMember}
             isLeader={leaderUserIds.has(focusedMember.userId)}
+            leaderRoleStatus={leaderRoleStatus}
           />
           <MemberLifecycle member={focusedMember} />
         </div>
@@ -541,6 +564,7 @@ export default function ProjectMembers({
       key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
       organizationId={user.data.organizationId}
       projectId={projectId}
+      canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
       showAddButton={showAddButton}
       addModalOpen={addModalOpen}
       onCloseAdd={onCloseAdd}

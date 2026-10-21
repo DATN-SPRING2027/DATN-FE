@@ -3,6 +3,8 @@ import { useFormatter, useTranslations } from "next-intl";
 import ComponentCard from "@/components/common/ComponentCard";
 import type { ProjectMembership } from "@/lib/queries/projects/useProjectMembers";
 
+export type LeaderRoleStatus = "ready" | "loading" | "unavailable";
+
 function FieldIcon({ kind }: { kind: "user" | "scope" | "status" | "date" }) {
   if (kind === "user") {
     return (
@@ -110,12 +112,23 @@ function FieldIcon({ kind }: { kind: "user" | "scope" | "status" | "date" }) {
 export default function MemberDetails({
   member,
   isLeader = false,
+  leaderRoleStatus = "ready",
 }: {
   member: ProjectMembership;
   isLeader?: boolean;
+  leaderRoleStatus?: LeaderRoleStatus;
 }) {
   const t = useTranslations("projectMembers");
   const format = useFormatter();
+  const accessLevelValue =
+    leaderRoleStatus === "loading"
+      ? `${t("leaderRoleLoading")} · ${t("projectScope")}`
+      : leaderRoleStatus === "unavailable"
+        ? `${t("leaderRoleUnavailable")} · ${t("projectScope")}`
+        : isLeader
+          ? `${t("projectLeaderBadge")} · ${t("projectScope")}`
+          : t("projectScope");
+
   const fields: Array<{
     label: string;
     value: string;
@@ -154,9 +167,7 @@ export default function MemberDetails({
       : []),
     {
       label: "accessLevel",
-      value: isLeader
-        ? `${t("projectLeaderBadge")} · ${t("projectScope")}`
-        : t("projectScope"),
+      value: accessLevelValue,
       icon: "scope",
       isDate: false,
     },

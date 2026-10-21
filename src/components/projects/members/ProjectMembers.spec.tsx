@@ -45,6 +45,23 @@ vi.mock("@/icons", () =>
   ),
 );
 const api = vi.mocked(apiClient);
+const rawMockImplementation = api.mockImplementation.bind(api);
+api.mockImplementation = ((
+  impl: Parameters<typeof api.mockImplementation>[0],
+) =>
+  rawMockImplementation(async (endpoint, options) => {
+    const result = await impl(endpoint, options);
+    if (
+      endpoint.endsWith("/leaders") &&
+      (!options?.method || options.method === "GET") &&
+      result &&
+      typeof result === "object" &&
+      "pagination" in (result as Record<string, unknown>)
+    ) {
+      return { data: [] };
+    }
+    return result;
+  })) as typeof api.mockImplementation;
 let queryClient: QueryClient;
 const member = {
   id: "membership-1",
@@ -1001,4 +1018,36 @@ it("prevents revoking or removing the sole Project Leader until a second Leader 
       expect.objectContaining({ method: "DELETE" }),
     );
   });
+});
+
+
+it("shows unverified role state and locks Remove when the Leader list returns 403 or fails", async () => {
+  api.mockImplementation(async (endpoint) => {
+    if (endpoint === "/auth/me") return { ...user, roles: ["TEAM_LEADER"] };
+    if (endpoint === "/iam/projects/project-1/leaders") {
+      throw new ApiError(403, "FORBIDDEN", "Forbidden");
+    }
+    return page([member]);
+  });
+
+  mount();
+  await findMember("user-1");
+
+  expect(
+    await screen.findByText(
+      "Leader roles could not be verified for this view. Member removal is locked until Leader status is confirmed.",
+    ),
+  ).toBeVisible();
+  expect(screen.getByText("Role unverified")).toBeVisible();
+
+  const removeButton = screen.getByRole("button", { name: "Remove" });
+  expect(removeButton).toBeDisabled();
+  expect(removeButton).toHaveAttribute(
+    "title",
+    "Member removal is locked until Leader roles can be verified.",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "View member user-1" }));
+  const details = screen.getByRole("region", { name: "Membership details" });
+  expect(within(details).getByText("Role unverified · Project scope")).toBeVisible();
 });

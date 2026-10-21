@@ -217,6 +217,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               <input
                 id="project-search"
                 type="search"
+                aria-describedby="project-search-page-hint"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder={t("searchPlaceholder")}
@@ -347,6 +348,12 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             </div>
           </div>
         </div>
+        <p
+          id="project-search-page-hint"
+          className="mt-2.5 border-t border-gray-100 pt-2.5 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400"
+        >
+          {t("searchLoadedPageHint")}
+        </p>
       </div>
 
       {/* Loading & Error states */}
