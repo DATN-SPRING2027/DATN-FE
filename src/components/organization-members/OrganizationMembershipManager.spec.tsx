@@ -523,7 +523,7 @@ describe("Organization membership management page", () => {
     });
     expect(new Headers(call?.[1]?.headers).get("X-CSRF-Token")).toBe("csrf-value");
     expect(new Headers(call?.[1]?.headers).get("Idempotency-Key")).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
-    expect(screen.getByText("Organization Admin")).toBeVisible();
+    expect(screen.getByText("Manager")).toBeVisible();
   });
 
   it("does not render Organization role actions for the acting member", async () => {

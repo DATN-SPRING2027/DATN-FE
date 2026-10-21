@@ -15,6 +15,20 @@
 - Keep secrets out of source control. Commit only `.env.example`, never a populated `.env` file.
 - Every behavior change must pass `npm run check` before handoff.
 
+## Role Vocabulary & Display Label Mapping (AI Anti-Confusion Rule)
+
+To preserve backend/database invariants while presenting clean business terminology in the UI, the frontend strictly separates **persisted/API technical codes** from **user-facing display labels**:
+
+| Technical Identifier (DB / API / JWT / Code) | Architectural Scope & Storage | FE Business Display Label (`src/messages/*.json` & `RoleLabel.tsx`) | Notes for AI Agents |
+| --- | --- | --- | --- |
+| `PLATFORM_OPERATOR` | Platform Authority (`scope: "PLATFORM"`, stored in `platform_authority_assignments`, **never** in `roles` or `role_assignments`) | **Admin** | Never send `"Admin"` as a technical `roleCode` to BE APIs. Platform authorization is evaluated via `context === "PLATFORM"` and `platform.permissions`. |
+| `ADMIN` | Organization Role (`projectId: null` in `role_assignments` & `organization_invitations`) | **Manager** | In the UI, Organization `ADMIN` is always displayed as **Manager**. In API payloads, query filters, and role guards, always use `"ADMIN"` (never `"MANAGER"`). |
+| `TEAM_LEADER` *(and DTO alias `LEADER`)* | Project Role (`projectId: <ObjectId>` in `role_assignments`) | **Leader** *(plural: **Leaders**)* | In the UI, Project `TEAM_LEADER` (and `LEADER` in project membership summaries) is always displayed as **Leader**. In API payloads and guards, keep `"TEAM_LEADER"` / `"LEADER"` as defined by the contract. |
+| `MEMBER` | Organization Role (`projectId: null`) & Project Role (`projectId: <ObjectId>`) | **Member** | Technical code `"MEMBER"` maps to display label **Member**. |
+
+- Always render role names in the UI through `<RoleLabel />` or `useRoleDisplayLabel()` from `src/components/common/RoleLabel.tsx` (backed by `roleLabels.*` in `src/messages/*.json`).
+- Never rename technical enum values (`"PLATFORM_OPERATOR"`, `"ADMIN"`, `"TEAM_LEADER"`, `"LEADER"`, `"MEMBER"`) in API contracts, query keys, or permission/role checks unless a coordinated backend + database migration is explicitly approved.
+
 ## Imported foundation
 
 - Edition: TailAdmin Next.js Free 2.4.0.
