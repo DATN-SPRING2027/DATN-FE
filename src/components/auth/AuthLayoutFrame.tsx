@@ -26,7 +26,7 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
     return <LegacyAuthLayout>{children}</LegacyAuthLayout>;
 
   return (
-    <div className={styles.page}>
+    <div className={styles.page} data-auth-route={pathname}>
       <div
         className={`no-scrollbar ${styles.scrollPane}`}
         tabIndex={0}
@@ -50,11 +50,16 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
             )}
           </nav>
         </header>
-        <div className={styles.content}>{children}</div>
+        <div key={pathname} className={styles.content}>
+          {children}
+        </div>
         <footer className={styles.footer}>
           <span>{t("copyright")}</span>
           <span>{t("footer")}</span>
         </footer>
+      </div>
+      <div className={styles.waveSurface} aria-hidden="true">
+        <div key={pathname} className={styles.curveLine} aria-hidden="true" />
       </div>
       <aside className={styles.visual} aria-label={t("visualEyebrow")}>
         <div className={styles.visualInner}>
@@ -87,7 +92,6 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
           </div>
         </div>
       </aside>
-      <div className={styles.curveLine} aria-hidden="true" />
       <div className={styles.themeControl}>
         <ThemeTogglerTwo />
       </div>
