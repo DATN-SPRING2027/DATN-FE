@@ -17,6 +17,7 @@ import {
 import { chatFeatures } from "@/lib/queries/chat/features";
 import { apiClient } from "@/lib/api-client";
 import ChatDialog from "./ChatDialog";
+import AvatarText from "./ChatAvatar";
 import ChatAttachments from "./ChatAttachments";
 import MessageContent from "./MessageContent";
 import HighlightedText from "./HighlightedText";
@@ -422,18 +423,38 @@ export default function ChatTools({
                     </button>
                   )}
                   {!senderId &&
-                    senderCandidates.data?.data.map((person) => (
-                      <button
-                        key={person.id}
-                        className={button}
-                        onClick={() => {
-                          setSenderId(person.id);
-                          setSenderSearch(person.fullName);
-                        }}
-                      >
-                        {person.fullName}
-                      </button>
-                    ))}
+                    Boolean(senderCandidates.data?.data.length) && (
+                      <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/50">
+                        {senderCandidates.data?.data.map((person) => (
+                          <button
+                            type="button"
+                            key={person.id}
+                            className="flex w-full items-center gap-3 rounded-lg bg-white px-2.5 py-2 text-start text-xs transition hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:bg-gray-900 dark:hover:bg-gray-800"
+                            onClick={() => {
+                              setSenderId(person.id);
+                              setSenderSearch(person.fullName);
+                            }}
+                          >
+                            <AvatarText
+                              src={person.avatarUrl}
+                              name={person.fullName}
+                              className="h-8 w-8 shrink-0 text-xs"
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                                {person.fullName}
+                              </span>
+                              <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${person.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                                />
+                                {person.isOnline ? t("online") : t("offline")}
+                              </span>
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                 </div>
               )}
             </div>

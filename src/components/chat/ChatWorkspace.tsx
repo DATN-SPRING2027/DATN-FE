@@ -1513,7 +1513,7 @@ export default function ChatWorkspace() {
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
-                  <MoreDotIcon className="h-5 w-5" />
+                  <MoreDotIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
                 <button
                   type="button"
@@ -1527,7 +1527,7 @@ export default function ChatWorkspace() {
                   }}
                   className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
-                  <SearchIcon className="h-5 w-5" />
+                  <SearchIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                 </button>
                 {activeType === "DIRECT" && (
                   <span
@@ -1555,7 +1555,7 @@ export default function ChatWorkspace() {
                     }}
                     className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
-                    <InfoIcon className="h-5 w-5" />
+                    <InfoIcon width={20} height={20} className="h-5 w-5 shrink-0" />
                   </button>
                 )}
               </header>
@@ -1813,36 +1813,45 @@ export default function ChatWorkspace() {
             </p>
           )}
 
-          <div className="space-y-1">
+          <div className="space-y-2">
             <p className="text-xs font-semibold text-gray-600 dark:text-gray-300">
               {t("members", { count: activeConversation.members.length })}
             </p>
-            <ul className="max-h-36 space-y-1 overflow-y-auto">
+            <ul className="max-h-44 space-y-1.5 overflow-y-auto">
               {activeConversation.members.map((member) => (
                 <li
                   key={member.userId}
-                  className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-200"
+                  className="flex items-center gap-2.5 rounded-xl border border-gray-100 bg-gray-50/70 px-2.5 py-2 text-xs text-gray-700 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-200"
                 >
-                  <span className="min-w-0 flex-1 truncate">
+                  <AvatarText
+                    src={member.avatarUrl}
+                    name={member.displayName}
+                    className="h-8 w-8 shrink-0 text-xs"
+                  />
+                  <span className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-100">
                     {member.displayName}
-                    {member.role === "OWNER" ? ` · ${t("owner")}` : ""}
+                    {member.role === "OWNER" ? (
+                      <span className="ms-1.5 rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                        {t("owner")}
+                      </span>
+                    ) : null}
                   </span>
                   {isRoomOwner &&
                     member.role === "MEMBER" &&
                     (removeMemberId === member.userId ? (
-                      <span className="flex items-center gap-1">
+                      <span className="flex items-center gap-1.5">
                         <button
                           type="button"
                           disabled={roomMutationPending}
                           onClick={() => void removeRoomMember(member.userId)}
-                          className="font-semibold text-error-600 hover:underline dark:text-error-400"
+                          className="rounded-md bg-error-50 px-2 py-1 font-semibold text-error-600 hover:bg-error-100 dark:bg-error-500/10 dark:text-error-400"
                         >
                           {t("confirmRemove")}
                         </button>
                         <button
                           type="button"
                           onClick={() => setRemoveMemberId("")}
-                          className="text-gray-500 hover:underline"
+                          className="px-1.5 py-1 text-gray-500 hover:underline"
                         >
                           {t("cancel")}
                         </button>
@@ -1851,7 +1860,7 @@ export default function ChatWorkspace() {
                       <button
                         type="button"
                         onClick={() => setRemoveMemberId(member.userId)}
-                        className="text-gray-500 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:text-error-400"
+                        className="rounded-md px-2 py-1 text-gray-500 transition hover:bg-error-50 hover:text-error-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-error-500/10 dark:hover:text-error-400"
                       >
                         {t("removeMember")}
                       </button>
@@ -1862,33 +1871,47 @@ export default function ChatWorkspace() {
           </div>
 
           {isRoomOwner && (
-            <div className="space-y-2 border-t border-gray-200 pt-3 dark:border-gray-800">
+            <div className="space-y-2.5 border-t border-gray-200 pt-3.5 dark:border-gray-800">
               <label className="block">
                 <span className="sr-only">{t("searchPeople")}</span>
                 <input
                   value={personSearch}
                   onChange={(event) => setPersonSearch(event.target.value)}
                   placeholder={t("addRoomMembers")}
-                  className="h-9 w-full rounded-md border border-gray-200 bg-white px-2.5 text-sm outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900"
+                  className="h-10 w-full rounded-xl border border-gray-200 bg-white px-3 text-sm outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900"
                 />
               </label>
               {roomManagementMembers.length > 0 && (
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t("selectedPeople", {
-                    count: roomManagementMembers.length,
-                  })}
-                </p>
+                <div className="space-y-1.5">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {t("selectedPeople", {
+                      count: roomManagementMembers.length,
+                    })}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {roomManagementMembers.map((member) => (
+                      <button
+                        key={member.id}
+                        type="button"
+                        onClick={() => toggleRoomManagementMember(member)}
+                        className="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                      >
+                        {member.fullName} ×
+                      </button>
+                    ))}
+                  </div>
+                </div>
               )}
               {personSearch.trim().length >= 2 && (
-                <div className="max-h-28 space-y-1 overflow-y-auto">
+                <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/50">
                   {candidatesQuery.isError ? (
-                    <p role="alert" className="text-xs text-error-600">
+                    <p role="alert" className="px-2 py-2 text-xs text-error-600">
                       {t("searchError")}
                     </p>
                   ) : candidatesQuery.isFetching ? (
-                    <p className="text-xs text-gray-500">{t("loading")}</p>
+                    <p className="px-2 py-2 text-xs text-gray-500">{t("loading")}</p>
                   ) : roomCandidates.length === 0 ? (
-                    <p className="text-xs text-gray-500">{t("noPeople")}</p>
+                    <p className="px-2 py-2 text-xs text-gray-500">{t("noPeople")}</p>
                   ) : (
                     roomCandidates.map((candidate) => {
                       const selected = roomManagementMembers.some(
@@ -1906,10 +1929,35 @@ export default function ChatWorkspace() {
                           disabled={
                             roomMutationPending || (!selected && atLimit)
                           }
-                          className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-start text-xs hover:bg-white focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:hover:bg-gray-800"
+                          className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start text-xs transition focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 ${
+                            selected
+                              ? "border border-brand-200 bg-brand-50/80 dark:border-brand-500/30 dark:bg-brand-500/10"
+                              : "bg-white hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
+                          }`}
                         >
-                          <span className="truncate">{candidate.fullName}</span>
-                          <span className="text-brand-600 dark:text-brand-300">
+                          <AvatarText
+                            src={candidate.avatarUrl}
+                            name={candidate.fullName}
+                            className="h-8 w-8 shrink-0 text-xs"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                              {candidate.fullName}
+                            </span>
+                            <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                              />
+                              {candidate.isOnline ? t("online") : t("offline")}
+                            </span>
+                          </span>
+                          <span
+                            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                              selected
+                                ? "bg-brand-500 text-white"
+                                : "border border-gray-200 bg-gray-50 text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-300"
+                            }`}
+                          >
                             {selected ? "✓" : "+"}
                           </span>
                         </button>
@@ -1924,7 +1972,7 @@ export default function ChatWorkspace() {
                 disabled={
                   roomMutationPending || roomManagementMembers.length === 0
                 }
-                className="h-9 w-full rounded-md bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50"
+                className="h-10 w-full rounded-xl bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50"
               >
                 {t("addSelectedMembers", {
                   count: roomManagementMembers.length,

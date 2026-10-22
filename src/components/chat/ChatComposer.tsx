@@ -106,7 +106,7 @@ export default function ChatComposer({
     const input = textareaRef.current;
     if (input) {
       input.style.height = "auto";
-      input.style.height = `${input.scrollHeight}px`;
+      input.style.height = value ? `${Math.max(input.scrollHeight, 36)}px` : "36px";
     }
   }, [value]);
 
@@ -249,7 +249,7 @@ export default function ChatComposer({
           title={t("attachFiles")}
           className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 focus-within:outline-2 focus-within:outline-brand-500 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
         >
-          <PlusIcon className="h-5 w-5" />
+          <PlusIcon width={20} height={20} className="h-5 w-5" />
           <span className="sr-only">{t("attachFiles")}</span>
           <input
             type="file"
@@ -331,7 +331,7 @@ export default function ChatComposer({
               event.currentTarget.form?.requestSubmit();
             }
           }}
-          className="max-h-36 min-h-10 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"
+          className="max-h-36 min-h-9 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm leading-5 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"
         />
         <button
           type="submit"
@@ -344,7 +344,7 @@ export default function ChatComposer({
           aria-label={t("send")}
           className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <PaperPlaneIcon className="h-5 w-5" />
+          <PaperPlaneIcon width={18} height={18} className="h-4.5 w-4.5" />
           <span className="hidden sm:inline">
             {t(submitting || isSending ? "sending" : "send")}
           </span>
