@@ -10,7 +10,11 @@ import { isTeamPath } from "@/lib/teams-development";
 export async function forwardBackendRequest(
   request: NextRequest,
   path: readonly string[],
-  options: { redirect?: RequestRedirect; requestId?: string } = {},
+  options: {
+    redirect?: RequestRedirect;
+    requestId?: string;
+    streamBody?: boolean;
+  } = {},
 ): Promise<Response> {
   let headers: Headers;
   try {
@@ -46,9 +50,12 @@ export async function forwardBackendRequest(
     );
   }
 
+  const streamBody = options.streamBody && !["GET", "HEAD"].includes(request.method);
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
-    : await request.arrayBuffer();
+    : streamBody
+      ? request.body
+      : await request.arrayBuffer();
   let backendResponse: Response;
   try {
     backendResponse = await fetch(
@@ -57,6 +64,7 @@ export async function forwardBackendRequest(
         method: request.method,
         headers,
         body,
+        ...(streamBody ? { duplex: "half" } : {}),
         cache: "no-store",
         redirect: options.redirect ?? "manual",
       },

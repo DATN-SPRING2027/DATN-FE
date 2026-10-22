@@ -39,7 +39,14 @@ async function proxy(
   if (["auth/refresh", "auth/logout"].includes(path.join("/"))) {
     return new Response(null, { status: 404 });
   }
-  return forwardBackendRequest(request, path);
+  const streamUpload =
+    request.method === "PUT" &&
+    path.length === 6 &&
+    path[0] === "chat" &&
+    path[1] === "conversations" &&
+    path[3] === "uploads" &&
+    path[5] === "content";
+  return forwardBackendRequest(request, path, { streamBody: streamUpload });
 }
 
 export const GET = proxy;

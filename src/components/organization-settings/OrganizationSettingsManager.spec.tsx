@@ -17,10 +17,14 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 vi.mock("@/icons", () => ({
+  ArrowRightIcon: () => null,
   CheckCircleIcon: () => null,
+  CheckLineIcon: () => null,
+  ChevronDownIcon: () => null,
+  CopyIcon: () => null,
+  FolderIcon: () => null,
   InfoIcon: () => null,
   LockIcon: () => null,
-  SettingsIcon: () => null,
   UserIcon: () => null,
 }));
 
@@ -90,12 +94,13 @@ describe("OrganizationSettingsManager", () => {
             },
           ],
           availablePermissions: [
-            "org:read",
-            "org:update",
-            "member:invite",
-            "member:remove",
-            "role:assign",
-            "project:create",
+            "project.visibility.manage",
+            "project.leader.manage",
+            "organization.memberships.read",
+            "organization.memberships.manage",
+            "project.members.list",
+            "project.members.add",
+            "project.members.remove",
           ],
         };
       }
@@ -139,6 +144,16 @@ describe("OrganizationSettingsManager", () => {
     expect(nameInput).toHaveValue("Continuum Engineering");
     expect(screen.getByText("@continuum-eng")).toBeVisible();
     expect(screen.getByText("ENTERPRISE")).toBeVisible();
+    expect(screen.getByText("012345…4567")).toBeVisible();
+    expect(screen.getByText("Protected")).toBeVisible();
+    expect(screen.getByText("You")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Manage members/i }),
+    ).toHaveAttribute("href", "/organization/members");
+    expect(screen.getByText("View role permissions (7)")).toBeVisible();
+    expect(
+      screen.getByText("Manage project visibility and access policies"),
+    ).toBeInTheDocument();
 
     fireEvent.change(nameInput, {
       target: { value: "Continuum AI Global" },
@@ -165,5 +180,37 @@ describe("OrganizationSettingsManager", () => {
         expectedUpdatedAt: "2026-01-02T00:00:00.000Z",
       });
     });
+
+    // Switch across the 4 MVP governance tabs
+    fireEvent.click(screen.getByRole("tab", { name: "Member Access" }));
+    expect(screen.getByText("Roles & Membership Policies")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Invitations" }),
+    ).toHaveAttribute("href", "/organization/invitations");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Project Governance" }));
+    expect(screen.getByText("Project Governance Policies")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Open Projects Directory/i }),
+    ).toHaveAttribute("href", "/projects");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Security & Audit" }));
+    expect(screen.getByText("Access & Security Controls")).toBeVisible();
+    expect(screen.getByText("Audit & Compliance Coverage")).toBeVisible();
+
+    // Keyboard WAI-ARIA tab navigation (Home -> ArrowRight)
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Security & Audit" }), {
+      key: "Home",
+    });
+    expect(
+      screen.getByRole("tab", { name: "General" }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), {
+      key: "ArrowRight",
+    });
+    expect(
+      screen.getByRole("tab", { name: "Member Access" }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 });

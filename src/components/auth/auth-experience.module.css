@@ -4,12 +4,18 @@
   --auth-ink: var(--color-gray-900);
   --auth-muted: var(--color-gray-500);
   --auth-line: var(--color-gray-200);
+  --auth-ease: cubic-bezier(0.22, 1, 0.36, 1);
   position: relative;
   isolation: isolate;
   height: 100dvh;
   min-height: 0;
   overflow: hidden;
-  background: var(--auth-surface);
+  background: radial-gradient(
+    circle at 76% 48%,
+    var(--color-brand-950) 0%,
+    var(--color-gray-950) 52%,
+    var(--color-landing-background) 100%
+  );
   color: var(--auth-ink);
 }
 :global(.dark) .page {
@@ -22,6 +28,33 @@
 .page :is(a, button, input, select):focus-visible {
   outline: 2px solid var(--color-brand-500);
   outline-offset: 4px;
+}
+.waveSurface {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  will-change: transform;
+  animation: authWaveWipe 0.78s var(--auth-ease) both;
+}
+.waveSurface::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  width: 52.3%;
+  background: var(--auth-surface);
+  transition: background-color 0.25s var(--auth-ease);
+}
+.waveSurface::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 48%;
+  background: var(--auth-surface);
+  mask: url("/images/auth/organic-wave-surface.svg") center / 100% 100% no-repeat;
+  transition: background-color 0.25s var(--auth-ease);
 }
 .scrollPane {
   position: relative;
@@ -49,6 +82,7 @@
 .brand {
   display: inline-flex;
   flex-shrink: 0;
+  animation: authBrandAnchor 0.55s var(--auth-ease) both;
 }
 .header nav {
   display: flex;
@@ -56,15 +90,19 @@
   gap: 2rem;
   font-size: 0.8rem;
   color: var(--auth-muted);
+  animation: authHeaderReveal 0.6s var(--auth-ease) 0.24s both;
 }
 .header nav a {
   display: flex;
   align-items: center;
   min-height: 44px;
-  transition: color 0.2s;
+  transition:
+    color 0.2s,
+    transform 0.2s var(--auth-ease);
 }
 .header nav a:hover {
   color: var(--color-brand-500);
+  transform: translateY(-1px);
 }
 .header nav span {
   display: inline-flex;
@@ -106,6 +144,7 @@
   font-weight: 600;
   color: var(--auth-muted);
   text-transform: uppercase;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.16s both;
 }
 .formHeading h1 {
   margin-block: 0.9rem 1.2rem;
@@ -114,6 +153,7 @@
   letter-spacing: -0.055em;
   font-weight: 600;
   text-wrap: balance;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.23s both;
 }
 .formHeading h1 > span {
   color: var(--color-brand-500);
@@ -123,6 +163,7 @@
   font-size: 0.9rem;
   line-height: 1.85;
   color: var(--auth-muted);
+  animation: authItemReveal 0.6s var(--auth-ease) 0.3s both;
 }
 .introduction a {
   color: var(--color-brand-600);
@@ -141,6 +182,24 @@
   flex-direction: column;
   gap: 1rem;
 }
+.signinForm > :nth-child(1) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.36s both;
+}
+.signinForm > :nth-child(2) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.43s both;
+}
+.signinForm > :nth-child(3) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.5s both;
+}
+.signinForm > :nth-child(4) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.56s both;
+}
+.signinForm > :nth-child(5) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.62s both;
+}
+.signinForm > :nth-child(n + 6) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.66s both;
+}
 .formNote {
   margin-block-start: 1.5rem;
   padding-block-start: 1.2rem;
@@ -151,6 +210,7 @@
 }
 .signin > :global([role="alert"]) {
   margin-bottom: 1rem;
+  animation: authItemReveal 0.55s var(--auth-ease) 0.32s both;
 }
 .field {
   position: relative;
@@ -177,6 +237,10 @@
   font-weight: 500;
   color: var(--auth-ink);
   box-shadow: none;
+  transition:
+    background-color 0.2s var(--auth-ease),
+    border-color 0.2s var(--auth-ease),
+    box-shadow 0.2s var(--auth-ease);
 }
 .field input::placeholder {
   color: var(--auth-muted);
@@ -268,6 +332,17 @@
   gap: 1.5rem;
   padding-inline: 1.5rem;
   box-shadow: var(--shadow-theme-sm);
+  transition:
+    transform 0.22s var(--auth-ease),
+    box-shadow 0.22s var(--auth-ease),
+    background-color 0.2s;
+}
+.primaryButton:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.015);
+  box-shadow: var(--shadow-theme-md);
+}
+.primaryButton:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
 }
 .separator {
   position: relative;
@@ -278,6 +353,7 @@
   color: var(--auth-muted);
   font-size: 0.7rem;
   gap: 1rem;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.62s both;
 }
 .separator::before,
 .separator::after {
@@ -285,6 +361,9 @@
   height: 1px;
   flex: 1;
   background: var(--auth-line);
+}
+.googleButton {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.68s both;
 }
 .googleButton button {
   width: 100%;
@@ -294,9 +373,17 @@
   background: var(--auth-surface);
   color: var(--auth-ink);
   font-size: 0.85rem;
+  transition:
+    background-color 0.2s var(--auth-ease),
+    transform 0.22s var(--auth-ease),
+    border-color 0.2s var(--auth-ease);
 }
 .googleButton button:hover {
   background: var(--auth-soft);
+  transform: translateY(-1px);
+}
+.googleButton button:active {
+  transform: translateY(0) scale(0.99);
 }
 .footer {
   display: flex;
@@ -304,12 +391,11 @@
   gap: 1rem;
   flex-shrink: 0;
   padding: 1.5rem clamp(1.5rem, 4.8vw, 5rem);
+  padding-inline-end: 8rem;
   color: var(--auth-muted);
   font-size: 0.6rem;
   line-height: 1.8;
-}
-.footer {
-  padding-inline-end: 8rem;
+  animation: authHeaderReveal 0.6s var(--auth-ease) 0.36s both;
 }
 
 .visual {
@@ -324,16 +410,20 @@
 }
 .curveLine {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset-block: 0;
   inset-inline-end: 0;
   width: 48%;
   pointer-events: none;
   background: url("/images/auth/organic-curve-line.svg") center / 100% 100% no-repeat;
+  animation: authCurveRipple 0.65s var(--auth-ease) both;
 }
 .visualInner {
   position: absolute;
   inset: 0;
+  transform-origin: 65% center;
+  will-change: transform, opacity;
+  animation: authVisualZoom 0.9s var(--auth-ease) both;
 }
 .photo {
   object-fit: cover;
@@ -363,6 +453,7 @@
   line-height: 1.8;
   font-weight: 500;
   letter-spacing: 0.16em;
+  animation: authVisualCopyReveal 0.65s var(--auth-ease) 0.24s both;
 }
 .visualEyebrow > span {
   width: 0.4rem;
@@ -377,18 +468,21 @@
   font-weight: 500;
   white-space: pre-line;
   margin-block: 1.25rem;
+  animation: authVisualCopyReveal 0.68s var(--auth-ease) 0.32s both;
 }
 .visualDescription {
   font-size: 0.8rem;
   line-height: 1.9;
   color: var(--color-gray-200);
   max-width: 25rem;
+  animation: authVisualCopyReveal 0.68s var(--auth-ease) 0.4s both;
 }
 .visualTags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-top: 1.5rem;
+  animation: authVisualCopyReveal 0.68s var(--auth-ease) 0.48s both;
 }
 .visualTags > span {
   display: inline-flex;
@@ -408,6 +502,7 @@
   bottom: 1.5rem;
   inset-inline-end: 1.5rem;
   z-index: 3;
+  animation: authVisualCopyReveal 0.6s var(--auth-ease) 0.42s both;
 }
 .themeControl button {
   width: 44px;
@@ -419,11 +514,24 @@
   display: flex;
   align-items: center;
   width: 100%;
+  animation: authItemReveal 0.5s var(--auth-ease) 0.15s both;
 }
 .organizationContent {
   display: flex;
   flex-direction: column;
   gap: 1.15rem;
+}
+.organizationContent > :nth-child(1) {
+  animation: authItemReveal 0.58s var(--auth-ease) 0.18s both;
+}
+.organizationContent > :nth-child(2) {
+  animation: authItemReveal 0.58s var(--auth-ease) 0.26s both;
+}
+.organizationContent > :nth-child(3) {
+  animation: authItemReveal 0.58s var(--auth-ease) 0.34s both;
+}
+.organizationContent > :nth-child(n + 4) {
+  animation: authItemReveal 0.58s var(--auth-ease) 0.42s both;
 }
 .organizationContent .formHeading {
   margin: 0;
@@ -439,13 +547,132 @@
   min-height: 2.65rem;
   border-radius: 0.75rem;
 }
+:global([dir="rtl"]) .waveSurface {
+  animation-name: authWaveWipeRtl;
+}
+:global([dir="rtl"]) .waveSurface::after {
+  transform: scaleX(-1);
+}
 :global([dir="rtl"]) .visual,
 :global([dir="rtl"]) .visualInner {
   transform: scaleX(-1);
 }
+:global([dir="rtl"]) .visualInner {
+  animation-name: authVisualZoomRtl;
+}
 :global([dir="rtl"]) .curveLine {
   transform: scaleX(-1);
+  animation-name: authCurveRippleRtl;
 }
+
+@keyframes authWaveWipe {
+  from {
+    transform: translate3d(-44%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes authWaveWipeRtl {
+  from {
+    transform: translate3d(44%, 0, 0);
+  }
+  to {
+    transform: none;
+  }
+}
+
+@keyframes authCurveRipple {
+  from {
+    opacity: 0.45;
+    transform: translate3d(-0.85rem, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes authCurveRippleRtl {
+  from {
+    opacity: 0.45;
+    transform: translate3d(0.85rem, 0, 0) scaleX(-1);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes authVisualZoom {
+  from {
+    opacity: 0;
+    transform: translate3d(4%, 0, 0) scale(1.07);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes authVisualZoomRtl {
+  from {
+    opacity: 0;
+    transform: translate3d(-4%, 0, 0) scaleX(-1.07) scaleY(1.07);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(-1);
+  }
+}
+
+@keyframes authVisualCopyReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.1rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes authBrandAnchor {
+  from {
+    opacity: 0.72;
+    transform: translate3d(-0.35rem, 0, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes authHeaderReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, -0.45rem, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes authItemReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 1.15rem, 0);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+
 @media (min-width: 1600px) {
   .content {
     padding-inline: 7vw;
@@ -483,6 +710,12 @@
   }
 }
 @media (max-width: 1023px) {
+  .waveSurface::before {
+    width: 100%;
+  }
+  .waveSurface::after {
+    display: none;
+  }
   .scrollPane {
     width: 100%;
   }
@@ -601,6 +834,7 @@
   border-radius: 1.5rem;
   background: var(--auth-surface);
   box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 0.08);
+  animation: authItemReveal 0.6s var(--auth-ease) 0.22s both;
 }
 .authConfirmationIcon {
   display: grid;
@@ -718,6 +952,12 @@
   display: flex;
   flex-direction: column;
   gap: 1rem;
+}
+.resetForm > :nth-child(1) {
+  animation: authItemReveal 0.58s var(--auth-ease) 0.18s both;
+}
+.resetForm > :nth-child(2) {
+  animation: authItemReveal 0.6s var(--auth-ease) 0.26s both;
 }
 .resetForm > div {
   max-width: none;

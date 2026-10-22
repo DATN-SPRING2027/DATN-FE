@@ -8,6 +8,7 @@ import { useSidebar } from "@/context/SidebarContext";
 import {
   BookOpenIcon,
   CalenderIcon,
+  ChatIcon,
   DocsIcon,
   FolderIcon,
   GridIcon,
@@ -28,6 +29,7 @@ const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon },
   { key: "projects", path: "/projects", icon: FolderIcon },
   { key: "workspace", path: "/workspace", icon: DocsIcon },
+  { key: "chat", path: "/chat", icon: ChatIcon },
   { key: "knowledge", icon: BookOpenIcon },
   { key: "aiSearch", icon: ShootingStarIcon },
   { key: "handover", icon: HandShakeIcon },

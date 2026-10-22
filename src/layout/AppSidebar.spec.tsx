@@ -72,6 +72,7 @@ vi.mock("@/icons/index", () => {
   return {
     ArrowRightIcon: Icon,
     BookOpenIcon: Icon,
+    ChatIcon: Icon,
     CalenderIcon: Icon,
     CheckCircleIcon: Icon,
     ChevronDownIcon: Icon,
@@ -95,6 +96,7 @@ vi.mock("next-intl", () => ({
       "sidebar.items.overview": "Overview",
       "sidebar.items.projects": "Projects",
       "sidebar.items.workspace": "Workspace",
+      "sidebar.items.chat": "Chat",
       "sidebar.items.workNotes": "Work Notes",
       "sidebar.items.knowledge": "Knowledge",
       "sidebar.items.aiSearch": "AI Search",
@@ -241,16 +243,20 @@ describe("AppSidebar navigation", () => {
       "Overview",
       "Projects",
       "Workspace",
+      "Chat",
       "Calendar",
       "Members",
       "Settings",
     ]);
-    expect(within(nav).queryByRole("button", { name: "Work Notes" })).not.toBeInTheDocument();
-    expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
-    expect(within(nav).getByRole("link", { name: "Workspace" })).toHaveAttribute(
-      "href",
-      "/workspace",
-    );
+    expect(
+      within(nav).queryByRole("button", { name: "Work Notes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("link", { name: "Work" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).getByRole("link", { name: "Workspace" }),
+    ).toHaveAttribute("href", "/workspace");
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
@@ -269,7 +275,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Workspace", "Calendar"]);
+    ).toEqual(["Overview", "Projects", "Workspace", "Chat", "Calendar"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -312,11 +318,6 @@ describe("AppSidebar navigation", () => {
         ),
       ),
     ).toHaveLength(0);
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .some((link) => link.getAttribute("href")?.includes("/platform")),
-    ).toHaveLength === undefined;
     expect(
       within(nav)
         .getAllByRole("link")
