@@ -187,6 +187,20 @@ export default function WorkToolbar({
   ).length;
   const todoCount = items.filter((i) => i.status ==="TODO").length;
   const totalCount = Math.max(1, items.length);
+  const quickPeople = (() => {
+    const map = new Map<string, { id: string; name: string; initials: string }>();
+    for (const item of items) {
+      if (item.assignee?.id && item.assignee.id !== "unassigned") {
+        map.set(item.assignee.id, item.assignee);
+      }
+    }
+    for (const person of PREVIEW_PEOPLE) {
+      if (!map.has(person.id)) {
+        map.set(person.id, person);
+      }
+    }
+    return Array.from(map.values()).slice(0, 6);
+  })();
 
   return (
     <section
@@ -240,7 +254,7 @@ export default function WorkToolbar({
           role="group"
           aria-label={t("quickAssigneeFilter")}
         >
-          {PREVIEW_PEOPLE.map((person) => {
+          {quickPeople.map((person) => {
             const active = assigneeId === person.id;
             return (
               <button

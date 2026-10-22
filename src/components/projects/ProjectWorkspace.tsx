@@ -230,10 +230,10 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
 
       {/* Multi-Criteria Filter & Control Toolbar */}
       <div className="rounded-2xl border border-gray-200/90 bg-white p-3 shadow-theme-xs sm:p-4 dark:border-gray-800 dark:bg-gray-900">
-        <div className="flex flex-col gap-3 @2xl:flex-row @2xl:items-center @2xl:justify-between">
+        <div className="flex flex-col gap-3 @4xl:flex-row @4xl:items-center @4xl:justify-between">
           {/* Left: Search input + Status segmented tabs */}
           <div className="flex flex-col gap-2.5 @lg:flex-row @lg:items-center">
-            <div className="relative min-w-0 flex-1 @lg:w-80 @2xl:w-96">
+            <div className="relative min-w-0 flex-1 @lg:w-72 @4xl:w-80">
               <label htmlFor="project-search" className="sr-only">
                 {t("searchProjects")}
               </label>
@@ -286,7 +286,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           {/* Right: Total count + Visibility filter + Sort + View switcher */}
-          <div className="flex flex-wrap items-center justify-between gap-2 @2xl:justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2 @4xl:justify-end">
             {projects.isSuccess && !projects.isFetching && (
               <span className="me-1 rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                 {t("totalProjects", {
