@@ -466,4 +466,72 @@ describe("WorkWorkspace project scope", () => {
     ).toBeVisible();
     expect(screen.getByText("2026-11-15")).toBeVisible();
   });
+
+  it("renders only the tasks belonging to the real backend project without leaking preview or cross-project tasks", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Anh",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "AI Knowledge Engine",
+          code: "AIKE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: "69e923c77859fd1c702d4ca1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              key: "AIKE-1",
+              title: "Build hybrid vector search index for AIKE",
+              type: "TASK",
+              status: "IN_PROGRESS",
+              priority: "HIGH",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: "2026-11-20T00:00:00.000Z",
+              startDate: "2026-11-01T00:00:00.000Z",
+              labels: ["rag", "vector"],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    expect(
+      await screen.findByText("Build hybrid vector search index for AIKE"),
+    ).toBeVisible();
+    expect(screen.getByText("AIKE-1")).toBeVisible();
+    expect(
+      screen.queryByText(
+        "Finalize project visibility rules for private workstreams",
+      ),
+    ).not.toBeInTheDocument();
+  });
 });

@@ -41,6 +41,52 @@ import {
   type WorkSubtaskItem,
 } from"./work-types";
 import { getCalendarMonthStart } from"./work-calendar-utils";
+import {
+  type BackendTask,
+  type BackendTaskStatus,
+  createProjectTaskApi,
+  createTaskCommentApi,
+  fetchProjectTaskDetail,
+  fetchTaskComments,
+  transitionProjectTaskApi,
+  updateProjectTaskApi,
+  useProjectTasksQuery,
+} from"@/lib/queries/tasks/useTasks";
+
+const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+
+function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
+  if (status ==="IN_PROGRESS"|| status ==="BLOCKED") return"IN_PROGRESS";
+  if (status ==="IN_REVIEW") return"IN_REVIEW";
+  if (status ==="DONE") return"DONE";
+  return"TODO";
+}
+
+function resolvePersonById(
+  personId: string | null,
+  currentUser?: { id: string; name: string } | null,
+): WorkPerson {
+  if (!personId) {
+    return PREVIEW_PEOPLE[0];
+  }
+  if (currentUser && currentUser.id === personId) {
+    const parts = currentUser.name.trim().split(/\s+/);
+    const initials = parts
+      .slice(0, 2)
+      .map((p) => p[0]?.toUpperCase() ??"U")
+      .join("");
+    return {
+      id: currentUser.id,
+      name: currentUser.name,
+      initials: initials ||"ME",
+    };
+  }
+  const found = PREVIEW_PEOPLE.find((p) => p.id === personId);
+  if (found) return found;
+  const fallbackIdx =
+    parseInt(personId.slice(-2) ||"0", 16) % PREVIEW_PEOPLE.length;
+  return PREVIEW_PEOPLE[fallbackIdx] ?? PREVIEW_PEOPLE[0];
+}
 
 export default function WorkWorkspace({
   projectId,
@@ -79,7 +125,10 @@ export default function WorkWorkspace({
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getCalendarMonthStart(new Date()),
   );
-  const [items, setItems] = useState<WorkItem[]>([...INITIAL_PREVIEW_WORK_ITEMS]);
+  const isRealProject = OBJECT_ID_PATTERN.test(projectId);
+  const [items, setItems] = useState<WorkItem[]>(() =>
+    isRealProject ? [] : [...INITIAL_PREVIEW_WORK_ITEMS],
+  );
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<WorkStatus |"ALL">("ALL");
   const [priority, setPriority] = useState<WorkPriority |"ALL">("ALL");
@@ -101,6 +150,143 @@ export default function WorkWorkspace({
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
+  const tasksQuery = useProjectTasksQuery(projectId);
+  const taskVersionsRef = useRef<Map<string, number>>(new Map());
+
+  useEffect(() => {
+    if (!isRealProject || !tasksQuery.data) return;
+    const rawTasks = tasksQuery.data.items.filter(
+      (t) => t.projectId === projectId && t.status !== "CANCELLED",
+    );
+
+    for (const t of rawTasks) {
+      taskVersionsRef.current.set(t.id, t.version);
+    }
+
+    const parentTasks = rawTasks.filter((t) => t.parentId === null);
+    const childrenByParent = new Map<string, BackendTask[]>();
+    for (const t of rawTasks) {
+      if (t.parentId) {
+        const list = childrenByParent.get(t.parentId) ?? [];
+        list.push(t);
+        childrenByParent.set(t.parentId, list);
+      }
+    }
+
+    const currentProjectName = resolvedProject?.name ?? "";
+    const mapped: WorkItem[] = parentTasks.map((t) => {
+      const childTasks = childrenByParent.get(t.id) ?? [];
+      const subtaskItems: readonly WorkSubtaskItem[] = childTasks.map((sub) => {
+        const subStatus = mapBackendStatusToWorkStatus(sub.status);
+        return {
+          id: sub.id,
+          key: sub.key,
+          summary: sub.title,
+          done: subStatus === "DONE",
+          status: subStatus,
+          priority: sub.priority,
+          assignee: resolvePersonById(sub.assigneeId, user.data),
+          reporter: resolvePersonById(sub.createdBy, user.data),
+          dueDate: sub.dueDate ? sub.dueDate.slice(0, 10) : null,
+          startDate: sub.startDate ? sub.startDate.slice(0, 10) : null,
+          createdAt: sub.createdAt,
+          updatedAt: sub.updatedAt,
+          labels: sub.labels,
+        };
+      });
+
+      const completedSubtasks =
+        childTasks.length > 0
+          ? childTasks.filter((c) => c.status === "DONE").length
+          : t.subtaskCounts.total > 0
+            ? t.subtaskCounts.done
+            : 0;
+      const totalSubtasks =
+        childTasks.length > 0
+          ? childTasks.length
+          : t.subtaskCounts.total > 0
+            ? t.subtaskCounts.total
+            : 0;
+
+      const uiStatus = mapBackendStatusToWorkStatus(t.status);
+
+      return {
+        id: t.id,
+        key: t.key,
+        title: t.title,
+        type: t.type,
+        assignee: resolvePersonById(t.assigneeId, user.data),
+        reporter: resolvePersonById(t.createdBy, user.data),
+        priority: t.priority,
+        status: uiStatus,
+        resolution: uiStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
+        createdAt: t.createdAt.slice(0, 10),
+        updatedAt: t.updatedAt.slice(0, 10),
+        dueDate: t.dueDate ? t.dueDate.slice(0, 10) : null,
+        startDate: t.startDate ? t.startDate.slice(0, 10) : null,
+        projectName: currentProjectName || "Workspace",
+        labels: t.labels,
+        subtasks: { completed: completedSubtasks, total: totalSubtasks },
+        subtaskItems,
+        comments: [],
+      };
+    });
+
+    queueMicrotask(() => {
+      setItems(mapped);
+    });
+  }, [
+    isRealProject,
+    projectId,
+    resolvedProject?.name,
+    tasksQuery.data,
+    user.data,
+  ]);
+
+  const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
+  useEffect(() => {
+    if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [detail, commentsPage] = await Promise.all([
+          fetchProjectTaskDetail(projectId, openedTaskId),
+          fetchTaskComments(projectId, openedTaskId),
+        ]);
+        if (cancelled) return;
+        taskVersionsRef.current.set(detail.id, detail.version);
+        const liveComments = commentsPage.items.map((c) => {
+          const authorPerson = resolvePersonById(c.authorId, user.data);
+          return {
+            id: c.id,
+            author: authorPerson.name,
+            initials: authorPerson.initials,
+            createdAt: c.createdAt.slice(0, 10),
+            text: c.body,
+          };
+        });
+        setItems((current) =>
+          current.map((item) =>
+            item.id === openedTaskId
+              ? {
+                  ...item,
+                  ...(detail.description ? { description: detail.description } : {}),
+                  ...(liveComments.length > 0 ? { comments: liveComments } : {}),
+                }
+              : item,
+          ),
+        );
+      } catch {
+        // Keep current item state
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isRealProject, openedTaskId, projectId, user.data]);
+
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
 
@@ -295,21 +481,32 @@ export default function WorkWorkspace({
   }
 
   function deleteSingleItem(id: string) {
+    const existing = items.find((item) => item.id === id);
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => {
       const next = new Set(current);
       next.delete(id);
       return next;
     });
+    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
+      const version = taskVersionsRef.current.get(id) ?? 1;
+      const fromStatus = existing?.status ?? "TODO";
+      void transitionProjectTaskApi(projectId, id, version, {
+        fromStatus: fromStatus === "DONE" ? "IN_PROGRESS" : fromStatus,
+        toStatus: "CANCELLED",
+        reason: "Cancelled from workspace UI",
+      }).catch(() => undefined);
+    }
   }
 
   function addPreviewItem(input: CreatePreviewWorkItem) {
-    const targetStatus = input.status ??"TODO";
+    const targetStatus = input.status ?? "TODO";
+    const tempId = `preview-${Date.now()}`;
     setItems((current) => {
       const sequence =
         current.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
       const item: WorkItem = {
-        id: `preview-${Date.now()}`,
+        id: tempId,
         key: `PREVIEW-${sequence}`,
         title: input.title,
         type: input.type,
@@ -317,7 +514,7 @@ export default function WorkWorkspace({
         reporter: PREVIEW_PEOPLE[1],
         priority: input.priority,
         status: targetStatus,
-        resolution: targetStatus ==="DONE"?"RESOLVED":"UNRESOLVED",
+        resolution: targetStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
         createdAt: new Date().toISOString(),
         dueDate: input.dueDate,
         projectName,
@@ -330,20 +527,136 @@ export default function WorkWorkspace({
     });
     setAnnouncement(t("createAdded"));
     setCreateOpen(false);
+
+    if (isRealProject) {
+      void (async () => {
+        try {
+          const created = await createProjectTaskApi(projectId, {
+            title: input.title,
+            description: input.description ?? null,
+            type: input.type,
+            priority: input.priority,
+            assigneeId: OBJECT_ID_PATTERN.test(input.assignee.id)
+              ? input.assignee.id
+              : null,
+            dueDate: input.dueDate
+              ? new Date(input.dueDate).toISOString()
+              : null,
+          });
+          let finalVersion = created.version;
+          if (targetStatus !== "TODO") {
+            const stepStatus =
+              targetStatus === "DONE" ? "IN_PROGRESS" : targetStatus;
+            const tr1 = await transitionProjectTaskApi(
+              projectId,
+              created.id,
+              finalVersion,
+              {
+                fromStatus: "TODO",
+                toStatus: stepStatus,
+              },
+            );
+            finalVersion = tr1.version;
+            if (targetStatus === "DONE") {
+              const tr2 = await transitionProjectTaskApi(
+                projectId,
+                created.id,
+                finalVersion,
+                {
+                  fromStatus: "IN_PROGRESS",
+                  toStatus: "DONE",
+                },
+              );
+              finalVersion = tr2.version;
+            }
+          }
+          taskVersionsRef.current.set(created.id, finalVersion);
+          setItems((current) =>
+            current.map((item) =>
+              item.id === tempId
+                ? {
+                    ...item,
+                    id: created.id,
+                    key: created.key,
+                  }
+                : item,
+            ),
+          );
+        } catch {
+          // Preserve optimistic UI item
+        }
+      })();
+    }
   }
 
   function updateItemStatus(id: string, nextStatus: WorkStatus) {
+    const existing = items.find((item) => item.id === id);
+    const prevStatus = existing?.status ?? "TODO";
     setItems((current) =>
       current.map((item) =>
         item.id === id
           ? {
               ...item,
               status: nextStatus,
-              resolution: nextStatus ==="DONE"?"RESOLVED":"UNRESOLVED",
+              resolution: nextStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
             }
           : item,
       ),
     );
+    if (
+      isRealProject &&
+      OBJECT_ID_PATTERN.test(id) &&
+      prevStatus !== nextStatus
+    ) {
+      const version = taskVersionsRef.current.get(id) ?? 1;
+      void (async () => {
+        try {
+          if (prevStatus === "TODO" && nextStatus === "DONE") {
+            const tr1 = await transitionProjectTaskApi(projectId, id, version, {
+              fromStatus: "TODO",
+              toStatus: "IN_PROGRESS",
+            });
+            const tr2 = await transitionProjectTaskApi(
+              projectId,
+              id,
+              tr1.version,
+              {
+                fromStatus: "IN_PROGRESS",
+                toStatus: "DONE",
+              },
+            );
+            taskVersionsRef.current.set(id, tr2.version);
+          } else if (prevStatus === "DONE" && nextStatus !== "IN_PROGRESS") {
+            const tr1 = await transitionProjectTaskApi(projectId, id, version, {
+              fromStatus: "DONE",
+              toStatus: "IN_PROGRESS",
+              reason: "Reopened from workspace UI",
+            });
+            const tr2 = await transitionProjectTaskApi(
+              projectId,
+              id,
+              tr1.version,
+              {
+                fromStatus: "IN_PROGRESS",
+                toStatus: nextStatus,
+              },
+            );
+            taskVersionsRef.current.set(id, tr2.version);
+          } else {
+            const tr = await transitionProjectTaskApi(projectId, id, version, {
+              fromStatus: prevStatus,
+              toStatus: nextStatus,
+              ...(prevStatus === "DONE"
+                ? { reason: "Reopened from workspace UI" }
+                : {}),
+            });
+            taskVersionsRef.current.set(id, tr.version);
+          }
+        } catch {
+          // Keep optimistic state
+        }
+      })();
+    }
   }
 
   function updateItemPriority(id: string, nextPriority: WorkPriority) {
@@ -352,6 +665,16 @@ export default function WorkWorkspace({
         item.id === id ? { ...item, priority: nextPriority } : item,
       ),
     );
+    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
+      const version = taskVersionsRef.current.get(id) ?? 1;
+      void updateProjectTaskApi(projectId, id, version, {
+        priority: nextPriority,
+      })
+        .then((updated) => {
+          taskVersionsRef.current.set(id, updated.version);
+        })
+        .catch(() => undefined);
+    }
   }
 
   function updateItemAssignee(id: string, nextAssignee: WorkPerson) {
@@ -360,6 +683,18 @@ export default function WorkWorkspace({
         item.id === id ? { ...item, assignee: nextAssignee } : item,
       ),
     );
+    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
+      const version = taskVersionsRef.current.get(id) ?? 1;
+      void updateProjectTaskApi(projectId, id, version, {
+        assigneeId: OBJECT_ID_PATTERN.test(nextAssignee.id)
+          ? nextAssignee.id
+          : null,
+      })
+        .then((updated) => {
+          taskVersionsRef.current.set(id, updated.version);
+        })
+        .catch(() => undefined);
+    }
   }
 
   function toggleSubtask(itemId: string, subtaskId: string) {
@@ -438,6 +773,18 @@ export default function WorkWorkspace({
         };
       }),
     );
+    if (isRealProject && OBJECT_ID_PATTERN.test(itemId)) {
+      void createProjectTaskApi(projectId, {
+        title: summary,
+        parentId: itemId,
+        priority: options?.priority ?? "MEDIUM",
+        description: options?.description ?? null,
+      })
+        .then((createdSub) => {
+          taskVersionsRef.current.set(createdSub.id, createdSub.version);
+        })
+        .catch(() => undefined);
+    }
   }
 
   function updateSubtask(
@@ -711,6 +1058,11 @@ export default function WorkWorkspace({
         };
       }),
     );
+    if (isRealProject && OBJECT_ID_PATTERN.test(itemId)) {
+      void createTaskCommentApi(projectId, itemId, text).catch(
+        () => undefined,
+      );
+    }
   }
 
   function bulkUpdateStatus(nextStatus: WorkStatus) {
@@ -1014,7 +1366,14 @@ export default function WorkWorkspace({
             <WorkDocsView items={visibleItems} onOpenItem={openWorkItem} />
           ) : view ==="reports"? (
             <WorkReportsView items={visibleItems} onOpenItem={openWorkItem} />
-          ) : visibleItems.length === 0 ? (
+          ) : visibleItems.length === 0 &&
+            (items.length > 0 ||
+              Boolean(query.trim()) ||
+              status !== "ALL" ||
+              priority !== "ALL" ||
+              assigneeId !== "ALL" ||
+              filterConditions.length > 0 ||
+              hideDone) ? (
             <div
               role="status"
               className="rounded-md border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900"

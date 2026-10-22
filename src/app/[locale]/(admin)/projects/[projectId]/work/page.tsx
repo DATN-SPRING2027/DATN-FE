@@ -8,5 +8,5 @@ export default async function ProjectWorkPage({
 }) {
   const { locale, projectId } = await params;
   setRequestLocale(locale);
-  return <WorkWorkspace key={projectId} projectId={projectId} />;
+  return <WorkWorkspace key={projectId} projectId={projectId} hideProjectBanner />;
 }

@@ -825,6 +825,12 @@
     "currentOrganization": "Current organization",
     "noOrganizations": "No organizations are available for this account.",
     "manageOrganizations": "Manage organizations",
+    "projectsDropdownToggle": "Toggle projects list",
+    "projectsSubmenuLabel": "Organization projects",
+    "projectsLoading": "Loading projects…",
+    "projectsEmpty": "No active projects",
+    "projectDropdownToggle": "Toggle {name} menu",
+    "projectActionsLabel": "{name} navigation",
     "comingSoon": "Coming soon",
     "account": {
       "profile": "Open profile for {name}",
