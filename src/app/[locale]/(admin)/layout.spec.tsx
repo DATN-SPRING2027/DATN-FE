@@ -1,58 +1,156 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdminLayout from "./layout";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { ApiError } from "@/lib/api-client";
 
 const replace = vi.fn();
-vi.mock("@/context/SidebarContext", () => ({ useSidebar: () => ({ isExpanded: true, isHovered: false, isMobileOpen: false }) }));
+const path = vi.hoisted(() => ({ value: "/dashboard" }));
+vi.mock("@/context/SidebarContext", () => ({
+  useSidebar: () => ({
+    isExpanded: true,
+    isHovered: false,
+    isMobileOpen: false,
+  }),
+}));
 vi.mock("@/layout/AppHeader", () => ({ default: () => <div>header</div> }));
 vi.mock("@/layout/AppSidebar", () => ({ default: () => <div>sidebar</div> }));
 vi.mock("@/layout/Backdrop", () => ({ default: () => null }));
-vi.mock("@/i18n/navigation", () => ({ useRouter: () => ({ replace }), Link: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a> }));
+vi.mock("@/i18n/navigation", () => ({
+  usePathname: () => path.value,
+  useRouter: () => ({ replace }),
+  Link: ({ children, href }: { children: React.ReactNode; href: string }) => (
+    <a href={href}>{children}</a>
+  ),
+}));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/lib/queries/auth/useAuth", () => ({ useCurrentUserQuery: vi.fn() }));
 
 describe("protected dashboard layout", () => {
-  beforeEach(() => replace.mockReset());
+  beforeEach(() => {
+    replace.mockReset();
+    path.value = "/dashboard";
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fits the Chat shell to the visible viewport when a mobile keyboard reduces available height", () => {
+    path.value = "/chat";
+    const viewport = Object.assign(new EventTarget(), { height: 650 });
+    vi.stubGlobal("visualViewport", viewport);
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "user", organizationId: "organization" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+    render(
+      <AdminLayout>
+        <div>Chat content</div>
+      </AdminLayout>,
+    );
+    const shell = screen.getByText("Chat content").closest(".h-dvh");
+    expect(shell).toHaveStyle({ height: "650px" });
+    act(() => {
+      viewport.height = 430;
+      viewport.dispatchEvent(new Event("resize"));
+    });
+    expect(shell).toHaveStyle({ height: "430px" });
+  });
 
   it("keeps the error card and Trying again button when an explicit retry becomes pending", async () => {
     let finish!: () => void;
-    const refetch = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+    const refetch = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finish = resolve;
+        }),
+    );
     vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: undefined, isError: true, isFetching: false,
-      error: new ApiError(403, "AUTH_CSRF_INVALID", "Failed"), refetch,
+      data: undefined,
+      isError: true,
+      isFetching: false,
+      error: new ApiError(403, "AUTH_CSRF_INVALID", "Failed"),
+      refetch,
     } as never);
-    const view = render(<AdminLayout><div>Protected content</div></AdminLayout>);
+    const view = render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
     fireEvent.click(screen.getByRole("button", { name: "tryAgain" }));
     vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: undefined, isError: false, isFetching: true, error: null, refetch,
+      data: undefined,
+      isError: false,
+      isFetching: true,
+      error: null,
+      refetch,
     } as never);
-    view.rerender(<AdminLayout><div>Protected content</div></AdminLayout>);
+    view.rerender(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
     expect(screen.getByText("sessionUnavailable")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "retryingSession" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "retryingSession" }),
+    ).toBeDisabled();
     expect(screen.queryByText("checkingSession")).not.toBeInTheDocument();
     vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: { id: "user" }, isError: false, isFetching: false, error: null, refetch,
+      data: { id: "user" },
+      isError: false,
+      isFetching: false,
+      error: null,
+      refetch,
     } as never);
-    await act(async () => { finish(); });
+    await act(async () => {
+      finish();
+    });
     expect(screen.getByText("Protected content")).toBeInTheDocument();
   });
 
   it("shows session verification while initially recovering and hides protected content", () => {
-    vi.mocked(useCurrentUserQuery).mockReturnValue({ data: undefined, isError: false, isFetching: true } as never);
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: undefined,
+      isError: false,
+      isFetching: true,
+    } as never);
+    render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
     expect(screen.getByRole("status")).toHaveTextContent("checkingSession");
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
   });
 
   it("disables explicit retry while a recovery request is in flight", () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: undefined, isError: true, isFetching: true,
-      error: new ApiError(503, "SESSION_RECOVERY_FAILED", "Offline", undefined, true), refetch: vi.fn(),
+      data: undefined,
+      isError: true,
+      isFetching: true,
+      error: new ApiError(
+        503,
+        "SESSION_RECOVERY_FAILED",
+        "Offline",
+        undefined,
+        true,
+      ),
+      refetch: vi.fn(),
     } as never);
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
-    expect(screen.getByRole("button", { name: "retryingSession" })).toBeDisabled();
+    render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
+    expect(
+      screen.getByRole("button", { name: "retryingSession" }),
+    ).toBeDisabled();
   });
 
   it("keeps authenticated content mounted during a background session refresh", () => {
@@ -63,7 +161,11 @@ describe("protected dashboard layout", () => {
       isFetching: true,
     } as never);
 
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
+    render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
 
     expect(screen.getByText("Protected content")).toBeInTheDocument();
   });
@@ -76,7 +178,11 @@ describe("protected dashboard layout", () => {
       isFetching: false,
     } as never);
 
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
+    render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
 
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
@@ -84,12 +190,21 @@ describe("protected dashboard layout", () => {
 
   it("routes an authenticated Account without membership to onboarding", async () => {
     vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: { id: "new-user", email: "new@example.test", name: "New User", context: "ACCOUNT" },
+      data: {
+        id: "new-user",
+        email: "new@example.test",
+        name: "New User",
+        context: "ACCOUNT",
+      },
       error: null,
       isError: false,
       isFetching: false,
     } as never);
-    render(<AdminLayout><div>Organization data</div></AdminLayout>);
+    render(
+      <AdminLayout>
+        <div>Organization data</div>
+      </AdminLayout>,
+    );
     expect(screen.queryByText("Organization data")).not.toBeInTheDocument();
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/onboarding"));
   });
@@ -103,27 +218,46 @@ describe("protected dashboard layout", () => {
       refetch: vi.fn(),
     } as never);
 
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
+    render(
+      <AdminLayout>
+        <div>Protected content</div>
+      </AdminLayout>,
+    );
 
     expect(screen.getByText("sessionUnavailable")).toBeInTheDocument();
     expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
     expect(replace).not.toHaveBeenCalled();
   });
 
-  it.each([403, 500, 503])("shows recovery failure %s and only retries when the user asks", async (status) => {
-    const refetch = vi.fn();
-    vi.mocked(useCurrentUserQuery).mockReturnValue({
-      data: { id: "stale-user" },
-      error: new ApiError(status, "AUTH_REFRESH_FAILED", "Failed", undefined, true),
-      isError: true,
-      refetch,
-    } as never);
-    render(<AdminLayout><div>Protected content</div></AdminLayout>);
-    expect(screen.getByText("sessionUnavailableMessage")).toBeInTheDocument();
-    expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
-    expect(refetch).not.toHaveBeenCalled();
-    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "tryAgain" })); });
-    expect(refetch).toHaveBeenCalledTimes(1);
-    expect(replace).not.toHaveBeenCalled();
-  });
+  it.each([403, 500, 503])(
+    "shows recovery failure %s and only retries when the user asks",
+    async (status) => {
+      const refetch = vi.fn();
+      vi.mocked(useCurrentUserQuery).mockReturnValue({
+        data: { id: "stale-user" },
+        error: new ApiError(
+          status,
+          "AUTH_REFRESH_FAILED",
+          "Failed",
+          undefined,
+          true,
+        ),
+        isError: true,
+        refetch,
+      } as never);
+      render(
+        <AdminLayout>
+          <div>Protected content</div>
+        </AdminLayout>,
+      );
+      expect(screen.getByText("sessionUnavailableMessage")).toBeInTheDocument();
+      expect(screen.queryByText("Protected content")).not.toBeInTheDocument();
+      expect(refetch).not.toHaveBeenCalled();
+      await act(async () => {
+        fireEvent.click(screen.getByRole("button", { name: "tryAgain" }));
+      });
+      expect(refetch).toHaveBeenCalledTimes(1);
+      expect(replace).not.toHaveBeenCalled();
+    },
+  );
 });
