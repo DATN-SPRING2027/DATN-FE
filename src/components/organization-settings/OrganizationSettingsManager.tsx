@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
@@ -301,6 +307,21 @@ function SettingsWorkspace({
     null,
   );
   const [copiedId, setCopiedId] = useState(false);
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const tabRefs = useRef<Record<SettingsTabId, HTMLButtonElement | null>>({
+    general: null,
+    "member-access": null,
+    "project-governance": null,
+    "security-audit": null,
+  });
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+    };
+  }, []);
 
   const canEditName = canEdit && editableFields.includes("name");
   const canEditDescription = canEdit && editableFields.includes("description");
@@ -325,7 +346,10 @@ function SettingsWorkspace({
     try {
       await navigator.clipboard?.writeText(organization.id);
       setCopiedId(true);
-      setTimeout(() => setCopiedId(false), 2000);
+      if (copyTimerRef.current) {
+        clearTimeout(copyTimerRef.current);
+      }
+      copyTimerRef.current = setTimeout(() => setCopiedId(false), 2000);
     } catch {
       setCopiedId(false);
     }
@@ -379,6 +403,32 @@ function SettingsWorkspace({
     { id: "project-governance", label: t("tabProjectGovernance") },
     { id: "security-audit", label: t("tabSecurityAudit") },
   ];
+
+  const handleTabKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    currentTabId: SettingsTabId,
+  ) => {
+    const currentIndex = tabs.findIndex((item) => item.id === currentTabId);
+    if (currentIndex === -1) return;
+
+    let nextIndex = currentIndex;
+    if (event.key === "ArrowRight") {
+      nextIndex = (currentIndex + 1) % tabs.length;
+    } else if (event.key === "ArrowLeft") {
+      nextIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = tabs.length - 1;
+    } else {
+      return;
+    }
+
+    event.preventDefault();
+    const nextTabId = tabs[nextIndex].id;
+    setActiveTab(nextTabId);
+    tabRefs.current[nextTabId]?.focus();
+  };
 
   const roleCards: {
     roleCode: "ADMIN" | "TEAM_LEADER" | "MEMBER";
@@ -500,13 +550,18 @@ function SettingsWorkspace({
           return (
             <button
               key={tab.id}
+              ref={(element) => {
+                tabRefs.current[tab.id] = element;
+              }}
               id={`org-settings-tab-${tab.id}`}
               type="button"
               role="tab"
               aria-selected={selected}
               aria-controls={`org-settings-panel-${tab.id}`}
+              tabIndex={selected ? 0 : -1}
               onClick={() => setActiveTab(tab.id)}
-              className={`rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition sm:text-sm ${
+              onKeyDown={(event) => handleTabKeyDown(event, tab.id)}
+              className={`rounded-lg px-3.5 py-2 text-xs font-semibold whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:text-sm ${
                 selected
                   ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white"
                   : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
@@ -552,14 +607,18 @@ function SettingsWorkspace({
                       onClick={handleCopyId}
                       title={organization.id}
                       aria-label={t("copyOrgId")}
-                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/80 px-2.5 py-0.5 font-mono text-xs text-gray-600 transition hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/80 px-2.5 py-0.5 font-mono text-xs text-gray-600 transition hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                     >
                       <span className="font-sans text-[11px] font-medium text-gray-400 dark:text-gray-500">
                         {t("orgIdLabel")}:
                       </span>
                       <span>{formatShortId(organization.id)}</span>
                       {copiedId ? (
-                        <span className="inline-flex items-center gap-0.5 font-sans text-[11px] font-medium text-success-600 dark:text-success-400">
+                        <span
+                          role="status"
+                          aria-live="polite"
+                          className="inline-flex items-center gap-0.5 font-sans text-[11px] font-medium text-success-600 dark:text-success-400"
+                        >
                           <CheckLineIcon
                             viewBox="0 0 16 16"
                             className="size-3 shrink-0"
@@ -660,6 +719,8 @@ function SettingsWorkspace({
                       if (latest) {
                         setName(latest.organization.name);
                         setDescription(latest.organization.description ?? "");
+                        setValidationMessage(null);
+                        setSavedNotice(false);
                         update.reset();
                       }
                     }}

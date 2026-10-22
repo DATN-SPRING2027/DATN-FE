@@ -25,7 +25,6 @@ vi.mock("@/icons", () => ({
   FolderIcon: () => null,
   InfoIcon: () => null,
   LockIcon: () => null,
-  SettingsIcon: () => null,
   UserIcon: () => null,
 }));
 
@@ -198,5 +197,20 @@ describe("OrganizationSettingsManager", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Security & Audit" }));
     expect(screen.getByText("Access & Security Controls")).toBeVisible();
     expect(screen.getByText("Audit & Compliance Coverage")).toBeVisible();
+
+    // Keyboard WAI-ARIA tab navigation (Home -> ArrowRight)
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Security & Audit" }), {
+      key: "Home",
+    });
+    expect(
+      screen.getByRole("tab", { name: "General" }),
+    ).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.keyDown(screen.getByRole("tab", { name: "General" }), {
+      key: "ArrowRight",
+    });
+    expect(
+      screen.getByRole("tab", { name: "Member Access" }),
+    ).toHaveAttribute("aria-selected", "true");
   });
 });
