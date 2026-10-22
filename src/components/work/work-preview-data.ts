@@ -10,20 +10,20 @@ import type {
 export const PREVIEW_PROJECT = "Internal Knowledge Hub";
 
 export const DEFAULT_WORK_LIST_COLUMNS: readonly WorkListColumn[] = [
-  { key: "work", label: "Work", category: "Core", visible: true, width: 340, minWidth: 220 },
-  { key: "assignee", label: "Assignee", category: "People", visible: true, width: 170, minWidth: 120 },
-  { key: "reporter", label: "Reporter", category: "People", visible: true, width: 160, minWidth: 120 },
-  { key: "priority", label: "Priority", category: "Attributes", visible: true, width: 115, minWidth: 90 },
-  { key: "status", label: "Status", category: "Attributes", visible: true, width: 135, minWidth: 100 },
-  { key: "resolution", label: "Resolution", category: "Attributes", visible: true, width: 115, minWidth: 90 },
+  { key: "work", label: "Work", category: "Core", visible: true, width: 360, minWidth: 240 },
+  { key: "status", label: "Status", category: "Attributes", visible: true, width: 140, minWidth: 110 },
+  { key: "assignee", label: "Assignee", category: "People", visible: true, width: 170, minWidth: 130 },
+  { key: "priority", label: "Priority", category: "Attributes", visible: true, width: 120, minWidth: 95 },
+  { key: "due", label: "Due date", category: "Dates", visible: true, width: 125, minWidth: 100 },
+  { key: "parent", label: "Parent", category: "Core", visible: true, width: 150, minWidth: 115 },
+  { key: "comments", label: "Comments", category: "Content", visible: true, width: 115, minWidth: 90 },
   { key: "created", label: "Created", category: "Dates", visible: true, width: 130, minWidth: 100 },
   { key: "updated", label: "Updated", category: "Dates", visible: true, width: 130, minWidth: 100 },
-  { key: "due", label: "Due date", category: "Dates", visible: true, width: 115, minWidth: 90 },
-  { key: "parent", label: "Parent", category: "Core", visible: false, width: 160, minWidth: 110 },
+  { key: "reporter", label: "Reporter", category: "People", visible: true, width: 160, minWidth: 120 },
+  { key: "resolution", label: "Resolution", category: "Attributes", visible: false, width: 115, minWidth: 90 },
   { key: "progress", label: "∑ Progress", category: "Estimates", visible: false, width: 110, minWidth: 80 },
   { key: "labels", label: "Labels", category: "Attributes", visible: false, width: 140, minWidth: 100 },
   { key: "storyPoints", label: "Story Points", category: "Estimates", visible: false, width: 110, minWidth: 80 },
-  { key: "comments", label: "Comments", category: "Content", visible: false, width: 110, minWidth: 80 },
   { key: "team", label: "Team", category: "People", visible: false, width: 130, minWidth: 90 },
 ];
 
@@ -66,6 +66,39 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Implement AiEngine SAG adapter provider boundary",
         done: true,
         status: "DONE",
+        priority: "HIGH",
+        assignee: minhAnh,
+        dueDate: "2026-10-02",
+        estimate: "4h",
+        loggedTime: "3h 30m",
+        description:
+          "Define the NestJS injection token and HTTP client adapter for the upstream SAG retrieval engine with strict timeout and circuit-breaker guards.",
+        steps: [
+          {
+            id: "step-142-1-a",
+            text: "Create SagRetrievalPort interface and DTO contracts",
+            done: true,
+          },
+          {
+            id: "step-142-1-b",
+            text: "Wire HttpSagAdapter with 5000ms upstream timeout",
+            done: true,
+          },
+          {
+            id: "step-142-1-c",
+            text: "Verify integration contract tests in CI",
+            done: true,
+          },
+        ],
+        comments: [
+          {
+            id: "sub-c-142-1",
+            author: "Minh Anh",
+            initials: "MA",
+            createdAt: "Yesterday",
+            text: "Adapter boundary merged and verified against staging SAG endpoint.",
+          },
+        ],
       },
       {
         id: "KNW-142.2",
@@ -73,6 +106,39 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Enforce trusted principal & ACL validation filter",
         done: false,
         status: "IN_PROGRESS",
+        priority: "HIGH",
+        assignee: thuHa,
+        dueDate: "2026-10-04",
+        estimate: "6h",
+        loggedTime: "2h 15m",
+        description:
+          "Ensure every retrieval query scopes chunk visibility to the authenticated organizationId, projectId, and user role ACL.",
+        steps: [
+          {
+            id: "step-142-2-a",
+            text: "Inject PrincipalContext into SAG query payload",
+            done: true,
+          },
+          {
+            id: "step-142-2-b",
+            text: "Filter out restricted document chunks before ranking",
+            done: false,
+          },
+          {
+            id: "step-142-2-c",
+            text: "Add cross-tenant isolation regression test",
+            done: false,
+          },
+        ],
+        comments: [
+          {
+            id: "sub-c-142-2",
+            author: "Thu Hà",
+            initials: "TH",
+            createdAt: "3 hours ago",
+            text: "Testing cross-project ACL filter rules with private document chunks.",
+          },
+        ],
       },
       {
         id: "KNW-142.3",
@@ -80,6 +146,26 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Format approved citations with chunk attribution",
         done: false,
         status: "TODO",
+        priority: "MEDIUM",
+        assignee: quangHuy,
+        dueDate: "2026-10-05",
+        estimate: "3h",
+        loggedTime: "0h",
+        description:
+          "Map SAG citation spans to standardized DATN source metadata (documentId, chunkIndex, score, and snippet preview).",
+        steps: [
+          {
+            id: "step-142-3-a",
+            text: "Normalize citation offsets and source URLs",
+            done: false,
+          },
+          {
+            id: "step-142-3-b",
+            text: "Deduplicate overlapping chunk citations",
+            done: false,
+          },
+        ],
+        comments: [],
       },
       {
         id: "KNW-142.4",
@@ -87,6 +173,21 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Map upstream timeouts to safe no-answer response",
         done: false,
         status: "TODO",
+        priority: "LOW",
+        assignee: minhAnh,
+        dueDate: "2026-10-05",
+        estimate: "2h",
+        loggedTime: "0h",
+        description:
+          "Return deterministic RFC-7807 / safe no-answer fallback payload when SAG confidence is below threshold or upstream times out.",
+        steps: [
+          {
+            id: "step-142-4-a",
+            text: "Map 504/timeout to NO_EVIDENCE_FOUND fallback state",
+            done: false,
+          },
+        ],
+        comments: [],
       },
     ],
     comments: [
@@ -127,6 +228,26 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Schema definition for Work Note evidence boundary",
         done: false,
         status: "TODO",
+        priority: "MEDIUM",
+        assignee: thuHa,
+        dueDate: "2026-10-06",
+        estimate: "3h",
+        loggedTime: "1h",
+        description:
+          "Define JSON schema and validation rules for linking Work Notes as verified evidence items.",
+        steps: [
+          {
+            id: "step-138-1-a",
+            text: "Draft Prisma schema fields for evidence hash",
+            done: true,
+          },
+          {
+            id: "step-138-1-b",
+            text: "Add OpenAPI request/response examples",
+            done: false,
+          },
+        ],
+        comments: [],
       },
       {
         id: "KNW-138.2",
@@ -134,6 +255,21 @@ export const INITIAL_PREVIEW_WORK_ITEMS: readonly WorkItem[] = [
         summary: "Evidence boundary and hash verification rules",
         done: false,
         status: "TODO",
+        priority: "HIGH",
+        assignee: hoangNam,
+        dueDate: "2026-10-08",
+        estimate: "4h",
+        loggedTime: "0h",
+        description:
+          "Validate SHA-256 content hashes before promoting Work Notes to verified project knowledge.",
+        steps: [
+          {
+            id: "step-138-2-a",
+            text: "Implement SHA-256 content digest verifier",
+            done: false,
+          },
+        ],
+        comments: [],
       },
     ],
     comments: [],
@@ -515,7 +651,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "01. Project Scope & Overview",
     excerpt:
       "Enterprise SaaS knowledge continuity platform integrating dynamic hyperedge SAG retrieval.",
-    icon: "📖",
+    icon: "01",
     author: "Minh Anh",
     role: "Lead Engineer / Fullstack",
     updated: "Oct 19, 2026",
@@ -570,7 +706,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "02. Microservices Architecture",
     excerpt:
       "BFF pattern specifications, JWT HttpOnly Cookie security, multi-tenant MongoDB, and Vector DB.",
-    icon: "🏛️",
+    icon: "02",
     author: "Quang Huy",
     role: "Backend Engineer",
     updated: "Oct 18, 2026",
@@ -612,7 +748,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "03. SAG Retrieval Engine",
     excerpt:
       "Query-time dynamic hyperedge construction, Event extraction, and Qdrant vector retrieval.",
-    icon: "⚡",
+    icon: "03",
     author: "Hoàng Nam",
     role: "AI/ML Engineer",
     updated: "Oct 17, 2026",
@@ -654,7 +790,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "04. API Contract V1",
     excerpt:
       "RFC-7807 Problem Details standards, Idempotency-Key headers, and contract validation tests.",
-    icon: "📋",
+    icon: "04",
     author: "Thu Hà",
     role: "Product / QA",
     updated: "Oct 17, 2026",
@@ -690,7 +826,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "05. Database Schema & Indexing",
     excerpt:
       "PostgreSQL & MongoDB multi-tenant indexing, compound keys, and Qdrant collection partitioning.",
-    icon: "🗄️",
+    icon: "05",
     author: "Quang Huy",
     role: "Backend Engineer",
     updated: "Oct 16, 2026",
@@ -726,7 +862,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "06. Sprint 3 Retrospective",
     excerpt:
       "Sprint 3 velocity metrics, burndown analysis, and delivery commitments for Continuum AI MVP.",
-    icon: "📊",
+    icon: "06",
     author: "Thu Hà",
     role: "Product / QA",
     updated: "Oct 18, 2026",
@@ -762,7 +898,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "07. Security & RBAC Policy",
     excerpt:
       "Role-based access matrix for ORG_ADMIN, PROJECT_ADMIN, MEMBER, and PLATFORM_OPERATOR.",
-    icon: "🛡️",
+    icon: "07",
     author: "Minh Anh",
     role: "Lead Engineer / Fullstack",
     updated: "Oct 15, 2026",
@@ -798,7 +934,7 @@ export const INITIAL_DOC_ARTICLES: readonly WorkDocArticle[] = [
     shortTitle: "08. Handover Playbook",
     excerpt:
       "Standardized template for knowledge transfer, architecture decision records (ADR), and incident runbooks.",
-    icon: "🧭",
+    icon: "08",
     author: "Lan Chi",
     role: "Frontend Engineer",
     updated: "Oct 20, 2026",

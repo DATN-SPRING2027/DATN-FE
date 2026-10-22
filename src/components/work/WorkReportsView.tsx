@@ -1,40 +1,41 @@
 "use client";
 
-import { useState } from "react";
-import { PREVIEW_PEOPLE } from "./work-preview-data";
-import { WorkPriorityLabel, WorkStatusBadge } from "./WorkStatusBadge";
-import type { WorkItem } from "./work-types";
+import { useState } from"react";
+import { PREVIEW_PEOPLE } from"./work-preview-data";
+import { MonoIcon } from"./WorkMonoIcons";
+import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
+import type { WorkItem } from"./work-types";
 
 const REPORT_TYPES = [
   {
-    id: "burndown",
-    title: "Sprint Burndown Report",
-    desc: "Track remaining work in the sprint over time against the ideal burndown line.",
+    id:"burndown",
+    title:"Sprint Burndown Report",
+    desc:"Track remaining work in the sprint over time against the ideal burndown line.",
   },
   {
-    id: "velocity",
-    title: "Sprint Velocity Chart",
-    desc: "Measure committed vs. completed story points across past sprints.",
+    id:"velocity",
+    title:"Sprint Velocity Chart",
+    desc:"Measure committed vs. completed story points across past sprints.",
   },
   {
-    id: "cfd",
-    title: "Cumulative Flow Diagram (CFD)",
-    desc: "Cumulative flow diagram showing work states over time.",
+    id:"cfd",
+    title:"Cumulative Flow Diagram (CFD)",
+    desc:"Cumulative flow diagram showing work states over time.",
   },
   {
-    id: "cycletime",
-    title: "Control Chart / Cycle Time",
-    desc: "Analyze lead time and cycle time from start to completion.",
+    id:"cycletime",
+    title:"Control Chart / Cycle Time",
+    desc:"Analyze lead time and cycle time from start to completion.",
   },
   {
-    id: "distribution",
-    title: "Work Item Distribution",
-    desc: "Work distribution breakdown by status, issue type, and team members.",
+    id:"distribution",
+    title:"Work Item Distribution",
+    desc:"Work distribution breakdown by status, issue type, and team members.",
   },
   {
-    id: "epicprogress",
-    title: "Epic Progress Report",
-    desc: "Track delivery and progress across major project epics.",
+    id:"epicprogress",
+    title:"Epic Progress Report",
+    desc:"Track delivery and progress across major project epics.",
   },
 ] as const;
 
@@ -57,22 +58,22 @@ export default function WorkReportsView({
     REPORT_TYPES.find((r) => r.id === activeReportId) ?? REPORT_TYPES[0];
 
   const total = items.length;
-  const doneCount = items.filter((item) => item.status === "DONE").length;
+  const doneCount = items.filter((item) => item.status ==="DONE").length;
   const inProgressCount = items.filter(
-    (item) => item.status === "IN_PROGRESS",
+    (item) => item.status ==="IN_PROGRESS",
   ).length;
   const inReviewCount = items.filter(
-    (item) => item.status === "IN_REVIEW",
+    (item) => item.status ==="IN_REVIEW",
   ).length;
-  const todoCount = items.filter((item) => item.status === "TODO").length;
+  const todoCount = items.filter((item) => item.status ==="TODO").length;
   const dueSoonCount = items.filter((item) => Boolean(item.dueDate)).length;
 
-  const taskCount = items.filter((item) => item.type === "TASK").length;
-  const storyCount = items.filter((item) => item.type === "STORY").length;
-  const bugCount = items.filter((item) => item.type === "BUG").length;
+  const taskCount = items.filter((item) => item.type ==="TASK").length;
+  const storyCount = items.filter((item) => item.type ==="STORY").length;
+  const bugCount = items.filter((item) => item.type ==="BUG").length;
 
   const assigneeRows = PREVIEW_PEOPLE.map((person, index) => {
-    const colors = ["#0C66E4", "#22A06B", "#8270DB", "#E56910", "#E2483D"];
+    const colors = ["#0C66E4","#22A06B","#8270DB","#E56910","#E2483D"];
     const count = items.filter((item) => item.assignee.id === person.id).length;
     return {
       label: person.name,
@@ -89,7 +90,7 @@ export default function WorkReportsView({
   );
 
   function handleCopyReportLink() {
-    if (typeof window !== "undefined") {
+    if (typeof window !=="undefined") {
       void navigator.clipboard?.writeText(window.location.href);
     }
     setCopiedLink(true);
@@ -102,39 +103,63 @@ export default function WorkReportsView({
       className="min-w-0 space-y-5"
     >
       {/* Top Report Controls Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex flex-wrap items-center justify-between gap-3 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             type="button"
             onClick={() => setDirectoryOpen((prev) => !prev)}
-            className="h-9 cursor-pointer rounded-lg border border-gray-200 bg-white px-3.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            className="h-9 cursor-pointer border border-gray-200 bg-white px-3.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
           >
             More reports ▾
           </button>
-          <span className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+          <span className="border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
             Report: {activeReport.title}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {isEditingWidgets && (
+            <>
+              <button
+                type="button"
+                onClick={() => setDirectoryOpen(true)}
+                className="h-8 cursor-pointer border border-dashed border-brand-300 bg-brand-50/60 px-2.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300"
+              >
+                + Add widget
+              </button>
+              <span className="border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                + Add filter
+              </span>
+            </>
+          )}
           <button
             type="button"
             onClick={handleCopyReportLink}
             title="Share report link"
-            className="h-8 cursor-pointer rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
           >
-            {copiedLink ? "✓ Link copied" : "🔗 Share"}
+            {copiedLink ? (
+              <>
+                <MonoIcon name="check"size={13} />
+                <span>Link copied</span>
+              </>
+            ) : (
+              <>
+                <MonoIcon name="link"size={13} />
+                <span>Share</span>
+              </>
+            )}
           </button>
           <button
             type="button"
             onClick={() => setIsEditingWidgets((prev) => !prev)}
-            className={`h-8 cursor-pointer rounded-lg border px-3 text-xs font-semibold transition ${
+            className={`h-8 cursor-pointer border px-3 text-xs font-semibold transition ${
               isEditingWidgets
-                ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
-                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                ?"border-brand-500 bg-brand-500 text-white"
+                :"border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             }`}
           >
-            {isEditingWidgets ? "✓ Done editing" : "Edit"}
+            {isEditingWidgets ?"Done":"Edit"}
           </button>
         </div>
       </div>
@@ -144,7 +169,7 @@ export default function WorkReportsView({
         <div
           role="region"
           aria-label="Reports directory"
-          className="grid grid-cols-1 gap-3 rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-sm sm:grid-cols-2 xl:grid-cols-3 dark:border-gray-800 dark:bg-gray-900"
+          className="grid grid-cols-1 gap-3 border border-gray-200 bg-white p-4 shadow-theme-sm sm:grid-cols-2 xl:grid-cols-3 dark:border-gray-800 dark:bg-gray-900"
         >
           {REPORT_TYPES.map((rpt) => {
             const selected = rpt.id === activeReportId;
@@ -156,10 +181,10 @@ export default function WorkReportsView({
                   setActiveReportId(rpt.id);
                   setDirectoryOpen(false);
                 }}
-                className={`cursor-pointer rounded-xl border p-3.5 text-start transition ${
+                className={`cursor-pointer border p-3.5 text-start transition ${
                   selected
-                    ? "border-brand-400 bg-brand-50/60 dark:border-brand-500 dark:bg-brand-500/15"
-                    : "border-gray-200 hover:border-brand-300 dark:border-gray-800"
+                    ?"border-brand-400 bg-brand-50/60 dark:border-brand-500 dark:bg-brand-500/15"
+                    :"border-gray-200 hover:border-brand-300 dark:border-gray-800"
                 }`}
               >
                 <p className="text-sm font-semibold text-gray-900 dark:text-white/90">
@@ -176,9 +201,9 @@ export default function WorkReportsView({
 
       {/* 4 Top KPI Metric Cards */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="flex items-center gap-3.5 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
-            ✓
+        <div className="flex items-center gap-3.5 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <MonoIcon name="check"size={16} />
           </span>
           <div>
             <p className="text-base font-bold tabular-nums text-gray-900 dark:text-white/90">
@@ -190,9 +215,9 @@ export default function WorkReportsView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3.5 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-            ✎
+        <div className="flex items-center gap-3.5 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <MonoIcon name="edit"size={16} />
           </span>
           <div>
             <p className="text-base font-bold tabular-nums text-gray-900 dark:text-white/90">
@@ -204,9 +229,9 @@ export default function WorkReportsView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3.5 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-300">
-            ＋
+        <div className="flex items-center gap-3.5 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <MonoIcon name="document"size={16} />
           </span>
           <div>
             <p className="text-base font-bold tabular-nums text-gray-900 dark:text-white/90">
@@ -218,9 +243,9 @@ export default function WorkReportsView({
           </div>
         </div>
 
-        <div className="flex items-center gap-3.5 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-400">
-            📅
+        <div className="flex items-center gap-3.5 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+            <MonoIcon name="calendar"size={16} />
           </span>
           <div>
             <p className="text-base font-bold tabular-nums text-gray-900 dark:text-white/90">
@@ -239,10 +264,10 @@ export default function WorkReportsView({
           title="Work items by status"
           total={total}
           slices={[
-            { label: "Done", count: doneCount, color: "#22A06B" },
-            { label: "In Progress", count: inProgressCount, color: "#0C66E4" },
-            { label: "In Review", count: inReviewCount, color: "#8270DB" },
-            { label: "To Do", count: todoCount, color: "#E56910" },
+            { label:"Done", count: doneCount, color:"#22A06B"},
+            { label:"In Progress", count: inProgressCount, color:"#0C66E4"},
+            { label:"In Review", count: inReviewCount, color:"#8270DB"},
+            { label:"To Do", count: todoCount, color:"#E56910"},
           ]}
         />
 
@@ -250,9 +275,9 @@ export default function WorkReportsView({
           title="Work items by type"
           total={total}
           slices={[
-            { label: "Task", count: taskCount, color: "#0C66E4" },
-            { label: "Story", count: storyCount, color: "#22A06B" },
-            { label: "Bug", count: bugCount, color: "#E2483D" },
+            { label:"Task", count: taskCount, color:"#0C66E4"},
+            { label:"Story", count: storyCount, color:"#22A06B"},
+            { label:"Bug", count: bugCount, color:"#E2483D"},
           ]}
         />
 
@@ -266,7 +291,7 @@ export default function WorkReportsView({
       {/* 2 Jira Cloud Analytics Trend Charts Row */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
         {/* Chart 1: Work Item Creation Trend */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             Work item creation trend
           </h3>
@@ -293,17 +318,17 @@ export default function WorkReportsView({
               stroke="#E4E7EC"
               strokeDasharray="3"
             />
-            <line x1="40" y1="145" x2="470" y2="145" stroke="#D0D5DD" />
-            <text x="15" y="30" fill="#667085" fontSize="10">
+            <line x1="40"y1="145"x2="470"y2="145"stroke="#D0D5DD"/>
+            <text x="15"y="30"fill="#667085"fontSize="10">
               10
             </text>
-            <text x="20" y="88" fill="#667085" fontSize="10">
+            <text x="20"y="88"fill="#667085"fontSize="10">
               5
             </text>
-            <text x="20" y="148" fill="#667085" fontSize="10">
+            <text x="20"y="148"fill="#667085"fontSize="10">
               0
             </text>
-            <rect x="65" y="110" width="16" height="35" rx="3" fill="#0C66E4" />
+            <rect x="65"y="110"width="16"height="35"rx="3"fill="#0C66E4"/>
             <rect
               x="84"
               y="122"
@@ -360,33 +385,33 @@ export default function WorkReportsView({
               rx="3"
               fill="#22A06B"
             />
-            <text x="65" y="162" fill="#667085" fontSize="10">
+            <text x="65"y="162"fill="#667085"fontSize="10">
               12 Oct
             </text>
-            <text x="165" y="162" fill="#667085" fontSize="10">
+            <text x="165"y="162"fill="#667085"fontSize="10">
               15 Oct
             </text>
-            <text x="275" y="162" fill="#667085" fontSize="10">
+            <text x="275"y="162"fill="#667085"fontSize="10">
               18 Oct
             </text>
-            <text x="385" y="162" fill="#667085" fontSize="10">
+            <text x="385"y="162"fill="#667085"fontSize="10">
               21 Oct
             </text>
           </svg>
           <div className="mt-2 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-brand-600" />
+              <span className="h-2.5 w-2.5 bg-brand-600"/>
               Created
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-success-600" />
+              <span className="h-2.5 w-2.5 bg-success-600"/>
               Resolved
             </span>
           </div>
         </div>
 
         {/* Chart 2: Work Item Cycle Time */}
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             Work item cycle time
           </h3>
@@ -413,7 +438,7 @@ export default function WorkReportsView({
               stroke="#E4E7EC"
               strokeDasharray="3"
             />
-            <line x1="40" y1="145" x2="470" y2="145" stroke="#D0D5DD" />
+            <line x1="40"y1="145"x2="470"y2="145"stroke="#D0D5DD"/>
             <path
               d="M40 140 L90 132 L140 105 L190 118 L240 90 L290 112 L340 68 L390 95 L450 52"
               fill="none"
@@ -448,12 +473,12 @@ export default function WorkReportsView({
 
       {/* Sprint Burndown & Sprint Velocity Grid */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
               Sprint Burndown Chart
             </h3>
-            <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+            <span className="bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
               Active Sprint
             </span>
           </div>
@@ -479,7 +504,7 @@ export default function WorkReportsView({
               stroke="#465FFF"
               strokeWidth="3"
             />
-            <circle cx="430" cy="138" r="4.5" fill="#465FFF" />
+            <circle cx="430"cy="138"r="4.5"fill="#465FFF"/>
           </svg>
           <div className="mt-2 flex flex-wrap gap-4 text-xs text-gray-500 dark:text-gray-400">
             <span>--- Ideal Guideline</span>
@@ -489,21 +514,21 @@ export default function WorkReportsView({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
               Sprint Velocity Chart
             </h3>
-            <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+            <span className="bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
               Last 3 Sprints
             </span>
           </div>
           <div className="mt-4 flex h-40 items-end justify-around border-b border-gray-200 px-4 pb-2 dark:border-gray-800">
             {[
-              { sprint: "Sprint 1", commit: 24, done: 22, cH: 72, dH: 66 },
-              { sprint: "Sprint 2", commit: 28, done: 27, cH: 85, dH: 82 },
+              { sprint:"Sprint 1", commit: 24, done: 22, cH: 72, dH: 66 },
+              { sprint:"Sprint 2", commit: 28, done: 27, cH: 85, dH: 82 },
               {
-                sprint: "Sprint 3 (Current)",
+                sprint:"Sprint 3 (Current)",
                 commit: 30,
                 done: 29,
                 cH: 94,
@@ -518,14 +543,14 @@ export default function WorkReportsView({
                   <div
                     title={`Committed: ${sp.commit} pts`}
                     style={{ height: `${sp.cH}%` }}
-                    className="flex w-7 items-start justify-center rounded-t bg-gray-200 pt-1 text-[10px] font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
+                    className="flex w-7 items-start justify-center bg-gray-200 pt-1 text-[10px] font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
                   >
                     {sp.commit}
                   </div>
                   <div
                     title={`Completed: ${sp.done} pts`}
                     style={{ height: `${sp.dH}%` }}
-                    className="flex w-7 items-start justify-center rounded-t bg-success-600 pt-1 text-[10px] font-bold text-white"
+                    className="flex w-7 items-start justify-center bg-success-600 pt-1 text-[10px] font-bold text-white"
                   >
                     {sp.done}
                   </div>
@@ -538,11 +563,11 @@ export default function WorkReportsView({
           </div>
           <div className="mt-2.5 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-gray-300 dark:bg-gray-700" />
+              <span className="h-2.5 w-2.5 bg-gray-300 dark:bg-gray-700"/>
               Committed Story Points
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2.5 w-2.5 rounded-sm bg-success-600" />
+              <span className="h-2.5 w-2.5 bg-success-600"/>
               Completed Story Points
             </span>
           </div>
@@ -550,7 +575,7 @@ export default function WorkReportsView({
       </div>
 
       {/* Paginated Work Items Report Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      <div className="overflow-hidden border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             Sprint Work Items Report ({total})
@@ -563,7 +588,7 @@ export default function WorkReportsView({
               type="button"
               disabled={safePage <= 1}
               onClick={() => setPage((p) => Math.max(1, p - 1))}
-              className="h-8 cursor-pointer rounded-lg border border-gray-200 px-2.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+              className="h-8 cursor-pointer border border-gray-200 px-2.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
             >
               ◀ Previous
             </button>
@@ -571,7 +596,7 @@ export default function WorkReportsView({
               type="button"
               disabled={safePage >= totalPages}
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-              className="h-8 cursor-pointer rounded-lg border border-gray-200 px-2.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
+              className="h-8 cursor-pointer border border-gray-200 px-2.5 font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 dark:border-gray-700 dark:text-gray-300"
             >
               Next ▶
             </button>
@@ -683,7 +708,7 @@ function ReportDonutCard({
   ).items;
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+    <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
       <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
         {title}
       </h3>
@@ -738,7 +763,7 @@ function ReportDonutCard({
             >
               <span className="inline-flex items-center gap-2 text-gray-700 dark:text-gray-300">
                 <span
-                  className="h-2.5 w-2.5 shrink-0 rounded-sm"
+                  className="h-2.5 w-2.5 shrink-0"
                   style={{ backgroundColor: s.color }}
                 />
                 <span className="truncate">{s.label}</span>

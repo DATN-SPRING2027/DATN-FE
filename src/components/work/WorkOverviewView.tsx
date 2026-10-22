@@ -1,28 +1,35 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
-import WorkOverviewBreakdownPanel from "./WorkOverviewBreakdownPanel";
-import WorkOverviewPanel from "./WorkOverviewPanel";
-import WorkOverviewRecentItemsPanel from "./WorkOverviewRecentItemsPanel";
-import WorkOverviewStatusPanel from "./WorkOverviewStatusPanel";
-import WorkOverviewSubtasksPanel from "./WorkOverviewSubtasksPanel";
-import { PREVIEW_PEOPLE } from "./work-preview-data";
+import { useState, type ReactNode } from"react";
+import { useTranslations } from"next-intl";
+import WorkOverviewBreakdownPanel from"./WorkOverviewBreakdownPanel";
+import WorkOverviewPanel from"./WorkOverviewPanel";
+import WorkOverviewRecentItemsPanel from"./WorkOverviewRecentItemsPanel";
+import WorkOverviewStatusPanel from"./WorkOverviewStatusPanel";
+import WorkOverviewSubtasksPanel from"./WorkOverviewSubtasksPanel";
+import { MonoIssueTypeIcon } from"./WorkMonoIcons";
+import { PREVIEW_PEOPLE } from"./work-preview-data";
 import {
   type WorkItem,
   type WorkItemType,
   type WorkPriority,
   type WorkStatus,
-} from "./work-types";
+} from"./work-types";
 
 export default function WorkOverviewView({
   items,
   onOpenItem,
+  onOpenSubtask,
   onOpenReports,
   onOpenList,
 }: {
   items: readonly WorkItem[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
+  onOpenSubtask?: (
+    item: WorkItem,
+    subtaskId: string,
+    trigger: HTMLButtonElement,
+  ) => void;
   onOpenReports?: () => void;
   onOpenList?: () => void;
 }) {
@@ -70,84 +77,82 @@ export default function WorkOverviewView({
 
   const priorityColumns = [
     {
-      id: "highest",
-      label: "Highest",
-      symbol: "︽",
-      symbolColor: "text-error-600 dark:text-error-400",
-      barColor: "#E2483D",
+      id:"highest",
+      label:"Highest",
+      symbol:"︽",
+      symbolColor:"text-gray-700 dark:text-gray-300",
+      barColor:"#344054",
       count: 0,
     },
     {
-      id: "high",
-      label: "High",
-      symbol: "︿",
-      symbolColor: "text-error-500 dark:text-error-400",
-      barColor: "#F87168",
+      id:"high",
+      label:"High",
+      symbol:"︿",
+      symbolColor:"text-gray-700 dark:text-gray-300",
+      barColor:"#475467",
       count: priorityCounts.HIGH,
     },
     {
-      id: "medium",
-      label: "Medium",
-      symbol: "＝",
-      symbolColor: "text-warning-600 dark:text-warning-400",
-      barColor: "#E56910",
+      id:"medium",
+      label:"Medium",
+      symbol:"＝",
+      symbolColor:"text-gray-600 dark:text-gray-400",
+      barColor:"#667085",
       count: priorityCounts.MEDIUM,
     },
     {
-      id: "low",
-      label: "Low",
-      symbol: "﹀",
-      symbolColor: "text-brand-600 dark:text-brand-400",
-      barColor: "#0C66E4",
+      id:"low",
+      label:"Low",
+      symbol:"﹀",
+      symbolColor:"text-gray-500 dark:text-gray-400",
+      barColor:"#98A2B3",
       count: priorityCounts.LOW,
     },
     {
-      id: "lowest",
-      label: "Lowest",
-      symbol: "︾",
-      symbolColor: "text-brand-500 dark:text-brand-400",
-      barColor: "#579DFF",
+      id:"lowest",
+      label:"Lowest",
+      symbol:"︾",
+      symbolColor:"text-gray-500 dark:text-gray-400",
+      barColor:"#D0D5DD",
       count: 0,
     },
   ];
 
   const totalTypeUnits = Math.max(1, items.length + totalSubtasksCount);
-  const workTypeDistribution = [
+  const workTypeDistribution: readonly {
+    id: string;
+    label: string;
+    type: WorkItemType |"SUBTASK";
+    count: number;
+    pct: number;
+  }[] = [
     {
-      id: "subtask",
-      label: "Subtask",
+      id:"subtask",
+      label:"Subtask",
+      type:"SUBTASK",
       count: totalSubtasksCount,
       pct: Math.round((totalSubtasksCount / totalTypeUnits) * 100),
-      iconBg: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300",
-      barBg: "bg-brand-500",
-      symbol: "⧉",
     },
     {
-      id: "task",
-      label: "Task",
+      id:"task",
+      label:"Task",
+      type:"TASK",
       count: typeCounts.TASK,
       pct: Math.round((typeCounts.TASK / totalTypeUnits) * 100),
-      iconBg: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300",
-      barBg: "bg-brand-600",
-      symbol: "☑",
     },
     {
-      id: "story",
-      label: "Story",
+      id:"story",
+      label:"Story",
+      type:"STORY",
       count: typeCounts.STORY,
       pct: Math.round((typeCounts.STORY / totalTypeUnits) * 100),
-      iconBg: "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400",
-      barBg: "bg-success-500",
-      symbol: "🔖",
     },
     {
-      id: "bug",
-      label: "Bug",
+      id:"bug",
+      label:"Bug",
+      type:"BUG",
       count: typeCounts.BUG,
       pct: Math.round((typeCounts.BUG / totalTypeUnits) * 100),
-      iconBg: "bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400",
-      barBg: "bg-error-500",
-      symbol: "🐛",
     },
   ];
 
@@ -161,7 +166,7 @@ export default function WorkOverviewView({
             label: person.name,
             initials: person.initials,
             value,
-            colorClass: "bg-brand-500",
+            colorClass:"bg-brand-500",
           },
         ];
   });
@@ -173,11 +178,11 @@ export default function WorkOverviewView({
     >
       {/* 1. Top Promotion Notice Banner with 190x74 SVG Illustration */}
       {!bannerDismissed && (
-        <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+        <div className="flex flex-wrap items-center justify-between gap-4 border border-brand-200 bg-brand-50/60 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
           <div className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-600 text-xs font-bold text-white"
+              className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center bg-brand-600 text-xs font-bold text-white"
             >
               i
             </span>
@@ -210,8 +215,8 @@ export default function WorkOverviewView({
             </div>
           </div>
 
-          <div aria-hidden="true" className="hidden sm:block">
-            <svg width="190" height="74" viewBox="0 0 190 74" fill="none">
+          <div aria-hidden="true"className="hidden sm:block">
+            <svg width="190"height="74"viewBox="0 0 190 74"fill="none">
               <rect
                 x="35"
                 y="6"
@@ -296,7 +301,7 @@ export default function WorkOverviewView({
       {/* 2. Top 4 Summary Metric Cards (Completed, Updated, Created, Due Soon) */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetricCard
-          iconBg="bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400"
+          iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           icon={
             <svg
               width="18"
@@ -307,14 +312,14 @@ export default function WorkOverviewView({
               strokeWidth="2.5"
               aria-hidden="true"
             >
-              <polyline points="20 6 9 17 4 12" />
+              <polyline points="20 6 9 17 4 12"/>
             </svg>
           }
           title={`${statusCounts.DONE} completed`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
-          iconBg="bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+          iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           icon={
             <svg
               width="18"
@@ -325,15 +330,15 @@ export default function WorkOverviewView({
               strokeWidth="2"
               aria-hidden="true"
             >
-              <path d="M12 20h9" />
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+              <path d="M12 20h9"/>
+              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
             </svg>
           }
           title={`${items.length} updated`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
-          iconBg="bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-300"
+          iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           icon={
             <svg
               width="18"
@@ -344,17 +349,17 @@ export default function WorkOverviewView({
               strokeWidth="2"
               aria-hidden="true"
             >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-              <polyline points="14 2 14 8 20 8" />
-              <line x1="12" y1="18" x2="12" y2="12" />
-              <line x1="9" y1="15" x2="15" y2="15" />
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+              <polyline points="14 2 14 8 20 8"/>
+              <line x1="12"y1="18"x2="12"y2="12"/>
+              <line x1="9"y1="15"x2="15"y2="15"/>
             </svg>
           }
           title={`${items.length} created`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
-          iconBg="bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-400"
+          iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
           icon={
             <svg
               width="18"
@@ -365,10 +370,10 @@ export default function WorkOverviewView({
               strokeWidth="2"
               aria-hidden="true"
             >
-              <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-              <line x1="16" y1="2" x2="16" y2="6" />
-              <line x1="8" y1="2" x2="8" y2="6" />
-              <line x1="3" y1="10" x2="21" y2="10" />
+              <rect x="3"y="4"width="18"height="18"rx="2"ry="2"/>
+              <line x1="16"y1="2"x2="16"y2="6"/>
+              <line x1="8"y1="2"x2="8"y2="6"/>
+              <line x1="3"y1="10"x2="21"y2="10"/>
             </svg>
           }
           title={`${dueSoonCount} due soon`}
@@ -410,10 +415,10 @@ export default function WorkOverviewView({
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-0 flex flex-col justify-between"
                 >
-                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70" />
-                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70" />
-                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70" />
-                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70" />
+                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70"/>
+                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70"/>
+                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70"/>
+                  <div className="border-t border-dashed border-gray-100 dark:border-gray-800/70"/>
                   <div />
                 </div>
 
@@ -431,11 +436,11 @@ export default function WorkOverviewView({
                         {col.count}
                       </span>
                       <div
-                        className="w-8 rounded-t-md transition-all"
+                        className="w-8 transition-all"
                         style={{
                           height: `${heightPct}%`,
                           backgroundColor:
-                            col.count > 0 ? col.barColor : "#E4E7EC",
+                            col.count > 0 ? col.barColor :"#E4E7EC",
                         }}
                       />
                     </div>
@@ -484,20 +489,20 @@ export default function WorkOverviewView({
                   <div className="flex items-center gap-2.5 font-medium text-gray-800 dark:text-gray-200">
                     <span
                       aria-hidden="true"
-                      className={`flex h-6 w-6 shrink-0 items-center justify-center rounded text-xs font-bold ${row.iconBg}`}
+                      className="flex h-6 w-6 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     >
-                      {row.symbol}
+                      <MonoIssueTypeIcon type={row.type} size={13} />
                     </span>
                     <span>{row.label}</span>
                   </div>
 
                   <div className="flex items-center gap-3">
-                    <div className="flex h-6 flex-1 items-center overflow-hidden rounded-md bg-gray-100 dark:bg-gray-800">
+                    <div className="flex h-6 flex-1 items-center overflow-hidden bg-gray-100 dark:bg-gray-800">
                       <div
-                        className={`flex h-full items-center px-2 text-xs font-semibold text-white transition-all ${row.barBg}`}
+                        className="flex h-full items-center bg-gray-700 px-2 text-xs font-semibold text-white transition-all dark:bg-gray-300 dark:text-gray-900"
                         style={{ width: `${Math.max(row.pct, row.count > 0 ? 18 : 0)}%` }}
                       >
-                        {row.pct > 0 ? `${row.pct}%` : ""}
+                        {row.pct > 0 ? `${row.pct}%` :""}
                       </div>
                     </div>
                     <span className="w-8 text-end text-xs font-semibold tabular-nums text-gray-600 dark:text-gray-400">
@@ -517,7 +522,11 @@ export default function WorkOverviewView({
           rows={teamRows}
           total={items.length}
         />
-        <WorkOverviewSubtasksPanel items={items} />
+        <WorkOverviewSubtasksPanel
+          items={items}
+          onOpenItem={onOpenItem}
+          onOpenSubtask={onOpenSubtask}
+        />
       </div>
     </section>
   );
@@ -535,10 +544,10 @@ function OverviewMetricCard({
   hint: string;
 }) {
   return (
-    <div className="flex min-h-22 items-center gap-3.5 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+    <div className="flex min-h-22 items-center gap-3.5 border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
       <span
         aria-hidden="true"
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${iconBg}`}
+        className={`flex h-10 w-10 shrink-0 items-center justify-center ${iconBg}`}
       >
         {icon}
       </span>

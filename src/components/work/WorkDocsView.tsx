@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
-import { SearchIcon } from "@/icons";
-import { INITIAL_DOC_ARTICLES, PREVIEW_PEOPLE } from "./work-preview-data";
-import type { WorkDocArticle, WorkItem } from "./work-types";
+import { useMemo, useState, type FormEvent } from"react";
+import { SearchIcon } from"@/icons";
+import { INITIAL_DOC_ARTICLES, PREVIEW_PEOPLE } from"./work-preview-data";
+import { MonoIcon } from"./WorkMonoIcons";
+import type { WorkDocArticle, WorkItem } from"./work-types";
 
-type DocsMode = "list" | "calendar" | "reader" | "gateway";
+type DocsMode ="list"|"calendar"|"reader"|"gateway";
 
 const DOC_CALENDAR_EVENTS: Record<
   number,
@@ -13,96 +14,96 @@ const DOC_CALENDAR_EVENTS: Record<
 > = {
   4: [
     {
-      docId: "06",
-      label: "📋 Sprint 3 Kickoff",
+      docId:"06",
+      label:"Sprint 3 Kickoff",
       colorClass:
-        "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   11: [
     {
-      docId: "08",
-      label: "🧭 Playbook Draft",
+      docId:"08",
+      label:"Playbook Draft",
       colorClass:
-        "bg-warning-50 text-warning-700 border-warning-200 dark:bg-warning-500/15 dark:text-warning-300 dark:border-warning-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   14: [
     {
-      docId: "07",
-      label: "🛡️ RBAC Policy",
+      docId:"07",
+      label:"RBAC Policy",
       colorClass:
-        "bg-warning-50 text-warning-700 border-warning-200 dark:bg-warning-500/15 dark:text-warning-300 dark:border-warning-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   15: [
     {
-      docId: "05",
-      label: "🗄️ DB Multi-Tenant",
+      docId:"05",
+      label:"DB Multi-Tenant",
       colorClass:
-        "bg-success-50 text-success-700 border-success-200 dark:bg-success-500/15 dark:text-success-300 dark:border-success-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   16: [
     {
-      docId: "06",
-      label: "📊 Sprint 3 Review",
+      docId:"06",
+      label:"Sprint 3 Review",
       colorClass:
-        "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   17: [
     {
-      docId: "03",
-      label: "⚡ SAG Engine Spec",
+      docId:"03",
+      label:"SAG Engine Spec",
       colorClass:
-        "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:border-brand-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
     {
-      docId: "04",
-      label: "📋 API Contract V1",
+      docId:"04",
+      label:"API Contract V1",
       colorClass:
-        "bg-success-50 text-success-700 border-success-200 dark:bg-success-500/15 dark:text-success-300 dark:border-success-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   18: [
     {
-      docId: "02",
-      label: "🏛️ Microservices",
+      docId:"02",
+      label:"Microservices",
       colorClass:
-        "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:border-brand-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   19: [
     {
-      docId: "01",
-      label: "📖 Project Scope V1",
+      docId:"01",
+      label:"Project Scope V1",
       colorClass:
-        "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:border-brand-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   21: [
     {
-      docId: "03",
-      label: "🔥 SAG Sync & Eval",
+      docId:"03",
+      label:"SAG Sync & Eval",
       colorClass:
-        "bg-brand-50 text-brand-700 border-brand-200 dark:bg-brand-500/15 dark:text-brand-300 dark:border-brand-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   24: [
     {
-      docId: "04",
-      label: "🔒 Security Audit",
+      docId:"04",
+      label:"Security Audit",
       colorClass:
-        "bg-success-50 text-success-700 border-success-200 dark:bg-success-500/15 dark:text-success-300 dark:border-success-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
   28: [
     {
-      docId: "06",
-      label: "🏁 Sprint 3 Retro",
+      docId:"06",
+      label:"Sprint 3 Retro",
       colorClass:
-        "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-500/15 dark:text-purple-300 dark:border-purple-500/30",
+        "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700",
     },
   ],
 };
@@ -142,10 +143,10 @@ export default function WorkDocsView({
   >({
     "01": [
       {
-        id: "dc-1",
-        author: "Thu Hà",
-        text: "Verified SAG architecture alignment with Sprint 3 deliverables.",
-        time: "2 hours ago",
+        id:"dc-1",
+        author:"Thu Hà",
+        text:"Verified SAG architecture alignment with Sprint 3 deliverables.",
+        time:"2 hours ago",
       },
     ],
   });
@@ -160,9 +161,9 @@ export default function WorkDocsView({
         doc.author.toLowerCase().includes(query) ||
         doc.linkedTasks.some((task) => task.toLowerCase().includes(query));
       const matchesCategory =
-        categoryFilter === "ALL" || doc.category === categoryFilter;
+        categoryFilter ==="ALL"|| doc.category === categoryFilter;
       const matchesStatus =
-        statusFilter === "ALL" || doc.status === statusFilter;
+        statusFilter ==="ALL"|| doc.status === statusFilter;
       return matchesQuery && matchesCategory && matchesStatus;
     });
   }, [categoryFilter, docs, searchQuery, statusFilter]);
@@ -217,47 +218,47 @@ export default function WorkDocsView({
               shortTitle: editTitle.trim(),
               excerpt: editExcerpt.trim() || doc.excerpt,
               bullets: nextBullets.length > 0 ? nextBullets : doc.bullets,
-              updated: "Just now",
+              updated:"Just now",
             }
           : doc,
       ),
     );
     setIsEditing(false);
-    setDocNotice(`✓ Saved updates to "${editTitle.trim()}".`);
+    setDocNotice(`✓ Saved updates to"${editTitle.trim()}".`);
   }
 
   function handleCreateDoc(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = newDocTitle.trim();
     if (!title) return;
-    const nextNum = String(docs.length + 1).padStart(2, "0");
+    const nextNum = String(docs.length + 1).padStart(2,"0");
     const created: WorkDocArticle = {
       id: nextNum,
       category: newDocCategory,
       categoryKey: newDocCategory.includes("Architecture")
-        ? "arch"
+        ?"arch"
         : newDocCategory.includes("Contract")
-          ? "contract"
+          ?"contract"
           : newDocCategory.includes("Governance")
-            ? "governance"
-            : "template",
+            ?"governance"
+            :"template",
       title: `${nextNum}. ${title}`,
       shortTitle: `${nextNum}. ${title}`,
       excerpt:
         newDocExcerpt.trim() ||
         "Project page created in workspace documentation hub.",
-      icon: "📄",
+      icon: nextNum,
       author: PREVIEW_PEOPLE[0].name,
-      role: "Project Member",
-      updated: "Just now",
-      readTime: "3 min read",
-      status: "VERIFIED",
-      access: "Anyone in Org",
+      role:"Project Member",
+      updated:"Just now",
+      readTime:"3 min read",
+      status:"VERIFIED",
+      access:"Anyone in Org",
       sagChunks: 8,
       linkedTasks: ["KNW-142"],
       views: 1,
       callout: {
-        kind: "info",
+        kind:"info",
         text:
           newDocExcerpt.trim() ||
           "Newly authored specification indexed into the project knowledge space.",
@@ -269,7 +270,7 @@ export default function WorkDocsView({
       checklist: [
         {
           id: `chk-${nextNum}-1`,
-          text: "Peer review specification with project team",
+          text:"Peer review specification with project team",
           owner: PREVIEW_PEOPLE[0].name,
           done: false,
         },
@@ -281,7 +282,7 @@ export default function WorkDocsView({
     setCreateDocOpen(false);
     setSelectedDocId(created.id);
     setMode("reader");
-    setDocNotice(`✓ Created document "${created.title}".`);
+    setDocNotice(`✓ Created document"${created.title}".`);
   }
 
   function handleAddDocComment(event: FormEvent<HTMLFormElement>) {
@@ -296,7 +297,7 @@ export default function WorkDocsView({
           id: `dc-${Date.now()}`,
           author: PREVIEW_PEOPLE[0].name,
           text: trimmed,
-          time: "Just now",
+          time:"Just now",
         },
       ],
     }));
@@ -304,11 +305,11 @@ export default function WorkDocsView({
   }
 
   return (
-    <section aria-label="Project documentation" className="min-w-0 space-y-4">
+    <section aria-label="Project documentation"className="min-w-0 space-y-4">
       {docNotice && (
         <div
           role="status"
-          className="flex items-center justify-between rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+          className="flex items-center justify-between border border-brand-200 bg-brand-50 px-4 py-2.5 text-xs font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
         >
           <span>{docNotice}</span>
           <button
@@ -322,7 +323,7 @@ export default function WorkDocsView({
       )}
 
       {/* Top 4-Mode Segmented Switcher Bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-3.5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <div className="flex flex-col gap-3 border border-gray-200 bg-white p-3.5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 sm:flex-row sm:items-center sm:justify-between sm:p-4">
         <div className="flex flex-wrap items-center gap-2.5">
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white/90">
@@ -332,22 +333,22 @@ export default function WorkDocsView({
               Architecture specs, API contracts, and SAG-indexed project pages.
             </p>
           </div>
-          <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+          <span className="bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
             ● 100% SAG Indexed
           </span>
         </div>
 
         <div
-          className="inline-flex flex-wrap rounded-xl border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950"
+          className="inline-flex flex-wrap border border-gray-200 bg-gray-50 p-1 dark:border-gray-800 dark:bg-gray-950"
           role="group"
           aria-label="Documentation display mode"
         >
           {(
             [
-              { id: "list", label: "Document List" },
-              { id: "calendar", label: "📅 Calendar View" },
-              { id: "reader", label: "Document Reader" },
-              { id: "gateway", label: "Confluence Gateway" },
+              { id:"list", label:"Document List"},
+              { id:"calendar", label:"Calendar View"},
+              { id:"reader", label:"Document Reader"},
+              { id:"gateway", label:"Confluence Gateway"},
             ] as const
           ).map((item) => (
             <button
@@ -355,10 +356,10 @@ export default function WorkDocsView({
               type="button"
               aria-pressed={mode === item.id}
               onClick={() => setMode(item.id)}
-              className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+              className={`cursor-pointer px-3 py-1.5 text-xs font-semibold transition ${
                 mode === item.id
-                  ? "bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                  ?"bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
+                  :"text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
               }`}
             >
               {item.label}
@@ -368,8 +369,8 @@ export default function WorkDocsView({
       </div>
 
       {/* MODE 1: DOCUMENT LIST (SPREADSHEET TABLE) */}
-      {mode === "list" && (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {mode ==="list"&& (
+        <div className="overflow-hidden border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-col gap-3 border-b border-gray-100 p-4 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap items-center gap-2.5">
               <label className="relative min-w-60">
@@ -383,7 +384,7 @@ export default function WorkDocsView({
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                   placeholder="Search documents by title, author, or key…"
-                  className="h-9 w-full rounded-lg border border-gray-200 bg-white ps-9 pe-3 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                  className="h-9 w-full border border-gray-200 bg-white ps-9 pe-3 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                 />
               </label>
 
@@ -391,7 +392,7 @@ export default function WorkDocsView({
                 aria-label="Filter documents by category"
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="h-9 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                className="h-9 cursor-pointer border border-gray-200 bg-white px-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
               >
                 <option value="ALL">All Categories (4)</option>
                 <option value="Architecture & System Design">
@@ -412,7 +413,7 @@ export default function WorkDocsView({
                 aria-label="Filter documents by status"
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="h-9 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                className="h-9 cursor-pointer border border-gray-200 bg-white px-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
               >
                 <option value="ALL">Status: All</option>
                 <option value="VERIFIED">Verified</option>
@@ -425,16 +426,22 @@ export default function WorkDocsView({
               <button
                 type="button"
                 onClick={() => setCreateDocOpen(true)}
-                className="h-9 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                className="h-9 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
               >
                 + New Document
               </button>
               <button
                 type="button"
                 onClick={() => setSagSynced(true)}
-                className="h-9 cursor-pointer rounded-lg border border-brand-200 bg-brand-50 px-3.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                className="inline-flex h-9 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-3.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
               >
-                {sagSynced ? "✓ 100% SAG Indexed" : "⚡ Sync SAG Index"}
+                <MonoIcon
+                  name={sagSynced ?"check":"bolt"}
+                  className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400"
+                />
+                <span>
+                  {sagSynced ?"100% SAG Indexed":"Sync SAG Index"}
+                </span>
               </button>
             </div>
           </div>
@@ -475,8 +482,12 @@ export default function WorkDocsView({
                         onClick={() => openReader(doc.id)}
                         className="cursor-pointer text-start"
                       >
-                        <span className="block font-medium text-gray-900 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400">
-                          {doc.icon} {doc.title}
+                        <span className="inline-flex items-center gap-1.5 font-medium text-gray-900 hover:text-brand-600 dark:text-white/90 dark:hover:text-brand-400">
+                          <MonoIcon
+                            name="document"
+                            className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+                          />
+                          <span>{doc.title}</span>
                         </span>
                         <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
                           {doc.excerpt}
@@ -499,14 +510,14 @@ export default function WorkDocsView({
                               onClick={(event) =>
                                 onOpenItem(linkedItem, event.currentTarget)
                               }
-                              className="cursor-pointer rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                              className="cursor-pointer border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
                             >
                               {taskKey}
                             </button>
                           ) : (
                             <span
                               key={taskKey}
-                              className="rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                              className="bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400"
                             >
                               {taskKey}
                             </span>
@@ -515,12 +526,12 @@ export default function WorkDocsView({
                       </div>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+                      <span className="bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
                         ✓ {doc.sagChunks} Chunks
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      <span className="rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                      <span className="bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                         {doc.status}
                       </span>
                     </td>
@@ -539,12 +550,16 @@ export default function WorkDocsView({
       )}
 
       {/* MODE 2: CALENDAR VIEW (DOCUMENT RELEASE & SPRINT CALENDAR) */}
-      {mode === "calendar" && (
-        <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {mode ==="calendar"&& (
+        <div className="overflow-hidden border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 p-4 dark:border-gray-800">
             <div>
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white/90">
-                📅 Document Release & Sprint Schedule — October 2026
+              <h3 className="inline-flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white/90">
+                <MonoIcon
+                  name="calendar"
+                  className="h-4 w-4 text-gray-600 dark:text-gray-400"
+                />
+                <span>Document Release & Sprint Schedule — October 2026</span>
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Click any scheduled document milestone to open it in Document
@@ -553,26 +568,26 @@ export default function WorkDocsView({
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs">
               <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-brand-500" />
+                <span className="h-2.5 w-2.5 bg-gray-800 dark:bg-gray-200"/>
                 Architecture
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-success-500" />
+                <span className="h-2.5 w-2.5 bg-gray-600 dark:bg-gray-400"/>
                 Contracts
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-purple-500" />
+                <span className="h-2.5 w-2.5 bg-gray-400 dark:bg-gray-500"/>
                 Sprint & Review
               </span>
               <span className="inline-flex items-center gap-1.5 text-gray-600 dark:text-gray-300">
-                <span className="h-2.5 w-2.5 rounded-full bg-warning-500" />
+                <span className="h-2.5 w-2.5 bg-gray-300 dark:bg-gray-600"/>
                 Governance
               </span>
             </div>
           </div>
 
           <div className="grid grid-cols-7 border-b border-gray-200 bg-gray-50 text-center text-[11px] font-bold uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-gray-800/70 dark:text-gray-400">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+            {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((day) => (
               <div
                 key={day}
                 className="border-e border-gray-200 py-2.5 last:border-e-0 dark:border-gray-800"
@@ -592,16 +607,16 @@ export default function WorkDocsView({
                   key={dayNum}
                   className={`min-h-24 p-2 ${
                     isToday
-                      ? "bg-brand-50/40 dark:bg-brand-500/10"
-                      : "bg-white dark:bg-gray-900"
+                      ?"bg-brand-50/40 dark:bg-brand-500/10"
+                      :"bg-white dark:bg-gray-900"
                   }`}
                 >
                   <div className="flex items-center justify-between text-xs">
                     <span
                       className={
                         isToday
-                          ? "rounded-full bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white"
-                          : "font-semibold text-gray-500 dark:text-gray-400"
+                          ?"bg-brand-600 px-2 py-0.5 text-[10px] font-bold text-white"
+                          :"font-semibold text-gray-500 dark:text-gray-400"
                       }
                     >
                       {isToday ? `${dayNum} TODAY` : dayNum}
@@ -613,7 +628,7 @@ export default function WorkDocsView({
                         key={`${dayNum}-${ev.docId}-${ev.label}`}
                         type="button"
                         onClick={() => openReader(ev.docId)}
-                        className={`block w-full cursor-pointer truncate rounded border px-1.5 py-1 text-start text-[11px] font-semibold transition hover:brightness-95 ${ev.colorClass}`}
+                        className={`block w-full cursor-pointer truncate border px-1.5 py-1 text-start text-[11px] font-semibold transition hover:brightness-95 ${ev.colorClass}`}
                       >
                         {ev.label}
                       </button>
@@ -627,10 +642,10 @@ export default function WorkDocsView({
       )}
 
       {/* MODE 3: DOCUMENT READER & RICH CONFLUENCE EDITOR */}
-      {mode === "reader" && (
+      {mode ==="reader"&& (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-[19rem_minmax(0,1fr)]">
           {/* Left Page Tree Grouped by Category */}
-          <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <aside className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                 Project Pages ({docs.length})
@@ -638,7 +653,7 @@ export default function WorkDocsView({
               <button
                 type="button"
                 onClick={() => setCreateDocOpen(true)}
-                className="cursor-pointer rounded-md bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300"
+                className="cursor-pointer bg-brand-50 px-2 py-0.5 text-xs font-bold text-brand-600 hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300"
               >
                 + New
               </button>
@@ -651,13 +666,16 @@ export default function WorkDocsView({
                     key={doc.id}
                     type="button"
                     onClick={() => openReader(doc.id)}
-                    className={`flex w-full cursor-pointer items-center gap-2 rounded-xl px-3 py-2 text-start text-xs font-medium transition ${
+                    className={`flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-start text-xs font-medium transition ${
                       active
-                        ? "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
-                        : "text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                        ?"bg-gray-100 text-gray-900 dark:bg-gray-800 dark:text-white"
+                        :"text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800"
                     }`}
                   >
-                    <span>{doc.icon}</span>
+                    <MonoIcon
+                      name="document"
+                      className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+                    />
                     <span className="truncate">{doc.shortTitle}</span>
                   </button>
                 );
@@ -666,11 +684,11 @@ export default function WorkDocsView({
           </aside>
 
           {/* Main Reader / Editor Canvas */}
-          <article className="rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <article className="border border-gray-200 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {currentDoc.category} • {currentDoc.readTime} •{" "}
+                  {currentDoc.category} • {currentDoc.readTime} •{""}
                   {currentDoc.views} views
                 </p>
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -679,23 +697,25 @@ export default function WorkDocsView({
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+                <span className="bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
                   {currentDoc.status}
                 </span>
                 <button
                   type="button"
                   onClick={() => setAccessModalOpen(true)}
-                  className="h-8 cursor-pointer rounded-lg border border-gray-200 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
                 >
-                  🔒 {currentDoc.access}
+                  <MonoIcon name="lock"className="h-3.5 w-3.5"/>
+                  <span>{currentDoc.access}</span>
                 </button>
                 {!isEditing && (
                   <button
                     type="button"
                     onClick={startEditing}
-                    className="h-8 cursor-pointer rounded-lg border border-gray-200 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300"
                   >
-                    ✏️ Edit page
+                    <MonoIcon name="edit"className="h-3.5 w-3.5"/>
+                    <span>Edit page</span>
                   </button>
                 )}
               </div>
@@ -704,7 +724,7 @@ export default function WorkDocsView({
             {isEditing ? (
               <div className="mt-5 space-y-4">
                 {/* Confluence Rich Editor Toolbar */}
-                <div className="flex flex-wrap items-center gap-1.5 rounded-xl border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
+                <div className="flex flex-wrap items-center gap-1.5 border border-gray-200 bg-gray-50 p-2 text-xs dark:border-gray-800 dark:bg-gray-950">
                   <button
                     type="button"
                     onClick={() =>
@@ -712,7 +732,7 @@ export default function WorkDocsView({
                         "• [New Specification] Key architectural requirement",
                       )
                     }
-                    className="cursor-pointer rounded px-2 py-1 font-bold hover:bg-gray-200 dark:hover:bg-gray-800"
+                    className="cursor-pointer px-2 py-1 font-bold hover:bg-gray-200 dark:hover:bg-gray-800"
                   >
                     B
                   </button>
@@ -723,9 +743,10 @@ export default function WorkDocsView({
                         "• [Callout] Zero-trust RBAC verification enforced on API boundary",
                       )
                     }
-                    className="cursor-pointer rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
+                    className="inline-flex cursor-pointer items-center gap-1 px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
                   >
-                    💬 Callout
+                    <MonoIcon name="comment"className="h-3.5 w-3.5"/>
+                    <span>Callout</span>
                   </button>
                   <button
                     type="button"
@@ -734,9 +755,10 @@ export default function WorkDocsView({
                         "• [Code Block] GET /api/v1/projects/:projectId/work-items",
                       )
                     }
-                    className="cursor-pointer rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
+                    className="inline-flex cursor-pointer items-center gap-1 px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
                   >
-                    💻 Code
+                    <MonoIcon name="document"className="h-3.5 w-3.5"/>
+                    <span>Code</span>
                   </button>
                   <button
                     type="button"
@@ -745,9 +767,10 @@ export default function WorkDocsView({
                         "• [Linked Jira Task] KNW-142 — Citation source verification",
                       )
                     }
-                    className="cursor-pointer rounded px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
+                    className="inline-flex cursor-pointer items-center gap-1 px-2 py-1 hover:bg-gray-200 dark:hover:bg-gray-800"
                   >
-                    ⚡ Jira Task
+                    <MonoIcon name="bolt"className="h-3.5 w-3.5"/>
+                    <span>Jira Task</span>
                   </button>
                 </div>
 
@@ -756,7 +779,7 @@ export default function WorkDocsView({
                   <input
                     value={editTitle}
                     onChange={(event) => setEditTitle(event.target.value)}
-                    className="h-10 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    className="h-10 border border-gray-200 bg-white px-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -765,7 +788,7 @@ export default function WorkDocsView({
                     rows={2}
                     value={editExcerpt}
                     onChange={(event) => setEditExcerpt(event.target.value)}
-                    className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    className="border border-gray-200 bg-white p-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   />
                 </label>
                 <label className="grid gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -774,21 +797,21 @@ export default function WorkDocsView({
                     rows={5}
                     value={editBulletsText}
                     onChange={(event) => setEditBulletsText(event.target.value)}
-                    className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    className="border border-gray-200 bg-white p-3 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   />
                 </label>
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
                     onClick={() => setIsEditing(false)}
-                    className="h-8 cursor-pointer rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                    className="h-8 cursor-pointer border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
                   >
                     Cancel
                   </button>
                   <button
                     type="button"
                     onClick={saveEdit}
-                    className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                    className="h-8 cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
                   >
                     Save changes
                   </button>
@@ -800,7 +823,7 @@ export default function WorkDocsView({
                   {currentDoc.title}
                 </h3>
 
-                <div className="rounded-xl border border-brand-200 bg-brand-50/60 p-4 text-sm text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                <div className="border border-brand-200 bg-brand-50/60 p-4 text-sm text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
                   {currentDoc.callout.text}
                 </div>
 
@@ -823,7 +846,7 @@ export default function WorkDocsView({
                     {currentDoc.checklist.map((chk) => (
                       <li
                         key={chk.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-gray-200 px-3.5 py-2 text-sm dark:border-gray-800"
+                        className="flex items-center justify-between gap-3 border border-gray-200 px-3.5 py-2 text-sm dark:border-gray-800"
                       >
                         <label className="flex cursor-pointer items-center gap-2.5">
                           <input
@@ -832,13 +855,13 @@ export default function WorkDocsView({
                             onChange={() =>
                               toggleChecklistItem(currentDoc.id, chk.id)
                             }
-                            className="h-4 w-4 rounded border-gray-300 text-brand-600"
+                            className="h-4 w-4 border-gray-300 text-brand-600"
                           />
                           <span
                             className={
                               chk.done
-                                ? "line-through text-gray-400 dark:text-gray-500"
-                                : "text-gray-800 dark:text-gray-200"
+                                ?"line-through text-gray-400 dark:text-gray-500"
+                                :"text-gray-800 dark:text-gray-200"
                             }
                           >
                             {chk.text}
@@ -854,9 +877,15 @@ export default function WorkDocsView({
 
                 {/* Discussion & Feedback Section */}
                 <div className="border-t border-gray-100 pt-5 dark:border-gray-800">
-                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white/90">
-                    💬 Discussion & Feedback (
-                    {(docComments[currentDoc.id] ?? []).length})
+                  <h4 className="inline-flex items-center gap-1.5 text-sm font-semibold text-gray-900 dark:text-white/90">
+                    <MonoIcon
+                      name="comment"
+                      className="h-4 w-4 text-gray-600 dark:text-gray-400"
+                    />
+                    <span>
+                      Discussion & Feedback (
+                      {(docComments[currentDoc.id] ?? []).length})
+                    </span>
                   </h4>
                   <form
                     onSubmit={handleAddDocComment}
@@ -866,11 +895,11 @@ export default function WorkDocsView({
                       value={commentInput}
                       onChange={(event) => setCommentInput(event.target.value)}
                       placeholder="Write a comment or review note on this page…"
-                      className="h-9 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                      className="h-9 flex-1 border border-gray-200 bg-white px-3 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                     />
                     <button
                       type="submit"
-                      className="h-9 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                      className="h-9 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
                     >
                       Post comment
                     </button>
@@ -879,7 +908,7 @@ export default function WorkDocsView({
                     {(docComments[currentDoc.id] ?? []).map((c) => (
                       <li
                         key={c.id}
-                        className="rounded-xl border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-950/50"
+                        className="border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-950/50"
                       >
                         <div className="flex items-center justify-between">
                           <span className="font-bold text-gray-900 dark:text-white">
@@ -901,22 +930,22 @@ export default function WorkDocsView({
       )}
 
       {/* MODE 4: JIRA CONFLUENCE GATEWAY REPLICA */}
-      {mode === "gateway" && (
-        <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-200 bg-white px-6 py-14 text-center shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {mode ==="gateway"&& (
+        <div className="flex flex-col items-center justify-center border border-gray-200 bg-white px-6 py-14 text-center shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
             Minh Anh, Thu Hà, Quang Huy and 4 others have access
           </p>
           <div className="mt-2.5 flex -space-x-2">
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-cyan-600 text-xs font-bold text-white dark:border-gray-900">
+            <span className="flex h-10 w-10 items-center justify-center border-2 border-white bg-gray-800 text-xs font-bold text-white dark:border-gray-900 dark:bg-gray-200 dark:text-gray-900">
               TH
             </span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-brand-600 text-xs font-bold text-white dark:border-gray-900">
+            <span className="flex h-10 w-10 items-center justify-center border-2 border-white bg-gray-700 text-xs font-bold text-white dark:border-gray-900 dark:bg-gray-300 dark:text-gray-900">
               QH
             </span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-purple-600 text-xs font-bold text-white dark:border-gray-900">
+            <span className="flex h-10 w-10 items-center justify-center border-2 border-white bg-gray-600 text-xs font-bold text-white dark:border-gray-900 dark:bg-gray-400 dark:text-gray-900">
               MA
             </span>
-            <span className="flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-emerald-600 text-xs font-bold text-white dark:border-gray-900">
+            <span className="flex h-10 w-10 items-center justify-center border-2 border-white bg-gray-500 text-xs font-bold text-white dark:border-gray-900 dark:bg-gray-500 dark:text-white">
               HN
             </span>
           </div>
@@ -931,14 +960,14 @@ export default function WorkDocsView({
             <button
               type="button"
               onClick={() => setRequestAccessOpen(true)}
-              className="h-9 cursor-pointer rounded-xl bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
+              className="h-9 cursor-pointer bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
             >
               Request access
             </button>
             <button
               type="button"
               onClick={() => setMode("reader")}
-              className="h-9 cursor-pointer rounded-xl border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              className="h-9 cursor-pointer border border-gray-200 bg-white px-4 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             >
               Or open Confluence Project Pages directly ↗
             </button>
@@ -959,10 +988,14 @@ export default function WorkDocsView({
         >
           <form
             onSubmit={handleCreateDoc}
-            className="w-full max-w-md space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
+            className="w-full max-w-md space-y-4 border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
           >
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              📄 Create New Project Document
+            <h3 className="inline-flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
+              <MonoIcon
+                name="document"
+                className="h-4 w-4 text-gray-600 dark:text-gray-400"
+              />
+              <span>Create New Project Document</span>
             </h3>
             <label className="grid gap-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
               Document title *
@@ -971,7 +1004,7 @@ export default function WorkDocsView({
                 value={newDocTitle}
                 onChange={(event) => setNewDocTitle(event.target.value)}
                 placeholder="e.g., Sprint 4 Architecture ADR"
-                className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                className="h-9 border border-gray-200 bg-white px-3 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
               />
             </label>
             <label className="grid gap-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -979,7 +1012,7 @@ export default function WorkDocsView({
               <select
                 value={newDocCategory}
                 onChange={(event) => setNewDocCategory(event.target.value)}
-                className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                className="h-9 border border-gray-200 bg-white px-3 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
               >
                 <option value="Architecture & System Design">
                   Architecture & System Design
@@ -1002,20 +1035,20 @@ export default function WorkDocsView({
                 value={newDocExcerpt}
                 onChange={(event) => setNewDocExcerpt(event.target.value)}
                 placeholder="Brief summary of the specification…"
-                className="rounded-lg border border-gray-200 bg-white p-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                className="border border-gray-200 bg-white p-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
               />
             </label>
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
                 onClick={() => setCreateDocOpen(false)}
-                className="h-8 cursor-pointer rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                className="h-8 cursor-pointer border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                className="h-8 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
               >
                 Create & Open
               </button>
@@ -1032,9 +1065,13 @@ export default function WorkDocsView({
           aria-label="Document Access & Permissions"
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
         >
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              🔒 Page Restrictions & Access
+          <div className="w-full max-w-md border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="inline-flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
+              <MonoIcon
+                name="lock"
+                className="h-4 w-4 text-gray-600 dark:text-gray-400"
+              />
+              <span>Page Restrictions & Access</span>
             </h3>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               Configure who can view or edit <strong>{currentDoc.title}</strong>
@@ -1050,23 +1087,23 @@ export default function WorkDocsView({
                         ? {
                             ...d,
                             access:
-                              d.access === "Anyone in Org"
-                                ? "Specific people"
-                                : "Anyone in Org",
+                              d.access ==="Anyone in Org"
+                                ?"Specific people"
+                                :"Anyone in Org",
                           }
                         : d,
                     ),
                   );
                   setAccessModalOpen(false);
                 }}
-                className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                className="h-8 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
               >
                 Toggle access ({currentDoc.access})
               </button>
               <button
                 type="button"
                 onClick={() => setAccessModalOpen(false)}
-                className="h-8 cursor-pointer rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                className="h-8 cursor-pointer border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
               >
                 Close
               </button>
@@ -1083,12 +1120,16 @@ export default function WorkDocsView({
           aria-label="Request Confluence Space Access"
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4"
         >
-          <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-base font-bold text-gray-900 dark:text-white">
-              🔑 Request Confluence Space Access
+          <div className="w-full max-w-md border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
+            <h3 className="inline-flex items-center gap-2 text-base font-bold text-gray-900 dark:text-white">
+              <MonoIcon
+                name="lock"
+                className="h-4 w-4 text-gray-600 dark:text-gray-400"
+              />
+              <span>Request Confluence Space Access</span>
             </h3>
             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Send an access request to space administrator{" "}
+              Send an access request to space administrator{""}
               <strong>Minh Anh</strong>.
             </p>
             <textarea
@@ -1096,13 +1137,13 @@ export default function WorkDocsView({
               value={requestNote}
               onChange={(event) => setRequestNote(event.target.value)}
               placeholder="Optional note for the space administrator…"
-              className="mt-3 w-full rounded-lg border border-gray-200 bg-white p-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+              className="mt-3 w-full border border-gray-200 bg-white p-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
             />
             <div className="mt-4 flex justify-end gap-2">
               <button
                 type="button"
                 onClick={() => setRequestAccessOpen(false)}
-                className="h-8 cursor-pointer rounded-lg border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+                className="h-8 cursor-pointer border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
               >
                 Cancel
               </button>
@@ -1116,7 +1157,7 @@ export default function WorkDocsView({
                     "✓ Access granted! Opened Confluence Project Pages Reader.",
                   );
                 }}
-                className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                className="h-8 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
               >
                 Send request & Open Reader
               </button>

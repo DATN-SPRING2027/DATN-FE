@@ -1,133 +1,133 @@
 "use client";
 
-import { useState } from "react";
-import { PREVIEW_PEOPLE } from "./work-preview-data";
-import type { CreatePreviewWorkItem, WorkItem } from "./work-types";
+import { useState } from"react";
+import { PREVIEW_PEOPLE } from"./work-preview-data";
+import type { CreatePreviewWorkItem, WorkItem } from"./work-types";
 
 type DevSubtab =
-  | "connections"
-  | "prs"
-  | "repos"
-  | "vulns"
-  | "deploys"
-  | "suggestions";
+  |"connections"
+  |"prs"
+  |"repos"
+  |"vulns"
+  |"deploys"
+  |"suggestions";
 
 const TOOL_GROUPS = [
   {
-    title: "Source code management",
+    title:"Source code management",
     description:
       "Link your tools to automatically map commits and pull requests to your work items.",
     tools: [
-      { id: "github", name: "GitHub for Atlassian", badge: "GH" },
-      { id: "bitbucket", name: "Bitbucket Cloud", badge: "BB" },
-      { id: "gitlab", name: "GitLab for Jira Cloud", badge: "GL" },
+      { id:"github", name:"GitHub for Atlassian", badge:"GH"},
+      { id:"bitbucket", name:"Bitbucket Cloud", badge:"BB"},
+      { id:"gitlab", name:"GitLab for Jira Cloud", badge:"GL"},
     ],
   },
   {
-    title: "Coding agents",
+    title:"Coding agents",
     description:
       "Add AI agents that read your repositories, generate code, and help with branches, commits, and pull requests.",
     tools: [
-      { id: "copilot", name: "GitHub Copilot for Jira", badge: "CP" },
-      { id: "cursor", name: "Cursor Agent", badge: "CR" },
-      { id: "claude", name: "Claude Agent for Jira", badge: "CL" },
+      { id:"copilot", name:"GitHub Copilot for Jira", badge:"CP"},
+      { id:"cursor", name:"Cursor Agent", badge:"CR"},
+      { id:"claude", name:"Claude Agent for Jira", badge:"CL"},
     ],
   },
   {
-    title: "Security tools",
+    title:"Security tools",
     description:
       "Connect security tools to monitor vulnerabilities in your codebase.",
     tools: [
-      { id: "gh-security", name: "GitHub Advanced Security", badge: "GS" },
-      { id: "snyk", name: "Snyk Security in Jira Cloud", badge: "SN" },
+      { id:"gh-security", name:"GitHub Advanced Security", badge:"GS"},
+      { id:"snyk", name:"Snyk Security in Jira Cloud", badge:"SN"},
     ],
   },
 ] as const;
 
 const PULL_REQUESTS = [
   {
-    id: "pr-42",
-    title: "#42 feat(retrieval): Hybrid Reranker BM25 pipeline integration",
-    author: "Hoàng Nam",
-    branch: "feature/rag-reranker",
-    linkedKey: "KNW-142",
-    status: "MERGED",
+    id:"pr-42",
+    title:"#42 feat(retrieval): Hybrid Reranker BM25 pipeline integration",
+    author:"Hoàng Nam",
+    branch:"feature/rag-reranker",
+    linkedKey:"KNW-142",
+    status:"MERGED",
   },
   {
-    id: "pr-39",
-    title: "#39 fix(auth): Token refresh cookie rotation RFC-6749",
-    author: "Quang Huy",
-    branch: "bugfix/auth-cookie",
-    linkedKey: "CSP-87",
-    status: "OPEN (In Review)",
+    id:"pr-39",
+    title:"#39 fix(auth): Token refresh cookie rotation RFC-6749",
+    author:"Quang Huy",
+    branch:"bugfix/auth-cookie",
+    linkedKey:"CSP-87",
+    status:"OPEN (In Review)",
   },
   {
-    id: "pr-37",
-    title: "#37 feat(ui): ADS 2-column drawer with inline task editor",
-    author: "Minh Anh",
-    branch: "feature/task-drawer",
-    linkedKey: "KNW-138",
-    status: "MERGED",
+    id:"pr-37",
+    title:"#37 feat(ui): ADS 2-column drawer with inline task editor",
+    author:"Minh Anh",
+    branch:"feature/task-drawer",
+    linkedKey:"KNW-138",
+    status:"MERGED",
   },
 ] as const;
 
 const REPOSITORIES = [
   {
-    id: "repo-fe",
-    name: "continuum-ai / platform-frontend",
-    branch: "main",
-    updated: "5 minutes ago",
-    stack: "Next.js 16 • TypeScript • Tailwind CSS",
+    id:"repo-fe",
+    name:"continuum-ai / platform-frontend",
+    branch:"main",
+    updated:"5 minutes ago",
+    stack:"Next.js 16 • TypeScript • Tailwind CSS",
   },
   {
-    id: "repo-be",
-    name: "continuum-ai / platform-backend",
-    branch: "main",
-    updated: "12 minutes ago",
-    stack: "NestJS • Prisma • PostgreSQL",
+    id:"repo-be",
+    name:"continuum-ai / platform-backend",
+    branch:"main",
+    updated:"12 minutes ago",
+    stack:"NestJS • Prisma • PostgreSQL",
   },
   {
-    id: "repo-sag",
-    name: "continuum-ai / sag-evidence-engine",
-    branch: "main",
-    updated: "1 hour ago",
-    stack: "Python • FastEmbed • Qdrant",
+    id:"repo-sag",
+    name:"continuum-ai / sag-evidence-engine",
+    branch:"main",
+    updated:"1 hour ago",
+    stack:"Python • FastEmbed • Qdrant",
   },
 ] as const;
 
 const VULNERABILITIES = [
   {
-    id: "vuln-axios",
-    title: "axios < 1.7.4 SSRF vulnerability in node environments",
-    pkg: "axios",
-    severity: "Medium",
-    remediation: "Upgrade to version >= 1.7.7",
+    id:"vuln-axios",
+    title:"axios < 1.7.4 SSRF vulnerability in node environments",
+    pkg:"axios",
+    severity:"Medium",
+    remediation:"Upgrade to version >= 1.7.7",
   },
   {
-    id: "vuln-tar",
-    title: "tar < 6.2.1 Arbitrary File Creation",
-    pkg: "tar",
-    severity: "Low",
-    remediation: "Run npm audit fix",
+    id:"vuln-tar",
+    title:"tar < 6.2.1 Arbitrary File Creation",
+    pkg:"tar",
+    severity:"Low",
+    remediation:"Run npm audit fix",
   },
 ] as const;
 
 const DEPLOYMENTS = [
   {
-    id: "dep-prod",
-    env: "Production (Continuum AI Live)",
-    release: "Release v1.2.4",
-    deployedAt: "2 days ago",
-    commit: "7c21f9a",
-    status: "SUCCESSFUL",
+    id:"dep-prod",
+    env:"Production (Continuum AI Live)",
+    release:"Release v1.2.4",
+    deployedAt:"2 days ago",
+    commit:"7c21f9a",
+    status:"SUCCESSFUL",
   },
   {
-    id: "dep-staging",
-    env: "Staging (Pre-release Testing)",
-    release: "Release v1.2.5-rc2",
-    deployedAt: "3 hours ago",
-    commit: "9b83c11",
-    status: "RUNNING",
+    id:"dep-staging",
+    env:"Staging (Pre-release Testing)",
+    release:"Release v1.2.5-rc2",
+    deployedAt:"3 hours ago",
+    commit:"9b83c11",
+    status:"RUNNING",
   },
 ] as const;
 
@@ -149,9 +149,9 @@ export default function WorkDevelopmentView({
   const [cliCopied, setCliCopied] = useState(false);
   const [prSynced, setPrSynced] = useState(false);
 
-  const completedCount = items.filter((item) => item.status === "DONE").length;
+  const completedCount = items.filter((item) => item.status ==="DONE").length;
   const openBugsCount = items.filter(
-    (item) => item.type === "BUG" && item.status !== "DONE",
+    (item) => item.type ==="BUG"&& item.status !=="DONE",
   ).length;
 
   function toggleTool(toolId: string) {
@@ -167,8 +167,8 @@ export default function WorkDevelopmentView({
     if (createdFixIds.has(vulnId)) return;
     onCreateItem({
       title: `[Security Fix] ${title}`,
-      type: "BUG",
-      priority: "HIGH",
+      type:"BUG",
+      priority:"HIGH",
       assignee: PREVIEW_PEOPLE[0],
       dueDate: null,
       description: `Automated security remediation task created from Development tab: ${title}`,
@@ -184,21 +184,21 @@ export default function WorkDevelopmentView({
   }
 
   return (
-    <section aria-label="Development and DevOps" className="min-w-0 space-y-5">
+    <section aria-label="Development and DevOps"className="min-w-0 space-y-5">
       {/* 1. Key Metrics Header & Cards */}
       <div className="space-y-3">
         <div className="flex items-center gap-2">
           <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
             Key metrics
           </h2>
-          <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+          <span className="bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
             Beta
           </span>
         </div>
 
         {/* Row 1: 4 Primary Metric Cards */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-center justify-between border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 Work items
@@ -207,7 +207,7 @@ export default function WorkDevelopmentView({
                 <span className="text-2xl font-semibold tabular-nums text-gray-900 dark:text-white/90">
                   {completedCount}
                 </span>
-                <span className="rounded-full bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+                <span className="bg-success-50 px-2 py-0.5 text-[11px] font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
                   +14%
                 </span>
               </div>
@@ -232,7 +232,7 @@ export default function WorkDevelopmentView({
             </svg>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               Pull request cycle time
             </p>
@@ -244,7 +244,7 @@ export default function WorkDevelopmentView({
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               Lead time for changes
             </p>
@@ -256,7 +256,7 @@ export default function WorkDevelopmentView({
             </p>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
               Deployment frequency
             </p>
@@ -272,15 +272,15 @@ export default function WorkDevelopmentView({
         {/* Row 2: 5 Compact Metric Cards */}
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-5">
           {[
-            { title: "Work items", value: 0, sub: "Overdue" },
-            { title: "Work items", value: 2, sub: "Reopened" },
-            { title: "Bugs", value: openBugsCount, sub: "Open" },
-            { title: "Pull requests", value: 1, sub: "Open" },
-            { title: "Vulnerabilities", value: 0, sub: "Critical" },
+            { title:"Work items", value: 0, sub:"Overdue"},
+            { title:"Work items", value: 2, sub:"Reopened"},
+            { title:"Bugs", value: openBugsCount, sub:"Open"},
+            { title:"Pull requests", value: 1, sub:"Open"},
+            { title:"Vulnerabilities", value: 0, sub:"Critical"},
           ].map((stat) => (
             <div
               key={`${stat.title}-${stat.sub}`}
-              className="rounded-xl border border-gray-200 bg-white px-4 py-3 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+              className="border border-gray-200 bg-white px-4 py-3 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
             >
               <span className="block text-xs text-gray-500 dark:text-gray-400">
                 {stat.title}
@@ -306,12 +306,12 @@ export default function WorkDevelopmentView({
       >
         {(
           [
-            { id: "connections", label: "Connections" },
-            { id: "prs", label: "Pull requests" },
-            { id: "repos", label: "Repositories" },
-            { id: "vulns", label: "Vulnerabilities" },
-            { id: "deploys", label: "Deployments" },
-            { id: "suggestions", label: "Work suggestions" },
+            { id:"connections", label:"Connections"},
+            { id:"prs", label:"Pull requests"},
+            { id:"repos", label:"Repositories"},
+            { id:"vulns", label:"Vulnerabilities"},
+            { id:"deploys", label:"Deployments"},
+            { id:"suggestions", label:"Work suggestions"},
           ] as const
         ).map((tab) => (
           <button
@@ -319,10 +319,10 @@ export default function WorkDevelopmentView({
             type="button"
             aria-pressed={subtab === tab.id}
             onClick={() => setSubtab(tab.id)}
-            className={`h-9 cursor-pointer rounded-lg px-3.5 text-xs font-semibold transition ${
+            className={`h-9 cursor-pointer px-3.5 text-xs font-semibold transition ${
               subtab === tab.id
-                ? "bg-brand-500 text-white shadow-theme-xs"
-                : "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                ?"bg-brand-500 text-white shadow-theme-xs"
+                :"border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             }`}
           >
             {tab.label}
@@ -331,13 +331,13 @@ export default function WorkDevelopmentView({
       </div>
 
       {/* 3. Subtab Panels */}
-      {subtab === "connections" && (
+      {subtab ==="connections"&& (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-5">
             {TOOL_GROUPS.map((group) => (
               <div
                 key={group.title}
-                className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+                className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
               >
                 <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
                   {group.title}
@@ -353,13 +353,13 @@ export default function WorkDevelopmentView({
                         key={tool.id}
                         type="button"
                         onClick={() => toggleTool(tool.id)}
-                        className={`flex cursor-pointer flex-col items-start justify-between gap-3 rounded-xl border p-3.5 text-start transition ${
+                        className={`flex cursor-pointer flex-col items-start justify-between gap-3 border p-3.5 text-start transition ${
                           isConnected
-                            ? "border-success-300 bg-success-50/50 dark:border-success-500/40 dark:bg-success-500/10"
-                            : "border-gray-200 bg-gray-50/50 hover:border-brand-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950/50 dark:hover:border-brand-500"
+                            ?"border-success-300 bg-success-50/50 dark:border-success-500/40 dark:bg-success-500/10"
+                            :"border-gray-200 bg-gray-50/50 hover:border-brand-300 hover:bg-white dark:border-gray-800 dark:bg-gray-950/50 dark:hover:border-brand-500"
                         }`}
                       >
-                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
+                        <span className="flex h-9 w-9 items-center justify-center bg-brand-100 text-xs font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
                           {tool.badge}
                         </span>
                         <div>
@@ -370,8 +370,8 @@ export default function WorkDevelopmentView({
                           </span>
                           <span className="mt-0.5 block text-[11px] text-gray-500 dark:text-gray-400">
                             {isConnected
-                              ? "Click to disconnect"
-                              : "Click to connect"}
+                              ?"Click to disconnect"
+                              :"Click to connect"}
                           </span>
                         </div>
                       </button>
@@ -384,7 +384,7 @@ export default function WorkDevelopmentView({
 
           {/* Right Setup & CLI Context Sidebar */}
           <aside className="space-y-4">
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+            <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
                 Toolchain readiness
               </h3>
@@ -393,7 +393,7 @@ export default function WorkDevelopmentView({
                   <span className="font-medium text-gray-700 dark:text-gray-300">
                     1. Source code management
                   </span>
-                  <span className="rounded-full bg-success-50 px-2 py-0.5 font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+                  <span className="bg-success-50 px-2 py-0.5 font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
                     Connected
                   </span>
                 </li>
@@ -401,7 +401,7 @@ export default function WorkDevelopmentView({
                   <span className="font-medium text-gray-700 dark:text-gray-300">
                     2. Coding agents
                   </span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  <span className="bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                     Ready
                   </span>
                 </li>
@@ -409,14 +409,14 @@ export default function WorkDevelopmentView({
                   <span className="font-medium text-gray-700 dark:text-gray-300">
                     3. Security tools
                   </span>
-                  <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                  <span className="bg-gray-100 px-2 py-0.5 font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                     Optional
                   </span>
                 </li>
               </ul>
             </div>
 
-            <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+            <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
                 Local developer setup
               </h3>
@@ -427,19 +427,19 @@ export default function WorkDevelopmentView({
               <button
                 type="button"
                 onClick={copyCliCommand}
-                className="mt-3 w-full cursor-pointer rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                className="mt-3 w-full cursor-pointer border border-brand-200 bg-brand-50 px-3 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
               >
                 {cliCopied
-                  ? "✓ Copied CLI Context Command"
-                  : "Get workspace context in your IDE"}
+                  ?"✓ Copied CLI Context Command"
+                  :"Get workspace context in your IDE"}
               </button>
             </div>
           </aside>
         </div>
       )}
 
-      {subtab === "prs" && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {subtab ==="prs"&& (
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
@@ -453,9 +453,9 @@ export default function WorkDevelopmentView({
             <button
               type="button"
               onClick={() => setPrSynced(true)}
-              className="h-8 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             >
-              {prSynced ? "✓ Synced PRs" : "Sync PRs"}
+              {prSynced ?"✓ Synced PRs":"Sync PRs"}
             </button>
           </div>
           <ul className="mt-4 divide-y divide-gray-100 dark:divide-gray-800">
@@ -469,21 +469,21 @@ export default function WorkDevelopmentView({
                     {pr.title}
                   </p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Created by <strong>{pr.author}</strong> • Branch:{" "}
-                    <code className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
+                    Created by <strong>{pr.author}</strong> • Branch:{""}
+                    <code className="bg-gray-100 px-1.5 py-0.5 dark:bg-gray-800">
                       {pr.branch}
-                    </code>{" "}
-                    • Linked:{" "}
+                    </code>{""}
+                    • Linked:{""}
                     <span className="font-semibold text-brand-600 dark:text-brand-400">
                       {pr.linkedKey}
                     </span>
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    pr.status === "MERGED"
-                      ? "bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-300"
-                      : "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                  className={`rounded border px-2.5 py-1 text-xs font-semibold ${
+                    pr.status ==="MERGED"
+                      ?"border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                      :"border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-400"
                   }`}
                 >
                   {pr.status}
@@ -494,8 +494,8 @@ export default function WorkDevelopmentView({
         </div>
       )}
 
-      {subtab === "repos" && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {subtab ==="repos"&& (
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             Connected Repositories ({REPOSITORIES.length})
           </h3>
@@ -510,7 +510,7 @@ export default function WorkDevelopmentView({
                     {repo.name}
                   </p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Default branch: <code>{repo.branch}</code> • Updated:{" "}
+                    Default branch: <code>{repo.branch}</code> • Updated:{""}
                     {repo.updated} • {repo.stack}
                   </p>
                 </div>
@@ -523,8 +523,8 @@ export default function WorkDevelopmentView({
         </div>
       )}
 
-      {subtab === "vulns" && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {subtab ==="vulns"&& (
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
@@ -534,7 +534,7 @@ export default function WorkDevelopmentView({
                 Automated security scans via Snyk Security & GitHub Dependabot.
               </p>
             </div>
-            <span className="rounded-full bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+            <span className="bg-success-50 px-2.5 py-1 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
               ✓ 0 Critical vulnerabilities
             </span>
           </div>
@@ -551,7 +551,7 @@ export default function WorkDevelopmentView({
                       {vuln.title}
                     </p>
                     <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                      Package: <code>{vuln.pkg}</code> • Severity:{" "}
+                      Package: <code>{vuln.pkg}</code> • Severity:{""}
                       {vuln.severity} • Remediation: {vuln.remediation}
                     </p>
                   </div>
@@ -561,9 +561,9 @@ export default function WorkDevelopmentView({
                     onClick={() =>
                       createVulnerabilityFixTask(vuln.id, vuln.title)
                     }
-                    className="h-8 cursor-pointer rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-default disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                    className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-default disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                   >
-                    {created ? "✓ Fix task created" : "Create fix task"}
+                    {created ?"✓ Fix task created":"Create fix task"}
                   </button>
                 </li>
               );
@@ -572,8 +572,8 @@ export default function WorkDevelopmentView({
         </div>
       )}
 
-      {subtab === "deploys" && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {subtab ==="deploys"&& (
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             Deployments & Environments
           </h3>
@@ -588,15 +588,15 @@ export default function WorkDevelopmentView({
                     {dep.env}
                   </p>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {dep.release} • Deployed {dep.deployedAt} • Commit{" "}
+                    {dep.release} • Deployed {dep.deployedAt} • Commit{""}
                     <code>{dep.commit}</code>
                   </p>
                 </div>
                 <span
-                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
-                    dep.status === "SUCCESSFUL"
-                      ? "bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400"
-                      : "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                  className={` px-2.5 py-1 text-xs font-semibold ${
+                    dep.status ==="SUCCESSFUL"
+                      ?"bg-success-50 text-success-700 dark:bg-success-500/15 dark:text-success-400"
+                      :"bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
                   }`}
                 >
                   {dep.status}
@@ -607,8 +607,8 @@ export default function WorkDevelopmentView({
         </div>
       )}
 
-      {subtab === "suggestions" && (
-        <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      {subtab ==="suggestions"&& (
+        <div className="border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
           <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
             AI Copilot Work Suggestions
           </h3>
@@ -616,7 +616,7 @@ export default function WorkDevelopmentView({
             Detects unlinked branches, commits, or PRs matching project work
             items.
           </p>
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 p-3.5 dark:border-gray-800">
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border border-gray-200 p-3.5 dark:border-gray-800">
             <div>
               <p className="text-sm font-medium text-gray-900 dark:text-white/90">
                 Link commit <code>4e91a0</code> to work item KNW-142
@@ -630,9 +630,9 @@ export default function WorkDevelopmentView({
               type="button"
               disabled={suggestionApplied}
               onClick={() => setSuggestionApplied(true)}
-              className="h-8 cursor-pointer rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
+              className="h-8 cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-60"
             >
-              {suggestionApplied ? "✓ Applied" : "Apply suggestion"}
+              {suggestionApplied ?"✓ Applied":"Apply suggestion"}
             </button>
           </div>
         </div>

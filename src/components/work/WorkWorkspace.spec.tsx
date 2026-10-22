@@ -128,8 +128,35 @@ describe("WorkWorkspace project scope", () => {
       expect(screen.getByRole("button", { name: activeTab })).toBeEnabled();
     }
 
+    // Verify Jira Cloud 2026 `+ Add view` 2-column popover
+    fireEvent.click(screen.getByRole("button", { name: "Add view" }));
+    expect(
+      screen.getByRole("dialog", { name: "Add view to navigation" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+
+    // Verify List view `AI Search` rainbow natural language bar & Work column menu
+    fireEvent.click(screen.getByRole("button", { name: "AI Search" }));
+    expect(
+      screen.getByLabelText("Ask AI natural language search bar"),
+    ).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", { name: "More actions for Work column" }),
+    );
+    expect(
+      screen.getByRole("menu", { name: "Work column options" }),
+    ).toBeVisible();
+
+    // Verify Board view Sprint header & Insights drawer
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    fireEvent.click(screen.getByRole("button", { name: /Insights/i }));
+    expect(
+      screen.getByRole("region", { name: "Sprint insights" }),
+    ).toBeVisible();
+
     fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
     expect(screen.getByRole("region", { name: "Timeline roadmap" })).toBeVisible();
+    expect(screen.getByText(/SCRUM Sprint 1/i)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Development" }));
     expect(screen.getByText(/Key metrics/i)).toBeVisible();

@@ -16,12 +16,49 @@ export type WorkPerson = Readonly<{
   initials: string;
 }>;
 
+export type WorkSubtaskStep = Readonly<{
+  id: string;
+  text: string;
+  done: boolean;
+}>;
+
+export type WorkSubtaskWorklogItem = Readonly<{
+  id: string;
+  author: string;
+  timeSpent: string;
+  note: string;
+  createdAt: string;
+}>;
+
+export type WorkSubtaskHistoryItem = Readonly<{
+  id: string;
+  author: string;
+  action: string;
+  createdAt: string;
+}>;
+
 export type WorkSubtaskItem = Readonly<{
   id: string;
   key: string;
   summary: string;
   done: boolean;
   status: WorkStatus;
+  priority?: WorkPriority;
+  assignee?: WorkPerson;
+  reporter?: WorkPerson;
+  dueDate?: string | null;
+  startDate?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  description?: string;
+  estimate?: string;
+  loggedTime?: string;
+  flagged?: boolean;
+  labels?: readonly string[];
+  steps?: readonly WorkSubtaskStep[];
+  comments?: readonly WorkCommentItem[];
+  worklogs?: readonly WorkSubtaskWorklogItem[];
+  history?: readonly WorkSubtaskHistoryItem[];
 }>;
 
 export type WorkCommentItem = Readonly<{

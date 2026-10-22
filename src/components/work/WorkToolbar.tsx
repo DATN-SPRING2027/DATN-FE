@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
-import { useTranslations } from "next-intl";
-import { Modal } from "@/components/ui/modal";
-import { FilterIcon, GridIcon, SearchIcon } from "@/icons";
-import { PREVIEW_PEOPLE } from "./work-preview-data";
+import { useState, type ChangeEvent } from"react";
+import { useTranslations } from"next-intl";
+import { Modal } from"@/components/ui/modal";
+import { FilterIcon, GridIcon, SearchIcon } from"@/icons";
+import { PREVIEW_PEOPLE } from"./work-preview-data";
+import { MonoIcon } from"./WorkMonoIcons";
 import type {
   WorkFilterCondition,
   WorkFilterField,
@@ -13,30 +14,30 @@ import type {
   WorkItem,
   WorkPriority,
   WorkStatus,
-} from "./work-types";
+} from"./work-types";
 
 const FIELD_OPTIONS: ReadonlyArray<{ key: WorkFilterField; label: string }> = [
-  { key: "status", label: "Status" },
-  { key: "priority", label: "Priority" },
-  { key: "assignee", label: "Assignee" },
-  { key: "type", label: "Type" },
-  { key: "reporter", label: "Reporter" },
+  { key:"status", label:"Status"},
+  { key:"priority", label:"Priority"},
+  { key:"assignee", label:"Assignee"},
+  { key:"type", label:"Type"},
+  { key:"reporter", label:"Reporter"},
 ];
 
 const OPERATOR_OPTIONS: ReadonlyArray<{
   key: WorkFilterOperator;
   label: string;
 }> = [
-  { key: "is", label: "equals (=)" },
-  { key: "is_not", label: "not equals (≠)" },
-  { key: "contains", label: "contains" },
+  { key:"is", label:"equals (=)"},
+  { key:"is_not", label:"not equals (≠)"},
+  { key:"contains", label:"contains"},
 ];
 
 const VALUE_SUGGESTIONS: Record<WorkFilterField, readonly string[]> = {
-  status: ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"],
-  priority: ["HIGH", "MEDIUM", "LOW"],
+  status: ["TODO","IN_PROGRESS","IN_REVIEW","DONE"],
+  priority: ["HIGH","MEDIUM","LOW"],
   assignee: PREVIEW_PEOPLE.map((p) => p.name),
-  type: ["TASK", "BUG", "STORY"],
+  type: ["TASK","BUG","STORY","SUBTASK"],
   reporter: PREVIEW_PEOPLE.map((p) => p.name),
 };
 
@@ -72,9 +73,9 @@ export default function WorkToolbar({
   onRefresh,
 }: {
   query: string;
-  status: WorkStatus | "ALL";
-  priority: WorkPriority | "ALL";
-  assigneeId: string | "ALL";
+  status: WorkStatus |"ALL";
+  priority: WorkPriority |"ALL";
+  assigneeId: string |"ALL";
   groupBy: WorkGroupBy;
   filterConditions?: readonly WorkFilterCondition[];
   hideDone?: boolean;
@@ -83,9 +84,9 @@ export default function WorkToolbar({
   highlightDoneRows?: boolean;
   items?: readonly WorkItem[];
   onQueryChange: (query: string) => void;
-  onStatusChange: (status: WorkStatus | "ALL") => void;
-  onPriorityChange: (priority: WorkPriority | "ALL") => void;
-  onAssigneeChange: (assigneeId: string | "ALL") => void;
+  onStatusChange: (status: WorkStatus |"ALL") => void;
+  onPriorityChange: (priority: WorkPriority |"ALL") => void;
+  onAssigneeChange: (assigneeId: string |"ALL") => void;
   onGroupByChange: (groupBy: WorkGroupBy) => void;
   onClearFilters: () => void;
   onAddFilterCondition?: (
@@ -114,6 +115,30 @@ export default function WorkToolbar({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportSubOpen, setExportSubOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [askAiInlineOpen, setAskAiInlineOpen] = useState(false);
+  const [askAiPrompt, setAskAiPrompt] = useState(
+    'Find work items in this project that are assigned to me or High priority',
+  );
+  const [filterPanelCategory, setFilterPanelCategory] = useState<
+    "status"|"priority"|"assignee"|"builder"
+  >("status");
+
+  function handleRunAiNaturalLanguageFilter() {
+    const text = askAiPrompt.trim().toLowerCase();
+    if (!text) return;
+    if (text.includes("high")) {
+      onPriorityChange("HIGH");
+    } else if (text.includes("done")) {
+      onStatusChange("DONE");
+    } else if (text.includes("progress")) {
+      onStatusChange("IN_PROGRESS");
+    } else if (text.includes("assigned to me") || text.includes("minh anh")) {
+      onAssigneeChange(PREVIEW_PEOPLE[0].id);
+    } else {
+      onQueryChange(askAiPrompt.trim());
+    }
+    setAskAiInlineOpen(false);
+  }
 
   // Settings menu modals
   const [chartModalOpen, setChartModalOpen] = useState(false);
@@ -125,16 +150,16 @@ export default function WorkToolbar({
   const [feedbackText, setFeedbackText] = useState("");
 
   const activeFilterCount =
-    Number(status !== "ALL") +
-    Number(priority !== "ALL") +
-    Number(assigneeId !== "ALL") +
+    Number(status !=="ALL") +
+    Number(priority !=="ALL") +
+    Number(assigneeId !=="ALL") +
     filterConditions.length +
     Number(hideDone);
   const hasActiveCriteria = activeFilterCount > 0 || query.trim().length > 0;
 
   function handleFieldChange(nextField: WorkFilterField) {
     setBuilderField(nextField);
-    setBuilderVal(VALUE_SUGGESTIONS[nextField][0] ?? "");
+    setBuilderVal(VALUE_SUGGESTIONS[nextField][0] ??"");
   }
 
   function handleAddCondition() {
@@ -156,51 +181,62 @@ export default function WorkToolbar({
     }
   }
 
-  const doneCount = items.filter((i) => i.status === "DONE").length;
+  const doneCount = items.filter((i) => i.status ==="DONE").length;
   const inProgCount = items.filter(
-    (i) => i.status === "IN_PROGRESS" || i.status === "IN_REVIEW",
+    (i) => i.status ==="IN_PROGRESS"|| i.status ==="IN_REVIEW",
   ).length;
-  const todoCount = items.filter((i) => i.status === "TODO").length;
+  const todoCount = items.filter((i) => i.status ==="TODO").length;
   const totalCount = Math.max(1, items.length);
 
   return (
     <section
       aria-label={t("toolbarLabel")}
-      className="flex min-w-0 flex-col gap-2.5 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 sm:p-3.5"
+      className="flex min-w-0 flex-col gap-2 py-1"
     >
-      <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center">
+      <div className="flex min-w-0 flex-wrap items-center gap-2">
         {onOpenAiCopilot && (
-          <button
-            type="button"
-            onClick={onOpenAiCopilot}
-            className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
-          >
-            <span aria-hidden="true">✨</span>
-            <span>Ask AI</span>
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={onOpenAiCopilot}
+              className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded border border-gray-300 bg-gray-100 px-2.5 text-xs font-semibold text-gray-800 transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+              <MonoIcon name="sparkle" size={13} />
+              <span>Ask AI</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAskAiInlineOpen((prev) => !prev)}
+              aria-pressed={askAiInlineOpen}
+              title="Toggle AI natural language filter bar"
+              className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              AI Search
+            </button>
+          </div>
         )}
 
-        <label className="relative min-w-0 flex-1 xl:max-w-72">
+        <label className="relative min-w-[12rem] flex-1 sm:max-w-64">
           <span className="sr-only">{t("searchLabel")}</span>
           <SearchIcon
             aria-hidden="true"
             viewBox="0 0 24 24"
-            width={16}
-            height={16}
-            className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+            width={15}
+            height={15}
+            className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
           />
           <input
             type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("searchPlaceholder")}
-            className="h-9 w-full rounded-lg border border-gray-200 bg-white ps-10 pe-3 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
+            className="h-8 w-full rounded border border-gray-200 bg-white ps-8 pe-2.5 text-xs text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
           />
         </label>
 
         {/* Quick Assignee Avatars Stack */}
         <div
-          className="flex items-center gap-1"
+          className="flex items-center -space-x-1"
           role="group"
           aria-label={t("quickAssigneeFilter")}
         >
@@ -216,20 +252,10 @@ export default function WorkToolbar({
                 onClick={() =>
                   onAssigneeChange(active ? "ALL" : person.id)
                 }
-                className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 text-[10px] font-semibold text-white transition hover:z-1 hover:scale-105 focus-visible:z-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 text-[10px] font-semibold transition hover:z-10 hover:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                   active
-                    ? "border-gray-900 ring-2 ring-brand-500 dark:border-white"
-                    : "border-white dark:border-gray-900"
-                } ${
-                  person.id === "minh-anh"
-                    ? "bg-brand-600"
-                    : person.id === "thu-ha"
-                      ? "bg-cyan-600"
-                      : person.id === "quang-huy"
-                        ? "bg-purple-600"
-                        : person.id === "hoang-nam"
-                          ? "bg-teal-600"
-                          : "bg-blue-700"
+                    ? "z-10 border-brand-500 bg-gray-900 text-white dark:bg-white dark:text-gray-900"
+                    : "border-white bg-gray-100 text-gray-700 dark:border-gray-900 dark:bg-gray-800 dark:text-gray-300"
                 }`}
               >
                 {person.initials}
@@ -238,11 +264,11 @@ export default function WorkToolbar({
           })}
         </div>
 
-        <div className="flex min-w-0 flex-wrap items-center gap-2 xl:ms-auto">
+        <div className="flex min-w-0 flex-wrap items-center gap-1.5 ms-auto">
           {/* Jira Filter Popover + Multi-Condition Filter Builder */}
           <details className="group relative">
             <summary
-              className={`inline-flex h-9 cursor-pointer list-none items-center gap-2 rounded-lg border px-3 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+              className={`inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded border px-2.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                 activeFilterCount > 0
                   ? "border-brand-300 bg-brand-50/70 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300"
                   : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -250,127 +276,251 @@ export default function WorkToolbar({
             >
               <FilterIcon
                 viewBox="0 0 24 24"
-                className="h-4 w-4 text-current"
+                className="h-3.5 w-3.5 text-current"
                 aria-hidden="true"
               />
               {t("filter")}
               {activeFilterCount > 0 && (
-                <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-600 px-1.5 text-[11px] font-semibold text-white">
+                <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-600 px-1 text-[10px] font-semibold text-white">
                   {activeFilterCount}
                 </span>
               )}
             </summary>
-            <div className="absolute start-0 top-full z-30 mt-2 grid w-80 gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
-              <div className="flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  Quick Filters
-                </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2.5">
-                <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-                  {t("priority")}
-                  <select
-                    value={priority}
-                    onChange={(event) =>
-                      onPriorityChange(
-                        event.target.value as WorkPriority | "ALL",
-                      )
-                    }
-                    className="h-8 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-xs font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                  >
-                    <option value="ALL">{t("allPriorities")}</option>
-                    <option value="HIGH">{t("priorities.HIGH")}</option>
-                    <option value="MEDIUM">{t("priorities.MEDIUM")}</option>
-                    <option value="LOW">{t("priorities.LOW")}</option>
-                  </select>
-                </label>
-                <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
-                  {t("assignee")}
-                  <select
-                    value={assigneeId}
-                    onChange={(event) => onAssigneeChange(event.target.value)}
-                    className="h-8 cursor-pointer rounded-lg border border-gray-200 bg-white px-2 text-xs font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                  >
-                    <option value="ALL">{t("allAssignees")}</option>
-                    {PREVIEW_PEOPLE.map((person) => (
-                      <option key={person.id} value={person.id}>
-                        {person.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-
-              {onAddFilterCondition && (
-                <div className="space-y-2.5 border-t border-gray-100 pt-3 dark:border-gray-800">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Jira Condition Builder
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                      Field
-                      <select
-                        value={builderField}
-                        onChange={(e) =>
-                          handleFieldChange(e.target.value as WorkFilterField)
-                        }
-                        className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+            <div className="absolute start-0 top-full z-30 mt-2 w-[26rem] max-w-[92vw] overflow-hidden border border-gray-200 bg-white shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
+              {/* Jira Cloud 2-Column Split Filter Popover */}
+              <div className="grid grid-cols-[9.5rem_minmax(0,1fr)]">
+                {/* Left Column: Field Categories */}
+                <div className="flex flex-col justify-between border-e border-gray-100 bg-gray-50/70 p-2 dark:border-gray-800 dark:bg-gray-950/60">
+                  <div className="space-y-0.5">
+                    {(
+                      [
+                        {
+                          id:"status",
+                          label:"Status",
+                          active: status !=="ALL",
+                        },
+                        {
+                          id:"priority",
+                          label: t("priority"),
+                          active: priority !=="ALL",
+                        },
+                        {
+                          id:"assignee",
+                          label: t("assignee"),
+                          active: assigneeId !=="ALL",
+                        },
+                        {
+                          id:"builder",
+                          label:"+ Add field",
+                          active: filterConditions.length > 0,
+                        },
+                      ] as const
+                    ).map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => setFilterPanelCategory(cat.id)}
+                        className={`flex w-full cursor-pointer items-center justify-between px-2.5 py-1.5 text-start text-xs font-medium transition ${
+                          filterPanelCategory === cat.id
+                            ?"bg-brand-50 font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                            :"text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                        }`}
                       >
-                        {FIELD_OPTIONS.map((f) => (
-                          <option key={f.key} value={f.key}>
-                            {f.label}
-                          </option>
-                        ))}
+                        <span>{cat.label}</span>
+                        {cat.active && (
+                          <span className="h-2 w-2 bg-brand-600"/>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onClearFilters}
+                    className="mt-3 w-full cursor-pointer px-2.5 py-1.5 text-start text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800"
+                  >
+                    Clear all
+                  </button>
+                </div>
+
+                {/* Right Column: Field Options & Quick Selects */}
+                <div className="space-y-3 p-3.5">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      {filterPanelCategory ==="status"
+                        ?"Filter by Status"
+                        : filterPanelCategory ==="priority"
+                          ?"Filter by Priority"
+                          : filterPanelCategory ==="assignee"
+                            ?"Filter by Assignee"
+                            :"Condition Builder"}
+                    </span>
+                  </div>
+
+                  {filterPanelCategory ==="status"&& (
+                    <div className="space-y-1.5">
+                      {(
+                        [
+                          { key:"ALL", label: t("allStatuses") },
+                          { key:"TODO", label: t("statuses.TODO") },
+                          {
+                            key:"IN_PROGRESS",
+                            label: t("statuses.IN_PROGRESS"),
+                          },
+                          { key:"IN_REVIEW", label: t("statuses.IN_REVIEW") },
+                          { key:"DONE", label: t("statuses.DONE") },
+                        ] as const
+                      ).map((st) => (
+                        <label
+                          key={st.key}
+                          className="flex cursor-pointer items-center gap-2 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                        >
+                          <input
+                            type="radio"
+                            name="toolbar-status-radio"
+                            checked={status === st.key}
+                            onChange={() => onStatusChange(st.key)}
+                            className="h-3.5 w-3.5 text-brand-600"
+                          />
+                          <span>{st.label}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                      {t("priority")}
+                      <select
+                        value={priority}
+                        onChange={(event) =>
+                          onPriorityChange(
+                            event.target.value as WorkPriority |"ALL",
+                          )
+                        }
+                        className="h-8 cursor-pointer border border-gray-200 bg-white px-2 text-xs font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                      >
+                        <option value="ALL">{t("allPriorities")}</option>
+                        <option value="HIGH">{t("priorities.HIGH")}</option>
+                        <option value="MEDIUM">{t("priorities.MEDIUM")}</option>
+                        <option value="LOW">{t("priorities.LOW")}</option>
                       </select>
                     </label>
-                    <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                      Operator
+                    <label className="grid gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                      {t("assignee")}
                       <select
-                        value={builderOp}
-                        onChange={(e) =>
-                          setBuilderOp(e.target.value as WorkFilterOperator)
+                        value={assigneeId}
+                        onChange={(event) =>
+                          onAssigneeChange(event.target.value)
                         }
-                        className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                        className="h-8 cursor-pointer border border-gray-200 bg-white px-2 text-xs font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                       >
-                        {OPERATOR_OPTIONS.map((op) => (
-                          <option key={op.key} value={op.key}>
-                            {op.label}
+                        <option value="ALL">{t("allAssignees")}</option>
+                        {PREVIEW_PEOPLE.map((person) => (
+                          <option key={person.id} value={person.id}>
+                            {person.name}
                           </option>
                         ))}
                       </select>
                     </label>
                   </div>
-                  <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
-                    Value
-                    <select
-                      value={builderVal}
-                      onChange={(e) => setBuilderVal(e.target.value)}
-                      className="h-8 rounded-lg border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
-                    >
-                      {VALUE_SUGGESTIONS[builderField].map((val) => (
-                        <option key={val} value={val}>
-                          {val}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={handleAddCondition}
-                    className="h-8 w-full cursor-pointer rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
-                  >
-                    + Add filter condition
-                  </button>
+
+                  {onAddFilterCondition && (
+                    <div className="space-y-2.5 border-t border-gray-100 pt-2.5 dark:border-gray-800">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        Jira Condition Builder
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                          Field
+                          <select
+                            value={builderField}
+                            onChange={(e) =>
+                              handleFieldChange(
+                                e.target.value as WorkFilterField,
+                              )
+                            }
+                            className="h-8 border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                          >
+                            {FIELD_OPTIONS.map((f) => (
+                              <option key={f.key} value={f.key}>
+                                {f.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                          Operator
+                          <select
+                            value={builderOp}
+                            onChange={(e) =>
+                              setBuilderOp(e.target.value as WorkFilterOperator)
+                            }
+                            className="h-8 border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                          >
+                            {OPERATOR_OPTIONS.map((op) => (
+                              <option key={op.key} value={op.key}>
+                                {op.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                      <label className="grid gap-1 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                        Value
+                        <select
+                          value={builderVal}
+                          onChange={(e) => setBuilderVal(e.target.value)}
+                          className="h-8 border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+                        >
+                          {VALUE_SUGGESTIONS[builderField].map((val) => (
+                            <option key={val} value={val}>
+                              {val}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleAddCondition}
+                        className="h-8 w-full cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                      >
+                        + Add filter condition
+                      </button>
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
+
+              {/* Jira Filter Popover Footer (`Shift + F` shortcut hint) */}
+              <div className="flex items-center justify-between border-t border-gray-100 bg-gray-50/80 px-3.5 py-2 text-[11px] text-gray-500 dark:border-gray-800 dark:bg-gray-950">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackModalOpen(true)}
+                  className="inline-flex cursor-pointer items-center gap-1.5 font-medium hover:text-gray-800 dark:hover:text-gray-200"
+                >
+                  <MonoIcon name="comment"size={12} />
+                  <span>Give feedback</span>
+                </button>
+                <span>
+                  Press{""}
+                  <kbd className="border border-gray-300 bg-white px-1 py-0.5 text-[10px] font-semibold dark:border-gray-700 dark:bg-gray-800">
+                    Shift
+                  </kbd>{""}
+                  +{""}
+                  <kbd className="border border-gray-300 bg-white px-1 py-0.5 text-[10px] font-semibold dark:border-gray-700 dark:bg-gray-800">
+                    F
+                  </kbd>{""}
+                  to open
+                </span>
+              </div>
             </div>
           </details>
 
           {/* Group By Selector */}
-          <label className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-sm font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+          <label className="inline-flex h-8 items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
             <GridIcon
               viewBox="0 0 24 24"
-              className="h-4 w-4 text-gray-500 dark:text-gray-400"
+              className="h-3.5 w-3.5 text-gray-500 dark:text-gray-400"
               aria-hidden="true"
             />
             <span>{t("group")}:</span>
@@ -381,7 +531,7 @@ export default function WorkToolbar({
                 onGroupByChange(event.target.value as WorkGroupBy)
               }
               aria-label={t("groupByLabel")}
-              className="max-w-28 cursor-pointer bg-transparent text-sm font-semibold text-gray-800 outline-none dark:text-gray-200"
+              className="max-w-28 cursor-pointer bg-transparent text-xs font-semibold text-gray-800 outline-none dark:text-gray-200"
             >
               <option value="NONE">{t("groupBy.none")}</option>
               <option value="STATUS">{t("groupBy.status")}</option>
@@ -400,7 +550,7 @@ export default function WorkToolbar({
             onChange={(event) =>
               onStatusChange(event.target.value as WorkStatus | "ALL")
             }
-            className="h-9 min-w-28 cursor-pointer rounded-lg border border-gray-200 bg-white px-2.5 text-sm text-gray-700 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+            className="h-8 min-w-28 cursor-pointer rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-700 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
           >
             <option value="ALL">{t("allStatuses")}</option>
             <option value="TODO">{t("statuses.TODO")}</option>
@@ -413,7 +563,7 @@ export default function WorkToolbar({
             <button
               type="button"
               onClick={onClearFilters}
-              className="h-9 cursor-pointer rounded-lg px-2 text-sm font-medium text-brand-600 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              className="h-8 cursor-pointer rounded px-2 text-xs font-medium text-brand-600 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
             >
               {t("clearFilters")}
             </button>
@@ -425,7 +575,7 @@ export default function WorkToolbar({
             onClick={triggerRefresh}
             title="Refresh work items"
             aria-label="Refresh work items"
-            className="inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+            className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             <span
               aria-hidden="true"
@@ -444,7 +594,7 @@ export default function WorkToolbar({
               aria-expanded={settingsOpen}
               aria-label="View options"
               title="View options"
-              className={`inline-flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border text-sm font-bold transition ${
+              className={`inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded border text-sm font-bold transition ${
                 settingsOpen
                   ? "border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300"
                   : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
@@ -457,10 +607,10 @@ export default function WorkToolbar({
               <div
                 role="menu"
                 aria-label="List view settings"
-                className="absolute end-0 top-full z-40 mt-2 w-72 rounded-xl border border-gray-200 bg-white py-2 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+                className="absolute end-0 top-full z-40 mt-2 w-72 border border-gray-200 bg-white py-2 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
               >
                 {/* Top Notice Card (Jira Figure 2) */}
-                <div className="mx-2.5 mb-2 rounded-lg border border-brand-100 bg-brand-50/60 p-2.5 dark:border-brand-500/20 dark:bg-brand-500/10">
+                <div className="mx-2.5 mb-2 border border-brand-100 bg-brand-50/60 p-2.5 dark:border-brand-500/20 dark:bg-brand-500/10">
                   <p className="text-xs font-semibold text-gray-900 dark:text-white/90">
                     Apply settings from the old List view
                   </p>
@@ -469,7 +619,7 @@ export default function WorkToolbar({
                   </p>
                 </div>
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
 
                 <button
                   type="button"
@@ -479,7 +629,7 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span aria-hidden="true">📊</span>
+                  <MonoIcon name="chart"size={14} className="text-gray-500"/>
                   <span>View work items as a chart</span>
                 </button>
 
@@ -491,11 +641,11 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span aria-hidden="true">🎨</span>
+                  <MonoIcon name="sliders"size={14} className="text-gray-500"/>
                   <span>Format rules</span>
                 </button>
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
 
                 {/* Toggle: Hide done work items */}
                 <label className="flex cursor-pointer items-center justify-between px-3.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800">
@@ -506,7 +656,7 @@ export default function WorkToolbar({
                     type="checkbox"
                     checked={hideDone}
                     onChange={(e) => onToggleHideDone?.(e.target.checked)}
-                    className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600"
+                    className="h-4 w-4 cursor-pointer border-gray-300 text-brand-600"
                   />
                 </label>
 
@@ -524,11 +674,11 @@ export default function WorkToolbar({
                     type="checkbox"
                     checked={showHierarchy}
                     onChange={(e) => onToggleShowHierarchy?.(e.target.checked)}
-                    className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600"
+                    className="h-4 w-4 cursor-pointer border-gray-300 text-brand-600"
                   />
                 </label>
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
 
                 {/* Export Submenu */}
                 <div className="relative">
@@ -538,7 +688,7 @@ export default function WorkToolbar({
                     className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
                     <span>Export</span>
-                    <span aria-hidden="true">{exportSubOpen ? "▾" : "▸"}</span>
+                    <span aria-hidden="true">{exportSubOpen ?"▾":"▸"}</span>
                   </button>
                   {exportSubOpen && (
                     <div className="bg-gray-50/80 py-1 ps-4 dark:bg-gray-950/60">
@@ -566,7 +716,7 @@ export default function WorkToolbar({
                         type="button"
                         onClick={() => {
                           setSettingsOpen(false);
-                          if (typeof window !== "undefined") window.print();
+                          if (typeof window !=="undefined") window.print();
                         }}
                         className="block w-full cursor-pointer px-3 py-1.5 text-start text-xs text-gray-700 hover:text-brand-600 dark:text-gray-300"
                       >
@@ -598,7 +748,7 @@ export default function WorkToolbar({
                   <span>Bulk change work items</span>
                 </button>
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
 
                 <button
                   type="button"
@@ -612,7 +762,7 @@ export default function WorkToolbar({
                   <span>Go to all work items</span>
                 </button>
 
-                <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
+                <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
 
                 <button
                   type="button"
@@ -622,7 +772,7 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span aria-hidden="true">💬</span>
+                  <MonoIcon name="comment"size={14} className="text-gray-500"/>
                   <span>Give feedback</span>
                 </button>
               </div>
@@ -631,19 +781,57 @@ export default function WorkToolbar({
         </div>
       </div>
 
+      {/* Jira Cloud 2026 `Ask AI` Monochrome-Bordered Natural Language Query Bar */}
+      {askAiInlineOpen && (
+        <div
+          aria-label="Ask AI natural language search bar"
+          className="border-2 border-gray-800 bg-white dark:border-gray-300 dark:bg-gray-950"
+        >
+          <div className="flex flex-wrap items-center gap-2 bg-white px-3 py-1.5 dark:bg-gray-950">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-gray-800 dark:text-gray-200">
+              <MonoIcon name="sparkle"size={13} />
+              <span>AI JQL</span>
+            </span>
+            <input
+              type="text"
+              value={askAiPrompt}
+              onChange={(e) => setAskAiPrompt(e.target.value)}
+              placeholder='Find work items in project"SCRUM"that are assigned to me'
+              className="h-8 min-w-52 flex-1 bg-transparent px-2 text-xs text-gray-900 outline-none dark:text-white"
+            />
+            <button
+              type="button"
+              onClick={handleRunAiNaturalLanguageFilter}
+              className="inline-flex h-7 cursor-pointer items-center gap-1 bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+            >
+              <span>Go</span>
+              <span aria-hidden="true">↵</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAskAiInlineOpen(false)}
+              aria-label="Close AI search bar"
+              className="inline-flex h-7 w-7 cursor-pointer items-center justify-center text-xs text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Active Filter Chips Bar (Jira Cloud List Filter Bar) */}
       {(filterConditions.length > 0 ||
         hideDone ||
-        status !== "ALL" ||
-        priority !== "ALL" ||
-        assigneeId !== "ALL" ||
+        status !=="ALL"||
+        priority !=="ALL"||
+        assigneeId !=="ALL"||
         query.trim().length > 0) && (
         <div
           aria-label="Active filter chips"
           className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-2.5 dark:border-gray-800"
         >
           {query.trim().length > 0 && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+            <span className="inline-flex items-center gap-1.5 border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
               <span>
                 Keyword: <strong>&ldquo;{query.trim()}&rdquo;</strong>
               </span>
@@ -658,8 +846,8 @@ export default function WorkToolbar({
             </span>
           )}
 
-          {status !== "ALL" && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+          {status !=="ALL"&& (
+            <span className="inline-flex items-center gap-1.5 border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
               <span>
                 Status = <strong>{t(`statuses.${status}`)}</strong>
               </span>
@@ -674,8 +862,8 @@ export default function WorkToolbar({
             </span>
           )}
 
-          {priority !== "ALL" && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+          {priority !=="ALL"&& (
+            <span className="inline-flex items-center gap-1.5 border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
               <span>
                 Priority = <strong>{t(`priorities.${priority}`)}</strong>
               </span>
@@ -690,10 +878,10 @@ export default function WorkToolbar({
             </span>
           )}
 
-          {assigneeId !== "ALL" && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+          {assigneeId !=="ALL"&& (
+            <span className="inline-flex items-center gap-1.5 border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
               <span>
-                Assignee ={" "}
+                Assignee ={""}
                 <strong>
                   {PREVIEW_PEOPLE.find((p) => p.id === assigneeId)?.name ??
                     assigneeId}
@@ -711,7 +899,7 @@ export default function WorkToolbar({
           )}
 
           {hideDone && (
-            <span className="inline-flex items-center gap-1.5 rounded-md border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
+            <span className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
               <span>Hide Done items</span>
               <button
                 type="button"
@@ -727,15 +915,15 @@ export default function WorkToolbar({
           {filterConditions.map((cond) => (
             <span
               key={cond.id}
-              className="inline-flex items-center gap-1.5 rounded-md border border-purple-200 bg-purple-50 px-2.5 py-1 text-xs font-medium text-purple-700 dark:border-purple-500/30 dark:bg-purple-500/15 dark:text-purple-300"
+              className="inline-flex items-center gap-1.5 rounded border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
               <span>
-                {cond.field}{" "}
-                {cond.operator === "is"
-                  ? "="
-                  : cond.operator === "is_not"
-                    ? "≠"
-                    : "contains"}{" "}
+                {cond.field}{""}
+                {cond.operator ==="is"
+                  ?"="
+                  : cond.operator ==="is_not"
+                    ?"≠"
+                    :"contains"}{""}
                 <strong>{cond.value}</strong>
               </span>
               <button
@@ -761,8 +949,9 @@ export default function WorkToolbar({
       >
         <div className="space-y-4">
           <div className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
-              📊 Work Items Overview Chart
+            <h3 className="flex items-center gap-2 text-base font-semibold text-gray-900 dark:text-white/90">
+              <MonoIcon name="chart"size={16} />
+              <span>Work Items Overview Chart</span>
             </h3>
             <button
               type="button"
@@ -773,13 +962,13 @@ export default function WorkToolbar({
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-            <div className="rounded-xl border border-gray-200 p-3 text-center dark:border-gray-800">
+            <div className="border border-gray-200 p-3 text-center dark:border-gray-800">
               <p className="text-lg font-bold text-gray-900 dark:text-white">
                 {items.length}
               </p>
               <p className="text-[11px] text-gray-500">Total Items</p>
             </div>
-            <div className="rounded-xl border border-success-200 bg-success-50/50 p-3 text-center dark:border-success-500/30 dark:bg-success-500/10">
+            <div className="border border-success-200 bg-success-50/50 p-3 text-center dark:border-success-500/30 dark:bg-success-500/10">
               <p className="text-lg font-bold text-success-700 dark:text-success-400">
                 {doneCount}
               </p>
@@ -787,7 +976,7 @@ export default function WorkToolbar({
                 Done
               </p>
             </div>
-            <div className="rounded-xl border border-brand-200 bg-brand-50/50 p-3 text-center dark:border-brand-500/30 dark:bg-brand-500/10">
+            <div className="border border-brand-200 bg-brand-50/50 p-3 text-center dark:border-brand-500/30 dark:bg-brand-500/10">
               <p className="text-lg font-bold text-brand-700 dark:text-brand-300">
                 {inProgCount}
               </p>
@@ -795,7 +984,7 @@ export default function WorkToolbar({
                 In Progress
               </p>
             </div>
-            <div className="rounded-xl border border-warning-200 bg-warning-50/50 p-3 text-center dark:border-warning-500/30 dark:bg-warning-500/10">
+            <div className="border border-warning-200 bg-warning-50/50 p-3 text-center dark:border-warning-500/30 dark:bg-warning-500/10">
               <p className="text-lg font-bold text-warning-700 dark:text-warning-400">
                 {todoCount}
               </p>
@@ -804,11 +993,11 @@ export default function WorkToolbar({
               </p>
             </div>
           </div>
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3.5 dark:border-gray-800 dark:bg-gray-950">
+          <div className="border border-gray-200 bg-gray-50 p-3.5 dark:border-gray-800 dark:bg-gray-950">
             <p className="mb-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
               Distribution Breakdown
             </p>
-            <div className="flex h-4 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-800">
+            <div className="flex h-4 overflow-hidden bg-gray-200 dark:bg-gray-800">
               <div
                 style={{ width: `${Math.round((doneCount / totalCount) * 100)}%` }}
                 className="bg-success-500"
@@ -829,7 +1018,7 @@ export default function WorkToolbar({
             <button
               type="button"
               onClick={() => setChartModalOpen(false)}
-              className="h-9 cursor-pointer rounded-lg border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+              className="h-9 cursor-pointer border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
             >
               Close
             </button>
@@ -840,7 +1029,7 @@ export default function WorkToolbar({
                   setChartModalOpen(false);
                   onGoToReports();
                 }}
-                className="h-9 cursor-pointer rounded-lg bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                className="h-9 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
               >
                 Go to Reports View
               </button>
@@ -875,9 +1064,9 @@ export default function WorkToolbar({
             status or priority.
           </p>
           <div className="space-y-2.5">
-            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+            <label className="flex cursor-pointer items-center justify-between border border-gray-200 p-3 dark:border-gray-800">
               <div>
-                <span className="rounded bg-error-50 px-2 py-0.5 text-xs font-semibold text-error-700 dark:bg-error-500/15 dark:text-error-400">
+                <span className="bg-error-50 px-2 py-0.5 text-xs font-semibold text-error-700 dark:bg-error-500/15 dark:text-error-400">
                   High Priority
                 </span>
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -890,12 +1079,12 @@ export default function WorkToolbar({
                 onChange={(e) =>
                   onToggleHighlightHighPriority?.(e.target.checked)
                 }
-                className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600"
+                className="h-4 w-4 cursor-pointer border-gray-300 text-brand-600"
               />
             </label>
-            <label className="flex cursor-pointer items-center justify-between rounded-xl border border-gray-200 p-3 dark:border-gray-800">
+            <label className="flex cursor-pointer items-center justify-between border border-gray-200 p-3 dark:border-gray-800">
               <div>
-                <span className="rounded bg-success-50 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
+                <span className="bg-success-50 px-2 py-0.5 text-xs font-semibold text-success-700 dark:bg-success-500/15 dark:text-success-400">
                   Done Tasks
                 </span>
                 <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">
@@ -906,7 +1095,7 @@ export default function WorkToolbar({
                 type="checkbox"
                 checked={highlightDoneRows}
                 onChange={(e) => onToggleHighlightDoneRows?.(e.target.checked)}
-                className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600"
+                className="h-4 w-4 cursor-pointer border-gray-300 text-brand-600"
               />
             </label>
           </div>
@@ -914,7 +1103,7 @@ export default function WorkToolbar({
             <button
               type="button"
               onClick={() => setFormatRulesModalOpen(false)}
-              className="h-9 cursor-pointer rounded-lg bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
+              className="h-9 cursor-pointer bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
             >
               Save rules
             </button>
@@ -943,12 +1132,12 @@ export default function WorkToolbar({
               ✕
             </button>
           </div>
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-brand-200 bg-brand-50/30 p-6 text-center hover:bg-brand-50/60 dark:border-brand-500/30 dark:bg-brand-500/5">
-            <span className="text-2xl">📄</span>
+          <label className="flex cursor-pointer flex-col items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/50">
+            <MonoIcon name="document"size={24} className="text-gray-500"/>
             <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
               {csvFileName
                 ? `Selected: ${csvFileName}`
-                : "Click to choose a CSV file or drag it here"}
+                :"Click to choose a CSV file or drag it here"}
             </span>
             <span className="mt-1 text-[11px] text-gray-500">
               Max file size: 10MB (.csv)
@@ -980,7 +1169,7 @@ export default function WorkToolbar({
             <button
               type="button"
               onClick={() => setImportCsvModalOpen(false)}
-              className="h-9 cursor-pointer rounded-lg border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+              className="h-9 cursor-pointer border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
             >
               Cancel
             </button>
@@ -992,7 +1181,7 @@ export default function WorkToolbar({
                 setCsvFileName("");
                 setImportCsvModalOpen(false);
               }}
-              className="h-9 cursor-pointer rounded-lg bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
+              className="h-9 cursor-pointer bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
             >
               Import
             </button>
@@ -1031,7 +1220,7 @@ export default function WorkToolbar({
                 type="button"
                 onClick={() => setFeedbackStars(star)}
                 className={`cursor-pointer text-2xl ${
-                  star <= feedbackStars ? "text-warning-500" : "text-gray-300"
+                  star <= feedbackStars ?"text-warning-500":"text-gray-300"
                 }`}
               >
                 ★
@@ -1043,13 +1232,13 @@ export default function WorkToolbar({
             value={feedbackText}
             onChange={(e) => setFeedbackText(e.target.value)}
             placeholder="Share your thoughts or suggestions..."
-            className="w-full rounded-xl border border-gray-200 p-2.5 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+            className="w-full border border-gray-200 p-2.5 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
           />
           <div className="flex justify-end gap-2">
             <button
               type="button"
               onClick={() => setFeedbackModalOpen(false)}
-              className="h-9 cursor-pointer rounded-lg border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+              className="h-9 cursor-pointer border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
             >
               Cancel
             </button>
@@ -1059,7 +1248,7 @@ export default function WorkToolbar({
                 setFeedbackText("");
                 setFeedbackModalOpen(false);
               }}
-              className="h-9 cursor-pointer rounded-lg bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
+              className="h-9 cursor-pointer bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600"
             >
               Send feedback
             </button>

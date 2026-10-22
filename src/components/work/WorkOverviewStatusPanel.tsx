@@ -1,12 +1,12 @@
-import { useTranslations } from "next-intl";
-import WorkOverviewPanel from "./WorkOverviewPanel";
-import { WORK_STATUS_ORDER, type WorkStatus } from "./work-types";
+import { useTranslations } from"next-intl";
+import WorkOverviewPanel from"./WorkOverviewPanel";
+import { WORK_STATUS_ORDER, type WorkStatus } from"./work-types";
 
 const STATUS_HEX: Record<WorkStatus, string> = {
-  DONE: "#22A06B",
-  IN_REVIEW: "#8270DB",
-  IN_PROGRESS: "#0C66E4",
-  TODO: "#E56910",
+  DONE:"#22A06B",
+  IN_REVIEW:"#8270DB",
+  IN_PROGRESS:"#0C66E4",
+  TODO:"#E56910",
 };
 
 export default function WorkOverviewStatusPanel({
@@ -114,7 +114,7 @@ export default function WorkOverviewStatusPanel({
             </div>
           </div>
 
-          <ul className="grid gap-3" aria-label={overview("statusTitle")}>
+          <ul className="grid gap-3"aria-label={overview("statusTitle")}>
             {WORK_STATUS_ORDER.map((status) => (
               <li
                 key={status}
@@ -123,7 +123,7 @@ export default function WorkOverviewStatusPanel({
                 <span className="flex min-w-0 items-center gap-2.5 text-gray-700 dark:text-gray-300">
                   <span
                     aria-hidden="true"
-                    className="h-3 w-3 shrink-0 rounded-sm"
+                    className="h-3 w-3 shrink-0"
                     style={{ backgroundColor: STATUS_HEX[status] }}
                   />
                   <span className="truncate font-medium">
