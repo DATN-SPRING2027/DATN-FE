@@ -17,7 +17,9 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 vi.mock("@/icons", () => ({
+  ArrowRightIcon: () => null,
   CheckCircleIcon: () => null,
+  ChevronDownIcon: () => null,
   InfoIcon: () => null,
   LockIcon: () => null,
   SettingsIcon: () => null,
@@ -90,12 +92,13 @@ describe("OrganizationSettingsManager", () => {
             },
           ],
           availablePermissions: [
-            "org:read",
-            "org:update",
-            "member:invite",
-            "member:remove",
-            "role:assign",
-            "project:create",
+            "project.visibility.manage",
+            "project.leader.manage",
+            "organization.memberships.read",
+            "organization.memberships.manage",
+            "project.members.list",
+            "project.members.add",
+            "project.members.remove",
           ],
         };
       }
@@ -139,6 +142,15 @@ describe("OrganizationSettingsManager", () => {
     expect(nameInput).toHaveValue("Continuum Engineering");
     expect(screen.getByText("@continuum-eng")).toBeVisible();
     expect(screen.getByText("ENTERPRISE")).toBeVisible();
+    expect(screen.getByText("Protected")).toBeVisible();
+    expect(screen.getByText("You")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Manage members/i }),
+    ).toHaveAttribute("href", "/organization/members");
+    expect(screen.getByText("View role permissions (7)")).toBeVisible();
+    expect(
+      screen.getByText("Manage project visibility and access policies"),
+    ).toBeInTheDocument();
 
     fireEvent.change(nameInput, {
       target: { value: "Continuum AI Global" },
