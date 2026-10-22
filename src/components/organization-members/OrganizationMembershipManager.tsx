@@ -150,7 +150,13 @@ function ScopedOrganizationMemberships({
   const cachedOrganizations = queryClient.getQueryData<readonly { id: string; name: string }[]>(["auth", "organizations"]);
   const organizationName = cachedOrganizations?.find((org) => org.id === organizationId)?.name;
   const inviteDialog = useModal();
-  const [activeTab, setActiveTab] = useState<DirectoryTab>("members");
+  const [activeTab, setActiveTab] = useState<DirectoryTab>(() => {
+    if (typeof window !== "undefined") {
+      const tabParam = new URLSearchParams(window.location.search).get("tab");
+      if (tabParam === "invitations") return "invitations";
+    }
+    return "members";
+  });
   const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -267,7 +273,16 @@ function ScopedOrganizationMemberships({
     inviteAttempt.current = { input, idempotencyKey };
 
     try {
-      await invite.mutateAsync({ input, idempotencyKey });
+      const { emails, ...baseInput } = input;
+      const targetEmails = emails && emails.length > 1 ? emails : [input.email];
+      for (let idx = 0; idx < targetEmails.length; idx += 1) {
+        const emailItem = targetEmails[idx]!;
+        const itemKey = idx === 0 ? idempotencyKey : createIdempotencyKey();
+        await invite.mutateAsync({
+          input: { ...baseInput, email: emailItem },
+          idempotencyKey: itemKey,
+        });
+      }
       inviteAttempt.current = null;
       setInviteSuccess(true);
     } catch {
@@ -328,6 +343,7 @@ function ScopedOrganizationMemberships({
           action: "resend",
           invitation: {
             ...actionTarget.invitation,
+            id: ack.invitation.id,
             status: ack.invitation.status,
             version: ack.invitation.version,
             expiresAt: ack.invitation.expiresAt,
@@ -659,7 +675,7 @@ function ScopedOrganizationMemberships({
       </section>
 
       <OrganizationMembershipActionDialog
-        key={target ? `${target.action}:${"membership" in target ? target.membership.id : target.invitation.id}` : "closed"}
+        key={target ? `${target.action}:${"membership" in target ? target.membership.id : target.invitation.invitedEmail}` : "closed"}
         target={target}
         error={modalError}
         isPending={actionMutation?.isPending ?? false}
@@ -692,7 +708,15 @@ function ScopedOrganizationMemberships({
         isSuccess={inviteSuccess}
         organizationId={organizationId}
         organizationName={organizationName}
+        hasPermission={canManage}
         allowedRoles={currentUser?.roles?.includes("ADMIN") ? ["MEMBER", "ADMIN"] : ["MEMBER"]}
+        existingMemberEmails={(readyMembers?.data ?? []).filter((m) => m.status === "ACTIVE" || m.status === "SUSPENDED").map((m) => m.user?.email ?? "").filter(Boolean)}
+        existingPendingInvitationEmails={[
+          ...(readyInvitations?.data ?? []).filter((inv) => inv.status === "PENDING").map((inv) => inv.invitedEmail),
+          ...(readyMembers?.data ?? []).filter((m) => m.status === "PENDING_INVITE").map((m) => m.user?.email ?? "").filter(Boolean),
+        ]}
+        onViewInvitation={() => { closeInviteDialog(); setActiveTab("invitations"); }}
+        onViewMember={(email) => { closeInviteDialog(); setActiveTab("members"); setSearchTerm(email); }}
         onInviteAnother={() => { setInviteSuccess(false); invite.reset(); inviteAttempt.current = null; }}
         onClearError={() => { invite.reset(); }}
         error={invite.isError ? invite.error : undefined}

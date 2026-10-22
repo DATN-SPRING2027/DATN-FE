@@ -170,7 +170,10 @@ describe("OrganizationOverviewDashboard", () => {
       screen.getByText("1 active project has 0 effective Leaders"),
     ).toBeVisible();
     expect(screen.getAllByText("Platform Migration").length).toBeGreaterThan(0);
-    expect(await screen.findByText("Knowledge Core")).toBeVisible();
+    expect((await screen.findAllByText("Knowledge Core"))[0]).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Recent activity" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Recent invitations" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Organization members" })).toBeVisible();
     expect(screen.getAllByText("Recover Leader").length).toBeGreaterThan(0);
     expect(screen.getByText("Manage Leaders")).toBeVisible();
     expect(screen.getByText("Protected")).toBeVisible();

@@ -186,7 +186,7 @@ describe("OrganizationSettingsManager", () => {
     expect(screen.getByText("Roles & Membership Policies")).toBeVisible();
     expect(
       screen.getByRole("link", { name: "Invitations" }),
-    ).toHaveAttribute("href", "/organization/invitations");
+    ).toHaveAttribute("href", "/organization/members?tab=invitations");
 
     fireEvent.click(screen.getByRole("tab", { name: "Project Governance" }));
     expect(screen.getByText("Project Governance Policies")).toBeVisible();

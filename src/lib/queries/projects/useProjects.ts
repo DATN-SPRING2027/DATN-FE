@@ -7,6 +7,8 @@ export type ProjectLeaderSummary = Readonly<{
   userId: string;
   fullName: string;
   email: string;
+  avatarUrl?: string | null;
+  roleCode?: "TEAM_LEADER" | "MEMBER" | "ADMIN";
 }>;
 
 export type Project = Readonly<{
@@ -15,6 +17,9 @@ export type Project = Readonly<{
   name: string;
   code: string;
   description?: string | null;
+  category?: string | null;
+  coverImageUrl?: string | null;
+  icon?: string | null;
   visibility: "PRIVATE" | "PUBLIC";
   status: "ACTIVE" | "ARCHIVED";
   createdBy: string;
@@ -23,6 +28,7 @@ export type Project = Readonly<{
   activeMemberCount?: number;
   effectiveLeaderCount?: number;
   leaders?: readonly ProjectLeaderSummary[];
+  memberPreviews?: readonly ProjectLeaderSummary[];
   requiresLeaderRecovery?: boolean;
 }>;
 export type CreateProjectInput = Readonly<{
@@ -107,6 +113,9 @@ export function useCreateProjectMutation(organizationId: string) {
 export type UpdateProjectInput = Readonly<{
   name?: string;
   description?: string | null;
+  category?: string | null;
+  coverImageUrl?: string | null;
+  icon?: string | null;
 }>;
 
 export function useUpdateProjectMutation(
