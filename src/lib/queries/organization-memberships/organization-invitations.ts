@@ -52,7 +52,20 @@ function csrfHeaders(idempotencyKey: string): Headers {
   return new Headers({ "X-CSRF-Token": cookie.slice("__Host-csrf=".length), "Idempotency-Key": idempotencyKey });
 }
 
+export function normalizeInvitationToken(raw: string): string {
+  let cleaned = raw.trim().replace(/^#+/, "");
+  if (cleaned.startsWith("token=")) {
+    try {
+      cleaned = decodeURIComponent(cleaned.slice("token=".length));
+    } catch {
+      return "";
+    }
+  }
+  return cleaned;
+}
+
 export async function resolveOrganizationInvitation(token: string): Promise<ResolvedOrganizationInvitation> {
+  token = normalizeInvitationToken(token);
   if (!tokenPattern.test(token)) throw new ApiError(422, "VALIDATION_FAILED", "Invalid invitation token");
   return parseInvitationDetail(await apiClient<unknown>("/auth/invitations/resolve", {
     method: "POST",

@@ -236,7 +236,8 @@ export default function OrganizationInvitationCreateDialog({
   }, [roleDropdownOpen]);
 
   const normalizedEmail = email.trim().toLowerCase();
-  const allEmails =
+  const allEmails = Array.from(new Set([...emailChips, ...(normalizedEmail ? [normalizedEmail] : [])]));
+  const _unusedAllEmails =
     emailChips.length > 0
       ? [
           ...emailChips,
@@ -244,7 +245,10 @@ export default function OrganizationInvitationCreateDialog({
         ]
       : normalizedEmail
         ? [normalizedEmail]
+
         : [];
+  void _unusedAllEmails;
+
   const primaryEmail = allEmails[0] ?? "";
   const isMultiMode = emailChips.length > 0;
 
@@ -372,23 +376,30 @@ export default function OrganizationInvitationCreateDialog({
       existingPendingInvitationEmails.map((item) => item.trim().toLowerCase()),
     );
 
-    if (normalizedMemberSet.has(primaryEmail)) {
-      setLastSubmittedEmail(primaryEmail);
+    const conflictingMemberEmail = allEmails.find((item) => normalizedMemberSet.has(item)) ?? primaryEmail;
+    if (allEmails.some((item) => normalizedMemberSet.has(item))) {
+
+      setLastSubmittedEmail(conflictingMemberEmail);
       setLocalConflictState("ALREADY_MEMBER");
       return;
     }
-    if (normalizedInviteSet.has(primaryEmail)) {
-      setLastSubmittedEmail(primaryEmail);
+    const conflictingInviteEmail = allEmails.find((item) => normalizedInviteSet.has(item)) ?? primaryEmail;
+    if (allEmails.some((item) => normalizedInviteSet.has(item))) {
+
+      setLastSubmittedEmail(conflictingInviteEmail);
       setLocalConflictState("ALREADY_INVITED");
       return;
     }
 
     const trimmedMessage = message.trim();
-    setLastSubmittedEmail(primaryEmail);
+    setLastSubmittedEmail(allEmails.join(", "));
+
     onSubmit({
       email: primaryEmail,
       reasonCode,
       roleCode: resolvedRole,
+      ...(allEmails.length > 1 ? { emails: allEmails } : {}),
+      ...(visualRole === "LEADER" ? { projectRoleCode: "TEAM_LEADER" as const } : {}),
       accessScope,
       ...(trimmedMessage ? { message: trimmedMessage } : {}),
       expiresInDays,
