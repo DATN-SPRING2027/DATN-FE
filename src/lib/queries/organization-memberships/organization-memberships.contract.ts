@@ -124,6 +124,8 @@ export type OrganizationMutationAck =
   | OrganizationRoleMutationAck;
 export type InviteMemberInput = Readonly<{
   roleCode?: OrganizationRoleCode;
+  projectRoleCode?: "TEAM_LEADER" | "MEMBER";
+  emails?: readonly string[];
   accessScope?: InvitationAccessScope;
   projectIds?: readonly string[];
   message?: string;

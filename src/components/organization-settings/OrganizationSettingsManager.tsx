@@ -130,7 +130,7 @@ function ManagersCard({
         <div className="flex shrink-0 flex-wrap items-center gap-2">
           {showInvitationsLink && (
             <Link
-              href="/organization/invitations"
+              href="/organization/members?tab=invitations"
               className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold whitespace-nowrap text-gray-700 shadow-theme-xs transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               <span>{t("manageInvitationsLink")}</span>

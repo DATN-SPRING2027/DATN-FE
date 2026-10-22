@@ -200,6 +200,16 @@ describe("Organization invitation acceptance", () => {
     expect(mocks.createIdempotencyKey).toHaveBeenCalledTimes(1);
   });
 
+  it("normalizes #token=<val> fragment links before resolving the invitation", async () => {
+    const expectedToken = "a".repeat(43);
+    window.history.replaceState(null, "", `/organization/invitations#token=${expectedToken}`);
+
+    render(<OrganizationInvitationAcceptance />);
+
+    expect(await screen.findByText("invitationTitle")).toBeVisible();
+    expect(mocks.resolve).toHaveBeenCalledWith(expectedToken);
+  });
+
   it("shows a stale conflict and refreshes current invitation version only after a user action", async () => {
     mocks.currentUser.mockReturnValue({
       data: { id: "6123456789abcdef01234567", email: "invitee@example.test" },
