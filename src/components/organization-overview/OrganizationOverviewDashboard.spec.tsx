@@ -35,6 +35,7 @@ const api = vi.mocked(apiClient);
 const organizationId = "0123456789abcdef01234567";
 const managerUserId = "9123456789abcdef01234567";
 const leaderlessProjectId = "2123456789abcdef01234567";
+const healthyProjectId = "3123456789abcdef01234567";
 
 function mount() {
   const queryClient = new QueryClient({
@@ -55,7 +56,7 @@ describe("OrganizationOverviewDashboard", () => {
     api.mockReset();
   });
 
-  it("renders real Organization Overview KPIs, Leaderless Projects banner, and Last-Manager protection notice for Managers", async () => {
+  it("renders real Organization Overview KPIs, Project Governance table, Leaderless Projects banner, and Last-Manager protection notice for Managers", async () => {
     api.mockImplementation(async (endpoint) => {
       if (endpoint === "/auth/me") {
         return {
@@ -109,6 +110,54 @@ describe("OrganizationOverviewDashboard", () => {
           ],
         };
       }
+      if (endpoint.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: leaderlessProjectId,
+              organizationId,
+              name: "Platform Migration",
+              code: "PMIG",
+              visibility: "PRIVATE",
+              status: "ACTIVE",
+              createdBy: managerUserId,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-02T00:00:00.000Z",
+              activeMemberCount: 4,
+              effectiveLeaderCount: 0,
+              leaders: [],
+              requiresLeaderRecovery: true,
+            },
+            {
+              id: healthyProjectId,
+              organizationId,
+              name: "Knowledge Core",
+              code: "KCOR",
+              visibility: "PUBLIC",
+              status: "ACTIVE",
+              createdBy: managerUserId,
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-02T00:00:00.000Z",
+              activeMemberCount: 8,
+              effectiveLeaderCount: 1,
+              leaders: [
+                {
+                  userId: managerUserId,
+                  fullName: "Thang Manager",
+                  email: "manager@continuum.ai",
+                },
+              ],
+              requiresLeaderRecovery: false,
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 6,
+            totalItems: 2,
+            totalPages: 1,
+          },
+        };
+      }
       throw new Error(`Unexpected endpoint: ${endpoint}`);
     });
 
@@ -120,8 +169,10 @@ describe("OrganizationOverviewDashboard", () => {
     expect(
       screen.getByText("1 active project has 0 effective Leaders"),
     ).toBeVisible();
-    expect(screen.getByText("Platform Migration")).toBeVisible();
-    expect(screen.getByText("Recover Leader")).toBeVisible();
+    expect(screen.getAllByText("Platform Migration").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Knowledge Core")).toBeVisible();
+    expect(screen.getAllByText("Recover Leader").length).toBeGreaterThan(0);
+    expect(screen.getByText("Manage Leaders")).toBeVisible();
     expect(
       screen.getByText(/Last Manager Protection is active/i),
     ).toBeVisible();
