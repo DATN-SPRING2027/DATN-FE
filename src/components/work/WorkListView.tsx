@@ -2,6 +2,7 @@
 
 import {
   Fragment,
+  useEffect,
   useRef,
   useState,
   type FormEvent,
@@ -135,7 +136,11 @@ export default function WorkListView({
     subtaskId: string,
     toItemId: string,
   ) => void;
-  onInlineCreate?: (title: string, type?: WorkItemType) => void;
+  onInlineCreate?: (
+    title: string,
+    type?: WorkItemType,
+    options?: { dueDate?: string | null; assignee?: WorkPerson },
+  ) => void;
   onRefresh?: () => void;
 }) {
   const t = useTranslations("work");
@@ -194,6 +199,13 @@ export default function WorkListView({
 
   const resizeStartXRef = useRef<number>(0);
   const resizeStartWidthRef = useRef<number>(0);
+  const resizeCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      resizeCleanupRef.current?.();
+    };
+  }, []);
 
   const visibleColumns = columns.filter((col) => col.visible);
   const allItems = groups.flatMap((group) => group.items);
@@ -293,6 +305,7 @@ export default function WorkListView({
   ) {
     event.preventDefault();
     event.stopPropagation();
+    resizeCleanupRef.current?.();
     resizeStartXRef.current = event.clientX;
     resizeStartWidthRef.current = currentWidth;
 
@@ -306,21 +319,30 @@ export default function WorkListView({
       );
     }
 
-    function handleMouseUp() {
+    function cleanupResizeListeners() {
       document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
+      document.removeEventListener("mouseup", cleanupResizeListeners);
+      resizeCleanupRef.current = null;
     }
 
+    resizeCleanupRef.current = cleanupResizeListeners;
     document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
+    document.addEventListener("mouseup", cleanupResizeListeners);
   }
 
   function submitInlineCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const trimmed = inlineTitle.trim();
     if (!trimmed || !onInlineCreate) return;
-    onInlineCreate(trimmed, inlineType);
+    const selectedAssignee =
+      PREVIEW_PEOPLE.find((person) => person.id === inlineAssigneeId) ??
+      PREVIEW_PEOPLE[0];
+    onInlineCreate(trimmed, inlineType, {
+      dueDate: inlineDueDate.trim() ? inlineDueDate.trim() : null,
+      assignee: selectedAssignee,
+    });
     setInlineTitle("");
+    setInlineDueDate("");
     setInlineCreating(false);
     showNotice(`Created work item"${trimmed}"`);
   }

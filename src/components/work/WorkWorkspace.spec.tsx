@@ -104,11 +104,13 @@ describe("WorkWorkspace project scope", () => {
 
     mount("project-1");
 
-    expect(await screen.findByRole("heading", { level: 1, name: "Apollo" })).toBeVisible();
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+    ).toBeVisible();
     expect(screen.getByText("Project workspace")).toBeVisible();
-    expect(screen.getByRole("navigation", { name: "Work breadcrumb" })).toContainElement(
-      screen.getByRole("link", { name: "Apollo" }),
-    );
+    expect(
+      screen.getByRole("navigation", { name: "Work breadcrumb" }),
+    ).toContainElement(screen.getByRole("link", { name: "Apollo" }));
     expect(screen.getByRole("link", { name: "Apollo" })).toHaveAttribute(
       "href",
       "/projects/project-1",
@@ -155,7 +157,9 @@ describe("WorkWorkspace project scope", () => {
     ).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
-    expect(screen.getByRole("region", { name: "Timeline roadmap" })).toBeVisible();
+    expect(
+      screen.getByRole("region", { name: "Timeline roadmap" }),
+    ).toBeVisible();
     expect(screen.getByText(/SCRUM Sprint 1/i)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Development" }));
@@ -168,7 +172,9 @@ describe("WorkWorkspace project scope", () => {
     expect(screen.getByText(/Document List/i)).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Reports" }));
-    expect(screen.getByRole("heading", { name: "Sprint Burndown Chart" })).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Sprint Burndown Chart" }),
+    ).toBeVisible();
 
     fireEvent.click(screen.getByRole("button", { name: "Work Notes" }));
     expect(
@@ -212,7 +218,10 @@ describe("WorkWorkspace project scope", () => {
     });
 
     const { client } = mount("project-1");
-    const heading = await screen.findByRole("heading", { level: 1, name: "Apollo" });
+    const heading = await screen.findByRole("heading", {
+      level: 1,
+      name: "Apollo",
+    });
     const refresh = client.invalidateQueries({
       queryKey: projectKeys.detail("org-1", "project-1"),
     });
@@ -285,5 +294,167 @@ describe("WorkWorkspace project scope", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Hermes" }),
     ).toBeVisible();
+  });
+
+  it("fetches a deep-linked project outside the first page of 20 instead of silently falling back to project-1", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "user-1",
+          name: "Minh Anh",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: "project-1",
+              organizationId: "org-1",
+              name: "Apollo",
+              code: "AP",
+              visibility: "PRIVATE",
+              status: "ACTIVE",
+              createdBy: "user-1",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 20,
+            totalItems: 25,
+            totalPages: 2,
+          },
+        };
+      }
+      if (path === "/iam/projects/project-21") {
+        return {
+          id: "project-21",
+          organizationId: "org-1",
+          name: "Orion Twenty-One",
+          code: "OR",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "user-1",
+          createdAt: "2026-10-07T00:00:00Z",
+          updatedAt: "2026-10-07T00:00:00Z",
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace("project-21");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "Orion Twenty-One",
+      }),
+    ).toBeVisible();
+    const selector = screen.getByRole("combobox", {
+      name: "Select project workspace",
+    });
+    expect(selector).toHaveValue("project-21");
+  });
+
+  it("renders ProjectState error when a deep-linked project does not exist or is inaccessible", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "user-1",
+          name: "Minh Anh",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: "project-1",
+              organizationId: "org-1",
+              name: "Apollo",
+              code: "AP",
+              visibility: "PRIVATE",
+              status: "ACTIVE",
+              createdBy: "user-1",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 20,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path === "/iam/projects/project-404") {
+        throw new Error("Project not found");
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace("project-404");
+
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: "Apollo" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("preserves dueDate and assignee when creating a work item via the List inline create row", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "user-1",
+          name: "Minh Anh",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        };
+      }
+      if (path === "/iam/projects/project-1") {
+        return {
+          id: "project-1",
+          organizationId: "org-1",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "user-1",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount("project-1");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+    ).toBeVisible();
+
+    const createButtons = screen.getAllByRole("button", { name: "Create" });
+    fireEvent.click(createButtons[createButtons.length - 1]);
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Verify inline assignee & due date" },
+    });
+    fireEvent.change(screen.getByLabelText("Inline due date"), {
+      target: { value: "2026-11-15" },
+    });
+    fireEvent.change(screen.getByLabelText("Inline assignee"), {
+      target: { value: "person-3" },
+    });
+    fireEvent.submit(
+      screen.getByPlaceholderText("What needs to be done?").closest("form")!,
+    );
+
+    expect(
+      await screen.findByText("Verify inline assignee & due date"),
+    ).toBeVisible();
+    expect(screen.getByText("2026-11-15")).toBeVisible();
   });
 });

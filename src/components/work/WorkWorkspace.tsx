@@ -1063,13 +1063,13 @@ export default function WorkWorkspace({
               onConvertSubtaskToTask={convertSubtaskToTask}
               onMoveSubtaskToParent={moveSubtaskToParent}
               onOpenSubtask={openSubtask}
-              onInlineCreate={(title, type) =>
+              onInlineCreate={(title, type, options) =>
                 addPreviewItem({
                   title,
                   type: type ??"TASK",
                   priority:"MEDIUM",
-                  assignee: PREVIEW_PEOPLE[0],
-                  dueDate: null,
+                  assignee: options?.assignee ?? PREVIEW_PEOPLE[0],
+                  dueDate: options?.dueDate ?? null,
                 })
               }
               onRefresh={() => void project.refetch()}

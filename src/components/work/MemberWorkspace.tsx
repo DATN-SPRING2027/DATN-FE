@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from"react";
-import { useTranslations } from"next-intl";
-import { Link } from"@/i18n/navigation";
-import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
-import { useProjectsQuery } from"@/lib/queries/projects/useProjects";
-import ProjectState from"@/components/projects/ProjectState";
-import WorkWorkspace from"./WorkWorkspace";
-import type { WorkView } from"./WorkPageHeader";
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import {
+  useProjectQuery,
+  useProjectsQuery,
+} from "@/lib/queries/projects/useProjects";
+import ProjectState from "@/components/projects/ProjectState";
+import WorkWorkspace from "./WorkWorkspace";
+import type { WorkView } from "./WorkPageHeader";
 
 export default function MemberWorkspace({
   initialProjectId,
@@ -18,18 +21,37 @@ export default function MemberWorkspace({
 }) {
   const t = useTranslations("work");
   const user = useCurrentUserQuery();
-  const organizationId = user.data?.organizationId ??"";
+  const organizationId = user.data?.organizationId ?? "";
   const projects = useProjectsQuery(organizationId, {
     page: 1,
     pageSize: 20,
-    status:"ACTIVE",
+    status: "ACTIVE",
   });
-  const [selectedProjectId, setSelectedProjectId] = useState<string | undefined>(
-    initialProjectId,
-  );
-  const [view, setView] = useState<WorkView>(initialView ??"list");
+  const [selectedProjectId, setSelectedProjectId] = useState<
+    string | undefined
+  >(initialProjectId);
+  const [view, setView] = useState<WorkView>(initialView ?? "list");
 
-  if (user.isPending || (organizationId && projects.isPending)) {
+  const loadedProjects = projects.data?.data ?? [];
+  const matchedFromPage = selectedProjectId
+    ? loadedProjects.find((project) => project.id === selectedProjectId)
+    : undefined;
+  const needsDirectProjectFetch = Boolean(
+    organizationId &&
+      projects.isSuccess &&
+      selectedProjectId &&
+      !matchedFromPage,
+  );
+  const directProject = useProjectQuery(
+    organizationId,
+    needsDirectProjectFetch ? (selectedProjectId ?? "") : "",
+  );
+
+  if (
+    user.isPending ||
+    (organizationId && projects.isPending) ||
+    (needsDirectProjectFetch && directProject.isPending)
+  ) {
     return <ProjectState />;
   }
   if (user.isError) return <ProjectState error={user.error} />;
@@ -44,9 +66,19 @@ export default function MemberWorkspace({
       />
     );
   }
+  if (needsDirectProjectFetch && directProject.isError) {
+    return (
+      <ProjectState
+        error={directProject.error}
+        retry={() => void directProject.refetch()}
+      />
+    );
+  }
 
-  const loadedProjects = projects.data?.data ?? [];
-  if (loadedProjects.length === 0) {
+  const activeProject =
+    matchedFromPage ?? directProject.data ?? loadedProjects[0];
+
+  if (!activeProject) {
     return (
       <div
         role="status"
@@ -68,16 +100,22 @@ export default function MemberWorkspace({
     );
   }
 
-  const activeProject =
-    loadedProjects.find((project) => project.id === selectedProjectId) ??
-    loadedProjects[0];
+  const workspaceProjects =
+    directProject.data && !matchedFromPage
+      ? [
+          directProject.data,
+          ...loadedProjects.filter(
+            (project) => project.id !== directProject.data?.id,
+          ),
+        ]
+      : loadedProjects;
 
   return (
     <WorkWorkspace
       key={activeProject.id}
       projectId={activeProject.id}
       project={activeProject}
-      projects={loadedProjects}
+      projects={workspaceProjects}
       onProjectChange={setSelectedProjectId}
       view={view}
       onViewChange={setView}
