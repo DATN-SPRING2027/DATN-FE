@@ -5,10 +5,10 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
-import { useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function AdminLayout({
   children,
@@ -17,10 +17,23 @@ export default function AdminLayout({
 }) {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
   const router = useRouter();
+  const isChat = usePathname() === "/chat";
+  const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
   const unauthorized =
     currentUser.error instanceof ApiError && currentUser.error.status === 401;
+
+  useEffect(() => {
+    if (!isChat || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const resize = () => {
+      if (shell.current) shell.current.style.height = `${viewport.height}px`;
+    };
+    resize();
+    viewport.addEventListener("resize", resize);
+    return () => viewport.removeEventListener("resize", resize);
+  }, [isChat, currentUser.data, currentUser.isError]);
 
   const retrySession = async () => {
     if (isRetrying || currentUser.isFetching) return;
@@ -59,7 +72,10 @@ export default function AdminLayout({
 
   if (currentUser.data.context === "ACCOUNT") {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />
+      <div
+        className="min-h-screen bg-white dark:bg-gray-900"
+        aria-busy="true"
+      />
     );
   }
 
@@ -71,18 +87,29 @@ export default function AdminLayout({
       : "lg:ms-[90px]";
 
   return (
-    <div className="min-h-screen xl:flex">
+    <div
+      ref={shell}
+      className={
+        isChat ? "h-dvh overflow-hidden xl:flex" : "min-h-screen xl:flex"
+      }
+    >
       {/* Sidebar and Backdrop */}
       <AppSidebar />
       <Backdrop />
       {/* Main Content Area */}
       <div
-        className={`min-w-0 flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}
+        className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}
       >
         {/* Header */}
-        <AppHeader />
+        <AppHeader compact={isChat} />
         {/* Page Content */}
-        <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+        <div
+          className={
+            isChat
+              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+              : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+          }
+        >
           {children}
         </div>
       </div>

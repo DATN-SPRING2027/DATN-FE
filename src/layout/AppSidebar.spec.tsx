@@ -72,6 +72,7 @@ vi.mock("@/icons/index", () => {
   return {
     ArrowRightIcon: Icon,
     BookOpenIcon: Icon,
+    ChatIcon: Icon,
     CalenderIcon: Icon,
     CheckCircleIcon: Icon,
     ChevronDownIcon: Icon,
@@ -94,6 +95,7 @@ vi.mock("next-intl", () => ({
       "sidebar.groups.administration": "Administration",
       "sidebar.items.overview": "Overview",
       "sidebar.items.projects": "Projects",
+      "sidebar.items.chat": "Chat",
       "sidebar.items.workNotes": "Work Notes",
       "sidebar.items.knowledge": "Knowledge",
       "sidebar.items.aiSearch": "AI Search",
@@ -236,7 +238,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar", "Members", "Settings"]);
+    ).toEqual(["Overview", "Projects", "Chat", "Calendar", "Members", "Settings"]);
     expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
@@ -256,7 +258,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar"]);
+    ).toEqual(["Overview", "Projects", "Chat", "Calendar"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -303,7 +305,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .some((link) => link.getAttribute("href")?.includes("/platform")),
-    ).toHaveLength === undefined;
+    ).toBe(false);
     expect(
       within(nav)
         .getAllByRole("link")
