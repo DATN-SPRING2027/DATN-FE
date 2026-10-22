@@ -11,12 +11,7 @@ function lerp(start: number, end: number, t: number): number {
 export default function HeroDecorations() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [isReducedMotion, setIsReducedMotion] = useState(() => {
-    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    }
-    return false;
-  });
+  const [isReducedMotion, setIsReducedMotion] = useState(false);
   const [mouseOffset, setMouseOffset] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -33,6 +28,7 @@ export default function HeroDecorations() {
     preference?.addEventListener?.("change", onPreferenceChange);
 
     if (preference?.matches) {
+      queueMicrotask(() => setIsReducedMotion(true));
       return () => preference.removeEventListener("change", onPreferenceChange);
     }
 

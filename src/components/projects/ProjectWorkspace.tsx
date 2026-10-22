@@ -433,12 +433,12 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               className={
                 view === "grid"
                   ? "grid grid-cols-1 gap-4 @md:grid-cols-2 @3xl:grid-cols-3"
-                  : "flex flex-col gap-3"
+                  : "divide-y divide-gray-100 rounded-2xl border border-gray-200/90 bg-white px-5 py-2 shadow-theme-xs sm:px-6 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900"
               }
             >
-              {filteredProjects.map((project) => (
+              {filteredProjects.map((project, index) => (
                 <li key={project.id} className="min-w-0">
-                  <ProjectCard project={project} layout={view} />
+                  <ProjectCard project={project} layout={view} index={index} />
                 </li>
               ))}
             </ul>

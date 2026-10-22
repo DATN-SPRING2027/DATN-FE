@@ -846,7 +846,7 @@ describe("Organization membership management page", () => {
     expect(await within(dialog).findByText("Invitation sent")).toBeVisible();
     expect(within(dialog).getByText("An invitation has been sent to eligible@example.com.")).toBeVisible();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Invite another" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Invite another member" }));
     expect(within(dialog).getByLabelText(/Email address/)).toHaveValue("");
 
     shouldFailIneligible = true;
@@ -900,5 +900,65 @@ describe("Organization membership management page", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Resend invitation" }));
     expect(await within(dialog).findByText("Cannot resend invitation")).toBeVisible();
     expect(within(dialog).getByText("This account is not eligible to join this Organization.")).toBeVisible();
+  });
+
+  it("shows a cancel confirmation dialog when clicking outside the invite modal instead of closing immediately", async () => {
+    invitationReadiness.status = "READY";
+    api.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([]);
+      if (endpoint.includes("/invitations?")) return invitationPage();
+      throw new Error(`Unexpected request ${endpoint}`);
+    });
+    mount();
+    await screen.findByRole("tab", { name: /Members/ });
+    fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
+    const emailInput = within(dialog).getByLabelText(/Email address/) as HTMLInputElement;
+    fireEvent.change(emailInput, { target: { value: "keep-draft@example.com" } });
+
+    fireEvent.click(screen.getByTestId("modal-backdrop"));
+    expect(screen.getByRole("dialog", { name: "Invite member to Organization" })).toBeInTheDocument();
+    const confirmAlert = within(dialog).getByRole("alertdialog", { name: "Cancel this invitation?" });
+    expect(confirmAlert).toBeVisible();
+
+    fireEvent.click(within(confirmAlert).getByRole("button", { name: "Continue editing" }));
+    expect(within(dialog).queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(emailInput.value).toBe("keep-draft@example.com");
+
+    fireEvent.click(screen.getByTestId("modal-backdrop"));
+    const confirmAlertAgain = within(dialog).getByRole("alertdialog", { name: "Cancel this invitation?" });
+    fireEvent.click(within(confirmAlertAgain).getByRole("button", { name: "Yes, cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Invite member to Organization" })).not.toBeInTheDocument();
+  });
+
+  it("renders special conflict states for Account already invited and Account already a member", async () => {
+    invitationReadiness.status = "READY";
+    respond({
+      memberships: membershipPage([membership("ACTIVE")]),
+      invitations: invitationPage([{ ...invitation, invitedEmail: "pending@example.com", status: "PENDING" }]),
+    });
+    mount();
+    await screen.findByText("Alex Member");
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
+    const dialog = screen.getByRole("dialog", { name: "Invite member to Organization" });
+    fireEvent.change(within(dialog).getByLabelText(/Email address/), { target: { value: "pending@example.com" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Send invitation" }));
+
+    expect(await within(dialog).findByText("Account already invited")).toBeVisible();
+    expect(within(dialog).getByText("This account already has a pending invitation.")).toBeVisible();
+    fireEvent.click(within(dialog).getByRole("button", { name: "View invitation" }));
+    expect(screen.queryByRole("dialog", { name: "Invite member to Organization" })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Invite member" }));
+    const dialogMember = screen.getByRole("dialog", { name: "Invite member to Organization" });
+    fireEvent.change(within(dialogMember).getByLabelText(/Email address/), { target: { value: "alex@example.com" } });
+    fireEvent.click(within(dialogMember).getByRole("button", { name: "Send invitation" }));
+
+    expect(await within(dialogMember).findByText("Account already a member")).toBeVisible();
+    expect(within(dialogMember).getByText("This account is already a member of this Organization.")).toBeVisible();
+    fireEvent.click(within(dialogMember).getByRole("button", { name: "View member" }));
+    expect(screen.queryByRole("dialog", { name: "Invite member to Organization" })).not.toBeInTheDocument();
   });
 });

@@ -692,7 +692,15 @@ function ScopedOrganizationMemberships({
         isSuccess={inviteSuccess}
         organizationId={organizationId}
         organizationName={organizationName}
+        hasPermission={canManage}
         allowedRoles={currentUser?.roles?.includes("ADMIN") ? ["MEMBER", "ADMIN"] : ["MEMBER"]}
+        existingMemberEmails={(readyMembers?.data ?? []).filter((m) => m.status === "ACTIVE" || m.status === "SUSPENDED").map((m) => m.user?.email ?? "").filter(Boolean)}
+        existingPendingInvitationEmails={[
+          ...(readyInvitations?.data ?? []).filter((inv) => inv.status === "PENDING").map((inv) => inv.invitedEmail),
+          ...(readyMembers?.data ?? []).filter((m) => m.status === "PENDING_INVITE").map((m) => m.user?.email ?? "").filter(Boolean),
+        ]}
+        onViewInvitation={() => { closeInviteDialog(); setActiveTab("invitations"); }}
+        onViewMember={(email) => { closeInviteDialog(); setActiveTab("members"); setSearchTerm(email); }}
         onInviteAnother={() => { setInviteSuccess(false); invite.reset(); inviteAttempt.current = null; }}
         onClearError={() => { invite.reset(); }}
         error={invite.isError ? invite.error : undefined}

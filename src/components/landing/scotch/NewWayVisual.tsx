@@ -15,12 +15,7 @@ interface NewWayVisualProps {
 export default function NewWayVisual({ alt }: NewWayVisualProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [scrollProgress, setScrollProgress] = useState(0);
-  const [isReducedMotion, setIsReducedMotion] = useState(() => {
-    if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
-      return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    }
-    return false;
-  });
+  const [isReducedMotion, setIsReducedMotion] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -36,6 +31,7 @@ export default function NewWayVisual({ alt }: NewWayVisualProps) {
     preference?.addEventListener?.("change", onPreferenceChange);
 
     if (preference?.matches) {
+      queueMicrotask(() => setIsReducedMotion(true));
       return () => preference.removeEventListener("change", onPreferenceChange);
     }
 
