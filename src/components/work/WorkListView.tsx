@@ -7,7 +7,9 @@ import {
   useState,
   type FormEvent,
   type MouseEvent as ReactMouseEvent,
-} from"react";
+  type ReactNode,
+} from "react";
+import { createPortal } from "react-dom";
 import { useTranslations } from"next-intl";
 import { Table } from"@/components/ui/table";
 import { PlusIcon, SearchIcon } from"@/icons";
@@ -356,7 +358,7 @@ export default function WorkListView({
   const totalColSpan = visibleColumns.length + 2; // Checkbox + visible columns + Config/More col
 
   return (
-    <div className="relative min-w-0 overflow-hidden border border-gray-300 bg-white shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
+    <div className="relative flex min-h-[440px] min-w-0 flex-col justify-between overflow-hidden border border-gray-300 bg-white shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
       {/* Column Manager Popover (+ button or [|||] button) */}
       {columnPopoverOpen && (
         <div
@@ -417,7 +419,7 @@ export default function WorkListView({
         </div>
       )}
 
-      <div className="min-w-0 overflow-x-auto">
+      <div className="min-h-[380px] flex-1 min-w-0 overflow-x-auto">
         <Table className="min-w-max border-collapse text-sm">
           <caption className="sr-only">{t("listCaption")}</caption>
           <thead className="border-b border-gray-300 bg-gray-100/80 dark:border-gray-700 dark:bg-gray-800/80">
@@ -509,17 +511,87 @@ export default function WorkListView({
 
                     <div className="flex items-center gap-1">
                       {col.key ==="work"&& (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setWorkHeaderMenuOpen((prev) => !prev)
-                          }
-                          aria-label="More actions for Work column"
-                          title="More actions for Work"
-                          className="flex h-5 w-5 cursor-pointer items-center justify-center text-xs font-bold text-gray-500 transition hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-white"
-                        >
-                          ···
-                        </button>
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setWorkHeaderMenuOpen((prev) => !prev)
+                            }
+                            aria-label="More actions for Work column"
+                            title="More actions for Work"
+                            className="flex h-5 w-5 cursor-pointer items-center justify-center text-xs font-bold text-gray-500 transition hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-white"
+                          >
+                            ···
+                          </button>
+
+                          {/* Jira Cloud `More actions for Work` Column Header Menu (`43-list-work-column-header-menu.png`) */}
+                          {workHeaderMenuOpen && (
+                            <FloatingCellPopover
+                              align="end"
+                              widthClass="w-52"
+                              role="menu"
+                              ariaLabel="Work column options"
+                              className="py-1.5 text-start font-normal"
+                              onClose={() => setWorkHeaderMenuOpen(false)}
+                            >
+                              <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                Sort by columns
+                              </div>
+                              {(
+                                [
+                                  { id:"type", label:"Sort by Type"},
+                                  { id:"key", label:"Sort by Work item key"},
+                                  { id:"summary", label:"Sort by Summary"},
+                                ] as const
+                              ).map((opt) => (
+                                <button
+                                  key={opt.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setWorkSortBy(
+                                      workSortBy === opt.id ?"none": opt.id,
+                                    );
+                                    setWorkHeaderMenuOpen(false);
+                                    showNotice(`Sorted Work column by ${opt.id}`);
+                                  }}
+                                  className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                                >
+                                  <span>{opt.label}</span>
+                                  {workSortBy === opt.id && (
+                                    <span className="font-bold text-brand-600">✓</span>
+                                  )}
+                                </button>
+                              ))}
+                              <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setFreezeWorkColumn((prev) => !prev);
+                                  setWorkHeaderMenuOpen(false);
+                                  showNotice(
+                                    freezeWorkColumn
+                                      ?"Unfroze Work column"
+                                      :"Froze Work column",
+                                  );
+                                }}
+                                className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                              >
+                                <span>
+                                  {freezeWorkColumn
+                                    ?"Unfreeze column"
+                                    :"Freeze column"}
+                                </span>
+                                {freezeWorkColumn && (
+                                  <MonoIcon
+                                    name="pin"
+                                    size={13}
+                                    className="text-gray-700 dark:text-gray-300"
+                                  />
+                                )}
+                              </button>
+                            </FloatingCellPopover>
+                          )}
+                        </div>
                       )}
                       <button
                         type="button"
@@ -531,71 +603,6 @@ export default function WorkListView({
                       </button>
                     </div>
                   </div>
-
-                  {/* Jira Cloud `More actions for Work` Column Header Menu (`43-list-work-column-header-menu.png`) */}
-                  {col.key ==="work"&& workHeaderMenuOpen && (
-                    <div
-                      role="menu"
-                      aria-label="Work column options"
-                      className="absolute end-2 top-full z-40 mt-1 w-52 border border-gray-200 bg-white py-1.5 text-start font-normal shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
-                    >
-                      <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                        Sort by columns
-                      </div>
-                      {(
-                        [
-                          { id:"type", label:"Sort by Type"},
-                          { id:"key", label:"Sort by Work item key"},
-                          { id:"summary", label:"Sort by Summary"},
-                        ] as const
-                      ).map((opt) => (
-                        <button
-                          key={opt.id}
-                          type="button"
-                          onClick={() => {
-                            setWorkSortBy(
-                              workSortBy === opt.id ?"none": opt.id,
-                            );
-                            setWorkHeaderMenuOpen(false);
-                            showNotice(`Sorted Work column by ${opt.id}`);
-                          }}
-                          className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-                        >
-                          <span>{opt.label}</span>
-                          {workSortBy === opt.id && (
-                            <span className="font-bold text-brand-600">✓</span>
-                          )}
-                        </button>
-                      ))}
-                      <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setFreezeWorkColumn((prev) => !prev);
-                          setWorkHeaderMenuOpen(false);
-                          showNotice(
-                            freezeWorkColumn
-                              ?"Unfroze Work column"
-                              :"Froze Work column",
-                          );
-                        }}
-                        className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <span>
-                          {freezeWorkColumn
-                            ?"Unfreeze column"
-                            :"Freeze column"}
-                        </span>
-                        {freezeWorkColumn && (
-                          <MonoIcon
-                            name="pin"
-                            size={13}
-                            className="text-gray-700 dark:text-gray-300"
-                          />
-                        )}
-                      </button>
-                    </div>
-                  )}
 
                   {/* Column Resize Handle (Jira Figure 1) */}
                   <span
@@ -784,9 +791,13 @@ export default function WorkListView({
                               </button>
 
                               {activeMenuRowId === item.id && (
-                                <div
+                                <FloatingCellPopover
+                                  align="end"
+                                  widthClass="w-44"
                                   role="menu"
-                                  className="absolute end-2 top-full z-40 mt-1 w-44 border border-gray-200 bg-white py-1.5 text-start shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+                                  ariaLabel={`Actions menu for ${item.key}`}
+                                  className="py-1.5 text-start"
+                                  onClose={() => setActiveMenuRowId(null)}
                                 >
                                   <button
                                     type="button"
@@ -901,7 +912,7 @@ export default function WorkListView({
                                       </button>
                                     </>
                                   )}
-                                </div>
+                                </FloatingCellPopover>
                               )}
                             </td>
                           </tr>
@@ -1366,10 +1377,13 @@ export default function WorkListView({
 
                                       {/* Jira Cloud Subtask Row Context Menu (`More actions for <SUBTASK-KEY>`) */}
                                       {activeSubtaskMenuId === sub.id && (
-                                        <div
+                                        <FloatingCellPopover
+                                          align="end"
+                                          widthClass="w-48"
                                           role="menu"
-                                          aria-label={`More actions menu for ${sub.key}`}
-                                          className="absolute end-2 top-full z-40 mt-1 w-48 border border-gray-200 bg-white py-1.5 text-start text-xs shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+                                          ariaLabel={`More actions menu for ${sub.key}`}
+                                          className="py-1.5 text-start text-xs"
+                                          onClose={() => setActiveSubtaskMenuId(null)}
                                         >
                                           <button
                                             type="button"
@@ -1710,7 +1724,7 @@ export default function WorkListView({
                                               </button>
                                             </>
                                           )}
-                                        </div>
+                                        </FloatingCellPopover>
                                       )}
                                     </td>
                                   </tr>
@@ -2225,10 +2239,13 @@ function renderCellContent({
             </button>
 
             {isSubtaskPopoverOpen && (
-              <div
+              <FloatingCellPopover
+                align="start"
+                widthClass="w-80"
                 role="dialog"
-                aria-label={`Subtasks for ${item.key}`}
-                className="absolute end-0 top-full z-40 mt-1.5 w-80 rounded-md border border-gray-200 bg-white p-2.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+                ariaLabel={`Subtasks for ${item.key}`}
+                className="rounded-md p-2.5"
+                onClose={() => setActiveSubtaskPopoverId(null)}
               >
                 <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-1.5 dark:border-gray-800">
                   <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">
@@ -2323,7 +2340,7 @@ function renderCellContent({
                     );
                   })}
                 </div>
-              </div>
+              </FloatingCellPopover>
             )}
           </div>
         )}
@@ -2370,15 +2387,18 @@ function renderCellContent({
         </button>
 
         {isEditing && onAssigneeChange && (
-          <div
+          <FloatingCellPopover
+            align="start"
+            widthClass="w-56"
             role="listbox"
-            aria-label={`Select assignee for ${item.key}`}
-            className="absolute start-0 top-full z-40 mt-1 w-52 border border-gray-200 bg-white py-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+            ariaLabel={`Select assignee for ${item.key}`}
+            className="py-1.5"
+            onClose={() => setActiveAssigneeRowId(null)}
           >
             <div className="border-b border-gray-100 px-3 py-1.5 text-[11px] font-semibold text-gray-400 dark:border-gray-800">
               Assign {item.key}
             </div>
-            <div className="max-h-52 overflow-y-auto py-1">
+            <div className="max-h-56 overflow-y-auto py-1">
               {allAssigneeChoices.map((person) => {
                 const selected = person.name === item.assignee.name;
                 return (
@@ -2404,7 +2424,7 @@ function renderCellContent({
                 );
               })}
             </div>
-          </div>
+          </FloatingCellPopover>
         )}
       </div>
     );
@@ -2433,7 +2453,14 @@ function renderCellContent({
           <WorkPriorityLabel priority={item.priority} />
         </button>
         {isEditing && onPriorityChange && (
-          <div className="absolute start-0 top-full z-40 mt-1 w-36 border border-gray-200 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
+          <FloatingCellPopover
+            align="start"
+            widthClass="w-40"
+            role="listbox"
+            ariaLabel={`Select priority for ${item.key}`}
+            className="py-1"
+            onClose={() => setActivePriorityRowId(null)}
+          >
             {priorities.map((prio) => (
               <button
                 key={prio}
@@ -2443,12 +2470,15 @@ function renderCellContent({
                   setActivePriorityRowId(null);
                   showNotice(`Updated ${item.key} priority to ${prio}`);
                 }}
-                className="flex w-full cursor-pointer items-center px-3 py-1.5 text-start text-xs hover:bg-gray-50 dark:hover:bg-gray-800"
+                className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-start text-xs hover:bg-gray-50 dark:hover:bg-gray-800"
               >
                 <WorkPriorityLabel priority={prio} />
+                {item.priority === prio && (
+                  <span className="text-xs font-bold text-brand-600">✓</span>
+                )}
               </button>
             ))}
-          </div>
+          </FloatingCellPopover>
         )}
       </div>
     );
@@ -2473,7 +2503,14 @@ function renderCellContent({
         </button>
 
         {isEditing && onStatusChange && (
-          <div className="absolute start-0 top-full z-40 mt-1 w-40 border border-gray-200 bg-white py-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
+          <FloatingCellPopover
+            align="start"
+            widthClass="w-44"
+            role="listbox"
+            ariaLabel={`Select status for ${item.key}`}
+            className="py-1.5"
+            onClose={() => setActiveStatusRowId(null)}
+          >
             {WORK_STATUS_ORDER.map((st) => (
               <button
                 key={st}
@@ -2493,7 +2530,7 @@ function renderCellContent({
                 )}
               </button>
             ))}
-          </div>
+          </FloatingCellPopover>
         )}
       </div>
     );
@@ -2652,5 +2689,127 @@ function PersonLabel({
       </span>
       {person.name}
     </span>
+  );
+}
+
+function FloatingCellPopover({
+  align = "start",
+  widthClass = "w-48",
+  role,
+  ariaLabel,
+  className = "",
+  onClose,
+  children,
+}: {
+  align?: "start" | "end";
+  widthClass?: string;
+  role?: string;
+  ariaLabel?: string;
+  className?: string;
+  onClose: () => void;
+  children: ReactNode;
+}) {
+  const anchorRef = useRef<HTMLSpanElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+  const [coords, setCoords] = useState<{
+    top: number;
+    left: number;
+  }>({ top: 0, left: 0 });
+
+  useEffect(() => {
+    function updatePosition() {
+      const anchor = anchorRef.current;
+      if (!anchor) return;
+      const triggerEl =
+        (anchor.previousElementSibling as HTMLElement | null) ??
+        anchor.parentElement;
+      if (!triggerEl) return;
+
+      const rect = triggerEl.getBoundingClientRect();
+      const menuEl = menuRef.current;
+      const menuWidth = menuEl?.offsetWidth || 200;
+      const menuHeight = menuEl?.offsetHeight || 220;
+      const viewportW =
+        typeof window !== "undefined" ? window.innerWidth : 1280;
+      const viewportH =
+        typeof window !== "undefined" ? window.innerHeight : 800;
+
+      const shouldFlipUp =
+        rect.bottom + menuHeight + 12 > viewportH &&
+        rect.top - menuHeight - 8 > 8;
+      const top = shouldFlipUp
+        ? Math.max(8, rect.top - menuHeight - 4)
+        : Math.max(8, rect.bottom + 4);
+
+      const rawLeft =
+        align === "end" ? rect.right - menuWidth : rect.left;
+      const left = Math.max(
+        8,
+        Math.min(rawLeft, Math.max(8, viewportW - menuWidth - 8)),
+      );
+
+      setCoords({ top, left });
+    }
+
+    updatePosition();
+    const rafId =
+      typeof window !== "undefined"
+        ? window.requestAnimationFrame(updatePosition)
+        : null;
+
+    function handlePointerDown(event: MouseEvent) {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (menuRef.current?.contains(target)) return;
+      const triggerContainer = anchorRef.current?.parentElement;
+      if (triggerContainer?.contains(target)) return;
+      onClose();
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      if (rafId !== null && typeof window !== "undefined") {
+        window.cancelAnimationFrame(rafId);
+      }
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [align, onClose]);
+
+  const menuNode = (
+    <div
+      ref={menuRef}
+      role={role}
+      aria-label={ariaLabel}
+      style={{ top: `${coords.top}px`, left: `${coords.left}px` }}
+      className={`fixed z-[80] ${widthClass} border border-gray-200 bg-white shadow-theme-lg dark:border-gray-700 dark:bg-gray-900 ${className}`}
+    >
+      {children}
+    </div>
+  );
+
+  return (
+    <>
+      <span
+        ref={anchorRef}
+        aria-hidden="true"
+        className="pointer-events-none hidden"
+      />
+      {typeof document !== "undefined"
+        ? createPortal(menuNode, document.body)
+        : menuNode}
+    </>
   );
 }

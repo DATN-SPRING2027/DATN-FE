@@ -662,4 +662,65 @@ describe("WorkWorkspace project scope", () => {
       ).toBeVisible();
     });
   });
+
+  it("opens unclipped floating listbox popovers for Status, Assignee, and Priority cells in List view", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "user-1",
+          name: "Minh Anh",
+          organizationId: "org-1",
+          roles: ["MEMBER"],
+        };
+      }
+      if (path === "/iam/projects/project-1") {
+        return {
+          id: "project-1",
+          organizationId: "org-1",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "user-1",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount("project-1");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+    ).toBeVisible();
+
+    const statusTriggers = screen.getAllByTitle("Click to transition status");
+    fireEvent.click(statusTriggers[0]);
+    const statusListbox = screen.getByRole("listbox", {
+      name: /Select status for KNW-142/i,
+    });
+    expect(statusListbox).toBeVisible();
+    expect(statusListbox.className).toContain("fixed");
+
+    const assigneeTriggers = screen.getAllByTitle("Click to change assignee");
+    fireEvent.click(assigneeTriggers[0]);
+    const assigneeListbox = screen.getByRole("listbox", {
+      name: /Select assignee for KNW-142/i,
+    });
+    expect(assigneeListbox).toBeVisible();
+    expect(assigneeListbox.className).toContain("fixed");
+
+    const priorityTriggers = screen.getAllByTitle("Click to change priority");
+    fireEvent.click(priorityTriggers[0]);
+    const priorityListbox = screen.getByRole("listbox", {
+      name: /Select priority for KNW-142/i,
+    });
+    expect(priorityListbox).toBeVisible();
+    expect(priorityListbox.className).toContain("fixed");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByRole("listbox", { name: /Select priority for KNW-142/i }),
+    ).not.toBeInTheDocument();
+  });
 });
