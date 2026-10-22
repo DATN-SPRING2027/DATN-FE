@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   useProjectQuery,
@@ -20,6 +20,8 @@ export default function MemberWorkspace({
   initialView?: WorkView;
 }) {
   const t = useTranslations("work");
+  const pathname = usePathname?.() ?? "/workspace";
+  const router = useRouter?.();
   const user = useCurrentUserQuery();
   const organizationId = user.data?.organizationId ?? "";
   const projects = useProjectsQuery(organizationId, {
@@ -31,6 +33,24 @@ export default function MemberWorkspace({
     string | undefined
   >(initialProjectId);
   const [view, setView] = useState<WorkView>(initialView ?? "list");
+
+  useEffect(() => {
+    setSelectedProjectId(initialProjectId);
+  }, [initialProjectId]);
+
+  function handleProjectChange(nextProjectId: string) {
+    setSelectedProjectId(nextProjectId);
+    const params = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : "",
+    );
+    params.set("projectId", nextProjectId);
+    const nextHref = `${pathname}?${params.toString()}`;
+    if (router?.replace) {
+      router.replace(nextHref, { scroll: false });
+    } else if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", nextHref);
+    }
+  }
 
   const loadedProjects = projects.data?.data ?? [];
   const matchedFromPage = selectedProjectId
@@ -116,7 +136,7 @@ export default function MemberWorkspace({
       projectId={activeProject.id}
       project={activeProject}
       projects={workspaceProjects}
-      onProjectChange={setSelectedProjectId}
+      onProjectChange={handleProjectChange}
       view={view}
       onViewChange={setView}
       hideProjectBanner

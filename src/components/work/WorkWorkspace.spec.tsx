@@ -13,10 +13,14 @@ vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
 }));
+const routerReplaceMock = vi.fn();
+
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
+  usePathname: () => "/workspace",
+  useRouter: () => ({ replace: routerReplaceMock }),
 }));
 vi.mock("@/icons", () => {
   const Icon = () => null;
@@ -74,6 +78,7 @@ function mountMemberWorkspace(initialProjectId?: string) {
 describe("WorkWorkspace project scope", () => {
   beforeEach(() => {
     api.mockReset();
+    routerReplaceMock.mockReset();
   });
 
   it("loads the project from the current organization, renders Jira space tabs, and links back to its detail", async () => {
@@ -294,6 +299,10 @@ describe("WorkWorkspace project scope", () => {
     expect(
       await screen.findByRole("heading", { level: 1, name: "Hermes" }),
     ).toBeVisible();
+    expect(routerReplaceMock).toHaveBeenCalledWith(
+      "/workspace?projectId=project-2",
+      { scroll: false },
+    );
   });
 
   it("fetches a deep-linked project outside the first page of 20 instead of silently falling back to project-1", async () => {
