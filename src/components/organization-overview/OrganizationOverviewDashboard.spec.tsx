@@ -173,9 +173,6 @@ describe("OrganizationOverviewDashboard", () => {
     expect(await screen.findByText("Knowledge Core")).toBeVisible();
     expect(screen.getAllByText("Recover Leader").length).toBeGreaterThan(0);
     expect(screen.getByText("Manage Leaders")).toBeVisible();
-    expect(
-      screen.getByText(/Last Manager Protection is active/i),
-    ).toBeVisible();
     expect(screen.getByText("Protected")).toBeVisible();
   });
 });

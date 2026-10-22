@@ -12,7 +12,6 @@ import {
   CheckCircleIcon,
   FolderIcon,
   GroupIcon,
-  InfoIcon,
   LockIcon,
   MailIcon,
   SettingsIcon,
@@ -227,49 +226,29 @@ function ManagerOverviewWorkspace({
         aria-labelledby="org-overview-heading"
         className="flex flex-col justify-between gap-4 border-b border-gray-200/80 pb-5 lg:flex-row lg:items-center dark:border-gray-800"
       >
-        <div className="flex min-w-0 items-start gap-3.5 sm:items-center">
+        <div className="flex min-w-0 items-center gap-3.5">
           <div
             aria-hidden="true"
-            className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold tracking-tight text-brand-600 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25"
+            className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-sm font-bold tracking-tight text-brand-600 ring-1 ring-brand-500/20 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25"
           >
             {getOrgInitials(organization.name, organization.slug)}
           </div>
-          <div className="min-w-0 space-y-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1
-                id="org-overview-heading"
-                className="truncate text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl dark:text-white"
-              >
-                {organization.name}
-              </h1>
-              <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100/80 px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                @{organization.slug}
-              </span>
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-gray-700 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                {organization.plan}
-              </span>
-              <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-600/15 ring-inset dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
-                <RoleLabel roleCode="ADMIN" />
-                <span aria-hidden="true">•</span>
-                <span>{t("governanceWorkspace")}</span>
-              </span>
-              {!hasLeaderlessProjects && (
-                <span
-                  role="status"
-                  className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-medium text-success-700 ring-1 ring-success-600/20 ring-inset tabular-nums dark:bg-success-500/15 dark:text-success-300 dark:ring-success-500/25"
-                >
-                  <CheckCircleIcon
-                    viewBox="0 0 24 24"
-                    className="size-3.5 shrink-0 text-success-600 dark:text-success-400"
-                    aria-hidden="true"
-                  />
-                  <span>{t("zeroLeaderlessBadge")}</span>
-                </span>
-              )}
-            </div>
-            <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              {organization.description || t("defaultDescription")}
-            </p>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1
+              id="org-overview-heading"
+              className="truncate text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl dark:text-white"
+            >
+              {organization.name}
+            </h1>
+            <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-100/80 px-2 py-0.5 font-mono text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              @{organization.slug}
+            </span>
+            <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-0.5 text-[11px] font-semibold tracking-wide text-gray-700 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              {organization.plan}
+            </span>
+            <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-600/15 ring-inset dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
+              <RoleLabel roleCode="ADMIN" />
+            </span>
           </div>
         </div>
 
@@ -307,31 +286,26 @@ function ManagerOverviewWorkspace({
           aria-labelledby="leaderless-projects-alert-title"
           className="rounded-xl border border-warning-300 bg-warning-50/90 p-4 shadow-theme-xs sm:p-5 dark:border-warning-500/40 dark:bg-warning-500/10"
         >
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-3">
               <span
                 aria-hidden="true"
-                className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-300"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-300"
               >
-                <AlertIcon viewBox="0 0 24 24" className="size-5" />
+                <AlertIcon viewBox="0 0 24 24" className="size-4" />
               </span>
-              <div className="space-y-0.5">
-                <h2
-                  id="leaderless-projects-alert-title"
-                  className="text-sm font-semibold text-warning-900 sm:text-base dark:text-warning-200"
-                >
-                  {t("leaderlessAlertTitle", {
-                    count: metrics.leaderlessProjectsCount,
-                  })}
-                </h2>
-                <p className="text-xs text-warning-800 sm:text-sm dark:text-warning-300/90">
-                  {t("leaderlessAlertDescription")}
-                </p>
-              </div>
+              <h2
+                id="leaderless-projects-alert-title"
+                className="text-sm font-semibold text-warning-900 sm:text-base dark:text-warning-200"
+              >
+                {t("leaderlessAlertTitle", {
+                  count: metrics.leaderlessProjectsCount,
+                })}
+              </h2>
             </div>
             <Link
               href="/projects"
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg bg-warning-600 px-3 text-xs font-semibold whitespace-nowrap text-white shadow-theme-xs transition hover:bg-warning-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning-600"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg bg-warning-600 px-3 text-xs font-semibold whitespace-nowrap text-white shadow-theme-xs transition hover:bg-warning-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-warning-600 sm:self-center"
             >
               <span>{t("reviewAllProjects")}</span>
               <ArrowRightIcon
@@ -343,7 +317,7 @@ function ManagerOverviewWorkspace({
           </div>
 
           {leaderlessProjects.length > 0 && (
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-3.5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {leaderlessProjects.map((project) => (
                 <div
                   key={project.id}
@@ -401,14 +375,11 @@ function ManagerOverviewWorkspace({
                 <GroupIcon viewBox="0 0 24 24" className="size-4" />
               </span>
             </div>
-            <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
+            <div className="mt-2.5 flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="text-3xl font-semibold tracking-tight text-gray-900 tabular-nums dark:text-white">
                 {format.number(metrics.activeMembers)}
               </span>
             </div>
-            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-              {t("kpiActiveMembersHint")}
-            </p>
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs dark:border-gray-800">
             <span
@@ -457,14 +428,11 @@ function ManagerOverviewWorkspace({
                 <MailIcon viewBox="0 0 24 24" className="size-4" />
               </span>
             </div>
-            <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
+            <div className="mt-2.5 flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="text-3xl font-semibold tracking-tight text-gray-900 tabular-nums dark:text-white">
                 {format.number(metrics.pendingInvitations)}
               </span>
             </div>
-            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-              {t("kpiPendingInvitationsHint")}
-            </p>
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs dark:border-gray-800">
             <span className="whitespace-nowrap text-gray-500 tabular-nums dark:text-gray-400">
@@ -498,7 +466,7 @@ function ManagerOverviewWorkspace({
                 <FolderIcon viewBox="0 0 20 18" className="size-4" />
               </span>
             </div>
-            <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
+            <div className="mt-2.5 flex items-baseline gap-1.5 whitespace-nowrap">
               <span className="text-3xl font-semibold tracking-tight text-gray-900 tabular-nums dark:text-white">
                 {format.number(metrics.activeProjects)}
               </span>
@@ -506,9 +474,6 @@ function ManagerOverviewWorkspace({
                 / {format.number(metrics.totalProjects)}
               </span>
             </div>
-            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-              {t("kpiActiveProjectsHint")}
-            </p>
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs dark:border-gray-800">
             <span className="whitespace-nowrap text-gray-500 tabular-nums dark:text-gray-400">
@@ -552,7 +517,7 @@ function ManagerOverviewWorkspace({
                 )}
               </span>
             </div>
-            <div className="mt-3 flex items-baseline gap-1.5 whitespace-nowrap">
+            <div className="mt-2.5 flex items-baseline gap-1.5 whitespace-nowrap">
               <span
                 className={`text-3xl font-semibold tracking-tight tabular-nums ${
                   hasLeaderlessProjects
@@ -563,9 +528,6 @@ function ManagerOverviewWorkspace({
                 {format.number(metrics.leaderlessProjectsCount)}
               </span>
             </div>
-            <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">
-              {t("kpiLeaderlessProjectsHint")}
-            </p>
           </div>
           <div className="mt-4 flex items-center justify-between gap-2 border-t border-gray-100 pt-3 text-xs dark:border-gray-800">
             <span
@@ -592,21 +554,16 @@ function ManagerOverviewWorkspace({
           aria-labelledby="org-projects-governance-heading"
           className="overflow-hidden rounded-xl border border-gray-200/90 bg-white shadow-theme-xs xl:col-span-8 dark:border-gray-800 dark:bg-gray-900"
         >
-          <div className="flex flex-col gap-3 border-b border-gray-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-gray-800">
-            <div className="min-w-0">
-              <h2
-                id="org-projects-governance-heading"
-                className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
-              >
-                {t("projectsGovernanceTitle")}
-              </h2>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {t("projectsGovernanceSubtitle")}
-              </p>
-            </div>
+          <div className="flex items-center justify-between gap-3 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+            <h2
+              id="org-projects-governance-heading"
+              className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
+            >
+              {t("projectsGovernanceTitle")}
+            </h2>
             <Link
               href="/projects"
-              className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold whitespace-nowrap text-gray-700 transition hover:bg-gray-50 sm:self-center dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold whitespace-nowrap text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               <FolderIcon
                 viewBox="0 0 20 18"
@@ -705,7 +662,7 @@ function ManagerOverviewWorkspace({
                             <div className="min-w-0">
                               <Link
                                 href={`/projects/${encodeURIComponent(project.id)}`}
-                                className="block max-w-40 truncate font-semibold text-gray-900 hover:text-brand-600 2xl:max-w-none dark:text-white dark:hover:text-brand-400"
+                                className="block max-w-40 truncate font-semibold text-gray-900 hover:text-brand-600 xl:max-w-56 dark:text-white dark:hover:text-brand-400"
                               >
                                 {project.name}
                               </Link>
@@ -805,32 +762,25 @@ function ManagerOverviewWorkspace({
           )}
         </section>
 
-        {/* Right 4 Cols: Active Organization Managers & Integrated Governance Posture */}
+        {/* Right 4 Cols: Active Organization Managers */}
         <section
           aria-labelledby="org-managers-roster-heading"
           className="overflow-hidden rounded-xl border border-gray-200/90 bg-white shadow-theme-xs xl:col-span-4 dark:border-gray-800 dark:bg-gray-900"
         >
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
-            <div>
-              <h2
-                id="org-managers-roster-heading"
-                className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
-              >
-                {t("managersRosterTitle")}
-              </h2>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {t("managersRosterSubtitle")}
-              </p>
-            </div>
-            <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-700 ring-1 ring-brand-600/15 ring-inset tabular-nums dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
+          <div className="flex items-center justify-between gap-2 border-b border-gray-100 px-5 py-4 dark:border-gray-800">
+            <h2
+              id="org-managers-roster-heading"
+              className="truncate text-base font-semibold tracking-tight text-gray-900 dark:text-white"
+            >
+              {t("managersRosterTitle")}
+            </h2>
+            <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap text-brand-700 ring-1 ring-brand-600/15 ring-inset tabular-nums dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
               <UserIcon
                 viewBox="0 0 20 20"
                 className="size-3 shrink-0"
                 aria-hidden="true"
               />
-              <span>
-                {t("activeManagersCount", { count: managers.length })}
-              </span>
+              <span>{format.number(managers.length)}</span>
             </span>
           </div>
 
@@ -885,28 +835,6 @@ function ManagerOverviewWorkspace({
               );
             })}
           </ul>
-
-          {/* Subtle Integrated Governance & Security Footer */}
-          <div className="space-y-2.5 border-t border-gray-100 bg-gray-50/70 px-5 py-3.5 text-xs leading-5 dark:border-gray-800 dark:bg-gray-800/40">
-            {isSoleManager && (
-              <div className="flex items-start gap-2 text-gray-600 dark:text-gray-300">
-                <LockIcon
-                  viewBox="0 0 20 20"
-                  className="mt-0.5 size-3.5 shrink-0 text-warning-600 dark:text-warning-400"
-                  aria-hidden="true"
-                />
-                <p>{t("lastManagerProtectionNotice")}</p>
-              </div>
-            )}
-            <div className="flex items-start gap-2 text-gray-500 dark:text-gray-400">
-              <InfoIcon
-                viewBox="0 0 24 24"
-                className="mt-0.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
-                aria-hidden="true"
-              />
-              <p>{t("governanceBoundaryNote")}</p>
-            </div>
-          </div>
         </section>
       </div>
     </div>
