@@ -44,6 +44,7 @@ vi.mock("@/icons", () => ({
   PencilIcon: () => null,
   SearchIcon: () => null,
   TimeIcon: () => null,
+  TrashBinIcon: () => null,
   UserIcon: () => null,
 }));
 
@@ -206,10 +207,62 @@ describe("Organization membership management page", () => {
       expect(screen.getAllByText(status).length).toBeGreaterThan(0);
     }
     expect(screen.getByRole("button", { name: "Suspend" })).toBeEnabled();
-    expect(screen.queryByRole("button", { name: /remove|resume|reinvite/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Reactivate" })).toBeEnabled();
+    expect(screen.getAllByRole("button", { name: "Remove" })).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: /reinvite/i })).not.toBeInTheDocument();
     expect(api).toHaveBeenCalledWith(
       `/iam/organizations/${organizationId}/memberships?page=1&pageSize=20`,
       expect.objectContaining({ cache: "no-store" }),
+    );
+  });
+
+  it("reactivates a suspended membership and handles remove active-project-leader blockers", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    let currentStatus: "SUSPENDED" | "ACTIVE" = "SUSPENDED";
+    api.mockImplementation(async (endpoint, options) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([membership(currentStatus)]);
+      if (endpoint.includes("/invitations?")) return invitationPage();
+      if (endpoint.endsWith("/resume") && options?.method === "POST") {
+        currentStatus = "ACTIVE";
+        return mutationAck("ACTIVE");
+      }
+      if (endpoint.endsWith("/remove") && options?.method === "POST") {
+        throw new ApiError(
+          409,
+          "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP",
+          "Active leader",
+          undefined,
+          false,
+          {
+            projectIds: ["6123456789abcdef01234567"],
+            blockingProjects: [
+              { id: "6123456789abcdef01234567", code: "CORE-AI", name: "Continuum Core Engine" },
+            ],
+          },
+        );
+      }
+      throw new Error(`Unexpected request ${endpoint}`);
+    });
+    mount();
+    await screen.findAllByText("Alex Member");
+    fireEvent.click(screen.getByRole("button", { name: "Reactivate" }));
+    const resumeDialog = await screen.findByRole("dialog", { name: "Reactivate member" });
+    fireEvent.change(within(resumeDialog).getByLabelText("Reason"), { target: { value: "ACCESS_REQUEST" } });
+    fireEvent.click(within(resumeDialog).getByRole("button", { name: "Confirm reactivation" }));
+
+    expect(await screen.findByText("The server accepted the request.")).toBeVisible();
+    const resumeCall = api.mock.calls.find(([endpoint, options]) => endpoint.endsWith("/resume") && options?.method === "POST");
+    expect(JSON.parse(String(resumeCall?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, reasonCode: "ACCESS_REQUEST" });
+
+    fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
+    const removeDialog = await screen.findByRole("dialog", { name: "Remove member from Organization" });
+    expect(within(removeDialog).getByText(/Removing a member deactivates their non-leader project memberships/)).toBeVisible();
+    fireEvent.click(within(removeDialog).getByRole("button", { name: "Confirm removal" }));
+    expect(await within(removeDialog).findByText(/This member is currently an active Project Leader/)).toBeVisible();
+    expect(within(removeDialog).getByRole("link", { name: /Continuum Core Engine \(CORE-AI\)/ })).toHaveAttribute(
+      "href",
+      "/projects/6123456789abcdef01234567/members",
     );
   });
 

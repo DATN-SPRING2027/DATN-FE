@@ -24,6 +24,7 @@ export class ApiError extends Error {
     message: string,
     public readonly organizations?: readonly { id: string; name: string }[],
     public readonly sessionRecoveryFailed = false,
+    public readonly details?: Readonly<Record<string, unknown>>,
   ) {
     super(message);
     this.name = "ApiError";
@@ -165,13 +166,19 @@ export async function apiClient<T>(
     let detail: {
       code?: string;
       message?: string;
-      details?: { organizations?: unknown };
+      details?: Record<string, unknown>;
     } = {};
     try {
       detail = JSON.parse(errorBody);
     } catch {
       // Preserve the raw response for non-JSON errors.
     }
+    const parsedDetails =
+      typeof detail.details === "object" &&
+      detail.details !== null &&
+      !Array.isArray(detail.details)
+        ? detail.details
+        : undefined;
     throw new ApiError(
       response.status,
       detail.code,
@@ -179,8 +186,8 @@ export async function apiClient<T>(
         `API request failed: ${response.status} ${response.statusText} - ${errorBody}`,
       response.status === 409 &&
         detail.code === "ORGANIZATION_SELECTION_REQUIRED" &&
-        Array.isArray(detail.details?.organizations)
-        ? detail.details.organizations.filter(
+        Array.isArray(parsedDetails?.organizations)
+        ? parsedDetails.organizations.filter(
             (item): item is { id: string; name: string } =>
               typeof item === "object" &&
               item !== null &&
@@ -189,6 +196,7 @@ export async function apiClient<T>(
           )
         : undefined,
       recovered,
+      parsedDetails,
     );
   }
 

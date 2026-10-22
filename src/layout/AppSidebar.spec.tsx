@@ -236,7 +236,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar", "Members"]);
+    ).toEqual(["Overview", "Projects", "Calendar", "Members", "Settings"]);
     expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
@@ -244,7 +244,7 @@ describe("AppSidebar navigation", () => {
     );
   });
 
-  it("hides Organization Members from navigation when the user lacks organization.memberships.read", () => {
+  it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
     currentUser.data = {
       ...currentUser.data,
       roles: ["MEMBER"],
@@ -259,6 +259,9 @@ describe("AppSidebar navigation", () => {
     ).toEqual(["Overview", "Projects", "Calendar"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("link", { name: "Settings" }),
     ).not.toBeInTheDocument();
   });
 
@@ -300,6 +303,11 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .some((link) => link.getAttribute("href")?.includes("/platform")),
+    ).toHaveLength === undefined;
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("/platform")),
     ).toBe(false);
   });
 
@@ -313,7 +321,6 @@ describe("AppSidebar navigation", () => {
       "AI Search",
       "Handover",
       "Integrations",
-      "Settings",
     ]) {
       const button = screen.getByRole("button", { name: label });
       expect(button).toBeDisabled();

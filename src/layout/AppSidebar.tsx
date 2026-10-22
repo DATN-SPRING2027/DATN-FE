@@ -37,7 +37,7 @@ const primaryItems = [
 const administrationItems = [
   { key: "members", path: "/organization/members", icon: GroupIcon },
   { key: "integrations", icon: PlugInIcon },
-  { key: "settings", icon: SettingsIcon },
+  { key: "settings", path: "/organization/settings", icon: SettingsIcon },
 ] as const;
 
 const AppSidebar: React.FC = () => {
@@ -53,7 +53,8 @@ const AppSidebar: React.FC = () => {
   const isExpandedView = isExpanded || isHovered || isMobileOpen;
   const canViewMembers = canReadOrganizationMemberships(currentUser.data);
   const visibleAdministrationItems = administrationItems.filter(
-    (item) => item.key !== "members" || canViewMembers,
+    (item) =>
+      (item.key !== "members" && item.key !== "settings") || canViewMembers,
   );
 
   const renderItem = (

@@ -28,7 +28,7 @@ import Label from "@/components/form/Label";
 import { useModal } from "@/hooks/useModal";
 import MemberRemoveConfirmation from "./MemberRemoveConfirmation";
 import MemberError, { isMemberActionDenied } from "./MemberError";
-import { GroupIcon, SearchIcon } from "@/icons";
+import { GroupIcon, LockIcon, PlusIcon, SearchIcon } from "@/icons";
 import { Modal } from "@/components/ui/modal";
 
 function ScopedProjectMembers({
@@ -37,6 +37,7 @@ function ScopedProjectMembers({
   canAppointLeaders,
   showAddButton,
   addModalOpen: controlledAddModalOpen,
+  onOpenAdd,
   onCloseAdd,
 }: {
   organizationId: string;
@@ -44,6 +45,7 @@ function ScopedProjectMembers({
   canAppointLeaders: boolean;
   showAddButton: boolean;
   addModalOpen?: boolean;
+  onOpenAdd?: () => void;
   onCloseAdd?: () => void;
 }) {
   const t = useTranslations("projectMembers");
@@ -56,7 +58,8 @@ function ScopedProjectMembers({
   const [selected, setSelected] = useState<ProjectMembership>();
   const [addFormVersion, setAddFormVersion] = useState(0);
   const [localAddModalOpen, setLocalAddModalOpen] = useState(false);
-  const addModalOpen = controlledAddModalOpen ?? localAddModalOpen;
+  const [appointLeaderOnAdd, setAppointLeaderOnAdd] = useState(false);
+  const addModalOpen = Boolean(controlledAddModalOpen || localAddModalOpen);
   const mutationInFlight = useRef(false);
   const addDialog = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState<
@@ -119,6 +122,17 @@ function ScopedProjectMembers({
       ),
     [leaders.isSuccess, leaders.data],
   );
+  const inactiveLeaders = useMemo(
+    () =>
+      leaders.isSuccess
+        ? leaders.data.filter((leader) => leader.status === "INACTIVE")
+        : [],
+    [leaders.isSuccess, leaders.data],
+  );
+  const inactiveLeaderUserIds = useMemo(
+    () => new Set(inactiveLeaders.map((leader) => leader.userId)),
+    [inactiveLeaders],
+  );
 
   const leaderPending =
     leaderActions.assign.isPending || leaderActions.revoke.isPending;
@@ -139,13 +153,41 @@ function ScopedProjectMembers({
     void leaders.refetch();
   }
 
+  function handleRevokeByUserId(userId: string) {
+    if (mutationInFlight.current || busy || !canManageLeaders) return;
+    if (leaderUserIds.has(userId) && leaderUserIds.size <= 1) {
+      setSoleLeaderBlocked(true);
+      return;
+    }
+    if (!leaderUserIds.has(userId) && leaderUserIds.size === 0) {
+      setSoleLeaderBlocked(true);
+      return;
+    }
+    mutationInFlight.current = true;
+    setNotice(undefined);
+    setSoleLeaderBlocked(false);
+    setLeaderBusyUserId(userId);
+    leaderActions.assign.reset();
+    leaderActions.revoke.reset();
+
+    leaderActions.revoke.mutate(userId, {
+      onSuccess: () => {
+        setNotice("leaderRevoked");
+      },
+      onSettled: () => {
+        mutationInFlight.current = false;
+        setLeaderBusyUserId(undefined);
+      },
+    });
+  }
+
   function handleToggleLeader(
     member: ProjectMembership,
     isCurrentlyLeader: boolean,
   ) {
     if (mutationInFlight.current || busy || !canManageLeaders) return;
-    if (isCurrentlyLeader && leaderUserIds.size <= 1) {
-      setSoleLeaderBlocked(true);
+    if (isCurrentlyLeader) {
+      handleRevokeByUserId(member.userId);
       return;
     }
     mutationInFlight.current = true;
@@ -155,27 +197,15 @@ function ScopedProjectMembers({
     leaderActions.assign.reset();
     leaderActions.revoke.reset();
 
-    if (isCurrentlyLeader) {
-      leaderActions.revoke.mutate(member.userId, {
-        onSuccess: () => {
-          setNotice("leaderRevoked");
-        },
-        onSettled: () => {
-          mutationInFlight.current = false;
-          setLeaderBusyUserId(undefined);
-        },
-      });
-    } else {
-      leaderActions.assign.mutate(member.userId, {
-        onSuccess: () => {
-          setNotice("leaderAppointed");
-        },
-        onSettled: () => {
-          mutationInFlight.current = false;
-          setLeaderBusyUserId(undefined);
-        },
-      });
-    }
+    leaderActions.assign.mutate(member.userId, {
+      onSuccess: () => {
+        setNotice("leaderAppointed");
+      },
+      onSettled: () => {
+        mutationInFlight.current = false;
+        setLeaderBusyUserId(undefined);
+      },
+    });
   }
 
   const visibleMembers =
@@ -192,7 +222,10 @@ function ScopedProjectMembers({
 
   function requestRemoval(member: ProjectMembership) {
     if (!leaderRolesKnown) return;
-    if (leaderUserIds.has(member.userId)) {
+    if (
+      leaderUserIds.has(member.userId) ||
+      inactiveLeaderUserIds.has(member.userId)
+    ) {
       if (leaderUserIds.size <= 1) {
         setSoleLeaderBlocked(true);
       }
@@ -204,17 +237,18 @@ function ScopedProjectMembers({
     setSelected(member);
     confirmation.openModal();
   }
-  function openAddModal() {
+  function openAddModal(shouldAppointLeader = false) {
+    setAppointLeaderOnAdd(shouldAppointLeader);
     setLocalAddModalOpen(true);
+    onOpenAdd?.();
   }
   function closeAddModal() {
     if (busy) return;
+    setAppointLeaderOnAdd(false);
     setLocalAddModalOpen(false);
     onCloseAdd?.();
   }
 
-  // A successful list does not grant mutation permissions. Each action is sent
-  // to BE for authorization; a 403 locks only that action until an explicit retry.
   return (
     <div className="@container min-w-0 space-y-6">
       {notice && <MemberNotification message={t(notice)} />}
@@ -237,12 +271,100 @@ function ScopedProjectMembers({
             {t("leaderRoleUnverifiedNotice")}
           </p>
         )}
+
+      {/* Leaderless Project Governance Recovery Banner (Manager only) */}
+      {canManageLeaders &&
+        leaderUserIds.size === 0 &&
+        members.isSuccess &&
+        !members.isFetching && (
+          <section
+            aria-label={t("leaderlessRecoveryTitle")}
+            className="flex flex-col justify-between gap-4 rounded-2xl border border-error-200 bg-error-50/80 p-4 sm:flex-row sm:items-center sm:p-5 dark:border-error-500/30 dark:bg-error-500/10"
+          >
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center rounded-full border border-error-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-error-700 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-300">
+                  {t("zeroEffectiveLeaderBadge")}
+                </span>
+                <h3 className="text-sm font-semibold text-error-900 sm:text-base dark:text-error-200">
+                  {t("leaderlessRecoveryTitle")}
+                </h3>
+              </div>
+              <p className="text-xs leading-5 text-error-800 sm:text-sm dark:text-error-300/90">
+                {t("leaderlessRecoveryDescription")}
+              </p>
+            </div>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={() => openAddModal(true)}
+              startIcon={<PlusIcon aria-hidden="true" className="size-4" />}
+              className="shrink-0"
+            >
+              {t("addAndAppointLeaderCta")}
+            </Button>
+          </section>
+        )}
+
+      {/* Inactive Leaders Governance Callout (Manager only) */}
+      {canManageLeaders &&
+        inactiveLeaders.length > 0 &&
+        members.isSuccess &&
+        !members.isFetching && (
+          <section
+            aria-label={t("inactiveLeadersNoticeTitle")}
+            className="space-y-3 rounded-2xl border border-warning-200 bg-warning-50/70 p-4 sm:p-5 dark:border-warning-500/30 dark:bg-warning-500/10"
+          >
+            <div>
+              <h3 className="text-sm font-semibold text-warning-900 dark:text-warning-200">
+                {t("inactiveLeadersNoticeTitle")}
+              </h3>
+              <p className="mt-0.5 text-xs text-warning-800 dark:text-warning-300/90">
+                {t("inactiveLeadersNoticeDescription")}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+              {inactiveLeaders.map((leader) => (
+                <div
+                  key={leader.userId}
+                  className="flex items-center justify-between gap-3 rounded-xl border border-warning-200 bg-white px-3.5 py-2.5 dark:border-warning-500/25 dark:bg-gray-900"
+                >
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
+                        {leader.fullName || leader.email}
+                      </span>
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warning-100 px-2 py-0.5 text-[11px] font-semibold text-warning-800 dark:bg-warning-500/20 dark:text-warning-300">
+                        <LockIcon aria-hidden="true" className="size-3" />
+                        {t("inactiveLeaderBadge")}
+                      </span>
+                    </div>
+                    <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                      {leader.email}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || leaderUserIds.size === 0}
+                    onClick={() => handleRevokeByUserId(leader.userId)}
+                  >
+                    {t("revokeLeader")}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
       {(leaderError || soleLeaderBlocked) && (
         <p
           role="alert"
           className="rounded-xl border border-error-200 bg-error-50/60 px-4 py-3 text-sm text-error-700 dark:border-error-500/25 dark:bg-error-500/10 dark:text-error-300"
         >
-          {soleLeaderBlocked || (leaderError instanceof ApiError && leaderError.code === "LAST_PROJECT_LEADER_REQUIRED")
+          {soleLeaderBlocked ||
+          (leaderError instanceof ApiError &&
+            leaderError.code === "LAST_PROJECT_LEADER_REQUIRED")
             ? t("soleLeaderCannotRevoke")
             : t("leaderActionFailed")}
         </p>
@@ -310,7 +432,7 @@ function ScopedProjectMembers({
             {showAddButton && (
               <Button
                 ariaLabel={t("openAdd")}
-                onClick={openAddModal}
+                onClick={() => openAddModal(false)}
                 className="shrink-0"
               >
                 {t("add")}
@@ -340,6 +462,7 @@ function ScopedProjectMembers({
                 busy || isMemberActionDenied(remove.error) || !leaderRolesKnown
               }
               leaderUserIds={leaderUserIds}
+              inactiveLeaderUserIds={inactiveLeaderUserIds}
               leaderRoleStatus={leaderRoleStatus}
               canManageLeaders={canManageLeaders}
               leaderBusyUserId={leaderBusyUserId}
@@ -446,11 +569,25 @@ function ScopedProjectMembers({
                   {t("closeAdd")}
                 </button>
               </div>
+              {canManageLeaders && (
+                <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2.5 text-xs font-medium text-brand-800 dark:border-brand-500/25 dark:bg-brand-500/10 dark:text-brand-300">
+                  <input
+                    type="checkbox"
+                    checked={appointLeaderOnAdd}
+                    disabled={busy}
+                    onChange={(event) =>
+                      setAppointLeaderOnAdd(event.target.checked)
+                    }
+                    className="size-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>{t("appointAsLeaderAfterAddLabel")}</span>
+                </label>
+              )}
               <MemberAddForm
                 key={addFormVersion}
                 organizationId={organizationId}
                 projectId={projectId}
-                pending={add.isPending}
+                pending={add.isPending || leaderActions.assign.isPending}
                 disabled={busy || isMemberActionDenied(add.error)}
                 onAdd={(userId) => {
                   if (
@@ -461,14 +598,35 @@ function ScopedProjectMembers({
                     return;
                   mutationInFlight.current = true;
                   setNotice(undefined);
+                  const shouldAppoint = canManageLeaders && appointLeaderOnAdd;
                   add.mutate(userId, {
                     onSuccess: () => {
                       setPage(1);
                       setAddFormVersion((version) => version + 1);
-                      setNotice("added");
+                      if (shouldAppoint) {
+                        leaderActions.assign.mutate(userId, {
+                          onSuccess: () => {
+                            setNotice("leaderAppointed");
+                            setAppointLeaderOnAdd(false);
+                          },
+                          onError: () => {
+                            setNotice("added");
+                          },
+                          onSettled: () => {
+                            mutationInFlight.current = false;
+                          },
+                        });
+                      } else {
+                        setNotice("added");
+                      }
+                    },
+                    onError: () => {
+                      mutationInFlight.current = false;
                     },
                     onSettled: () => {
-                      mutationInFlight.current = false;
+                      if (!shouldAppoint) {
+                        mutationInFlight.current = false;
+                      }
                     },
                   });
                 }}
@@ -538,11 +696,13 @@ export default function ProjectMembers({
   projectId,
   showAddButton = true,
   addModalOpen,
+  onOpenAdd,
   onCloseAdd,
 }: {
   projectId: string;
   showAddButton?: boolean;
   addModalOpen?: boolean;
+  onOpenAdd?: () => void;
   onCloseAdd?: () => void;
 }) {
   const user = useCurrentUserQuery();
@@ -567,6 +727,7 @@ export default function ProjectMembers({
       canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
       showAddButton={showAddButton}
       addModalOpen={addModalOpen}
+      onOpenAdd={onOpenAdd}
       onCloseAdd={onCloseAdd}
     />
   );

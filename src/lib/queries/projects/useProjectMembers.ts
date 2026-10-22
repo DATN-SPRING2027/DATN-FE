@@ -153,9 +153,17 @@ export function useAddProjectMember(organizationId: string, projectId: string) {
         signal: AbortSignal.timeout(15_000),
       }).then((data) => parseMembership(data, organizationId, projectId)),
     onSuccess: () =>
-      client.invalidateQueries({
-        queryKey: projectMemberKeys.scope(organizationId, projectId),
-      }),
+      Promise.all([
+        client.invalidateQueries({
+          queryKey: projectMemberKeys.scope(organizationId, projectId),
+        }),
+        client.invalidateQueries({
+          queryKey: ["projects", organizationId],
+        }),
+        client.invalidateQueries({
+          queryKey: ["organization-overview"],
+        }),
+      ]),
   });
 }
 
@@ -174,8 +182,16 @@ export function useRemoveProjectMember(
         { method: "DELETE", signal: AbortSignal.timeout(15_000) },
       ),
     onSuccess: () =>
-      client.invalidateQueries({
-        queryKey: projectMemberKeys.scope(organizationId, projectId),
-      }),
+      Promise.all([
+        client.invalidateQueries({
+          queryKey: projectMemberKeys.scope(organizationId, projectId),
+        }),
+        client.invalidateQueries({
+          queryKey: ["projects", organizationId],
+        }),
+        client.invalidateQueries({
+          queryKey: ["organization-overview"],
+        }),
+      ]),
   });
 }
