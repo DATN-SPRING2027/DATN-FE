@@ -240,6 +240,7 @@ export function inviteOrganizationMember(
   ) throw new ApiError(422, "VALIDATION_FAILED", "Invalid invitation input");
   if (
     (input.roleCode !== undefined && !["ADMIN", "MEMBER"].includes(input.roleCode)) ||
+    (input.projectRoleCode !== undefined && !["TEAM_LEADER", "MEMBER"].includes(input.projectRoleCode)) ||
     (input.accessScope !== undefined && !["ORGANIZATION", "SPECIFIC_PROJECTS"].includes(input.accessScope)) ||
     (input.projectIds !== undefined && (!Array.isArray(input.projectIds) || input.projectIds.some((id) => !isOrganizationResourceId(id)))) ||
     (input.message !== undefined && (typeof input.message !== "string" || input.message.length > 500)) ||
@@ -252,6 +253,7 @@ export function inviteOrganizationMember(
     email: input.email,
     reasonCode: input.reasonCode,
     ...(input.roleCode !== undefined ? { roleCode: input.roleCode } : {}),
+    ...(input.projectRoleCode !== undefined ? { projectRoleCode: input.projectRoleCode } : {}),
     ...(input.accessScope !== undefined ? { accessScope: input.accessScope } : {}),
     ...(input.projectIds !== undefined ? { projectIds: input.projectIds } : {}),
     ...(input.message !== undefined ? { message: input.message } : {}),

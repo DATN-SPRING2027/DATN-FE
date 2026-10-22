@@ -11,6 +11,7 @@ import {
   acceptOrganizationInvitation,
   getOrganizationInvitation,
   invitationReturnTo,
+
   resolveOrganizationInvitation,
   type ResolvedOrganizationInvitation,
 } from "@/lib/queries/organization-memberships/organization-invitations";
@@ -52,7 +53,16 @@ export default function OrganizationInvitationAcceptance() {
   useLayoutEffect(() => {
     if (urlCapturedRef.current) return;
     urlCapturedRef.current = true;
-    const rawToken = window.location.hash.slice(1);
+    const rawHash = window.location.hash.replace(/^#+/, "");
+    const rawToken = rawHash.startsWith("token=")
+      ? (() => {
+          try {
+            return decodeURIComponent(rawHash.slice("token=".length));
+          } catch {
+            return rawHash;
+          }
+        })()
+      : rawHash;
     const invitationId = new URLSearchParams(window.location.search).get("invitationId") ?? "";
     if (window.location.hash) window.history.replaceState(null, "", window.location.pathname + window.location.search);
     // The token is captured in component memory only after removing it from browser history.

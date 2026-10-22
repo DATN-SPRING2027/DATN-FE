@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBackdropClick?: () => void;
   className?: string;
   backdropClassName?: string;
   children: React.ReactNode;
@@ -15,6 +16,7 @@ interface ModalProps {
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
+  onBackdropClick,
   children,
   className,
   backdropClassName = "bg-gray-400/50 backdrop-blur-[32px]",
@@ -26,7 +28,7 @@ export const Modal: React.FC<ModalProps> = ({
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onClose();
+        (onBackdropClick ?? onClose)();
       }
     };
 
@@ -37,7 +39,7 @@ export const Modal: React.FC<ModalProps> = ({
     return () => {
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onBackdropClick, onClose]);
 
   useEffect(() => {
     if (isOpen) {
@@ -61,8 +63,9 @@ export const Modal: React.FC<ModalProps> = ({
     <div className="modal fixed inset-0 z-99999 flex items-center justify-center overflow-y-auto">
       {!isFullscreen && (
         <div
+          data-testid="modal-backdrop"
           className={`fixed inset-0 h-full w-full ${backdropClassName}`}
-          onClick={onClose}
+          onClick={onBackdropClick ?? onClose}
         ></div>
       )}
       <div
