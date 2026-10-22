@@ -44,40 +44,42 @@ export default async function SelectOrganizationPage({
         </header>
 
         <form action="/api/auth/google" method="get" className="space-y-3">
-          <ul className="space-y-3">
+          <ul className="space-y-2.5">
             {organizations.map(({ id, name }) => (
               <li key={id}>
                 <button
                   type="submit"
                   name="organizationId"
                   value={id}
-                  className="group flex min-h-18 w-full items-center gap-4 rounded-xl border border-gray-200 bg-white p-4 text-start shadow-theme-xs transition hover:border-brand-300 hover:bg-brand-25 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/5"
+                  className="group flex min-h-18 w-full cursor-pointer items-center gap-4 rounded-2xl border border-gray-200/90 bg-white p-4 text-start shadow-theme-xs transition-all duration-200 hover:border-brand-300 hover:bg-brand-25/50 hover:shadow-theme-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/5"
                 >
                   <span
                     aria-hidden="true"
-                    className="flex size-11 shrink-0 items-center justify-center rounded-full bg-brand-50 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                    className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-sm font-semibold tracking-tight text-white shadow-2xs ring-1 ring-inset ring-white/20"
                   >
                     {organizationInitials(name)}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
+                    <span className="block truncate text-sm font-semibold text-gray-900 transition-colors group-hover:text-brand-700 dark:text-white dark:group-hover:text-brand-300">
                       {name}
                     </span>
-                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
+                    <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">
                       {t("onboardingOpenWorkspace")}
                     </span>
                   </span>
-                  <ArrowRightIcon
+                  <span
                     aria-hidden="true"
-                    className="size-4 shrink-0 text-gray-400 transition group-hover:translate-x-0.5 group-hover:text-brand-600 rtl:rotate-180 rtl:group-hover:-translate-x-0.5"
-                  />
+                    className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-gray-50 text-gray-500 transition-all duration-200 group-hover:border-brand-500 group-hover:bg-brand-500 group-hover:text-white dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:border-brand-500 dark:group-hover:bg-brand-500 dark:group-hover:text-white"
+                  >
+                    <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
+                  </span>
                 </button>
               </li>
             ))}
           </ul>
         </form>
 
-        <p className="flex items-start gap-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-sm leading-5 text-gray-600 dark:border-gray-800 dark:bg-gray-800/50 dark:text-gray-300">
+        <p className="flex items-start gap-3 rounded-2xl border border-dashed border-gray-200/90 bg-gray-50/70 px-4 py-3.5 text-xs leading-5 text-gray-600 dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-300">
           <GroupIcon
             aria-hidden="true"
             className="mt-0.5 size-4 shrink-0 text-gray-500 dark:text-gray-400"
@@ -87,7 +89,7 @@ export default async function SelectOrganizationPage({
 
         <Link
           href="/signin"
-          className="inline-flex min-h-10 w-fit items-center gap-2 rounded-lg px-2 text-sm font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+          className="inline-flex min-h-10 w-fit items-center gap-2 rounded-xl px-2 text-xs font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
         >
           <ArrowRightIcon
             aria-hidden="true"

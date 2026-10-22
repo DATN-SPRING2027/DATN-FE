@@ -3,6 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
+export type ProjectLeaderSummary = Readonly<{
+  userId: string;
+  fullName: string;
+  email: string;
+}>;
+
 export type Project = Readonly<{
   id: string;
   organizationId: string;
@@ -14,6 +20,10 @@ export type Project = Readonly<{
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  activeMemberCount?: number;
+  effectiveLeaderCount?: number;
+  leaders?: readonly ProjectLeaderSummary[];
+  requiresLeaderRecovery?: boolean;
 }>;
 export type CreateProjectInput = Readonly<{
   name: string;

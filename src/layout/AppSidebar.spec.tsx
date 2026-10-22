@@ -2,22 +2,29 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar from "./AppSidebar";
 
-const { replace, logoutAsync, selectAsync, currentUser, organizations } =
-  vi.hoisted(() => ({
-    replace: vi.fn(),
-    logoutAsync: vi.fn(),
-    selectAsync: vi.fn(),
-    currentUser: {
-      data: {
-        id: "user-1",
-        name: "Minh Anh",
-        email: "minh@example.test",
-        organizationId: "org-1",
-        roles: ["ADMIN"],
-      },
+const {
+  replace,
+  logoutAsync,
+  selectAsync,
+  currentUser,
+  organizations,
+  routeState,
+} = vi.hoisted(() => ({
+  replace: vi.fn(),
+  logoutAsync: vi.fn(),
+  selectAsync: vi.fn(),
+  currentUser: {
+    data: {
+      id: "user-1",
+      name: "Minh Anh",
+      email: "minh@example.test",
+      organizationId: "org-1",
+      roles: ["ADMIN"],
     },
-    organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
-  }));
+  },
+  organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
+  routeState: { pathname: "/projects" },
+}));
 
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
@@ -29,7 +36,7 @@ vi.mock("@/i18n/navigation", () => ({
       {children}
     </a>
   ),
-  usePathname: () => "/projects",
+  usePathname: () => routeState.pathname,
   useRouter: () => ({ replace }),
 }));
 vi.mock("@/context/SidebarContext", () => ({
@@ -120,6 +127,7 @@ describe("AppSidebar navigation", () => {
     replace.mockReset();
     logoutAsync.mockReset().mockResolvedValue(undefined);
     selectAsync.mockReset().mockResolvedValue(undefined);
+    routeState.pathname = "/projects";
     currentUser.data = {
       id: "user-1",
       name: "Minh Anh",
@@ -171,7 +179,38 @@ describe("AppSidebar navigation", () => {
     });
 
     expect(selectAsync).toHaveBeenCalledWith("org-2");
-    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/"));
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/projects"));
+  });
+
+  it("routes to /dashboard when switching from /organization/members to an organization without ADMIN access", async () => {
+    routeState.pathname = "/organization/members";
+    organizations.data = [
+      { id: "org-1", name: "North Star Company" },
+      { id: "org-2", name: "Sunrise Institute" },
+    ];
+    selectAsync.mockResolvedValueOnce({
+      user: {
+        id: "user-1",
+        name: "Minh Anh",
+        email: "minh@example.test",
+        organizationId: "org-2",
+        roles: [],
+      },
+    });
+    render(<AppSidebar />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose organization" }),
+    );
+    const list = screen.getByRole("region", { name: "Organizations" });
+
+    await act(async () => {
+      fireEvent.click(
+        within(list).getByRole("button", { name: /Sunrise Institute/ }),
+      );
+    });
+
+    expect(selectAsync).toHaveBeenCalledWith("org-2");
+    await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
 
   it("closes the organization dropdown with Escape and restores trigger focus", () => {
@@ -198,8 +237,16 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Workspace", "Calendar", "Members"]);
+    ).toEqual([
+      "Overview",
+      "Projects",
+      "Workspace",
+      "Calendar",
+      "Members",
+      "Settings",
+    ]);
     expect(within(nav).queryByRole("button", { name: "Work Notes" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Workspace" })).toHaveAttribute(
       "href",
       "/workspace",
@@ -210,7 +257,7 @@ describe("AppSidebar navigation", () => {
     );
   });
 
-  it("hides Organization Members from navigation when the user lacks organization.memberships.read", () => {
+  it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
     currentUser.data = {
       ...currentUser.data,
       roles: ["MEMBER"],
@@ -225,6 +272,9 @@ describe("AppSidebar navigation", () => {
     ).toEqual(["Overview", "Projects", "Workspace", "Calendar"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("link", { name: "Settings" }),
     ).not.toBeInTheDocument();
   });
 
@@ -266,20 +316,27 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .some((link) => link.getAttribute("href")?.includes("/platform")),
+    ).toHaveLength === undefined;
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("/platform")),
     ).toBe(false);
   });
 
-  it("shows not-yet-routed features as disabled items instead of broken links", () => {
+  it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
     render(<AppSidebar />);
 
+    expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
     for (const label of [
       "Knowledge",
       "AI Search",
       "Handover",
       "Integrations",
-      "Settings",
     ]) {
-      expect(screen.getByRole("button", { name: label })).toBeDisabled();
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toBeDisabled();
+      expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
     }
   });
 

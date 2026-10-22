@@ -11,6 +11,8 @@ import {
   useRequestEmailRegistrationMutation,
   useCompletePasswordResetMutation,
 } from "./useAuth";
+import { authKeys } from "./auth.keys";
+import { useSelectOrganizationMutation } from "./useAccountOnboarding";
 
 vi.mock("@/lib/api-client", () => ({
   apiClient: vi.fn(),
@@ -163,5 +165,75 @@ describe("auth query hooks", () => {
         }),
       },
     );
+  });
+
+  it("updates currentUser cache in-place and clears tenant queries when switching organizations", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(authKeys.currentUser(), {
+      id: "user-1",
+      email: "admin@continuum.ai",
+      name: "Admin User",
+      context: "ORGANIZATION",
+      organizationId: "org-1",
+      roles: ["ADMIN"],
+    });
+    queryClient.setQueryData(
+      ["auth", "organizations"],
+      [
+        { id: "org-1", name: "DATN" },
+        { id: "org-2", name: "DATN Test" },
+      ],
+    );
+    queryClient.setQueryData(["projects", "org-1"], { data: [{ id: "p-1" }] });
+
+    mockedApiClient.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/select-organization") {
+        return {
+          user: {
+            id: "user-1",
+            email: "admin@continuum.ai",
+            name: "Admin User",
+            organizationId: "org-2",
+            roles: [],
+          },
+        };
+      }
+      if (endpoint === "/auth/me") {
+        return {
+          id: "user-1",
+          email: "admin@continuum.ai",
+          name: "Admin User",
+          organizationId: "org-2",
+          roles: [],
+        };
+      }
+      return [];
+    });
+
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useSelectOrganizationMutation(), {
+      wrapper,
+    });
+
+    await act(() => result.current.mutateAsync("org-2"));
+
+    expect(queryClient.getQueryData(authKeys.currentUser())).toEqual({
+      id: "user-1",
+      email: "admin@continuum.ai",
+      name: "Admin User",
+      context: "ORGANIZATION",
+      organizationId: "org-2",
+      roles: [],
+    });
+    expect(queryClient.getQueryData(["auth", "organizations"])).toEqual([
+      { id: "org-1", name: "DATN" },
+      { id: "org-2", name: "DATN Test" },
+    ]);
+    expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
   });
 });

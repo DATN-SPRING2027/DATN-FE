@@ -5,6 +5,8 @@ import {
   createIdempotencyKey,
   inviteOrganizationMember,
   listOrganizationMemberships,
+  removeOrganizationMembership,
+  resumeOrganizationMembership,
   setOrganizationMembershipRole,
   resendOrganizationInvitation,
   suspendOrganizationMembership,
@@ -181,5 +183,34 @@ describe("Organization membership API service", () => {
 
   it("creates idempotency keys accepted by the wire contract", () => {
     expect(createIdempotencyKey()).toMatch(/^[A-Za-z0-9._:-]{16,128}$/);
+  });
+
+  it("allows ACCESS_REQUEST, ACCESS_REVIEW, and SECURITY_INCIDENT for resume and remove", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    api.mockResolvedValue({
+      operationId: "5123456789abcdef01234567",
+      membership: {
+        id: membershipId,
+        organizationId: orgId,
+        userId: "2123456789abcdef01234567",
+        status: "REMOVED",
+        version: 4,
+      },
+    });
+    for (const reasonCode of ["ACCESS_REQUEST", "ACCESS_REVIEW", "SECURITY_INCIDENT"] as const) {
+      await removeOrganizationMembership(
+        orgId,
+        membershipId,
+        { expectedMembershipVersion: 3, reasonCode },
+        "0123456789abcdef",
+      );
+      await resumeOrganizationMembership(
+        orgId,
+        membershipId,
+        { expectedMembershipVersion: 3, reasonCode },
+        "0123456789abcdef",
+      );
+    }
+    expect(api).toHaveBeenCalledTimes(6);
   });
 });

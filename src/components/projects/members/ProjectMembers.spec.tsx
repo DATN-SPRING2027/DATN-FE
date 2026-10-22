@@ -41,6 +41,7 @@ vi.mock("@/icons", () =>
       "PlusIcon",
       "ArrowRightIcon",
       "SearchIcon",
+      "AlertIcon",
     ].map((name) => [name, () => null]),
   ),
 );
@@ -1050,4 +1051,83 @@ it("shows unverified role state and locks Remove when the Leader list returns 40
   fireEvent.click(screen.getByRole("button", { name: "View member user-1" }));
   const details = screen.getByRole("region", { name: "Membership details" });
   expect(within(details).getByText("Role unverified · Project scope")).toBeVisible();
+});
+
+it("opens the Add & Appoint Leader modal even when addModalOpen={false} is controlled by ProjectOverview, and recovers after a failed add attempt", async () => {
+  let addAttempts = 0;
+  let leaders: unknown[] = [];
+  const onOpenAdd = vi.fn();
+
+  api.mockImplementation(async (endpoint, options) => {
+    if (endpoint === "/auth/me") return { ...user, roles: ["ADMIN"] };
+    if (endpoint === "/iam/projects/project-1/leaders") {
+      if (options?.method === "POST") {
+        leaders = [
+          {
+            userId: "user-2",
+            fullName: "user-2",
+            email: "user-2@example.test",
+            avatarUrl: null,
+            role: "TEAM_LEADER",
+            status: "ACTIVE",
+          },
+        ];
+        return undefined;
+      }
+      return { data: leaders };
+    }
+    if (
+      endpoint === "/iam/projects/project-1/memberships" &&
+      options?.method === "POST"
+    ) {
+      addAttempts += 1;
+      if (addAttempts === 1) {
+        throw new ApiError(503, "UNAVAILABLE", "Temporary error");
+      }
+      return { ...member, id: "membership-2", userId: "user-2" };
+    }
+    return page([member]);
+  });
+
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  queryClient = client;
+  render(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
+        <ProjectMembers
+          projectId="project-1"
+          showAddButton={false}
+          addModalOpen={false}
+          onOpenAdd={onOpenAdd}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  await findMember("user-1");
+  const recoveryButton = await screen.findByRole("button", {
+    name: /Add & Appoint Leader/i,
+  });
+  fireEvent.click(recoveryButton);
+
+  expect(onOpenAdd).toHaveBeenCalledTimes(1);
+  expect(screen.getByRole("form", { name: "Add member" })).toBeVisible();
+
+  await selectCandidate("user-2");
+  fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
+
+  expect(
+    await screen.findByText("The server is unavailable. Try again later."),
+  ).toBeVisible();
+  expect(addAttempts).toBe(1);
+
+  fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
+
+  expect(
+    await screen.findByText("Member appointed as Project Leader."),
+  ).toBeVisible();
+  expect(addAttempts).toBe(2);
+
 });

@@ -162,15 +162,23 @@ export function useProjectLeaderActions(
   const client = useQueryClient();
   const path = projectPath(projectId);
   const onSuccess = async () => {
-    await client.invalidateQueries({
-      queryKey: projectLeaderKeys.scope(organizationId, projectId),
-    });
-    await client.invalidateQueries({
-      queryKey: ["project-leader-candidates", organizationId, projectId],
-    });
-    await client.invalidateQueries({
-      queryKey: projectMemberKeys.scope(organizationId, projectId),
-    });
+    await Promise.all([
+      client.invalidateQueries({
+        queryKey: projectLeaderKeys.scope(organizationId, projectId),
+      }),
+      client.invalidateQueries({
+        queryKey: ["project-leader-candidates", organizationId, projectId],
+      }),
+      client.invalidateQueries({
+        queryKey: projectMemberKeys.scope(organizationId, projectId),
+      }),
+      client.invalidateQueries({
+        queryKey: ["projects", organizationId],
+      }),
+      client.invalidateQueries({
+        queryKey: ["organization-overview"],
+      }),
+    ]);
   };
   return {
     assign: useMutation({
