@@ -233,6 +233,8 @@ export default function WorkListView({
     setActiveSubtaskPopoverId(null);
     setActiveMenuRowId(null);
     setActiveSubtaskMenuId(null);
+    setWorkHeaderMenuOpen(false);
+    setColumnPopoverOpen(false);
   }
 
   function toggleExpandRow(id: string) {
@@ -514,9 +516,11 @@ export default function WorkListView({
                         <div className="relative">
                           <button
                             type="button"
-                            onClick={() =>
-                              setWorkHeaderMenuOpen((prev) => !prev)
-                            }
+                            onClick={() => {
+                              const next = !workHeaderMenuOpen;
+                              closeAllCellPopovers();
+                              setWorkHeaderMenuOpen(next);
+                            }}
                             aria-label="More actions for Work column"
                             title="More actions for Work"
                             className="flex h-5 w-5 cursor-pointer items-center justify-center text-xs font-bold text-gray-500 transition hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-700 dark:hover:text-white"
@@ -595,7 +599,11 @@ export default function WorkListView({
                       )}
                       <button
                         type="button"
-                        onClick={() => setColumnPopoverOpen((prev) => !prev)}
+                        onClick={() => {
+                          const next = !columnPopoverOpen;
+                          closeAllCellPopovers();
+                          setColumnPopoverOpen(next);
+                        }}
                         title="Add or configure column"
                         className="flex h-5 w-5 cursor-pointer items-center justify-center text-xs font-bold text-gray-400 opacity-0 transition group-hover:opacity-100 hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                       >
@@ -624,7 +632,11 @@ export default function WorkListView({
               >
                 <button
                   type="button"
-                  onClick={() => setColumnPopoverOpen((prev) => !prev)}
+                  onClick={() => {
+                    const next = !columnPopoverOpen;
+                    closeAllCellPopovers();
+                    setColumnPopoverOpen(next);
+                  }}
                   title="Configure columns"
                   aria-label="Configure columns"
                   className={`inline-flex h-7 w-7 cursor-pointer items-center justify-center border text-xs transition ${
@@ -2711,13 +2723,25 @@ function FloatingCellPopover({
 }) {
   const anchorRef = useRef<HTMLSpanElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const onCloseRef = useRef(onClose);
   const [coords, setCoords] = useState<{
     top: number;
     left: number;
   }>({ top: 0, left: 0 });
 
   useEffect(() => {
-    function updatePosition() {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    function updatePosition(event?: Event) {
+      if (
+        event?.type === "scroll" &&
+        event.target instanceof Node &&
+        menuRef.current?.contains(event.target)
+      ) {
+        return;
+      }
       const anchor = anchorRef.current;
       if (!anchor) return;
       const triggerEl =
@@ -2748,13 +2772,15 @@ function FloatingCellPopover({
         Math.min(rawLeft, Math.max(8, viewportW - menuWidth - 8)),
       );
 
-      setCoords({ top, left });
+      setCoords((prev) =>
+        prev.top === top && prev.left === left ? prev : { top, left },
+      );
     }
 
     updatePosition();
     const rafId =
       typeof window !== "undefined"
-        ? window.requestAnimationFrame(updatePosition)
+        ? window.requestAnimationFrame(() => updatePosition())
         : null;
 
     function handlePointerDown(event: MouseEvent) {
@@ -2763,12 +2789,12 @@ function FloatingCellPopover({
       if (menuRef.current?.contains(target)) return;
       const triggerContainer = anchorRef.current?.parentElement;
       if (triggerContainer?.contains(target)) return;
-      onClose();
+      onCloseRef.current();
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        onClose();
+        onCloseRef.current();
       }
     }
 
@@ -2786,7 +2812,7 @@ function FloatingCellPopover({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [align, onClose]);
+  }, [align]);
 
   const menuNode = (
     <div
