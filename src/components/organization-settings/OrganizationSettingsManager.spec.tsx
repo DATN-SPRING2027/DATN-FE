@@ -19,7 +19,10 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/icons", () => ({
   ArrowRightIcon: () => null,
   CheckCircleIcon: () => null,
+  CheckLineIcon: () => null,
   ChevronDownIcon: () => null,
+  CopyIcon: () => null,
+  FolderIcon: () => null,
   InfoIcon: () => null,
   LockIcon: () => null,
   SettingsIcon: () => null,
@@ -142,6 +145,7 @@ describe("OrganizationSettingsManager", () => {
     expect(nameInput).toHaveValue("Continuum Engineering");
     expect(screen.getByText("@continuum-eng")).toBeVisible();
     expect(screen.getByText("ENTERPRISE")).toBeVisible();
+    expect(screen.getByText("012345…4567")).toBeVisible();
     expect(screen.getByText("Protected")).toBeVisible();
     expect(screen.getByText("You")).toBeVisible();
     expect(
@@ -177,5 +181,22 @@ describe("OrganizationSettingsManager", () => {
         expectedUpdatedAt: "2026-01-02T00:00:00.000Z",
       });
     });
+
+    // Switch across the 4 MVP governance tabs
+    fireEvent.click(screen.getByRole("tab", { name: "Member Access" }));
+    expect(screen.getByText("Roles & Membership Policies")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "Invitations" }),
+    ).toHaveAttribute("href", "/organization/invitations");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Project Governance" }));
+    expect(screen.getByText("Project Governance Policies")).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: /Open Projects Directory/i }),
+    ).toHaveAttribute("href", "/projects");
+
+    fireEvent.click(screen.getByRole("tab", { name: "Security & Audit" }));
+    expect(screen.getByText("Access & Security Controls")).toBeVisible();
+    expect(screen.getByText("Audit & Compliance Coverage")).toBeVisible();
   });
 });
