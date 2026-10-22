@@ -57,22 +57,57 @@ export const projectKeys = {
   detail: (organizationId: string, id: string) =>
     ["projects", organizationId, "detail", id] as const,
 };
-export function useProjectsQuery(
-  organizationId: string,
+
+const MAX_PROJECT_LIST_PAGES = 10;
+
+async function fetchProjectsPage(
   input: ProjectListInput,
-) {
+  signal?: AbortSignal,
+): Promise<ProjectList> {
   const params = new URLSearchParams({
     page: String(input.page),
     pageSize: String(input.pageSize),
   });
   if (input.status) params.set("status", input.status);
+  return apiClient<ProjectList>(`/iam/projects?${params}`, {
+    signal,
+    cache: "no-store",
+  });
+}
+
+export function useProjectsQuery(
+  organizationId: string,
+  input: ProjectListInput,
+) {
   return useQuery({
     queryKey: projectKeys.list(organizationId, input),
-    queryFn: ({ signal }) =>
-      apiClient<ProjectList>(`/iam/projects?${params}`, {
-        signal,
-        cache: "no-store",
-      }),
+    queryFn: async ({ signal }) => {
+      const firstPage = await fetchProjectsPage(input, signal);
+      const totalPages = firstPage.pagination?.totalPages ?? 1;
+      if (input.page !== 1 || totalPages <= 1 || input.pageSize < 100) {
+        return firstPage;
+      }
+      const seenIds = new Set<string>(firstPage.data.map((p) => p.id));
+      const merged: Project[] = [...firstPage.data];
+      const maxPage = Math.min(totalPages, MAX_PROJECT_LIST_PAGES);
+      for (let page = 2; page <= maxPage; page += 1) {
+        if (signal?.aborted) break;
+        const nextPage = await fetchProjectsPage(
+          { ...input, page },
+          signal,
+        );
+        for (const project of nextPage.data) {
+          if (!seenIds.has(project.id)) {
+            seenIds.add(project.id);
+            merged.push(project);
+          }
+        }
+      }
+      return {
+        data: merged,
+        pagination: firstPage.pagination,
+      };
+    },
     enabled: Boolean(organizationId),
     retry: false,
     staleTime: 0,

@@ -108,4 +108,81 @@ describe("Workspace Task API client (useTasks)", () => {
       "/tasks/organization/task-summary?limit=50&cursor=cursor-token",
     );
   });
+
+  it("drains multiple pages of project tasks via nextAfterId so subtasks beyond page 1 are preserved", async () => {
+    const projectId = "65f000000000000000000010";
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementationOnce(
+        async () =>
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "65f000000000000000000001",
+                  projectId,
+                  key: "CNTM-1",
+                  title: "Parent task page 1",
+                  type: "TASK",
+                  status: "TODO",
+                  priority: "HIGH",
+                  assigneeId: null,
+                  createdBy: "65f000000000000000000099",
+                  parentId: null,
+                  sprintId: null,
+                  labels: [],
+                  subtaskCounts: { total: 1, done: 0 },
+                  dueDate: null,
+                  startDate: null,
+                  createdAt: "2026-10-22T00:00:00.000Z",
+                  updatedAt: "2026-10-22T00:00:00.000Z",
+                  version: 1,
+                },
+              ],
+              nextAfterId: "65f000000000000000000001",
+              nextCursor: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      )
+      .mockImplementationOnce(
+        async () =>
+          new Response(
+            JSON.stringify({
+              items: [
+                {
+                  id: "65f000000000000000000002",
+                  projectId,
+                  key: "CNTM-2",
+                  title: "Subtask on page 2",
+                  type: "TASK",
+                  status: "TODO",
+                  priority: "MEDIUM",
+                  assigneeId: null,
+                  createdBy: "65f000000000000000000099",
+                  parentId: "65f000000000000000000001",
+                  sprintId: null,
+                  labels: [],
+                  subtaskCounts: { total: 0, done: 0 },
+                  dueDate: null,
+                  startDate: null,
+                  createdAt: "2026-10-22T00:00:00.000Z",
+                  updatedAt: "2026-10-22T00:00:00.000Z",
+                  version: 1,
+                },
+              ],
+              nextAfterId: null,
+              nextCursor: null,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+      );
+
+    const res = await fetchProjectTasks(projectId);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1]?.[0])).toContain(
+      "afterId=65f000000000000000000001",
+    );
+    expect(res.items.map((item) => item.key)).toEqual(["CNTM-1", "CNTM-2"]);
+  });
 });

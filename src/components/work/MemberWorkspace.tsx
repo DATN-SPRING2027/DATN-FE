@@ -26,7 +26,7 @@ export default function MemberWorkspace({
   const organizationId = user.data?.organizationId ?? "";
   const projects = useProjectsQuery(organizationId, {
     page: 1,
-    pageSize: 20,
+    pageSize: 100,
     status: "ACTIVE",
   });
   const [selectedProjectId, setSelectedProjectId] = useState<

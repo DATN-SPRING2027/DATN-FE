@@ -56,7 +56,7 @@ const AppSidebar: React.FC = () => {
   )?.name;
   const projectsQuery = useProjectsQuery(organizationId ?? "", {
     page: 1,
-    pageSize: 20,
+    pageSize: 100,
     status: "ACTIVE",
   });
   const sidebarProjects = projectsQuery.data?.data ?? [];

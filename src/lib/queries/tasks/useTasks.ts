@@ -302,7 +302,9 @@ export function formatSprintIfMatch(sprintId: string, version: number): string {
   return `"sprint:${sprintId}:${version}"`;
 }
 
-export async function fetchProjectTasks(
+const MAX_PROJECT_TASK_PAGES = 20;
+
+export async function fetchProjectTasksPage(
   projectId: string,
   params?: Record<string, string>,
   signal?: AbortSignal,
@@ -315,6 +317,64 @@ export async function fetchProjectTasks(
       cache: "no-store",
     },
   );
+}
+
+export async function fetchProjectTasks(
+  projectId: string,
+  params?: Record<string, string>,
+  signal?: AbortSignal,
+): Promise<BackendTaskListResponse> {
+  const hasExplicitCursor = Boolean(params?.afterId || params?.cursor);
+  const firstPage = await fetchProjectTasksPage(projectId, params, signal);
+  if (
+    hasExplicitCursor ||
+    (!firstPage.nextAfterId && !firstPage.nextCursor)
+  ) {
+    return firstPage;
+  }
+
+  const seenIds = new Set<string>(firstPage.items.map((item) => item.id));
+  const mergedItems: BackendTask[] = [...firstPage.items];
+  let nextAfterId = firstPage.nextAfterId;
+  let nextCursor = firstPage.nextCursor;
+
+  for (let page = 1; page < MAX_PROJECT_TASK_PAGES; page += 1) {
+    if (signal?.aborted || (!nextAfterId && !nextCursor)) {
+      break;
+    }
+    const nextParams: Record<string, string> = { ...(params ?? {}) };
+    if (nextCursor) {
+      nextParams.cursor = nextCursor;
+      delete nextParams.afterId;
+    } else if (nextAfterId) {
+      nextParams.afterId = nextAfterId;
+      delete nextParams.cursor;
+    }
+    const currentPage = await fetchProjectTasksPage(
+      projectId,
+      nextParams,
+      signal,
+    );
+    let addedCount = 0;
+    for (const item of currentPage.items) {
+      if (!seenIds.has(item.id)) {
+        seenIds.add(item.id);
+        mergedItems.push(item);
+        addedCount += 1;
+      }
+    }
+    nextAfterId = currentPage.nextAfterId;
+    nextCursor = currentPage.nextCursor;
+    if (addedCount === 0 || (!nextAfterId && !nextCursor)) {
+      break;
+    }
+  }
+
+  return {
+    items: mergedItems,
+    nextAfterId,
+    nextCursor,
+  };
 }
 
 export async function fetchProjectTaskDetail(

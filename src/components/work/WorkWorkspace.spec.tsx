@@ -534,4 +534,132 @@ describe("WorkWorkspace project scope", () => {
       ),
     ).not.toBeInTheDocument();
   });
+
+  it("persists bulk status updates and rolls back optimistic UI when a backend mutation fails", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const realTaskId = "69e923c77859fd1c702d4ca1";
+    let shouldFailTransition = false;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Anh",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "AI Knowledge Engine",
+          code: "AIKE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}/transitions` &&
+        init?.method === "POST"
+      ) {
+        if (shouldFailTransition) {
+          throw new Error("STALE_TASK_VERSION");
+        }
+        return {
+          id: realTaskId,
+          projectId: realProjectId,
+          key: "AIKE-1",
+          title: "Build hybrid vector search index for AIKE",
+          description: null,
+          type: "TASK",
+          status: "IN_REVIEW",
+          priority: "HIGH",
+          assigneeId: "69e923c77859fd1c702d4c10",
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-20T00:00:00.000Z",
+          updatedAt: "2026-10-20T00:00:00.000Z",
+          version: 2,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "AIKE-1",
+              title: "Build hybrid vector search index for AIKE",
+              type: "TASK",
+              status: "IN_PROGRESS",
+              priority: "HIGH",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    expect(
+      await screen.findByText("Build hybrid vector search index for AIKE"),
+    ).toBeVisible();
+
+    // Select AIKE-1 and trigger bulk status update -> DONE
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Select work item AIKE-1/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Mark as Done/i }));
+
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith(
+        `/tasks/projects/${realProjectId}/tasks/${realTaskId}/transitions`,
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+    });
+
+    // Now simulate a failed bulk delete -> should rollback item into the list
+    shouldFailTransition = true;
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Select work item AIKE-1/i,
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /✕ Delete/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Build hybrid vector search index for AIKE"),
+      ).toBeVisible();
+    });
+  });
 });

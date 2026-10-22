@@ -152,6 +152,136 @@ export default function WorkWorkspace({
   const detailWasOpenRef = useRef(false);
   const tasksQuery = useProjectTasksQuery(projectId);
   const taskVersionsRef = useRef<Map<string, number>>(new Map());
+  const pendingIdPromisesRef = useRef<Map<string, Promise<string | null>>>(
+    new Map(),
+  );
+  const resolvedIdsRef = useRef<Map<string, string>>(new Map());
+  const taskMutationQueuesRef = useRef<Map<string, Promise<void>>>(new Map());
+
+  async function resolveBackendTaskId(rawId: string): Promise<string | null> {
+    if (OBJECT_ID_PATTERN.test(rawId)) return rawId;
+    const mapped = resolvedIdsRef.current.get(rawId);
+    if (mapped) return mapped;
+    const pending = pendingIdPromisesRef.current.get(rawId);
+    if (pending) return pending;
+    return null;
+  }
+
+  function enqueueTaskMutation(
+    rawId: string,
+    operation: (realId: string, version: number) => Promise<number | void>,
+    onRollback?: () => void,
+  ) {
+    if (!isRealProject) return;
+    void (async () => {
+      const realId = await resolveBackendTaskId(rawId);
+      if (!realId) {
+        onRollback?.();
+        return;
+      }
+      const prevTaskPromise =
+        taskMutationQueuesRef.current.get(realId) ?? Promise.resolve();
+      const nextTaskPromise = prevTaskPromise
+        .catch(() => undefined)
+        .then(async () => {
+          try {
+            const currentVersion = taskVersionsRef.current.get(realId) ?? 1;
+            const updatedVersion = await operation(realId, currentVersion);
+            if (typeof updatedVersion === "number") {
+              taskVersionsRef.current.set(realId, updatedVersion);
+            }
+          } catch {
+            onRollback?.();
+            void tasksQuery.refetch();
+            setAnnouncement("Unable to save changes. Restored latest state.");
+          }
+        });
+      taskMutationQueuesRef.current.set(realId, nextTaskPromise);
+    })();
+  }
+
+  async function performBackendStatusTransition(
+    realId: string,
+    version: number,
+    fromStatus: WorkStatus,
+    toStatus: WorkStatus | "CANCELLED",
+  ): Promise<number> {
+    if (toStatus === "CANCELLED") {
+      let currentVer = version;
+      let currentFrom: BackendTaskStatus = fromStatus;
+      if (fromStatus === "DONE") {
+        const reopened = await transitionProjectTaskApi(
+          projectId,
+          realId,
+          currentVer,
+          {
+            fromStatus: "DONE",
+            toStatus: "IN_PROGRESS",
+            reason: "Reopened before cancellation",
+          },
+        );
+        currentVer = reopened.version;
+        currentFrom = "IN_PROGRESS";
+      }
+      const cancelled = await transitionProjectTaskApi(
+        projectId,
+        realId,
+        currentVer,
+        {
+          fromStatus: currentFrom,
+          toStatus: "CANCELLED",
+          reason: "Cancelled from workspace UI",
+        },
+      );
+      return cancelled.version;
+    }
+
+    if (fromStatus === toStatus) return version;
+
+    if (fromStatus === "TODO" && toStatus === "DONE") {
+      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
+        fromStatus: "TODO",
+        toStatus: "IN_PROGRESS",
+      });
+      const tr2 = await transitionProjectTaskApi(
+        projectId,
+        realId,
+        tr1.version,
+        {
+          fromStatus: "IN_PROGRESS",
+          toStatus: "DONE",
+        },
+      );
+      return tr2.version;
+    }
+
+    if (fromStatus === "DONE" && toStatus !== "IN_PROGRESS") {
+      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
+        fromStatus: "DONE",
+        toStatus: "IN_PROGRESS",
+        reason: "Reopened from workspace UI",
+      });
+      const tr2 = await transitionProjectTaskApi(
+        projectId,
+        realId,
+        tr1.version,
+        {
+          fromStatus: "IN_PROGRESS",
+          toStatus,
+        },
+      );
+      return tr2.version;
+    }
+
+    const tr = await transitionProjectTaskApi(projectId, realId, version, {
+      fromStatus,
+      toStatus,
+      ...(fromStatus === "DONE"
+        ? { reason: "Reopened from workspace UI" }
+        : {}),
+    });
+    return tr.version;
+  }
 
   useEffect(() => {
     if (!isRealProject || !tasksQuery.data) return;
@@ -481,27 +611,37 @@ export default function WorkWorkspace({
   }
 
   function deleteSingleItem(id: string) {
+    const previousItems = items;
+    const previousSelected = new Set(selectedIds);
     const existing = items.find((item) => item.id === id);
+    const fromStatus = existing?.status ?? "TODO";
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => {
       const next = new Set(current);
       next.delete(id);
       return next;
     });
-    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
-      const version = taskVersionsRef.current.get(id) ?? 1;
-      const fromStatus = existing?.status ?? "TODO";
-      void transitionProjectTaskApi(projectId, id, version, {
-        fromStatus: fromStatus === "DONE" ? "IN_PROGRESS" : fromStatus,
-        toStatus: "CANCELLED",
-        reason: "Cancelled from workspace UI",
-      }).catch(() => undefined);
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        (realId, version) =>
+          performBackendStatusTransition(
+            realId,
+            version,
+            fromStatus,
+            "CANCELLED",
+          ),
+        () => {
+          setItems(previousItems);
+          setSelectedIds(previousSelected);
+        },
+      );
     }
   }
 
   function addPreviewItem(input: CreatePreviewWorkItem) {
     const targetStatus = input.status ?? "TODO";
-    const tempId = `preview-${Date.now()}`;
+    const tempId = `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setItems((current) => {
       const sequence =
         current.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
@@ -529,7 +669,7 @@ export default function WorkWorkspace({
     setCreateOpen(false);
 
     if (isRealProject) {
-      void (async () => {
+      const creationPromise = (async (): Promise<string | null> => {
         try {
           const created = await createProjectTaskApi(projectId, {
             title: input.title,
@@ -543,34 +683,14 @@ export default function WorkWorkspace({
               ? new Date(input.dueDate).toISOString()
               : null,
           });
-          let finalVersion = created.version;
-          if (targetStatus !== "TODO") {
-            const stepStatus =
-              targetStatus === "DONE" ? "IN_PROGRESS" : targetStatus;
-            const tr1 = await transitionProjectTaskApi(
-              projectId,
-              created.id,
-              finalVersion,
-              {
-                fromStatus: "TODO",
-                toStatus: stepStatus,
-              },
-            );
-            finalVersion = tr1.version;
-            if (targetStatus === "DONE") {
-              const tr2 = await transitionProjectTaskApi(
-                projectId,
-                created.id,
-                finalVersion,
-                {
-                  fromStatus: "IN_PROGRESS",
-                  toStatus: "DONE",
-                },
-              );
-              finalVersion = tr2.version;
-            }
-          }
+          const finalVersion = await performBackendStatusTransition(
+            created.id,
+            created.version,
+            "TODO",
+            targetStatus,
+          );
           taskVersionsRef.current.set(created.id, finalVersion);
+          resolvedIdsRef.current.set(tempId, created.id);
           setItems((current) =>
             current.map((item) =>
               item.id === tempId
@@ -582,16 +702,37 @@ export default function WorkWorkspace({
                 : item,
             ),
           );
+          setSelectedIds((current) => {
+            if (!current.has(tempId)) return current;
+            const next = new Set(current);
+            next.delete(tempId);
+            next.add(created.id);
+            return next;
+          });
+          setActiveWorkItemId((current) =>
+            current === tempId ? created.id : current,
+          );
+          setFullPageWorkItemId((current) =>
+            current === tempId ? created.id : current,
+          );
+          return created.id;
         } catch {
-          // Preserve optimistic UI item
+          setItems((current) => current.filter((item) => item.id !== tempId));
+          void tasksQuery.refetch();
+          setAnnouncement("Unable to create work item. Changes reverted.");
+          return null;
+        } finally {
+          pendingIdPromisesRef.current.delete(tempId);
         }
       })();
+      pendingIdPromisesRef.current.set(tempId, creationPromise);
     }
   }
 
   function updateItemStatus(id: string, nextStatus: WorkStatus) {
     const existing = items.find((item) => item.id === id);
     const prevStatus = existing?.status ?? "TODO";
+    if (prevStatus === nextStatus) return;
     setItems((current) =>
       current.map((item) =>
         item.id === id
@@ -603,101 +744,118 @@ export default function WorkWorkspace({
           : item,
       ),
     );
-    if (
-      isRealProject &&
-      OBJECT_ID_PATTERN.test(id) &&
-      prevStatus !== nextStatus
-    ) {
-      const version = taskVersionsRef.current.get(id) ?? 1;
-      void (async () => {
-        try {
-          if (prevStatus === "TODO" && nextStatus === "DONE") {
-            const tr1 = await transitionProjectTaskApi(projectId, id, version, {
-              fromStatus: "TODO",
-              toStatus: "IN_PROGRESS",
-            });
-            const tr2 = await transitionProjectTaskApi(
-              projectId,
-              id,
-              tr1.version,
-              {
-                fromStatus: "IN_PROGRESS",
-                toStatus: "DONE",
-              },
-            );
-            taskVersionsRef.current.set(id, tr2.version);
-          } else if (prevStatus === "DONE" && nextStatus !== "IN_PROGRESS") {
-            const tr1 = await transitionProjectTaskApi(projectId, id, version, {
-              fromStatus: "DONE",
-              toStatus: "IN_PROGRESS",
-              reason: "Reopened from workspace UI",
-            });
-            const tr2 = await transitionProjectTaskApi(
-              projectId,
-              id,
-              tr1.version,
-              {
-                fromStatus: "IN_PROGRESS",
-                toStatus: nextStatus,
-              },
-            );
-            taskVersionsRef.current.set(id, tr2.version);
-          } else {
-            const tr = await transitionProjectTaskApi(projectId, id, version, {
-              fromStatus: prevStatus,
-              toStatus: nextStatus,
-              ...(prevStatus === "DONE"
-                ? { reason: "Reopened from workspace UI" }
-                : {}),
-            });
-            taskVersionsRef.current.set(id, tr.version);
-          }
-        } catch {
-          // Keep optimistic state
-        }
-      })();
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        (realId, version) =>
+          performBackendStatusTransition(
+            realId,
+            version,
+            prevStatus,
+            nextStatus,
+          ),
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? {
+                    ...item,
+                    status: prevStatus,
+                    resolution:
+                      prevStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
+                  }
+                : item,
+            ),
+          );
+        },
+      );
     }
   }
 
   function updateItemPriority(id: string, nextPriority: WorkPriority) {
+    const existing = items.find((item) => item.id === id);
+    const prevPriority = existing?.priority ?? "MEDIUM";
+    if (prevPriority === nextPriority) return;
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, priority: nextPriority } : item,
       ),
     );
-    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
-      const version = taskVersionsRef.current.get(id) ?? 1;
-      void updateProjectTaskApi(projectId, id, version, {
-        priority: nextPriority,
-      })
-        .then((updated) => {
-          taskVersionsRef.current.set(id, updated.version);
-        })
-        .catch(() => undefined);
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              priority: nextPriority,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, priority: prevPriority }
+                : item,
+            ),
+          );
+        },
+      );
     }
   }
 
   function updateItemAssignee(id: string, nextAssignee: WorkPerson) {
+    const existing = items.find((item) => item.id === id);
+    const prevAssignee = existing?.assignee ?? PREVIEW_PEOPLE[0];
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, assignee: nextAssignee } : item,
       ),
     );
-    if (isRealProject && OBJECT_ID_PATTERN.test(id)) {
-      const version = taskVersionsRef.current.get(id) ?? 1;
-      void updateProjectTaskApi(projectId, id, version, {
-        assigneeId: OBJECT_ID_PATTERN.test(nextAssignee.id)
-          ? nextAssignee.id
-          : null,
-      })
-        .then((updated) => {
-          taskVersionsRef.current.set(id, updated.version);
-        })
-        .catch(() => undefined);
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              assigneeId: OBJECT_ID_PATTERN.test(nextAssignee.id)
+                ? nextAssignee.id
+                : null,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, assignee: prevAssignee }
+                : item,
+            ),
+          );
+        },
+      );
     }
   }
 
   function toggleSubtask(itemId: string, subtaskId: string) {
+    const previousItems = items;
+    const parentItem = items.find((item) => item.id === itemId);
+    const targetSub = parentItem?.subtaskItems?.find(
+      (sub) => sub.id === subtaskId,
+    );
+    if (!targetSub) return;
+    const prevStatus = targetSub.status;
+    const nextDone = !targetSub.done;
+    const nextStatus: WorkStatus = nextDone ? "DONE" : "TODO";
+
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId || !item.subtaskItems) return item;
@@ -705,8 +863,8 @@ export default function WorkWorkspace({
           sub.id === subtaskId
             ? {
                 ...sub,
-                done: !sub.done,
-                status: (!sub.done ?"DONE":"TODO") as WorkStatus,
+                done: nextDone,
+                status: nextStatus,
               }
             : sub,
         );
@@ -718,6 +876,22 @@ export default function WorkWorkspace({
         };
       }),
     );
+
+    if (isRealProject) {
+      enqueueTaskMutation(
+        subtaskId,
+        (realSubId, version) =>
+          performBackendStatusTransition(
+            realSubId,
+            version,
+            prevStatus,
+            nextStatus,
+          ),
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
   }
 
   function addSubtask(
@@ -732,14 +906,15 @@ export default function WorkWorkspace({
       estimate?: string;
     },
   ) {
+    const tempSubId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const nextStatus = options?.status ?? ("TODO" as WorkStatus);
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId) return item;
         const existing = item.subtaskItems ?? [];
         const nextIdx = existing.length + 1;
-        const nextStatus = options?.status ?? ("TODO" as WorkStatus);
         const newSub: WorkSubtaskItem = {
-          id: `${item.key}.${nextIdx}-${Date.now()}`,
+          id: tempSubId,
           key: `${item.key}.${nextIdx}`,
           summary,
           done: nextStatus === "DONE",
@@ -773,17 +948,81 @@ export default function WorkWorkspace({
         };
       }),
     );
-    if (isRealProject && OBJECT_ID_PATTERN.test(itemId)) {
-      void createProjectTaskApi(projectId, {
-        title: summary,
-        parentId: itemId,
-        priority: options?.priority ?? "MEDIUM",
-        description: options?.description ?? null,
-      })
-        .then((createdSub) => {
-          taskVersionsRef.current.set(createdSub.id, createdSub.version);
-        })
-        .catch(() => undefined);
+    if (isRealProject) {
+      const subCreationPromise = (async (): Promise<string | null> => {
+        try {
+          const realParentId = await resolveBackendTaskId(itemId);
+          if (!realParentId) {
+            throw new Error("Parent task not persisted");
+          }
+          const createdSub = await createProjectTaskApi(projectId, {
+            title: summary,
+            parentId: realParentId,
+            priority: options?.priority ?? "MEDIUM",
+            description: options?.description ?? null,
+            assigneeId:
+              options?.assignee && OBJECT_ID_PATTERN.test(options.assignee.id)
+                ? options.assignee.id
+                : null,
+            dueDate: options?.dueDate
+              ? new Date(options.dueDate).toISOString()
+              : null,
+          });
+          const finalSubVersion = await performBackendStatusTransition(
+            createdSub.id,
+            createdSub.version,
+            "TODO",
+            nextStatus,
+          );
+          taskVersionsRef.current.set(createdSub.id, finalSubVersion);
+          resolvedIdsRef.current.set(tempSubId, createdSub.id);
+          setItems((current) =>
+            current.map((item) => {
+              if (item.id !== itemId && item.id !== realParentId) return item;
+              const nextSubtasks = (item.subtaskItems ?? []).map((sub) =>
+                sub.id === tempSubId
+                  ? {
+                      ...sub,
+                      id: createdSub.id,
+                      key: createdSub.key,
+                    }
+                  : sub,
+              );
+              return {
+                ...item,
+                subtaskItems: nextSubtasks,
+              };
+            }),
+          );
+          return createdSub.id;
+        } catch {
+          setItems((current) =>
+            current.map((item) => {
+              if (
+                item.id !== itemId &&
+                item.id !== resolvedIdsRef.current.get(itemId)
+              ) {
+                return item;
+              }
+              const nextSubtasks = (item.subtaskItems ?? []).filter(
+                (sub) => sub.id !== tempSubId,
+              );
+              const completed = nextSubtasks.filter((sub) => sub.done).length;
+              return {
+                ...item,
+                subtaskItems: nextSubtasks,
+                subtasks: { completed, total: nextSubtasks.length },
+              };
+            }),
+          );
+          void tasksQuery.refetch();
+          setAnnouncement("Unable to create subtask. Changes reverted.");
+          return null;
+        } finally {
+          pendingIdPromisesRef.current.delete(tempSubId);
+        }
+      })();
+      pendingIdPromisesRef.current.set(tempSubId, subCreationPromise);
     }
   }
 
@@ -792,18 +1031,27 @@ export default function WorkWorkspace({
     subtaskId: string,
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) {
+    const previousItems = items;
+    const parentItem = items.find((item) => item.id === itemId);
+    const existingSub = parentItem?.subtaskItems?.find(
+      (sub) => sub.id === subtaskId,
+    );
+    const prevStatus = existingSub?.status ?? "TODO";
+    const nextStatus: WorkStatus =
+      patch.status !== undefined
+        ? patch.status
+        : patch.done !== undefined
+          ? patch.done
+            ? "DONE"
+            : "TODO"
+          : prevStatus;
+    const nextDone = nextStatus === "DONE";
+
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId || !item.subtaskItems) return item;
         const nextSubtasks = item.subtaskItems.map((sub) => {
           if (sub.id !== subtaskId) return sub;
-          const nextStatus = patch.status ?? sub.status;
-          const nextDone =
-            patch.status !== undefined
-              ? nextStatus === "DONE"
-              : patch.done !== undefined
-                ? patch.done
-                : sub.done;
           return {
             ...sub,
             ...patch,
@@ -820,9 +1068,89 @@ export default function WorkWorkspace({
         };
       }),
     );
+
+    if (isRealProject && existingSub) {
+      const hasFieldPatch =
+        patch.summary !== undefined ||
+        patch.priority !== undefined ||
+        patch.assignee !== undefined ||
+        patch.dueDate !== undefined ||
+        patch.startDate !== undefined ||
+        patch.description !== undefined ||
+        patch.labels !== undefined ||
+        patch.steps !== undefined;
+
+      enqueueTaskMutation(
+        subtaskId,
+        async (realSubId, version) => {
+          let currentVersion = version;
+          if (prevStatus !== nextStatus) {
+            currentVersion = await performBackendStatusTransition(
+              realSubId,
+              currentVersion,
+              prevStatus,
+              nextStatus,
+            );
+          }
+          if (hasFieldPatch) {
+            const updated = await updateProjectTaskApi(
+              projectId,
+              realSubId,
+              currentVersion,
+              {
+                ...(patch.summary !== undefined
+                  ? { title: patch.summary }
+                  : {}),
+                ...(patch.priority !== undefined
+                  ? { priority: patch.priority }
+                  : {}),
+                ...(patch.assignee !== undefined
+                  ? {
+                      assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
+                        ? patch.assignee.id
+                        : null,
+                    }
+                  : {}),
+                ...(patch.dueDate !== undefined
+                  ? {
+                      dueDate: patch.dueDate
+                        ? new Date(patch.dueDate).toISOString()
+                        : null,
+                    }
+                  : {}),
+                ...(patch.startDate !== undefined
+                  ? {
+                      startDate: patch.startDate
+                        ? new Date(patch.startDate).toISOString()
+                        : null,
+                    }
+                  : {}),
+                ...(patch.description !== undefined
+                  ? { description: patch.description ?? null }
+                  : {}),
+                ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
+                ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
+              },
+            );
+            currentVersion = updated.version;
+          }
+          return currentVersion;
+        },
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
   }
 
   function deleteSubtask(itemId: string, subtaskId: string) {
+    const previousItems = items;
+    const parentItem = items.find((item) => item.id === itemId);
+    const existingSub = parentItem?.subtaskItems?.find(
+      (sub) => sub.id === subtaskId,
+    );
+    const prevStatus = existingSub?.status ?? "TODO";
+
     if (activeSubtaskId === subtaskId) {
       setActiveSubtaskId(null);
     }
@@ -840,21 +1168,52 @@ export default function WorkWorkspace({
         };
       }),
     );
+
+    if (isRealProject && existingSub) {
+      enqueueTaskMutation(
+        subtaskId,
+        (realSubId, version) =>
+          performBackendStatusTransition(
+            realSubId,
+            version,
+            prevStatus,
+            "CANCELLED",
+          ),
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
   }
 
   function cloneSubtask(itemId: string, subtaskId: string) {
+    const parentItem = items.find((item) => item.id === itemId);
+    const source = parentItem?.subtaskItems?.find((s) => s.id === subtaskId);
+    if (!parentItem || !source) return;
+    if (isRealProject) {
+      addSubtask(itemId, `${source.summary} (Copy)`, {
+        assignee: source.assignee,
+        priority: source.priority,
+        status: source.status,
+        dueDate: source.dueDate,
+        description: source.description,
+        estimate: source.estimate,
+      });
+      setAnnouncement("Cloned subtask.");
+      return;
+    }
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId || !item.subtaskItems) return item;
         const idx = item.subtaskItems.findIndex((s) => s.id === subtaskId);
         if (idx < 0) return item;
-        const source = item.subtaskItems[idx];
+        const src = item.subtaskItems[idx];
         const nextNum = item.subtaskItems.length + 1;
         const cloned: WorkSubtaskItem = {
-          ...source,
+          ...src,
           id: `${item.key}.${nextNum}-${Date.now()}`,
           key: `${item.key}.${nextNum}`,
-          summary: `${source.summary} (Copy)`,
+          summary: `${src.summary} (Copy)`,
           createdAt: new Date().toISOString(),
         };
         const nextSubtasks = [
@@ -897,41 +1256,45 @@ export default function WorkWorkspace({
   }
 
   function convertSubtaskToTask(itemId: string, subtaskId: string) {
-    let createdTaskId: string | null = null;
+    const previousItems = items;
+    const parentItem = items.find((i) => i.id === itemId);
+    const sourceSub = parentItem?.subtaskItems?.find((s) => s.id === subtaskId);
+    if (!parentItem || !sourceSub) return;
+
+    const promotedTaskId = isRealProject
+      ? subtaskId
+      : `promoted-${Date.now()}`;
+
     setItems((current) => {
-      const parentItem = current.find((i) => i.id === itemId);
-      const sourceSub = parentItem?.subtaskItems?.find(
-        (s) => s.id === subtaskId,
-      );
-      if (!parentItem || !sourceSub) return current;
+      const pItem = current.find((i) => i.id === itemId);
+      const sSub = pItem?.subtaskItems?.find((s) => s.id === subtaskId);
+      if (!pItem || !sSub) return current;
 
       const nextSeq = 146 + current.length;
-      const newTaskId = `promoted-${Date.now()}`;
-      createdTaskId = newTaskId;
       const promotedItem: WorkItem = {
-        id: newTaskId,
-        key: `${projectCode || "KNW"}-${nextSeq}`,
-        title: sourceSub.summary,
+        id: promotedTaskId,
+        key: isRealProject ? sSub.key : `${projectCode || "KNW"}-${nextSeq}`,
+        title: sSub.summary,
         type: "TASK",
-        assignee: sourceSub.assignee ?? parentItem.assignee,
-        reporter: sourceSub.reporter ?? parentItem.reporter,
-        priority: sourceSub.priority ?? parentItem.priority,
-        status: sourceSub.status,
-        resolution: sourceSub.done ? "RESOLVED" : "UNRESOLVED",
-        createdAt: sourceSub.createdAt ?? new Date().toISOString(),
-        dueDate: sourceSub.dueDate ?? parentItem.dueDate,
+        assignee: sSub.assignee ?? pItem.assignee,
+        reporter: sSub.reporter ?? pItem.reporter,
+        priority: sSub.priority ?? pItem.priority,
+        status: sSub.status,
+        resolution: sSub.done ? "RESOLVED" : "UNRESOLVED",
+        createdAt: sSub.createdAt ?? new Date().toISOString(),
+        dueDate: sSub.dueDate ?? pItem.dueDate,
         projectName,
         description:
-          sourceSub.description ??
-          `Promoted from subtask ${sourceSub.key} of parent work item ${parentItem.key}.`,
-        parent: parentItem.parent ?? {
-          key: parentItem.key,
-          summary: parentItem.title,
+          sSub.description ??
+          `Promoted from subtask ${sSub.key} of parent work item ${pItem.key}.`,
+        parent: pItem.parent ?? {
+          key: pItem.key,
+          summary: pItem.title,
         },
-        labels: sourceSub.labels ?? parentItem.labels,
+        labels: sSub.labels ?? pItem.labels,
         subtasks: { completed: 0, total: 0 },
         subtaskItems: [],
-        comments: sourceSub.comments ?? [],
+        comments: sSub.comments ?? [],
       };
 
       const updatedList = current.map((item) => {
@@ -949,11 +1312,27 @@ export default function WorkWorkspace({
     });
     if (activeSubtaskId === subtaskId) {
       setActiveSubtaskId(null);
-      if (createdTaskId) {
-        setActiveWorkItemId(createdTaskId);
-      }
+      setActiveWorkItemId(promotedTaskId);
     }
     setAnnouncement("Converted subtask to standalone Task.");
+
+    if (isRealProject) {
+      enqueueTaskMutation(
+        subtaskId,
+        async (realSubId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realSubId,
+            version,
+            { parentId: null },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
   }
 
   function moveSubtaskToParent(
@@ -962,6 +1341,7 @@ export default function WorkWorkspace({
     toItemId: string,
   ) {
     if (fromItemId === toItemId) return;
+    const previousItems = items;
     setItems((current) => {
       const fromItem = current.find((i) => i.id === fromItemId);
       const toItem = current.find((i) => i.id === toItemId);
@@ -972,7 +1352,7 @@ export default function WorkWorkspace({
       const nextSubNumber = targetExisting.length + 1;
       const rekeyedSub: WorkSubtaskItem = {
         ...movingSub,
-        key: `${toItem.key}.${nextSubNumber}`,
+        key: isRealProject ? movingSub.key : `${toItem.key}.${nextSubNumber}`,
       };
 
       return current.map((item) => {
@@ -1003,6 +1383,28 @@ export default function WorkWorkspace({
       setActiveWorkItemId(toItemId);
     }
     setAnnouncement("Moved subtask to new parent work item.");
+
+    if (isRealProject) {
+      enqueueTaskMutation(
+        subtaskId,
+        async (realSubId, version) => {
+          const realTargetParentId = await resolveBackendTaskId(toItemId);
+          if (!realTargetParentId) {
+            throw new Error("Target parent task not persisted");
+          }
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realSubId,
+            version,
+            { parentId: realTargetParentId },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
   }
 
   function bulkUpdateSubtasks(
@@ -1010,6 +1412,11 @@ export default function WorkWorkspace({
     subtaskIds: readonly string[],
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) {
+    const previousItems = items;
+    const parentItem = items.find((item) => item.id === itemId);
+    const affectedSubs = (parentItem?.subtaskItems ?? []).filter((sub) =>
+      subtaskIds.includes(sub.id),
+    );
     const idSet = new Set(subtaskIds);
     setItems((current) =>
       current.map((item) => {
@@ -1038,18 +1445,72 @@ export default function WorkWorkspace({
         };
       }),
     );
+
+    if (isRealProject) {
+      for (const sub of affectedSubs) {
+        const prevStatus = sub.status;
+        const nextStatus: WorkStatus =
+          patch.status !== undefined
+            ? patch.status
+            : patch.done !== undefined
+              ? patch.done
+                ? "DONE"
+                : "TODO"
+              : prevStatus;
+        enqueueTaskMutation(
+          sub.id,
+          async (realSubId, version) => {
+            let currentVer = version;
+            if (prevStatus !== nextStatus) {
+              currentVer = await performBackendStatusTransition(
+                realSubId,
+                currentVer,
+                prevStatus,
+                nextStatus,
+              );
+            }
+            if (patch.priority !== undefined || patch.assignee !== undefined) {
+              const updated = await updateProjectTaskApi(
+                projectId,
+                realSubId,
+                currentVer,
+                {
+                  ...(patch.priority !== undefined
+                    ? { priority: patch.priority }
+                    : {}),
+                  ...(patch.assignee !== undefined
+                    ? {
+                        assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
+                          ? patch.assignee.id
+                          : null,
+                      }
+                    : {}),
+                },
+              );
+              currentVer = updated.version;
+            }
+            return currentVer;
+          },
+          () => {
+            setItems(previousItems);
+          },
+        );
+      }
+    }
   }
 
   function addComment(itemId: string, text: string) {
+    const previousItems = items;
+    const tempCommentId = `comment-${Date.now()}`;
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId) return item;
         const existing = item.comments ?? [];
         const newComment = {
-          id: `comment-${Date.now()}`,
+          id: tempCommentId,
           author: user.data?.name ?? PREVIEW_PEOPLE[0].name,
           initials: PREVIEW_PEOPLE[0].initials,
-          createdAt:"Just now",
+          createdAt: "Just now",
           text,
         };
         return {
@@ -1058,33 +1519,108 @@ export default function WorkWorkspace({
         };
       }),
     );
-    if (isRealProject && OBJECT_ID_PATTERN.test(itemId)) {
-      void createTaskCommentApi(projectId, itemId, text).catch(
-        () => undefined,
-      );
+    if (isRealProject) {
+      void (async () => {
+        try {
+          const realId = await resolveBackendTaskId(itemId);
+          if (!realId) {
+            throw new Error("Task not persisted");
+          }
+          const created = await createTaskCommentApi(projectId, realId, text);
+          setItems((current) =>
+            current.map((item) => {
+              if (item.id !== itemId && item.id !== realId) return item;
+              return {
+                ...item,
+                comments: (item.comments ?? []).map((c) =>
+                  c.id === tempCommentId
+                    ? {
+                        ...c,
+                        id: created.id,
+                        createdAt: created.createdAt.slice(0, 10),
+                      }
+                    : c,
+                ),
+              };
+            }),
+          );
+        } catch {
+          setItems(previousItems);
+          void tasksQuery.refetch();
+          setAnnouncement("Unable to post comment. Restored latest state.");
+        }
+      })();
     }
   }
 
   function bulkUpdateStatus(nextStatus: WorkStatus) {
+    const previousItems = items;
+    const previousSelected = new Set(selectedIds);
+    const affectedItems = items.filter(
+      (item) => selectedIds.has(item.id) && item.status !== nextStatus,
+    );
     setItems((current) =>
       current.map((item) =>
         selectedIds.has(item.id)
           ? {
               ...item,
               status: nextStatus,
-              resolution: nextStatus ==="DONE"?"RESOLVED":"UNRESOLVED",
+              resolution: nextStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
             }
           : item,
       ),
     );
     setSelectedIds(new Set());
+
+    if (isRealProject) {
+      for (const item of affectedItems) {
+        const prevStatus = item.status;
+        enqueueTaskMutation(
+          item.id,
+          (realId, version) =>
+            performBackendStatusTransition(
+              realId,
+              version,
+              prevStatus,
+              nextStatus,
+            ),
+          () => {
+            setItems(previousItems);
+            setSelectedIds(previousSelected);
+          },
+        );
+      }
+    }
   }
 
   function bulkDeleteSelected() {
+    const previousItems = items;
+    const previousSelected = new Set(selectedIds);
+    const affectedItems = items.filter((item) => selectedIds.has(item.id));
     setItems((current) =>
       current.filter((item) => !selectedIds.has(item.id)),
     );
     setSelectedIds(new Set());
+
+    if (isRealProject) {
+      for (const item of affectedItems) {
+        const prevStatus = item.status;
+        enqueueTaskMutation(
+          item.id,
+          (realId, version) =>
+            performBackendStatusTransition(
+              realId,
+              version,
+              prevStatus,
+              "CANCELLED",
+            ),
+          () => {
+            setItems(previousItems);
+            setSelectedIds(previousSelected);
+          },
+        );
+      }
+    }
   }
 
   function exportCsv(allFields = true) {
@@ -1286,7 +1822,10 @@ export default function WorkWorkspace({
                 setSelectedIds(new Set(visibleItems.map((i) => i.id)))
               }
               onGoToReports={() => setView("reports")}
-              onRefresh={() => void project.refetch()}
+              onRefresh={() => {
+                void project.refetch();
+                if (isRealProject) void tasksQuery.refetch();
+              }}
             />
           )}
 
@@ -1431,7 +1970,10 @@ export default function WorkWorkspace({
                   dueDate: options?.dueDate ?? null,
                 })
               }
-              onRefresh={() => void project.refetch()}
+              onRefresh={() => {
+                void project.refetch();
+                if (isRealProject) void tasksQuery.refetch();
+              }}
             />
           ) : view ==="overview"? (
             <WorkOverviewView
