@@ -14,6 +14,23 @@ export interface OrganizationOption {
   name: string;
 }
 
+export interface OrganizationSlugAvailability {
+  slug: string;
+  valid: boolean;
+  available: boolean;
+  reason?: "INVALID_FORMAT" | "TAKEN";
+}
+
+export function checkOrganizationSlugAvailability(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<OrganizationSlugAvailability> {
+  return apiClient<OrganizationSlugAvailability>(
+    `/iam/organizations/slug-availability?slug=${encodeURIComponent(slug)}`,
+    { signal },
+  );
+}
+
 function csrfHeaders(): HeadersInit {
   const entry = document.cookie
     .split(";")

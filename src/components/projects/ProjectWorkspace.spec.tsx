@@ -243,7 +243,10 @@ it("validates the form before sending a request, then submits only accepted fiel
   const onCreated = vi.fn();
   api.mockResolvedValue(project);
   mount(<ProjectCreateForm organizationId="org1" onCreated={onCreated} />);
-  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+  expect(
+    screen.queryByRole("button", { name: "Create project" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(screen.getByRole("alert")).toHaveTextContent(
     messages.projects.validation,
   );
@@ -252,6 +255,9 @@ it("validates the form before sending a request, then submits only accepted fiel
     target: { value: "Apollo" },
   });
   fireEvent.change(screen.getByLabelText("Code"), { target: { value: "AP" } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   fireEvent.click(screen.getByRole("button", { name: "Create project" }));
   await waitFor(() => expect(onCreated.mock.calls[0]?.[0]).toEqual(project));
   expect(api).toHaveBeenCalledWith("/iam/projects", {
@@ -270,6 +276,9 @@ it.each([401, 403, 409, 422, 500])(
     fireEvent.change(screen.getByLabelText("Code"), {
       target: { value: "AP" },
     });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Create project" }));
     expect(await screen.findByRole("alert")).toBeVisible();
     expect(screen.getByLabelText("Name")).toHaveValue("Apollo");
@@ -282,6 +291,9 @@ it("disables duplicate submissions while creation is pending", async () => {
     target: { value: "Apollo" },
   });
   fireEvent.change(screen.getByLabelText("Code"), { target: { value: "AP" } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   fireEvent.click(screen.getByRole("button", { name: "Create project" }));
   expect(
     await screen.findByRole("button", { name: "Creating…" }),
@@ -400,7 +412,7 @@ it.each([
     fireEvent.change(screen.getByLabelText(messages.projects[field]), {
       target: { value: input[field] },
     });
-  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   expect(screen.getByRole("alert")).toHaveTextContent(
     messages.projects.validation,
   );
@@ -418,6 +430,9 @@ it("creates on a separate page and navigates to the backend-created detail", asy
   fireEvent.change(screen.getByLabelText("Description"), {
     target: { value: "A project" },
   });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   fireEvent.click(screen.getByRole("button", { name: "Create project" }));
   await waitFor(() => expect(push).toHaveBeenCalledWith("/projects/p1"));
   expect(api).toHaveBeenCalledWith("/iam/projects", {
@@ -469,6 +484,9 @@ it("submits a multiline description unchanged", async () => {
   fireEvent.change(description, {
     target: { value: "First line\nSecond line" },
   });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
   fireEvent.click(screen.getByRole("button", { name: "Create project" }));
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/iam/projects", {
@@ -820,22 +838,14 @@ it("preserves the active tab across project refetches and syncs /overview, /memb
 });
 
 
-it("renders global KPI stat cards without 'on page' labels and separates status tabs from search and sort controls", async () => {
+it("separates status tabs from search and sort controls without KPI stat cards", async () => {
   api.mockImplementation(async (path) =>
     path === "/auth/me" ? user : list([project]),
   );
   mount(<ProjectWorkspace />);
 
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
-  expect(
-    screen.getByText(
-      "Total projects",
-    ),
-  ).toBeVisible();
-
-  expect(screen.getByText("Active projects")).toBeVisible();
-  expect(screen.getByText("Need attention")).toBeVisible();
-  expect(screen.getByText("Archived projects")).toBeVisible();
+  expect(screen.queryByText("Total projects")).not.toBeInTheDocument();
   expect(
     screen.queryByText(
       "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
@@ -858,4 +868,139 @@ it("renders global KPI stat cards without 'on page' labels and separates status 
       "No projects on the current page match your search or filters. Try another page or clear filters.",
     ),
   ).toBeVisible();
+});
+
+it("guides project creation across 4 wizard steps with specific field-level validation, code auto-suggestion, and 409 conflict recovery", async () => {
+  api.mockRejectedValueOnce(new ApiError(409, undefined, "Conflict"));
+  mount(<ProjectCreateForm organizationId="org1" onCreated={vi.fn()} />);
+
+  const nameInput = screen.getByLabelText("Name");
+  const codeInput = screen.getByLabelText("Code");
+
+  // Typing first valid uppercase character should not prematurely flag an error before blur
+  fireEvent.change(codeInput, { target: { value: "C" } });
+  expect(codeInput).toHaveAttribute("aria-invalid", "false");
+  fireEvent.blur(codeInput);
+  expect(codeInput).toHaveAttribute("aria-invalid", "true");
+  expect(screen.getByText("Must be at least 2 characters.")).toBeVisible();
+
+  // Lowercase input triggers specific error and 1-click Fix button
+  fireEvent.change(codeInput, { target: { value: "customer_onboarding" } });
+  expect(screen.getByText("Use uppercase letters (A–Z) only.")).toBeVisible();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Fix to CUSTOMER_ONBOARDING" }),
+  );
+  expect(codeInput).toHaveValue("CUSTOMER_ONBOARDING");
+  expect(codeInput).toHaveAttribute("aria-invalid", "false");
+
+  // Typing name offers suggested code when code differs
+  fireEvent.change(nameInput, { target: { value: "Apollo Launch" } });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Use suggested: APOLLO_LAUNCH" }),
+  );
+  expect(codeInput).toHaveValue("APOLLO_LAUNCH");
+
+  // Advance through all 4 wizard steps
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(
+    screen.getByRole("heading", { name: "Access & visibility" }),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(
+    screen.getByRole("heading", { name: /Team & leadership/i }),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(
+    screen.getByRole("heading", { name: "Review & Confirm" }),
+  ).toBeVisible();
+
+  // Submitting from Step 4 with 409 Conflict returns to Step 1 and highlights Code
+  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+  expect(await screen.findByRole("alert")).toBeVisible();
+  expect(codeInput).toHaveAttribute("aria-invalid", "true");
+});
+
+it("allows selecting Public visibility in Step 2 and adding organization members in Step 3", async () => {
+  const onCreated = vi.fn();
+  api.mockImplementation(async (path, options) => {
+    if (path === "/iam/projects/member-candidates") {
+      return {
+        data: [
+          {
+            userId: "u2",
+            fullName: "Grace Hopper",
+            email: "grace@example.com",
+            roleCode: "MEMBER",
+          },
+        ],
+      };
+    }
+    if (path === "/iam/projects" && options?.method === "POST") {
+      return { ...project, visibility: "PUBLIC" };
+    }
+    return project;
+  });
+
+  mount(
+    <ProjectCreateForm
+      organizationId="org1"
+      currentUserId="u1"
+      currentUserName="Ada Lovelace"
+      onCreated={onCreated}
+    />,
+  );
+
+  fireEvent.change(screen.getByLabelText("Name"), {
+    target: { value: "Apollo" },
+  });
+  fireEvent.change(screen.getByLabelText("Code"), { target: { value: "AP" } });
+
+  // Go to Step 2: Access & visibility (defaults to Private, switch to Public)
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  const publicBtn = screen.getByRole("button", { name: /Public/i });
+  fireEvent.click(publicBtn);
+  expect(publicBtn).toHaveAttribute("aria-pressed", "true");
+
+  // Go to Step 3: Team & leadership (Available members on left, Project team on right)
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(
+    screen.getByRole("heading", { name: "Available members" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "Project team" }),
+  ).toBeVisible();
+  const addGraceBtn = await screen.findByRole("button", {
+    name: "Add Grace Hopper",
+  });
+  fireEvent.click(addGraceBtn);
+  expect(screen.getByText("1 member added")).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Role for Grace Hopper" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("button", { name: "Remove Grace Hopper" }),
+  ).toBeVisible();
+
+  // Go to Step 4: Review & Confirm and create project
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  expect(screen.getByText("2 members")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Create project" }));
+
+  await waitFor(() =>
+    expect(onCreated).toHaveBeenCalledWith({
+      ...project,
+      visibility: "PUBLIC",
+    }),
+  );
+  expect(api).toHaveBeenCalledWith("/iam/projects", {
+    method: "POST",
+    body: JSON.stringify({
+      name: "Apollo",
+      code: "AP",
+      visibility: "PUBLIC",
+      memberUserIds: ["u2"],
+    }),
+  });
 });

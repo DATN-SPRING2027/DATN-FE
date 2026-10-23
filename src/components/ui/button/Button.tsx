@@ -70,10 +70,14 @@ const Button: React.FC<ButtonProps> = ({
           className="inline-flex h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
         />
       ) : (
-        startIcon && <span className="flex items-center">{startIcon}</span>
+        startIcon && (
+          <span className="inline-flex shrink-0 items-center justify-center">
+            {startIcon}
+          </span>
+        )
       )}
       {children}
-      {endIcon && <span className="flex items-center">{endIcon}</span>}
+      {endIcon && <span className="inline-flex shrink-0 items-center justify-center">{endIcon}</span>}
     </button>
   );
 };

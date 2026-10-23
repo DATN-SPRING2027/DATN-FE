@@ -35,6 +35,9 @@ export type CreateProjectInput = Readonly<{
   name: string;
   code: string;
   description?: string;
+  visibility?: "PRIVATE" | "PUBLIC";
+  memberUserIds?: readonly string[];
+  leaderUserIds?: readonly string[];
 }>;
 export type ProjectListInput = Readonly<{
   page: number;
@@ -128,13 +131,27 @@ export function useProjectQuery(organizationId: string, id: string) {
 export function useCreateProjectMutation(organizationId: string) {
   const client = useQueryClient();
   return useMutation({
-    mutationFn: ({ name, code, description }: CreateProjectInput) =>
+    mutationFn: ({
+      name,
+      code,
+      description,
+      visibility,
+      memberUserIds,
+      leaderUserIds,
+    }: CreateProjectInput) =>
       apiClient<Project>("/iam/projects", {
         method: "POST",
         body: JSON.stringify({
           name,
           code,
           ...(description !== undefined ? { description } : {}),
+          ...(visibility && visibility !== "PRIVATE" ? { visibility } : {}),
+          ...(memberUserIds && memberUserIds.length > 0
+            ? { memberUserIds }
+            : {}),
+          ...(leaderUserIds && leaderUserIds.length > 0
+            ? { leaderUserIds }
+            : {}),
         }),
       }),
     onSuccess: () =>

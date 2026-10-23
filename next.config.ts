@@ -3,6 +3,21 @@ import createNextIntlPlugin from "next-intl/plugin";
 
 const withNextIntl = createNextIntlPlugin();
 
+const svgrOptions = {
+  svgoConfig: {
+    plugins: [
+      {
+        name: "preset-default",
+        params: {
+          overrides: {
+            removeViewBox: false,
+          },
+        },
+      },
+    ],
+  },
+};
+
 const nextConfig: NextConfig = {
   /* config options here */
   logging: {
@@ -17,7 +32,12 @@ const nextConfig: NextConfig = {
   webpack(config) {
     config.module.rules.push({
       test: /\.svg$/,
-      use: ["@svgr/webpack"],
+      use: [
+        {
+          loader: "@svgr/webpack",
+          options: svgrOptions,
+        },
+      ],
     });
     return config;
   },
@@ -32,7 +52,12 @@ const nextConfig: NextConfig = {
     root: __dirname,
     rules: {
       "*.svg": {
-        loaders: ["@svgr/webpack"],
+        loaders: [
+          {
+            loader: "@svgr/webpack",
+            options: svgrOptions,
+          },
+        ],
         as: "*.js",
       },
     },

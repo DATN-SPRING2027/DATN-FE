@@ -39,6 +39,7 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   useMyOrganizationInvitationsQuery: vi.fn(),
   useOrganizationOptionsQuery: vi.fn(),
   useSelectOrganizationMutation: vi.fn(),
+  checkOrganizationSlugAvailability: vi.fn(),
 }));
 
 describe("account onboarding invitations", () => {
@@ -255,6 +256,10 @@ describe("account onboarding invitations", () => {
     expect(screen.getByLabelText("onboardingName")).toBeInTheDocument();
     expect(screen.getByLabelText("onboardingSlug")).toBeInTheDocument();
 
+    expect(screen.queryByRole("button", { name: /Sunrise Institute/ })).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "onboardingBackToOrganizations" }));
+    expect(screen.queryByLabelText("onboardingName")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Sunrise Institute/ }));
 
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-2"));

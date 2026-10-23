@@ -184,6 +184,7 @@ export default function SidebarOrganizationSwitcher({
               </button>
             </div>
           ) : organizations.length > 0 ? (
+            <>
             <ul className="space-y-0.5">
               {organizations.map((organization) => {
                 const isCurrent = organization.id === organizationId;
@@ -224,6 +225,29 @@ export default function SidebarOrganizationSwitcher({
                 );
               })}
             </ul>
+            <div className="mt-1.5 flex flex-col gap-0.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
+              <Link
+                href="/select-organization?mode=create"
+                onClick={() => setIsOpen(false)}
+                className="flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              >
+                <span
+                  aria-hidden="true"
+                  className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-brand-50 text-sm font-bold leading-none text-brand-600 dark:bg-brand-500/20 dark:text-brand-300"
+                >
+                  +
+                </span>
+                <span className="truncate">{t("createOrganization")}</span>
+              </Link>
+              <Link
+                href="/select-organization"
+                onClick={() => setIsOpen(false)}
+                className="flex min-h-7 w-full items-center rounded-[5px] px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100/80 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
+              >
+                <span className="truncate">{t("manageOrganizations")}</span>
+              </Link>
+            </div>
+            </>
           ) : (
             <div className="px-2.5 py-2.5">
               <p className="text-xs text-gray-500 dark:text-gray-400">
