@@ -106,12 +106,7 @@ export function useProjectMemberCandidatesQuery(
   const trimmed = search?.trim();
   return useQuery({
     queryKey: projectMemberKeys.candidates(organizationId, projectId, trimmed),
-    enabled: Boolean(
-      organizationId &&
-        isResourceId(projectId) &&
-        trimmed !== undefined &&
-        trimmed.length > 0,
-    ),
+    enabled: Boolean(organizationId && isResourceId(projectId)),
     retry: false,
     throwOnError: false,
     staleTime: 5_000,
@@ -121,7 +116,7 @@ export function useProjectMemberCandidatesQuery(
     queryFn: ({ signal }) => {
       const params = new URLSearchParams();
       if (trimmed) params.set("email", trimmed);
-      return apiClient<{ data: unknown[] }>(
+      return apiClient<{ data: unknown[]; pagination?: unknown }>(
         `/iam/projects/${encodeURIComponent(projectId)}/member-candidates?${params}`,
         {
           signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
@@ -134,11 +129,19 @@ export function useProjectMemberCandidatesQuery(
             "INVALID_PROJECT_MEMBER_RESPONSE",
             "Unexpected Project member response",
           );
+        if ("pagination" in res) return [];
         return res.data.map(parseCandidate);
       });
     },
   });
 }
+
+export type AddProjectMemberInput =
+  | string
+  | {
+      userId: string;
+      role?: "MEMBER" | "TEAM_LEADER";
+    };
 
 export function useAddProjectMember(organizationId: string, projectId: string) {
   const client = useQueryClient();
@@ -146,16 +149,26 @@ export function useAddProjectMember(organizationId: string, projectId: string) {
     retry: false,
     throwOnError: false,
     networkMode: "always",
-    mutationFn: (userId: string) =>
-      apiClient<unknown>(path(organizationId, projectId), {
+    mutationFn: (input: AddProjectMemberInput) => {
+      const userId = typeof input === "string" ? input : input.userId;
+      const role = typeof input === "string" ? undefined : input.role;
+      return apiClient<unknown>(path(organizationId, projectId), {
         method: "POST",
-        body: JSON.stringify({ userId: requireId(userId) }),
+        body: JSON.stringify(
+          role && role !== "MEMBER"
+            ? { userId: requireId(userId), role }
+            : { userId: requireId(userId) },
+        ),
         signal: AbortSignal.timeout(15_000),
-      }).then((data) => parseMembership(data, organizationId, projectId)),
+      }).then((data) => parseMembership(data, organizationId, projectId));
+    },
     onSuccess: () =>
       Promise.all([
         client.invalidateQueries({
           queryKey: projectMemberKeys.scope(organizationId, projectId),
+        }),
+        client.invalidateQueries({
+          queryKey: ["project-leaders", organizationId, projectId],
         }),
         client.invalidateQueries({
           queryKey: ["projects", organizationId],

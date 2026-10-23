@@ -523,7 +523,7 @@ function ScopedProjectMembers({
               if (event.key !== "Tab") return;
               const focusable = Array.from(
                 addDialog.current?.querySelectorAll<HTMLElement>(
-                  'button:not(:disabled), input:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)',
+                  'button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex="-1"]):not(:disabled)',
                 ) ?? [],
               );
               const first = focusable[0];
@@ -589,7 +589,11 @@ function ScopedProjectMembers({
                 projectId={projectId}
                 pending={add.isPending || leaderActions.assign.isPending}
                 disabled={busy || isMemberActionDenied(add.error)}
-                onAdd={(userId) => {
+                defaultRole={appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER"}
+                onRoleChange={(role) =>
+                  setAppointLeaderOnAdd(role === "TEAM_LEADER")
+                }
+                onAdd={(userId, role) => {
                   if (
                     mutationInFlight.current ||
                     busy ||
@@ -598,37 +602,47 @@ function ScopedProjectMembers({
                     return;
                   mutationInFlight.current = true;
                   setNotice(undefined);
-                  const shouldAppoint = canManageLeaders && appointLeaderOnAdd;
-                  add.mutate(userId, {
-                    onSuccess: () => {
-                      setPage(1);
-                      setAddFormVersion((version) => version + 1);
-                      if (shouldAppoint) {
-                        leaderActions.assign.mutate(userId, {
-                          onSuccess: () => {
-                            setNotice("leaderAppointed");
-                            setAppointLeaderOnAdd(false);
-                          },
-                          onError: () => {
-                            setNotice("added");
-                          },
-                          onSettled: () => {
-                            mutationInFlight.current = false;
-                          },
-                        });
-                      } else {
-                        setNotice("added");
-                      }
-                    },
-                    onError: () => {
-                      mutationInFlight.current = false;
-                    },
-                    onSettled: () => {
-                      if (!shouldAppoint) {
+                  const effectiveRole =
+                    role ?? (appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER");
+                  const shouldAppoint = effectiveRole === "TEAM_LEADER";
+                  add.mutate(
+                    shouldAppoint ? { userId, role: "TEAM_LEADER" } : userId,
+                    {
+                      onSuccess: () => {
+                        setPage(1);
+                        setAddFormVersion((version) => version + 1);
+                        if (shouldAppoint && canManageLeaders) {
+                          leaderActions.assign.mutate(userId, {
+                            onSuccess: () => {
+                              setNotice("leaderAppointed");
+                              setAppointLeaderOnAdd(false);
+                            },
+                            onError: () => {
+                              setNotice("leaderAppointed");
+                              setAppointLeaderOnAdd(false);
+                            },
+                            onSettled: () => {
+                              mutationInFlight.current = false;
+                            },
+                          });
+                        } else if (shouldAppoint) {
+                          setNotice("leaderAppointed");
+                          setAppointLeaderOnAdd(false);
+                          void leaders.refetch();
+                        } else {
+                          setNotice("added");
+                        }
+                      },
+                      onError: () => {
                         mutationInFlight.current = false;
-                      }
+                      },
+                      onSettled: () => {
+                        if (!(shouldAppoint && canManageLeaders)) {
+                          mutationInFlight.current = false;
+                        }
+                      },
                     },
-                  });
+                  );
                 }}
               />
               {add.isError && <MemberError error={add.error} action="add" />}
