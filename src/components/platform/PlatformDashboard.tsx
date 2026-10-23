@@ -1,7 +1,13 @@
 "use client";
 
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import {
+  GroupIcon,
+  PlatformBuildingIcon,
+  PlatformProjectsIcon,
+  PlatformUsersIcon,
+} from "@/icons";
 import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import { usePlatformDashboardQuery } from "@/lib/queries/platform/usePlatformOperations";
 import { TableSkeleton } from "./ui/LoadingSkeleton";
@@ -20,6 +26,7 @@ export default function PlatformDashboard({
   permissions: readonly PlatformPermission[];
 }) {
   const t = useTranslations("platformConsole");
+  const locale = useLocale();
   const allowed = permissions.includes("platform.dashboard.summary.read");
   const query = usePlatformDashboardQuery(allowed);
 
@@ -62,6 +69,45 @@ export default function PlatformDashboard({
   return (
     <div aria-busy={query.isFetching}>
       <h1 className="sr-only">{t("pages.dashboard.title")}</h1>
+      <section
+        aria-label={t("dashboard.summary")}
+        className={jira.summary}
+      >
+        <dl>
+          <div className={jira.metric}>
+            <PlatformBuildingIcon aria-hidden="true" />
+            <div>
+              <dt>{t("dashboard.organizations")}</dt>
+              <dd>
+                {new Intl.NumberFormat(locale).format(data.organizations.total)}
+              </dd>
+            </div>
+          </div>
+          <div className={jira.metric}>
+            <PlatformUsersIcon aria-hidden="true" />
+            <div>
+              <dt>{t("dashboard.users")}</dt>
+              <dd>{new Intl.NumberFormat(locale).format(data.users.total)}</dd>
+            </div>
+          </div>
+          <div className={jira.metric}>
+            <PlatformProjectsIcon aria-hidden="true" />
+            <div>
+              <dt>{t("dashboard.projects")}</dt>
+              <dd>{new Intl.NumberFormat(locale).format(data.projects.total)}</dd>
+            </div>
+          </div>
+          <div className={jira.metric}>
+            <GroupIcon aria-hidden="true" />
+            <div>
+              <dt>{t("dashboard.memberships")}</dt>
+              <dd>
+                {new Intl.NumberFormat(locale).format(data.memberships.total)}
+              </dd>
+            </div>
+          </div>
+        </dl>
+      </section>
       <div className={jira.dashboardGrid}>
         <div className={charts.primaryRow}>
           <RevenueCostsCard data={data.memberships} />

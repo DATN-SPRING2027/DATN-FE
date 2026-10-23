@@ -1122,3 +1122,20 @@
 .console .toolbar .createOrganization:hover {
   background: var(--op-panel);
 }
+
+/* Keep directory controls visually stable on pointer focus and visible on keyboard focus. */
+.console .toolbar select,
+.console .toolbar input {
+  border-color: var(--op-line);
+}
+.console .toolbar select[data-pointer-focus="true"]:focus,
+.console .toolbar input[data-pointer-focus="true"]:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--op-line);
+}
+.console .toolbar select:focus-visible:not([data-pointer-focus="true"]),
+.console .toolbar input:focus-visible:not([data-pointer-focus="true"]) {
+  outline: 2px solid var(--op-muted);
+  outline-offset: 3px;
+}

@@ -99,14 +99,13 @@ export default function PlatformConsole() {
     "platform.memberships.lifecycle.manage",
   );
   const canReadHealth = has(session.data, "platform.health.read");
-  const shouldLoadOrganizations = ["organizations", "memberships"].includes(
-    activeSection,
-  );
+  const shouldLoadOrganizations = activeSection === "organizations";
   const shouldLoadHealth = activeSection === "services";
   const [organizationPage, setOrganizationPage] = useState(1);
   const organizations = usePlatformOrganizationsQuery(
     canReadOrganizations && shouldLoadOrganizations && !routeOrganizationId,
     organizationPage,
+    10,
   );
   const health = usePlatformHealthQuery(canReadHealth && shouldLoadHealth);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
@@ -126,12 +125,9 @@ export default function PlatformConsole() {
   );
   const [operationMessage, setOperationMessage] = useState("");
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const organizationRows = organizations.data?.data ?? [];
   const effectiveSelectedOrganizationId =
     routeOrganizationId ||
-    (activeSection === "memberships"
-      ? selectedOrganizationId || organizationRows[0]?.id
-      : "") ||
+    (activeSection === "memberships" ? selectedOrganizationId : "") ||
     "";
   const organization = usePlatformOrganizationQuery(
     effectiveSelectedOrganizationId,
@@ -147,7 +143,7 @@ export default function PlatformConsole() {
   const lookup = usePlatformUserLookupMutation();
   const createOrganization = useCreatePlatformOrganizationMutation();
   const suspend = useSuspendPlatformMembershipMutation(
-    effectiveSelectedOrganizationId,
+    suspendTarget?.organizationId ?? effectiveSelectedOrganizationId,
   );
 
   useEffect(() => {
@@ -262,13 +258,17 @@ export default function PlatformConsole() {
   return (
     <PlatformShell
       activeSection={activeSection}
+      permissions={session.data.permissions}
       operatorName={session.data.name}
       operatorEmail={session.data.email}
       isSigningOut={logout.isPending}
       onSignOut={() => void signOut()}
     >
       {/* Top Page Header */}
-      {["users", "dashboard"].includes(activeSection) ? null : (
+      {["users", "dashboard", "memberships"].includes(activeSection) ||
+      (activeSection === "organizations" &&
+        !routeOrganizationId &&
+        canReadOrganizations) ? null : (
         <PageHeader
           hideTitle={activeSection === "organizations" && !routeOrganizationId}
           title={pageTitle}
@@ -391,21 +391,9 @@ export default function PlatformConsole() {
       {/* MEMBERSHIPS ROUTE */}
       {activeSection === "memberships" && (
         <PlatformMembershipDirectory
-          organizations={organizations.data}
-          organizationsLoading={organizations.isPending}
-          organizationsError={organizations.isError}
-          onRetryOrganizations={() => void organizations.refetch()}
-          organizationPage={organizationPage}
-          onOrganizationPageChange={(page) => {
-            setOrganizationPage(page);
-            setSelectedOrganizationId("");
-          }}
-          organizationId={effectiveSelectedOrganizationId}
-          canReadOrganizations={canReadOrganizations}
           canReadMemberships={canReadMemberships}
           canSuspendMemberships={canSuspendMemberships}
           currentUserId={session.data.id}
-          onOrganizationChange={setSelectedOrganizationId}
           onSuspend={setSuspendTarget}
         />
       )}
@@ -630,7 +618,7 @@ export default function PlatformConsole() {
       {/* Suspend Membership Confirmation Dialog Modal */}
       {suspendTarget && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-xs"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setSuspendTarget(null);

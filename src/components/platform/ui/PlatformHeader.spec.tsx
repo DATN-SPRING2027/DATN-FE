@@ -20,7 +20,16 @@ vi.mock("@/i18n/navigation", () => ({
 vi.mock("@/components/common/BrandLogo", () => ({ default: () => null }));
 describe("Operator navigation", () => {
   it("marks the active route and shows grouped administration links", () => {
-    render(<PlatformSidebar activeSection="dashboard" />);
+    render(
+      <PlatformSidebar
+        activeSection="dashboard"
+        permissions={[
+          "platform.dashboard.summary.read",
+          "platform.incidents.incident.read",
+          "platform.organizations.organization.read",
+        ]}
+      />,
+    );
     expect(
       screen.getByRole("link", { name: "navigation.dashboard" }),
     ).toHaveAttribute("aria-current", "page");
