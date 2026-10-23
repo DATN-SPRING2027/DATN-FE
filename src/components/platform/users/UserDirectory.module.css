@@ -1,0 +1,13 @@
+.directory.directory :global(table td) {
+  padding-block: 5px;
+}
+.directory.directory :global(table th) {
+  padding-block: 5px;
+}
+.directory.directory :global(table td button) {
+  font-family: inherit;
+  color: var(--op-text);
+}
+.directory.directory :global(table td > span) {
+  color: var(--op-text);
+}

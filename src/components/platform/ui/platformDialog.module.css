@@ -1,0 +1,339 @@
+.surface.surface {
+  align-self: flex-start;
+  width: calc(100% - 32px);
+  max-width: 860px;
+  max-height: calc(100dvh - 96px);
+  margin: 7vh 16px 24px;
+  overflow-y: auto;
+  border: 1px solid var(--op-line, #dce4ee);
+  border-radius: 14px;
+  padding: 0;
+  background: #fff;
+  color: #292a2e;
+  font-family: var(--font-platform, Arial), Helvetica, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 12px 36px rgb(9 30 66 / 22%);
+}
+.surface :is(button, input, select, textarea) {
+  font-family: inherit;
+  font-size: 14px;
+}
+.surface :is(h2, h3) {
+  font-family: inherit;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.surface h2 {
+  font-size: 20px;
+  line-height: 28px;
+}
+.surface label {
+  font-size: 14px;
+  font-weight: 500;
+}
+.surface :is(input:not([type="checkbox"]), select, textarea) {
+  border-radius: 4px;
+}
+.surface button {
+  border-radius: 4px;
+}
+.surface :is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #0c66e4;
+  outline-offset: 2px;
+}
+.heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px 28px 0;
+}
+.close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: #626f86;
+  cursor: pointer;
+}
+.close:hover {
+  background: #f1f2f4;
+}
+.close svg {
+  width: 20px;
+  height: 20px;
+}
+.body {
+  padding: 20px 28px 24px;
+}
+.body > section {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+}
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 24px -28px -24px;
+  padding: 16px 28px;
+  border-top: 1px solid #dce4ee;
+}
+.userSurface > div > section {
+  border-radius: 0;
+}
+.userSurface > div > section > header {
+  background: transparent;
+  border-bottom: 0;
+  padding: 24px 28px 0;
+}
+.userSurface > div > section > header > span {
+  display: none;
+}
+.userSurface > div > section > form {
+  padding: 20px 28px 24px;
+}
+.native.native {
+  display: flex;
+  flex-direction: column;
+  margin: 7vh auto 24px;
+}
+.native::backdrop {
+  background: rgb(9 16 36 / 48%);
+  backdrop-filter: none;
+}
+.native > header {
+  background: #fff;
+  backdrop-filter: none;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid #dce4ee;
+}
+:global(.dark) .surface {
+  background: #182337;
+  color: #edf3ff;
+  border-color: #34435a;
+}
+:global(.dark) .native > header {
+  background: #182337;
+  border-color: #34435a;
+}
+:global(.dark) .footer {
+  border-color: #34435a;
+}
+:global(.dark) .close {
+  color: #afbed6;
+}
+:global(.dark) .close:hover {
+  background: #28374d;
+}
+@media (max-width: 640px) {
+  .surface.surface {
+    margin-top: 20px;
+    max-height: calc(100dvh - 40px);
+  }
+  .native.native {
+    margin-top: 20px;
+  }
+  .heading {
+    padding: 20px 20px 0;
+  }
+  .body {
+    padding: 16px 20px 20px;
+  }
+  .footer {
+    margin: 20px -20px -20px;
+    padding: 14px 20px;
+  }
+  .userSurface > div > section > header {
+    padding: 20px 20px 0;
+  }
+  .userSurface > div > section > form {
+    padding: 16px 20px 20px;
+  }
+  .native > header {
+    padding: 20px;
+  }
+}
+
+/* Wide issue-style details, shared by user and organization views. */
+.surface.detailSurface {
+  min-height: min(680px, 80dvh);
+  max-width: 1340px;
+  width: calc(100% - 64px);
+  max-height: 86dvh;
+  margin-top: 7vh;
+}
+.detailSurface > div > [role="dialog"] > header {
+  padding: 24px 32px 12px;
+}
+.detailSurface > div > [role="dialog"] > header h2 {
+  font-size: 14px;
+  font-weight: 500;
+  color: #626f86;
+}
+.detailSurface > div > [role="dialog"] > .body {
+  padding: 24px 32px 32px;
+}
+.organizationDetail > a {
+  display: inline-block;
+  margin-bottom: 24px;
+}
+.detailGrid,
+.userDetailGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.8fr) minmax(300px, 1fr);
+  gap: 32px;
+  align-items: start;
+}
+.detailMain {
+  min-width: 0;
+}
+.surface .recordTitle {
+  font-size: 28px;
+  line-height: 36px;
+  font-weight: 600;
+  margin: 0 0 24px;
+  overflow-wrap: anywhere;
+}
+.detailMain > h3 {
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.descriptionBlock {
+  padding: 16px;
+  background: #f1f2f4;
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.detailActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.detailAside {
+  min-width: 0;
+  border: 1px solid #dce4ee;
+  border-radius: 8px;
+  padding: 20px;
+}
+.detailAside > h3 {
+  font-size: 16px;
+  line-height: 24px;
+  margin: 0 0 24px;
+}
+.detailList {
+  display: grid;
+  gap: 22px;
+}
+.detailList > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.85fr) minmax(0, 1.15fr);
+  align-items: start;
+  gap: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.detailList dt {
+  text-transform: none;
+  font-size: 14px;
+  font-weight: 500;
+  color: #505f79;
+}
+.detailList dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.native.detailSurface > header {
+  align-items: start;
+  padding: 24px 32px 20px;
+  border: 0;
+}
+.detailBreadcrumb {
+  font-size: 13px;
+  color: #626f86;
+  margin-bottom: 32px;
+  overflow-wrap: anywhere;
+}
+.native .recordTitle {
+  margin-bottom: 8px;
+}
+.recordSubtitle {
+  color: #626f86;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.userDetailGrid {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 32px 32px;
+}
+.userDetailGrid > .detailAside {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.userDetailGrid > :not(.detailAside) {
+  grid-column: 1;
+  min-width: 0;
+}
+:global(.dark) .detailAside {
+  border-color: #34435a;
+}
+:global(.dark) .detailList dt,
+:global(.dark) .recordSubtitle,
+:global(.dark) .detailBreadcrumb {
+  color: #afbed6;
+}
+:global(.dark) .descriptionBlock {
+  background: #28374d;
+}
+@media (max-width: 800px) {
+  .surface.detailSurface {
+    width: calc(100% - 24px);
+    margin-top: 20px;
+    max-height: calc(100dvh - 40px);
+  }
+  .detailGrid,
+  .userDetailGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+  }
+  .userDetailGrid > .detailAside {
+    grid-column: 1;
+    grid-row: auto;
+  }
+  .detailSurface > div > [role="dialog"] > header,
+  .native.detailSurface > header {
+    padding: 20px;
+  }
+  .detailSurface > div > [role="dialog"] > .body,
+  .userDetailGrid {
+    padding: 16px 20px 20px;
+  }
+  .detailBreadcrumb {
+    margin-bottom: 20px;
+  }
+  .surface .recordTitle {
+    font-size: 24px;
+    line-height: 32px;
+  }
+}
+
+.detailList > div:has(> div) {
+  display: block;
+}
+.detailList > div > div {
+  display: grid;
+  grid-template-columns: minmax(90px, 0.85fr) minmax(0, 1.15fr);
+  gap: 16px;
+}

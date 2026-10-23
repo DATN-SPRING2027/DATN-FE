@@ -278,7 +278,9 @@ const { operationHooks, operationState } = vi.hoisted(() => {
   };
 });
 
-vi.mock("./overview/OperatorReferenceChart", () => ({ default: ({ title }: { title?: string }) => <div>{title}</div> }));
+vi.mock("./overview/OperatorReferenceChart", () => ({
+  default: ({ title }: { title?: string }) => <div>{title}</div>,
+}));
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
     href,
@@ -321,6 +323,16 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations:
     (namespace: string) => (key: string, values?: Record<string, string>) => {
+      if (namespace === "platformUserDirectory") {
+        const labels: Record<string, string> = {
+          title: "User management",
+          search: "Search users",
+          statusFilter: "User status",
+          ARCHIVED: "Archived",
+          emptyTitle: "No users found",
+        };
+        return labels[key] ?? key;
+      }
       if (namespace === "platformUserActions" && key === "restore")
         return "Restore account";
       return values ? `${key} ${Object.values(values).join(" ")}` : key;
@@ -532,7 +544,7 @@ describe("PlatformConsole", () => {
     );
 
     fireEvent.pointerDown(
-      screen.getByRole("textbox", { name: "Search users" }),
+      screen.getByRole("combobox"),
     );
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
@@ -769,9 +781,8 @@ describe("PlatformConsole", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps domain navigation and exposes Organizations through More", () => {
+  it("keeps all existing domain routes in grouped navigation", () => {
     render(<PlatformConsole />);
-    fireEvent.click(screen.getByText("operatorDesign.more"));
 
     expect(
       screen.getByRole("link", { name: "navigation.organizations" }),
@@ -803,7 +814,7 @@ describe("PlatformConsole", () => {
     render(<PlatformConsole />);
 
     expect(
-      screen.getByRole("heading", { name: "pages.users.title" }),
+      screen.getByRole("heading", { name: "User management" }),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("users.email")).not.toBeInTheDocument();
     expect(
@@ -1053,11 +1064,33 @@ describe("PlatformConsole", () => {
     expect(alert).not.toHaveTextContent("sensitive server detail");
   });
 
+  it("explains why login sessions are unavailable without the exact session permission", async () => {
+    const user = makePlatformUser("ACTIVE");
+    renderUserDirectory(user);
+    fireEvent.click(
+      screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "View details" }));
+    const dialog = await screen.findByRole("dialog", { name: user.fullName });
+    expect(screen.getByRole("table")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh" }),
+    ).not.toBeInTheDocument();
+    expect(within(dialog).getByRole("status")).toHaveTextContent(
+      "sessionsDenied",
+    );
+    expect(
+      within(dialog).queryByRole("heading", { name: "Sessions" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows archived status and exposes only the safe restore action", async () => {
     const user = makePlatformUser("SUSPENDED", "2026-10-03T00:00:00.000Z");
     renderUserDirectory(user);
 
-    expect(await screen.findAllByText("ARCHIVED")).toHaveLength(1);
+    expect(
+      within(screen.getByRole("table")).getByText("Archived"),
+    ).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
     );
@@ -1229,10 +1262,8 @@ describe("PlatformConsole", () => {
       screen.getByRole("heading", { name: "pages.dashboard.title" }),
     ).toBeInTheDocument();
     expect(
-      within(
-        screen.getByRole("region", { name: "dashboard.summary" }),
-      ).getByText("2"),
-    ).toBeInTheDocument();
+      screen.queryByRole("region", { name: "dashboard.summary" }),
+    ).not.toBeInTheDocument();
     expect(
       screen.getByText("operatorDesign.accountDistribution"),
     ).toBeInTheDocument();

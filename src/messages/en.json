@@ -99,7 +99,8 @@
       "showBy": "Show by",
       "summary": "Page {page} of {totalPages} · {totalItems} total records",
       "previous": "Previous",
-      "next": "Next"
+      "next": "Next",
+      "range": "{from}–{to} of {total}"
     },
     "securityNote": "Actions are limited to the current permission set. Tenant content, project data, and secrets are not available here.",
     "navigation": {
@@ -129,7 +130,7 @@
     },
     "pages": {
       "dashboard": {
-        "title": "Platform dashboard",
+        "title": "Dashboard",
         "description": "A bounded overview of the Platform data and health currently available to this account."
       },
       "organizations": {
@@ -138,7 +139,7 @@
         "readPermissionNeeded": "Organization directory and detail require the exact Organization read permission."
       },
       "users": {
-        "title": "User management",
+        "title": "Users",
         "description": "Browse user accounts with search, status filters, and pagination. Select Details to view permitted account, membership, permission, and session information. Sensitive authentication data is not exposed."
       },
       "memberships": {
@@ -397,7 +398,8 @@
       "edit": "Edit organization information",
       "save": "Save changes",
       "saving": "Saving…",
-      "reloadBeforeEdit": "Close this form, refresh the organization, then reopen it before trying again."
+      "reloadBeforeEdit": "Close this form, refresh the organization, then reopen it before trying again.",
+      "details": "Details"
     },
     "users": {
       "accountLookupPermissionNeeded": "The exact account lookup permission is required to select the first Organization Manager.",
@@ -526,6 +528,41 @@
       "freePage": "Free",
       "enterprisePage": "Enterprise",
       "archived": "Archived"
+    },
+    "jira": {
+      "administration": "Platform administration",
+      "searchPages": "Search pages",
+      "noPages": "No pages found",
+      "dashboardDescription": "Organizations, users and platform health at a glance.",
+      "status": "Status",
+      "all": "All",
+      "allStatuses": "All statuses",
+      "ACTIVE": "Active",
+      "SUSPENDED": "Suspended",
+      "PENDING_INVITE": "Pending invite",
+      "ARCHIVED": "Archived",
+      "searchUsers": "Search by name or email",
+      "user": "User",
+      "email": "Email",
+      "created": "Created",
+      "actions": "Actions",
+      "noUsers": "No users found",
+      "emptyHelp": "Try a different search or status filter.",
+      "settings": "Account settings",
+      "administrationTitle": "Platform administration",
+      "help": "Help",
+      "notifications": "Notifications",
+      "noNotifications": "No notifications available.",
+      "helpBody": "Manage organizations and accounts, and monitor platform health.",
+      "chartMonth": "Apr",
+      "ready": "Ready",
+      "unknown": "Unknown",
+      "degraded": "Degraded",
+      "unavailable": "Unavailable",
+      "group": "Group {number}",
+      "projectTotal": "Total projects",
+      "organizationFilter": "Organization",
+      "servicesError": "Unable to load services."
     }
   },
   "chat": {
@@ -2943,11 +2980,48 @@
     "footerAccount": "Your workspace",
     "copyright": "© 2026 Continuum AI. All rights reserved."
   },
+  "platformUserDirectory": {
+    "title": "Users",
+    "description": "Manage user accounts and review their access across your platform.",
+    "allUsers": "All users",
+    "loading": "Loading users…",
+    "search": "Search users",
+    "searchPlaceholder": "Search by name or email…",
+    "statusFilter": "User status",
+    "status": "Status",
+    "allStatuses": "All statuses",
+    "ACTIVE": "Active",
+    "SUSPENDED": "Suspended",
+    "PENDING_INVITE": "Pending invite",
+    "ARCHIVED": "Archived",
+    "fullName": "Full name",
+    "email": "Email",
+    "organizations": "Organizations",
+    "joined": "Joined date",
+    "updated": "Last updated",
+    "actions": "Actions",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing…",
+    "clearFilters": "Clear filters",
+    "rowsPerPage": "Rows per page",
+    "range": "{from}–{to} of {total} users",
+    "previous": "Previous page",
+    "next": "Next page",
+    "pagination": "Users",
+    "emptyTitle": "No users found",
+    "emptyBody": "Try another name, email or account status.",
+    "denied": "Your Admin account does not have permission to view user accounts.",
+    "sortBy": "Sort this page by",
+    "sortName": "Name",
+    "sortEmail": "Email",
+    "sortCreated": "Created date"
+  },
   "platformUserActions": {
     "restore": "Restore account",
     "restoreTitle": "Restore archived user?",
     "restoreDescription": "This clears the archive marker and returns the user to the directory as suspended. The account stays suspended and cannot sign in until a separate Reactivate action is used.",
     "restoring": "Restoring…",
+    "sessionsDenied": "Your Admin account does not have permission to view login sessions.",
     "restoreSuccess": "Account restored to SUSPENDED. Use Reactivate to restore access."
   },
   "authExperience": {
