@@ -1192,6 +1192,86 @@ export function usePlatformProjectQuery(projectId: string, enabled: boolean) {
     retry: false,
   });
 }
+export type PlatformProjectMember = Readonly<{
+  id: string;
+  projectId: string;
+  organizationId: string;
+  userId: string;
+  status: "ACTIVE" | "INACTIVE";
+  joinedAt: string;
+  user: Readonly<{
+    id: string;
+    email: string;
+    fullName: string;
+    accountStatus: string;
+  }> | null;
+}>;
+
+export function usePlatformProjectMembershipsQuery(
+  projectId: string,
+  organizationId: string,
+  filters: { page: number; search?: string; status?: "ACTIVE" | "INACTIVE" },
+  enabled: boolean,
+) {
+  const query = queryString({
+    ...filters,
+    search: filters.search?.trim(),
+    pageSize: 10,
+  });
+  return useQuery({
+    queryKey: [
+      ...platformKeys.all,
+      "project-memberships",
+      projectId,
+      organizationId,
+      query,
+    ],
+    enabled:
+      enabled && idPattern.test(projectId) && idPattern.test(organizationId),
+    retry: false,
+    queryFn: async ({ signal }) =>
+      parsePage(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(projectId)}/memberships?${query}`,
+          { cache: "no-store", signal },
+        ),
+        (value): PlatformProjectMember => {
+          const row = requireRecord(value);
+          if (
+            row.projectId !== projectId ||
+            row.organizationId !== organizationId ||
+            !["ACTIVE", "INACTIVE"].includes(String(row.status))
+          )
+            throw invalidResponse();
+          const userId = requireId(row.userId);
+          const user = row.user === null ? null : requireRecord(row.user);
+          if (
+            user &&
+            (user.id !== userId ||
+              !userStatuses.has(String(user.accountStatus)))
+          )
+            throw invalidResponse();
+          return {
+            id: requireId(row.id),
+            projectId,
+            organizationId,
+            userId,
+            status: row.status as "ACTIVE" | "INACTIVE",
+            joinedAt: requireTimestamp(row.joinedAt),
+            user: user
+              ? {
+                  id: userId,
+                  email: requireText(user.email, 254),
+                  fullName: requireText(user.fullName, 200),
+                  accountStatus: String(user.accountStatus),
+                }
+              : null,
+          };
+        },
+      ),
+  });
+}
+
 export function usePlatformChangeProjectMetadataMutation() {
   const client = useQueryClient();
   return useMutation({
