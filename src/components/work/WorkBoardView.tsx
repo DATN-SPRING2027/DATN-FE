@@ -23,6 +23,11 @@ const UNASSIGNED_PERSON: WorkPerson = {
 export default function WorkBoardView({
   items,
   people,
+  activeSprintName,
+  activeSprintCounts,
+  isSprintLoading,
+  isSprintError,
+  onCompleteSprint,
   onOpenItem,
   onOpenSubtask,
   onStatusChange,
@@ -36,6 +41,16 @@ export default function WorkBoardView({
 }: {
   items: readonly WorkItem[];
   people?: readonly WorkPerson[];
+  activeSprintName: string | null;
+  activeSprintCounts?: {
+    totalTasks: number;
+    doneTasks: number;
+    inProgressTasks: number;
+    todoTasks: number;
+  } | null;
+  isSprintLoading: boolean;
+  isSprintError: boolean;
+  onCompleteSprint?: () => Promise<void>;
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
   onOpenSubtask?: (
     item: WorkItem,
@@ -67,15 +82,44 @@ export default function WorkBoardView({
   const [viewSettingsOpen, setViewSettingsOpen] = useState(false);
   const [completeSprintOpen, setCompleteSprintOpen] = useState(false);
   const [sprintCompletedNotice, setSprintCompletedNotice] = useState(false);
+  const [completeSprintError, setCompleteSprintError] = useState<string | null>(null);
+  const [isCompletingSprint, setIsCompletingSprint] = useState(false);
   const [showEpicBadge, setShowEpicBadge] = useState(true);
   const [showDueDate, setShowDueDate] = useState(true);
   const [showStoryPoints, setShowStoryPoints] = useState(true);
   const [showSubtasks, setShowSubtasks] = useState(true);
 
-  const doneItemsCount = items.filter((i) => i.status ==="DONE").length;
-  const incompleteItemsCount = items.length - doneItemsCount;
+  const totalSprintTasks = activeSprintCounts?.totalTasks ?? items.length;
+  const doneItemsCount =
+    activeSprintCounts?.doneTasks ??
+    items.filter((i) => i.status ==="DONE").length;
+  const incompleteItemsCount = Math.max(0, totalSprintTasks - doneItemsCount);
   const completionPct =
-    items.length === 0 ? 0 : Math.round((doneItemsCount / items.length) * 100);
+    totalSprintTasks === 0
+      ? 0
+      : Math.round((doneItemsCount / totalSprintTasks) * 100);
+  const sprintLabel = activeSprintName
+    ? t("activeSprint", { name: activeSprintName })
+    : isSprintLoading
+      ? t("loadingSprint")
+      : isSprintError
+        ? t("sprintLoadFailed")
+        : t("noActiveSprint");
+
+  async function handleCompleteSprint() {
+    if (!onCompleteSprint || isCompletingSprint) return;
+    setIsCompletingSprint(true);
+    setCompleteSprintError(null);
+    try {
+      await onCompleteSprint();
+      setCompleteSprintOpen(false);
+      setSprintCompletedNotice(true);
+    } catch {
+      setCompleteSprintError(t("completeSprintFailed"));
+    } finally {
+      setIsCompletingSprint(false);
+    }
+  }
 
   function toggleColumnCollapse(status: WorkStatus) {
     setCollapsedColumns((current) => {
@@ -105,12 +149,12 @@ export default function WorkBoardView({
         <div className="flex flex-wrap items-center gap-2.5">
           <span className="inline-flex items-center gap-1.5 border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
             <MonoIcon name="sync"size={13} />
-            <span>Active Sprint • SCRUM Sprint 1</span>
+            <span>{sprintLabel}</span>
           </span>
           {sprintCompletedNotice && (
             <span className="inline-flex items-center gap-1.5 border border-gray-300 bg-gray-100 px-2.5 py-1 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
               <MonoIcon name="check"size={13} />
-              <span>Sprint completed &amp; velocity recorded</span>
+              <span>{t("sprintCompleted")}</span>
             </span>
           )}
         </div>
@@ -118,10 +162,14 @@ export default function WorkBoardView({
         <div className="relative flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => setCompleteSprintOpen(true)}
-            className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            disabled={!activeSprintName || !onCompleteSprint || isCompletingSprint}
+            onClick={() => {
+              setCompleteSprintError(null);
+              setCompleteSprintOpen(true);
+            }}
+            className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           >
-            Complete sprint
+            {t("completeSprint")}
           </button>
 
           <button
@@ -253,39 +301,42 @@ export default function WorkBoardView({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Complete sprint"
+          aria-label={t("completeSprintDialog")}
           className="border border-gray-200 bg-white p-4 shadow-theme-md dark:border-gray-800 dark:bg-gray-900"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                Complete SCRUM Sprint 1
+                {t("completeSprintTitle", { sprintName: activeSprintName ?? "" })}
               </h3>
               <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                {doneItemsCount} completed work items • {incompleteItemsCount}{""}
-                open work items will move to Backlog / Next Sprint.
+                {t("incompleteItemsMove", { count: incompleteItemsCount })}
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                disabled={isCompletingSprint}
                 onClick={() => setCompleteSprintOpen(false)}
                 className="h-8 cursor-pointer border border-gray-200 px-3 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
               >
-                Cancel
+                {t("cancel")}
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setCompleteSprintOpen(false);
-                  setSprintCompletedNotice(true);
-                }}
-                className="h-8 cursor-pointer bg-brand-600 px-3.5 text-xs font-semibold text-white hover:bg-brand-700"
+                disabled={isCompletingSprint}
+                onClick={() => void handleCompleteSprint()}
+                className="h-8 cursor-pointer bg-brand-600 px-3.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-wait disabled:opacity-60"
               >
-                Complete sprint
+                {isCompletingSprint ? t("completingSprint") : t("completeSprint")}
               </button>
             </div>
           </div>
+          {completeSprintError && (
+            <p role="alert" className="mt-3 text-xs text-error-600 dark:text-error-400">
+              {completeSprintError}
+            </p>
+          )}
         </div>
       )}
 

@@ -319,11 +319,7 @@ export default function WorkPageHeader({
     { key:"board", label: t("tabs.board") },
     { key:"calendar", label: t("tabs.calendar") },
     { key:"timeline", label: t("tabs.timeline") },
-    { key:"development", label: t("tabs.development") },
-    { key:"forms", label: t("tabs.forms") },
-    { key:"docs", label: t("tabs.docs") },
     { key:"reports", label: t("tabs.reports") },
-    { key:"work-notes", label: t("tabs.workNotes") },
   ];
 
   function handleShareSpace() {

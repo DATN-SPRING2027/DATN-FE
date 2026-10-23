@@ -12,6 +12,7 @@ import WorkWorkspace, {
   formatWorklogMinutes,
   parseWorklogMinutes,
 } from "./WorkWorkspace";
+import type { WorkView } from "./WorkPageHeader";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -52,14 +53,14 @@ vi.mock("@/icons", () => {
 
 const api = vi.mocked(apiClient);
 
-function mount(projectId: string) {
+function mount(projectId: string, view?: WorkView) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const rendered = render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
-        <WorkWorkspace projectId={projectId} />
+        <WorkWorkspace projectId={projectId} view={view} />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -131,13 +132,14 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       "Board",
       "Calendar",
       "Timeline",
-      "Development",
-      "Forms",
-      "Docs",
       "Reports",
-      "Work Notes",
     ]) {
       expect(screen.getByRole("button", { name: activeTab })).toBeEnabled();
+    }
+    for (const unavailableTab of ["Development", "Forms", "Docs", "Work Notes"]) {
+      expect(
+        screen.queryByRole("button", { name: unavailableTab }),
+      ).not.toBeInTheDocument();
     }
 
     // Verify Jira Cloud 2026 `+ Add view` 2-column popover
@@ -145,13 +147,16 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     expect(
       screen.getByRole("dialog", { name: "Add view to navigation" }),
     ).toBeVisible();
+    for (const unavailableTab of ["Development", "Forms", "Docs", "Work Notes"]) {
+      expect(
+        screen.queryByRole("button", { name: unavailableTab }),
+      ).not.toBeInTheDocument();
+    }
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
 
-    // Verify List view `AI Search` rainbow natural language bar & Work column menu
-    fireEvent.click(screen.getByRole("button", { name: "AI Search" }));
-    expect(
-      screen.getByLabelText("Ask AI natural language search bar"),
-    ).toBeVisible();
+    // AI search depends on the out-of-scope G9 assistant feature.
+    expect(screen.queryByRole("button", { name: "AI Search" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Ask AI natural language search bar")).not.toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "More actions for Work column" }),
     );
@@ -172,23 +177,9 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     ).toBeVisible();
     expect(screen.getByText(/SCRUM Sprint 1/i)).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "Development" }));
-    expect(screen.getByText(/Key metrics/i)).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: "Forms" }));
-    expect(screen.getByText(/Create a form from template/i)).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: "Docs" }));
-    expect(screen.getByText(/Document List/i)).toBeVisible();
-
     fireEvent.click(screen.getByRole("button", { name: "Reports" }));
     expect(
       screen.getByRole("heading", { name: "Sprint Burndown Chart" }),
-    ).toBeVisible();
-
-    fireEvent.click(screen.getByRole("button", { name: "Work Notes" }));
-    expect(
-      await screen.findByRole("heading", { level: 2, name: "Work Notes" }),
     ).toBeVisible();
 
     expect(api).toHaveBeenCalledWith(
@@ -1700,5 +1691,255 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     expect(await screen.findByText("làm phần header")).toBeVisible();
     expect(screen.getByText("làm phần thân")).toBeVisible();
     expect(screen.getAllByText(/Parent: FE-1/i).length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("completes the active sprint through the API and only then shows confirmation", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const sprintId = "69e923c77859fd1c702d4c31";
+    const activeSprint = {
+      id: sprintId,
+      projectId,
+      name: "Sprint 12",
+      goal: "Ship workspace basics",
+      status: "ACTIVE",
+      startDate: "2026-10-01T00:00:00.000Z",
+      endDate: "2026-10-14T00:00:00.000Z",
+      createdBy: "69e923c77859fd1c702d4c10",
+      createdAt: "2026-10-01T00:00:00.000Z",
+      completedAt: null,
+      version: 3,
+      counts: { totalTasks: 6, doneTasks: 4, inProgressTasks: 1, todoTasks: 1 },
+    };
+    const completePath = `/tasks/projects/${projectId}/sprints/${sprintId}/complete`;
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Anh",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return { data: [], pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [activeSprint] };
+      }
+      if (path === completePath && init?.method === "POST") {
+        return {
+          ...activeSprint,
+          status: "COMPLETED",
+          completedAt: "2026-10-23T00:00:00.000Z",
+          version: 4,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return { items: [], nextAfterId: null, nextCursor: null };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+    await screen.findByRole("heading", { level: 1, name: "Apollo" });
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+    const dialog = await screen.findByRole("dialog", { name: "Complete sprint" });
+    expect(dialog).toHaveTextContent("2 open work items will move to the backlog.");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Complete sprint" }));
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith(
+      completePath,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ moveIncompleteToSprintId: null }),
+      }),
+    ));
+    expect(await screen.findAllByText("Sprint completed.")).toHaveLength(2);
+    expect(screen.getByRole("status")).toHaveTextContent("Sprint completed.");
+    expect(screen.queryByText(/velocity recorded/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the sprint dialog open and reports an API error when completion fails", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const sprintId = "69e923c77859fd1c702d4c31";
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return { data: [], pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return {
+          items: [{ id: sprintId, name: "Sprint 12", status: "ACTIVE", version: 3 }],
+        };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/sprints/${sprintId}/complete` &&
+        init?.method === "POST"
+      ) {
+        throw new Error("Sprint completion failed");
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return { items: [], nextAfterId: null, nextCursor: null };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+    await screen.findByRole("heading", { level: 1, name: "Apollo" });
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete sprint" }));
+    const dialog = await screen.findByRole("dialog", { name: "Complete sprint" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Complete sprint" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Sprint could not be completed. Please try again.",
+    );
+    expect(screen.getByRole("dialog", { name: "Complete sprint" })).toBeVisible();
+    expect(screen.queryByText("Sprint completed.")).not.toBeInTheDocument();
+  });
+
+  it("persists quick-created tasks in the selected Board column", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const taskId = "69e923c77859fd1c702d4c41";
+    const createPath = `/tasks/projects/${projectId}/tasks`;
+    const transitionPath = `${createPath}/${taskId}/transitions`;
+    const createdTask = {
+      id: taskId,
+      projectId,
+      key: "AP-42",
+      title: "Add board quick-create regression test",
+      description: null,
+      type: "TASK",
+      status: "TODO",
+      priority: "MEDIUM",
+      assigneeId: null,
+      createdBy: "69e923c77859fd1c702d4c10",
+      parentId: null,
+      sprintId: null,
+      labels: [],
+      steps: [],
+      subtaskCounts: { total: 0, done: 0 },
+      dueDate: null,
+      startDate: null,
+      completedAt: null,
+      createdAt: "2026-10-23T00:00:00.000Z",
+      updatedAt: "2026-10-23T00:00:00.000Z",
+      version: 1,
+    };
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Anh",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return { data: [], pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } };
+      }
+      if (path === createPath && init?.method === "POST") return createdTask;
+      if (path === transitionPath && init?.method === "POST") {
+        return { ...createdTask, status: "IN_PROGRESS", version: 2 };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return { items: [], nextAfterId: null, nextCursor: null };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) return { items: [] };
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+    await screen.findByRole("heading", { level: 1, name: "Apollo" });
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    const inProgressColumn = document.getElementById("work-column-IN_PROGRESS")?.closest("section");
+    expect(inProgressColumn).not.toBeNull();
+    fireEvent.click(within(inProgressColumn!).getByRole("button", { name: "Create issue" }));
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Add board quick-create regression test" },
+    });
+    fireEvent.submit(screen.getByPlaceholderText("What needs to be done?").closest("form")!);
+
+    await waitFor(() => expect(api).toHaveBeenCalledWith(
+      transitionPath,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ fromStatus: "TODO", toStatus: "IN_PROGRESS" }),
+      }),
+    ));
+  });
+
+  it("shows an unavailable state if an out-of-scope view is requested directly", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return { id: "user-1", organizationId: "org-1", roles: ["MEMBER"] };
+      }
+      if (path === "/iam/projects/project-1") {
+        return {
+          id: "project-1",
+          organizationId: "org-1",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "user-1",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount("project-1", "forms");
+
+    expect(await screen.findByText("Not available yet.")).toBeVisible();
+    expect(screen.queryByText(/Create a form from template/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Forms" })).not.toBeInTheDocument();
   });
 });

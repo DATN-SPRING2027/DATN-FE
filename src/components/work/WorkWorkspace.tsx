@@ -9,13 +9,8 @@ import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects
 import ProjectState from"@/components/projects/ProjectState";
 import Button from"@/components/ui/button/Button";
 import { PlusIcon } from"@/icons";
-import WorkNotesWorkspace from"@/components/work-notes/WorkNotesWorkspace";
-import WorkAiCopilotDialog from"./WorkAiCopilotDialog";
 import WorkBoardView from"./WorkBoardView";
 import WorkCalendarView from"./WorkCalendarView";
-import WorkDevelopmentView from"./WorkDevelopmentView";
-import WorkDocsView from"./WorkDocsView";
-import WorkFormsView from"./WorkFormsView";
 import WorkItemCreateDialog from"./WorkItemCreateDialog";
 import WorkItemDetailDialog from"./WorkItemDetailDialog";
 import WorkListView from"./WorkListView";
@@ -47,6 +42,7 @@ import {
   type BackendTask,
   type BackendTaskHistoryEvent,
   type BackendTaskStatus,
+  completeProjectSprintApi,
   createProjectTaskApi,
   createTaskCommentApi,
   createTaskWorklogApi,
@@ -56,6 +52,7 @@ import {
   fetchProjectTaskDetail,
   transitionProjectTaskApi,
   updateProjectTaskApi,
+  useProjectSprintsQuery,
   useProjectTasksQuery,
 } from"@/lib/queries/tasks/useTasks";
 
@@ -65,6 +62,17 @@ const UNASSIGNED_WORK_PERSON: WorkPerson = {
   name: "Unassigned",
   initials: "UN",
 };
+
+const OUT_OF_SCOPE_WORK_VIEWS = new Set<WorkView>([
+  "development",
+  "forms",
+  "docs",
+  "work-notes",
+]);
+
+function isOutOfScopeWorkView(view: WorkView): boolean {
+  return OUT_OF_SCOPE_WORK_VIEWS.has(view);
+}
 
 function describeMutationError(error: unknown): string {
   if (error instanceof ApiError) {
@@ -261,7 +269,6 @@ export default function WorkWorkspace({
   const [highlightDoneRows, setHighlightDoneRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
-  const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeWorkItemId, setActiveWorkItemId] = useState<string | null>(null);
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
@@ -273,6 +280,10 @@ export default function WorkWorkspace({
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
   const tasksQuery = useProjectTasksQuery(projectId);
+  const sprintsQuery = useProjectSprintsQuery(isRealProject ? projectId : "");
+  const activeSprint = sprintsQuery.data?.items.find(
+    (sprint) => sprint.status === "ACTIVE",
+  ) ?? null;
   const projectMembersQuery = useProjectMembersQuery(
     isRealProject ? organizationId : "",
     isRealProject ? projectId : "",
@@ -335,6 +346,18 @@ export default function WorkWorkspace({
     const pending = pendingIdPromisesRef.current.get(rawId);
     if (pending) return pending;
     return null;
+  }
+
+  async function completeActiveSprint(): Promise<void> {
+    if (!activeSprint) throw new Error("There is no active sprint to complete.");
+    await completeProjectSprintApi(
+      projectId,
+      activeSprint.id,
+      activeSprint.version,
+    );
+    setAnnouncement(t("sprintCompleted"));
+    void tasksQuery.refetch();
+    void sprintsQuery.refetch();
   }
 
   function enqueueTaskMutation(
@@ -2560,10 +2583,10 @@ export default function WorkWorkspace({
           onViewChange={setView}
           onCreate={() => setCreateOpen(true)}
           createButtonRef={createButtonRef}
-          showCreateButton={view !=="work-notes"}
+          showCreateButton={!isOutOfScopeWorkView(view)}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
-          itemCount={view !=="work-notes"? visibleItems.length : undefined}
+          itemCount={!isOutOfScopeWorkView(view) ? visibleItems.length : undefined}
           hideProjectBanner={hideProjectBanner}
         />
       ) : (
@@ -2645,12 +2668,13 @@ export default function WorkWorkspace({
           onAddComment={addComment}
           onAddWorklog={addWorklog}
         />
-      ) : view ==="work-notes"? (
-        <WorkNotesWorkspace
-          projectId={projectId}
-          project={resolvedProject}
-          embedded
-        />
+      ) : isOutOfScopeWorkView(view) ? (
+        <div
+          role="status"
+          className="border border-dashed border-gray-300 bg-white px-6 py-12 text-center text-sm text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+        >
+          {t("notAvailableYet")}
+        </div>
       ) : (
         <>
           {showFilterToolbar && (
@@ -2679,7 +2703,6 @@ export default function WorkWorkspace({
               onToggleShowHierarchy={setShowHierarchy}
               onToggleHighlightHighPriority={setHighlightHighPriority}
               onToggleHighlightDoneRows={setHighlightDoneRows}
-              onOpenAiCopilot={() => setAiCopilotOpen(true)}
               onExportCsv={exportCsv}
               onImportCsvItem={importCsvItem}
               onBulkSelectAll={() =>
@@ -2762,19 +2785,6 @@ export default function WorkWorkspace({
               onOpenItem={openWorkItem}
               onCreate={() => setCreateOpen(true)}
             />
-          ) : view ==="development"? (
-            <WorkDevelopmentView
-              items={visibleItems}
-              onCreateItem={isRealProject ? undefined : addPreviewItem}
-            />
-          ) : view ==="forms"? (
-            <WorkFormsView
-              projectId={projectId}
-              people={projectPeople}
-              onCreateItem={addPreviewItem}
-            />
-          ) : view ==="docs"? (
-            <WorkDocsView items={visibleItems} onOpenItem={openWorkItem} />
           ) : view ==="reports"? (
             <WorkReportsView
               items={visibleItems}
@@ -2870,6 +2880,11 @@ export default function WorkWorkspace({
             <WorkBoardView
               items={visibleItems}
               people={projectPeople}
+              activeSprintName={activeSprint?.name ?? null}
+              activeSprintCounts={activeSprint?.counts ?? null}
+              isSprintLoading={sprintsQuery.isPending}
+              isSprintError={sprintsQuery.isError}
+              onCompleteSprint={activeSprint ? completeActiveSprint : undefined}
               onOpenItem={openWorkItem}
               onOpenSubtask={openSubtask}
               onStatusChange={updateItemStatus}
@@ -2909,12 +2924,6 @@ export default function WorkWorkspace({
         people={projectPeople}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
-      />
-      <WorkAiCopilotDialog
-        isOpen={aiCopilotOpen}
-        projectName={projectName}
-        items={visibleItems}
-        onClose={() => setAiCopilotOpen(false)}
       />
       {activeWorkItem && (
         <WorkItemDetailDialog
