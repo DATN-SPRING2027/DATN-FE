@@ -79,14 +79,15 @@ export default function ChatTools({
     const timer = setTimeout(() => setSenderTerm(senderSearch.trim()), 250);
     return () => clearTimeout(timer);
   }, [senderSearch]);
-  const senderCandidates = useChatCandidatesQuery(
-    organizationId,
-    senderId ? "" : senderTerm,
-  );
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [kind, setKind] = useState("");
   const [onlyCurrent, setOnlyCurrent] = useState(Boolean(cid));
+  const senderCandidates = useChatCandidatesQuery(
+    organizationId,
+    senderId ? "" : senderTerm,
+    mode === "search" && !onlyCurrent && !senderId && senderTerm.length >= 2,
+  );
   const [libraryKind, setLibraryKind] = useState("IMAGE");
   const [reason, setReason] = useState("");
   const [newOwner, setNewOwner] = useState("");
@@ -423,6 +424,7 @@ export default function ChatTools({
                     </button>
                   )}
                   {!senderId &&
+                    senderTerm.length >= 2 &&
                     Boolean(senderCandidates.data?.data.length) && (
                       <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/50">
                         {senderCandidates.data?.data.map((person) => (
@@ -444,6 +446,11 @@ export default function ChatTools({
                               <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
                                 {person.fullName}
                               </span>
+                              {person.email && (
+                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                                  {person.email}
+                                </span>
+                              )}
                               <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
                                 <span
                                   className={`h-1.5 w-1.5 rounded-full ${person.isOnline ? "bg-success-500" : "bg-gray-300"}`}

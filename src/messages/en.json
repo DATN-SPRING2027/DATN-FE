@@ -603,6 +603,7 @@
     "messageSearchResults": "Search results ({count})",
     "messageSearchError": "Messages could not be searched. Try again.",
     "searchHint": "Enter at least two characters.",
+    "organizationMembers": "Organization members",
     "noPeople": "No active organization members found.",
     "searchError": "People could not be searched. Try again.",
     "noConversations": "Your conversations will appear here.",
