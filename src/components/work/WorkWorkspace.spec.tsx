@@ -1117,4 +1117,155 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       );
     });
   });
+
+  it("opens the calendar date picker popover when clicking a Due date cell, allows choosing year/month/day, and persists to backend", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const realTaskId = "69e923c77859fd1c702d4ca1";
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}` &&
+        init?.method === "PATCH"
+      ) {
+        return {
+          id: realTaskId,
+          projectId: realProjectId,
+          key: "FE-1",
+          title: "làm fe trang chủ",
+          description: null,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: "69e923c77859fd1c702d4c10",
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: "2026-12-15T00:00:00.000Z",
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-20T00:00:00.000Z",
+          updatedAt: "2026-10-20T00:00:00.000Z",
+          version: 2,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "làm fe trang chủ",
+              type: "TASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: "2026-11-15T00:00:00.000Z",
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    expect(await screen.findByText("làm fe trang chủ")).toBeVisible();
+
+    const dueTrigger = screen.getByRole("button", {
+      name: "Due date for FE-1",
+    });
+    expect(dueTrigger).toHaveTextContent("2026-11-15");
+
+    fireEvent.click(dueTrigger);
+
+    const pickerDialog = screen.getByRole("dialog", {
+      name: "Select due date for FE-1",
+    });
+    expect(pickerDialog).toBeVisible();
+
+    // Change month to December (month index 11) and select day 15
+    fireEvent.change(
+      within(pickerDialog).getByRole("combobox", { name: "Month for FE-1" }),
+      { target: { value: "11" } },
+    );
+    fireEvent.click(
+      within(pickerDialog).getByRole("button", {
+        name: "Set due date 2026-12-15",
+      }),
+    );
+
+    await waitFor(() => {
+      expect(dueTrigger).toHaveTextContent("2026-12-15");
+      expect(api).toHaveBeenCalledWith(
+        `/tasks/projects/${realProjectId}/tasks/${realTaskId}`,
+        expect.objectContaining({
+          method: "PATCH",
+        }),
+      );
+    });
+  });
 });

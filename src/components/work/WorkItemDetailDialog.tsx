@@ -14,6 +14,7 @@ import { useLocale, useTranslations } from"next-intl";
 import { CloseLineIcon, TaskIcon } from"@/icons";
 import { Modal } from"@/components/ui/modal";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
+import { WorkDatePickerCell } from "./WorkDatePicker";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
 import {
@@ -69,6 +70,7 @@ export default function WorkItemDetailDialog({
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
+  onDueDateChange,
   onToggleSubtask,
   onAddSubtask,
   onAddExistingTaskAsSubtask,
@@ -95,6 +97,7 @@ export default function WorkItemDetailDialog({
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
+  onDueDateChange?: (id: string, dueDate: string | null) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
   onAddSubtask?: (
     itemId: string,
@@ -1644,23 +1647,26 @@ export default function WorkItemDetailDialog({
                       </DetailField>
 
                       <DetailField label={t("dueDate")}>
-                        {onUpdateSubtask ? (
-                          <input
-                            type="date"
-                            aria-label={`Due date for ${activeSubtask.key}`}
-                            value={activeSubtask.dueDate ?? item.dueDate ?? ""}
-                            onChange={(e) =>
-                              onUpdateSubtask(item.id, activeSubtask.id, {
-                                dueDate: e.target.value || null,
-                              })
-                            }
-                            className="h-7 cursor-pointer rounded border border-transparent bg-transparent px-1.5 text-xs text-gray-700 hover:border-gray-200 hover:bg-gray-50 dark:text-gray-300 dark:hover:border-gray-700 dark:hover:bg-gray-800"
-                          />
-                        ) : (
-                          <span className="px-1.5 text-xs text-gray-700 dark:text-gray-300">
-                            {activeSubtask.dueDate ?? item.dueDate ?? t("noDueDate")}
-                          </span>
-                        )}
+                        <WorkDatePickerCell
+                          value={activeSubtask.dueDate ?? item.dueDate ?? null}
+                          itemKey={activeSubtask.key}
+                          placeholder={t("noDueDate")}
+                          disabled={!onUpdateSubtask}
+                          onChange={
+                            onUpdateSubtask
+                              ? (nextDate) => {
+                                  onUpdateSubtask(item.id, activeSubtask.id, {
+                                    dueDate: nextDate,
+                                  });
+                                  showSubtaskFeedback(
+                                    nextDate
+                                      ? `Updated due date for ${activeSubtask.key} to ${nextDate}`
+                                      : `Cleared due date for ${activeSubtask.key}`,
+                                  );
+                                }
+                              : undefined
+                          }
+                        />
                       </DetailField>
 
                       <DetailField label="Time tracking">
@@ -2420,23 +2426,19 @@ export default function WorkItemDetailDialog({
 
                                 {subtaskCols.due && (
                                   <td className="px-1.5 py-2 align-middle">
-                                    {onUpdateSubtask ? (
-                                      <input
-                                        type="date"
-                                        aria-label={`Due date for ${sub.key}`}
-                                        value={sub.dueDate ?? item.dueDate ?? ""}
-                                        onChange={(e) =>
-                                          onUpdateSubtask(item.id, sub.id, {
-                                            dueDate: e.target.value || null,
-                                          })
-                                        }
-                                        className="h-6 w-full border border-gray-200 bg-transparent px-1 text-[10px] text-gray-700 dark:border-gray-700 dark:text-gray-300"
-                                      />
-                                    ) : (
-                                      <span className="text-[11px] text-gray-600 dark:text-gray-300">
-                                        {sub.dueDate ?? item.dueDate ?? "—"}
-                                      </span>
-                                    )}
+                                    <WorkDatePickerCell
+                                      value={sub.dueDate ?? item.dueDate ?? null}
+                                      itemKey={sub.key}
+                                      disabled={!onUpdateSubtask}
+                                      onChange={
+                                        onUpdateSubtask
+                                          ? (nextDate) =>
+                                              onUpdateSubtask(item.id, sub.id, {
+                                                dueDate: nextDate,
+                                              })
+                                          : undefined
+                                      }
+                                    />
                                   </td>
                                 )}
 
@@ -3411,14 +3413,24 @@ export default function WorkItemDetailDialog({
                     )}
 
                     <DetailField label={t("dueDate")}>
-                      <span className="px-1.5 text-xs text-gray-700 dark:text-gray-300">
-                        {item.dueDate
-                          ? new Intl.DateTimeFormat(locale, {
-                              dateStyle: "medium",
-                              timeZone: "UTC",
-                            }).format(new Date(`${item.dueDate}T00:00:00.000Z`))
-                          : t("noDueDate")}
-                      </span>
+                      <WorkDatePickerCell
+                        value={item.dueDate}
+                        itemKey={item.key}
+                        placeholder={t("noDueDate")}
+                        disabled={!onDueDateChange}
+                        onChange={
+                          onDueDateChange
+                            ? (nextDate) => {
+                                onDueDateChange(item.id, nextDate);
+                                showSubtaskFeedback(
+                                  nextDate
+                                    ? `Updated due date for ${item.key} to ${nextDate}`
+                                    : `Cleared due date for ${item.key}`,
+                                );
+                              }
+                            : undefined
+                        }
+                      />
                     </DetailField>
 
                     <DetailField label="Labels">

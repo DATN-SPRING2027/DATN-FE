@@ -18,6 +18,7 @@ import {
   PREVIEW_PEOPLE,
 } from"./work-preview-data";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
+import { WorkDatePickerCell } from "./WorkDatePicker";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
 import {
   WORK_STATUS_ORDER,
@@ -65,6 +66,7 @@ export default function WorkListView({
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
+  onDueDateChange,
   onToggleFlag,
   onDeleteItem,
   onToggleSubtask,
@@ -111,6 +113,7 @@ export default function WorkListView({
     id: string,
     assignee: WorkPerson,
   ) => void | Promise<boolean>;
+  onDueDateChange?: (id: string, dueDate: string | null) => void;
   onToggleFlag?: (id: string) => void;
   onDeleteItem?: (id: string) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
@@ -794,6 +797,7 @@ export default function WorkListView({
                                   onStatusChange,
                                   onPriorityChange,
                                   onAssigneeChange,
+                                  onDueDateChange,
                                   showNotice,
                                   t,
                                 })}
@@ -1307,31 +1311,27 @@ export default function WorkListView({
                                             />
                                           )
                                         ) : col.key === "due" ? (
-                                          onUpdateSubtask ? (
-                                            <input
-                                              type="date"
-                                              aria-label={`Due date for ${sub.key}`}
-                                              value={subDueDate ?? ""}
-                                              onChange={(e) => {
-                                                onUpdateSubtask(
-                                                  item.id,
-                                                  sub.id,
-                                                  {
-                                                    dueDate:
-                                                      e.target.value || null,
-                                                  },
-                                                );
-                                                showNotice(
-                                                  `Updated due date for ${sub.key}`,
-                                                );
-                                              }}
-                                              className="h-6 border border-transparent bg-transparent px-1 text-xs text-gray-600 hover:border-gray-300 dark:text-gray-300 dark:hover:border-gray-700"
-                                            />
-                                          ) : (
-                                            <span className="whitespace-nowrap text-gray-600 dark:text-gray-300">
-                                              {subDueDate ?? "None"}
-                                            </span>
-                                          )
+                                          <WorkDatePickerCell
+                                            value={subDueDate}
+                                            itemKey={sub.key}
+                                            disabled={!onUpdateSubtask}
+                                            onChange={
+                                              onUpdateSubtask
+                                                ? (nextDate) => {
+                                                    onUpdateSubtask(
+                                                      item.id,
+                                                      sub.id,
+                                                      { dueDate: nextDate },
+                                                    );
+                                                    showNotice(
+                                                      nextDate
+                                                        ? `Updated due date for ${sub.key} to ${nextDate}`
+                                                        : `Cleared due date for ${sub.key}`,
+                                                    );
+                                                  }
+                                                : undefined
+                                            }
+                                          />
                                         ) : col.key === "parent" ? (
                                           <span className="inline-flex items-center gap-1 border border-gray-200 bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                             <MonoIssueTypeIcon
@@ -2145,6 +2145,7 @@ function renderCellContent({
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
+  onDueDateChange,
   showNotice,
   t,
 }: {
@@ -2180,6 +2181,7 @@ function renderCellContent({
     id: string,
     assignee: WorkPerson,
   ) => void | Promise<boolean>;
+  onDueDateChange?: (id: string, dueDate: string | null) => void;
   showNotice: (msg: string) => void;
   t: ReturnType<typeof useTranslations<"work">>;
 }) {
@@ -2615,9 +2617,23 @@ function renderCellContent({
 
   if (colKey ==="due") {
     return (
-      <span className="whitespace-nowrap text-xs text-gray-600 dark:text-gray-300">
-        {item.dueDate ??"None"}
-      </span>
+      <WorkDatePickerCell
+        value={item.dueDate}
+        itemKey={item.key}
+        disabled={!onDueDateChange}
+        onChange={
+          onDueDateChange
+            ? (nextDate) => {
+                onDueDateChange(item.id, nextDate);
+                showNotice(
+                  nextDate
+                    ? `Updated due date for ${item.key} to ${nextDate}`
+                    : `Cleared due date for ${item.key}`,
+                );
+              }
+            : undefined
+        }
+      />
     );
   }
 

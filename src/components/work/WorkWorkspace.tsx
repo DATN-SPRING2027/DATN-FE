@@ -1201,6 +1201,61 @@ export default function WorkWorkspace({
     }
   }
 
+  function updateItemDueDate(id: string, nextDueDate: string | null) {
+    const existing = items.find((item) => item.id === id);
+    const prevDueDate = existing?.dueDate ?? null;
+    const prevStartDate = existing?.startDate;
+    if (prevDueDate === nextDueDate) return;
+    const shouldClampStartDate = Boolean(
+      nextDueDate && prevStartDate && prevStartDate > nextDueDate,
+    );
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              dueDate: nextDueDate,
+              ...(shouldClampStartDate ? { startDate: nextDueDate ?? undefined } : {}),
+            }
+          : item,
+      ),
+    );
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const isoDue = nextDueDate
+            ? new Date(`${nextDueDate}T00:00:00.000Z`).toISOString()
+            : null;
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              dueDate: isoDue,
+              ...(shouldClampStartDate ? { startDate: isoDue } : {}),
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? {
+                    ...item,
+                    dueDate: prevDueDate,
+                    ...(shouldClampStartDate ? { startDate: prevStartDate } : {}),
+                  }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+  }
+
   function toggleSubtask(itemId: string, subtaskId: string) {
     const previousItems = items;
     const parentItem = items.find((item) => item.id === itemId);
@@ -1597,8 +1652,18 @@ export default function WorkWorkspace({
                   ...(patch.dueDate !== undefined
                     ? {
                         dueDate: patch.dueDate
-                          ? new Date(patch.dueDate).toISOString()
+                          ? new Date(`${patch.dueDate}T00:00:00.000Z`).toISOString()
                           : null,
+                        ...(patch.dueDate &&
+                        existingSub.startDate &&
+                        existingSub.startDate > patch.dueDate &&
+                        patch.startDate === undefined
+                          ? {
+                              startDate: new Date(
+                                `${patch.dueDate}T00:00:00.000Z`,
+                              ).toISOString(),
+                            }
+                          : {}),
                       }
                     : {}),
                   ...(patch.startDate !== undefined
@@ -2441,6 +2506,7 @@ export default function WorkWorkspace({
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
+          onDueDateChange={updateItemDueDate}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
@@ -2633,6 +2699,7 @@ export default function WorkWorkspace({
               onStatusChange={updateItemStatus}
               onPriorityChange={updateItemPriority}
               onAssigneeChange={updateItemAssignee}
+              onDueDateChange={updateItemDueDate}
               onToggleFlag={toggleItemFlag}
               onDeleteItem={deleteSingleItem}
               onToggleSubtask={toggleSubtask}
@@ -2737,6 +2804,7 @@ export default function WorkWorkspace({
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
+          onDueDateChange={updateItemDueDate}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
