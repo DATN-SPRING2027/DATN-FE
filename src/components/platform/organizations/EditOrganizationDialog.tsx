@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import dialog from "../ui/platformDialog.module.css";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -92,16 +93,20 @@ export default function EditOrganizationDialog({
             />
           </div>
         </fieldset>
-        <Button
-          type="submit"
-          disabled={
-            !changed || !name.trim() || mutation.isPending || conflicted
-          }
-        >
-          {t(
-            mutation.isPending ? "organizations.saving" : "organizations.save",
-          )}
-        </Button>
+        <footer className={dialog.footer}>
+          <Button
+            type="submit"
+            disabled={
+              !changed || !name.trim() || mutation.isPending || conflicted
+            }
+          >
+            {t(
+              mutation.isPending
+                ? "organizations.saving"
+                : "organizations.save",
+            )}
+          </Button>
+        </footer>
         {conflicted && (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {t("organizations.reloadBeforeEdit")}

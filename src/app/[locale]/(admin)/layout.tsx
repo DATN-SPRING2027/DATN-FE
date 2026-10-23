@@ -15,7 +15,8 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { isExpanded, isMobileOpen, sidebarWidth, isResizing, isHelpOpen } =
+    useSidebar();
   const router = useRouter();
   const isChat = usePathname() === "/chat";
   const shell = useRef<HTMLDivElement>(null);
@@ -79,38 +80,60 @@ export default function AdminLayout({
     );
   }
 
-  // Dynamic class for main content margin based on sidebar state
+  const rawWidth = Number.isFinite(sidebarWidth) ? Number(sidebarWidth) : 240;
+  const resolvedExpandedWidth = Math.min(
+    420,
+    Math.max(180, Math.round(rawWidth)),
+  );
+  const desktopSidebarOffsetPx = isExpanded ? resolvedExpandedWidth : 64;
+
   const mainContentMargin = isMobileOpen
     ? "ms-0"
-    : isExpanded || isHovered
-      ? "lg:ms-[290px]"
-      : "lg:ms-[90px]";
+    : "lg:ms-[var(--sidebar-offset)]";
+  const helpContentMargin = isHelpOpen ? "lg:me-80" : "me-0";
 
   return (
     <div
       ref={shell}
       className={
-        isChat ? "h-dvh overflow-hidden xl:flex" : "min-h-screen xl:flex"
+        isChat
+          ? "flex h-dvh flex-col overflow-hidden"
+          : "flex min-h-screen flex-col"
       }
     >
-      {/* Sidebar and Backdrop */}
-      <AppSidebar />
-      <Backdrop />
-      {/* Main Content Area */}
+      {/* Full-width Top Header */}
+      <AppHeader compact={isChat} />
+
+      {/* Workspace Body below Header: Left Sidebar + Right Main Content */}
       <div
-        className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}
+        className={
+          isChat
+            ? "relative flex min-h-0 flex-1 overflow-hidden"
+            : "relative flex min-h-0 flex-1"
+        }
       >
-        {/* Header */}
-        <AppHeader compact={isChat} />
-        {/* Page Content */}
+        <AppSidebar />
+        <Backdrop />
+
+        {/* Main Content Area */}
         <div
-          className={
-            isChat
-              ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-              : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+          style={
+            {
+              "--sidebar-offset": `${desktopSidebarOffsetPx}px`,
+            } as React.CSSProperties
           }
+          className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 ${isResizing ? "transition-none" : "transition-all duration-200 ease-in-out"} ${mainContentMargin} ${helpContentMargin}`}
         >
-          {children}
+          {/* Page Content */}
+          <div
+            className={
+              isChat
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+            }
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

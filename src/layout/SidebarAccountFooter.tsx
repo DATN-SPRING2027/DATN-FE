@@ -48,12 +48,11 @@ export default function SidebarAccountFooter({
   };
 
   return (
-    <div className="shrink-0 border-t border-gray-200 pt-4 pb-2 dark:border-gray-800">
+    <div className="shrink-0 border-t border-gray-200/80 py-2 dark:border-gray-800">
       <div
         className={cn(
-          "flex min-h-12 items-center gap-2 rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/60",
-          !isExpandedView &&
-            "justify-center border-transparent bg-transparent p-0 dark:bg-transparent",
+          "flex min-h-9 items-center gap-1.5 rounded-md px-1.5 py-1 transition-colors hover:bg-gray-100/70 dark:hover:bg-white/[0.04]",
+          !isExpandedView && "justify-center px-0",
         )}
       >
         <Link
@@ -61,19 +60,19 @@ export default function SidebarAccountFooter({
           aria-label={t("profile", { name })}
           title={!isExpandedView ? name : undefined}
           className={cn(
-            "flex min-w-0 flex-1 items-center gap-2.5 rounded-lg focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+            "flex min-w-0 flex-1 items-center gap-2 rounded-[5px] focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
             !isExpandedView && "flex-none",
           )}
         >
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-xs font-semibold text-gray-700 dark:bg-gray-700 dark:text-gray-100">
+          <span className="flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-gray-200/90 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-200">
             {getInitials(name)}
           </span>
           {isExpandedView && (
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-theme-xs font-semibold text-gray-800 dark:text-white">
+              <span className="block truncate text-[12.5px] leading-4 font-medium text-gray-800 dark:text-gray-100">
                 {name}
               </span>
-              <span className="block truncate text-[10px] text-gray-500 dark:text-gray-400">
+              <span className="block truncate text-[10px] leading-3.5 text-gray-500 dark:text-gray-400">
                 {role}
               </span>
             </span>
@@ -85,22 +84,26 @@ export default function SidebarAccountFooter({
           title={!isExpandedView ? t("signOut") : undefined}
           disabled={logout.isPending}
           onClick={handleLogout}
-          className="flex size-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="flex size-7 shrink-0 items-center justify-center rounded-[5px] text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none disabled:cursor-wait disabled:opacity-60 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
         >
           {logout.isPending ? (
             <span
               aria-hidden="true"
-              className="size-4 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500"
+              className="size-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500"
             />
           ) : (
-            <LogOutIcon aria-hidden="true" className="size-4" />
+            <LogOutIcon
+              viewBox="0 0 24 24"
+              aria-hidden="true"
+              className="size-3.5"
+            />
           )}
         </button>
       </div>
       {hasLogoutError && isExpandedView && (
         <p
           role="alert"
-          className="px-1 pt-2 text-theme-xs text-error-600 dark:text-error-400"
+          className="px-1 pt-1.5 text-xs text-error-600 dark:text-error-400"
         >
           {t("signOutError")}
         </p>

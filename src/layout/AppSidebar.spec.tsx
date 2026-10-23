@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar from "./AppSidebar";
+import { isPointInSafeTriangle } from "./SidebarFlyoutMenu";
 
 const {
   replace,
@@ -109,6 +110,7 @@ vi.mock("@/icons/index", () => {
     HandShakeIcon: Icon,
     LogOutIcon: Icon,
     PlugInIcon: Icon,
+    PlusIcon: Icon,
     SettingsIcon: Icon,
     ShootingStarIcon: Icon,
     DocsIcon: Icon,
@@ -273,14 +275,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual([
-      "Overview",
-      "Projects",
-      "Chat",
-      "Calendar",
-      "Members",
-      "Settings",
-    ]);
+    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
     ).not.toBeInTheDocument();
@@ -339,7 +334,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Calendar"]);
+    ).toEqual(["Projects", "Chat"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -396,7 +391,6 @@ describe("AppSidebar navigation", () => {
     for (const label of [
       "Knowledge",
       "AI Search",
-      "Handover",
       "Integrations",
     ]) {
       const button = screen.getByRole("button", { name: label });
@@ -414,5 +408,88 @@ describe("AppSidebar navigation", () => {
 
     expect(logoutAsync).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
+  });
+
+  it("renders a portaled hover Flyout menu after 175ms intent delay, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
+    vi.useFakeTimers();
+    try {
+      render(<AppSidebar />);
+      const nav = screen.getByRole("navigation", { name: "Main navigation" });
+      const projectsItem = within(nav).getByRole("link", { name: "Projects" }).closest("li")!;
+      const overviewItem = within(nav).getByRole("link", { name: "Overview" }).closest("li")!;
+
+      fireEvent.mouseEnter(projectsItem);
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
+
+      fireEvent.mouseEnter(projectsItem);
+      act(() => {
+        vi.advanceTimersByTime(180);
+      });
+      const projectsFlyout = screen.getByTestId("sidebar-flyout-projects");
+      expect(projectsFlyout).toBeInTheDocument();
+      expect(projectsFlyout.parentElement).toBe(document.body);
+      expect(within(projectsFlyout).getByText("Continuum Workspace Core")).toBeInTheDocument();
+
+      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
+      fireEvent.mouseEnter(overviewItem);
+      act(() => {
+        vi.advanceTimersByTime(180);
+      });
+      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
+      expect(screen.getByTestId("sidebar-flyout-overview")).toBeInTheDocument();
+
+      expect(
+        isPointInSafeTriangle(
+          { x: 240, y: 180 },
+          { x: 200, y: 160 },
+          { x: 290, y: 120 },
+          { x: 290, y: 320 },
+        ),
+      ).toBe(true);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByTestId("sidebar-flyout-overview")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("allows dragging the sidebar edge resizer between 180px and 420px and resets to 240px on double-click", () => {
+    render(<AppSidebar />);
+    const aside = screen.getByRole("complementary");
+    const resizer = screen.getByTestId("sidebar-resizer");
+
+    expect(aside).toHaveStyle({ width: "240px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 240 });
+    fireEvent.mouseMove(window, { clientX: 320 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "320px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 320 });
+    fireEvent.mouseMove(window, { clientX: 520 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "420px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 420 });
+    fireEvent.mouseMove(window, { clientX: 90 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "64px" });
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(aside);
+    expect(aside).toHaveStyle({ width: "64px" });
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+
+    fireEvent.doubleClick(resizer);
+    expect(aside).toHaveStyle({ width: "240px" });
+    expect(screen.getByText("Projects")).toBeInTheDocument();
   });
 });

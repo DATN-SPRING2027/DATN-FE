@@ -1,8 +1,10 @@
 "use client";
 
-import BrandLogo from "@/components/common/BrandLogo";
-import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import NotificationDropdown from "@/components/chat/ChatNotifications";
+import BrandLogo from "@/components/common/BrandLogo";
+import HeaderHelpDrawer from "@/components/header/HeaderHelpDrawer";
+import HeaderSettingsDropdown from "@/components/header/HeaderSettingsDropdown";
+import HeaderUpdateButton from "@/components/header/HeaderUpdateButton";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
 import { Link } from "@/i18n/navigation";
@@ -31,9 +33,16 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      const searchInput = inputRef.current;
+
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "k" &&
+        searchInput &&
+        searchInput.getClientRects().length > 0
+      ) {
         event.preventDefault();
-        inputRef.current?.focus();
+        searchInput.focus();
       }
     };
 
@@ -45,15 +54,13 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
   }, []);
 
   return (
-    <header
-      className={`${compact ? "relative z-30 shrink-0" : "sticky top-0 z-99999"} flex w-full border-gray-200 bg-white xl:border-b dark:border-gray-800 dark:bg-gray-900`}
-    >
-      <div className="flex grow flex-col items-center justify-between xl:flex-row xl:px-6">
+    <header className="sticky top-0 z-50 flex min-h-14 w-full shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+      <div className="flex grow flex-col items-center justify-between xl:flex-row xl:px-4">
         <div
-          className={`flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 ${compact ? "py-2 xl:py-2" : "py-3 xl:py-4"} sm:gap-4 xl:justify-normal xl:border-b-0 xl:px-0 dark:border-gray-800`}
+          className={`flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 ${compact ? "py-2 xl:py-2" : "py-2.5 xl:py-2.5"} sm:gap-3 xl:w-auto xl:flex-1 xl:justify-normal xl:border-b-0 xl:px-0 dark:border-gray-800`}
         >
           <button
-            className={`z-99999 flex h-10 w-10 items-center justify-center rounded-lg border-gray-200 text-gray-500 lg:h-11 lg:w-11 lg:bg-transparent xl:border dark:border-gray-800 dark:text-gray-400 dark:lg:bg-transparent ${
+            className={`z-50 flex h-8 w-8 items-center justify-center rounded-[5px] border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 xl:border dark:border-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${
               isMobileOpen ? "bg-gray-100 dark:bg-white/3" : ""
             }`}
             onClick={handleToggle}
@@ -91,11 +98,10 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
                 />
               </svg>
             )}
-            {/* Cross Icon */}
           </button>
 
-          <Link href="/" className="xl:hidden">
-            <BrandLogo className="h-8" priority />
+          <Link href="/" className="inline-flex items-center">
+            <BrandLogo className="h-7" priority />
           </Link>
 
           <button
@@ -117,58 +123,69 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
               />
             </svg>
           </button>
-
-          <div className="hidden xl:block">
-            <form>
-              <div className="relative">
-                <span className="pointer-events-none absolute inset-s-4 top-1/2 -translate-y-1/2">
-                  <svg
-                    className="fill-gray-500 dark:fill-gray-400"
-                    width="20"
-                    height="20"
-                    viewBox="0 0 20 20"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      clipRule="evenodd"
-                      d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
-                      fill=""
-                    />
-                  </svg>
-                </span>
-                <input
-                  ref={inputRef}
-                  type="text"
-                  placeholder={t("searchPlaceholder")}
-                  className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 ps-12 pe-14 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-107.5 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
-                />
-                <button className="absolute inset-e-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-1.75 py-[4.5px] text-xs tracking-[-0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/3 dark:text-gray-400">
-                  <span> ⌘ </span>
-                  <span> K </span>
-                </button>
-              </div>
-            </form>
-          </div>
         </div>
+
+        <div className="hidden xl:flex xl:justify-center">
+          <form>
+            <div className="relative">
+              <span className="pointer-events-none absolute inset-s-4 top-1/2 -translate-y-1/2">
+                <svg
+                  className="fill-gray-500 dark:fill-gray-400"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    fillRule="evenodd"
+                    clipRule="evenodd"
+                    d="M3.04175 9.37363C3.04175 5.87693 5.87711 3.04199 9.37508 3.04199C12.8731 3.04199 15.7084 5.87693 15.7084 9.37363C15.7084 12.8703 12.8731 15.7053 9.37508 15.7053C5.87711 15.7053 3.04175 12.8703 3.04175 9.37363ZM9.37508 1.54199C5.04902 1.54199 1.54175 5.04817 1.54175 9.37363C1.54175 13.6991 5.04902 17.2053 9.37508 17.2053C11.2674 17.2053 13.003 16.5344 14.357 15.4176L17.177 18.238C17.4699 18.5309 17.9448 18.5309 18.2377 18.238C18.5306 17.9451 18.5306 17.4703 18.2377 17.1774L15.418 14.3573C16.5365 13.0033 17.2084 11.2669 17.2084 9.37363C17.2084 5.04817 13.7011 1.54199 9.37508 1.54199Z"
+                    fill=""
+                  />
+                </svg>
+              </span>
+              <input
+                ref={inputRef}
+                type="text"
+                placeholder={t("searchPlaceholder")}
+                className="dark:bg-dark-900 h-9 w-full rounded-md border border-gray-200 bg-transparent py-1.5 ps-10 pe-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-96 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+              />
+              <button
+                type="button"
+                className="absolute inset-e-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-1.75 py-[4.5px] text-xs tracking-[-0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/3 dark:text-gray-400"
+              >
+                <span> ⌘ </span>
+                <span> K </span>
+              </button>
+            </div>
+          </form>
+        </div>
+
         <div
           className={cn(
-            "flex w-full items-center justify-between gap-4 px-5 shadow-theme-md xl:flex xl:justify-end xl:px-0 xl:shadow-none",
-            compact ? "py-2" : "py-4",
+            "flex w-full items-center justify-between gap-3 px-5 shadow-theme-md xl:flex xl:w-auto xl:flex-1 xl:justify-end xl:px-0 xl:shadow-none",
+            compact ? "py-2" : "py-2.5",
             isApplicationMenuOpen ? "flex" : "hidden",
           )}
         >
-          <div className="flex items-center gap-2 2xsm:gap-3">
-            {/* <!-- Dark Mode Toggler --> */}
-            <ThemeToggleButton />
-            {/* <!-- Dark Mode Toggler --> */}
+          <div className="flex items-center gap-2 2xsm:gap-2.5">
+            {/* 1. Update (Demo Plan Upgrade Modal) */}
+            <HeaderUpdateButton />
 
+            {/* 2. Notifications */}
             <NotificationDropdown />
 
-            {/* <!-- Notification Menu Area --> */}
+            {/* 3. Help (Question mark in circle -> opens right Help sidebar) */}
+            <HeaderHelpDrawer />
+
+            {/* 4. Settings (Gear icon dropdown with role-based sections) */}
+            <HeaderSettingsDropdown
+              onFocusSearch={() => inputRef.current?.focus()}
+            />
           </div>
-          {/* <!-- User Area --> */}
+
+          {/* 5. User Avatar Dropdown */}
           <UserDropdown />
         </div>
       </div>

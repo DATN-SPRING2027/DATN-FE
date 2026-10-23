@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import OrganizationDirectory from "./OrganizationDirectory";
 vi.mock("next-intl", () => ({
@@ -24,8 +24,8 @@ const row = {
   createdAt: "2026-10-21T00:00:00Z",
   updatedAt: "2026-10-21T00:00:00Z",
 };
-describe("Organization plan percentages", () => {
-  it("computes plan percentages from the bounded page, not the global total", () => {
+describe("Organization directory filters", () => {
+  it("filters the bounded page by plan without inventing global breakdowns", () => {
     render(
       <OrganizationDirectory
         setOrganizationPage={vi.fn()}
@@ -46,13 +46,25 @@ describe("Organization plan percentages", () => {
         }}
       />,
     );
-    expect(screen.getByText("100%")).toBeInTheDocument();
-    expect(screen.getAllByText("50%")).toHaveLength(2);
-    expect(screen.getAllByTitle("organizations.planPercentNote")).toHaveLength(
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
+      3,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "FREE" }));
+    expect(within(screen.getByRole("table")).getAllByRole("row")).toHaveLength(
       2,
     );
+    expect(screen.getByRole("button", { name: "FREE" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByText("50%")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "not-found" },
+    });
+    expect(screen.getByText("organizations.emptyTitle")).toBeInTheDocument();
+    expect(screen.getByText("organizations.noMatches")).toBeInTheDocument();
   });
-  it("shows zero percentages for an empty directory", () => {
+  it("shows an empty state without fabricated zero percentage metrics", () => {
     render(
       <OrganizationDirectory
         setOrganizationPage={vi.fn()}
@@ -68,6 +80,7 @@ describe("Organization plan percentages", () => {
         }}
       />,
     );
-    expect(screen.getAllByText("0%")).toHaveLength(3);
+    expect(screen.getByText("organizations.emptyTitle")).toBeInTheDocument();
+    expect(screen.queryByText("0%")).not.toBeInTheDocument();
   });
 });

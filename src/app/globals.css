@@ -200,27 +200,27 @@
 }
 
 @utility menu-item {
-  @apply relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-theme-sm font-medium;
+  @apply relative flex w-full items-center gap-2.5 rounded-[5px] px-2.5 py-1.5 text-[13px] leading-5 font-medium transition-colors duration-100;
 }
 
 @utility menu-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply bg-brand-50/90 text-brand-600 before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-r-full before:bg-brand-600 dark:bg-brand-500/[0.14] dark:text-brand-300 dark:before:bg-brand-400;
 }
 
 @utility menu-item-inactive {
-  @apply text-gray-700 group-hover:text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-gray-300;
+  @apply text-gray-700 group-hover:text-gray-900 hover:bg-gray-100/80 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-gray-100;
 }
 
 @utility menu-item-icon {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+  @apply flex shrink-0 items-center justify-center text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
 }
 
 @utility menu-item-icon-active {
-  @apply text-brand-500 dark:text-brand-400;
+  @apply text-brand-600 dark:text-brand-300;
 }
 
 @utility menu-item-icon-inactive {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200;
 }
 
 @utility menu-item-arrow {
@@ -232,7 +232,7 @@
 }
 
 @utility menu-item-arrow-inactive {
-  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-300;
+  @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200;
 }
 
 @utility menu-dropdown-item {
@@ -240,7 +240,7 @@
 }
 
 @utility menu-dropdown-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply bg-brand-50/90 text-brand-600 before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-r-full before:bg-brand-600 dark:bg-brand-500/[0.14] dark:text-brand-300 dark:before:bg-brand-400;
 }
 
 @utility menu-dropdown-item-inactive {
@@ -801,7 +801,7 @@ pre[class*="language-"].line-numbers {
 }
 
 @utility docs-menu-item-active {
-  @apply bg-brand-50 text-brand-500 dark:bg-brand-500/[0.12] dark:text-brand-400;
+  @apply bg-brand-50/90 text-brand-600 before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-r-full before:bg-brand-600 dark:bg-brand-500/[0.14] dark:text-brand-300 dark:before:bg-brand-400;
 }
 
 @utility docs-menu-item-inactive {

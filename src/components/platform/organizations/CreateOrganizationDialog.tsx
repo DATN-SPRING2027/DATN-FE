@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import dialog from "../ui/platformDialog.module.css";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -149,22 +150,24 @@ export default function CreateOrganizationDialog(
             {t("users.accountLookupPermissionNeeded")}
           </p>
         )}
-        <Button
-          type="submit"
-          disabled={
-            !p.canLookupUsers ||
-            !selected ||
-            pending ||
-            !p.organizationName.trim() ||
-            !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(p.organizationSlug)
-          }
-        >
-          {t(
-            p.createOrganizationPending
-              ? "organizations.creating"
-              : "organizations.create",
-          )}
-        </Button>
+        <footer className={dialog.footer}>
+          <Button
+            type="submit"
+            disabled={
+              !p.canLookupUsers ||
+              !selected ||
+              pending ||
+              !p.organizationName.trim() ||
+              !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(p.organizationSlug)
+            }
+          >
+            {t(
+              p.createOrganizationPending
+                ? "organizations.creating"
+                : "organizations.create",
+            )}
+          </Button>
+        </footer>
       </form>
     </OrganizationDialog>
   );
