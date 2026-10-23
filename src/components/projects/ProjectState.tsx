@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
+import ContinuumMascotScene from "@/components/ui/loading/ContinuumMascotScene";
 
 export default function ProjectState({
   error,
@@ -18,14 +19,8 @@ export default function ProjectState({
   if (!error)
     return (
       <div role="status" aria-live="polite" className="space-y-4">
-        {/* Sleek Enterprise Status Pill with Dual-Ring Orbital Spinner */}
-        <div className="inline-flex items-center gap-2.5 rounded-full border border-brand-100 bg-brand-50/70 px-3.5 py-1.5 text-xs font-medium text-brand-700 shadow-theme-xs dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300">
-          <span className="relative flex h-3.5 w-3.5 items-center justify-center" aria-hidden="true">
-            <span className="absolute inset-0 rounded-full border-2 border-brand-200 dark:border-brand-400/25" />
-            <span className="absolute inset-0 animate-spin rounded-full border-2 border-transparent border-t-brand-600 border-r-brand-500 dark:border-t-brand-300 dark:border-r-brand-400" />
-          </span>
-          <span>{t("loading")}</span>
-        </div>
+        {/* Continuum AI Mascot Scene + Smart Rotating Copy */}
+        <ContinuumMascotScene label={t("loading")} />
 
         {variant === "detail" ? (
           <div aria-hidden="true" className="space-y-5">
