@@ -11,6 +11,7 @@ interface ButtonProps {
   title?: string;
   autoFocus?: boolean;
   disabled?: boolean; // Disabled state
+  isLoading?: boolean; // Inline loading spinner state
   className?: string; // Disabled state
   type?: "button" | "submit" | "reset";
 }
@@ -27,6 +28,7 @@ const Button: React.FC<ButtonProps> = ({
   autoFocus = false,
   className = "",
   disabled = false,
+  isLoading = false,
   type,
 }) => {
   // Size Classes
@@ -45,21 +47,31 @@ const Button: React.FC<ButtonProps> = ({
       "bg-error-600 text-white shadow-theme-xs hover:bg-error-700 disabled:bg-error-300 dark:bg-error-600 dark:hover:bg-error-500",
   };
 
+  const isDisabled = disabled || isLoading;
+
   return (
     <button
       type={type}
       className={`inline-flex items-center justify-center gap-2 rounded-lg font-medium transition-all duration-150 ease-out active:enabled:scale-[0.97] ${className} ${
         sizeClasses[size]
       } ${variantClasses[variant]} ${
-        disabled ? "cursor-not-allowed opacity-50" : ""
+        isDisabled ? "cursor-not-allowed opacity-50" : ""
       }`}
       aria-label={ariaLabel}
+      aria-busy={isLoading || undefined}
       title={title}
       autoFocus={autoFocus}
       onClick={onClick}
-      disabled={disabled}
+      disabled={isDisabled}
     >
-      {startIcon && <span className="flex items-center">{startIcon}</span>}
+      {isLoading ? (
+        <span
+          aria-hidden="true"
+          className="inline-flex h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+        />
+      ) : (
+        startIcon && <span className="flex items-center">{startIcon}</span>
+      )}
       {children}
       {endIcon && <span className="flex items-center">{endIcon}</span>}
     </button>

@@ -64,7 +64,8 @@ function OrganizationProject({
       />
     ) : null;
 
-  if (project.isPending || project.isFetching) return <ProjectState />;
+  if (project.isPending || project.isFetching)
+    return <ProjectState variant="detail" />;
   if (project.isError)
     return (
       <div className="space-y-3">

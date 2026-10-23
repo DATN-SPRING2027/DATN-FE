@@ -18,6 +18,7 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   useProjectsQuery,
   type Project,
+  type ProjectList,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
 import ProjectCard from "./ProjectCard";
@@ -72,27 +73,48 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     { value: "ARCHIVED", label: t("archived") },
   ];
 
-  const loadedProjects = projects.data?.data ?? [];
+  const [cachedList, setCachedList] = useState<ProjectList | null>(null);
+  if (
+    projects.isSuccess &&
+    !projects.isFetching &&
+    projects.data &&
+    cachedList !== projects.data
+  ) {
+    setCachedList(projects.data);
+  }
+
+  const activeList =
+    projects.isSuccess && !projects.isFetching
+      ? projects.data
+      : !projects.isError
+        ? cachedList
+        : null;
+  const isRefreshingList = projects.isFetching && activeList !== null;
+
+  const loadedProjects = activeList?.data ?? [];
 
   const totalProjectsCount =
     status === undefined
-      ? projects.data?.pagination.totalItems
+      ? (projects.data?.pagination.totalItems ??
+        activeList?.pagination.totalItems)
       : allProjectsTotalQuery.data?.pagination.totalItems;
 
   const activeCount =
     status === "ACTIVE"
-      ? projects.data?.pagination.totalItems
+      ? (projects.data?.pagination.totalItems ??
+        activeList?.pagination.totalItems)
       : activeProjectsTotalQuery.data?.pagination.totalItems;
 
   const archivedCount =
     status === "ARCHIVED"
-      ? projects.data?.pagination.totalItems
+      ? (projects.data?.pagination.totalItems ??
+        activeList?.pagination.totalItems)
       : archivedProjectsTotalQuery.data?.pagination.totalItems;
 
   // Scoped strictly to the loaded page; only show "Healthy" when the entire organization directory fits on the single loaded page
   const leaderlessCount = loadedProjects.filter(isProjectLeaderless).length;
   const isCompleteOrgDirectoryLoaded =
-    status === undefined && (projects.data?.pagination.totalPages ?? 1) <= 1;
+    status === undefined && (activeList?.pagination.totalPages ?? 1) <= 1;
 
   const normalizedQuery = search.trim().toLowerCase();
   const filteredProjects = loadedProjects
@@ -340,10 +362,23 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {projects.isSuccess && !projects.isFetching && (
+            {isRefreshingList && (
+              <span
+                role="status"
+                aria-live="polite"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent dark:border-brand-300 dark:border-t-transparent"
+                />
+                <span>{t("loading")}</span>
+              </span>
+            )}
+            {activeList && (
               <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                 {t("totalProjects", {
-                  count: projects.data.pagination.totalItems,
+                  count: activeList.pagination.totalItems,
                 })}
               </span>
             )}
@@ -463,7 +498,9 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
       </div>
 
       {/* Loading & Error states */}
-      {(projects.isPending || projects.isFetching) && <ProjectState />}
+      {(projects.isPending || projects.isFetching) && !activeList && (
+        <ProjectState />
+      )}
       {projects.isError && (
         <ProjectState
           error={projects.error}
@@ -473,10 +510,15 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
         />
       )}
 
-      {/* Loaded content */}
-      {projects.isSuccess && !projects.isFetching && (
-        <>
-          {projects.data.data.length === 0 ? (
+      {/* Loaded content (kept mounted with soft opacity during filter/page revalidation to prevent screen flicker) */}
+      {activeList && !projects.isError && (
+        <div
+          aria-busy={isRefreshingList || undefined}
+          className={`space-y-5 transition-opacity duration-150 ${
+            isRefreshingList ? "pointer-events-none opacity-60" : "opacity-100"
+          }`}
+        >
+          {activeList.data.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
               <span
                 aria-hidden="true"
@@ -525,15 +567,15 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           <div className="flex flex-col gap-3 rounded-2xl border border-gray-200/90 bg-white px-4 py-3 shadow-theme-xs @md:flex-row @md:items-center @md:justify-between dark:border-gray-800 dark:bg-gray-900">
             <span className="text-xs font-medium text-gray-500 tabular-nums dark:text-gray-400">
               {t("pageOf", {
-                page: projects.data.pagination.page,
-                total: Math.max(1, projects.data.pagination.totalPages),
+                page: activeList.pagination.page,
+                total: Math.max(1, activeList.pagination.totalPages),
               })}
             </span>
             <div className="flex flex-wrap gap-2">
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page <= 1}
+                disabled={page <= 1 || isRefreshingList}
                 onClick={() => setPage(page - 1)}
               >
                 {t("previous")}
@@ -541,14 +583,16 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= projects.data.pagination.totalPages}
+                disabled={
+                  page >= activeList.pagination.totalPages || isRefreshingList
+                }
                 onClick={() => setPage(page + 1)}
               >
                 {t("next")}
               </Button>
             </div>
           </div>
-        </>
+        </div>
       )}
     </div>
   );

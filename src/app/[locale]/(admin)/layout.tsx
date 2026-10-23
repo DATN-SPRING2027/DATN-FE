@@ -5,6 +5,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
+import ContinuumTopLoader from "@/components/ui/loading/ContinuumTopLoader";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -102,6 +103,8 @@ export default function AdminLayout({
           : "flex min-h-screen flex-col"
       }
     >
+      <ContinuumTopLoader />
+
       {/* Full-width Top Header */}
       <AppHeader compact={isChat} />
 
