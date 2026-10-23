@@ -1,6 +1,7 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import {
   PlatformHomeIcon,
   PlatformBuildingIcon,
@@ -54,17 +55,47 @@ const groups = [
       { id: "account", icon: SettingsIcon },
     ],
   },
-];
+] as const;
+type NavigationSection = (typeof groups)[number]["items"][number]["id"];
+const permissionBySection: Record<NavigationSection, PlatformPermission> = {
+  dashboard: "platform.dashboard.summary.read",
+  organizations: "platform.organizations.organization.read",
+  users: "platform.users.account.read",
+  projects: "platform.projects.project.read",
+  memberships: "platform.memberships.membership.read",
+  services: "platform.services.service.read",
+  jobs: "platform.jobs.job.read",
+  ai: "platform.ai.operations.read",
+  integrations: "platform.integrations.integration.read",
+  security: "platform.sessions.session.read",
+  incidents: "platform.incidents.incident.read",
+  diagnostics: "platform.diagnostics.trace.read",
+  audit: "platform.audit.read",
+  account: "platform.sessions.session.read",
+};
 export default function PlatformSidebar({
   activeSection,
+  permissions,
 }: {
   activeSection: string;
+  permissions: readonly PlatformPermission[];
 }) {
   const t = useTranslations("platformConsole");
+  const visibleGroups = groups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter(({ id }) =>
+        permissions.includes(permissionBySection[id]),
+      ),
+    }))
+    .filter((group) => group.items.length > 0);
+
+  if (visibleGroups.length === 0) return null;
+
   return (
     <aside className={styles.sidebar}>
       <nav aria-label={t("operatorDesign.navigation")}>
-        {groups.map((group) => (
+        {visibleGroups.map((group) => (
           <div key={group.label ?? "primary"} className={styles.sidebarGroup}>
             {group.label && (
               <h2 className={styles.sidebarGroupLabel}>{group.label}</h2>
