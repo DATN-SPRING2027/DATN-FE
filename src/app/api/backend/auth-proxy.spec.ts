@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { GET, POST } from "./[...path]/route";
+import { forwardBackendRequest } from "./forward";
 import type { NextRequest } from "next/server";
 
 function request(method: string, path: string, cookie?: string): NextRequest {
@@ -147,6 +148,49 @@ describe("auth BFF cookie journey", () => {
         "cookie",
       ),
     ).toBe("continuum_access=private");
+  });
+
+  it("forwards If-Match and preserves conditional mutation response headers", async () => {
+    const backend = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", {
+        status: 200,
+        headers: {
+          etag: '"resource:resource-1:2"',
+          "idempotency-replayed": "true",
+          "retry-after": "1",
+        },
+      }),
+    );
+    const source = Object.assign(
+      new Request("http://localhost:3000/api/backend/resource/resource-1", {
+        method: "PATCH",
+        headers: {
+          "if-match": '"resource:resource-1:1"',
+          "idempotency-key": "operation-1",
+        },
+      }),
+      {
+        nextUrl: new URL(
+          "http://localhost:3000/api/backend/resource/resource-1",
+        ),
+      },
+    ) as NextRequest;
+
+    const response = await forwardBackendRequest(source, [
+      "resource",
+      "resource-1",
+    ]);
+    const forwarded = backend.mock.calls[0][1] as RequestInit;
+
+    expect((forwarded.headers as Headers).get("if-match")).toBe(
+      '"resource:resource-1:1"',
+    );
+    expect((forwarded.headers as Headers).get("idempotency-key")).toBe(
+      "operation-1",
+    );
+    expect(response.headers.get("etag")).toBe('"resource:resource-1:2"');
+    expect(response.headers.get("idempotency-replayed")).toBe("true");
+    expect(response.headers.get("retry-after")).toBe("1");
   });
 
   it("preserves separate Set-Cookie headers including an Expires comma", async () => {

@@ -14,6 +14,10 @@ describe('BFF proxy boundary', () => {
       cookie: 'session=test',
       'x-csrf-token': 'csrf-test',
       'idempotency-key': '0123456789abcdef',
+      'if-match': '"resource-1"',
+      'x-user-id': 'spoofed-user',
+      'x-organization-id': 'spoofed-organization',
+      'x-role': 'ADMIN',
       'x-ignored': 'nope',
     });
 
@@ -23,6 +27,10 @@ describe('BFF proxy boundary', () => {
     expect(forwarded.get('cookie')).toBe('session=test');
     expect(forwarded.get('x-csrf-token')).toBe('csrf-test');
     expect(forwarded.get('idempotency-key')).toBe('0123456789abcdef');
+    expect(forwarded.get('if-match')).toBe('"resource-1"');
+    expect(forwarded.get('x-user-id')).toBeNull();
+    expect(forwarded.get('x-organization-id')).toBeNull();
+    expect(forwarded.get('x-role')).toBeNull();
     expect(forwarded.get('x-ignored')).toBeNull();
     expect(forwarded.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
   });
