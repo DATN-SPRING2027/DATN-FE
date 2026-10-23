@@ -164,8 +164,6 @@ export default function WorkToolbar({
     Number(assigneeId !=="ALL") +
     filterConditions.length +
     Number(hideDone);
-  const hasActiveCriteria = activeFilterCount > 0 || query.trim().length > 0;
-
   function handleFieldChange(nextField: WorkFilterField) {
     setBuilderField(nextField);
     setBuilderVal(valueSuggestions[nextField][0] ??"");
@@ -581,16 +579,6 @@ export default function WorkToolbar({
             <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
             <option value="DONE">{t("statuses.DONE")}</option>
           </select>
-
-          {hasActiveCriteria && (
-            <button
-              type="button"
-              onClick={onClearFilters}
-              className="h-8 cursor-pointer rounded px-2 text-xs font-medium text-brand-600 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
-            >
-              {t("clearFilters")}
-            </button>
-          )}
 
           {/* Right-side Jira Square Toolbar Buttons: Refresh [🔄] & View Settings [···] */}
           <button

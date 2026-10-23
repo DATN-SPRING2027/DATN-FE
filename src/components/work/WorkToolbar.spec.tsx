@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkToolbar from "./WorkToolbar";
 
@@ -10,9 +10,7 @@ vi.mock("@/icons", () => ({
 }));
 
 describe("WorkToolbar", () => {
-  it("shows Clear filters when the search query is the only active criterion", () => {
-    const onClearFilters = vi.fn();
-
+  it("hides Clear filters and keeps the status selector available", () => {
     render(
       <WorkToolbar
         query="KNW-142"
@@ -25,12 +23,17 @@ describe("WorkToolbar", () => {
         onPriorityChange={vi.fn()}
         onAssigneeChange={vi.fn()}
         onGroupByChange={vi.fn()}
-        onClearFilters={onClearFilters}
+        onClearFilters={vi.fn()}
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "clearFilters" }));
-
-    expect(onClearFilters).toHaveBeenCalledOnce();
+    expect(
+      screen.queryByRole("button", { name: "clearFilters" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "statusScope" })).toBeVisible();
+    expect(screen.getByRole("option", { name: "TODO" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "IN_PROGRESS" }),
+    ).toBeInTheDocument();
   });
 });
