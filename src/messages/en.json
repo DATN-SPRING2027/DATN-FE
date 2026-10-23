@@ -837,6 +837,92 @@
   "header": {
     "searchPlaceholder": "Search or type command...",
     "toggleSidebar": "Toggle Sidebar",
+    "update": "Update",
+    "help": "Help",
+    "settings": "Settings",
+    "helpDrawer": {
+      "title": "Help",
+      "close": "Close help panel",
+      "whatsChanged": "Find out what's changed in Continuum",
+      "newNavigation": "Read about the new navigation",
+      "documentation": "Browse complete documentation",
+      "learning": "Build skills with Continuum Learning",
+      "community": "Ask our Community forums",
+      "contactSupport": "Contact support",
+      "giveFeedback": "Give feedback about Continuum",
+      "keyboardShortcuts": "Keyboard shortcuts",
+      "mobileApp": "Get Continuum Mobile",
+      "shortcutSearch": "Global search",
+      "shortcutResize": "Resize sidebar",
+      "shortcutClose": "Close active panel",
+      "feedbackPlaceholder": "Share your thoughts or report an issue...",
+      "feedbackSubmit": "Send feedback",
+      "feedbackSent": "Thank you for your feedback!",
+      "about": "About Continuum",
+      "terms": "Terms of use",
+      "privacy": "Privacy policy",
+      "notice": "Notice at collection"
+    },
+    "settingsMenu": {
+      "personalHeading": "Personal settings",
+      "searchLabel": "Search",
+      "generalTitle": "General settings",
+      "generalDesc": "Language, time zone & personal preferences",
+      "notificationTitle": "Notifications",
+      "notificationDesc": "Email and in-app notification alerts",
+      "adminHeading": "Admin settings",
+      "leaderHeading": "Project leader settings",
+      "workspaceHeading": "Workspace",
+      "systemTitle": "Organization settings",
+      "systemDesc": "Profile, security & governance policies",
+      "spacesTitle": "Projects & spaces",
+      "spacesDesc": "Manage project workspaces & categories",
+      "memberSpacesDesc": "View your assigned project workspaces",
+      "teamManagementTitle": "Teams & members",
+      "teamManagementDesc": "Manage project teams & member roles",
+      "orgAdminHeading": "Organization management",
+      "userManagementTitle": "User management",
+      "userManagementDesc": "Manage members, roles & invitations"
+    },
+    "upgradeModal": {
+      "badge": "Continuum AI Plans",
+      "title": "Upgrade your workspace",
+      "subtitle": "Unlock advanced AI governance, unlimited projects, and enterprise-grade security controls.",
+      "currentPlan": "Current plan",
+      "recommended": "Recommended",
+      "perMemberMonth": "/ member / month",
+      "customPricing": "Custom",
+      "upgradeNow": "Upgrade to Plus",
+      "contactSales": "Contact sales",
+      "demoNotice": "Demo preview: Upgrade request simulated for {plan}.",
+      "plans": {
+        "free": {
+          "name": "Standard",
+          "price": "$0",
+          "description": "Essential workspace tools for small teams.",
+          "f1": "Up to 5 active projects",
+          "f2": "Standard team chat & channels",
+          "f3": "Basic role-based access control"
+        },
+        "pro": {
+          "name": "Plus",
+          "price": "$12",
+          "description": "Advanced AI workflows and governance for growing organizations.",
+          "f1": "Unlimited projects & work spaces",
+          "f2": "AI Search & automated knowledge synthesis",
+          "f3": "Advanced governance & audit logs",
+          "f4": "Priority support & 99.9% SLA"
+        },
+        "enterprise": {
+          "name": "Enterprise",
+          "price": "Custom",
+          "description": "Dedicated infrastructure and compliance for large enterprises.",
+          "f1": "Custom AI model fine-tuning & SAG engine",
+          "f2": "SSO / SAML & enterprise security policies",
+          "f3": "Dedicated account success manager"
+        }
+      }
+    },
     "notifications": {
       "title": "Notification",
       "requestsPermission": "requests permission to change",
@@ -847,14 +933,20 @@
     }
   },
   "userDropdown": {
+    "profile": "Profile",
     "editProfile": "Edit profile",
     "accountSettings": "Account settings",
+    "theme": "Theme",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "Match browser",
     "support": "Support",
     "language": "Language",
-    "signOut": "Sign out",
+    "switchAccount": "Switch account",
+    "signOut": "Log out",
     "signOutErrorTitle": "Sign out failed",
     "signOutErrorMessage": "We couldn’t confirm sign out. Check your connection and try again.",
-    "signingOut": "Signing out…"
+    "signingOut": "Logging out…"
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",

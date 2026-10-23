@@ -22,6 +22,7 @@ type SidebarContextType = {
   isHovered: boolean;
   sidebarWidth?: number;
   isResizing?: boolean;
+  isHelpOpen?: boolean;
   activeItem: string | null;
   openSubmenu: string | null;
   toggleSidebar: () => void;
@@ -31,6 +32,8 @@ type SidebarContextType = {
   setSidebarWidth?: (width: number) => void;
   setIsResizing?: (isResizing: boolean) => void;
   resetSidebarWidth?: () => void;
+  setIsHelpOpen?: (isOpen: boolean) => void;
+  toggleHelp?: () => void;
   setActiveItem: (item: string | null) => void;
   toggleSubmenu: (item: string) => void;
 };
@@ -54,6 +57,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isHovered, setIsHovered] = useState(false);
   const [sidebarWidth, setSidebarWidthState] = useState<number>(SIDEBAR_DEFAULT_WIDTH);
   const [isResizing, setIsResizing] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
   const [activeItem, setActiveItem] = useState<string | null>(null);
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
   const pathname = usePathname();
@@ -106,6 +110,10 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     setSidebarWidth(SIDEBAR_DEFAULT_WIDTH);
   }, [setIsExpanded, setSidebarWidth]);
 
+  const toggleHelp = useCallback(() => {
+    setIsHelpOpen((prev) => !prev);
+  }, []);
+
   // Close sidebar on route change (for mobile)
   useEffect(() => {
     setIsMobileOpen(false);
@@ -156,6 +164,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         isHovered,
         sidebarWidth,
         isResizing,
+        isHelpOpen,
         activeItem,
         openSubmenu,
         toggleSidebar,
@@ -165,6 +174,8 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
         setSidebarWidth,
         setIsResizing,
         resetSidebarWidth,
+        setIsHelpOpen,
+        toggleHelp,
         setActiveItem,
         toggleSubmenu,
       }}
