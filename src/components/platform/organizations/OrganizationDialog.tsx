@@ -8,15 +8,18 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Modal } from "@/components/ui/modal";
-import Button from "@/components/ui/button/Button";
+import { CloseLineIcon } from "@/icons";
+import dialog from "../ui/platformDialog.module.css";
 
 export default function OrganizationDialog({
   title,
   pending,
   onClose,
   children,
+  detail = false,
 }: {
   title: string;
+  detail?: boolean;
   pending: boolean;
   onClose: () => void;
   children: ReactNode;
@@ -30,7 +33,11 @@ export default function OrganizationDialog({
         ? document.activeElement
         : null;
     const frame = requestAnimationFrame(() =>
-      ref.current?.querySelector<HTMLInputElement>("input")?.focus(),
+      (
+        ref.current?.querySelector<HTMLElement>("input") ??
+        ref.current?.querySelector<HTMLElement>("button") ??
+        ref.current
+      )?.focus(),
     );
     return () => {
       cancelAnimationFrame(frame);
@@ -66,7 +73,8 @@ export default function OrganizationDialog({
         if (!pending) onClose();
       }}
       showCloseButton={false}
-      className="mx-4 max-h-[90vh] max-w-2xl overflow-y-auto p-6"
+      backdropClassName="bg-gray-950/45"
+      className={`${dialog.surface} ${detail ? dialog.detailSurface : ""}`}
     >
       <div
         ref={ref}
@@ -77,23 +85,24 @@ export default function OrganizationDialog({
         aria-busy={pending}
         onKeyDown={trap}
       >
-        <header className="mb-5 flex items-center justify-between gap-4">
+        <header className={dialog.heading}>
           <h2
             id={titleId}
             className="text-lg font-semibold text-gray-900 dark:text-white"
           >
             {title}
           </h2>
-          <Button
-            variant="outline"
-            size="sm"
+          <button
+            type="button"
+            className={dialog.close}
+            aria-label={t("cancel")}
             disabled={pending}
             onClick={onClose}
           >
-            {t("cancel")}
-          </Button>
+            <CloseLineIcon aria-hidden="true" />
+          </button>
         </header>
-        {children}
+        <div className={dialog.body}>{children}</div>
       </div>
     </Modal>
   );

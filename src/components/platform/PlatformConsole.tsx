@@ -268,27 +268,13 @@ export default function PlatformConsole() {
       onSignOut={() => void signOut()}
     >
       {/* Top Page Header */}
-      {activeSection === "dashboard" ? (
-        <h1 className="sr-only">{pageTitle}</h1>
-      ) : (
+      {["users", "dashboard"].includes(activeSection) ? null : (
         <PageHeader
+          hideTitle={activeSection === "organizations" && !routeOrganizationId}
           title={pageTitle}
           description={pageDescription}
           actions={
             <div className="flex items-center gap-2">
-              {activeSection === "organizations" &&
-                canCreateOrganization &&
-                !routeOrganizationId && (
-                  <Button
-                    size="sm"
-                    ariaLabel={t("organizations.create")}
-                    onClick={() => setIsCreateModalOpen(true)}
-                    className="h-9 gap-1.5 rounded-xl bg-blue-600 px-4 text-xs font-semibold text-white shadow-theme-xs hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-500"
-                  >
-                    <span className="text-sm leading-none font-bold">+</span>
-                    {t("organizations.create")}
-                  </Button>
-                )}
               {activeSection === "organizations" &&
                 canReadOrganizations &&
                 (!routeOrganizationId || hasValidRouteOrganizationId) && (
@@ -297,7 +283,7 @@ export default function PlatformConsole() {
                     size="sm"
                     disabled={organizationRequest.isFetching}
                     onClick={() => void organizationRequest.refetch()}
-                    className="h-8 text-xs"
+                    className="sr-only focus:not-sr-only"
                   >
                     {organizationRequest.isFetching
                       ? t("refreshing")

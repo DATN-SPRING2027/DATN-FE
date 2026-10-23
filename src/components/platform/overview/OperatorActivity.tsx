@@ -1,8 +1,9 @@
 "use client";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatformOperations";
-import styles from "../ui/operator.module.css";
+import jira from "../ui/platformCharts.module.css";
+import { UserCircleIcon } from "@/icons";
 export default function OperatorActivity({
   activity,
   canOpen,
@@ -11,48 +12,42 @@ export default function OperatorActivity({
   canOpen: boolean;
 }) {
   const t = useTranslations("platformConsole");
-  const locale = useLocale();
   return (
     <section
-      className={`${styles.section} ${styles.activity}`}
+      className={`${jira.panel} ${jira.activity}`}
       aria-labelledby="operator-activity"
     >
-      <h2 id="operator-activity" className={styles.heading}>
+      <h2 id="operator-activity" className={jira.cardHeading}>
         {t("dashboard.recentActivity")}
       </h2>
       {activity.availability !== "AVAILABLE" ? (
-        <p role="status" className={styles.empty}>
+        <p role="status" className="py-4 text-sm">
           {t("dashboard.auditError")}
         </p>
       ) : activity.items.length ? (
-        <div className="overflow-x-auto">
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                {["action", "resource", "occurredAt"].map((key) => (
-                  <th key={key} scope="col">
-                    {t(`dashboard.activityColumns.${key}`)}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {activity.items.map((item, index) => (
-                <tr key={`${item.occurredAt}-${index}`}>
-                  <td>{item.action}</td>
-                  <td>{item.resourceType}</td>
-                  <td>
-                    <time dateTime={item.occurredAt}>
-                      {new Date(item.occurredAt).toLocaleString(locale)}
-                    </time>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ul className={jira.activityList}>
+          {activity.items.map((item, index) => (
+            <li key={`${item.occurredAt}-${index}`}>
+              <UserCircleIcon aria-hidden="true" />
+              <p>
+                {item.action} <strong>{item.resourceType}</strong>
+              </p>
+              <time dateTime={item.occurredAt}>
+                {new Date(item.occurredAt).toLocaleDateString("en-US", {
+                  day: "numeric",
+                  month: "short",
+                  year: "numeric",
+                })}{" "}
+                {new Date(item.occurredAt).toLocaleTimeString("en-US", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </time>
+            </li>
+          ))}
+        </ul>
       ) : (
-        <p role="status" className={styles.empty}>
+        <p role="status" className="py-4 text-sm">
           {t("dashboard.noRecentActivity")}
         </p>
       )}
