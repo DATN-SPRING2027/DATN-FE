@@ -170,7 +170,7 @@ export default function WorkListView({
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     () => new Set(),
   );
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(
+  const [collapsedParentIds, setCollapsedParentIds] = useState<Set<string>>(
     () => new Set(),
   );
   const [inlineCreating, setInlineCreating] = useState(false);
@@ -236,7 +236,7 @@ export default function WorkListView({
     .map((item) => item.id);
   const allExpanded =
     expandableIds.length > 0 &&
-    expandableIds.every((id) => expandedIds.has(id));
+    expandableIds.every((id) => !collapsedParentIds.has(id));
 
   function showNotice(msg: string) {
     setToastNotice(msg);
@@ -257,7 +257,7 @@ export default function WorkListView({
   }
 
   function toggleExpandRow(id: string) {
-    setExpandedIds((current) => {
+    setCollapsedParentIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -266,9 +266,9 @@ export default function WorkListView({
   }
 
   function startAddSubtaskForItem(item: WorkItem) {
-    setExpandedIds((current) => {
+    setCollapsedParentIds((current) => {
       const next = new Set(current);
-      next.add(item.id);
+      next.delete(item.id);
       return next;
     });
     setAddingSubtaskParentId(item.id);
@@ -299,7 +299,7 @@ export default function WorkListView({
   }
 
   function toggleExpandAll() {
-    setExpandedIds(allExpanded ? new Set() : new Set(expandableIds));
+    setCollapsedParentIds(allExpanded ? new Set(expandableIds) : new Set());
   }
 
   function toggleGroupCollapse(groupId: string) {
@@ -724,8 +724,9 @@ export default function WorkListView({
                       })
                       .map((item) => {
                       const hasSubtasks = (item.subtaskItems?.length ?? 0) > 0;
-                      const isExpanded =
-                        showHierarchy && expandedIds.has(item.id);
+                      const isExpanded = showHierarchy
+                        ? !collapsedParentIds.has(item.id)
+                        : true;
                       const isDone = item.status ==="DONE";
                       const isSelected = selectedIds.has(item.id);
 
@@ -765,7 +766,7 @@ export default function WorkListView({
                                 }}
                                 className={`border-b border-e border-gray-200 px-3 py-1.5 align-middle dark:border-gray-700 ${
                                   col.key === "work" && freezeWorkColumn
-                                    ? "sticky start-0 z-10 bg-white dark:bg-gray-900"
+                                    ? "sticky start-0 z-10 bg-white shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] dark:bg-gray-900"
                                     : ""
                                 }`}
                               >
@@ -992,7 +993,7 @@ export default function WorkListView({
                                         key={col.key}
                                         className={`border-b border-e border-gray-200 px-3 py-2 align-middle text-xs dark:border-gray-700 ${
                                           col.key === "work" && freezeWorkColumn
-                                            ? "sticky start-0 z-10 bg-gray-50 dark:bg-gray-950"
+                                            ? "sticky start-0 z-10 bg-gray-50 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] dark:bg-gray-950"
                                             : ""
                                         }`}
                                       >
@@ -1209,107 +1210,110 @@ export default function WorkListView({
                                               )}
                                           </div>
                                         ) : col.key === "assignee" ? (
-                                          onUpdateSubtask ? (
-                                            <select
-                                              aria-label={`Assignee for ${sub.key}`}
-                                              value={subAssignee.id}
-                                              onChange={(e) => {
-                                                const nextPerson =
-                                                  allAssigneeChoices.find(
-                                                    (p) =>
-                                                      p.id === e.target.value,
-                                                  );
-                                                if (nextPerson) {
+                                          <label className="relative flex max-w-full cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 transition hover:bg-gray-200/60 dark:hover:bg-gray-800">
+                                            <PersonLabel person={subAssignee} />
+                                            {onUpdateSubtask && (
+                                              <select
+                                                aria-label={`Assignee for ${sub.key}`}
+                                                value={subAssignee.id}
+                                                onChange={(e) => {
+                                                  const nextPerson =
+                                                    allAssigneeChoices.find(
+                                                      (p) =>
+                                                        p.id === e.target.value,
+                                                    );
+                                                  if (nextPerson) {
+                                                    onUpdateSubtask(
+                                                      item.id,
+                                                      sub.id,
+                                                      { assignee: nextPerson },
+                                                    );
+                                                    showNotice(
+                                                      `Assigned ${sub.key} to ${nextPerson.name}`,
+                                                    );
+                                                  }
+                                                }}
+                                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                              >
+                                                {allAssigneeChoices.map((p) => (
+                                                  <option key={p.id} value={p.id}>
+                                                    {p.name}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </label>
+                                        ) : col.key === "status" ? (
+                                          <label className="relative inline-flex cursor-pointer items-center">
+                                            <WorkStatusBadge
+                                              status={sub.status}
+                                              showChevron={Boolean(onUpdateSubtask)}
+                                            />
+                                            {onUpdateSubtask && (
+                                              <select
+                                                aria-label={`Status for ${sub.key}`}
+                                                value={sub.status}
+                                                onChange={(e) => {
+                                                  const nextSt = e.target
+                                                    .value as WorkStatus;
                                                   onUpdateSubtask(
                                                     item.id,
                                                     sub.id,
-                                                    { assignee: nextPerson },
+                                                    {
+                                                      status: nextSt,
+                                                    },
                                                   );
                                                   showNotice(
-                                                    `Assigned ${sub.key} to ${nextPerson.name}`,
+                                                    `Updated ${sub.key} status to ${t(`statuses.${nextSt}`)}`,
                                                   );
-                                                }
-                                              }}
-                                              className="h-6 w-full cursor-pointer border border-transparent bg-transparent px-1 text-xs text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:border-gray-700"
-                                            >
-                                              {allAssigneeChoices.map((p) => (
-                                                <option key={p.id} value={p.id}>
-                                                  {p.name}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          ) : (
-                                            <PersonLabel person={subAssignee} />
-                                          )
-                                        ) : col.key === "status" ? (
-                                          onUpdateSubtask ? (
-                                            <select
-                                              aria-label={`Status for ${sub.key}`}
-                                              value={sub.status}
-                                              onChange={(e) => {
-                                                const nextSt = e.target
-                                                  .value as WorkStatus;
-                                                onUpdateSubtask(
-                                                  item.id,
-                                                  sub.id,
-                                                  {
-                                                    status: nextSt,
-                                                  },
-                                                );
-                                                showNotice(
-                                                  `Updated ${sub.key} status to ${t(`statuses.${nextSt}`)}`,
-                                                );
-                                              }}
-                                              className="h-6 cursor-pointer border border-gray-300 bg-white px-1.5 text-[11px] font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                                            >
-                                              {WORK_STATUS_ORDER.map((st) => (
-                                                <option key={st} value={st}>
-                                                  {t(`statuses.${st}`)}
-                                                </option>
-                                              ))}
-                                            </select>
-                                          ) : (
-                                            <WorkStatusBadge
-                                              status={sub.status}
-                                              showChevron
-                                            />
-                                          )
+                                                }}
+                                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                              >
+                                                {WORK_STATUS_ORDER.map((st) => (
+                                                  <option key={st} value={st}>
+                                                    {t(`statuses.${st}`)}
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
+                                          </label>
                                         ) : col.key === "priority" ? (
-                                          onUpdateSubtask ? (
-                                            <select
-                                              aria-label={`Priority for ${sub.key}`}
-                                              value={subPriority}
-                                              onChange={(e) => {
-                                                const nextPrio = e.target
-                                                  .value as WorkPriority;
-                                                onUpdateSubtask(
-                                                  item.id,
-                                                  sub.id,
-                                                  {
-                                                    priority: nextPrio,
-                                                  },
-                                                );
-                                                showNotice(
-                                                  `Updated ${sub.key} priority to ${nextPrio}`,
-                                                );
-                                              }}
-                                              className="h-6 cursor-pointer border border-transparent bg-transparent px-1 text-xs text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:border-gray-700"
-                                            >
-                                              <option value="HIGH">
-                                                {t("priorities.HIGH")}
-                                              </option>
-                                              <option value="MEDIUM">
-                                                {t("priorities.MEDIUM")}
-                                              </option>
-                                              <option value="LOW">
-                                                {t("priorities.LOW")}
-                                              </option>
-                                            </select>
-                                          ) : (
+                                          <label className="relative inline-flex cursor-pointer items-center rounded px-1 py-0.5 transition hover:bg-gray-200/60 dark:hover:bg-gray-800">
                                             <WorkPriorityLabel
                                               priority={subPriority}
                                             />
-                                          )
+                                            {onUpdateSubtask && (
+                                              <select
+                                                aria-label={`Priority for ${sub.key}`}
+                                                value={subPriority}
+                                                onChange={(e) => {
+                                                  const nextPrio = e.target
+                                                    .value as WorkPriority;
+                                                  onUpdateSubtask(
+                                                    item.id,
+                                                    sub.id,
+                                                    {
+                                                      priority: nextPrio,
+                                                    },
+                                                  );
+                                                  showNotice(
+                                                    `Updated ${sub.key} priority to ${nextPrio}`,
+                                                  );
+                                                }}
+                                                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                              >
+                                                <option value="HIGH">
+                                                  {t("priorities.HIGH")}
+                                                </option>
+                                                <option value="MEDIUM">
+                                                  {t("priorities.MEDIUM")}
+                                                </option>
+                                                <option value="LOW">
+                                                  {t("priorities.LOW")}
+                                                </option>
+                                              </select>
+                                            )}
+                                          </label>
                                         ) : col.key === "due" ? (
                                           <WorkDatePickerCell
                                             value={subDueDate}

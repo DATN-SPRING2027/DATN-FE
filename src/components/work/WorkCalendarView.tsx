@@ -49,16 +49,41 @@ export default function WorkCalendarView({
       new Date(2024, 0, index + 1),
     ),
   );
+  const allCalendarItems = useMemo(() => {
+    return items.flatMap((item) => [
+      item,
+      ...(item.subtaskItems ?? []).map(
+        (sub): WorkItem => ({
+          id: sub.id,
+          key: sub.key,
+          title: `${sub.summary} (${item.key})`,
+          type: "TASK",
+          assignee: sub.assignee ?? item.assignee,
+          reporter: sub.reporter ?? item.reporter,
+          priority: sub.priority ?? item.priority,
+          status: sub.status,
+          resolution: sub.done ? "RESOLVED" : "UNRESOLVED",
+          createdAt: sub.createdAt ?? item.createdAt,
+          dueDate: sub.dueDate ?? item.dueDate,
+          projectName: item.projectName,
+          parent: { key: item.key, summary: item.title },
+          subtasks: { completed: 0, total: 0 },
+        }),
+      ),
+    ]);
+  }, [items]);
   const itemsByDate = useMemo(() => {
     const result = new Map<string, WorkItem[]>();
-    for (const item of items) {
+    for (const item of allCalendarItems) {
       if (!item.dueDate) continue;
       result.set(item.dueDate, [...(result.get(item.dueDate) ?? []), item]);
     }
     return result;
-  }, [items]);
-  const monthItems = items.filter((item) => item.dueDate?.startsWith(monthKey));
-  const unscheduledItems = items.filter((item) => !item.dueDate);
+  }, [allCalendarItems]);
+  const monthItems = allCalendarItems.filter((item) =>
+    item.dueDate?.startsWith(monthKey),
+  );
+  const unscheduledItems = allCalendarItems.filter((item) => !item.dueDate);
   const filteredUnscheduled = unscheduledItems.filter((item) =>
     !unscheduledSearch.trim()
       ? true

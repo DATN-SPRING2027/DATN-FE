@@ -93,9 +93,90 @@ export default function WorkTimelineView({
     });
   }, [offset, timeScale]);
 
+  const mergedEpics = useMemo(() => {
+    const existingKeys = new Set<string>();
+    for (const ep of epics) {
+      existingKeys.add(ep.key);
+      for (const sub of ep.subtasks) {
+        existingKeys.add(sub.key);
+      }
+    }
+    const dynamicEpics: WorkTimelineEpic[] = items
+      .filter((item) => !existingKeys.has(item.key))
+      .map((item, idx) => {
+        const startRaw = item.startDate ?? item.createdAt.slice(0, 10);
+        const dueRaw = item.dueDate ?? startRaw;
+        const subList = item.subtaskItems ?? [];
+        const subTotal = subList.length;
+        const subDonePct =
+          subTotal > 0
+            ? Math.round(
+                (subList.filter((s) => s.done || s.status === "DONE").length /
+                  subTotal) *
+                  100,
+              )
+            : item.status === "DONE"
+              ? 100
+              : 0;
+        const subInProgPct =
+          subTotal > 0
+            ? Math.round(
+                (subList.filter(
+                  (s) => !s.done && s.status !== "DONE" && s.status !== "TODO",
+                ).length /
+                  subTotal) *
+                  100,
+              )
+            : item.status === "IN_PROGRESS" || item.status === "IN_REVIEW"
+              ? 50
+              : 0;
+        const subTodoPct = Math.max(0, 100 - subDonePct - subInProgPct);
+        return {
+          key: item.key,
+          summary: item.title,
+          status: item.status,
+          assignee: item.assignee,
+          progress: {
+            done: subDonePct,
+            inprog: subInProgPct,
+            todo: subTodoPct,
+          },
+          startLabel: formatShortDate(startRaw) || "Oct 20",
+          endLabel: formatShortDate(dueRaw) || "Nov 15",
+          startDateRaw: startRaw,
+          dueDateRaw: dueRaw,
+          barLeft: 18 + (idx % 4) * 8,
+          barWidth: 34,
+          barColor: item.status === "DONE" ? "green" : "blue",
+          expanded: true,
+          subtasks: (item.subtaskItems ?? []).map((sub, sIdx) => {
+            const subStart = sub.startDate ?? startRaw;
+            const subDue = sub.dueDate ?? dueRaw;
+            return {
+              key: sub.key,
+              summary: sub.summary,
+              status: sub.status,
+              assignee: sub.assignee ?? item.assignee,
+              startLabel: formatShortDate(subStart) || "Oct 22",
+              endLabel: formatShortDate(subDue) || "Nov 10",
+              startDateRaw: subStart,
+              dueDateRaw: subDue,
+              barLeft: 22 + (sIdx % 4) * 6,
+              barWidth: 26,
+              barColor: sub.done ? "green" : "purple",
+            };
+          }),
+        };
+      });
+    return dynamicEpics.length > 0 &&
+      !items.some((i) => i.key.startsWith("KNW-"))
+      ? dynamicEpics
+      : [...dynamicEpics, ...epics];
+  }, [epics, items]);
+
   const filteredEpics = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
-    const list = epics.filter((epic) => {
+    const list = mergedEpics.filter((epic) => {
       if (selectedAssignee !=="ALL") {
         const matchesEpic =
           epic.assignee.initials === selectedAssignee ||
@@ -128,7 +209,7 @@ export default function WorkTimelineView({
         ? leftName.localeCompare(rightName)
         : rightName.localeCompare(leftName);
     });
-  }, [epics, searchTerm, selectedAssignee, sortAsc]);
+  }, [mergedEpics, searchTerm, selectedAssignee, sortAsc]);
 
   function toggleEpic(epicKey: string) {
     setEpics((current) =>

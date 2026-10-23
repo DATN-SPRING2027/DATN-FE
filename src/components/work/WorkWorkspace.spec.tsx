@@ -1556,4 +1556,149 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     });
     expect(screen.queryByText(/• Today/i)).not.toBeInTheDocument();
   });
+
+  it("auto-expands subtasks in the main List view and shows them on the Board view with Parent badge", async () => {
+    const realProjectId = "69e923c77859fd1c702d4ca0";
+    const realTaskId = "69e923c77859fd1c702d4cb0";
+    const subTask1Id = "69e923c77859fd1c702d4cb1";
+    const subTask2Id = "69e923c77859fd1c702d4cb2";
+
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "làm fe trang chủ",
+              type: "TASK",
+              status: "IN_PROGRESS",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 2, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+            {
+              id: subTask1Id,
+              projectId: realProjectId,
+              key: "FE-2",
+              title: "làm phần header",
+              type: "SUBTASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: realTaskId,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T01:00:00.000Z",
+              updatedAt: "2026-10-20T01:00:00.000Z",
+            },
+            {
+              id: subTask2Id,
+              projectId: realProjectId,
+              key: "FE-3",
+              title: "làm phần thân",
+              type: "SUBTASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: realTaskId,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T02:00:00.000Z",
+              updatedAt: "2026-10-20T02:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    // Subtasks FE-2 and FE-3 are automatically expanded and visible in main List view
+    expect(await screen.findByText("làm fe trang chủ")).toBeVisible();
+    expect(screen.getByText("làm phần header")).toBeVisible();
+    expect(screen.getByText("làm phần thân")).toBeVisible();
+    expect(screen.getByText("FE-2")).toBeVisible();
+    expect(screen.getByText("FE-3")).toBeVisible();
+
+    // Switch to Board tab and verify subtasks are visible with Parent: FE-1 badge
+    const boardTab = screen.getByRole("button", { name: "Board" });
+    fireEvent.click(boardTab);
+
+    expect(await screen.findByText("làm phần header")).toBeVisible();
+    expect(screen.getByText("làm phần thân")).toBeVisible();
+    expect(screen.getAllByText(/Parent: FE-1/i).length).toBeGreaterThanOrEqual(2);
+  });
 });

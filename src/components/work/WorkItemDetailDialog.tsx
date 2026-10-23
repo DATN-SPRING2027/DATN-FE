@@ -1965,14 +1965,14 @@ export default function WorkItemDetailDialog({
                       aria-expanded={!subtasksSectionCollapsed}
                       className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
                     >
-                      <span aria-hidden="true" className="text-xs">
+                      <span aria-hidden="true" className="text-xs text-gray-400">
                         {subtasksSectionCollapsed ? "▸" : "▾"}
                       </span>
                       <span id="work-detail-subtasks-heading">
                         {t("subtasks")}
                       </span>
                     </button>
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                    <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 font-mono text-[11px] font-semibold tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                       {t("subtaskProgress", {
                         completed: item.subtasks.completed,
                         total: item.subtasks.total,
@@ -1992,11 +1992,11 @@ export default function WorkItemDetailDialog({
                               : new Set(subtaskList.map((s) => s.id)),
                           )
                         }
-                        className="cursor-pointer border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                        className="inline-flex h-6 cursor-pointer items-center rounded border border-gray-200 bg-white px-2 text-[11px] font-medium text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                       >
                         {allSubtasksInlineExpanded
-                          ? "▾ Collapse subtask details"
-                          : "▸ Expand all subtask details"}
+                          ? "▾ Collapse details"
+                          : "▸ Expand details"}
                       </button>
                     )}
 
@@ -2185,7 +2185,7 @@ export default function WorkItemDetailDialog({
                 {/* Jira Segmented Subtask Progress Bar + `X% Done` on the Same Horizontal Row (`DATN-86-R3-subtasks-overview-2026-10-05.jpg`) */}
                 <div className="flex items-center gap-3">
                   <div
-                    className="flex h-2 flex-1 overflow-hidden bg-gray-200 dark:bg-gray-800"
+                    className="flex h-2 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"
                     role="progressbar"
                     aria-label={t("subtasks")}
                     aria-valuemin={0}
@@ -2210,13 +2210,13 @@ export default function WorkItemDetailDialog({
                         <>
                           {donePct > 0 && (
                             <div
-                              className="h-full bg-gray-900 transition-all dark:bg-gray-100"
+                              className="h-full bg-emerald-500 transition-all"
                               style={{ width: `${donePct}%` }}
                             />
                           )}
                           {inProgPct > 0 && (
                             <div
-                              className="h-full bg-gray-500 transition-all dark:bg-gray-400"
+                              className="h-full bg-brand-500 transition-all"
                               style={{ width: `${inProgPct}%` }}
                             />
                           )}
@@ -2224,7 +2224,7 @@ export default function WorkItemDetailDialog({
                       );
                     })()}
                   </div>
-                  <span className="shrink-0 text-xs font-semibold text-gray-600 dark:text-gray-300">
+                  <span className="shrink-0 tabular-nums text-xs font-semibold text-gray-600 dark:text-gray-300">
                     {item.subtasks.total === 0
                       ? "0% Done"
                       : `${Math.round(
@@ -2238,8 +2238,8 @@ export default function WorkItemDetailDialog({
                   item.subtasks.completed === subtaskList.length &&
                   item.status !== "DONE" &&
                   onStatusChange && (
-                    <div className="flex flex-wrap items-center justify-between gap-2 border border-gray-800 bg-gray-100 px-3 py-2 text-xs dark:border-gray-300 dark:bg-gray-800">
-                      <span className="font-medium text-gray-800 dark:text-gray-200">
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-xs dark:border-emerald-500/30 dark:bg-emerald-500/10">
+                      <span className="font-medium text-emerald-900 dark:text-emerald-200">
                         ✓ All {subtaskList.length} subtasks are{" "}
                         <strong>Done</strong>. Move parent{" "}
                         <strong>{item.key}</strong> to Done?
@@ -2252,7 +2252,7 @@ export default function WorkItemDetailDialog({
                             `Transitioned parent ${item.key} to Done`,
                           );
                         }}
-                        className="cursor-pointer bg-gray-900 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-gray-800 dark:bg-gray-100 dark:text-gray-900"
+                        className="cursor-pointer rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-700"
                       >
                         Move {item.key} to Done
                       </button>
@@ -2260,39 +2260,39 @@ export default function WorkItemDetailDialog({
                   )}
 
                 {!subtasksSectionCollapsed && displayedSubtasks.length > 0 && (
-                  <div className="border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+                  <div className="rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
                     <table className="w-full table-fixed border-collapse text-xs">
-                      <thead className="border-b border-gray-200 bg-gray-50 text-[11px] font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-400">
+                      <thead className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
                         <tr>
-                          <th className="w-[42%] px-2.5 py-2 text-start">
+                          <th className="w-[41%] px-3 py-2 text-start">
                             Work
                           </th>
                           {subtaskCols.priority && (
-                            <th className="w-[13%] px-1.5 py-2 text-start">
+                            <th className="w-[13%] px-2 py-2 text-start">
                               Priority
                             </th>
                           )}
                           {subtaskCols.assignee && (
-                            <th className="w-[15%] px-1.5 py-2 text-start">
+                            <th className="w-[18%] px-2 py-2 text-start">
                               Assignee
                             </th>
                           )}
                           {subtaskCols.due && (
-                            <th className="w-[13%] px-1.5 py-2 text-start">
+                            <th className="w-[12%] px-2 py-2 text-start">
                               Due date
                             </th>
                           )}
                           {subtaskCols.estimate && (
-                            <th className="w-[10%] px-1.5 py-2 text-start">
+                            <th className="w-[9%] px-2 py-2 text-start">
                               Est.
                             </th>
                           )}
                           {subtaskCols.status && (
-                            <th className="w-[15%] px-1.5 py-2 text-start">
+                            <th className="w-[15%] px-2 py-2 text-start">
                               Status
                             </th>
                           )}
-                          <th className="w-[10%] px-1.5 py-2 text-end">
+                          <th className="w-[84px] pe-3 ps-1.5 py-2 text-end">
                             Actions
                           </th>
                         </tr>
@@ -2320,14 +2320,14 @@ export default function WorkItemDetailDialog({
                           return (
                             <Fragment key={sub.id}>
                               <tr
-                                className={`group/sub hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+                                className={`group/sub transition-colors hover:bg-gray-50/90 dark:hover:bg-gray-800/50 ${
                                   sub.flagged
-                                    ? "bg-gray-100/70 dark:bg-gray-800/60"
+                                    ? "bg-amber-50/50 dark:bg-amber-500/10"
                                     : ""
                                 }`}
                               >
-                                <td className="px-2.5 py-2 align-middle">
-                                  <div className="flex min-w-0 items-center gap-1.5">
+                                <td className="px-3 py-2.5 align-middle">
+                                  <div className="flex min-w-0 items-center gap-2">
                                     <button
                                       type="button"
                                       onClick={() =>
@@ -2339,7 +2339,7 @@ export default function WorkItemDetailDialog({
                                           : "Show subtask details & steps"
                                       }
                                       aria-label={`Toggle details for ${sub.key}`}
-                                      className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-[10px] text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700"
+                                      className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded text-[10px] text-gray-400 transition hover:bg-gray-200 hover:text-gray-700 dark:hover:bg-gray-700 dark:hover:text-gray-200"
                                     >
                                       {isSubDetailExpanded ? "▾" : "▸"}
                                     </button>
@@ -2350,9 +2350,9 @@ export default function WorkItemDetailDialog({
                                         onToggleSubtask?.(item.id, sub.id)
                                       }
                                       aria-label={`Complete subtask ${sub.key}`}
-                                      className="h-3.5 w-3.5 shrink-0 cursor-pointer border-gray-300 text-brand-600"
+                                      className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                                     />
-                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center border border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                    <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded border border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
                                       <MonoIssueTypeIcon
                                         type="SUBTASK"
                                         size={10}
@@ -2362,27 +2362,9 @@ export default function WorkItemDetailDialog({
                                       type="button"
                                       onClick={() => selectSubtaskLayer(sub.id)}
                                       title={`Open subtask ${sub.key} detail layer`}
-                                      className="shrink-0 cursor-pointer font-semibold text-gray-800 hover:underline dark:text-gray-200"
+                                      className="shrink-0 cursor-pointer font-mono text-[11px] font-semibold text-gray-500 hover:text-brand-600 hover:underline dark:text-gray-400 dark:hover:text-brand-400"
                                     >
                                       {sub.key}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        if (typeof navigator !== "undefined") {
-                                          navigator.clipboard?.writeText(
-                                            `${window.location.origin}${window.location.pathname}#${sub.key}`,
-                                          );
-                                        }
-                                        showSubtaskFeedback(
-                                          `Copied subtask link for ${sub.key}`,
-                                        );
-                                      }}
-                                      title={`Copy link to ${sub.key}`}
-                                      aria-label={`Copy link to ${sub.key}`}
-                                      className="invisible inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-gray-400 hover:text-gray-800 group-hover/sub:visible dark:hover:text-white"
-                                    >
-                                      <MonoIcon name="link" size={10} />
                                     </button>
                                     {isEditingThisSub ? (
                                       <form
@@ -2408,11 +2390,11 @@ export default function WorkItemDetailDialog({
                                               e.target.value,
                                             )
                                           }
-                                          className="h-6 min-w-0 flex-1 border border-gray-300 bg-white px-2 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                                          className="h-6 min-w-0 flex-1 rounded border border-brand-400 bg-white px-2 text-xs text-gray-900 outline-none dark:border-brand-500 dark:bg-gray-950 dark:text-white"
                                         />
                                         <button
                                           type="submit"
-                                          className="h-6 cursor-pointer bg-gray-900 px-2 text-[10px] font-semibold text-white dark:bg-gray-100 dark:text-gray-900"
+                                          className="h-6 cursor-pointer rounded bg-brand-600 px-2 text-[10px] font-semibold text-white hover:bg-brand-700"
                                         >
                                           Save
                                         </button>
@@ -2423,20 +2405,38 @@ export default function WorkItemDetailDialog({
                                         onClick={() =>
                                           selectSubtaskLayer(sub.id)
                                         }
-                                        title="Click to open subtask detail layer"
-                                        className={`min-w-0 flex-1 cursor-pointer truncate text-start ${
+                                        title={sub.summary}
+                                        className={`min-w-0 flex-1 cursor-pointer truncate text-start font-medium ${
                                           sub.done
                                             ? "line-through text-gray-400 dark:text-gray-500"
-                                            : "text-gray-800 hover:underline dark:text-gray-200"
+                                            : "text-gray-800 hover:text-brand-600 hover:underline dark:text-gray-200 dark:hover:text-brand-400"
                                         }`}
                                       >
                                         {sub.summary}
                                       </button>
                                     )}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        if (typeof navigator !== "undefined") {
+                                          navigator.clipboard?.writeText(
+                                            `${window.location.origin}${window.location.pathname}#${sub.key}`,
+                                          );
+                                        }
+                                        showSubtaskFeedback(
+                                          `Copied subtask link for ${sub.key}`,
+                                        );
+                                      }}
+                                      title={`Copy link to ${sub.key}`}
+                                      aria-label={`Copy link to ${sub.key}`}
+                                      className="invisible inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-gray-400 hover:bg-gray-200 hover:text-gray-800 group-hover/sub:visible dark:hover:bg-gray-700 dark:hover:text-white"
+                                    >
+                                      <MonoIcon name="link" size={10} />
+                                    </button>
                                     {sub.flagged && (
                                       <span
                                         title="Flagged subtask"
-                                        className="shrink-0 text-gray-700 dark:text-gray-300"
+                                        className="shrink-0 text-amber-600 dark:text-amber-400"
                                       >
                                         <MonoIcon name="flag" size={11} />
                                       </span>
@@ -2448,7 +2448,7 @@ export default function WorkItemDetailDialog({
                                           toggleInlineSubtaskExpand(sub.id)
                                         }
                                         title="Implementation steps progress"
-                                        className="shrink-0 cursor-pointer border border-gray-200 bg-gray-100 px-1 py-0.5 font-mono text-[10px] font-semibold text-gray-600 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                        className="shrink-0 cursor-pointer rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-600 hover:bg-gray-200 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                                       >
                                         {doneStepsCount}/{subSteps.length}
                                       </button>
@@ -2457,74 +2457,91 @@ export default function WorkItemDetailDialog({
                                 </td>
 
                                 {subtaskCols.priority && (
-                                  <td className="px-1.5 py-2 align-middle">
-                                    {onUpdateSubtask ? (
-                                      <select
-                                        aria-label={`Priority for ${sub.key}`}
-                                        value={subPriority}
-                                        onChange={(e) =>
-                                          onUpdateSubtask(item.id, sub.id, {
-                                            priority: e.target
-                                              .value as WorkPriority,
-                                          })
-                                        }
-                                        className="h-6 w-full cursor-pointer border border-gray-200 bg-transparent px-1 text-[11px] text-gray-700 dark:border-gray-700 dark:text-gray-300"
-                                      >
-                                        <option value="HIGH">
-                                          {t("priorities.HIGH")}
-                                        </option>
-                                        <option value="MEDIUM">
-                                          {t("priorities.MEDIUM")}
-                                        </option>
-                                        <option value="LOW">
-                                          {t("priorities.LOW")}
-                                        </option>
-                                      </select>
-                                    ) : (
+                                  <td className="px-2 py-2.5 align-middle">
+                                    <label className="relative inline-flex max-w-full cursor-pointer items-center gap-1 rounded px-1.5 py-1 transition hover:bg-gray-100 dark:hover:bg-gray-800">
                                       <WorkPriorityLabel
                                         priority={subPriority}
                                       />
-                                    )}
+                                      {onUpdateSubtask && (
+                                        <select
+                                          aria-label={`Priority for ${sub.key}`}
+                                          value={subPriority}
+                                          onChange={(e) =>
+                                            onUpdateSubtask(item.id, sub.id, {
+                                              priority: e.target
+                                                .value as WorkPriority,
+                                            })
+                                          }
+                                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                        >
+                                          <option value="HIGH">
+                                            {t("priorities.HIGH")}
+                                          </option>
+                                          <option value="MEDIUM">
+                                            {t("priorities.MEDIUM")}
+                                          </option>
+                                          <option value="LOW">
+                                            {t("priorities.LOW")}
+                                          </option>
+                                        </select>
+                                      )}
+                                    </label>
                                   </td>
                                 )}
 
                                 {subtaskCols.assignee && (
-                                  <td className="px-1.5 py-2 align-middle">
-                                    {onUpdateSubtask ? (
-                                      <select
-                                        aria-label={`Assignee for ${sub.key}`}
-                                        value={subAssignee.id}
-                                        onChange={(e) => {
-                                          const nextP = assigneeChoices.find(
-                                            (p) => p.id === e.target.value,
-                                          );
-                                          if (nextP) {
-                                            onUpdateSubtask(item.id, sub.id, {
-                                              assignee: nextP,
-                                            });
-                                          }
-                                        }}
-                                        className="h-6 w-full cursor-pointer border border-gray-200 bg-transparent px-1 text-[11px] text-gray-700 dark:border-gray-700 dark:text-gray-300"
-                                      >
-                                        {assigneeChoices.map((person) => (
-                                          <option
-                                            key={person.id}
-                                            value={person.id}
-                                          >
-                                            {person.name}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <span className="truncate text-gray-700 dark:text-gray-300">
+                                  <td className="px-2 py-2.5 align-middle">
+                                    <label className="relative flex max-w-full cursor-pointer items-center gap-1.5 rounded px-1.5 py-1 transition hover:bg-gray-100 dark:hover:bg-gray-800">
+                                      {subAssignee.id === "unassigned" ? (
+                                        <span
+                                          aria-hidden="true"
+                                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 bg-gray-50 text-[10px] font-semibold text-gray-400 dark:border-gray-700 dark:bg-gray-900"
+                                        >
+                                          ?
+                                        </span>
+                                      ) : (
+                                        <span
+                                          aria-hidden="true"
+                                          className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/30"
+                                        >
+                                          {subAssignee.initials}
+                                        </span>
+                                      )}
+                                      <span className="truncate font-medium text-gray-700 dark:text-gray-200">
                                         {subAssignee.name}
                                       </span>
-                                    )}
+                                      {onUpdateSubtask && (
+                                        <select
+                                          aria-label={`Assignee for ${sub.key}`}
+                                          value={subAssignee.id}
+                                          onChange={(e) => {
+                                            const nextP = assigneeChoices.find(
+                                              (p) => p.id === e.target.value,
+                                            );
+                                            if (nextP) {
+                                              onUpdateSubtask(item.id, sub.id, {
+                                                assignee: nextP,
+                                              });
+                                            }
+                                          }}
+                                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                        >
+                                          {assigneeChoices.map((person) => (
+                                            <option
+                                              key={person.id}
+                                              value={person.id}
+                                            >
+                                              {person.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </label>
                                   </td>
                                 )}
 
                                 {subtaskCols.due && (
-                                  <td className="px-1.5 py-2 align-middle">
+                                  <td className="px-2 py-2.5 align-middle">
                                     <WorkDatePickerCell
                                       value={sub.dueDate ?? item.dueDate ?? null}
                                       itemKey={sub.key}
@@ -2542,46 +2559,50 @@ export default function WorkItemDetailDialog({
                                 )}
 
                                 {subtaskCols.estimate && (
-                                  <td className="px-1.5 py-2 align-middle font-mono text-[11px] text-gray-600 dark:text-gray-300">
+                                  <td className="px-2 py-2.5 align-middle font-mono text-[11px] tabular-nums text-gray-600 dark:text-gray-300">
                                     {sub.loggedTime ?? "0h"}/
                                     {sub.estimate ?? "2h"}
                                   </td>
                                 )}
 
                                 {subtaskCols.status && (
-                                  <td className="px-1.5 py-2 align-middle">
-                                    {onUpdateSubtask ? (
-                                      <select
-                                        aria-label={`Status for ${sub.key}`}
-                                        value={sub.status}
-                                        onChange={(e) =>
-                                          onUpdateSubtask(item.id, sub.id, {
-                                            status: e.target
-                                              .value as WorkStatus,
-                                          })
-                                        }
-                                        className="h-6 w-full cursor-pointer border border-gray-300 bg-white px-1 text-[11px] font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                                      >
-                                        {WORK_STATUS_ORDER.map((st) => (
-                                          <option key={st} value={st}>
-                                            {t(`statuses.${st}`)}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    ) : (
-                                      <WorkStatusBadge status={sub.status} />
-                                    )}
+                                  <td className="px-2 py-2.5 align-middle">
+                                    <label className="relative inline-flex cursor-pointer items-center">
+                                      <WorkStatusBadge
+                                        status={sub.status}
+                                        showChevron={Boolean(onUpdateSubtask)}
+                                      />
+                                      {onUpdateSubtask && (
+                                        <select
+                                          aria-label={`Status for ${sub.key}`}
+                                          value={sub.status}
+                                          onChange={(e) =>
+                                            onUpdateSubtask(item.id, sub.id, {
+                                              status: e.target
+                                                .value as WorkStatus,
+                                            })
+                                          }
+                                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                                        >
+                                          {WORK_STATUS_ORDER.map((st) => (
+                                            <option key={st} value={st}>
+                                              {t(`statuses.${st}`)}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
+                                    </label>
                                   </td>
                                 )}
 
-                                <td className="relative px-1.5 py-2 text-end align-middle">
+                                <td className="relative w-[84px] pe-2.5 ps-1 py-2.5 text-end align-middle">
                                   <div className="inline-flex items-center justify-end gap-0.5">
                                     <button
                                       type="button"
                                       onClick={() => selectSubtaskLayer(sub.id)}
                                       title={`Open ${sub.key} full subtask view`}
                                       aria-label={`Open ${sub.key} detail view`}
-                                      className="inline-flex h-6 w-6 cursor-pointer items-center justify-center text-gray-500 hover:bg-gray-200 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                                      className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-gray-400 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
                                     >
                                       <MonoIcon name="arrowUpRight" size={12} />
                                     </button>
@@ -2594,7 +2615,7 @@ export default function WorkItemDetailDialog({
                                       }
                                       aria-label={`More actions for subtask ${sub.key}`}
                                       title={`More actions for ${sub.key}`}
-                                      className="inline-flex h-6 w-6 cursor-pointer items-center justify-center font-bold text-gray-500 hover:bg-gray-200 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                                      className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded font-bold text-gray-500 transition hover:bg-gray-100 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
                                     >
                                       ···
                                     </button>
@@ -2606,7 +2627,7 @@ export default function WorkItemDetailDialog({
                                         }
                                         aria-label={`Delete subtask ${sub.key}`}
                                         title="Delete subtask"
-                                        className="inline-flex h-6 w-6 cursor-pointer items-center justify-center text-gray-400 hover:bg-gray-200 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-white"
+                                        className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-gray-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-500/15 dark:hover:text-red-400"
                                       >
                                         <MonoIcon name="trash" size={12} />
                                       </button>

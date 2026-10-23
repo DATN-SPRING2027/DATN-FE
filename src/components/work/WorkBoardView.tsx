@@ -292,6 +292,14 @@ export default function WorkBoardView({
       <div className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-2 2xl:grid-cols-4">
         {WORK_STATUS_ORDER.map((status) => {
           const columnItems = items.filter((item) => item.status === status);
+          const columnSubtasks = showSubtasks
+            ? items.flatMap((parent) =>
+                (parent.subtaskItems ?? [])
+                  .filter((sub) => sub.status === status)
+                  .map((sub) => ({ parent, sub })),
+              )
+            : [];
+          const totalColumnCards = columnItems.length + columnSubtasks.length;
           const isWipExceeded =
             status ==="IN_PROGRESS"&&
             columnItems.length > WIP_LIMIT_IN_PROGRESS;
@@ -311,6 +319,16 @@ export default function WorkBoardView({
                 event.preventDefault();
                 setDragOverColumn(null);
                 const draggedId = event.dataTransfer.getData("text/plain");
+                if (draggedId.startsWith("subtask:")) {
+                  const [, parentId, subId] = draggedId.split(":");
+                  if (parentId && subId && onUpdateSubtask) {
+                    onUpdateSubtask(parentId, subId, {
+                      status,
+                      done: status === "DONE",
+                    });
+                  }
+                  return;
+                }
                 if (draggedId && onStatusChange) {
                   onStatusChange(draggedId, status);
                 }
@@ -330,7 +348,7 @@ export default function WorkBoardView({
                 >
                   <span>{t(`statuses.${status}`)}</span>
                   <span className="rounded bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-900 dark:text-gray-300">
-                    {columnItems.length}
+                    {totalColumnCards}
                   </span>
                   {status === "IN_PROGRESS" && (
                     <span
@@ -358,32 +376,125 @@ export default function WorkBoardView({
               {!isCollapsed && (
                 <>
                   <ul className="flex max-h-[calc(100vh-14rem)] min-h-32 flex-col gap-2 overflow-y-auto pe-0.5">
-                    {columnItems.length === 0 ? (
+                    {totalColumnCards === 0 ? (
                       <li className="flex min-h-20 items-center justify-center rounded-md border border-dashed border-gray-300 px-3 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
                         {t("emptyColumn")}
                       </li>
                     ) : (
-                      columnItems.map((item) => (
-                        <WorkCard
-                          key={item.id}
-                          item={item}
-                          people={people}
-                          status={status}
-                          showEpicBadge={showEpicBadge}
-                          showDueDate={showDueDate}
-                          showStoryPoints={showStoryPoints}
-                          showSubtasks={showSubtasks}
-                          onOpenItem={onOpenItem}
-                          onOpenSubtask={onOpenSubtask}
-                          onStatusChange={onStatusChange}
-                          onToggleSubtask={onToggleSubtask}
-                          onAddSubtask={onAddSubtask}
-                          onUpdateSubtask={onUpdateSubtask}
-                          onDeleteSubtask={onDeleteSubtask}
-                          onCloneSubtask={onCloneSubtask}
-                          onConvertSubtaskToTask={onConvertSubtaskToTask}
-                        />
-                      ))
+                      <>
+                        {columnItems.map((item) => (
+                          <WorkCard
+                            key={item.id}
+                            item={item}
+                            people={people}
+                            status={status}
+                            showEpicBadge={showEpicBadge}
+                            showDueDate={showDueDate}
+                            showStoryPoints={showStoryPoints}
+                            showSubtasks={showSubtasks}
+                            onOpenItem={onOpenItem}
+                            onOpenSubtask={onOpenSubtask}
+                            onStatusChange={onStatusChange}
+                            onToggleSubtask={onToggleSubtask}
+                            onAddSubtask={onAddSubtask}
+                            onUpdateSubtask={onUpdateSubtask}
+                            onDeleteSubtask={onDeleteSubtask}
+                            onCloneSubtask={onCloneSubtask}
+                            onConvertSubtaskToTask={onConvertSubtaskToTask}
+                          />
+                        ))}
+                        {columnSubtasks.map(({ parent, sub }) => {
+                          const subAssignee = sub.assignee ?? parent.assignee;
+                          const subDue = sub.dueDate ?? parent.dueDate;
+                          return (
+                            <li
+                              key={`subcard-${parent.id}-${sub.id}`}
+                              draggable={Boolean(onUpdateSubtask)}
+                              onDragStart={(event) => {
+                                event.dataTransfer.setData(
+                                  "text/plain",
+                                  `subtask:${parent.id}:${sub.id}`,
+                                );
+                                event.dataTransfer.effectAllowed = "move";
+                              }}
+                            >
+                              <article className="group relative rounded-md border border-dashed border-brand-200 bg-white/95 p-2.5 shadow-theme-xs transition-colors hover:border-brand-400 dark:border-brand-500/30 dark:bg-gray-900/90 dark:hover:border-brand-400">
+                                <div className="mb-1 flex items-center justify-between gap-1.5">
+                                  <span className="inline-flex max-w-full items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                                    <MonoIssueTypeIcon
+                                      type={parent.type}
+                                      size={9}
+                                    />
+                                    <span className="truncate">
+                                      Parent: {parent.key}
+                                    </span>
+                                  </span>
+                                  {showDueDate && subDue && (
+                                    <span className="rounded border border-gray-200 bg-gray-50 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                      {subDue}
+                                    </span>
+                                  )}
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(event) =>
+                                    onOpenSubtask
+                                      ? onOpenSubtask(
+                                          parent,
+                                          sub.id,
+                                          event.currentTarget,
+                                        )
+                                      : onOpenItem(parent, event.currentTarget)
+                                  }
+                                  className="block w-full cursor-pointer text-start"
+                                >
+                                  <span
+                                    className={`line-clamp-2 text-xs font-medium leading-4 ${
+                                      sub.done
+                                        ? "line-through text-gray-400 dark:text-gray-500"
+                                        : "text-gray-900 dark:text-white/90"
+                                    }`}
+                                  >
+                                    {sub.summary}
+                                  </span>
+                                </button>
+                                <div className="mt-2 flex items-center justify-between gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={(event) =>
+                                      onOpenSubtask
+                                        ? onOpenSubtask(
+                                            parent,
+                                            sub.id,
+                                            event.currentTarget,
+                                          )
+                                        : onOpenItem(
+                                            parent,
+                                            event.currentTarget,
+                                          )
+                                    }
+                                    className="inline-flex cursor-pointer items-center gap-1 font-mono text-[11px] font-semibold text-brand-700 hover:underline dark:text-brand-300"
+                                  >
+                                    <span className="flex h-4 w-4 items-center justify-center rounded border border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+                                      <MonoIssueTypeIcon
+                                        type="SUBTASK"
+                                        size={9}
+                                      />
+                                    </span>
+                                    <span>{sub.key}</span>
+                                  </button>
+                                  <span
+                                    title={subAssignee.name}
+                                    className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-50 text-[9px] font-bold text-brand-700 ring-1 ring-brand-200 dark:bg-brand-500/20 dark:text-brand-300"
+                                  >
+                                    {subAssignee.initials}
+                                  </span>
+                                </div>
+                              </article>
+                            </li>
+                          );
+                        })}
+                      </>
                     )}
                   </ul>
 
