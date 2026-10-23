@@ -125,28 +125,29 @@ export default function SidebarOrganizationSwitcher({
         title={!isExpandedView ? label : undefined}
         onClick={() => setIsOpen((open) => !open)}
         className={cn(
-          "group flex min-h-14 w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-start transition-colors hover:border-brand-200 hover:bg-brand-50/60 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-gray-800 dark:bg-gray-900/60 dark:hover:border-brand-500/40 dark:hover:bg-brand-500/5",
-          !isExpandedView && "justify-center px-2",
+          "group flex min-h-9 w-full items-center gap-2 rounded-md border border-gray-200/80 bg-gray-50/60 px-2 py-1 text-start transition-colors hover:border-gray-300 hover:bg-gray-100/80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-gray-700 dark:hover:bg-white/[0.06]",
+          !isExpandedView && "justify-center px-1.5",
         )}
       >
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+        <span className="flex size-6 shrink-0 items-center justify-center rounded-[5px] bg-brand-600 text-[11px] font-bold text-white dark:bg-brand-500">
           {getInitials(organizationName || "?") || "?"}
         </span>
         {isExpandedView && (
           <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-medium tracking-[0.12em] text-gray-400 uppercase dark:text-gray-500">
+            <span className="block text-[9px] leading-3 font-medium tracking-wider text-gray-400 uppercase dark:text-gray-500">
               {t("organizationLabel")}
             </span>
-            <span className="block truncate text-theme-sm font-semibold text-gray-800 group-hover:text-brand-600 dark:text-white dark:group-hover:text-brand-400">
+            <span className="block truncate text-[13px] leading-4 font-semibold text-gray-800 group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">
               {name}
             </span>
           </span>
         )}
         {isExpandedView && (
           <ChevronDownIcon
+            viewBox="0 0 20 20"
             aria-hidden="true"
             className={cn(
-              "size-4 shrink-0 text-gray-500 transition-transform",
+              "size-3.5 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 dark:group-hover:text-gray-300",
               isOpen && "rotate-180",
             )}
           />
@@ -157,33 +158,33 @@ export default function SidebarOrganizationSwitcher({
         <section
           id="sidebar-organization-options"
           aria-label={t("organizationListLabel")}
-          className="absolute start-0 top-[calc(100%+0.5rem)] z-[60] max-h-80 w-full min-w-56 overflow-y-auto rounded-xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+          className="absolute start-0 top-[calc(100%+0.375rem)] z-[60] max-h-72 w-full min-w-52 overflow-y-auto rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900"
         >
           {isLoading ? (
             <p
               role="status"
-              className="px-3 py-4 text-theme-xs text-gray-500 dark:text-gray-400"
+              className="px-2.5 py-3 text-xs text-gray-500 dark:text-gray-400"
             >
               {t("organizationLoading")}
             </p>
           ) : isError ? (
-            <div className="space-y-2 px-3 py-3">
+            <div className="space-y-1.5 px-2.5 py-2.5">
               <p
                 role="alert"
-                className="text-theme-xs text-error-600 dark:text-error-400"
+                className="text-xs text-error-600 dark:text-error-400"
               >
                 {t("organizationLoadError")}
               </p>
               <button
                 type="button"
                 onClick={() => onRetry?.()}
-                className="text-theme-xs font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400"
+                className="text-xs font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400"
               >
                 {t("organizationRetry")}
               </button>
             </div>
           ) : organizations.length > 0 ? (
-            <ul className="space-y-1">
+            <ul className="space-y-0.5">
               {organizations.map((organization) => {
                 const isCurrent = organization.id === organizationId;
                 const isSwitchingTarget =
@@ -197,24 +198,25 @@ export default function SidebarOrganizationSwitcher({
                       disabled={select.isPending || isCurrent}
                       onClick={() => void handleSelect(organization.id)}
                       className={cn(
-                        "flex min-h-12 w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
+                        "flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
                         isCurrent
-                          ? "bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                          ? "bg-brand-50/90 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
                           : isSwitchingTarget
-                            ? "bg-brand-50/70 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
-                            : "text-gray-700 hover:bg-gray-100 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-white/5",
+                            ? "bg-brand-50/70 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"
+                            : "text-gray-700 hover:bg-gray-100/80 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-white/[0.06]",
                       )}
                     >
-                      <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                      <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
                         {getInitials(organization.name)}
                       </span>
-                      <span className="min-w-0 flex-1 truncate text-theme-sm font-medium">
+                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
                         {organization.name}
                       </span>
                       {isCurrent && (
                         <CheckCircleIcon
+                          viewBox="0 0 24 24"
                           aria-label={t("currentOrganization")}
-                          className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
+                          className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
                         />
                       )}
                     </button>
@@ -223,14 +225,14 @@ export default function SidebarOrganizationSwitcher({
               })}
             </ul>
           ) : (
-            <div className="px-3 py-3">
-              <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+            <div className="px-2.5 py-2.5">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 {t("noOrganizations")}
               </p>
               <Link
                 href="/select-organization"
                 onClick={() => setIsOpen(false)}
-                className="mt-2 inline-flex text-theme-xs font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400"
+                className="mt-1.5 inline-flex text-xs font-medium text-brand-600 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400"
               >
                 {t("manageOrganizations")}
               </Link>
@@ -239,7 +241,7 @@ export default function SidebarOrganizationSwitcher({
           {select.isError && (
             <p
               role="alert"
-              className="mt-2 border-t border-gray-100 px-3 pt-2 text-theme-xs text-error-600 dark:border-gray-800 dark:text-error-400"
+              className="mt-1.5 border-t border-gray-100 px-2.5 pt-1.5 text-xs text-error-600 dark:border-gray-800 dark:text-error-400"
             >
               {t("organizationSelectError")}
             </p>
