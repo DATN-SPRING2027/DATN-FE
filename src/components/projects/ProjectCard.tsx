@@ -1,14 +1,16 @@
 "use client";
 
 import { useFormatter, useTranslations } from "next-intl";
-import { Globe, Lock, Tag } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import { GroupIcon, TimeIcon, ArrowRightIcon } from "@/icons";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import {
+  Globe,
+  Lock,
   ProjectDirectoryRow,
   ProjectMemberAvatarGroup,
   ProjectSquareAvatar,
+  Tag,
 } from "./ProjectVisualIdentity";
 
 export default function ProjectCard({

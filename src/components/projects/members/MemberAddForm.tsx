@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
@@ -11,25 +11,37 @@ import {
   type ProjectMemberCandidate,
 } from "@/lib/queries/projects/useProjectMembers";
 
+export type ProjectMemberAddRole = "MEMBER" | "TEAM_LEADER";
+
 export default function MemberAddForm({
   organizationId,
   projectId,
   onAdd,
   disabled,
   pending,
+  defaultRole = "MEMBER",
+  onRoleChange,
 }: {
   organizationId?: string;
   projectId?: string;
-  onAdd: (userId: string) => void;
+  onAdd: (userId: string, role?: ProjectMemberAddRole) => void;
   disabled: boolean;
   pending: boolean;
+  defaultRole?: ProjectMemberAddRole;
+  onRoleChange?: (role: ProjectMemberAddRole) => void;
 }) {
   const t = useTranslations("projectMembers");
   const [emailInput, setEmailInput] = useState("");
   const [debouncedEmail, setDebouncedEmail] = useState("");
   const [selectedCandidate, setSelectedCandidate] =
     useState<ProjectMemberCandidate | null>(null);
+  const [selectedRole, setSelectedRole] =
+    useState<ProjectMemberAddRole>(defaultRole);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSelectedRole(defaultRole);
+  }, [defaultRole]);
 
   const trimmedEmail = emailInput.trim();
   const isValidEmailFormat =
@@ -56,10 +68,26 @@ export default function MemberAddForm({
     isSearchReady ? debouncedEmail : undefined,
   );
 
+  const visibleCandidates = useMemo(() => {
+    if (!trimmedEmail || isSearchReady) return candidates;
+    const lower = trimmedEmail.toLowerCase();
+    return candidates.filter(
+      (candidate) =>
+        candidate.email.toLowerCase().includes(lower) ||
+        (candidate.fullName &&
+          candidate.fullName.toLowerCase().includes(lower)),
+    );
+  }, [candidates, isSearchReady, trimmedEmail]);
+
   function handleEmailChange(value: string) {
     setEmailInput(value);
     setValidationError(null);
     setSelectedCandidate(null);
+  }
+
+  function handleRoleChange(nextRole: ProjectMemberAddRole) {
+    setSelectedRole(nextRole);
+    onRoleChange?.(nextRole);
   }
 
   function handleSelectCandidate(candidate: ProjectMemberCandidate) {
@@ -83,13 +111,20 @@ export default function MemberAddForm({
       return;
     }
 
-    onAdd(target.userId);
+    if (selectedRole === "TEAM_LEADER") {
+      onAdd(target.userId, "TEAM_LEADER");
+    } else {
+      onAdd(target.userId);
+    }
   }
 
   function submit(event: FormEvent) {
     event.preventDefault();
     handleAdd();
   }
+
+  const showCandidateSection =
+    trimmedEmail.length > 0 || visibleCandidates.length > 0 || isFetching;
 
   return (
     <form
@@ -113,7 +148,9 @@ export default function MemberAddForm({
               disabled={disabled}
               aria-invalid={
                 Boolean(validationError) ||
-                (!isValidEmailFormat && trimmedEmail.length > 0)
+                (!isValidEmailFormat &&
+                  trimmedEmail.length > 0 &&
+                  visibleCandidates.length === 0)
               }
               aria-describedby={
                 validationError
@@ -129,6 +166,22 @@ export default function MemberAddForm({
             </div>
           </div>
         </div>
+        <div className="w-full @xl:w-44 shrink-0">
+          <Label htmlFor="project-member-role-select">{t("role")}</Label>
+          <select
+            id="project-member-role-select"
+            aria-label={t("role")}
+            value={selectedRole}
+            disabled={disabled || pending}
+            onChange={(e) =>
+              handleRoleChange(e.target.value as ProjectMemberAddRole)
+            }
+            className="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+          >
+            <option value="MEMBER">{t("projectMember")}</option>
+            <option value="TEAM_LEADER">{t("projectLeaderBadge")}</option>
+          </select>
+        </div>
         <Button
           type="submit"
           disabled={disabled || pending}
@@ -138,15 +191,17 @@ export default function MemberAddForm({
         </Button>
       </div>
 
-      {trimmedEmail.length > 0 && !isValidEmailFormat && (
-        <p
-          id="member-format-error"
-          role="alert"
-          className="text-xs text-amber-600 dark:text-amber-400"
-        >
-          {t("invalidEmail")}
-        </p>
-      )}
+      {trimmedEmail.length > 0 &&
+        !isValidEmailFormat &&
+        visibleCandidates.length === 0 && (
+          <p
+            id="member-format-error"
+            role="alert"
+            className="text-xs text-amber-600 dark:text-amber-400"
+          >
+            {t("invalidEmail")}
+          </p>
+        )}
 
       {validationError && (
         <p
@@ -158,16 +213,16 @@ export default function MemberAddForm({
         </p>
       )}
 
-      {trimmedEmail.length > 0 && (
+      {showCandidateSection && (
         <div className="space-y-2">
-          {isSearchReady && isFetching && (
+          {isFetching && (
             <div className="flex items-center gap-2 p-3 text-sm text-gray-500 animate-pulse">
               <span className="size-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
               <span>{t("searching")}</span>
             </div>
           )}
 
-          {isSearchReady && !isFetching && isError && (
+          {!isFetching && isError && trimmedEmail.length > 0 && (
             <p
               id="member-search-failure"
               role="alert"
@@ -177,15 +232,18 @@ export default function MemberAddForm({
             </p>
           )}
 
-          {isSearchReady && !isFetching && !isError && candidates.length === 0 && (
-            <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
-              {t("noCandidates")}
-            </div>
-          )}
+          {!isFetching &&
+            !isError &&
+            trimmedEmail.length > 0 &&
+            visibleCandidates.length === 0 && (
+              <div className="rounded-xl border border-dashed border-gray-200 p-4 text-center text-sm text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                {t("noCandidates")}
+              </div>
+            )}
 
-          {isSearchReady && !isFetching && !isError && candidates.length > 0 && (
+          {!isFetching && !isError && visibleCandidates.length > 0 && (
             <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
-              {candidates.map((candidate) => {
+              {visibleCandidates.map((candidate) => {
                 const isSelected =
                   selectedCandidate?.userId === candidate.userId;
                 return (

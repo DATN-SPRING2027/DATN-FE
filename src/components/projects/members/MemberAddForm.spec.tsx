@@ -63,6 +63,26 @@ beforeEach(() => {
   } as never);
 });
 
+it("lists active organization members immediately on open and allows selecting role when adding", async () => {
+  candidateQuery.mockReturnValue({
+    data: [candidate],
+    isFetching: false,
+    isError: false,
+  } as never);
+  const { onAdd } = mount();
+
+  expect(await screen.findByText(candidate.fullName)).toBeVisible();
+  expect(screen.getByText(candidate.email)).toBeVisible();
+
+  const roleSelect = screen.getByRole("combobox", { name: "Role" });
+  fireEvent.change(roleSelect, { target: { value: "TEAM_LEADER" } });
+
+  fireEvent.click(screen.getByText(candidate.fullName));
+  fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
+
+  expect(onAdd).toHaveBeenCalledWith(candidate.userId, "TEAM_LEADER");
+});
+
 it("requires explicit candidate selection even when the search returns one match", async () => {
   candidateQuery.mockReturnValue({
     data: [candidate],

@@ -7,7 +7,9 @@ import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { Link, usePathname } from "@/i18n/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
+  BookOpenIcon,
   ChatIcon,
+  ChevronDownIcon,
   DocsIcon,
   FolderIcon,
   GridIcon,
@@ -32,7 +34,7 @@ const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon },
   { key: "projects", path: "/projects", icon: FolderIcon },
   { key: "chat", path: "/chat", icon: ChatIcon },
-  { key: "workNotes", icon: DocsIcon },
+  { key: "knowledge", icon: BookOpenIcon },
   { key: "aiSearch", icon: ShootingStarIcon },
 ] as const;
 
@@ -74,9 +76,22 @@ const AppSidebar: React.FC = () => {
   )?.name;
   const projectsQuery = useProjectsQuery(organizationId ?? "", {
     page: 1,
-    pageSize: 20,
+    pageSize: 100,
     status: "ACTIVE",
   });
+  const sidebarProjects = projectsQuery.data?.data ?? [];
+  const projectRouteMatch = /^\/projects\/([^/]+)/.exec(pathname);
+  const activeProjectIdFromPath = projectRouteMatch?.[1]
+    ? decodeURIComponent(projectRouteMatch[1])
+    : null;
+  const [manualProjectsOpen, setManualProjectsOpen] = useState<boolean | null>(
+    null,
+  );
+  const isProjectsOpen =
+    manualProjectsOpen ?? Boolean(activeProjectIdFromPath);
+  const [toggledProjectIds, setToggledProjectIds] = useState<
+    Record<string, boolean>
+  >({});
 
   const [fallbackWidth, setFallbackWidth] = useState(DEFAULT_WIDTH);
   const [fallbackExpanded, setFallbackExpanded] = useState<boolean | null>(null);
@@ -373,6 +388,184 @@ const AppSidebar: React.FC = () => {
     const iconViewBox = item.key === "projects" ? "0 0 20 18" : "0 0 24 24";
     const hasFlyout = "path" in item && Boolean(flyoutConfigs[item.key]);
     const isFlyoutOpen = activeKey === item.key && !activeIsResizing;
+
+    if (item.key === "projects") {
+      const isActive = isSidebarPathActive(item.path, pathname);
+      return (
+        <li
+          key={item.key}
+          ref={(element) => {
+            if (hasFlyout) {
+              registerTrigger(item.key, element);
+            }
+          }}
+          onMouseEnter={() => {
+            if (hasFlyout && !activeIsResizing) {
+              handleTriggerMouseEnter(item.key);
+            }
+          }}
+          onMouseLeave={(event) => {
+            if (hasFlyout && !activeIsResizing) {
+              handleTriggerMouseLeave(item.key, event);
+            }
+          }}
+        >
+          <div className="relative flex items-center">
+            <Link
+              href={item.path}
+              aria-label={label}
+              aria-current={isActive ? "page" : undefined}
+              title={!isExpandedView ? label : undefined}
+              onClick={() => setManualProjectsOpen(true)}
+              className={cn(
+                "group menu-item min-h-11 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
+                isActive
+                  ? "menu-item-active shadow-theme-xs"
+                  : "menu-item-inactive",
+                isExpandedView ? "pe-9" : "justify-center px-2",
+              )}
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "menu-item-icon",
+                  isActive
+                    ? "menu-item-icon-active"
+                    : "menu-item-icon-inactive",
+                )}
+              >
+                <Icon />
+              </span>
+              {isExpandedView && (
+                <span className="menu-item-text">{label}</span>
+              )}
+            </Link>
+            {isExpandedView && (
+              <button
+                type="button"
+                aria-label={t("projectsDropdownToggle")}
+                aria-expanded={isProjectsOpen}
+                onClick={() =>
+                  setManualProjectsOpen(
+                    (prev) => !(prev ?? Boolean(activeProjectIdFromPath)),
+                  )
+                }
+                className={cn(
+                  "absolute end-1.5 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                  isActive
+                    ? "text-brand-600 hover:bg-brand-100/70 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                    : "text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200",
+                )}
+              >
+                <ChevronDownIcon
+                  className={cn(
+                    "h-4 w-4 transition-transform duration-200",
+                    isProjectsOpen && "rotate-180",
+                  )}
+                />
+              </button>
+            )}
+          </div>
+
+          {isExpandedView && isProjectsOpen && (
+            <ul
+              role="group"
+              aria-label={t("projectsSubmenuLabel")}
+              className="mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
+            >
+              {projectsQuery.isLoading ? (
+                <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {t("projectsLoading")}
+                </li>
+              ) : sidebarProjects.length === 0 ? (
+                <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  {t("projectsEmpty")}
+                </li>
+              ) : (
+                sidebarProjects.map((project) => {
+                  const isProjectExpanded =
+                    toggledProjectIds[project.id] ??
+                    activeProjectIdFromPath === project.id;
+                  const projectWorkPath = `/projects/${project.id}/work`;
+                  const isProjectWorkActive =
+                    pathname === projectWorkPath ||
+                    pathname.startsWith(`${projectWorkPath}/`);
+                  const isThisProjectActive =
+                    activeProjectIdFromPath === project.id;
+
+                  return (
+                    <li key={project.id} className="flex flex-col gap-1">
+                      <button
+                        type="button"
+                        aria-expanded={isProjectExpanded}
+                        aria-label={t("projectDropdownToggle", {
+                          name: project.name,
+                        })}
+                        onClick={() =>
+                          setToggledProjectIds((prev) => ({
+                            ...prev,
+                            [project.id]: !isProjectExpanded,
+                          }))
+                        }
+                        className={cn(
+                          "flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                          isThisProjectActive
+                            ? "bg-brand-50/70 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
+                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5",
+                        )}
+                      >
+                        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-[10px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          {project.code.slice(0, 2).toUpperCase()}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">
+                          {project.name}
+                        </span>
+                        <ChevronDownIcon
+                          className={cn(
+                            "h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500",
+                            isProjectExpanded && "rotate-180",
+                          )}
+                        />
+                      </button>
+
+                      {isProjectExpanded && (
+                        <ul
+                          role="group"
+                          aria-label={t("projectActionsLabel", {
+                            name: project.name,
+                          })}
+                          className="ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
+                        >
+                          <li>
+                            <Link
+                              href={projectWorkPath}
+                              aria-current={
+                                isProjectWorkActive ? "page" : undefined
+                              }
+                              className={cn(
+                                "flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                                isProjectWorkActive
+                                  ? "bg-brand-50 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200",
+                              )}
+                            >
+                              <DocsIcon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="truncate">
+                                {t("items.workspace")}
+                              </span>
+                            </Link>
+                          </li>
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          )}
+        </li>
+      );
+    }
 
     return (
       <li
