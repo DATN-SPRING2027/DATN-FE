@@ -247,11 +247,10 @@
   color: var(--op-accent);
   background: #e7f2ff;
   border-inline-start-color: var(--op-accent);
-  font-weight: 500;
+  font-weight: 400;
 }
 .sidebar a[aria-current="page"] svg {
-  fill: var(--op-accent);
-  stroke: var(--op-accent);
+  color: var(--op-accent);
 }
 .sidebar a:hover {
   background: color-mix(in srgb, var(--op-accent) 7%, transparent);
@@ -966,7 +965,7 @@
   border-radius: 5px;
   color: var(--op-muted);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 400;
   line-height: 22px;
 }
 .console .sidebar a svg {
@@ -1121,4 +1120,32 @@
 }
 .console .toolbar .createOrganization:hover {
   background: var(--op-panel);
+}
+
+/* Keep directory selects visually stable for pointer input; retain keyboard focus. */
+.console .toolbar select {
+  border-color: var(--op-line);
+}
+.console .toolbar select[data-pointer-focus="true"]:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--op-line);
+}
+.console .toolbar select:focus-visible:not([data-pointer-focus="true"]) {
+  outline: 2px solid var(--op-muted);
+  outline-offset: 3px;
+}
+
+/* Text entry keeps its normal border on pointer focus, with keyboard feedback. */
+.console .toolbar input {
+  border-color: var(--op-line);
+}
+.console .toolbar input[data-pointer-focus="true"]:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--op-line);
+}
+.console .toolbar input:focus-visible:not([data-pointer-focus="true"]) {
+  outline: 2px solid var(--op-muted);
+  outline-offset: 3px;
 }

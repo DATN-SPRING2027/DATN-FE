@@ -308,7 +308,7 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
     return organizations;
   },
   usePlatformOrganizationQuery: () => organization,
-  usePlatformMembershipsQuery: (...args: unknown[]) => {
+  usePlatformMembershipDirectoryQuery: (...args: unknown[]) => {
     membershipListQuery(...args);
     return memberships;
   },
@@ -543,9 +543,7 @@ describe("PlatformConsole", () => {
       screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
     );
 
-    fireEvent.pointerDown(
-      screen.getByRole("combobox"),
-    );
+    fireEvent.pointerDown(screen.getByRole("combobox"));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
@@ -711,9 +709,8 @@ describe("PlatformConsole", () => {
       screen.getByText("memberships.readPermissionNeeded"),
     ).toBeInTheDocument();
     expect(membershipListQuery).toHaveBeenLastCalledWith(
-      "651a2b3c4d5e6f7a8b9c0d21",
+      { page: 1, search: "", status: "", organizationId: "" },
       false,
-      1,
     );
   });
 
@@ -727,7 +724,7 @@ describe("PlatformConsole", () => {
         screen.getByRole("navigation", { name: "organizations.directory" }),
       ).getByRole("button", { name: "next" }),
     );
-    expect(organizationListQuery).toHaveBeenLastCalledWith(true, 2);
+    expect(organizationListQuery).toHaveBeenLastCalledWith(true, 2, 10);
   });
 
   it("shows a confirmation before the permission-gated membership suspend action", async () => {
@@ -1287,9 +1284,10 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("heading", { name: "pages.memberships.title" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("memberships.organization")).toHaveValue(
-      "651a2b3c4d5e6f7a8b9c0d21",
-    );
+    expect(screen.getByLabelText("memberships.sortBy")).toHaveValue("name");
+    expect(
+      screen.queryByRole("button", { name: "refresh" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Member One")).toBeInTheDocument();
     fireEvent.click(
       screen.getByRole("button", { name: "memberships.suspend" }),
@@ -1312,7 +1310,7 @@ describe("PlatformConsole", () => {
     );
   });
 
-  it("requests the next membership page for the selected Organization", () => {
+  it("requests the next global membership page", () => {
     pathname.value = "/platform/memberships";
     session.data.permissions = [
       "platform.organizations.organization.read",
@@ -1327,10 +1325,85 @@ describe("PlatformConsole", () => {
       ).getByRole("button", { name: "next" }),
     );
     expect(membershipListQuery).toHaveBeenLastCalledWith(
-      "651a2b3c4d5e6f7a8b9c0d21",
+      { page: 2, search: "", status: "", organizationId: "" },
       true,
-      2,
     );
+  });
+
+  it("loads memberships with only membership read authority and resets pagination for status filters", () => {
+    session.data.permissions = ["platform.memberships.membership.read"];
+    memberships.data.pagination.totalPages = 2;
+    render(<PlatformConsole />);
+    expect(screen.getByText("Member One")).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("memberships.organization"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(
+        screen.getByRole("navigation", { name: "memberships.title" }),
+      ).getByRole("button", { name: "next" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "membershipStatus.SUSPENDED" }),
+    );
+    expect(membershipListQuery).toHaveBeenLastCalledWith(
+      { page: 1, search: "", status: "SUSPENDED", organizationId: "" },
+      true,
+    );
+  });
+
+  it("sorts the current membership page by name, email and latest update", () => {
+    const original = memberships.data.data;
+    memberships.data.data = [
+      original[0],
+      {
+        ...original[0],
+        id: "751a2b3c4d5e6f7a8b9c0d22",
+        user: {
+          ...original[0].user,
+          fullName: "A Member",
+          email: "z@example.test",
+        },
+        updatedAt: "2026-10-01T00:00:00.000Z",
+      },
+    ];
+    try {
+      render(<PlatformConsole />);
+      const firstDataRow = () =>
+        within(screen.getByRole("table")).getAllByRole("row")[1];
+      expect(firstDataRow()).toHaveTextContent("A Member");
+      fireEvent.change(screen.getByLabelText("memberships.sortBy"), {
+        target: { value: "email" },
+      });
+      expect(firstDataRow()).toHaveTextContent("Member One");
+      fireEvent.change(screen.getByLabelText("memberships.sortBy"), {
+        target: { value: "updated" },
+      });
+      expect(firstDataRow()).toHaveTextContent("Member One");
+      expect(
+        screen.queryByLabelText("memberships.organization"),
+      ).not.toBeInTheDocument();
+    } finally {
+      memberships.data.data = original;
+    }
+  });
+
+  it("hides stale membership rows after a refetch failure and offers retry", () => {
+    memberships.isError = true;
+    render(<PlatformConsole />);
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "errors.membershipList",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "retry" }));
+    expect(memberships.refetch).toHaveBeenCalledOnce();
+  });
+
+  it("announces membership loading without exposing cached rows", () => {
+    memberships.isPending = true;
+    render(<PlatformConsole />);
+    expect(screen.getByRole("status")).toHaveTextContent("loadingMemberships");
+    expect(screen.queryByText("Member One")).not.toBeInTheDocument();
   });
 
   it("offers a retry when the bounded Audit API fails", () => {

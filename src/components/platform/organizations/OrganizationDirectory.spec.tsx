@@ -58,7 +58,7 @@ describe("Organization directory filters", () => {
       "true",
     );
     expect(screen.queryByText("50%")).not.toBeInTheDocument();
-    fireEvent.change(screen.getByRole("textbox"), {
+    fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "not-found" },
     });
     expect(screen.getByText("organizations.emptyTitle")).toBeInTheDocument();
@@ -82,5 +82,44 @@ describe("Organization directory filters", () => {
     );
     expect(screen.getByText("organizations.emptyTitle")).toBeInTheDocument();
     expect(screen.queryByText("0%")).not.toBeInTheDocument();
+  });
+  it("sorts the current page by name, slug and newest creation without mutating the response", () => {
+    const rows = [
+      {
+        ...row,
+        id: "org-z",
+        name: "Zulu",
+        slug: "alpha",
+        createdAt: "2026-10-23T00:00:00Z",
+      },
+      { ...row, id: "org-a", name: "Alpha", slug: "zulu" },
+    ];
+    render(
+      <OrganizationDirectory
+        setOrganizationPage={vi.fn()}
+        organizations={{
+          isPending: false,
+          isError: false,
+          isFetching: false,
+          refetch: vi.fn(),
+          data: {
+            data: rows,
+            pagination: { page: 1, pageSize: 10, totalItems: 2, totalPages: 1 },
+          },
+        }}
+      />,
+    );
+    const firstName = () =>
+      within(screen.getByRole("table")).getAllByRole("link")[0].textContent;
+    expect(firstName()).toBe("Alpha");
+    fireEvent.change(screen.getByLabelText("organizations.sortBy"), {
+      target: { value: "slug" },
+    });
+    expect(firstName()).toBe("Zulu");
+    fireEvent.change(screen.getByLabelText("organizations.sortBy"), {
+      target: { value: "created" },
+    });
+    expect(firstName()).toBe("Zulu");
+    expect(rows[0].name).toBe("Zulu");
   });
 });

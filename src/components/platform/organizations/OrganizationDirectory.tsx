@@ -1,12 +1,11 @@
 "use client";
+import DirectorySelect from "../ui/DirectorySelect";
 import { useMemo, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import OrganizationRowMenu from "./OrganizationRowMenu";
 import { SearchIcon, PlatformBuildingIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
-import Input from "@/components/form/input/InputField";
-import Label from "@/components/form/Label";
 import PlatformPagination from "../PlatformPagination";
 import { TableSkeleton } from "../ui/LoadingSkeleton";
 import EmptyState from "../ui/EmptyState";
@@ -28,19 +27,34 @@ export default function OrganizationDirectory({
   onPageSizeChange?: (size: number) => void;
 }) {
   const t = useTranslations("platformConsole");
+  const locale = useLocale();
+  const [sort, setSort] = useState("name");
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState("ALL");
-  const rows = useMemo(
-    () =>
-      (organizations.data?.data ?? []).filter(
+  const rows = useMemo(() => {
+    const collator = new Intl.Collator(locale, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    return [...(organizations.data?.data ?? [])]
+      .filter(
         (row) =>
           `${row.name} ${row.slug}`
             .toLowerCase()
             .includes(search.trim().toLowerCase()) &&
           (plan === "ALL" || row.plan === plan),
-      ),
-    [organizations.data, search, plan],
-  );
+      )
+      .sort((a, b) => {
+        const order =
+          sort === "created"
+            ? Date.parse(b.createdAt) - Date.parse(a.createdAt)
+            : collator.compare(
+                sort === "slug" ? a.slug : a.name,
+                sort === "slug" ? b.slug : b.name,
+              );
+        return order || a.id.localeCompare(b.id);
+      });
+  }, [organizations.data, search, plan, sort, locale]);
   const changePage = (page: number) => {
     setSearch("");
     setPlan("ALL");
@@ -53,6 +67,7 @@ export default function OrganizationDirectory({
       aria-busy={organizations.isFetching}
     >
       <header>
+        <h1 className="sr-only">{t("pages.organizations.title")}</h1>
         <div
           className={jira.tabs}
           role="group"
@@ -71,29 +86,33 @@ export default function OrganizationDirectory({
           ))}
         </div>
         <div className={jira.toolbar}>
-          <Label htmlFor="organization-search" className="sr-only">
-            {t("organizations.search")}
-          </Label>
-          <div className={jira.searchField}>
-            <SearchIcon aria-hidden="true" />{" "}
-            <Input
+          <label className={jira.searchField}>
+            <SearchIcon aria-hidden="true" />
+            <span className="sr-only">{t("organizations.search")}</span>
+            <input
+              type="search"
+              onPointerDown={(event) => {
+                event.currentTarget.dataset.pointerFocus = "true";
+              }}
+              onBlur={(event) => {
+                delete event.currentTarget.dataset.pointerFocus;
+              }}
               id="organization-search"
               placeholder={t("organizations.search")}
               aria-describedby="organization-filter-note"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
             />
-          </div>
-          <select
-            aria-label={t("organizations.plan")}
-            value={plan}
-            onChange={(event) => setPlan(event.target.value)}
-            aria-describedby="organization-filter-note"
+          </label>
+          <DirectorySelect
+            aria-label={t("organizations.sortBy")}
+            value={sort}
+            onChange={(event) => setSort(event.target.value)}
           >
-            <option value="ALL">{t("organizations.allPlans")}</option>
-            <option value="FREE">FREE</option>
-            <option value="ENTERPRISE">ENTERPRISE</option>
-          </select>
+            <option value="name">{t("organizations.sortName")}</option>
+            <option value="slug">{t("organizations.sortSlug")}</option>
+            <option value="created">{t("organizations.sortCreated")}</option>
+          </DirectorySelect>
           {onCreate && (
             <button
               type="button"
@@ -131,8 +150,11 @@ export default function OrganizationDirectory({
                     {t(`organizations.${key}`)}
                   </th>
                 ))}
-                <th scope="col" className="px-3 py-3">
-                  <span className="sr-only">{t("organizations.actions")}</span>
+                <th
+                  scope="col"
+                  className="sticky end-0 bg-gray-50 px-3 py-3 dark:bg-gray-800"
+                >
+                  {t("organizations.actions")}
                 </th>
               </tr>
             </thead>
@@ -147,7 +169,7 @@ export default function OrganizationDirectory({
                       <PlatformBuildingIcon aria-hidden="true" />
                       <Link
                         href={`/platform/organizations/${row.id}` as never}
-                        className="font-normal text-brand-600 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400"
+                        className="font-normal text-brand-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400"
                       >
                         {row.name}
                       </Link>
@@ -157,16 +179,16 @@ export default function OrganizationDirectory({
                   <td className="px-5 py-4">{row.plan}</td>
                   <td className="px-5 py-4">
                     <time dateTime={row.createdAt}>
-                      {new Date(row.createdAt).toLocaleString("en-US", {
+                      {new Date(row.createdAt).toLocaleString(locale, {
                         year: "numeric",
                         month: "short",
-                        day: "numeric",
+                        day: "2-digit",
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </time>
                   </td>
-                  <td className="px-3 py-4">
+                  <td className="sticky end-0 bg-white px-3 py-4 dark:bg-gray-900">
                     <OrganizationRowMenu
                       id={row.id}
                       name={row.name}
@@ -189,7 +211,7 @@ export default function OrganizationDirectory({
         />
       )}
       {organizations.data && !organizations.isError && (
-        <div className="space-y-3 p-3">
+        <div>
           <p role="status" className="sr-only">
             {t("organizations.total", {
               count: organizations.data.pagination.totalItems,

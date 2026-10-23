@@ -1,4 +1,5 @@
 "use client";
+import DirectorySelect from "../ui/DirectorySelect";
 
 import { useState, type ComponentProps, type RefObject } from "react";
 import { useTranslations } from "next-intl";
@@ -84,7 +85,7 @@ export default function UserDirectory({
         ))}
       </div>
       <div className={jira.toolbar}>
-        <select
+        <DirectorySelect
           aria-label={t("sortBy")}
           value={sort}
           onChange={(event) => setSort(event.target.value)}
@@ -92,7 +93,7 @@ export default function UserDirectory({
           <option value="fullName">{t("sortName")}</option>
           <option value="email">{t("sortEmail")}</option>
           <option value="createdAt">{t("sortCreated")}</option>
-        </select>
+        </DirectorySelect>
       </div>
 
       {users.isPending ? (
