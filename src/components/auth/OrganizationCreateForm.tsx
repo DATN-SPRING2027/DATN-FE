@@ -65,8 +65,10 @@ export default function OrganizationCreateForm({
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [slugTouched, setSlugTouched] = useState(false);
-  const [availability, setAvailability] =
-    useState<SlugAvailabilityState>("idle");
+  const [checkedSlug, setCheckedSlug] = useState<{
+    slug: string;
+    status: Exclude<SlugAvailabilityState, "checking">;
+  } | null>(null);
 
   function toSlug(value: string) {
     return value
@@ -87,6 +89,15 @@ export default function OrganizationCreateForm({
   }
 
   const formatValidation = validateSlugFormat(slug);
+  const hasRemoteChecker =
+    typeof checkOrganizationSlugAvailability === "function";
+  const availability: SlugAvailabilityState = !formatValidation.valid
+    ? "idle"
+    : !hasRemoteChecker
+      ? "valid_local"
+      : checkedSlug?.slug === slug
+        ? checkedSlug.status
+        : "checking";
   const showValidationState = slug.length > 0 || slugTouched;
   const hasFormatError = showValidationState && !formatValidation.valid;
   const isTaken = formatValidation.valid && availability === "taken";
@@ -96,18 +107,11 @@ export default function OrganizationCreateForm({
     (availability === "available" || availability === "valid_local");
 
   useEffect(() => {
-    if (!formatValidation.valid) {
-      setAvailability("idle");
-      return;
-    }
-
-    if (typeof checkOrganizationSlugAvailability !== "function") {
-      setAvailability("valid_local");
+    if (!formatValidation.valid || !hasRemoteChecker) {
       return;
     }
 
     const controller = new AbortController();
-    setAvailability("checking");
 
     const timer = setTimeout(() => {
       Promise.resolve(
@@ -116,18 +120,21 @@ export default function OrganizationCreateForm({
         .then((result) => {
           if (controller.signal.aborted) return;
           if (!result || typeof result.available !== "boolean") {
-            setAvailability("valid_local");
+            setCheckedSlug({ slug, status: "valid_local" });
             return;
           }
           if (!result.valid) {
-            setAvailability("idle");
+            setCheckedSlug({ slug, status: "idle" });
             return;
           }
-          setAvailability(result.available ? "available" : "taken");
+          setCheckedSlug({
+            slug,
+            status: result.available ? "available" : "taken",
+          });
         })
         .catch(() => {
           if (!controller.signal.aborted) {
-            setAvailability("valid_local");
+            setCheckedSlug({ slug, status: "valid_local" });
           }
         });
     }, 220);
@@ -136,7 +143,7 @@ export default function OrganizationCreateForm({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [slug, formatValidation.valid]);
+  }, [slug, formatValidation.valid, hasRemoteChecker]);
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
