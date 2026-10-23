@@ -16,6 +16,7 @@ export default function PlatformCopyProvider({
         platformConsole: english.platformConsole,
         platformUserDirectory: english.platformUserDirectory,
         platformUserActions: english.platformUserActions,
+        platformProjectAdmin: english.platformProjectAdmin,
       }}
     >
       {children}

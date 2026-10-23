@@ -1,5 +1,7 @@
 "use client";
 
+import PlatformProjectMetadataForm from "./PlatformProjectMetadataForm";
+import PlatformProjectMembers from "./PlatformProjectMembers";
 import Button from "@/components/ui/button/Button";
 import { useTranslations } from "next-intl";
 import PlatformPagination from "@/components/platform/PlatformPagination";
@@ -34,10 +36,6 @@ export default function PlatformProjectsDirectory({
     selectedId,
     selectedProject,
     canManageProjects,
-    setFormMessage,
-    handleSubmit,
-    changeProject,
-    formMessage,
   } = model;
   return (
     <div className="space-y-6">
@@ -71,7 +69,10 @@ export default function PlatformProjectsDirectory({
                   className={input}
                   aria-label="Project visibility"
                   value={status}
-                  onChange={(e) => setStatus(e.target.value)}
+                  onChange={(e) => {
+                    setStatus(e.target.value);
+                    setPage(1);
+                  }}
                 >
                   <option value="">All visibility</option>
                   <option value="PRIVATE">Private</option>
@@ -182,65 +183,21 @@ export default function PlatformProjectsDirectory({
                       ? " · list truncated"
                       : ""}
                   </p>
-                  {canManageProjects && (
-                    <form
-                      className="mt-5 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800"
-                      onSubmit={(e) => {
-                        const visibility = (
-                          e.currentTarget.elements.namedItem(
-                            "visibility",
-                          ) as HTMLSelectElement
-                        ).value as "PUBLIC" | "PRIVATE";
-                        if (visibility === selectedProject.data!.visibility) {
-                          e.preventDefault();
-                          setFormMessage(
-                            "No project metadata changes to save.",
-                          );
-                          return;
-                        }
-                        if (
-                          !window.confirm(
-                            `Change project visibility to ${visibility}?`,
-                          )
-                        ) {
-                          e.preventDefault();
-                          return;
-                        }
-                        void handleSubmit(e, () =>
-                          changeProject.mutateAsync({
-                            projectId: selectedProject.data!.id,
-                            visibility,
-                            expectedUpdatedAt: selectedProject.data!.updatedAt,
-                            reasonCode: "ACCESS_REVIEW",
-                          }),
-                        );
-                      }}
-                    >
-                      <label className="grid gap-1 text-xs">
-                        Visibility
-                        <select
-                          name="visibility"
-                          defaultValue={selectedProject.data.visibility}
-                          className={input}
-                        >
-                          <option value="PRIVATE">Private</option>
-                          <option value="PUBLIC">Public</option>
-                        </select>
-                      </label>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={changeProject.isPending}
-                      >
-                        Save metadata
-                      </Button>
-                    </form>
-                  )}
-                  {formMessage && (
-                    <p className="mt-3 text-xs" role="status">
-                      {formMessage}
-                    </p>
-                  )}
+                  <PlatformProjectMetadataForm
+                    key={`metadata-${selectedProject.data.id}`}
+                    project={selectedProject.data}
+                    canManage={canManageProjects}
+                    reload={async () => {
+                      const result = await selectedProject.refetch();
+                      if (result.error) throw result.error;
+                      return result.data;
+                    }}
+                  />
+                  <PlatformProjectMembers
+                    key={`members-${selectedProject.data.id}`}
+                    projectId={selectedProject.data.id}
+                    organizationId={selectedProject.data.organization.id}
+                  />
                 </>
               )}
             </section>
