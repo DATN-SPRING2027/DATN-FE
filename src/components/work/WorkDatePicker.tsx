@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalenderIcon, ChevronLeftIcon } from "@/icons";
+import { MonoIcon } from "./WorkMonoIcons";
 
 const MONTH_NAMES = [
   "January",
@@ -285,9 +285,9 @@ export function WorkDatePickerCell({
           type="button"
           onClick={() => stepMonth(-1)}
           aria-label="Previous month"
-          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
         >
-          <ChevronLeftIcon className="h-3.5 w-3.5" />
+          ‹
         </button>
 
         <div className="flex flex-1 items-center justify-center gap-1">
@@ -322,9 +322,9 @@ export function WorkDatePickerCell({
           type="button"
           onClick={() => stepMonth(1)}
           aria-label="Next month"
-          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+          className="inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-sm font-bold text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
         >
-          <ChevronLeftIcon className="h-3.5 w-3.5 rotate-180" />
+          ›
         </button>
       </div>
 
@@ -430,7 +430,7 @@ export function WorkDatePickerCell({
             : "text-gray-400 dark:text-gray-500"
         }`}
       >
-        <CalenderIcon className="h-3.5 w-3.5 shrink-0 opacity-75" />
+        <MonoIcon name="calendar" className="h-3.5 w-3.5 shrink-0 opacity-75" />
         <span>{normalizedValue ?? placeholder}</span>
       </button>
 
