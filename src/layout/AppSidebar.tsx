@@ -31,17 +31,17 @@ import {
 } from "./SidebarFlyoutMenu";
 
 const primaryItems = [
-  { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
+  { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21", viewBox: "1.5 1.5 21 21" },
   { key: "projects", path: "/projects", icon: FolderIcon, viewBox: "-2 -3 24 24" },
   { key: "chat", path: "/chat", icon: ChatIcon, viewBox: "1 1.1 22 22" },
-  { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23" },
+  { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23", viewBox: "0.5 1.5 23 23" },
   { key: "aiSearch", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
 ] as const;
 
 const administrationItems = [
-  { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23" },
+  { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23", viewBox: "0.5 0.5 23 23" },
   { key: "integrations", icon: PlugInIcon, viewBox: "0.5 0.5 23 23" },
-  { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24" },
+  { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24", viewBox: "0 0 24 24" },
 ] as const;
 
 const DEFAULT_WIDTH = 240;
@@ -566,7 +566,7 @@ const AppSidebar: React.FC = () => {
                       label: t("items.projectOverview"),
                       href: projectOverviewPath,
                       isActive: isProjectOverviewActive,
-                      icon: GridIcon,
+                      icon: GridIcon, viewBox: "1.5 1.5 21 21",
                       tab: "overview" as const,
                     },
                     {
@@ -574,7 +574,7 @@ const AppSidebar: React.FC = () => {
                       label: t("items.projectMembers"),
                       href: projectMembersPath,
                       isActive: isProjectMembersActive,
-                      icon: GroupIcon,
+                      icon: GroupIcon, viewBox: "0.5 0.5 23 23",
                       tab: "members" as const,
                     },
                     {
@@ -582,21 +582,21 @@ const AppSidebar: React.FC = () => {
                       label: t("items.workspace"),
                       href: projectWorkPath,
                       isActive: isProjectWorkActive,
-                      icon: DocsIcon,
+                      icon: DocsIcon, viewBox: "0.5 0.5 23 23",
                     },
                     {
                       key: "workNotes",
                       label: t("items.projectWorkNotes"),
                       href: projectWorkNotesPath,
                       isActive: isProjectWorkNotesActive,
-                      icon: BookOpenIcon,
+                      icon: BookOpenIcon, viewBox: "0.5 1.5 23 23",
                     },
                     {
                       key: "settings",
                       label: t("items.projectSettings"),
                       href: projectSettingsPath,
                       isActive: isProjectSettingsActive,
-                      icon: SettingsIcon,
+                      icon: SettingsIcon, viewBox: "0 0 24 24",
                       tab: "settings" as const,
                     },
                   ];
@@ -681,7 +681,7 @@ const AppSidebar: React.FC = () => {
                                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200",
                                   )}
                                 >
-                                  <SubIcon className="h-3.5 w-3.5 shrink-0" />
+                                  <SubIcon viewBox={subItem.viewBox} className="h-3.5 w-3.5 shrink-0" />
                                   <span className="truncate">
                                     {subItem.label}
                                   </span>

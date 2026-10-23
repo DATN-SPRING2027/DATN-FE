@@ -80,9 +80,9 @@ export default function ContinuumTopLoader() {
         </div>
       )}
 
-      {/* Apple Dynamic Island Floating Pill */}
+      {/* Apple Dynamic Island Floating Pill (positioned right below the 56px top header bar) */}
       {showIsland && (
-        <div className="continuum-island-enter fixed top-2.5 left-1/2 -translate-x-1/2">
+        <div className="continuum-island-enter fixed top-16 left-1/2 -translate-x-1/2">
           <div
             className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-semibold tracking-tight shadow-lg ring-1 backdrop-blur-md transition-all duration-200 ${
               isSyncedPhase
