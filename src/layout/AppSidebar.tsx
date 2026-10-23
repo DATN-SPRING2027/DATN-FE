@@ -31,17 +31,17 @@ import {
 } from "./SidebarFlyoutMenu";
 
 const primaryItems = [
-  { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21", viewBox: "1.5 1.5 21 21" },
+  { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
   { key: "projects", path: "/projects", icon: FolderIcon, viewBox: "-2 -3 24 24" },
   { key: "chat", path: "/chat", icon: ChatIcon, viewBox: "1 1.1 22 22" },
-  { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23", viewBox: "0.5 1.5 23 23" },
+  { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23" },
   { key: "aiSearch", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
 ] as const;
 
 const administrationItems = [
-  { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23", viewBox: "0.5 0.5 23 23" },
+  { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23" },
   { key: "integrations", icon: PlugInIcon, viewBox: "0.5 0.5 23 23" },
-  { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24", viewBox: "0 0 24 24" },
+  { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24" },
 ] as const;
 
 const DEFAULT_WIDTH = 240;
