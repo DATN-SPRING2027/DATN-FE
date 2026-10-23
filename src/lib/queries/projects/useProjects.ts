@@ -58,8 +58,6 @@ export const projectKeys = {
     ["projects", organizationId, "detail", id] as const,
 };
 
-const MAX_PROJECT_LIST_PAGES = 10;
-
 async function fetchProjectsPage(
   input: ProjectListInput,
   signal?: AbortSignal,
@@ -89,8 +87,7 @@ export function useProjectsQuery(
       }
       const seenIds = new Set<string>(firstPage.data.map((p) => p.id));
       const merged: Project[] = [...firstPage.data];
-      const maxPage = Math.min(totalPages, MAX_PROJECT_LIST_PAGES);
-      for (let page = 2; page <= maxPage; page += 1) {
+      for (let page = 2; page <= totalPages; page += 1) {
         if (signal?.aborted) break;
         const nextPage = await fetchProjectsPage(
           { ...input, page },

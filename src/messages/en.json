@@ -2107,6 +2107,8 @@
     "cancel": "Cancel",
     "addToPreview": "Add to preview",
     "createAdded": "Preview item added. It has not been saved.",
+    "createStatusFailed": "Work item created, but its status could not be updated.",
+    "subtaskStatusFailed": "Subtask created, but its status could not be updated.",
     "workspaceTitle": "Workspace",
     "selectProject": "Select project workspace",
     "memberScopeBadge": "Member workspace",

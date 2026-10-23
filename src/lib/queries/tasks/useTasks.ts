@@ -302,8 +302,6 @@ export function formatSprintIfMatch(sprintId: string, version: number): string {
   return `"sprint:${sprintId}:${version}"`;
 }
 
-const MAX_PROJECT_TASK_PAGES = 20;
-
 export async function fetchProjectTasksPage(
   projectId: string,
   params?: Record<string, string>,
@@ -338,7 +336,8 @@ export async function fetchProjectTasks(
   let nextAfterId = firstPage.nextAfterId;
   let nextCursor = firstPage.nextCursor;
 
-  for (let page = 1; page < MAX_PROJECT_TASK_PAGES; page += 1) {
+  const seenCursors = new Set<string>();
+  while (nextAfterId || nextCursor) {
     if (signal?.aborted || (!nextAfterId && !nextCursor)) {
       break;
     }
@@ -350,6 +349,11 @@ export async function fetchProjectTasks(
       nextParams.afterId = nextAfterId;
       delete nextParams.cursor;
     }
+    const cursorKey = nextCursor ?? nextAfterId;
+    if (cursorKey && seenCursors.has(cursorKey)) {
+      throw new Error("Task pagination cursor repeated");
+    }
+    if (cursorKey) seenCursors.add(cursorKey);
     const currentPage = await fetchProjectTasksPage(
       projectId,
       nextParams,
@@ -365,7 +369,10 @@ export async function fetchProjectTasks(
     }
     nextAfterId = currentPage.nextAfterId;
     nextCursor = currentPage.nextCursor;
-    if (addedCount === 0 || (!nextAfterId && !nextCursor)) {
+    if (addedCount === 0 && (nextAfterId || nextCursor)) {
+      throw new Error("Task pagination made no progress");
+    }
+    if (!nextAfterId && !nextCursor) {
       break;
     }
   }

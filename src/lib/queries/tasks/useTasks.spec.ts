@@ -64,7 +64,9 @@ describe("Workspace Task API client (useTasks)", () => {
     );
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const createCall = fetchMock.mock.calls[0];
-    const createHeaders = new Headers((createCall?.[1] as RequestInit)?.headers);
+    const createHeaders = new Headers(
+      (createCall?.[1] as RequestInit)?.headers,
+    );
     expect(createHeaders.get("Idempotency-Key")).toBe("idem-fixed-key-0001");
     expect(createHeaders.get("X-CSRF-Token")).toBeTruthy();
 
@@ -184,5 +186,26 @@ describe("Workspace Task API client (useTasks)", () => {
       "afterId=65f000000000000000000001",
     );
     expect(res.items.map((item) => item.key)).toEqual(["CNTM-1", "CNTM-2"]);
+  });
+
+  it("continues past the former 20-page limit", async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        const page = fetchMock.mock.calls.length;
+        return new Response(
+          JSON.stringify({
+            items: [{ id: String(page), key: `TASK-${page}` }],
+            nextAfterId: page < 21 ? String(page) : null,
+            nextCursor: null,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      });
+
+    const result = await fetchProjectTasks("65f000000000000000000010");
+    expect(fetchMock).toHaveBeenCalledTimes(21);
+    expect(result.items).toHaveLength(21);
+    expect(result.nextAfterId).toBeNull();
   });
 });

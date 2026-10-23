@@ -683,13 +683,7 @@ export default function WorkWorkspace({
               ? new Date(input.dueDate).toISOString()
               : null,
           });
-          const finalVersion = await performBackendStatusTransition(
-            created.id,
-            created.version,
-            "TODO",
-            targetStatus,
-          );
-          taskVersionsRef.current.set(created.id, finalVersion);
+          taskVersionsRef.current.set(created.id, created.version);
           resolvedIdsRef.current.set(tempId, created.id);
           setItems((current) =>
             current.map((item) =>
@@ -715,6 +709,25 @@ export default function WorkWorkspace({
           setFullPageWorkItemId((current) =>
             current === tempId ? created.id : current,
           );
+          try {
+            const finalVersion = await performBackendStatusTransition(
+              created.id,
+              created.version,
+              "TODO",
+              targetStatus,
+            );
+            taskVersionsRef.current.set(created.id, finalVersion);
+          } catch {
+            setItems((current) =>
+              current.map((item) =>
+                item.id === created.id
+                  ? { ...item, status: "TODO", resolution: "UNRESOLVED" }
+                  : item,
+              ),
+            );
+            void tasksQuery.refetch();
+            setAnnouncement(t("createStatusFailed"));
+          }
           return created.id;
         } catch {
           setItems((current) => current.filter((item) => item.id !== tempId));
@@ -968,13 +981,7 @@ export default function WorkWorkspace({
               ? new Date(options.dueDate).toISOString()
               : null,
           });
-          const finalSubVersion = await performBackendStatusTransition(
-            createdSub.id,
-            createdSub.version,
-            "TODO",
-            nextStatus,
-          );
-          taskVersionsRef.current.set(createdSub.id, finalSubVersion);
+          taskVersionsRef.current.set(createdSub.id, createdSub.version);
           resolvedIdsRef.current.set(tempSubId, createdSub.id);
           setItems((current) =>
             current.map((item) => {
@@ -994,6 +1001,39 @@ export default function WorkWorkspace({
               };
             }),
           );
+          try {
+            const finalSubVersion = await performBackendStatusTransition(
+              createdSub.id,
+              createdSub.version,
+              "TODO",
+              nextStatus,
+            );
+            taskVersionsRef.current.set(createdSub.id, finalSubVersion);
+          } catch {
+            setItems((current) =>
+              current.map((item) => {
+                const subtaskItems = item.subtaskItems?.map((sub) =>
+                  sub.id === createdSub.id
+                    ? { ...sub, status: "TODO" as const, done: false }
+                    : sub,
+                );
+                if (
+                  !subtaskItems ||
+                  !subtaskItems.some((sub) => sub.id === createdSub.id)
+                ) return item;
+                return {
+                  ...item,
+                  subtaskItems,
+                  subtasks: {
+                    completed: subtaskItems.filter((sub) => sub.done).length,
+                    total: subtaskItems.length,
+                  },
+                };
+              }),
+            );
+            void tasksQuery.refetch();
+            setAnnouncement(t("subtaskStatusFailed"));
+          }
           return createdSub.id;
         } catch {
           setItems((current) =>
