@@ -58,6 +58,45 @@ describe("Platform operations view model filters", () => {
     expect(result.current.status).toBe("");
   });
 
+  it("requests the chosen user page size from the Platform API", async () => {
+    const { result } = renderHook(
+      () =>
+        usePlatformOperationsViewModel({
+          section: "users",
+          permissions,
+          operatorId: "651a2b3c4d5e6f7a8b9c0d1e",
+        }),
+      { wrapper: createWrapper() },
+    );
+    act(() => result.current.setUserPageSize(15));
+    await waitFor(() =>
+      expect(mockedApiClient).toHaveBeenCalledWith(
+        "/iam/platform/users?page=1&pageSize=15",
+        expect.objectContaining({ cache: "no-store" }),
+      ),
+    );
+  });
+
+  it("sends the chosen organization as the approved user-list filter", async () => {
+    const organizationId = "651a2b3c4d5e6f7a8b9c0d21";
+    const { result } = renderHook(
+      () =>
+        usePlatformOperationsViewModel({
+          section: "users",
+          permissions,
+          operatorId: "651a2b3c4d5e6f7a8b9c0d1e",
+        }),
+      { wrapper: createWrapper() },
+    );
+    act(() => result.current.setUserOrganizationId(organizationId));
+    await waitFor(() =>
+      expect(mockedApiClient).toHaveBeenCalledWith(
+        `/iam/platform/users?page=1&pageSize=25&organizationId=${organizationId}`,
+        expect.objectContaining({ cache: "no-store" }),
+      ),
+    );
+  });
+
   it("does not carry a Projects status filter into the user directory", async () => {
     const { result, rerender } = renderHook(
       ({ section }: { section: "projects" | "users" }) =>

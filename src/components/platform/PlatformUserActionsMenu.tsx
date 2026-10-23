@@ -9,6 +9,8 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useTranslations } from "next-intl";
+import { HorizontaLDots } from "@/icons";
+import jira from "./ui/jira.module.css";
 import type { PlatformUserRecord } from "@/lib/queries/platform/usePlatformOperations";
 
 export type PlatformUserAction =
@@ -32,7 +34,7 @@ type PlatformUserActionsMenuProps = Readonly<{
 }>;
 
 const menuItemClassName =
-  "block w-full cursor-pointer px-3 py-2 text-start text-sm text-gray-700 transition-colors hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800";
+  "block w-full cursor-pointer px-2.5 py-1.5 text-start text-xs text-gray-700 transition-colors hover:bg-gray-50 focus-visible:bg-gray-50 focus-visible:outline-none dark:text-gray-200 dark:hover:bg-gray-800 dark:focus-visible:bg-gray-800";
 
 export default function PlatformUserActionsMenu({
   user,
@@ -67,9 +69,7 @@ export default function PlatformUserActionsMenu({
     ["ACTIVE", "SUSPENDED"].includes(user.status)
       ? [{ id: "archive" as const, label: "Archive user", destructive: true }]
       : []),
-    ...(isArchived &&
-    canManageOtherUser &&
-    user.status === "SUSPENDED"
+    ...(isArchived && canManageOtherUser && user.status === "SUSPENDED"
       ? [{ id: "restore" as const, label: t("restore") }]
       : []),
   ];
@@ -133,8 +133,9 @@ export default function PlatformUserActionsMenu({
       }
     };
 
-    document.addEventListener("pointerdown", handlePointerDown);
-    return () => document.removeEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown, true);
+    return () =>
+      document.removeEventListener("pointerdown", handlePointerDown, true);
   }, [isOpen]);
 
   function closeAndRestoreFocus() {
@@ -165,9 +166,8 @@ export default function PlatformUserActionsMenu({
       const triggerIndex = focusableElements.indexOf(
         triggerRef.current as HTMLButtonElement,
       );
-      const nextElement = focusableElements[
-        triggerIndex + (event.shiftKey ? -1 : 1)
-      ];
+      const nextElement =
+        focusableElements[triggerIndex + (event.shiftKey ? -1 : 1)];
       setIsOpen(false);
       if (nextElement) {
         event.preventDefault();
@@ -217,7 +217,7 @@ export default function PlatformUserActionsMenu({
         onClick={() => setIsOpen((open) => !open)}
         className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white text-xl leading-none text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
       >
-        <span aria-hidden="true">⋮</span>
+        <HorizontaLDots aria-hidden="true" className="size-5" />
       </button>
       {isOpen && typeof document !== "undefined"
         ? createPortal(
@@ -226,8 +226,11 @@ export default function PlatformUserActionsMenu({
               role="menu"
               aria-label={`Actions for ${user.fullName}`}
               onKeyDown={handleMenuKeyDown}
-              style={{ top: position?.top ?? -1000, left: position?.left ?? -1000 }}
-              className="fixed z-99999 max-h-[min(20rem,calc(100vh-1rem))] w-56 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white p-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+              style={{
+                top: position?.top ?? -1000,
+                left: position?.left ?? -1000,
+              }}
+              className={`${jira.portalMenu} fixed z-99999 max-h-[min(20rem,calc(100vh-1rem))] w-44 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-sm border border-gray-200 bg-white p-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900`}
             >
               {actions.map((action, index) => (
                 <button

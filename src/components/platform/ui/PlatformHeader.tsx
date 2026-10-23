@@ -1,11 +1,25 @@
 "use client";
+import BrandLogo from "@/components/common/BrandLogo";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import BrandLogo from "@/components/common/BrandLogo";
+import { useState } from "react";
+import {
+  SearchIcon,
+  SettingsIcon,
+  PlatformHelpIcon,
+  PlatformBellIcon,
+} from "@/icons";
+import jira from "./jira.module.css";
 import Button from "@/components/ui/button/Button";
-import styles from "./operator.module.css";
 
-const primary = ["dashboard", "users", "projects", "services", "audit"];
+const primary = [
+  "dashboard",
+  "organizations",
+  "users",
+  "projects",
+  "services",
+  "audit",
+];
 const additional = [
   "organizations",
   "memberships",
@@ -31,6 +45,7 @@ export default function PlatformHeader({
   onSignOut: () => void;
 }) {
   const t = useTranslations("platformConsole");
+  const [search, setSearch] = useState("");
   const href = (id: string) =>
     id === "dashboard" ? "/platform" : `/platform/${id}`;
   const initials = userName
@@ -40,64 +55,82 @@ export default function PlatformHeader({
     .join("")
     .toUpperCase();
   return (
-    <header className={styles.header}>
+    <header className={jira.topbar}>
       <Link
         href="/"
-        className={styles.brand}
+        className={jira.brand}
         aria-label={t("operatorDesign.home")}
       >
-        <BrandLogo variant="light" className="h-7 w-auto" priority />
+        <BrandLogo className="h-8 w-auto" priority />
       </Link>
-      <nav className={styles.nav} aria-label={t("operatorDesign.navigation")}>
-        {primary.map((id) => (
-          <Link
-            key={id}
-            href={href(id) as never}
-            aria-current={activeSection === id ? "page" : undefined}
-          >
-            {t(`navigation.${id}`)}
-          </Link>
-        ))}
-        <details
-          key={activeSection}
-          className={styles.more}
-          data-active={additional.includes(activeSection)}
-          data-mobile-active={primary.slice(3).includes(activeSection)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              event.currentTarget.open = false;
-              event.currentTarget.querySelector("summary")?.focus();
-            }
-          }}
-        >
-          <summary>{t("operatorDesign.more")}</summary>
-          <div className={styles.menu}>
-            {primary.slice(3).map((id) => (
-              <Link
-                className={styles.mobileExtra}
-                key={id}
-                href={href(id) as never}
-                aria-current={activeSection === id ? "page" : undefined}
-              >
-                {t(`navigation.${id}`)}
-              </Link>
-            ))}
-            {additional.map((id) => (
-              <Link
-                key={id}
-                href={href(id) as never}
-                aria-current={activeSection === id ? "page" : undefined}
-              >
-                {t(`navigation.${id}`)}
-              </Link>
-            ))}
+      <div
+        className={jira.quickSearch}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") setSearch("");
+        }}
+      >
+        <label>
+          <SearchIcon aria-hidden="true" />
+          <span className="sr-only">{t("jira.searchPages")}</span>
+          <input
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={t("jira.searchPages")}
+            maxLength={80}
+          />
+        </label>
+        {search.trim() && (
+          <div className={jira.searchResults}>
+            {[...new Set([...primary, ...additional])]
+              .filter((id) =>
+                t(`navigation.${id}`)
+                  .toLocaleLowerCase()
+                  .includes(search.trim().toLocaleLowerCase()),
+              )
+              .map((id) => (
+                <Link
+                  key={id}
+                  href={href(id) as never}
+                  onClick={() => setSearch("")}
+                >
+                  {t(`navigation.${id}`)}
+                </Link>
+              ))}
+            {![...primary, ...additional].some((id) =>
+              t(`navigation.${id}`)
+                .toLocaleLowerCase()
+                .includes(search.trim().toLocaleLowerCase()),
+            ) && <p>{t("jira.noPages")}</p>}
+          </div>
+        )}
+      </div>
+      <div className={jira.topActions}>
+        <details>
+          <summary aria-label={t("jira.help")}>
+            <PlatformHelpIcon aria-hidden="true" />
+          </summary>
+          <div className={jira.topMenu}>
+            <strong>{t("jira.administrationTitle")}</strong>
+            <p>{t("jira.helpBody")}</p>
           </div>
         </details>
-      </nav>
-      <div className={styles.actions}>
+        <Link
+          href="/platform/account"
+          aria-label={t("jira.settings")}
+          className="grid min-h-11 min-w-11 place-items-center"
+        >
+          <SettingsIcon className="size-5" aria-hidden="true" />
+        </Link>
+        <details>
+          <summary aria-label={t("jira.notifications")}>
+            <PlatformBellIcon aria-hidden="true" />
+          </summary>
+          <div className={jira.topMenu}>
+            <p>{t("jira.noNotifications")}</p>
+          </div>
+        </details>
         <details
           key={`account-${activeSection}`}
-          className={styles.more}
           onKeyDown={(event) => {
             if (event.key === "Escape") {
               event.currentTarget.open = false;
@@ -105,15 +138,11 @@ export default function PlatformHeader({
             }
           }}
         >
-          <summary
-            className={styles.identity}
-            aria-label={t("operatorDesign.account")}
-          >
-            <span className={styles.avatar}>{initials}</span>
-            <span className="hidden font-medium md:inline">{userName}</span>
+          <summary aria-label={t("operatorDesign.account")}>
+            <span className={jira.accountAvatar}>{initials}</span>
           </summary>
-          <div className={styles.menu}>
-            <div className={styles.menuIdentity}>
+          <div className={jira.topMenu}>
+            <div className="mb-3">
               <strong>{userName}</strong>
               <span>{userEmail}</span>
               <span>{t("operatorDesign.role")}</span>
