@@ -66,10 +66,8 @@ function MemberWorkspaceOverview({
   fullName?: string;
 }) {
   const t = useTranslations("organizationOverview");
-  const format = useFormatter();
   const projects = useProjectsQuery(organizationId, { page: 1, pageSize: 6 });
   const items = projects.data?.data ?? [];
-  const totalProjects = projects.data?.pagination.totalItems ?? 0;
 
   return (
     <div className="space-y-6">
@@ -99,40 +97,6 @@ function MemberWorkspaceOverview({
             <FolderIcon viewBox="0 0 20 18" className="size-4" aria-hidden="true" />
             <span>{t("openProjectsDirectory")}</span>
           </Link>
-        </div>
-
-        <div className="mt-6 grid grid-cols-1 gap-4 border-t border-gray-100 pt-5 sm:grid-cols-3 dark:border-gray-800">
-          <div className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/50">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {t("kpiVisibleProjects")}
-            </p>
-            <p className="mt-1.5 text-2xl font-semibold text-gray-900 tabular-nums dark:text-white">
-              {projects.isPending ? "—" : format.number(totalProjects)}
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/50">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {t("kpiActiveProjects")}
-            </p>
-            <p className="mt-1.5 text-2xl font-semibold text-success-600 tabular-nums dark:text-success-400">
-              {projects.isPending
-                ? "—"
-                : format.number(
-                    items.filter((project) => project.status === "ACTIVE")
-                      .length,
-                  )}
-            </p>
-          </div>
-          <div className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/50">
-            <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-              {t("roleColumn")}
-            </p>
-            <div className="mt-2">
-              <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                <RoleLabel roleCode="MEMBER" />
-              </span>
-            </div>
-          </div>
         </div>
       </section>
 
