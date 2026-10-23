@@ -18,7 +18,8 @@ export default function AdminLayout({
   const { isExpanded, isMobileOpen, sidebarWidth, isResizing, isHelpOpen } =
     useSidebar();
   const router = useRouter();
-  const isChat = usePathname() === "/chat";
+  const pathname = usePathname();
+  const isChat = pathname === "/chat";
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -126,10 +127,11 @@ export default function AdminLayout({
         >
           {/* Page Content */}
           <div
+            key={isChat ? "chat" : pathname}
             className={
               isChat
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-                : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+                : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
             }
           >
             {children}

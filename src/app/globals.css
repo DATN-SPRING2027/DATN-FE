@@ -1162,3 +1162,71 @@ pre[class*="language-"].line-numbers {
   }
 }
 
+
+@keyframes continuumPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes continuumSlideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes continuumSlideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes continuumAccordionOpen {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .continuum-page-enter {
+    animation: continuumPageEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-stagger-1 {
+    animation: continuumPageEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
+  }
+  .continuum-stagger-2 {
+    animation: continuumPageEnter 210ms cubic-bezier(0.22, 1, 0.36, 1) 35ms both;
+  }
+  .continuum-stagger-3 {
+    animation: continuumPageEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
+  }
+  .continuum-tab-slide-right {
+    animation: continuumSlideFromRight 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-tab-slide-left {
+    animation: continuumSlideFromLeft 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-accordion-open {
+    animation: continuumAccordionOpen 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode, type RefObject } from"react";
+import { useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from"react";
 import { useTranslations } from"next-intl";
 import { PlusIcon } from"@/icons";
 import { Link } from"@/i18n/navigation";
@@ -253,6 +253,25 @@ export default function WorkPageHeader({
   const [customRuleTriggered, setCustomRuleTriggered] = useState(false);
   const [addViewOpen, setAddViewOpen] = useState(false);
   const [previewViewKey, setPreviewViewKey] = useState<WorkView>("list");
+  const viewsGroupRef = useRef<HTMLDivElement | null>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<{
+    left: number;
+    width: number;
+  }>({ left: 0, width: 0 });
+
+  useLayoutEffect(() => {
+    const container = viewsGroupRef.current;
+    if (!container) return;
+    const activeEl = container.querySelector<HTMLElement>(
+      'button[aria-pressed="true"]',
+    );
+    if (activeEl && activeEl.offsetWidth > 0) {
+      setIndicatorStyle({
+        left: activeEl.offsetLeft,
+        width: activeEl.offsetWidth,
+      });
+    }
+  }, [view]);
 
   const viewDescriptions: Record<
     WorkView,
@@ -557,7 +576,8 @@ export default function WorkPageHeader({
       {/* Top-level View Tab Bar (sits flush at the top of the workspace) */}
       <div className="flex items-center justify-between gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
         <div
-          className="flex min-w-max items-center gap-0.5"
+          ref={viewsGroupRef}
+          className="relative flex min-w-max items-center gap-0.5"
           role="group"
           aria-label={t("viewsLabel")}
         >
@@ -580,6 +600,17 @@ export default function WorkPageHeader({
               </button>
             );
           })}
+
+          {indicatorStyle.width > 0 && (
+            <span
+              aria-hidden="true"
+              style={{
+                transform: `translateX(${indicatorStyle.left}px)`,
+                width: `${indicatorStyle.width}px`,
+              }}
+              className="pointer-events-none absolute bottom-0 start-0 h-0.5 rounded-full bg-brand-500 transition-[transform,width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-brand-400"
+            />
+          )}
 
           {/* Jira Cloud `+` Add View Trigger */}
           <button

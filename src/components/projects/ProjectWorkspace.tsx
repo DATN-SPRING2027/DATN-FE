@@ -169,10 +169,10 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
       {projects.isSuccess && !projects.isFetching && (
         <section
           aria-label={t("workspace")}
-          className="grid grid-cols-2 gap-3 @xl:grid-cols-4 @xl:gap-4"
+          className="continuum-stagger-2 grid grid-cols-2 gap-3 @xl:grid-cols-4 @xl:gap-4"
         >
           {/* Card 1: Total Projects */}
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="min-w-0">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {t("kpiTotalLabel")}
@@ -199,7 +199,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           {/* Card 2: Active Projects */}
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="min-w-0">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {t("kpiActiveLabel")}
@@ -237,7 +237,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           {/* Card 3: Need Attention (Missing Effective Leader on current page) */}
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="min-w-0">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {t("kpiAttentionLabel")}
@@ -277,7 +277,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           {/* Card 4: Archived Projects */}
-          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="min-w-0">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
                 {t("kpiArchivedLabel")}
@@ -306,7 +306,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
       )}
 
       {/* Separated Status Tabs & Search/Sort Controls */}
-      <div className="rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      <div className="continuum-stagger-3 rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
         {/* Top Row: Dedicated Status Tabs + Project Count & View Switcher */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-3.5 py-2.5 sm:px-4 dark:border-gray-800">
           <div

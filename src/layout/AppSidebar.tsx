@@ -506,7 +506,7 @@ const AppSidebar: React.FC = () => {
             <ul
               role="group"
               aria-label={t("projectsSubmenuLabel")}
-              className="mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
+              className="continuum-accordion-open mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
             >
               {projectsQuery.isLoading ? (
                 <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -637,7 +637,7 @@ const AppSidebar: React.FC = () => {
                           aria-label={t("projectActionsLabel", {
                             name: project.name,
                           })}
-                          className="ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
+                          className="continuum-accordion-open ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
                         >
                           {projectSubItems.map((subItem) => {
                             const SubIcon = subItem.icon;
