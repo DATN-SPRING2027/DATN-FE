@@ -153,8 +153,10 @@ export default function WorkTimelineView({
     const nextOrder: Record<WorkStatus, WorkStatus> = {
       TODO:"IN_PROGRESS",
       IN_PROGRESS:"IN_REVIEW",
+      BLOCKED:"IN_PROGRESS",
       IN_REVIEW:"DONE",
       DONE:"TODO",
+      CANCELLED:"TODO",
     };
     setEpics((current) =>
       current.map((epic) =>

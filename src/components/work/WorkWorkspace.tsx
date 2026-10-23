@@ -2,11 +2,13 @@
 
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
+import { ApiError } from"@/lib/api-client";
 import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
-import { useProjectMembersQuery } from"@/lib/queries/projects/useProjectMembers";
+import { useProjectMembersAllQuery } from"@/lib/queries/projects/useProjectMembers";
 import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects";
 import ProjectState from"@/components/projects/ProjectState";
 import Button from"@/components/ui/button/Button";
+import { Modal } from"@/components/ui/modal";
 import { PlusIcon } from"@/icons";
 import WorkNotesWorkspace from"@/components/work-notes/WorkNotesWorkspace";
 import WorkAiCopilotDialog from"./WorkAiCopilotDialog";
@@ -23,6 +25,7 @@ import WorkPageHeader, { type WorkView } from"./WorkPageHeader";
 import WorkReportsView from"./WorkReportsView";
 import WorkTimelineView from"./WorkTimelineView";
 import WorkToolbar from"./WorkToolbar";
+import { formatWorklogMinutes, parseWorklogMinutes } from "./worklog-duration";
 import {
   INITIAL_PREVIEW_WORK_ITEMS,
   PREVIEW_PEOPLE,
@@ -44,22 +47,104 @@ import {
 import { getCalendarMonthStart } from"./work-calendar-utils";
 import {
   type BackendTask,
+  type BackendTaskComment,
   type BackendTaskStatus,
+  type BackendTaskWorklog,
   createProjectTaskApi,
   createTaskCommentApi,
+  createTaskWorklogApi,
   fetchProjectTaskDetail,
   fetchTaskComments,
+  fetchTaskHistory,
+  fetchTaskWorklogs,
+  type BackendTaskHistoryEvent,
   transitionProjectTaskApi,
   updateProjectTaskApi,
   useProjectTasksQuery,
 } from"@/lib/queries/tasks/useTasks";
 
 const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+async function fetchAllTaskComments(projectId: string, taskId: string) {
+  const items: BackendTaskComment[] = [];
+  let afterId: string | undefined;
+  const seen = new Set<string>();
+  do {
+    const page = await fetchTaskComments(projectId, taskId, undefined, afterId);
+    items.push(...page.items);
+    if (!page.nextAfterId || seen.has(page.nextAfterId)) break;
+    seen.add(page.nextAfterId);
+    afterId = page.nextAfterId;
+  } while (afterId);
+  return { items };
+}
+
+async function fetchAllTaskWorklogs(projectId: string, taskId: string) {
+  const items: BackendTaskWorklog[] = [];
+  let afterId: string | undefined;
+  let totalMinutes = 0;
+  const seen = new Set<string>();
+  do {
+    const page = await fetchTaskWorklogs(projectId, taskId, undefined, afterId);
+    items.push(...page.items);
+    totalMinutes = page.totalMinutes;
+    if (!page.nextAfterId || seen.has(page.nextAfterId)) break;
+    seen.add(page.nextAfterId);
+    afterId = page.nextAfterId;
+  } while (afterId);
+  return { items, totalMinutes };
+}
+
+async function fetchAllTaskHistory(projectId: string, taskId: string) {
+  const events: BackendTaskHistoryEvent[] = [];
+  let page = 1;
+  while (true) {
+    const response = await fetchTaskHistory(projectId, taskId, page);
+    events.push(...response.data);
+    if (!response.pagination.hasNext) return events;
+    page += 1;
+  }
+}
 const UNASSIGNED_WORK_PERSON: WorkPerson = {
   id: "unassigned",
   name: "Unassigned",
   initials: "UN",
 };
+
+function mapTaskHistory(event: BackendTaskHistoryEvent) {
+  const action = event.type === "TASK_CREATED"
+    ? "created the work item"
+    : event.type === "TASK_STATUS_TRANSITIONED"
+      ? `changed status from ${event.fromStatus ?? "?"} to ${event.toStatus ?? "?"}`
+      : event.type === "TASK_UPDATED"
+        ? `updated ${event.changedFields?.join(", ") || "the work item"}`
+        : event.type === "TASK_COMMENT_ADDED"
+          ? "added a comment"
+          : "logged work";
+  return {
+    id: event.id,
+    author: event.actor?.fullName ?? "System",
+    action,
+    createdAt: formatCommentDateTime(event.occurredAt),
+  };
+}
+
+function mapVisibleTaskHistory(events: readonly BackendTaskHistoryEvent[]) {
+  return events
+    .filter(
+      (event) =>
+        event.type !== "TASK_COMMENT_ADDED" &&
+        event.type !== "TASK_WORKLOG_ADDED",
+    )
+    .map(mapTaskHistory);
+}
+
+function describeMutationError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const reason = error.code ?? `HTTP ${error.status}`;
+    return `${reason}: ${error.message}`;
+  }
+  return "The server did not accept the change. Please retry.";
+}
 
 function toPersonInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -68,8 +153,30 @@ function toPersonInitials(name: string): string {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
+export function formatCommentDateTime(value: string | Date): string {
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?$/.test(value.trim())
+  ) {
+    return value.trim();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return typeof value === "string" ? value : "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+export { formatWorklogMinutes, parseWorklogMinutes } from "./worklog-duration";
+
 function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
-  if (status ==="IN_PROGRESS"|| status ==="BLOCKED") return"IN_PROGRESS";
+  if (status === "CANCELLED") return "CANCELLED";
+  if (status ==="IN_PROGRESS" || status === "BLOCKED") return status;
   if (status ==="IN_REVIEW") return"IN_REVIEW";
   if (status ==="DONE") return"DONE";
   return"TODO";
@@ -162,20 +269,33 @@ export default function WorkWorkspace({
   const [highlightDoneRows, setHighlightDoneRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [cancelConfirmationIds, setCancelConfirmationIds] = useState<string[] | null>(null);
   const [aiCopilotOpen, setAiCopilotOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeWorkItemId, setActiveWorkItemId] = useState<string | null>(null);
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
+  const [worklogOpenRequest, setWorklogOpenRequest] = useState<{
+    taskId: string;
+    sequence: number;
+  } | null>(null);
+  const worklogOpenSequenceRef = useRef(0);
   const [announcement, setAnnouncement] = useState("");
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [taskActivityLoadingId, setTaskActivityLoadingId] = useState<string | null>(null);
+  const [subtaskActivityLoadingId, setSubtaskActivityLoadingId] = useState<string | null>(null);
+  const [activityRetryTarget, setActivityRetryTarget] = useState<"parent" | "subtask" | null>(null);
+  const [parentActivityRetryVersion, setParentActivityRetryVersion] = useState(0);
+  const [subtaskActivityRetryVersion, setSubtaskActivityRetryVersion] = useState(0);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
+  const deepLinkHandledRef = useRef(false);
   const tasksQuery = useProjectTasksQuery(projectId);
-  const projectMembersQuery = useProjectMembersQuery(
+  const projectMembersQuery = useProjectMembersAllQuery(
     isRealProject ? organizationId : "",
     isRealProject ? projectId : "",
-    { page: 1, pageSize: 100, status: "ACTIVE" },
+    { status: "ACTIVE" },
   );
   const currentUserPerson = useMemo<WorkPerson | null>(() => {
     if (!user.data) return null;
@@ -190,7 +310,7 @@ export default function WorkWorkspace({
     if (!isRealProject) {
       return PREVIEW_PEOPLE;
     }
-    const memberships = projectMembersQuery.data?.data ?? [];
+    const memberships = projectMembersQuery.data ?? [];
     const seenIds = new Set<string>();
     const list: WorkPerson[] = [];
     for (const membership of memberships) {
@@ -240,32 +360,40 @@ export default function WorkWorkspace({
     rawId: string,
     operation: (realId: string, version: number) => Promise<number | void>,
     onRollback?: () => void,
-  ) {
-    if (!isRealProject) return;
-    void (async () => {
+  ): Promise<boolean> {
+    if (!isRealProject) return Promise.resolve(true);
+    return (async () => {
       const realId = await resolveBackendTaskId(rawId);
       if (!realId) {
         onRollback?.();
-        return;
+        return false;
       }
       const prevTaskPromise =
         taskMutationQueuesRef.current.get(realId) ?? Promise.resolve();
       const nextTaskPromise = prevTaskPromise
         .catch(() => undefined)
-        .then(async () => {
+        .then(async (): Promise<boolean> => {
           try {
             const currentVersion = taskVersionsRef.current.get(realId) ?? 1;
             const updatedVersion = await operation(realId, currentVersion);
             if (typeof updatedVersion === "number") {
               taskVersionsRef.current.set(realId, updatedVersion);
             }
-          } catch {
+            return true;
+          } catch (error) {
             onRollback?.();
             void tasksQuery.refetch();
-            setAnnouncement("Unable to save changes. Restored latest state.");
+            const message = describeMutationError(error);
+            setMutationError(message);
+            setAnnouncement(`Unable to save changes. ${message}`);
+            return false;
           }
         });
-      taskMutationQueuesRef.current.set(realId, nextTaskPromise);
+      taskMutationQueuesRef.current.set(
+        realId,
+        nextTaskPromise.then(() => undefined),
+      );
+      return nextTaskPromise;
     })();
   }
 
@@ -275,6 +403,17 @@ export default function WorkWorkspace({
     fromStatus: WorkStatus,
     toStatus: WorkStatus | "CANCELLED",
   ): Promise<number> {
+    if (fromStatus === toStatus) return version;
+    if (fromStatus === "CANCELLED") {
+      const reopened = await transitionProjectTaskApi(projectId, realId, version, {
+        fromStatus: "CANCELLED",
+        toStatus: "TODO",
+        reason: "Reopened from workspace UI",
+      });
+      return toStatus === "TODO"
+        ? reopened.version
+        : performBackendStatusTransition(realId, reopened.version, "TODO", toStatus);
+    }
     if (toStatus === "CANCELLED") {
       let currentVer = version;
       let currentFrom: BackendTaskStatus = fromStatus;
@@ -305,7 +444,25 @@ export default function WorkWorkspace({
       return cancelled.version;
     }
 
-    if (fromStatus === toStatus) return version;
+    if (
+      (fromStatus === "BLOCKED" && toStatus === "DONE") ||
+      (fromStatus === "TODO" && toStatus === "IN_REVIEW") ||
+      (fromStatus === "IN_REVIEW" && toStatus === "TODO")
+    ) {
+      const first = await transitionProjectTaskApi(projectId, realId, version, {
+        fromStatus,
+        toStatus: "IN_PROGRESS",
+        ...(fromStatus === "BLOCKED"
+          ? { reason: "Resumed from blocked" }
+          : {}),
+      });
+      return performBackendStatusTransition(
+        realId,
+        first.version,
+        "IN_PROGRESS",
+        toStatus,
+      );
+    }
 
     if (fromStatus === "TODO" && toStatus === "DONE") {
       const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
@@ -337,6 +494,9 @@ export default function WorkWorkspace({
         {
           fromStatus: "IN_PROGRESS",
           toStatus,
+          ...(toStatus === "BLOCKED"
+            ? { reason: "Blocked from workspace UI" }
+            : {}),
         },
       );
       return tr2.version;
@@ -347,16 +507,18 @@ export default function WorkWorkspace({
       toStatus,
       ...(fromStatus === "DONE"
         ? { reason: "Reopened from workspace UI" }
-        : {}),
+        : fromStatus === "BLOCKED"
+          ? { reason: "Resumed from blocked" }
+          : toStatus === "BLOCKED"
+            ? { reason: "Blocked from workspace UI" }
+            : {}),
     });
     return tr.version;
   }
 
   useEffect(() => {
     if (!isRealProject || !tasksQuery.data) return;
-    const rawTasks = tasksQuery.data.items.filter(
-      (t) => t.projectId === projectId && t.status !== "CANCELLED",
-    );
+    const rawTasks = tasksQuery.data.items.filter((t) => t.projectId === projectId);
 
     for (const t of rawTasks) {
       taskVersionsRef.current.set(t.id, t.version);
@@ -448,11 +610,56 @@ export default function WorkWorkspace({
         subtasks: { completed: completedSubtasks, total: totalSubtasks },
         subtaskItems,
         comments: [],
+        worklogs: [],
       };
     });
 
     queueMicrotask(() => {
-      setItems(mapped);
+      setItems((current) => {
+        const prevById = new Map(current.map((item) => [item.id, item]));
+        return mapped.map((item) => {
+          const prev = prevById.get(item.id);
+          if (!prev) return item;
+          const prevSubById = new Map(
+            (prev.subtaskItems ?? []).map((sub) => [sub.id, sub]),
+          );
+          const mergedSubs = item.subtaskItems?.map((sub) => {
+            const prevSub = prevSubById.get(sub.id);
+            if (!prevSub) return sub;
+            return {
+              ...sub,
+              ...(prevSub.description !== undefined
+                ? { description: prevSub.description }
+                : {}),
+              ...(prevSub.steps !== undefined ? { steps: prevSub.steps } : {}),
+              ...(prevSub.comments !== undefined
+                ? { comments: prevSub.comments }
+                : {}),
+              ...(prevSub.worklogs !== undefined
+                ? { worklogs: prevSub.worklogs }
+                : {}),
+              ...(prevSub.history !== undefined ? { history: prevSub.history } : {}),
+              ...(prevSub.loggedTime !== undefined
+                ? { loggedTime: prevSub.loggedTime }
+                : {}),
+            };
+          });
+          return {
+            ...item,
+            ...(prev.description !== undefined
+              ? { description: prev.description }
+              : {}),
+            ...(prev.comments && prev.comments.length > 0
+              ? { comments: prev.comments }
+              : {}),
+            ...(prev.worklogs && prev.worklogs.length > 0
+              ? { worklogs: prev.worklogs }
+              : {}),
+            ...(prev.history !== undefined ? { history: prev.history } : {}),
+            ...(mergedSubs ? { subtaskItems: mergedSubs } : {}),
+          };
+        });
+      });
     });
   }, [
     isRealProject,
@@ -463,19 +670,50 @@ export default function WorkWorkspace({
     user.data,
   ]);
 
+  useEffect(() => {
+    if ((isRealProject && !tasksQuery.isSuccess) || typeof window === "undefined") return;
+    let targetKey = "";
+    try {
+      targetKey = decodeURIComponent(window.location.hash.slice(1)).trim().toUpperCase();
+    } catch {
+      return;
+    }
+    if (!targetKey || deepLinkHandledRef.current) return;
+    const parent = items.find((item) => item.key.toUpperCase() === targetKey);
+    if (parent) {
+      deepLinkHandledRef.current = true;
+      setActiveSubtaskId(null);
+      setActiveWorkItemId(parent.id);
+      return;
+    }
+    for (const item of items) {
+      const subtask = item.subtaskItems?.find((sub) => sub.key.toUpperCase() === targetKey);
+      if (!subtask) continue;
+      deepLinkHandledRef.current = true;
+      setActiveWorkItemId(item.id);
+      setActiveSubtaskId(subtask.id);
+      return;
+    }
+  }, [isRealProject, items, tasksQuery.isSuccess]);
+
   const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
       return;
     }
     let cancelled = false;
+    setTaskActivityLoadingId(openedTaskId);
     void (async () => {
       try {
-        const [detail, commentsPage] = await Promise.all([
+        const [detail, commentsPage, worklogsPage, historyPage] = await Promise.all([
           fetchProjectTaskDetail(projectId, openedTaskId),
-          fetchTaskComments(projectId, openedTaskId),
+          fetchAllTaskComments(projectId, openedTaskId),
+          fetchAllTaskWorklogs(projectId, openedTaskId),
+          fetchAllTaskHistory(projectId, openedTaskId),
         ]);
         if (cancelled) return;
+        setTaskActivityLoadingId((current) => current === openedTaskId ? null : current);
+        setActivityRetryTarget((current) => current === "parent" ? null : current);
         taskVersionsRef.current.set(detail.id, detail.version);
         const liveComments = commentsPage.items.map((c) => {
           const authorPerson = resolvePersonById(
@@ -488,8 +726,23 @@ export default function WorkWorkspace({
             id: c.id,
             author: authorPerson.name,
             initials: authorPerson.initials,
-            createdAt: c.createdAt.slice(0, 10),
+            createdAt: formatCommentDateTime(c.createdAt),
             text: c.body,
+          };
+        });
+        const liveWorklogs = worklogsPage.items.map((w) => {
+          const authorPerson = resolvePersonById(
+            w.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: w.id,
+            author: authorPerson.name,
+            timeSpent: formatWorklogMinutes(w.minutes),
+            note: w.note ?? "",
+            createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
           };
         });
         setItems((current) =>
@@ -497,20 +750,126 @@ export default function WorkWorkspace({
             item.id === openedTaskId
               ? {
                   ...item,
-                  ...(detail.description ? { description: detail.description } : {}),
-                  ...(liveComments.length > 0 ? { comments: liveComments } : {}),
+                  description: detail.description ?? "",
+                  comments: liveComments,
+                  worklogs: liveWorklogs,
+                  history: mapVisibleTaskHistory(historyPage),
                 }
               : item,
           ),
         );
-      } catch {
-        // Keep current item state
+      } catch (error) {
+        if (!cancelled) {
+          setTaskActivityLoadingId((current) => current === openedTaskId ? null : current);
+          setMutationError(describeMutationError(error));
+          setActivityRetryTarget("parent");
+        }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [isRealProject, openedTaskId, projectId, projectPeopleById, user.data]);
+  }, [parentActivityRetryVersion, isRealProject, openedTaskId, projectId, projectPeopleById, user.data]);
+
+  const openedSubtaskId = fullPageSubtaskId ?? activeSubtaskId;
+  useEffect(() => {
+    if (
+      !isRealProject ||
+      !openedTaskId ||
+      !openedSubtaskId ||
+      !OBJECT_ID_PATTERN.test(openedSubtaskId)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    setSubtaskActivityLoadingId(openedSubtaskId);
+    void (async () => {
+      try {
+        const [subDetail, subCommentsPage, subWorklogsPage, subHistoryPage] = await Promise.all([
+          fetchProjectTaskDetail(projectId, openedSubtaskId),
+          fetchAllTaskComments(projectId, openedSubtaskId),
+          fetchAllTaskWorklogs(projectId, openedSubtaskId),
+          fetchAllTaskHistory(projectId, openedSubtaskId),
+        ]);
+        if (cancelled) return;
+        setSubtaskActivityLoadingId((current) => current === openedSubtaskId ? null : current);
+        setActivityRetryTarget((current) => current === "subtask" ? null : current);
+        taskVersionsRef.current.set(subDetail.id, subDetail.version);
+        const liveSubComments = subCommentsPage.items.map((c) => {
+          const authorPerson = resolvePersonById(
+            c.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: c.id,
+            author: authorPerson.name,
+            initials: authorPerson.initials,
+            createdAt: formatCommentDateTime(c.createdAt),
+            text: c.body,
+          };
+        });
+        const liveSubWorklogs = subWorklogsPage.items.map((w) => {
+          const authorPerson = resolvePersonById(
+            w.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: w.id,
+            author: authorPerson.name,
+            timeSpent: formatWorklogMinutes(w.minutes),
+            note: w.note ?? "",
+            createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
+          };
+        });
+        const totalLogged =
+          subWorklogsPage.totalMinutes > 0
+            ? formatWorklogMinutes(subWorklogsPage.totalMinutes)
+            : "0h";
+        setItems((current) =>
+          current.map((item) => {
+            if (item.id !== openedTaskId || !item.subtaskItems) return item;
+            return {
+              ...item,
+              subtaskItems: item.subtaskItems.map((sub) =>
+                sub.id === openedSubtaskId
+                  ? {
+                      ...sub,
+                      description: subDetail.description ?? "",
+                      steps: subDetail.steps,
+                      comments: liveSubComments,
+                      worklogs: liveSubWorklogs,
+                      history: mapVisibleTaskHistory(subHistoryPage),
+                      loggedTime: totalLogged,
+                    }
+                  : sub,
+              ),
+            };
+          }),
+        );
+      } catch (error) {
+        if (!cancelled) {
+          setSubtaskActivityLoadingId((current) => current === openedSubtaskId ? null : current);
+          setMutationError(describeMutationError(error));
+          setActivityRetryTarget("subtask");
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isRealProject,
+    openedSubtaskId,
+    openedTaskId,
+    subtaskActivityRetryVersion,
+    projectId,
+    projectPeopleById,
+    user.data,
+  ]);
 
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
@@ -635,7 +994,21 @@ export default function WorkWorkspace({
     });
   }
 
-  function openWorkItem(item: WorkItem, trigger: HTMLButtonElement) {
+  function openWorkItem(
+    item: WorkItem,
+    trigger: HTMLButtonElement,
+    openWorklog = false,
+  ) {
+    if (openWorklog) {
+      worklogOpenSequenceRef.current += 1;
+      setWorklogOpenRequest({
+        taskId: item.id,
+        sequence: worklogOpenSequenceRef.current,
+      });
+    } else {
+      setWorklogOpenRequest(null);
+    }
+    updateTaskHash(item.key);
     detailTriggerRef.current = trigger;
     setActiveSubtaskId(null);
     setActiveWorkItemId(item.id);
@@ -645,17 +1018,47 @@ export default function WorkWorkspace({
     item: WorkItem,
     subtaskId: string,
     trigger: HTMLButtonElement,
+    openWorklog = false,
   ) {
+    if (openWorklog) {
+      worklogOpenSequenceRef.current += 1;
+      setWorklogOpenRequest({
+        taskId: subtaskId,
+        sequence: worklogOpenSequenceRef.current,
+      });
+    } else {
+      setWorklogOpenRequest(null);
+    }
+    const subtask = item.subtaskItems?.find((candidate) => candidate.id === subtaskId);
+    updateTaskHash(subtask?.key ?? item.key);
     detailTriggerRef.current = trigger;
     setActiveWorkItemId(item.id);
     setActiveSubtaskId(subtaskId);
   }
 
   function openFullPageWorkItem(item: WorkItem, subtaskId?: string | null) {
+    const subtask = subtaskId
+      ? item.subtaskItems?.find((candidate) => candidate.id === subtaskId)
+      : undefined;
+    updateTaskHash(subtask?.key ?? item.key);
     setActiveWorkItemId(null);
     setActiveSubtaskId(null);
     setFullPageWorkItemId(item.id);
     setFullPageSubtaskId(subtaskId ?? null);
+  }
+
+  function updateTaskHash(key: string) {
+    if (typeof window === "undefined") return;
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${window.location.search}#${encodeURIComponent(key)}`,
+    );
+  }
+
+  function clearTaskHash() {
+    if (typeof window === "undefined" || !window.location.hash) return;
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
   }
 
   function toggleAllVisible() {
@@ -705,36 +1108,11 @@ export default function WorkWorkspace({
     );
   }
 
-  function deleteSingleItem(id: string) {
-    const previousItems = items;
-    const previousSelected = new Set(selectedIds);
-    const existing = items.find((item) => item.id === id);
-    const fromStatus = existing?.status ?? "TODO";
-    setItems((current) => current.filter((item) => item.id !== id));
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      next.delete(id);
-      return next;
-    });
-    if (isRealProject) {
-      enqueueTaskMutation(
-        id,
-        (realId, version) =>
-          performBackendStatusTransition(
-            realId,
-            version,
-            fromStatus,
-            "CANCELLED",
-          ),
-        () => {
-          setItems(previousItems);
-          setSelectedIds(previousSelected);
-        },
-      );
-    }
+  function requestSingleTaskCancellation(id: string) {
+    setCancelConfirmationIds([id]);
   }
 
-  function addPreviewItem(input: CreatePreviewWorkItem) {
+  function addPreviewItem(input: CreatePreviewWorkItem): Promise<boolean> {
     const targetStatus = input.status ?? "TODO";
     const tempId = `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     setItems((current) => {
@@ -762,11 +1140,11 @@ export default function WorkWorkspace({
       };
       return [item, ...current];
     });
-    setAnnouncement(t("createAdded"));
-    setCreateOpen(false);
+    if (!isRealProject) setAnnouncement(t("createAdded"));
 
+    let creationPromise: Promise<string | null> | undefined;
     if (isRealProject) {
-      const creationPromise = (async (): Promise<string | null> => {
+      creationPromise = (async (): Promise<string | null> => {
         try {
           const created = await createProjectTaskApi(projectId, {
             title: input.title,
@@ -806,25 +1184,28 @@ export default function WorkWorkspace({
           setFullPageWorkItemId((current) =>
             current === tempId ? created.id : current,
           );
-          try {
-            const finalVersion = await performBackendStatusTransition(
-              created.id,
-              created.version,
-              "TODO",
-              targetStatus,
-            );
-            taskVersionsRef.current.set(created.id, finalVersion);
-          } catch {
-            setItems((current) =>
-              current.map((item) =>
-                item.id === created.id
-                  ? { ...item, status: "TODO", resolution: "UNRESOLVED" }
-                  : item,
-              ),
-            );
-            void tasksQuery.refetch();
-            setAnnouncement(t("createStatusFailed"));
+          if (targetStatus !== "TODO") {
+            try {
+              const finalVersion = await performBackendStatusTransition(
+                created.id,
+                created.version,
+                "TODO",
+                targetStatus,
+              );
+              taskVersionsRef.current.set(created.id, finalVersion);
+            } catch {
+              setItems((current) =>
+                current.map((item) =>
+                  item.id === created.id
+                    ? { ...item, status: "TODO", resolution: "UNRESOLVED" }
+                    : item,
+                ),
+              );
+              void tasksQuery.refetch();
+              setAnnouncement(t("createStatusFailed"));
+            }
           }
+          setAnnouncement(`Created ${created.key}.`);
           return created.id;
         } catch {
           setItems((current) => current.filter((item) => item.id !== tempId));
@@ -837,12 +1218,15 @@ export default function WorkWorkspace({
       })();
       pendingIdPromisesRef.current.set(tempId, creationPromise);
     }
+    return creationPromise
+      ? creationPromise.then((createdId) => createdId !== null)
+      : Promise.resolve(true);
   }
 
-  function updateItemStatus(id: string, nextStatus: WorkStatus) {
+  function updateItemStatus(id: string, nextStatus: WorkStatus): Promise<boolean> | void {
     const existing = items.find((item) => item.id === id);
     const prevStatus = existing?.status ?? "TODO";
-    if (prevStatus === nextStatus) return;
+    if (prevStatus === nextStatus) return Promise.resolve(true);
     setItems((current) =>
       current.map((item) =>
         item.id === id
@@ -855,7 +1239,7 @@ export default function WorkWorkspace({
       ),
     );
     if (isRealProject) {
-      enqueueTaskMutation(
+      return enqueueTaskMutation(
         id,
         (realId, version) =>
           performBackendStatusTransition(
@@ -882,7 +1266,10 @@ export default function WorkWorkspace({
     }
   }
 
-  function updateItemPriority(id: string, nextPriority: WorkPriority) {
+  function updateItemPriority(
+    id: string,
+    nextPriority: WorkPriority,
+  ): Promise<boolean> | void {
     const existing = items.find((item) => item.id === id);
     const prevPriority = existing?.priority ?? "MEDIUM";
     if (prevPriority === nextPriority) return;
@@ -892,7 +1279,7 @@ export default function WorkWorkspace({
       ),
     );
     if (isRealProject) {
-      enqueueTaskMutation(
+      return enqueueTaskMutation(
         id,
         async (realId, version) => {
           const updated = await updateProjectTaskApi(
@@ -918,16 +1305,20 @@ export default function WorkWorkspace({
     }
   }
 
-  function updateItemAssignee(id: string, nextAssignee: WorkPerson) {
+  function updateItemAssignee(
+    id: string,
+    nextAssignee: WorkPerson,
+  ): Promise<boolean> | undefined {
     const existing = items.find((item) => item.id === id);
     const prevAssignee = existing?.assignee ?? defaultAssigneePerson;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, assignee: nextAssignee } : item,
       ),
     );
     if (isRealProject) {
-      enqueueTaskMutation(
+      return enqueueTaskMutation(
         id,
         async (realId, version) => {
           const updated = await updateProjectTaskApi(
@@ -953,6 +1344,29 @@ export default function WorkWorkspace({
         },
       );
     }
+  }
+
+  function updateItemTitle(id: string, titleInput: string): Promise<boolean> | void {
+    const title = titleInput.trim();
+    if (!title) return Promise.resolve(false);
+    if (isRealProject) {
+      return enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(projectId, realId, version, { title });
+          setItems((current) => current.map((item) =>
+            item.id === id || item.id === realId
+              ? { ...item, title: updated.title }
+              : item,
+          ));
+          return updated.version;
+        },
+      );
+    }
+    setItems((current) => current.map((item) =>
+      item.id === id ? { ...item, title } : item,
+    ));
+    return Promise.resolve(true);
   }
 
   function toggleSubtask(itemId: string, subtaskId: string) {
@@ -1035,19 +1449,24 @@ export default function WorkWorkspace({
           dueDate: options?.dueDate ?? item.dueDate,
           createdAt: new Date().toISOString(),
           description: options?.description,
-          estimate: options?.estimate ?? "2h",
-          loggedTime: "0h",
+          ...(!isRealProject
+            ? { estimate: options?.estimate ?? "2h", loggedTime: "0h" }
+            : {}),
           steps: [],
           comments: [],
           worklogs: [],
-          history: [
-            {
-              id: `hist-${Date.now()}`,
-              author: currentUserPerson?.name ?? defaultAssigneePerson.name,
-              action: `created subtask ${item.key}.${nextIdx}`,
-              createdAt: "Just now",
-            },
-          ],
+          ...(!isRealProject
+            ? {
+                history: [
+                  {
+                    id: `hist-${Date.now()}`,
+                    author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+                    action: `created subtask ${item.key}.${nextIdx}`,
+                    createdAt: formatCommentDateTime(new Date()),
+                  },
+                ],
+              }
+            : {}),
         };
         const nextSubtasks = [...existing, newSub];
         const completed = nextSubtasks.filter((sub) => sub.done).length;
@@ -1167,7 +1586,7 @@ export default function WorkWorkspace({
     itemId: string,
     subtaskId: string,
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
-  ) {
+  ): Promise<boolean> | void {
     const previousItems = items;
     const parentItem = items.find((item) => item.id === itemId);
     const existingSub = parentItem?.subtaskItems?.find(
@@ -1217,76 +1636,172 @@ export default function WorkWorkspace({
         patch.labels !== undefined ||
         patch.steps !== undefined;
 
-      enqueueTaskMutation(
-        subtaskId,
-        async (realSubId, version) => {
-          let currentVersion = version;
-          if (prevStatus !== nextStatus) {
-            currentVersion = await performBackendStatusTransition(
-              realSubId,
-              currentVersion,
-              prevStatus,
-              nextStatus,
-            );
-          }
-          if (hasFieldPatch) {
-            const updated = await updateProjectTaskApi(
+      const addedComment =
+        patch.comments &&
+        patch.comments.length > (existingSub.comments?.length ?? 0)
+          ? patch.comments[patch.comments.length - 1]
+          : undefined;
+      const addedWorklog =
+        patch.worklogs &&
+        patch.worklogs.length > (existingSub.worklogs?.length ?? 0)
+          ? patch.worklogs[patch.worklogs.length - 1]
+          : undefined;
+
+      if (addedComment) {
+        void (async () => {
+          try {
+            const realSubId = await resolveBackendTaskId(subtaskId);
+            if (!realSubId) throw new Error("Subtask not persisted");
+            const created = await createTaskCommentApi(
               projectId,
               realSubId,
-              currentVersion,
-              {
-                ...(patch.summary !== undefined
-                  ? { title: patch.summary }
-                  : {}),
-                ...(patch.priority !== undefined
-                  ? { priority: patch.priority }
-                  : {}),
-                ...(patch.assignee !== undefined
-                  ? {
-                      assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
-                        ? patch.assignee.id
-                        : null,
-                    }
-                  : {}),
-                ...(patch.dueDate !== undefined
-                  ? {
-                      dueDate: patch.dueDate
-                        ? new Date(patch.dueDate).toISOString()
-                        : null,
-                    }
-                  : {}),
-                ...(patch.startDate !== undefined
-                  ? {
-                      startDate: patch.startDate
-                        ? new Date(patch.startDate).toISOString()
-                        : null,
-                    }
-                  : {}),
-                ...(patch.description !== undefined
-                  ? { description: patch.description ?? null }
-                  : {}),
-                ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
-                ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
-              },
+              addedComment.text,
             );
-            currentVersion = updated.version;
+            setItems((current) =>
+              current.map((item) => {
+                if (item.id !== itemId || !item.subtaskItems) return item;
+                return {
+                  ...item,
+                  subtaskItems: item.subtaskItems.map((sub) =>
+                    sub.id === subtaskId || sub.id === realSubId
+                      ? {
+                          ...sub,
+                          comments: (sub.comments ?? []).map((c) =>
+                            c.id === addedComment.id
+                              ? {
+                                  ...c,
+                                  id: created.id,
+                                  createdAt: formatCommentDateTime(
+                                    created.createdAt,
+                                  ),
+                                }
+                              : c,
+                          ),
+                        }
+                      : sub,
+                  ),
+                };
+              }),
+            );
+          } catch {
+            setItems(previousItems);
           }
-          return currentVersion;
-        },
-        () => {
-          setItems(previousItems);
-        },
-      );
+        })();
+      }
+
+      if (addedWorklog) {
+        void (async () => {
+          try {
+            const realSubId = await resolveBackendTaskId(subtaskId);
+            if (!realSubId) throw new Error("Subtask not persisted");
+            const minutes = parseWorklogMinutes(addedWorklog.timeSpent);
+            const created = await createTaskWorklogApi(projectId, realSubId, {
+              minutes,
+              note: addedWorklog.note || null,
+            });
+            setItems((current) =>
+              current.map((item) => {
+                if (item.id !== itemId || !item.subtaskItems) return item;
+                return {
+                  ...item,
+                  subtaskItems: item.subtaskItems.map((sub) =>
+                    sub.id === subtaskId || sub.id === realSubId
+                      ? {
+                          ...sub,
+                          worklogs: (sub.worklogs ?? []).map((wl) =>
+                            wl.id === addedWorklog.id
+                              ? {
+                                  ...wl,
+                                  id: created.id,
+                                  timeSpent: formatWorklogMinutes(
+                                    created.minutes,
+                                  ),
+                                  note: created.note ?? "",
+                                  createdAt: formatCommentDateTime(
+                                    created.loggedAt || created.createdAt,
+                                  ),
+                                }
+                              : wl,
+                          ),
+                        }
+                      : sub,
+                  ),
+                };
+              }),
+            );
+          } catch {
+            setItems(previousItems);
+          }
+        })();
+      }
+
+      if (prevStatus !== nextStatus || hasFieldPatch) {
+        return enqueueTaskMutation(
+          subtaskId,
+          async (realSubId, version) => {
+            let currentVersion = version;
+            if (prevStatus !== nextStatus) {
+              currentVersion = await performBackendStatusTransition(
+                realSubId,
+                currentVersion,
+                prevStatus,
+                nextStatus,
+              );
+            }
+            if (hasFieldPatch) {
+              const updated = await updateProjectTaskApi(
+                projectId,
+                realSubId,
+                currentVersion,
+                {
+                  ...(patch.summary !== undefined
+                    ? { title: patch.summary }
+                    : {}),
+                  ...(patch.priority !== undefined
+                    ? { priority: patch.priority }
+                    : {}),
+                  ...(patch.assignee !== undefined
+                    ? {
+                        assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
+                          ? patch.assignee.id
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.dueDate !== undefined
+                    ? {
+                        dueDate: patch.dueDate
+                          ? new Date(patch.dueDate).toISOString()
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.startDate !== undefined
+                    ? {
+                        startDate: patch.startDate
+                          ? new Date(patch.startDate).toISOString()
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.description !== undefined
+                    ? { description: patch.description ?? null }
+                    : {}),
+                  ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
+                  ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
+                },
+              );
+              currentVersion = updated.version;
+            }
+            return currentVersion;
+          },
+          () => {
+            setItems(previousItems);
+          },
+        );
+      }
     }
   }
 
   function deleteSubtask(itemId: string, subtaskId: string) {
-    const previousItems = items;
-    const parentItem = items.find((item) => item.id === itemId);
-    const existingSub = parentItem?.subtaskItems?.find(
-      (sub) => sub.id === subtaskId,
-    );
-    const prevStatus = existingSub?.status ?? "TODO";
+    if (isRealProject) return;
 
     if (activeSubtaskId === subtaskId) {
       setActiveSubtaskId(null);
@@ -1305,22 +1820,6 @@ export default function WorkWorkspace({
         };
       }),
     );
-
-    if (isRealProject && existingSub) {
-      enqueueTaskMutation(
-        subtaskId,
-        (realSubId, version) =>
-          performBackendStatusTransition(
-            realSubId,
-            version,
-            prevStatus,
-            "CANCELLED",
-          ),
-        () => {
-          setItems(previousItems);
-        },
-      );
-    }
   }
 
   function cloneSubtask(itemId: string, subtaskId: string) {
@@ -1735,128 +2234,185 @@ export default function WorkWorkspace({
     }
   }
 
-  function addComment(itemId: string, text: string) {
-    const previousItems = items;
-    const tempCommentId = `comment-${Date.now()}`;
-    setItems((current) =>
-      current.map((item) => {
-        if (item.id !== itemId) return item;
-        const existing = item.comments ?? [];
-        const newComment = {
-          id: tempCommentId,
-          author: currentUserPerson?.name ?? defaultAssigneePerson.name,
-          initials:
-            currentUserPerson?.initials ?? defaultAssigneePerson.initials,
-          createdAt: "Just now",
-          text,
-        };
-        return {
-          ...item,
-          comments: [...existing, newComment],
-        };
-      }),
-    );
+  async function addComment(itemId: string, text: string): Promise<boolean> {
     if (isRealProject) {
-      void (async () => {
-        try {
-          const realId = await resolveBackendTaskId(itemId);
-          if (!realId) {
-            throw new Error("Task not persisted");
-          }
-          const created = await createTaskCommentApi(projectId, realId, text);
-          setItems((current) =>
-            current.map((item) => {
-              if (item.id !== itemId && item.id !== realId) return item;
-              return {
+      try {
+        const realId = await resolveBackendTaskId(itemId);
+        if (!realId) throw new Error("Task not persisted");
+        const created = await createTaskCommentApi(projectId, realId, text);
+        setItems((current) => current.map((item) =>
+          item.id === itemId || item.id === realId
+            ? {
                 ...item,
-                comments: (item.comments ?? []).map((c) =>
-                  c.id === tempCommentId
-                    ? {
-                        ...c,
-                        id: created.id,
-                        createdAt: created.createdAt.slice(0, 10),
-                      }
-                    : c,
-                ),
-              };
-            }),
-          );
-        } catch {
-          setItems(previousItems);
-          void tasksQuery.refetch();
-          setAnnouncement("Unable to post comment. Restored latest state.");
-        }
-      })();
+                comments: [...(item.comments ?? []), {
+                  id: created.id,
+                  author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+                  initials: currentUserPerson?.initials ?? defaultAssigneePerson.initials,
+                  createdAt: formatCommentDateTime(created.createdAt),
+                  text: created.body,
+                }],
+              }
+            : item,
+        ));
+        return true;
+      } catch (error) {
+        setAnnouncement(describeMutationError(error));
+        return false;
+      }
+    }
+
+    setItems((current) => current.map((item) =>
+      item.id === itemId
+        ? {
+            ...item,
+            comments: [...(item.comments ?? []), {
+              id: `comment-${Date.now()}`,
+              author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+              initials: currentUserPerson?.initials ?? defaultAssigneePerson.initials,
+              createdAt: formatCommentDateTime(new Date()),
+              text,
+            }],
+          }
+        : item,
+    ));
+    return true;
+  }
+
+  async function addSubtaskComment(subtaskId: string, text: string): Promise<boolean> {
+    if (!isRealProject) return false;
+    try {
+      const realId = await resolveBackendTaskId(subtaskId);
+      if (!realId) throw new Error("Subtask not persisted");
+      const created = await createTaskCommentApi(projectId, realId, text);
+      setItems((current) => current.map((item) => ({
+        ...item,
+        subtaskItems: item.subtaskItems?.map((sub) =>
+          sub.id === subtaskId || sub.id === realId
+            ? {
+                ...sub,
+                comments: [...(sub.comments ?? []), {
+                  id: created.id,
+                  author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+                  initials: currentUserPerson?.initials ?? defaultAssigneePerson.initials,
+                  createdAt: formatCommentDateTime(created.createdAt),
+                  text: created.body,
+                }],
+              }
+            : sub,
+        ),
+      })));
+      return true;
+    } catch (error) {
+      setAnnouncement(describeMutationError(error));
+      return false;
     }
   }
 
-  function bulkUpdateStatus(nextStatus: WorkStatus) {
-    const previousItems = items;
-    const previousSelected = new Set(selectedIds);
-    const affectedItems = items.filter(
-      (item) => selectedIds.has(item.id) && item.status !== nextStatus,
-    );
-    setItems((current) =>
-      current.map((item) =>
-        selectedIds.has(item.id)
+  async function addWorklog(itemId: string, minutes: number, noteInput: string): Promise<boolean> {
+    if (!isRealProject || minutes < 1 || minutes > 1440) return false;
+    try {
+      const realId = await resolveBackendTaskId(itemId);
+      if (!realId) return false;
+      const created = await createTaskWorklogApi(projectId, realId, {
+        minutes,
+        note: noteInput || null,
+      });
+      setItems((current) => current.map((item) =>
+        item.id === itemId || item.id === realId
           ? {
               ...item,
-              status: nextStatus,
-              resolution: nextStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
+              worklogs: [...(item.worklogs ?? []), {
+                id: created.id,
+                author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+                timeSpent: formatWorklogMinutes(created.minutes),
+                note: created.note ?? "",
+                createdAt: formatCommentDateTime(created.loggedAt || created.createdAt),
+              }],
             }
           : item,
-      ),
-    );
-    setSelectedIds(new Set());
-
-    if (isRealProject) {
-      for (const item of affectedItems) {
-        const prevStatus = item.status;
-        enqueueTaskMutation(
-          item.id,
-          (realId, version) =>
-            performBackendStatusTransition(
-              realId,
-              version,
-              prevStatus,
-              nextStatus,
-            ),
-          () => {
-            setItems(previousItems);
-            setSelectedIds(previousSelected);
-          },
-        );
-      }
+      ));
+      return true;
+    } catch (error) {
+      setAnnouncement(describeMutationError(error));
+      return false;
     }
   }
 
-  function bulkDeleteSelected() {
-    const previousItems = items;
-    const previousSelected = new Set(selectedIds);
-    const affectedItems = items.filter((item) => selectedIds.has(item.id));
-    setItems((current) =>
-      current.filter((item) => !selectedIds.has(item.id)),
+  async function addSubtaskWorklog(subtaskId: string, minutes: number, noteInput: string): Promise<boolean> {
+    if (!isRealProject || minutes < 1 || minutes > 1440) return false;
+    try {
+      const realId = await resolveBackendTaskId(subtaskId);
+      if (!realId) return false;
+      const created = await createTaskWorklogApi(projectId, realId, {
+        minutes,
+        note: noteInput || null,
+      });
+      setItems((current) => current.map((item) => ({
+        ...item,
+        subtaskItems: item.subtaskItems?.map((sub) =>
+          sub.id === subtaskId || sub.id === realId
+            ? {
+                ...sub,
+                worklogs: [...(sub.worklogs ?? []), {
+                  id: created.id,
+                  author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+                  timeSpent: formatWorklogMinutes(created.minutes),
+                  note: created.note ?? "",
+                  createdAt: formatCommentDateTime(created.loggedAt || created.createdAt),
+                }],
+                loggedTime: formatWorklogMinutes(
+                  parseWorklogMinutes(sub.loggedTime ?? "") + created.minutes,
+                ),
+              }
+            : sub,
+        ),
+      })));
+      return true;
+    } catch (error) {
+      setAnnouncement(describeMutationError(error));
+      return false;
+    }
+  }
+
+  async function bulkUpdateStatus(nextStatus: WorkStatus) {
+    const ids = [...selectedIds].filter((id) =>
+      items.some((item) => item.id === id && item.status !== nextStatus),
     );
     setSelectedIds(new Set());
+    const results = await Promise.all(
+      ids.map((id) => Promise.resolve(updateItemStatus(id, nextStatus))),
+    );
+    const failedIds = ids.filter((_, index) => results[index] === false);
+    if (failedIds.length > 0) {
+      setSelectedIds((current) => new Set([...current, ...failedIds]));
+    } else if (ids.length > 0) {
+      setAnnouncement(t("bulkStatusUpdated", { count: ids.length }));
+    }
+  }
 
-    if (isRealProject) {
-      for (const item of affectedItems) {
-        const prevStatus = item.status;
-        enqueueTaskMutation(
-          item.id,
-          (realId, version) =>
-            performBackendStatusTransition(
-              realId,
-              version,
-              prevStatus,
-              "CANCELLED",
-            ),
-          () => {
-            setItems(previousItems);
-            setSelectedIds(previousSelected);
-          },
-        );
-      }
+  function requestBulkTaskCancellation() {
+    const ids = [...selectedIds];
+    if (ids.length > 0) setCancelConfirmationIds(ids);
+  }
+
+  async function confirmTaskCancellation() {
+    if (!cancelConfirmationIds?.length) return;
+    const ids = cancelConfirmationIds;
+    setCancelConfirmationIds(null);
+    const results = await Promise.all(
+      ids.map((id) => Promise.resolve(updateItemStatus(id, "CANCELLED"))),
+    );
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      ids.forEach((id) => next.delete(id));
+      return next;
+    });
+    if (results.every((result) => result !== false)) {
+      setAnnouncement(
+        ids.length === 1
+          ? t("taskCancelled")
+          : t("tasksCancelled", { count: ids.length }),
+      );
     }
   }
 
@@ -1938,6 +2494,11 @@ export default function WorkWorkspace({
     if (!project.data) return <ProjectState />;
   }
 
+  if (isRealProject && tasksQuery.isPending) return <ProjectState />;
+  if (isRealProject && tasksQuery.isError) {
+    return <ProjectState error={tasksQuery.error} retry={() => void tasksQuery.refetch()} />;
+  }
+
   return (
     <div
       className={`@container w-full min-w-0 space-y-2.5 ${
@@ -1964,13 +2525,14 @@ export default function WorkWorkspace({
           onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
           itemCount={view !=="work-notes"? visibleItems.length : undefined}
           hideProjectBanner={hideProjectBanner}
+          isPreview={!isRealProject}
         />
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex shrink-0 rounded border border-warning-200 bg-warning-50 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
+            {!isRealProject && <span className="inline-flex shrink-0 rounded border border-warning-200 bg-warning-50 px-2 py-0.5 text-[11px] font-medium text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">
               {t("previewData")}
-            </span>
+            </span>}
             <p
               className="shrink-0 text-xs font-medium text-gray-500 dark:text-gray-400"
               aria-live="polite"
@@ -1994,33 +2556,80 @@ export default function WorkWorkspace({
         </div>
       )}
 
+      {mutationError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">
+              {activityRetryTarget ? "Could not load activity." : "Could not save changes."}
+            </p>
+            <p className="break-words">{mutationError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setMutationError(null);
+              if (activityRetryTarget) {
+                const retryTarget = activityRetryTarget;
+                setActivityRetryTarget(null);
+                if (retryTarget === "parent") {
+                  setParentActivityRetryVersion((version) => version + 1);
+                } else {
+                  setSubtaskActivityRetryVersion((version) => version + 1);
+                }
+              }
+            }}
+            className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+          >
+            {activityRetryTarget ? "Retry activity" : "Dismiss"}
+          </button>
+        </div>
+      )}
+
       {fullPageWorkItem ? (
         <WorkItemDetailDialog
           mode="page"
           item={fullPageWorkItem}
+          worklogOpenRequest={worklogOpenRequest}
+          isActivityLoading={taskActivityLoadingId === fullPageWorkItem.id}
+          isSubtaskActivityLoading={subtaskActivityLoadingId === fullPageSubtaskId}
           allItems={items}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           initialSubtaskId={fullPageSubtaskId}
-          onSelectSubtask={setFullPageSubtaskId}
+          onSelectSubtask={(subtaskId) => {
+            setFullPageSubtaskId(subtaskId);
+            const subtask = fullPageWorkItem.subtaskItems?.find((candidate) => candidate.id === subtaskId);
+            updateTaskHash(subtask?.key ?? fullPageWorkItem.key);
+          }}
           onClose={() => {
+            clearTaskHash();
+            setWorklogOpenRequest(null);
+            setTaskActivityLoadingId(null);
+            setSubtaskActivityLoadingId(null);
             setFullPageSubtaskId(null);
             setFullPageWorkItemId(null);
           }}
           onStatusChange={updateItemStatus}
+          onTitleChange={updateItemTitle}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
           onUpdateSubtask={updateSubtask}
-          onDeleteSubtask={deleteSubtask}
+          onDeleteSubtask={isRealProject ? undefined : deleteSubtask}
           onCloneSubtask={cloneSubtask}
-          onReorderSubtask={reorderSubtask}
+          onReorderSubtask={isRealProject ? undefined : reorderSubtask}
           onConvertSubtaskToTask={convertSubtaskToTask}
           onMoveSubtaskToParent={moveSubtaskToParent}
           onBulkUpdateSubtasks={bulkUpdateSubtasks}
           onAddComment={addComment}
+          onAddSubtaskComment={isRealProject ? addSubtaskComment : undefined}
+          onAddWorklog={isRealProject ? addWorklog : undefined}
+          onAddSubtaskWorklog={isRealProject ? addSubtaskWorklog : undefined}
         />
       ) : view ==="work-notes"? (
         <WorkNotesWorkspace
@@ -2056,9 +2665,9 @@ export default function WorkWorkspace({
               onToggleShowHierarchy={setShowHierarchy}
               onToggleHighlightHighPriority={setHighlightHighPriority}
               onToggleHighlightDoneRows={setHighlightDoneRows}
-              onOpenAiCopilot={() => setAiCopilotOpen(true)}
+              onOpenAiCopilot={isRealProject ? undefined : () => setAiCopilotOpen(true)}
               onExportCsv={exportCsv}
-              onImportCsvItem={importCsvItem}
+              onImportCsvItem={isRealProject ? undefined : importCsvItem}
               onBulkSelectAll={() =>
                 setSelectedIds(new Set(visibleItems.map((i) => i.id)))
               }
@@ -2115,9 +2724,9 @@ export default function WorkWorkspace({
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={bulkDeleteSelected}
+                  onClick={requestBulkTaskCancellation}
                 >
-                  ✕ Delete
+                  ✕ {t("cancelTasksAction")}
                 </Button>
                 <Button
                   type="button"
@@ -2132,22 +2741,32 @@ export default function WorkWorkspace({
             </div>
           )}
 
-          {view ==="timeline"? (
+          {view ==="timeline" && isRealProject ? (
+            <WorkPreviewNotice onOpenList={() => setView("list")} />
+          ) : view ==="timeline"? (
             <WorkTimelineView
               items={visibleItems}
               people={projectPeople}
               onOpenItem={openWorkItem}
               onCreate={() => setCreateOpen(true)}
             />
+          ) : view ==="development" && isRealProject ? (
+            <WorkPreviewNotice onOpenList={() => setView("list")} />
           ) : view ==="development"? (
             <WorkDevelopmentView
               items={visibleItems}
               onCreateItem={addPreviewItem}
             />
+          ) : view ==="forms" && isRealProject ? (
+            <WorkPreviewNotice onOpenList={() => setView("list")} />
           ) : view ==="forms"? (
             <WorkFormsView onCreateItem={addPreviewItem} />
+          ) : view ==="docs" && isRealProject ? (
+            <WorkPreviewNotice onOpenList={() => setView("list")} />
           ) : view ==="docs"? (
             <WorkDocsView items={visibleItems} onOpenItem={openWorkItem} />
+          ) : view ==="reports" && isRealProject ? (
+            <WorkPreviewNotice onOpenList={() => setView("list")} />
           ) : view ==="reports"? (
             <WorkReportsView
               items={visibleItems}
@@ -2201,14 +2820,14 @@ export default function WorkWorkspace({
               onStatusChange={updateItemStatus}
               onPriorityChange={updateItemPriority}
               onAssigneeChange={updateItemAssignee}
-              onToggleFlag={toggleItemFlag}
-              onDeleteItem={deleteSingleItem}
+              onToggleFlag={isRealProject ? undefined : toggleItemFlag}
+              onCancelTask={requestSingleTaskCancellation}
               onToggleSubtask={toggleSubtask}
               onAddSubtask={addSubtask}
               onUpdateSubtask={updateSubtask}
-              onDeleteSubtask={deleteSubtask}
+              onDeleteSubtask={isRealProject ? undefined : deleteSubtask}
               onCloneSubtask={cloneSubtask}
-              onReorderSubtask={reorderSubtask}
+              onReorderSubtask={isRealProject ? undefined : reorderSubtask}
               onConvertSubtaskToTask={convertSubtaskToTask}
               onMoveSubtaskToParent={moveSubtaskToParent}
               onOpenSubtask={openSubtask}
@@ -2248,7 +2867,7 @@ export default function WorkWorkspace({
               onToggleSubtask={toggleSubtask}
               onAddSubtask={addSubtask}
               onUpdateSubtask={updateSubtask}
-              onDeleteSubtask={deleteSubtask}
+              onDeleteSubtask={isRealProject ? undefined : deleteSubtask}
               onCloneSubtask={cloneSubtask}
               onConvertSubtaskToTask={convertSubtaskToTask}
               onQuickCreate={(title, targetStatus) =>
@@ -2276,14 +2895,41 @@ export default function WorkWorkspace({
       <p className="sr-only"role="status"aria-live="polite">
         {announcement}
       </p>
+      <Modal
+        isOpen={cancelConfirmationIds !== null}
+        onClose={() => setCancelConfirmationIds(null)}
+        showCloseButton={false}
+        backdropClassName="bg-gray-900/40 backdrop-blur-sm"
+        className="mx-4 max-w-md p-6 shadow-theme-lg"
+      >
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+              {t("cancelTaskTitle")}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300">
+              {t("cancelTaskDescription", { count: cancelConfirmationIds?.length ?? 0 })}
+            </p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setCancelConfirmationIds(null)}>
+              {t("keepTask")}
+            </Button>
+            <Button type="button" onClick={() => void confirmTaskCancellation()}>
+              {t("confirmTaskCancellation")}
+            </Button>
+          </div>
+        </div>
+      </Modal>
       <WorkItemCreateDialog
         isOpen={createOpen}
+        isPreview={!isRealProject}
         people={projectPeople}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
       />
       <WorkAiCopilotDialog
-        isOpen={aiCopilotOpen}
+        isOpen={aiCopilotOpen && !isRealProject}
         projectName={projectName}
         items={visibleItems}
         onClose={() => setAiCopilotOpen(false)}
@@ -2292,33 +2938,68 @@ export default function WorkWorkspace({
         <WorkItemDetailDialog
           mode="modal"
           item={activeWorkItem}
+          worklogOpenRequest={worklogOpenRequest}
+          isActivityLoading={taskActivityLoadingId === activeWorkItem.id}
+          isSubtaskActivityLoading={subtaskActivityLoadingId === activeSubtaskId}
           allItems={items}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           initialSubtaskId={activeSubtaskId}
-          onSelectSubtask={setActiveSubtaskId}
+          onSelectSubtask={(subtaskId) => {
+            setActiveSubtaskId(subtaskId);
+            const subtask = activeWorkItem.subtaskItems?.find((candidate) => candidate.id === subtaskId);
+            updateTaskHash(subtask?.key ?? activeWorkItem.key);
+          }}
           onOpenFullPage={(subId) => openFullPageWorkItem(activeWorkItem, subId)}
           onClose={() => {
+            clearTaskHash();
+            setWorklogOpenRequest(null);
+            setTaskActivityLoadingId(null);
+            setSubtaskActivityLoadingId(null);
             setActiveSubtaskId(null);
             setActiveWorkItemId(null);
           }}
           onStatusChange={updateItemStatus}
+          onTitleChange={updateItemTitle}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
           onUpdateSubtask={updateSubtask}
-          onDeleteSubtask={deleteSubtask}
+          onDeleteSubtask={isRealProject ? undefined : deleteSubtask}
           onCloneSubtask={cloneSubtask}
-          onReorderSubtask={reorderSubtask}
+          onReorderSubtask={isRealProject ? undefined : reorderSubtask}
           onConvertSubtaskToTask={convertSubtaskToTask}
           onMoveSubtaskToParent={moveSubtaskToParent}
           onBulkUpdateSubtasks={bulkUpdateSubtasks}
           onAddComment={addComment}
+          onAddSubtaskComment={isRealProject ? addSubtaskComment : undefined}
+          onAddWorklog={isRealProject ? addWorklog : undefined}
+          onAddSubtaskWorklog={isRealProject ? addSubtaskWorklog : undefined}
         />
       )}
     </div>
+  );
+}
+
+function WorkPreviewNotice({ onOpenList }: { onOpenList: () => void }) {
+  const t = useTranslations("work");
+  return (
+    <section
+      role="status"
+      className="rounded-md border border-dashed border-gray-300 bg-white px-6 py-12 text-center dark:border-gray-700 dark:bg-gray-900"
+    >
+      <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
+        {t("viewPreviewTitle")}
+      </h2>
+      <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-gray-500 dark:text-gray-400">
+        {t("viewPreviewDescription")}
+      </p>
+      <Button type="button" variant="outline" className="mt-4" onClick={onOpenList}>
+        {t("openWorkList")}
+      </Button>
+    </section>
   );
 }
 

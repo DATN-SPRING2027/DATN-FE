@@ -31,11 +31,13 @@ export default function WorkItemCreateDialog({
   people,
   onClose,
   onCreate,
+  isPreview = false,
 }: {
   isOpen: boolean;
   people?: readonly WorkPerson[];
   onClose: () => void;
-  onCreate: (item: CreatePreviewWorkItem) => void;
+  onCreate: (item: CreatePreviewWorkItem) => void | boolean | Promise<void | boolean>;
+  isPreview?: boolean;
 }) {
   const t = useTranslations("work");
   const availablePeople = people ?? PREVIEW_PEOPLE;
@@ -58,6 +60,8 @@ export default function WorkItemCreateDialog({
   const [createAnother, setCreateAnother] = useState(false);
   const [isCompactMode, setIsCompactMode] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const effectiveAssigneeId = assigneeChoices.some(
     (person) => person.id === assigneeId,
   )
@@ -85,7 +89,7 @@ export default function WorkItemCreateDialog({
     }
   }
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const normalizedTitle = title.trim();
     if (!normalizedTitle) {
@@ -97,14 +101,27 @@ export default function WorkItemCreateDialog({
     const assignee =
       assigneeChoices.find((person) => person.id === effectiveAssigneeId) ??
       defaultAssignee;
-    onCreate({
-      title: normalizedTitle,
-      type,
-      priority,
-      assignee,
-      dueDate: dueDate || null,
-      description: description.trim() || undefined,
-    });
+    setSubmitting(true);
+    setSubmitError("");
+    try {
+      const result = await onCreate({
+        title: normalizedTitle,
+        type,
+        priority,
+        assignee,
+        dueDate: dueDate || null,
+        description: description.trim() || undefined,
+      });
+      if (result === false) {
+        setSubmitError("Could not create the work item. Your entries are still here; please retry.");
+        return;
+      }
+    } catch {
+      setSubmitError("Could not create the work item. Your entries are still here; please retry.");
+      return;
+    } finally {
+      setSubmitting(false);
+    }
     setTitle("");
     setDescription("");
     setType("TASK");
@@ -114,6 +131,8 @@ export default function WorkItemCreateDialog({
     setValidationError("");
     if (createAnother) {
       titleRef.current?.focus();
+    } else {
+      onClose();
     }
   }
 
@@ -150,7 +169,7 @@ export default function WorkItemCreateDialog({
               id="work-create-description"
               className="mt-1 text-sm text-gray-500 dark:text-gray-400"
             >
-              {t("createDialogHint")}
+              {t(isPreview ? "createDialogHint" : "createDialogHintLive")}
             </p>
           </div>
           <div className="absolute end-4 top-4 flex items-center gap-1.5">
@@ -180,9 +199,11 @@ export default function WorkItemCreateDialog({
         </div>
 
         <form onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-6">
-          <div className="border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
-            {t("createPreviewNotice")}
-          </div>
+          {isPreview && (
+            <div className="border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+              {t("createPreviewNotice")}
+            </div>
+          )}
 
           <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("summaryLabel")} <span className="text-error-600">*</span>
@@ -339,11 +360,17 @@ export default function WorkItemCreateDialog({
               </Button>
               <Button
                 type="submit"
+                disabled={submitting}
                 className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
               >
-                {t("addToPreview")}
+                {submitting ? t("creatingTask") : t(isPreview ? "addToPreview" : "addTask")}
               </Button>
             </div>
+            {submitError && (
+              <p role="alert" className="text-sm text-error-600 dark:text-error-400">
+                {submitError}
+              </p>
+            )}
           </div>
         </form>
       </div>

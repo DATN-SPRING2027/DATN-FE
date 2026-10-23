@@ -13,9 +13,12 @@ import {
 import { useLocale, useTranslations } from"next-intl";
 import { CloseLineIcon, TaskIcon } from"@/icons";
 import { Modal } from"@/components/ui/modal";
+import Button from"@/components/ui/button/Button";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
+import WorklogDurationField from "./WorklogDurationField";
+import { parseWorklogMinutes } from "./worklog-duration";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -61,12 +64,16 @@ export default function WorkItemDetailDialog({
   people,
   currentUserPerson,
   initialSubtaskId = null,
+  worklogOpenRequest,
+  isActivityLoading = false,
+  isSubtaskActivityLoading = false,
   mode = "modal",
   isSkeletonLoading = false,
   onOpenFullPage,
   onSelectSubtask,
   onClose,
   onStatusChange,
+  onTitleChange,
   onPriorityChange,
   onAssigneeChange,
   onToggleSubtask,
@@ -80,18 +87,25 @@ export default function WorkItemDetailDialog({
   onMoveSubtaskToParent,
   onBulkUpdateSubtasks,
   onAddComment,
+  onAddSubtaskComment,
+  onAddWorklog,
+  onAddSubtaskWorklog,
 }: {
   item: WorkItem | null;
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
   initialSubtaskId?: string | null;
+  worklogOpenRequest?: { taskId: string; sequence: number } | null;
+  isActivityLoading?: boolean;
+  isSubtaskActivityLoading?: boolean;
   mode?: "modal" | "page";
   isSkeletonLoading?: boolean;
   onOpenFullPage?: (subtaskId?: string | null) => void;
   onSelectSubtask?: (subtaskId: string | null) => void;
   onClose: () => void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
+  onTitleChange?: (id: string, title: string) => Promise<boolean> | void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
@@ -131,7 +145,10 @@ export default function WorkItemDetailDialog({
     subtaskIds: readonly string[],
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) => void;
-  onAddComment?: (itemId: string, text: string) => void;
+  onAddComment?: (itemId: string, text: string) => Promise<boolean> | void;
+  onAddSubtaskComment?: (subtaskId: string, text: string) => Promise<boolean>;
+  onAddWorklog?: (itemId: string, minutes: number, note: string) => Promise<boolean>;
+  onAddSubtaskWorklog?: (subtaskId: string, minutes: number, note: string) => Promise<boolean>;
 }) {
   const t = useTranslations("work");
   const locale = useLocale();
@@ -188,6 +205,8 @@ export default function WorkItemDetailDialog({
     useState<ActivityTab>("all");
   const [subtaskWorklogTime, setSubtaskWorklogTime] = useState("");
   const [subtaskWorklogNote, setSubtaskWorklogNote] = useState("");
+  const [subtaskWorklogError, setSubtaskWorklogError] = useState<string | null>(null);
+  const [subtaskWorklogSaving, setSubtaskWorklogSaving] = useState(false);
   const [subtaskNotice, setSubtaskNotice] = useState<string | null>(null);
   // Inline expandable subtask detail rows inside parent's Subtasks table (default flat)
   const [expandedSubtaskIds, setExpandedSubtaskIds] = useState<Set<string>>(
@@ -209,29 +228,30 @@ export default function WorkItemDetailDialog({
     Record<string, string>
   >({});
   const [subtaskCommentInput, setSubtaskCommentInput] = useState("");
+  const [subtaskCommentSaving, setSubtaskCommentSaving] = useState(false);
+  const [subtaskCommentError, setSubtaskCommentError] = useState(false);
   const [editingSubtaskDesc, setEditingSubtaskDesc] = useState(false);
   const [subtaskDescDraft, setSubtaskDescDraft] = useState("");
   const [quickAddMenuOpen, setQuickAddMenuOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
+  const [commentSaving, setCommentSaving] = useState(false);
+  const [commentError, setCommentError] = useState(false);
+  const [editingItemTitle, setEditingItemTitle] = useState(false);
+  const [itemTitleDraft, setItemTitleDraft] = useState("");
+  const [itemTitleSaving, setItemTitleSaving] = useState(false);
+  const [itemTitleError, setItemTitleError] = useState(false);
   const [branchCreated, setBranchCreated] = useState(false);
   const [commitCopied, setCommitCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [watching, setWatching] = useState(true);
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
   const [aiEnhancedDesc, setAiEnhancedDesc] = useState<string | null>(null);
-  const [worklogs, setWorklogs] = useState<
-    { id: string; author: string; timeSpent: string; note: string }[]
-  >([
-    {
-      id: "wl-1",
-      author: "Minh Anh",
-      timeSpent: "2h 30m",
-      note: "Implemented initial service boundary and integration test cases.",
-    },
-  ]);
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
+  const [worklogError, setWorklogError] = useState<string | null>(null);
+  const [worklogSaving, setWorklogSaving] = useState(false);
   const [automationRan, setAutomationRan] = useState(false);
+  const isPersistedItem = /^[0-9a-f]{24}$/i.test(item?.id ?? "");
 
   function showSubtaskFeedback(msg: string) {
     setSubtaskNotice(msg);
@@ -240,11 +260,52 @@ export default function WorkItemDetailDialog({
     }, 2400);
   }
 
+  async function copyTaskLink(targetKey: string) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${window.location.pathname}${window.location.search}#${encodeURIComponent(targetKey)}`,
+      );
+      showSubtaskFeedback(`Copied link to ${targetKey}`);
+    } catch {
+      showSubtaskFeedback("Unable to copy this link. Check clipboard permissions and retry.");
+    }
+  }
+
   useEffect(() => {
     if (item && mode === "modal") {
       closeButtonRef.current?.focus();
     }
   }, [item, mode]);
+
+  useEffect(() => {
+    setItemTitleDraft(item?.title ?? "");
+    setEditingItemTitle(false);
+    setItemTitleError(false);
+  }, [item?.id, item?.title]);
+
+  async function saveItemTitle(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!item || !onTitleChange || itemTitleSaving) return;
+    const title = itemTitleDraft.trim();
+    if (!title) {
+      setItemTitleError(true);
+      return;
+    }
+    setItemTitleSaving(true);
+    setItemTitleError(false);
+    try {
+      if ((await onTitleChange(item.id, title)) === false) {
+        setItemTitleError(true);
+        return;
+      }
+      setEditingItemTitle(false);
+    } catch {
+      setItemTitleError(true);
+    } finally {
+      setItemTitleSaving(false);
+    }
+  }
 
   function selectSubtaskLayer(nextSubtaskId: string | null) {
     setIsSubtaskTransitioning(true);
@@ -293,7 +354,7 @@ export default function WorkItemDetailDialog({
     const nextSteps = [
       ...currentSteps,
       {
-        id: `${sub.id}-step-${currentSteps.length + 1}`,
+        id: `step-${crypto.randomUUID()}`,
         text: raw,
         done: false,
       },
@@ -308,26 +369,42 @@ export default function WorkItemDetailDialog({
     onUpdateSubtask(item.id, sub.id, { steps: nextSteps });
   }
 
-  function handleAddSubtaskComment(
+  async function handleAddSubtaskComment(
     event: FormEvent<HTMLFormElement>,
     sub: WorkSubtaskItem,
   ) {
     event.preventDefault();
-    if (!item || !onUpdateSubtask) return;
+    if (!item || (!onUpdateSubtask && !onAddSubtaskComment) || subtaskCommentSaving) return;
     const trimmed = subtaskCommentInput.trim();
     if (!trimmed) return;
-    const nextComments = [
-      ...(sub.comments ?? []),
-      {
-        id: `${sub.id}-c-${Date.now()}`,
-        author: mePerson.name,
-        initials: mePerson.initials,
-        text: trimmed,
-        createdAt: "Just now",
-      },
-    ];
-    onUpdateSubtask(item.id, sub.id, { comments: nextComments });
-    setSubtaskCommentInput("");
+    setSubtaskCommentSaving(true);
+    setSubtaskCommentError(false);
+    try {
+      if (onAddSubtaskComment) {
+        if (!(await onAddSubtaskComment(sub.id, trimmed))) {
+          setSubtaskCommentError(true);
+          return;
+        }
+      } else if (onUpdateSubtask) {
+        onUpdateSubtask(item.id, sub.id, {
+          comments: [
+            ...(sub.comments ?? []),
+            {
+              id: `${sub.id}-c-${Date.now()}`,
+              author: mePerson.name,
+              initials: mePerson.initials,
+              text: trimmed,
+              createdAt: formatCommentTimestamp(new Date()),
+            },
+          ],
+        });
+      }
+      setSubtaskCommentInput("");
+    } catch {
+      setSubtaskCommentError(true);
+    } finally {
+      setSubtaskCommentSaving(false);
+    }
   }
 
   function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
@@ -394,58 +471,75 @@ export default function WorkItemDetailDialog({
     );
   }
 
-  function handleAddSubtaskWorklog(
+  async function handleAddSubtaskWorklog(
     event: FormEvent<HTMLFormElement>,
     sub: WorkSubtaskItem,
   ) {
     event.preventDefault();
-    if (!item || !onUpdateSubtask) return;
-    const spent = subtaskWorklogTime.trim();
-    if (!spent) return;
-    const nextWorklogs = [
-      ...(sub.worklogs ?? []),
-      {
-        id: `${sub.id}-wl-${Date.now()}`,
-        author: mePerson.name,
-        timeSpent: spent,
-        note:
-          subtaskWorklogNote.trim() ||
-          `Logged engineering progress on ${sub.key}.`,
-        createdAt: "Just now",
-      },
-    ];
-    onUpdateSubtask(item.id, sub.id, {
-      loggedTime: spent,
-      worklogs: nextWorklogs,
-    });
-    setSubtaskWorklogTime("");
-    setSubtaskWorklogNote("");
-    showSubtaskFeedback(`Logged ${spent} on ${sub.key}`);
+    if (!onAddSubtaskWorklog || subtaskWorklogSaving) return;
+    const minutes = parseWorklogMinutes(subtaskWorklogTime);
+    if (!minutes) {
+      setSubtaskWorklogError(t("worklogInvalidDuration"));
+      return;
+    }
+    setSubtaskWorklogSaving(true);
+    setSubtaskWorklogError(null);
+    try {
+      if (await onAddSubtaskWorklog(sub.id, minutes, subtaskWorklogNote.trim())) {
+        setSubtaskWorklogTime("");
+        setSubtaskWorklogNote("");
+      } else {
+        setSubtaskWorklogError(t("worklogSaveFailed"));
+      }
+    } catch {
+      setSubtaskWorklogError(t("worklogSaveFailed"));
+    } finally {
+      setSubtaskWorklogSaving(false);
+    }
   }
 
-  function handleAddComment(event: FormEvent<HTMLFormElement>) {
+  async function handleAddComment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!item || !onAddComment) return;
+    if (!item || !onAddComment || commentSaving) return;
     const trimmed = commentInput.trim();
     if (!trimmed) return;
-    onAddComment(item.id, trimmed);
-    setCommentInput("");
+    setCommentSaving(true);
+    setCommentError(false);
+    try {
+      if ((await onAddComment(item.id, trimmed)) === false) {
+        setCommentError(true);
+        return;
+      }
+      setCommentInput("");
+    } catch {
+      setCommentError(true);
+    } finally {
+      setCommentSaving(false);
+    }
   }
 
-  function handleAddWorklog(event: FormEvent<HTMLFormElement>) {
+  async function handleAddWorklog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!worklogTime.trim()) return;
-    setWorklogs((current) => [
-      ...current,
-      {
-        id: `wl-${Date.now()}`,
-        author: mePerson.name,
-        timeSpent: worklogTime.trim(),
-        note: worklogNote.trim() ||"Logged engineering progress.",
-      },
-    ]);
-    setWorklogTime("");
-    setWorklogNote("");
+    if (!item || !onAddWorklog || worklogSaving) return;
+    const minutes = parseWorklogMinutes(worklogTime);
+    if (!minutes) {
+      setWorklogError(t("worklogInvalidDuration"));
+      return;
+    }
+    setWorklogSaving(true);
+    setWorklogError(null);
+    try {
+      if (await onAddWorklog(item.id, minutes, worklogNote.trim())) {
+        setWorklogTime("");
+        setWorklogNote("");
+      } else {
+        setWorklogError(t("worklogSaveFailed"));
+      }
+    } catch {
+      setWorklogError(t("worklogSaveFailed"));
+    } finally {
+      setWorklogSaving(false);
+    }
   }
 
   function handleImproveTaskWithAi() {
@@ -457,6 +551,7 @@ export default function WorkItemDetailDialog({
   }
 
   const subtaskList = item?.subtaskItems ?? [];
+  const showEstimateColumn = subtaskCols.estimate && !isPersistedItem;
   const parentCandidatesNewestFirst = useMemo(
     () =>
       [...allItems].sort(
@@ -465,9 +560,8 @@ export default function WorkItemDetailDialog({
       ),
     [allItems],
   );
-  const currentItemId = item?.id ?? null;
-  const existingTaskCandidates = useMemo<ExistingTaskCandidate[]>(() => {
-    if (!currentItemId) return [];
+  const existingTaskCandidates: ExistingTaskCandidate[] = (() => {
+    if (!item) return [];
 
     const candidates = allItems.flatMap((parent) => [
       {
@@ -491,15 +585,14 @@ export default function WorkItemDetailDialog({
     return candidates
       .filter(
         (candidate) =>
-          candidate.id !== currentItemId &&
-          candidate.parentId !== currentItemId,
+          candidate.id !== item.id && candidate.parentId !== item.id,
       )
       .sort((a, b) => {
         return (
           createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt)
         );
       });
-  }, [allItems, currentItemId]);
+  })();
   const selectedExistingTask = existingTaskCandidates.find(
     (candidate) => candidate.id === existingSubtaskTaskId,
   );
@@ -547,6 +640,15 @@ export default function WorkItemDetailDialog({
     : -1;
   const activeSubtask =
     activeSubtaskIndex >= 0 ? subtaskList[activeSubtaskIndex] : null;
+  useEffect(() => {
+    if (!worklogOpenRequest) return;
+    if (worklogOpenRequest.taskId === item?.id) {
+      setActivityTab("worklog");
+    } else if (worklogOpenRequest.taskId === activeSubtask?.id) {
+      setSubtaskActivityTab("worklog");
+    }
+  }, [activeSubtask?.id, item?.id, worklogOpenRequest]);
+  const isPersistedSubtask = /^[0-9a-f]{24}$/i.test(activeSubtask?.id ?? "");
   const allSubtasksInlineExpanded =
     subtaskList.length > 0 &&
     subtaskList.every((s) => expandedSubtaskIds.has(s.id));
@@ -708,7 +810,7 @@ export default function WorkItemDetailDialog({
           <p id="work-detail-description" className="sr-only">
             {activeSubtask
               ? `Subtask detail layer • Child of ${item.key} (${item.title})`
-              : t("detailPreviewHint")}
+              : `Work item details for ${item.key} (${item.title})`}
           </p>
         </div>
 
@@ -770,12 +872,7 @@ export default function WorkItemDetailDialog({
               const targetKey = activeSubtask
                 ? activeSubtask.key
                 : item.key;
-              if (typeof navigator !== "undefined") {
-                navigator.clipboard?.writeText(
-                  `${window.location.origin}${window.location.pathname}#${targetKey}`,
-                );
-              }
-              showSubtaskFeedback(`Copied link to ${targetKey}`);
+              void copyTaskLink(targetKey);
             }}
             title="Copy link"
             aria-label="Copy link"
@@ -802,7 +899,7 @@ export default function WorkItemDetailDialog({
                   aria-label="Subtask header actions"
                   className="absolute end-0 top-full z-40 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1.5 text-xs shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  {onUpdateSubtask && (
+                  {onUpdateSubtask && !isPersistedSubtask && (
                     <button
                       type="button"
                       onClick={() => {
@@ -820,7 +917,7 @@ export default function WorkItemDetailDialog({
                       <span>Assign to me ({mePerson.name})</span>
                     </button>
                   )}
-                  {onUpdateSubtask && (
+                  {!isPersistedSubtask && onUpdateSubtask && (
                     <button
                       type="button"
                       onClick={() => {
@@ -896,8 +993,8 @@ export default function WorkItemDetailDialog({
             </div>
           )}
 
-          {/* Watch Counter Toggle */}
-          <button
+          {/* Watch is local preview state until the Task API supports it. */}
+          {!isPersistedItem && <button
             type="button"
             onClick={() => setWatching((prev) => !prev)}
             title="Watch issue"
@@ -909,7 +1006,7 @@ export default function WorkItemDetailDialog({
           >
             <MonoIcon name="eye" className="h-3.5 w-3.5" />
             <span>{watching ? 2 : 1}</span>
-          </button>
+          </button>}
 
           {/* Open in Full Page View (Image 4) or Maximize Modal */}
           {mode === "modal" && (
@@ -1047,7 +1144,7 @@ export default function WorkItemDetailDialog({
                       >
                         {activeSubtask.summary}
                       </h2>
-                      {onUpdateSubtask && (
+                      {(onUpdateSubtask || onAddSubtaskComment) && (
                         <button
                           type="button"
                           onClick={() => {
@@ -1310,8 +1407,17 @@ export default function WorkItemDetailDialog({
                     </div>
                   </div>
 
-                  {(subtaskActivityTab === "all" ||
-                    subtaskActivityTab === "comments") && (
+                  {isSubtaskActivityLoading && (
+                    <p role="status" className="text-xs text-gray-500 dark:text-gray-400">
+                      {t("activityLoading")}
+                    </p>
+                  )}
+
+                  {subtaskActivityTab === "all" && (
+                    <ActivityFeed item={activeSubtask} onComments={() => setSubtaskActivityTab("comments")} onWorklog={() => setSubtaskActivityTab("worklog")} />
+                  )}
+
+                  {subtaskActivityTab === "comments" && (
                     <>
                       {onUpdateSubtask && (
                         <div className="space-y-2">
@@ -1347,11 +1453,17 @@ export default function WorkItemDetailDialog({
                             />
                             <button
                               type="submit"
-                              className="h-9 cursor-pointer rounded bg-brand-600 px-3.5 text-xs font-semibold text-white hover:bg-brand-700"
+                              disabled={subtaskCommentSaving || !subtaskCommentInput.trim()}
+                              className="h-9 cursor-pointer rounded bg-brand-600 px-3.5 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
                             >
-                              Comment
+                              {subtaskCommentSaving ? t("savingComment") : t("addComment")}
                             </button>
                           </form>
+                          {subtaskCommentError && (
+                            <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                              {t("commentSaveFailed")}
+                            </p>
+                          )}
                         </div>
                       )}
 
@@ -1367,8 +1479,8 @@ export default function WorkItemDetailDialog({
                                 <span className="font-semibold text-gray-900 dark:text-white">
                                   {c.author}
                                 </span>
-                                <span className="text-gray-400">
-                                  {c.createdAt}
+                                <span className="tabular-nums text-gray-400">
+                                  {formatCommentTimestamp(c.createdAt)}
                                 </span>
                               </div>
                               <p className="mt-1 text-gray-700 dark:text-gray-300">
@@ -1386,49 +1498,37 @@ export default function WorkItemDetailDialog({
                   )}
 
                   {subtaskActivityTab === "history" && (
-                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                      <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                        <strong>
-                          {(activeSubtask.assignee ?? item.assignee).name}
-                        </strong>{" "}
-                        updated subtask status to{" "}
-                        <strong>{activeSubtask.status}</strong> • Today
-                      </li>
-                      {(activeSubtask.history ?? []).map((h) => (
+                    activeSubtask.history?.length ? (
+                      <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                        {activeSubtask.history.map((h) => (
                         <li
                           key={h.id}
                           className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
                         >
-                          <strong>{h.author}</strong> {h.action} • {h.createdAt}
+                          <strong>{h.author}</strong> {h.action} • <time className="tabular-nums">{h.createdAt}</time>
                         </li>
-                      ))}
-                      <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                        <strong>
-                          {(activeSubtask.reporter ?? item.reporter).name}
-                        </strong>{" "}
-                        created subtask <strong>{activeSubtask.key}</strong>{" "}
-                        under parent <strong>{item.key}</strong>
-                      </li>
-                    </ul>
+                        ))}
+                      </ul>
+                    ) : <p className="text-xs text-gray-500 dark:text-gray-400">No history on this subtask yet.</p>
                   )}
 
                   {subtaskActivityTab === "worklog" && (
                     <div className="space-y-3">
-                      {onUpdateSubtask && (
+                      {onAddSubtaskWorklog && (
                         <form
                           onSubmit={(e) =>
                             handleAddSubtaskWorklog(e, activeSubtask)
                           }
                           className="flex flex-wrap items-center gap-2"
                         >
-                          <input
+                          <WorklogDurationField
+                            id="subtask-worklog-duration"
                             value={subtaskWorklogTime}
-                            onChange={(e) =>
-                              setSubtaskWorklogTime(e.target.value)
-                            }
-                            placeholder="Time spent (e.g. 1h 30m)"
-                            aria-label="Subtask worklog time spent"
-                            className="h-8 w-40 rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            onChange={(value) => {
+                              setSubtaskWorklogTime(value);
+                              setSubtaskWorklogError(null);
+                            }}
+                            error={subtaskWorklogError}
                           />
                           <input
                             value={subtaskWorklogNote}
@@ -1441,48 +1541,48 @@ export default function WorkItemDetailDialog({
                           />
                           <button
                             type="submit"
+                            disabled={subtaskWorklogSaving}
                             className="h-8 cursor-pointer rounded bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
                           >
-                            + Log subtask work
+                            {subtaskWorklogSaving ? t("worklogSaving") : "+ Log subtask work"}
                           </button>
                         </form>
                       )}
-                      <ul className="space-y-2 text-xs">
-                        {(activeSubtask.worklogs ?? []).map((wl) => (
-                          <li
-                            key={wl.id}
-                            className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
-                          >
-                            <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                              <span>{wl.author}</span>
-                              <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                                <MonoIcon name="clock" className="h-3.5 w-3.5" />
-                                <span>{wl.timeSpent}</span>
-                              </span>
-                            </div>
-                            <p className="mt-1 text-gray-600 dark:text-gray-300">
-                              {wl.note}
-                            </p>
-                          </li>
-                        ))}
-                        <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                          <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                            <span>
-                              {(activeSubtask.assignee ?? item.assignee).name}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                              <MonoIcon name="clock" className="h-3.5 w-3.5" />
-                              <span>
-                                {activeSubtask.loggedTime ?? "0h"} /{" "}
-                                {activeSubtask.estimate ?? "2h"}
-                              </span>
-                            </span>
-                          </div>
-                          <p className="mt-1 text-gray-600 dark:text-gray-300">
-                            Cumulative logged time on subtask {activeSubtask.key}.
-                          </p>
-                        </li>
-                      </ul>
+                      {activeSubtask.worklogs &&
+                      activeSubtask.worklogs.length > 0 ? (
+                        <ul className="space-y-2 text-xs">
+                          {activeSubtask.worklogs.map((wl) => (
+                            <li
+                              key={wl.id}
+                              className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
+                            >
+                              <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
+                                <div className="flex items-center gap-2">
+                                  <span>{wl.author}</span>
+                                  {wl.createdAt && (
+                                    <span className="tabular-nums font-normal text-gray-400">
+                                      {formatCommentTimestamp(wl.createdAt)}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="inline-flex items-center gap-1 tabular-nums text-gray-700 dark:text-gray-300">
+                                  <MonoIcon name="clock" className="h-3.5 w-3.5" />
+                                  <span>{wl.timeSpent}</span>
+                                </span>
+                              </div>
+                              {wl.note && (
+                                <p className="mt-1 text-gray-600 dark:text-gray-300">
+                                  {wl.note}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          No work logged on this subtask yet.
+                        </p>
+                      )}
                     </div>
                   )}
                 </section>
@@ -1684,9 +1784,11 @@ export default function WorkItemDetailDialog({
 
                       <DetailField label="Time tracking">
                         <div className="flex items-center gap-1.5 px-1.5 text-xs text-gray-700 dark:text-gray-300">
-                          <span>{activeSubtask.loggedTime ?? "0h"}</span>
-                          <span className="text-gray-400">/</span>
-                          <span>{activeSubtask.estimate ?? "2h"}</span>
+                          <span>{activeSubtask.loggedTime ?? (isPersistedSubtask ? "—" : "0h")}</span>
+                          {!isPersistedSubtask && <>
+                            <span className="text-gray-400">/</span>
+                            <span>{activeSubtask.estimate ?? "2h"}</span>
+                          </>}
                         </div>
                       </DetailField>
 
@@ -1701,6 +1803,9 @@ export default function WorkItemDetailDialog({
                   )}
                 </section>
 
+                {/* Preview-only mock integration action */}
+                {!isPersistedSubtask && (
+                <>
                 {/* Subtask Development Git Card */}
                 <section className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
                   <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
@@ -1724,6 +1829,8 @@ export default function WorkItemDetailDialog({
                     </button>
                   </div>
                 </section>
+                </>
+                )}
               </aside>
             </div>
           ) : (
@@ -1750,23 +1857,78 @@ export default function WorkItemDetailDialog({
                   ))}
                 </div>
 
-                {/* Improve Task AI Copilot Button */}
-                <button
-                  type="button"
-                  onClick={handleImproveTaskWithAi}
-                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  <MonoIcon name="sparkle"className="h-3.5 w-3.5"/>
-                  <span>Improve Task</span>
-                </button>
+                {!isPersistedItem && (
+                  <button
+                    type="button"
+                    onClick={handleImproveTaskWithAi}
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    <MonoIcon name="sparkle"className="h-3.5 w-3.5"/>
+                    <span>Improve Task</span>
+                  </button>
+                )}
               </div>
 
-              <h2
-                id="work-detail-title"
-                className="text-xl font-semibold leading-7 text-gray-900 sm:text-2xl dark:text-white/90"
-              >
-                {item.title}
-              </h2>
+              {editingItemTitle ? (
+                <form onSubmit={saveItemTitle} className="space-y-2">
+                  <label className="sr-only" htmlFor="work-item-title-input">
+                    {t("taskTitleLabel")}
+                  </label>
+                  <input
+                    id="work-item-title-input"
+                    value={itemTitleDraft}
+                    onChange={(event) => setItemTitleDraft(event.target.value)}
+                    maxLength={200}
+                    autoFocus
+                    className="w-full border border-gray-300 bg-white px-3 py-2 text-base font-semibold text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button type="submit" size="sm" disabled={itemTitleSaving}>
+                      {itemTitleSaving ? t("worklogSaving") : t("saveTaskTitle")}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={itemTitleSaving}
+                      onClick={() => {
+                        setItemTitleDraft(item.title);
+                        setEditingItemTitle(false);
+                        setItemTitleError(false);
+                      }}
+                    >
+                      {t("cancel")}
+                    </Button>
+                    {itemTitleError && (
+                      <span role="alert" className="text-xs text-red-600 dark:text-red-400">
+                        {t("taskTitleSaveFailed")}
+                      </span>
+                    )}
+                  </div>
+                </form>
+              ) : (
+                <div className="flex flex-wrap items-start gap-2">
+                  <h2
+                    id="work-detail-title"
+                    className="min-w-0 flex-1 text-xl font-semibold leading-7 text-gray-900 sm:text-2xl dark:text-white/90"
+                  >
+                    {item.title}
+                  </h2>
+                  {onTitleChange && (
+                    <button
+                      type="button"
+                      aria-label={t("editTaskTitle")}
+                      onClick={() => {
+                        setItemTitleDraft(item.title);
+                        setEditingItemTitle(true);
+                      }}
+                      className="cursor-pointer rounded px-2 py-1 text-xs font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-400 dark:hover:bg-brand-500/10"
+                    >
+                      {t("editTaskTitle")}
+                    </button>
+                  )}
+                </div>
+              )}
 
               {/* Jira Cloud Quick Action Bar under Title (`19-task-detail-view-open.png`, `24a-task-detail-plus-add-dropdown.png`) */}
               <div className="relative flex flex-wrap items-center gap-1.5">
@@ -2055,7 +2217,8 @@ export default function WorkItemDetailDialog({
                               { key: "estimate", label: "Time estimate" },
                               { key: "status", label: "Status" },
                             ] as const
-                          ).map((col) => (
+                          ).filter((col) => !isPersistedItem || col.key !== "estimate").map((col) => {
+                            return (
                             <label
                               key={col.key}
                               className="flex cursor-pointer items-center justify-between py-1 text-gray-700 dark:text-gray-200"
@@ -2073,7 +2236,8 @@ export default function WorkItemDetailDialog({
                                 className="h-3.5 w-3.5 cursor-pointer border-gray-300 text-brand-600"
                               />
                             </label>
-                          ))}
+                            );
+                          })}
                         </div>
                       )}
                     </div>
@@ -2196,7 +2360,7 @@ export default function WorkItemDetailDialog({
                               Due date
                             </th>
                           )}
-                          {subtaskCols.estimate && (
+                          {showEstimateColumn && (
                             <th className="w-[10%] px-1.5 py-2 text-start">
                               Est.
                             </th>
@@ -2228,7 +2392,7 @@ export default function WorkItemDetailDialog({
                             Number(subtaskCols.priority) +
                             Number(subtaskCols.assignee) +
                             Number(subtaskCols.due) +
-                            Number(subtaskCols.estimate) +
+                            Number(showEstimateColumn) +
                             Number(subtaskCols.status);
 
                           return (
@@ -2282,16 +2446,7 @@ export default function WorkItemDetailDialog({
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => {
-                                        if (typeof navigator !== "undefined") {
-                                          navigator.clipboard?.writeText(
-                                            `${window.location.origin}${window.location.pathname}#${sub.key}`,
-                                          );
-                                        }
-                                        showSubtaskFeedback(
-                                          `Copied subtask link for ${sub.key}`,
-                                        );
-                                      }}
+                                      onClick={() => void copyTaskLink(sub.key)}
                                       title={`Copy link to ${sub.key}`}
                                       aria-label={`Copy link to ${sub.key}`}
                                       className="invisible inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-gray-400 hover:text-gray-800 group-hover/sub:visible dark:hover:text-white"
@@ -2459,9 +2614,9 @@ export default function WorkItemDetailDialog({
                                   </td>
                                 )}
 
-                                {subtaskCols.estimate && (
+                                {showEstimateColumn && (
                                   <td className="px-1.5 py-2 align-middle font-mono text-[11px] text-gray-600 dark:text-gray-300">
-                                    {sub.loggedTime ?? "0h"}/
+                                    {sub.loggedTime ?? (isPersistedItem ? "—" : "0h")}/
                                     {sub.estimate ?? "2h"}
                                   </td>
                                 )}
@@ -2583,7 +2738,7 @@ export default function WorkItemDetailDialog({
                                           <span>Assign to me</span>
                                         </button>
                                       )}
-                                      {onUpdateSubtask && (
+                                      {!isPersistedSubtask && onUpdateSubtask && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2745,13 +2900,10 @@ export default function WorkItemDetailDialog({
                                             <span>{sub.key} Detail Layer</span>
                                           </span>
                                           <span>
-                                            Est:{" "}
+                                            {!isPersistedItem && <>Est:{" "}<strong>{sub.estimate ?? "2h"}</strong>{" "}• </>}
+                                            Logged:{" "}
                                             <strong>
-                                              {sub.estimate ?? "2h"}
-                                            </strong>{" "}
-                                            • Logged:{" "}
-                                            <strong>
-                                              {sub.loggedTime ?? "0h"}
+                                              {sub.loggedTime ?? (isPersistedItem ? "—" : "0h")}
                                             </strong>
                                           </span>
                                           {(sub.dueDate ?? item.dueDate) && (
@@ -3051,15 +3203,17 @@ export default function WorkItemDetailDialog({
                             }
                             className="h-7 border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
                           />
-                          <input
-                            value={subtaskEstimateInput}
-                            onChange={(e) =>
-                              setSubtaskEstimateInput(e.target.value)
-                            }
-                            placeholder="Est (2h)"
-                            aria-label="New subtask estimate"
-                            className="h-7 w-16 border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
-                          />
+                          {!isPersistedItem && (
+                            <input
+                              value={subtaskEstimateInput}
+                              onChange={(e) =>
+                                setSubtaskEstimateInput(e.target.value)
+                              }
+                              placeholder="Est (2h)"
+                              aria-label="New subtask estimate"
+                              className="h-7 w-16 border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                            />
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <button
@@ -3130,7 +3284,17 @@ export default function WorkItemDetailDialog({
                   </div>
                 </div>
 
-                {(activityTab ==="all"|| activityTab ==="comments") && (
+                {isActivityLoading && (
+                  <p role="status" className="text-xs text-gray-500 dark:text-gray-400">
+                    {t("activityLoading")}
+                  </p>
+                )}
+
+                {activityTab === "all" && (
+                  <ActivityFeed item={item} onComments={() => setActivityTab("comments")} onWorklog={() => setActivityTab("worklog")} />
+                )}
+
+                {activityTab === "comments" && (
                   <>
                     {onAddComment && (
                       <div className="space-y-2">
@@ -3165,11 +3329,17 @@ export default function WorkItemDetailDialog({
                           />
                           <button
                             type="submit"
-                            className="h-9 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600"
+                            disabled={commentSaving || !commentInput.trim()}
+                            className="h-9 cursor-pointer bg-brand-500 px-3.5 text-xs font-semibold text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
                           >
-                            Save
+                            {commentSaving ? t("savingComment") : t("saveComment")}
                           </button>
                         </form>
+                        {commentError && (
+                          <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+                            {t("commentSaveFailed")}
+                          </p>
+                        )}
                         <p className="text-[11px] text-gray-400">
                           <strong>Pro tip:</strong> press{""}
                           <kbd className="border border-gray-300 bg-gray-100 px-1 py-0.5 text-[10px] font-semibold text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
@@ -3191,8 +3361,8 @@ export default function WorkItemDetailDialog({
                               <span className="font-semibold text-gray-900 dark:text-white/90">
                                 {comment.author}
                               </span>
-                              <span className="text-gray-400">
-                                {comment.createdAt}
+                              <span className="tabular-nums text-gray-400">
+                                {formatCommentTimestamp(comment.createdAt)}
                               </span>
                             </div>
                             <p className="mt-1 text-gray-700 dark:text-gray-300">
@@ -3209,30 +3379,32 @@ export default function WorkItemDetailDialog({
                   </>
                 )}
 
-                {activityTab ==="history"&& (
-                  <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                    <li className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
-                      <strong>{item.assignee.name}</strong> updated status to{""}
-                      <strong>{item.status}</strong> • Today
-                    </li>
-                    <li className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
-                      <strong>{item.reporter.name}</strong> created work item{""}
-                      <strong>{item.key}</strong>
-                    </li>
-                  </ul>
+                {activityTab === "history" && (
+                  item.history?.length ? (
+                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                      {item.history.map((event) => (
+                        <li key={event.id} className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
+                          <strong>{event.author}</strong> {event.action} • <time className="tabular-nums">{event.createdAt}</time>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : <p className="text-xs text-gray-500 dark:text-gray-400">No history on this work item yet.</p>
                 )}
 
-                {activityTab ==="worklog"&& (
+                {activityTab === "worklog" && (
                   <div className="space-y-3">
-                    <form
+                    {onAddWorklog && <form
                       onSubmit={handleAddWorklog}
                       className="flex flex-wrap items-center gap-2"
                     >
-                      <input
+                      <WorklogDurationField
+                        id="task-worklog-duration"
                         value={worklogTime}
-                        onChange={(event) => setWorklogTime(event.target.value)}
-                        placeholder="Time spent (e.g. 1h 30m)"
-                        className="h-8 w-40 border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        onChange={(value) => {
+                          setWorklogTime(value);
+                          setWorklogError(null);
+                        }}
+                        error={worklogError}
                       />
                       <input
                         value={worklogNote}
@@ -3242,30 +3414,46 @@ export default function WorkItemDetailDialog({
                       />
                       <button
                         type="submit"
+                        disabled={worklogSaving}
                         className="h-8 cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
                       >
-                        + Log work
+                        {worklogSaving ? t("worklogSaving") : "+ Log work"}
                       </button>
-                    </form>
-                    <ul className="space-y-2 text-xs">
-                      {worklogs.map((wl) => (
-                        <li
-                          key={wl.id}
-                          className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900"
-                        >
-                          <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                            <span>{wl.author}</span>
-                            <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                              <MonoIcon name="clock"className="h-3.5 w-3.5"/>
-                              <span>{wl.timeSpent}</span>
-                            </span>
-                          </div>
-                          <p className="mt-1 text-gray-600 dark:text-gray-300">
-                            {wl.note}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
+                    </form>}
+                    {item.worklogs && item.worklogs.length > 0 ? (
+                      <ul className="space-y-2 text-xs">
+                        {item.worklogs.map((wl) => (
+                          <li
+                            key={wl.id}
+                            className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900"
+                          >
+                            <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
+                              <div className="flex items-center gap-2">
+                                <span>{wl.author}</span>
+                                {wl.createdAt && (
+                                  <span className="tabular-nums font-normal text-gray-400">
+                                    {formatCommentTimestamp(wl.createdAt)}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="inline-flex items-center gap-1 tabular-nums text-gray-700 dark:text-gray-300">
+                                <MonoIcon name="clock"className="h-3.5 w-3.5"/>
+                                <span>{wl.timeSpent}</span>
+                              </span>
+                            </div>
+                            {wl.note && (
+                              <p className="mt-1 text-gray-600 dark:text-gray-300">
+                                {wl.note}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No work logged on this work item yet.
+                      </p>
+                    )}
                   </div>
                 )}
               </section>
@@ -3474,6 +3662,7 @@ export default function WorkItemDetailDialog({
                 )}
               </section>
 
+              {!isPersistedItem && <>
               {/* Development Accordion Card */}
               <section
                 aria-label="Development git actions"
@@ -3543,10 +3732,8 @@ export default function WorkItemDetailDialog({
                   <span>Run automation check</span>
                 </button>
               </section>
+              </>}
 
-              <p className="sr-only">
-                {t("detailPreviewNotice")}
-              </p>
             </aside>
           </div>
           )}
@@ -3600,5 +3787,86 @@ function PersonValue({ person }: { person: WorkPerson }) {
       </span>
       <span className="truncate">{person.name}</span>
     </span>
+  );
+}
+
+function formatCommentTimestamp(value: string | Date): string {
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?$/.test(value.trim())
+  ) {
+    return value.trim();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return typeof value === "string" ? value : "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+function ActivityFeed({
+  item,
+  onComments,
+  onWorklog,
+}: {
+  item: Pick<WorkItem, "comments" | "worklogs" | "history">;
+  onComments: () => void;
+  onWorklog: () => void;
+}) {
+  const entries = [
+    ...(item.comments ?? []).map((comment) => ({
+      key: `comment-${comment.id}`,
+      author: comment.author,
+      createdAt: comment.createdAt,
+      label: "Comment",
+      body: comment.text,
+    })),
+    ...(item.history ?? []).map((event) => ({
+      key: `history-${event.id}`,
+      author: event.author,
+      createdAt: event.createdAt,
+      label: "History",
+      body: event.action,
+    })),
+    ...(item.worklogs ?? []).map((worklog) => ({
+      key: `worklog-${worklog.id}`,
+      author: worklog.author,
+      createdAt: worklog.createdAt ?? "",
+      label: "Work log",
+      body: `${worklog.timeSpent}${worklog.note ? ` · ${worklog.note}` : ""}`,
+    })),
+  ].sort((a, b) => createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt));
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap gap-2">
+        <button type="button" onClick={onComments} className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+          Add comment
+        </button>
+        <button type="button" onClick={onWorklog} className="border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800">
+          Log work
+        </button>
+      </div>
+      {entries.length > 0 ? (
+        <ul className="space-y-2 text-xs">
+          {entries.map((entry) => (
+            <li key={entry.key} className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex flex-wrap items-center justify-between gap-1">
+                <span className="font-semibold text-gray-900 dark:text-white">{entry.author} · {entry.label}</span>
+                <time className="tabular-nums text-gray-500 dark:text-gray-400">{formatCommentTimestamp(entry.createdAt)}</time>
+              </div>
+              <p className="mt-1 text-gray-700 dark:text-gray-300">{entry.body}</p>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-gray-500 dark:text-gray-400">No activity on this work item yet.</p>
+      )}
+    </div>
   );
 }

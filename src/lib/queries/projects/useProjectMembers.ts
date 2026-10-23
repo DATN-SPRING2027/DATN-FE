@@ -25,6 +25,8 @@ export const projectMemberKeys = {
     projectId: string,
     filter: ProjectMemberFilter,
   ) => [...projectMemberKeys.scope(organizationId, projectId), filter] as const,
+  all: (organizationId: string, projectId: string, status?: "ACTIVE" | "INACTIVE") =>
+    [...projectMemberKeys.scope(organizationId, projectId), "all", status ?? "ALL"] as const,
   candidates: (
     organizationId: string,
     projectId: string,
@@ -41,6 +43,36 @@ function path(organizationId: string, projectId: string) {
   if (!organizationId || !isResourceId(projectId))
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid Project context");
   return `/iam/projects/${encodeURIComponent(projectId)}/memberships`;
+}
+
+async function fetchProjectMemberPage(
+  organizationId: string,
+  projectId: string,
+  filter: ProjectMemberFilter,
+  signal: AbortSignal,
+) {
+  if (
+    !Number.isInteger(filter.page) ||
+    filter.page < 1 ||
+    !Number.isInteger(filter.pageSize) ||
+    filter.pageSize < 1 ||
+    filter.pageSize > 100 ||
+    (filter.status !== undefined &&
+      !["ACTIVE", "INACTIVE"].includes(filter.status))
+  )
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid member list filter");
+  const params = new URLSearchParams({
+    page: String(filter.page),
+    pageSize: String(filter.pageSize),
+  });
+  if (filter.status) params.set("status", filter.status);
+  return apiClient<unknown>(
+    `${path(organizationId, projectId)}?${params}`,
+    {
+      signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+      cache: "no-store",
+    },
+  ).then((data) => parseMemberPage(data, organizationId, projectId));
 }
 
 function requireId(id: string) {
@@ -67,33 +99,46 @@ export function useProjectMembersQuery(
     gcTime: 0,
     refetchOnWindowFocus: true,
     networkMode: "always",
-    queryFn: ({ signal }) => {
-      if (
-        !Number.isInteger(filter.page) ||
-        filter.page < 1 ||
-        !Number.isInteger(filter.pageSize) ||
-        filter.pageSize < 1 ||
-        filter.pageSize > 100 ||
-        (filter.status !== undefined &&
-          !["ACTIVE", "INACTIVE"].includes(filter.status))
-      )
-        throw new ApiError(
-          422,
-          "VALIDATION_FAILED",
-          "Invalid member list filter",
+    queryFn: ({ signal }) => fetchProjectMemberPage(organizationId, projectId, filter, signal),
+  });
+}
+
+export function useProjectMembersAllQuery(
+  organizationId: string,
+  projectId: string,
+  filter: Pick<ProjectMemberFilter, "status"> = {},
+) {
+  return useQuery({
+    queryKey: projectMemberKeys.all(organizationId, projectId, filter.status),
+    enabled: Boolean(organizationId && isResourceId(projectId)),
+    retry: false,
+    throwOnError: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
+    networkMode: "always",
+    queryFn: async ({ signal }) => {
+      const pageSize = 100;
+      const first = await fetchProjectMemberPage(
+        organizationId,
+        projectId,
+        { page: 1, pageSize, status: filter.status },
+        signal,
+      );
+      const members = [...first.data];
+      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+        const response = await fetchProjectMemberPage(
+          organizationId,
+          projectId,
+          { page, pageSize, status: filter.status },
+          signal,
         );
-      const params = new URLSearchParams({
-        page: String(filter.page),
-        pageSize: String(filter.pageSize),
-      });
-      if (filter.status) params.set("status", filter.status);
-      return apiClient<unknown>(
-        `${path(organizationId, projectId)}?${params}`,
-        {
-          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-          cache: "no-store",
-        },
-      ).then((data) => parseMemberPage(data, organizationId, projectId));
+        if (response.pagination.page !== page) {
+          throw new ApiError(502, "INVALID_PROJECT_MEMBER_RESPONSE", "Project member pagination changed while loading");
+        }
+        members.push(...response.data);
+      }
+      return members;
     },
   });
 }

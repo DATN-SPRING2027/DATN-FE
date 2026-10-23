@@ -457,9 +457,10 @@ export async function fetchTaskComments(
   projectId: string,
   taskId: string,
   signal?: AbortSignal,
+  afterId?: string,
 ): Promise<BackendTaskCommentListResponse> {
   return apiClient<BackendTaskCommentListResponse>(
-    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments?limit=100`,
+    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments?limit=100${afterId ? `&afterId=${encodeURIComponent(afterId)}` : ""}`,
     {
       signal,
       cache: "no-store",
@@ -486,9 +487,10 @@ export async function fetchTaskWorklogs(
   projectId: string,
   taskId: string,
   signal?: AbortSignal,
+  afterId?: string,
 ): Promise<BackendTaskWorklogListResponse> {
   return apiClient<BackendTaskWorklogListResponse>(
-    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/worklogs?limit=100`,
+    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/worklogs?limit=100${afterId ? `&afterId=${encodeURIComponent(afterId)}` : ""}`,
     {
       signal,
       cache: "no-store",

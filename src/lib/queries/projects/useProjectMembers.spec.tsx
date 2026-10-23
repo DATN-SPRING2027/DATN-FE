@@ -6,6 +6,7 @@ import { apiClient, ApiError } from "@/lib/api-client";
 import {
   useProjectMemberCandidatesQuery,
   useProjectMembersQuery,
+  useProjectMembersAllQuery,
   useAddProjectMember,
   useRemoveProjectMember,
 } from "./useProjectMembers";
@@ -48,6 +49,48 @@ it("lists the documented page and status without role inference", async () => {
   await waitFor(() => expect(result.current.isSuccess).toBe(true));
   expect(api).toHaveBeenCalledWith(
     `/iam/projects/${projectId}/memberships?page=1&pageSize=20&status=ACTIVE`,
+    expect.objectContaining({ signal: expect.any(AbortSignal) }),
+  );
+});
+it("loads every active Project member page for complete assignee choices", async () => {
+  api
+    .mockResolvedValueOnce({
+      data: [{
+        id: membershipId,
+        organizationId: "org",
+        projectId,
+        userId,
+        status: "ACTIVE",
+        joinedAt: "2026-10-01T00:00:00Z",
+      }],
+      pagination: { page: 1, pageSize: 100, totalItems: 101, totalPages: 2 },
+    })
+    .mockResolvedValueOnce({
+      data: [{
+        id: "123456789012345678901237",
+        organizationId: "org",
+        projectId,
+        userId: "123456789012345678901238",
+        status: "ACTIVE",
+        joinedAt: "2026-10-02T00:00:00Z",
+      }],
+      pagination: { page: 2, pageSize: 100, totalItems: 101, totalPages: 2 },
+    });
+  const { result } = renderHook(
+    () => useProjectMembersAllQuery("org", projectId, { status: "ACTIVE" }),
+    { wrapper: wrapper() },
+  );
+
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data).toHaveLength(2);
+  expect(api).toHaveBeenNthCalledWith(
+    1,
+    `/iam/projects/${projectId}/memberships?page=1&pageSize=100&status=ACTIVE`,
+    expect.objectContaining({ signal: expect.any(AbortSignal) }),
+  );
+  expect(api).toHaveBeenNthCalledWith(
+    2,
+    `/iam/projects/${projectId}/memberships?page=2&pageSize=100&status=ACTIVE`,
     expect.objectContaining({ signal: expect.any(AbortSignal) }),
   );
 });

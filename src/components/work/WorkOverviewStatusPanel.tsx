@@ -6,7 +6,9 @@ const STATUS_HEX: Record<WorkStatus, string> = {
   DONE:"#22A06B",
   IN_REVIEW:"#8270DB",
   IN_PROGRESS:"#0C66E4",
+  BLOCKED:"#E11D48",
   TODO:"#E56910",
+  CANCELLED:"#6B7280",
 };
 
 export default function WorkOverviewStatusPanel({

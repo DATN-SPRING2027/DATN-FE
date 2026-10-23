@@ -231,6 +231,7 @@ export default function WorkPageHeader({
   onToggleFullscreen,
   itemCount,
   hideProjectBanner = false,
+  isPreview = false,
 }: {
   projectId: string;
   projectName: string;
@@ -246,6 +247,7 @@ export default function WorkPageHeader({
   onToggleFullscreen?: () => void;
   itemCount?: number;
   hideProjectBanner?: boolean;
+  isPreview?: boolean;
 }) {
   const t = useTranslations("work");
   const [copiedLink, setCopiedLink] = useState(false);
@@ -401,9 +403,9 @@ export default function WorkPageHeader({
                 </select>
               </label>
             )}
-            <span className="hidden shrink-0 rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 md:inline-flex dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+            {isPreview && <span className="hidden shrink-0 rounded border border-gray-300 bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-700 md:inline-flex dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
               {t("previewData")}
-            </span>
+            </span>}
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">

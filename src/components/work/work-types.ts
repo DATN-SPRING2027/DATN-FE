@@ -1,8 +1,10 @@
 export const WORK_STATUS_ORDER = [
   "TODO",
   "IN_PROGRESS",
+  "BLOCKED",
   "IN_REVIEW",
   "DONE",
+  "CANCELLED",
 ] as const;
 
 export type WorkStatus = (typeof WORK_STATUS_ORDER)[number];
@@ -94,6 +96,8 @@ export type WorkItem = Readonly<{
   subtasks: Readonly<{ completed: number; total: number }>;
   subtaskItems?: readonly WorkSubtaskItem[];
   comments?: readonly WorkCommentItem[];
+  worklogs?: readonly WorkSubtaskWorklogItem[];
+  history?: readonly WorkSubtaskHistoryItem[];
 }>;
 
 export type WorkFilterOperator = "is" | "is_not" | "contains";

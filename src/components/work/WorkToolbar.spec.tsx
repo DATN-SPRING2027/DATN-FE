@@ -4,6 +4,7 @@ import WorkToolbar from "./WorkToolbar";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("@/icons", () => ({
+  ChevronDownIcon: () => null,
   FilterIcon: () => null,
   GridIcon: () => null,
   SearchIcon: () => null,
@@ -31,9 +32,11 @@ describe("WorkToolbar", () => {
       screen.queryByRole("button", { name: "clearFilters" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "statusScope" })).toBeVisible();
-    expect(screen.getByRole("option", { name: "TODO" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "statuses.TODO" })).toBeInTheDocument();
     expect(
-      screen.getByRole("option", { name: "IN_PROGRESS" }),
+      screen.getByRole("option", { name: "statuses.IN_PROGRESS" }),
     ).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "statuses.BLOCKED" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "statuses.CANCELLED" })).toBeInTheDocument();
   });
 });

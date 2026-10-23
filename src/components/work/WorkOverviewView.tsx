@@ -42,8 +42,10 @@ export default function WorkOverviewView({
   const statusCounts: Record<WorkStatus, number> = {
     TODO: 0,
     IN_PROGRESS: 0,
+    BLOCKED: 0,
     IN_REVIEW: 0,
     DONE: 0,
+    CANCELLED: 0,
   };
   const priorityCounts: Record<WorkPriority, number> = {
     HIGH: 0,

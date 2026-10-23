@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkItemDetailDialog from "./WorkItemDetailDialog";
 import type { WorkItem } from "./work-types";
@@ -51,6 +51,25 @@ const sampleItemWithSubtasks: WorkItem = {
 };
 
 describe("WorkItemDetailDialog", () => {
+  it("orders comments, history and worklogs together in All by newest first", () => {
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          comments: [{ id: "c1", author: "Minh Anh", initials: "MA", createdAt: "2026-10-23 10:00", text: "old comment" }],
+          history: [{ id: "h1", author: "Thu Hà", createdAt: "2026-10-23 11:00", action: "changed status" }],
+          worklogs: [{ id: "w1", author: "Minh Anh", createdAt: "2026-10-23 12:00", timeSpent: "1h", note: "newest work" }],
+        }}
+        onClose={vi.fn()}
+      />,
+    );
+    const worklog = screen.getByText("1h · newest work");
+    const history = screen.getByText("changed status");
+    const comment = screen.getByText("old comment");
+    expect(worklog.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(history.compareDocumentPosition(comment) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
   it("formats the created date with the active locale", () => {
     const expectedDate = new Intl.DateTimeFormat("de-DE", {
       dateStyle: "medium",
@@ -97,6 +116,7 @@ describe("WorkItemDetailDialog", () => {
 
   it("supports drilling into 4th-level Subtask Detail view with breadcrumbs, worklog, and parent actions", () => {
     const onUpdateSubtask = vi.fn();
+    const onAddSubtaskWorklog = vi.fn().mockResolvedValue(true);
 
     render(
       <WorkItemDetailDialog
@@ -104,6 +124,7 @@ describe("WorkItemDetailDialog", () => {
         initialSubtaskId="sub-2"
         onClose={vi.fn()}
         onUpdateSubtask={onUpdateSubtask}
+        onAddSubtaskWorklog={onAddSubtaskWorklog}
       />,
     );
 
@@ -118,5 +139,89 @@ describe("WorkItemDetailDialog", () => {
     expect(
       screen.getByRole("button", { name: "+ Log subtask work" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps worklog inputs visible when the server rejects the entry", async () => {
+    const onAddWorklog = vi.fn().mockResolvedValue(false);
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+        onAddWorklog={onAddWorklog}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Work log" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "worklogDurationLabel" }), {
+      target: { value: "30m" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Work description…"), {
+      target: { value: "Investigated task failure" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
+
+    await waitFor(() => expect(onAddWorklog).toHaveBeenCalledWith("work-1", 30, "Investigated task failure"));
+    expect(screen.getByRole("textbox", { name: "worklogDurationLabel" })).toHaveValue("30m");
+    expect(screen.getByPlaceholderText("Work description…")).toHaveValue("Investigated task failure");
+    expect(screen.getByRole("alert")).toHaveTextContent("worklogSaveFailed");
+  });
+
+  it("keeps the selected quick duration visible and submits it in minutes", async () => {
+    const onAddWorklog = vi.fn().mockResolvedValue(true);
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+        onAddWorklog={onAddWorklog}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Work log" }));
+    const quickDuration = screen.getByRole("combobox", { name: "worklogQuickDuration" });
+    fireEvent.change(quickDuration, { target: { value: "30m" } });
+
+    expect(quickDuration).toHaveValue("30m");
+    expect(screen.getByRole("textbox", { name: "worklogDurationLabel" })).toHaveValue("30m");
+    fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
+    await waitFor(() => expect(onAddWorklog).toHaveBeenCalledWith("work-1", 30, ""));
+  });
+
+  it("keeps a comment draft when the server rejects it", async () => {
+    const onAddComment = vi.fn().mockResolvedValue(false);
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+        onAddComment={onAddComment}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Comments" }));
+    const input = screen.getByPlaceholderText("Add a comment…");
+    fireEvent.change(input, { target: { value: "Keep this comment draft" } });
+    fireEvent.click(screen.getByRole("button", { name: "saveComment" }));
+
+    await waitFor(() => expect(onAddComment).toHaveBeenCalledWith("work-1", "Keep this comment draft"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("commentSaveFailed");
+    expect(input).toHaveValue("Keep this comment draft");
+  });
+
+  it("keeps a title draft when the server rejects the edit", async () => {
+    const onTitleChange = vi.fn().mockResolvedValue(false);
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+        onTitleChange={onTitleChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "editTaskTitle" }));
+    const input = screen.getByRole("textbox", { name: "taskTitleLabel" });
+    fireEvent.change(input, { target: { value: "Updated work item title" } });
+    fireEvent.click(screen.getByRole("button", { name: "saveTaskTitle" }));
+
+    await waitFor(() => expect(onTitleChange).toHaveBeenCalledWith("work-1", "Updated work item title"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("taskTitleSaveFailed");
+    expect(input).toHaveValue("Updated work item title");
   });
 });

@@ -582,8 +582,10 @@ export default function WorkToolbar({
                 <option value="ALL">{t("allStatuses")}</option>
                 <option value="TODO">{t("statuses.TODO")}</option>
                 <option value="IN_PROGRESS">{t("statuses.IN_PROGRESS")}</option>
+                <option value="BLOCKED">{t("statuses.BLOCKED")}</option>
                 <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
                 <option value="DONE">{t("statuses.DONE")}</option>
+                <option value="CANCELLED">{t("statuses.CANCELLED")}</option>
               </select>
               <ChevronDownIcon
                 className="pointer-events-none absolute end-0 h-3.5 w-3.5 text-gray-500 dark:text-gray-400"

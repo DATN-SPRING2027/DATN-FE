@@ -66,7 +66,7 @@ export default function WorkListView({
   onPriorityChange,
   onAssigneeChange,
   onToggleFlag,
-  onDeleteItem,
+  onCancelTask,
   onToggleSubtask,
   onAddSubtask,
   onUpdateSubtask,
@@ -95,21 +95,26 @@ export default function WorkListView({
   onOpenItem: (
     item: WorkItemGroup["items"][number],
     trigger: HTMLButtonElement,
+    openWorklog?: boolean,
   ) => void;
   onOpenSubtask?: (
     item: WorkItemGroup["items"][number],
     subtaskId: string,
     trigger: HTMLButtonElement,
+    openWorklog?: boolean,
   ) => void;
   onOpenFullPage?: (
     item: WorkItemGroup["items"][number],
     subtaskId?: string | null,
   ) => void;
-  onStatusChange?: (id: string, status: WorkStatus) => void;
-  onPriorityChange?: (id: string, priority: WorkPriority) => void;
-  onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
+  onStatusChange?: (id: string, status: WorkStatus) => void | Promise<boolean>;
+  onPriorityChange?: (id: string, priority: WorkPriority) => void | Promise<boolean>;
+  onAssigneeChange?: (
+    id: string,
+    assignee: WorkPerson,
+  ) => void | Promise<boolean>;
   onToggleFlag?: (id: string) => void;
-  onDeleteItem?: (id: string) => void;
+  onCancelTask?: (id: string) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
   onAddSubtask?: (
     itemId: string,
@@ -127,7 +132,7 @@ export default function WorkListView({
     itemId: string,
     subtaskId: string,
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
-  ) => void;
+  ) => void | Promise<boolean>;
   onDeleteSubtask?: (itemId: string, subtaskId: string) => void;
   onCloneSubtask?: (itemId: string, subtaskId: string) => void;
   onReorderSubtask?: (
@@ -237,6 +242,33 @@ export default function WorkListView({
     setTimeout(() => {
       setToastNotice((current) => (current === msg ? "" : current));
     }, 2800);
+  }
+
+  function showAfterSave(result: void | Promise<boolean>, successMessage: string) {
+    if (result && typeof result.then === "function") {
+      void result.then((saved) => {
+        if (saved) showNotice(successMessage);
+      });
+      return;
+    }
+    showNotice(successMessage);
+  }
+
+  async function copyTaskLink(key: string) {
+    await copyText(
+      `${window.location.origin}${window.location.pathname}${window.location.search}#${encodeURIComponent(key)}`,
+      `Copied link to ${key}`,
+    );
+  }
+
+  async function copyText(value: string, successMessage: string) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(value);
+      showNotice(successMessage);
+    } catch {
+      showNotice("Unable to copy. Check clipboard permissions and retry.");
+    }
   }
 
   function closeAllCellPopovers() {
@@ -857,14 +889,7 @@ export default function WorkListView({
                                     type="button"
                                     onClick={() => {
                                       setActiveMenuRowId(null);
-                                      if (typeof navigator !=="undefined") {
-                                        navigator.clipboard?.writeText(
-                                          `${window.location.origin}${window.location.pathname}#${item.key}`,
-                                        );
-                                      }
-                                      showNotice(
-                                        `Copied issue link for ${item.key}`,
-                                      );
+                                      void copyTaskLink(item.key);
                                     }}
                                     className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                   >
@@ -875,12 +900,8 @@ export default function WorkListView({
                                     type="button"
                                     onClick={() => {
                                       setActiveMenuRowId(null);
-                                      if (typeof navigator !=="undefined") {
-                                        navigator.clipboard?.writeText(
-                                          item.key,
-                                        );
-                                      }
-                                      showNotice(
+                                      void copyText(
+                                        item.key,
                                         `Copied issue key ${item.key}`,
                                       );
                                     }}
@@ -912,29 +933,28 @@ export default function WorkListView({
                                   </button>
                                   <button
                                     type="button"
-                                    onClick={() => {
+                                    onClick={(event) => {
                                       setActiveMenuRowId(null);
-                                      showNotice(`Logged 2h work on ${item.key}`);
+                                      onOpenItem(item, event.currentTarget, true);
                                     }}
                                     className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                   >
                                     <MonoIcon name="clock"size={13} className="text-gray-500"/>
                                     <span>Log work</span>
                                   </button>
-                                  {onDeleteItem && (
+                                  {onCancelTask && (
                                     <>
                                       <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
                                       <button
                                         type="button"
                                         onClick={() => {
                                           setActiveMenuRowId(null);
-                                          onDeleteItem(item.id);
-                                          showNotice(`Deleted ${item.key}`);
+                                          onCancelTask(item.id);
                                         }}
                                         className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                                       >
                                         <MonoIcon name="trash"size={13} className="text-gray-500"/>
-                                        <span>Delete</span>
+                                        <span>{t("cancelTaskAction")}</span>
                                       </button>
                                     </>
                                   )}
@@ -1055,19 +1075,7 @@ export default function WorkListView({
                                             </button>
                                             <button
                                               type="button"
-                                              onClick={() => {
-                                                if (
-                                                  typeof navigator !==
-                                                  "undefined"
-                                                ) {
-                                                  navigator.clipboard?.writeText(
-                                                    `${window.location.origin}${window.location.pathname}#${sub.key}`,
-                                                  );
-                                                }
-                                                showNotice(
-                                                  `Copied link to ${sub.key}`,
-                                                );
-                                              }}
+                                              onClick={() => void copyTaskLink(sub.key)}
                                               title={`Copy link to ${sub.key}`}
                                               aria-label={`Copy link to ${sub.key}`}
                                               className="invisible inline-flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center text-gray-400 hover:text-gray-800 group-hover/sub:visible dark:hover:text-white"
@@ -1081,12 +1089,12 @@ export default function WorkListView({
                                                   const nextText =
                                                     editingSubtaskSummary.trim();
                                                   if (nextText) {
-                                                    onUpdateSubtask?.(
+                                                    const result = onUpdateSubtask?.(
                                                       item.id,
                                                       sub.id,
                                                       { summary: nextText },
                                                     );
-                                                    showNotice(
+                                                    showAfterSave(result,
                                                       `Updated ${sub.key}`,
                                                     );
                                                   }
@@ -1213,12 +1221,12 @@ export default function WorkListView({
                                                       p.id === e.target.value,
                                                   );
                                                 if (nextPerson) {
-                                                  onUpdateSubtask(
+                                                  const result = onUpdateSubtask(
                                                     item.id,
                                                     sub.id,
                                                     { assignee: nextPerson },
                                                   );
-                                                  showNotice(
+                                                  showAfterSave(result,
                                                     `Assigned ${sub.key} to ${nextPerson.name}`,
                                                   );
                                                 }
@@ -1242,14 +1250,14 @@ export default function WorkListView({
                                               onChange={(e) => {
                                                 const nextSt = e.target
                                                   .value as WorkStatus;
-                                                onUpdateSubtask(
+                                                const result = onUpdateSubtask(
                                                   item.id,
                                                   sub.id,
                                                   {
                                                     status: nextSt,
                                                   },
                                                 );
-                                                showNotice(
+                                                showAfterSave(result,
                                                   `Updated ${sub.key} status to ${t(`statuses.${nextSt}`)}`,
                                                 );
                                               }}
@@ -1275,14 +1283,14 @@ export default function WorkListView({
                                               onChange={(e) => {
                                                 const nextPrio = e.target
                                                   .value as WorkPriority;
-                                                onUpdateSubtask(
+                                                const result = onUpdateSubtask(
                                                   item.id,
                                                   sub.id,
                                                   {
                                                     priority: nextPrio,
                                                   },
                                                 );
-                                                showNotice(
+                                                showAfterSave(result,
                                                   `Updated ${sub.key} priority to ${nextPrio}`,
                                                 );
                                               }}
@@ -1310,7 +1318,7 @@ export default function WorkListView({
                                               aria-label={`Due date for ${sub.key}`}
                                               value={subDueDate ?? ""}
                                               onChange={(e) => {
-                                                onUpdateSubtask(
+                                                const result = onUpdateSubtask(
                                                   item.id,
                                                   sub.id,
                                                   {
@@ -1318,7 +1326,7 @@ export default function WorkListView({
                                                       e.target.value || null,
                                                   },
                                                 );
-                                                showNotice(
+                                                showAfterSave(result,
                                                   `Updated due date for ${sub.key}`,
                                                 );
                                               }}
@@ -1457,14 +1465,14 @@ export default function WorkListView({
                                               type="button"
                                               onClick={() => {
                                                 setActiveSubtaskMenuId(null);
-                                                onUpdateSubtask(
+                                                const result = onUpdateSubtask(
                                                   item.id,
                                                   sub.id,
                                                   {
                                                     assignee: mePerson,
                                                   },
                                                 );
-                                                showNotice(
+                                                showAfterSave(result,
                                                   `Assigned ${sub.key} to ${mePerson.name}`,
                                                 );
                                               }}
@@ -1482,16 +1490,7 @@ export default function WorkListView({
                                             type="button"
                                             onClick={() => {
                                               setActiveSubtaskMenuId(null);
-                                              if (
-                                                typeof navigator !== "undefined"
-                                              ) {
-                                                navigator.clipboard?.writeText(
-                                                  `${window.location.origin}${window.location.pathname}#${sub.key}`,
-                                                );
-                                              }
-                                              showNotice(
-                                                `Copied subtask link for ${sub.key}`,
-                                              );
+                                              void copyTaskLink(sub.key);
                                             }}
                                             className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                           >
@@ -1506,14 +1505,8 @@ export default function WorkListView({
                                             type="button"
                                             onClick={() => {
                                               setActiveSubtaskMenuId(null);
-                                              if (
-                                                typeof navigator !== "undefined"
-                                              ) {
-                                                navigator.clipboard?.writeText(
-                                                  sub.key,
-                                                );
-                                              }
-                                              showNotice(
+                                              void copyText(
+                                                sub.key,
                                                 `Copied subtask key ${sub.key}`,
                                               );
                                             }}
@@ -1527,7 +1520,7 @@ export default function WorkListView({
                                             <span>Copy subtask key</span>
                                           </button>
                                           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-                                          {onUpdateSubtask && (
+                                          {!/^[0-9a-f]{24}$/i.test(sub.id) && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1559,21 +1552,12 @@ export default function WorkListView({
                                               </span>
                                             </button>
                                           )}
-                                          {onUpdateSubtask && (
+                                          {onOpenSubtask && (
                                             <button
                                               type="button"
-                                              onClick={() => {
+                                              onClick={(event) => {
                                                 setActiveSubtaskMenuId(null);
-                                                onUpdateSubtask(
-                                                  item.id,
-                                                  sub.id,
-                                                  {
-                                                    loggedTime: "2h",
-                                                  },
-                                                );
-                                                showNotice(
-                                                  `Logged 2h work on ${sub.key}`,
-                                                );
+                                                onOpenSubtask(item, sub.id, event.currentTarget, true);
                                               }}
                                               className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                                             >
@@ -1582,7 +1566,7 @@ export default function WorkListView({
                                                 size={12}
                                                 className="text-gray-500"
                                               />
-                                              <span>Log work (2h)</span>
+                                              <span>Log work</span>
                                             </button>
                                           )}
                                           {onReorderSubtask && (
@@ -1774,11 +1758,11 @@ export default function WorkListView({
                                               <span>
                                                 Est:{" "}
                                                 <strong>
-                                                  {sub.estimate ?? "2h"}
+                                                  {sub.estimate ?? (/^[0-9a-f]{24}$/i.test(sub.id) ? "—" : "2h")}
                                                 </strong>{" "}
                                                 • Logged:{" "}
                                                 <strong>
-                                                  {sub.loggedTime ?? "0h"}
+                                                  {sub.loggedTime ?? (/^[0-9a-f]{24}$/i.test(sub.id) ? "—" : "0h")}
                                                 </strong>
                                               </span>
                                               {subDueDate && (
@@ -2171,12 +2155,25 @@ function renderCellContent({
   ) => void;
   onOpenFullPage?: (item: WorkItem, subtaskId?: string | null) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
-  onStatusChange?: (id: string, status: WorkStatus) => void;
-  onPriorityChange?: (id: string, priority: WorkPriority) => void;
-  onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
+  onStatusChange?: (id: string, status: WorkStatus) => void | Promise<boolean>;
+  onPriorityChange?: (id: string, priority: WorkPriority) => void | Promise<boolean>;
+  onAssigneeChange?: (
+    id: string,
+    assignee: WorkPerson,
+  ) => void | Promise<boolean>;
   showNotice: (msg: string) => void;
   t: ReturnType<typeof useTranslations<"work">>;
 }) {
+  function showAfterSave(result: void | Promise<boolean>, successMessage: string) {
+    if (result && typeof result.then === "function") {
+      void result.then((saved) => {
+        if (saved) showNotice(successMessage);
+      });
+      return;
+    }
+    showNotice(successMessage);
+  }
+
   if (colKey === "work") {
     const isSubtaskPopoverOpen = activeSubtaskPopoverId === item.id;
     return (
@@ -2426,9 +2423,19 @@ function renderCellContent({
                     key={person.id}
                     type="button"
                     onClick={() => {
-                      onAssigneeChange(item.id, person);
+                      const saveResult = onAssigneeChange(item.id, person);
                       setActiveAssigneeRowId(null);
-                      showNotice(`Assigned ${item.key} to ${person.name}`);
+                      const successMessage = `Assigned ${item.key} to ${person.name}`;
+                      if (
+                        saveResult &&
+                        typeof saveResult.then === "function"
+                      ) {
+                        void saveResult.then((saved) => {
+                          if (saved) showNotice(successMessage);
+                        });
+                      } else {
+                        showNotice(successMessage);
+                      }
                     }}
                     className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-start text-xs transition ${
                       selected
@@ -2486,9 +2493,9 @@ function renderCellContent({
                 key={prio}
                 type="button"
                 onClick={() => {
-                  onPriorityChange(item.id, prio);
+                  const result = onPriorityChange(item.id, prio);
                   setActivePriorityRowId(null);
-                  showNotice(`Updated ${item.key} priority to ${prio}`);
+                  showAfterSave(result, `Updated ${item.key} priority to ${prio}`);
                 }}
                 className="flex w-full cursor-pointer items-center justify-between px-3 py-1.5 text-start text-xs hover:bg-gray-50 dark:hover:bg-gray-800"
               >
@@ -2536,9 +2543,10 @@ function renderCellContent({
                 key={st}
                 type="button"
                 onClick={() => {
-                  onStatusChange(item.id, st);
+                  const result = onStatusChange(item.id, st);
                   setActiveStatusRowId(null);
-                  showNotice(
+                  showAfterSave(
+                    result,
                     `Moved ${item.key} to ${t(`statuses.${st}`)}`,
                   );
                 }}

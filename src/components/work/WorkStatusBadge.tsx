@@ -5,16 +5,21 @@ const statusStyles: Record<WorkStatus, string> = {
   TODO:"border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300",
   IN_PROGRESS:
     "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300",
+  BLOCKED:
+    "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-400",
   IN_REVIEW:
     "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400",
   DONE:"border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-400",
+  CANCELLED:"border-gray-300 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400",
 };
 
 const statusDots: Record<WorkStatus, string> = {
   TODO:"bg-gray-400 dark:bg-gray-500",
   IN_PROGRESS:"bg-brand-500",
+  BLOCKED:"bg-error-500",
   IN_REVIEW:"bg-warning-500",
   DONE:"bg-success-500",
+  CANCELLED:"bg-gray-500",
 };
 
 export function WorkStatusBadge({
