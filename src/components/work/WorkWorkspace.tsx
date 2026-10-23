@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
+import { ApiError } from"@/lib/api-client";
 import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
 import { useProjectMembersQuery } from"@/lib/queries/projects/useProjectMembers";
 import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects";
@@ -47,8 +48,10 @@ import {
   type BackendTaskStatus,
   createProjectTaskApi,
   createTaskCommentApi,
+  createTaskWorklogApi,
   fetchProjectTaskDetail,
   fetchTaskComments,
+  fetchTaskWorklogs,
   transitionProjectTaskApi,
   updateProjectTaskApi,
   useProjectTasksQuery,
@@ -61,11 +64,77 @@ const UNASSIGNED_WORK_PERSON: WorkPerson = {
   initials: "UN",
 };
 
+function describeMutationError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const reason = error.code ?? `HTTP ${error.status}`;
+    return `${reason}: ${error.message}`;
+  }
+  return "The server did not accept the change. Please retry.";
+}
+
 function toPersonInitials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "U";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
+
+export function formatCommentDateTime(value: string | Date): string {
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?$/.test(value.trim())
+  ) {
+    return value.trim();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return typeof value === "string" ? value : "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+}
+
+export function formatWorklogMinutes(totalMinutes: number): string {
+  const safeMinutes = Math.max(1, Math.round(totalMinutes));
+  const hours = Math.floor(safeMinutes / 60);
+  const mins = safeMinutes % 60;
+  if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+  if (hours > 0) return `${hours}h`;
+  return `${mins}m`;
+}
+
+export function parseWorklogMinutes(input: string): number {
+  const raw = input.trim().toLowerCase();
+  if (!raw) return 0;
+  let totalMinutes = 0;
+  let matchedUnit = false;
+  const daysMatch = raw.match(/(\d+(?:\.\d+)?)\s*d/);
+  if (daysMatch) {
+    totalMinutes += parseFloat(daysMatch[1]) * 8 * 60;
+    matchedUnit = true;
+  }
+  const hoursMatch = raw.match(/(\d+(?:\.\d+)?)\s*h/);
+  if (hoursMatch) {
+    totalMinutes += parseFloat(hoursMatch[1]) * 60;
+    matchedUnit = true;
+  }
+  const minsMatch = raw.match(/(\d+(?:\.\d+)?)\s*m/);
+  if (minsMatch) {
+    totalMinutes += parseFloat(minsMatch[1]);
+    matchedUnit = true;
+  }
+  if (matchedUnit) {
+    return Math.max(1, Math.min(1440, Math.round(totalMinutes)));
+  }
+  const numeric = parseFloat(raw);
+  if (!Number.isNaN(numeric) && numeric > 0) {
+    return Math.max(1, Math.min(1440, Math.round(numeric)));
+  }
+  return 30;
 }
 
 function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
@@ -167,6 +236,7 @@ export default function WorkWorkspace({
   const [activeWorkItemId, setActiveWorkItemId] = useState<string | null>(null);
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
+  const [mutationError, setMutationError] = useState<string | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
@@ -240,32 +310,40 @@ export default function WorkWorkspace({
     rawId: string,
     operation: (realId: string, version: number) => Promise<number | void>,
     onRollback?: () => void,
-  ) {
-    if (!isRealProject) return;
-    void (async () => {
+  ): Promise<boolean> {
+    if (!isRealProject) return Promise.resolve(true);
+    return (async () => {
       const realId = await resolveBackendTaskId(rawId);
       if (!realId) {
         onRollback?.();
-        return;
+        return false;
       }
       const prevTaskPromise =
         taskMutationQueuesRef.current.get(realId) ?? Promise.resolve();
       const nextTaskPromise = prevTaskPromise
         .catch(() => undefined)
-        .then(async () => {
+        .then(async (): Promise<boolean> => {
           try {
             const currentVersion = taskVersionsRef.current.get(realId) ?? 1;
             const updatedVersion = await operation(realId, currentVersion);
             if (typeof updatedVersion === "number") {
               taskVersionsRef.current.set(realId, updatedVersion);
             }
-          } catch {
+            return true;
+          } catch (error) {
             onRollback?.();
             void tasksQuery.refetch();
-            setAnnouncement("Unable to save changes. Restored latest state.");
+            const message = describeMutationError(error);
+            setMutationError(message);
+            setAnnouncement(`Unable to save changes. ${message}`);
+            return false;
           }
         });
-      taskMutationQueuesRef.current.set(realId, nextTaskPromise);
+      taskMutationQueuesRef.current.set(
+        realId,
+        nextTaskPromise.then(() => undefined),
+      );
+      return nextTaskPromise;
     })();
   }
 
@@ -448,11 +526,53 @@ export default function WorkWorkspace({
         subtasks: { completed: completedSubtasks, total: totalSubtasks },
         subtaskItems,
         comments: [],
+        worklogs: [],
       };
     });
 
     queueMicrotask(() => {
-      setItems(mapped);
+      setItems((current) => {
+        const prevById = new Map(current.map((item) => [item.id, item]));
+        return mapped.map((item) => {
+          const prev = prevById.get(item.id);
+          if (!prev) return item;
+          const prevSubById = new Map(
+            (prev.subtaskItems ?? []).map((sub) => [sub.id, sub]),
+          );
+          const mergedSubs = item.subtaskItems?.map((sub) => {
+            const prevSub = prevSubById.get(sub.id);
+            if (!prevSub) return sub;
+            return {
+              ...sub,
+              ...(prevSub.description !== undefined
+                ? { description: prevSub.description }
+                : {}),
+              ...(prevSub.comments !== undefined
+                ? { comments: prevSub.comments }
+                : {}),
+              ...(prevSub.worklogs !== undefined
+                ? { worklogs: prevSub.worklogs }
+                : {}),
+              ...(prevSub.loggedTime !== undefined
+                ? { loggedTime: prevSub.loggedTime }
+                : {}),
+            };
+          });
+          return {
+            ...item,
+            ...(prev.description !== undefined
+              ? { description: prev.description }
+              : {}),
+            ...(prev.comments && prev.comments.length > 0
+              ? { comments: prev.comments }
+              : {}),
+            ...(prev.worklogs && prev.worklogs.length > 0
+              ? { worklogs: prev.worklogs }
+              : {}),
+            ...(mergedSubs ? { subtaskItems: mergedSubs } : {}),
+          };
+        });
+      });
     });
   }, [
     isRealProject,
@@ -471,9 +591,17 @@ export default function WorkWorkspace({
     let cancelled = false;
     void (async () => {
       try {
-        const [detail, commentsPage] = await Promise.all([
+        const [detail, commentsPage, worklogsPage] = await Promise.all([
           fetchProjectTaskDetail(projectId, openedTaskId),
-          fetchTaskComments(projectId, openedTaskId),
+          fetchTaskComments(projectId, openedTaskId).catch(() => ({
+            items: [],
+            nextAfterId: null,
+          })),
+          fetchTaskWorklogs(projectId, openedTaskId).catch(() => ({
+            items: [],
+            totalMinutes: 0,
+            nextAfterId: null,
+          })),
         ]);
         if (cancelled) return;
         taskVersionsRef.current.set(detail.id, detail.version);
@@ -488,8 +616,23 @@ export default function WorkWorkspace({
             id: c.id,
             author: authorPerson.name,
             initials: authorPerson.initials,
-            createdAt: c.createdAt.slice(0, 10),
+            createdAt: formatCommentDateTime(c.createdAt),
             text: c.body,
+          };
+        });
+        const liveWorklogs = worklogsPage.items.map((w) => {
+          const authorPerson = resolvePersonById(
+            w.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: w.id,
+            author: authorPerson.name,
+            timeSpent: formatWorklogMinutes(w.minutes),
+            note: w.note ?? "",
+            createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
           };
         });
         setItems((current) =>
@@ -498,7 +641,8 @@ export default function WorkWorkspace({
               ? {
                   ...item,
                   ...(detail.description ? { description: detail.description } : {}),
-                  ...(liveComments.length > 0 ? { comments: liveComments } : {}),
+                  comments: liveComments,
+                  worklogs: liveWorklogs,
                 }
               : item,
           ),
@@ -511,6 +655,104 @@ export default function WorkWorkspace({
       cancelled = true;
     };
   }, [isRealProject, openedTaskId, projectId, projectPeopleById, user.data]);
+
+  const openedSubtaskId = fullPageSubtaskId ?? activeSubtaskId;
+  useEffect(() => {
+    if (
+      !isRealProject ||
+      !openedTaskId ||
+      !openedSubtaskId ||
+      !OBJECT_ID_PATTERN.test(openedSubtaskId)
+    ) {
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const [subDetail, subCommentsPage, subWorklogsPage] = await Promise.all([
+          fetchProjectTaskDetail(projectId, openedSubtaskId),
+          fetchTaskComments(projectId, openedSubtaskId).catch(() => ({
+            items: [],
+            nextAfterId: null,
+          })),
+          fetchTaskWorklogs(projectId, openedSubtaskId).catch(() => ({
+            items: [],
+            totalMinutes: 0,
+            nextAfterId: null,
+          })),
+        ]);
+        if (cancelled) return;
+        taskVersionsRef.current.set(subDetail.id, subDetail.version);
+        const liveSubComments = subCommentsPage.items.map((c) => {
+          const authorPerson = resolvePersonById(
+            c.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: c.id,
+            author: authorPerson.name,
+            initials: authorPerson.initials,
+            createdAt: formatCommentDateTime(c.createdAt),
+            text: c.body,
+          };
+        });
+        const liveSubWorklogs = subWorklogsPage.items.map((w) => {
+          const authorPerson = resolvePersonById(
+            w.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
+          return {
+            id: w.id,
+            author: authorPerson.name,
+            timeSpent: formatWorklogMinutes(w.minutes),
+            note: w.note ?? "",
+            createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
+          };
+        });
+        const totalLogged =
+          subWorklogsPage.totalMinutes > 0
+            ? formatWorklogMinutes(subWorklogsPage.totalMinutes)
+            : "0h";
+        setItems((current) =>
+          current.map((item) => {
+            if (item.id !== openedTaskId || !item.subtaskItems) return item;
+            return {
+              ...item,
+              subtaskItems: item.subtaskItems.map((sub) =>
+                sub.id === openedSubtaskId
+                  ? {
+                      ...sub,
+                      ...(subDetail.description
+                        ? { description: subDetail.description }
+                        : {}),
+                      comments: liveSubComments,
+                      worklogs: liveSubWorklogs,
+                      loggedTime: totalLogged,
+                    }
+                  : sub,
+              ),
+            };
+          }),
+        );
+      } catch {
+        // Keep current subtask state
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    isRealProject,
+    openedSubtaskId,
+    openedTaskId,
+    projectId,
+    projectPeopleById,
+    user.data,
+  ]);
 
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
@@ -918,16 +1160,20 @@ export default function WorkWorkspace({
     }
   }
 
-  function updateItemAssignee(id: string, nextAssignee: WorkPerson) {
+  function updateItemAssignee(
+    id: string,
+    nextAssignee: WorkPerson,
+  ): Promise<boolean> | undefined {
     const existing = items.find((item) => item.id === id);
     const prevAssignee = existing?.assignee ?? defaultAssigneePerson;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, assignee: nextAssignee } : item,
       ),
     );
     if (isRealProject) {
-      enqueueTaskMutation(
+      return enqueueTaskMutation(
         id,
         async (realId, version) => {
           const updated = await updateProjectTaskApi(
@@ -1217,66 +1463,167 @@ export default function WorkWorkspace({
         patch.labels !== undefined ||
         patch.steps !== undefined;
 
-      enqueueTaskMutation(
-        subtaskId,
-        async (realSubId, version) => {
-          let currentVersion = version;
-          if (prevStatus !== nextStatus) {
-            currentVersion = await performBackendStatusTransition(
-              realSubId,
-              currentVersion,
-              prevStatus,
-              nextStatus,
-            );
-          }
-          if (hasFieldPatch) {
-            const updated = await updateProjectTaskApi(
+      const addedComment =
+        patch.comments &&
+        patch.comments.length > (existingSub.comments?.length ?? 0)
+          ? patch.comments[patch.comments.length - 1]
+          : undefined;
+      const addedWorklog =
+        patch.worklogs &&
+        patch.worklogs.length > (existingSub.worklogs?.length ?? 0)
+          ? patch.worklogs[patch.worklogs.length - 1]
+          : undefined;
+
+      if (addedComment) {
+        void (async () => {
+          try {
+            const realSubId = await resolveBackendTaskId(subtaskId);
+            if (!realSubId) throw new Error("Subtask not persisted");
+            const created = await createTaskCommentApi(
               projectId,
               realSubId,
-              currentVersion,
-              {
-                ...(patch.summary !== undefined
-                  ? { title: patch.summary }
-                  : {}),
-                ...(patch.priority !== undefined
-                  ? { priority: patch.priority }
-                  : {}),
-                ...(patch.assignee !== undefined
-                  ? {
-                      assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
-                        ? patch.assignee.id
-                        : null,
-                    }
-                  : {}),
-                ...(patch.dueDate !== undefined
-                  ? {
-                      dueDate: patch.dueDate
-                        ? new Date(patch.dueDate).toISOString()
-                        : null,
-                    }
-                  : {}),
-                ...(patch.startDate !== undefined
-                  ? {
-                      startDate: patch.startDate
-                        ? new Date(patch.startDate).toISOString()
-                        : null,
-                    }
-                  : {}),
-                ...(patch.description !== undefined
-                  ? { description: patch.description ?? null }
-                  : {}),
-                ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
-                ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
-              },
+              addedComment.text,
             );
-            currentVersion = updated.version;
+            setItems((current) =>
+              current.map((item) => {
+                if (item.id !== itemId || !item.subtaskItems) return item;
+                return {
+                  ...item,
+                  subtaskItems: item.subtaskItems.map((sub) =>
+                    sub.id === subtaskId || sub.id === realSubId
+                      ? {
+                          ...sub,
+                          comments: (sub.comments ?? []).map((c) =>
+                            c.id === addedComment.id
+                              ? {
+                                  ...c,
+                                  id: created.id,
+                                  createdAt: formatCommentDateTime(
+                                    created.createdAt,
+                                  ),
+                                }
+                              : c,
+                          ),
+                        }
+                      : sub,
+                  ),
+                };
+              }),
+            );
+          } catch {
+            setItems(previousItems);
           }
-          return currentVersion;
-        },
-        () => {
-          setItems(previousItems);
-        },
-      );
+        })();
+      }
+
+      if (addedWorklog) {
+        void (async () => {
+          try {
+            const realSubId = await resolveBackendTaskId(subtaskId);
+            if (!realSubId) throw new Error("Subtask not persisted");
+            const minutes = parseWorklogMinutes(addedWorklog.timeSpent);
+            const created = await createTaskWorklogApi(projectId, realSubId, {
+              minutes,
+              note: addedWorklog.note || null,
+            });
+            setItems((current) =>
+              current.map((item) => {
+                if (item.id !== itemId || !item.subtaskItems) return item;
+                return {
+                  ...item,
+                  subtaskItems: item.subtaskItems.map((sub) =>
+                    sub.id === subtaskId || sub.id === realSubId
+                      ? {
+                          ...sub,
+                          worklogs: (sub.worklogs ?? []).map((wl) =>
+                            wl.id === addedWorklog.id
+                              ? {
+                                  ...wl,
+                                  id: created.id,
+                                  timeSpent: formatWorklogMinutes(
+                                    created.minutes,
+                                  ),
+                                  note: created.note ?? "",
+                                  createdAt: formatCommentDateTime(
+                                    created.loggedAt || created.createdAt,
+                                  ),
+                                }
+                              : wl,
+                          ),
+                        }
+                      : sub,
+                  ),
+                };
+              }),
+            );
+          } catch {
+            setItems(previousItems);
+          }
+        })();
+      }
+
+      if (prevStatus !== nextStatus || hasFieldPatch) {
+        enqueueTaskMutation(
+          subtaskId,
+          async (realSubId, version) => {
+            let currentVersion = version;
+            if (prevStatus !== nextStatus) {
+              currentVersion = await performBackendStatusTransition(
+                realSubId,
+                currentVersion,
+                prevStatus,
+                nextStatus,
+              );
+            }
+            if (hasFieldPatch) {
+              const updated = await updateProjectTaskApi(
+                projectId,
+                realSubId,
+                currentVersion,
+                {
+                  ...(patch.summary !== undefined
+                    ? { title: patch.summary }
+                    : {}),
+                  ...(patch.priority !== undefined
+                    ? { priority: patch.priority }
+                    : {}),
+                  ...(patch.assignee !== undefined
+                    ? {
+                        assigneeId: OBJECT_ID_PATTERN.test(patch.assignee.id)
+                          ? patch.assignee.id
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.dueDate !== undefined
+                    ? {
+                        dueDate: patch.dueDate
+                          ? new Date(patch.dueDate).toISOString()
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.startDate !== undefined
+                    ? {
+                        startDate: patch.startDate
+                          ? new Date(patch.startDate).toISOString()
+                          : null,
+                      }
+                    : {}),
+                  ...(patch.description !== undefined
+                    ? { description: patch.description ?? null }
+                    : {}),
+                  ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
+                  ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
+                },
+              );
+              currentVersion = updated.version;
+            }
+            return currentVersion;
+          },
+          () => {
+            setItems(previousItems);
+          },
+        );
+      }
     }
   }
 
@@ -1747,7 +2094,7 @@ export default function WorkWorkspace({
           author: currentUserPerson?.name ?? defaultAssigneePerson.name,
           initials:
             currentUserPerson?.initials ?? defaultAssigneePerson.initials,
-          createdAt: "Just now",
+          createdAt: formatCommentDateTime(new Date()),
           text,
         };
         return {
@@ -1774,7 +2121,7 @@ export default function WorkWorkspace({
                     ? {
                         ...c,
                         id: created.id,
-                        createdAt: created.createdAt.slice(0, 10),
+                        createdAt: formatCommentDateTime(created.createdAt),
                       }
                     : c,
                 ),
@@ -1785,6 +2132,71 @@ export default function WorkWorkspace({
           setItems(previousItems);
           void tasksQuery.refetch();
           setAnnouncement("Unable to post comment. Restored latest state.");
+        }
+      })();
+    }
+  }
+
+  function addWorklog(itemId: string, timeSpentInput: string, noteInput: string) {
+    const minutes = parseWorklogMinutes(timeSpentInput);
+    if (minutes < 1) return;
+    const formattedTimeSpent = formatWorklogMinutes(minutes);
+    const trimmedNote = noteInput.trim();
+    const previousItems = items;
+    const tempWorklogId = `wl-${Date.now()}`;
+    setItems((current) =>
+      current.map((item) => {
+        if (item.id !== itemId) return item;
+        const existing = item.worklogs ?? [];
+        const newWorklog = {
+          id: tempWorklogId,
+          author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+          timeSpent: formattedTimeSpent,
+          note: trimmedNote || "Logged engineering progress.",
+          createdAt: formatCommentDateTime(new Date()),
+        };
+        return {
+          ...item,
+          worklogs: [...existing, newWorklog],
+        };
+      }),
+    );
+    if (isRealProject) {
+      void (async () => {
+        try {
+          const realId = await resolveBackendTaskId(itemId);
+          if (!realId) {
+            throw new Error("Task not persisted");
+          }
+          const created = await createTaskWorklogApi(projectId, realId, {
+            minutes,
+            note: trimmedNote || null,
+          });
+          setItems((current) =>
+            current.map((item) => {
+              if (item.id !== itemId && item.id !== realId) return item;
+              return {
+                ...item,
+                worklogs: (item.worklogs ?? []).map((wl) =>
+                  wl.id === tempWorklogId
+                    ? {
+                        ...wl,
+                        id: created.id,
+                        timeSpent: formatWorklogMinutes(created.minutes),
+                        note: created.note ?? "",
+                        createdAt: formatCommentDateTime(
+                          created.loggedAt || created.createdAt,
+                        ),
+                      }
+                    : wl,
+                ),
+              };
+            }),
+          );
+        } catch {
+          setItems(previousItems);
+          void tasksQuery.refetch();
+          setAnnouncement("Unable to log work. Restored latest state.");
         }
       })();
     }
@@ -1994,6 +2406,25 @@ export default function WorkWorkspace({
         </div>
       )}
 
+      {mutationError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">{t("mutationError.title")}</p>
+            <p className="break-words">{mutationError}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMutationError(null)}
+            className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+          >
+            {t("mutationError.dismiss")}
+          </button>
+        </div>
+      )}
+
       {fullPageWorkItem ? (
         <WorkItemDetailDialog
           mode="page"
@@ -2021,6 +2452,7 @@ export default function WorkWorkspace({
           onMoveSubtaskToParent={moveSubtaskToParent}
           onBulkUpdateSubtasks={bulkUpdateSubtasks}
           onAddComment={addComment}
+          onAddWorklog={addWorklog}
         />
       ) : view ==="work-notes"? (
         <WorkNotesWorkspace
@@ -2316,6 +2748,7 @@ export default function WorkWorkspace({
           onMoveSubtaskToParent={moveSubtaskToParent}
           onBulkUpdateSubtasks={bulkUpdateSubtasks}
           onAddComment={addComment}
+          onAddWorklog={addWorklog}
         />
       )}
     </div>

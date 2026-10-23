@@ -107,7 +107,10 @@ export default function WorkListView({
   ) => void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
-  onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
+  onAssigneeChange?: (
+    id: string,
+    assignee: WorkPerson,
+  ) => void | Promise<boolean>;
   onToggleFlag?: (id: string) => void;
   onDeleteItem?: (id: string) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
@@ -2173,7 +2176,10 @@ function renderCellContent({
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
-  onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
+  onAssigneeChange?: (
+    id: string,
+    assignee: WorkPerson,
+  ) => void | Promise<boolean>;
   showNotice: (msg: string) => void;
   t: ReturnType<typeof useTranslations<"work">>;
 }) {
@@ -2426,9 +2432,19 @@ function renderCellContent({
                     key={person.id}
                     type="button"
                     onClick={() => {
-                      onAssigneeChange(item.id, person);
+                      const saveResult = onAssigneeChange(item.id, person);
                       setActiveAssigneeRowId(null);
-                      showNotice(`Assigned ${item.key} to ${person.name}`);
+                      const successMessage = `Assigned ${item.key} to ${person.name}`;
+                      if (
+                        saveResult &&
+                        typeof saveResult.then === "function"
+                      ) {
+                        void saveResult.then((saved) => {
+                          if (saved) showNotice(successMessage);
+                        });
+                      } else {
+                        showNotice(successMessage);
+                      }
                     }}
                     className={`flex w-full cursor-pointer items-center gap-2.5 px-3 py-1.5 text-start text-xs transition ${
                       selected

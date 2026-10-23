@@ -80,6 +80,7 @@ export default function WorkItemDetailDialog({
   onMoveSubtaskToParent,
   onBulkUpdateSubtasks,
   onAddComment,
+  onAddWorklog,
 }: {
   item: WorkItem | null;
   allItems?: readonly WorkItem[];
@@ -132,6 +133,7 @@ export default function WorkItemDetailDialog({
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) => void;
   onAddComment?: (itemId: string, text: string) => void;
+  onAddWorklog?: (itemId: string, timeSpent: string, note: string) => void;
 }) {
   const t = useTranslations("work");
   const locale = useLocale();
@@ -219,16 +221,6 @@ export default function WorkItemDetailDialog({
   const [watching, setWatching] = useState(true);
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
   const [aiEnhancedDesc, setAiEnhancedDesc] = useState<string | null>(null);
-  const [worklogs, setWorklogs] = useState<
-    { id: string; author: string; timeSpent: string; note: string }[]
-  >([
-    {
-      id: "wl-1",
-      author: "Minh Anh",
-      timeSpent: "2h 30m",
-      note: "Implemented initial service boundary and integration test cases.",
-    },
-  ]);
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
   const [automationRan, setAutomationRan] = useState(false);
@@ -323,7 +315,7 @@ export default function WorkItemDetailDialog({
         author: mePerson.name,
         initials: mePerson.initials,
         text: trimmed,
-        createdAt: "Just now",
+        createdAt: formatCommentTimestamp(new Date()),
       },
     ];
     onUpdateSubtask(item.id, sub.id, { comments: nextComments });
@@ -411,7 +403,7 @@ export default function WorkItemDetailDialog({
         note:
           subtaskWorklogNote.trim() ||
           `Logged engineering progress on ${sub.key}.`,
-        createdAt: "Just now",
+        createdAt: formatCommentTimestamp(new Date()),
       },
     ];
     onUpdateSubtask(item.id, sub.id, {
@@ -434,16 +426,8 @@ export default function WorkItemDetailDialog({
 
   function handleAddWorklog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!worklogTime.trim()) return;
-    setWorklogs((current) => [
-      ...current,
-      {
-        id: `wl-${Date.now()}`,
-        author: mePerson.name,
-        timeSpent: worklogTime.trim(),
-        note: worklogNote.trim() ||"Logged engineering progress.",
-      },
-    ]);
+    if (!item || !worklogTime.trim()) return;
+    onAddWorklog?.(item.id, worklogTime.trim(), worklogNote.trim());
     setWorklogTime("");
     setWorklogNote("");
   }
@@ -465,9 +449,8 @@ export default function WorkItemDetailDialog({
       ),
     [allItems],
   );
-  const currentItemId = item?.id ?? null;
-  const existingTaskCandidates = useMemo<ExistingTaskCandidate[]>(() => {
-    if (!currentItemId) return [];
+  const existingTaskCandidates: ExistingTaskCandidate[] = (() => {
+    if (!item) return [];
 
     const candidates = allItems.flatMap((parent) => [
       {
@@ -491,15 +474,14 @@ export default function WorkItemDetailDialog({
     return candidates
       .filter(
         (candidate) =>
-          candidate.id !== currentItemId &&
-          candidate.parentId !== currentItemId,
+          candidate.id !== item.id && candidate.parentId !== item.id,
       )
       .sort((a, b) => {
         return (
           createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt)
         );
       });
-  }, [allItems, currentItemId]);
+  })();
   const selectedExistingTask = existingTaskCandidates.find(
     (candidate) => candidate.id === existingSubtaskTaskId,
   );
@@ -1367,8 +1349,8 @@ export default function WorkItemDetailDialog({
                                 <span className="font-semibold text-gray-900 dark:text-white">
                                   {c.author}
                                 </span>
-                                <span className="text-gray-400">
-                                  {c.createdAt}
+                                <span className="tabular-nums text-gray-400">
+                                  {formatCommentTimestamp(c.createdAt)}
                                 </span>
                               </div>
                               <p className="mt-1 text-gray-700 dark:text-gray-300">
@@ -1447,42 +1429,41 @@ export default function WorkItemDetailDialog({
                           </button>
                         </form>
                       )}
-                      <ul className="space-y-2 text-xs">
-                        {(activeSubtask.worklogs ?? []).map((wl) => (
-                          <li
-                            key={wl.id}
-                            className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
-                          >
-                            <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                              <span>{wl.author}</span>
-                              <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                                <MonoIcon name="clock" className="h-3.5 w-3.5" />
-                                <span>{wl.timeSpent}</span>
-                              </span>
-                            </div>
-                            <p className="mt-1 text-gray-600 dark:text-gray-300">
-                              {wl.note}
-                            </p>
-                          </li>
-                        ))}
-                        <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                          <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                            <span>
-                              {(activeSubtask.assignee ?? item.assignee).name}
-                            </span>
-                            <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                              <MonoIcon name="clock" className="h-3.5 w-3.5" />
-                              <span>
-                                {activeSubtask.loggedTime ?? "0h"} /{" "}
-                                {activeSubtask.estimate ?? "2h"}
-                              </span>
-                            </span>
-                          </div>
-                          <p className="mt-1 text-gray-600 dark:text-gray-300">
-                            Cumulative logged time on subtask {activeSubtask.key}.
-                          </p>
-                        </li>
-                      </ul>
+                      {activeSubtask.worklogs &&
+                      activeSubtask.worklogs.length > 0 ? (
+                        <ul className="space-y-2 text-xs">
+                          {activeSubtask.worklogs.map((wl) => (
+                            <li
+                              key={wl.id}
+                              className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
+                            >
+                              <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
+                                <div className="flex items-center gap-2">
+                                  <span>{wl.author}</span>
+                                  {wl.createdAt && (
+                                    <span className="tabular-nums font-normal text-gray-400">
+                                      {formatCommentTimestamp(wl.createdAt)}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="inline-flex items-center gap-1 tabular-nums text-gray-700 dark:text-gray-300">
+                                  <MonoIcon name="clock" className="h-3.5 w-3.5" />
+                                  <span>{wl.timeSpent}</span>
+                                </span>
+                              </div>
+                              {wl.note && (
+                                <p className="mt-1 text-gray-600 dark:text-gray-300">
+                                  {wl.note}
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          No work logged on this subtask yet.
+                        </p>
+                      )}
                     </div>
                   )}
                 </section>
@@ -3191,8 +3172,8 @@ export default function WorkItemDetailDialog({
                               <span className="font-semibold text-gray-900 dark:text-white/90">
                                 {comment.author}
                               </span>
-                              <span className="text-gray-400">
-                                {comment.createdAt}
+                              <span className="tabular-nums text-gray-400">
+                                {formatCommentTimestamp(comment.createdAt)}
                               </span>
                             </div>
                             <p className="mt-1 text-gray-700 dark:text-gray-300">
@@ -3247,25 +3228,40 @@ export default function WorkItemDetailDialog({
                         + Log work
                       </button>
                     </form>
-                    <ul className="space-y-2 text-xs">
-                      {worklogs.map((wl) => (
-                        <li
-                          key={wl.id}
-                          className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900"
-                        >
-                          <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
-                            <span>{wl.author}</span>
-                            <span className="inline-flex items-center gap-1 text-gray-700 dark:text-gray-300">
-                              <MonoIcon name="clock"className="h-3.5 w-3.5"/>
-                              <span>{wl.timeSpent}</span>
-                            </span>
-                          </div>
-                          <p className="mt-1 text-gray-600 dark:text-gray-300">
-                            {wl.note}
-                          </p>
-                        </li>
-                      ))}
-                    </ul>
+                    {item.worklogs && item.worklogs.length > 0 ? (
+                      <ul className="space-y-2 text-xs">
+                        {item.worklogs.map((wl) => (
+                          <li
+                            key={wl.id}
+                            className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900"
+                          >
+                            <div className="flex items-center justify-between font-semibold text-gray-900 dark:text-white">
+                              <div className="flex items-center gap-2">
+                                <span>{wl.author}</span>
+                                {wl.createdAt && (
+                                  <span className="tabular-nums font-normal text-gray-400">
+                                    {formatCommentTimestamp(wl.createdAt)}
+                                  </span>
+                                )}
+                              </div>
+                              <span className="inline-flex items-center gap-1 tabular-nums text-gray-700 dark:text-gray-300">
+                                <MonoIcon name="clock"className="h-3.5 w-3.5"/>
+                                <span>{wl.timeSpent}</span>
+                              </span>
+                            </div>
+                            {wl.note && (
+                              <p className="mt-1 text-gray-600 dark:text-gray-300">
+                                {wl.note}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No work logged on this work item yet.
+                      </p>
+                    )}
                   </div>
                 )}
               </section>
@@ -3601,4 +3597,23 @@ function PersonValue({ person }: { person: WorkPerson }) {
       <span className="truncate">{person.name}</span>
     </span>
   );
+}
+
+function formatCommentTimestamp(value: string | Date): string {
+  if (
+    typeof value === "string" &&
+    /^\d{4}-\d{2}-\d{2}(\s+\d{2}:\d{2})?$/.test(value.trim())
+  ) {
+    return value.trim();
+  }
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return typeof value === "string" ? value : "";
+  }
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
 }

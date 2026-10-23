@@ -94,6 +94,8 @@ export type WorkItem = Readonly<{
   subtasks: Readonly<{ completed: number; total: number }>;
   subtaskItems?: readonly WorkSubtaskItem[];
   comments?: readonly WorkCommentItem[];
+  worklogs?: readonly WorkSubtaskWorklogItem[];
+  history?: readonly WorkSubtaskHistoryItem[];
 }>;
 
 export type WorkFilterOperator = "is" | "is_not" | "contains";

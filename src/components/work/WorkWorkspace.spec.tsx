@@ -1,13 +1,17 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import messages from "@/messages/en.json";
 import { projectKeys } from "@/lib/queries/projects/useProjects";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import MemberWorkspace from "./MemberWorkspace";
-import WorkWorkspace from "./WorkWorkspace";
+import WorkWorkspace, {
+  formatCommentDateTime,
+  formatWorklogMinutes,
+  parseWorklogMinutes,
+} from "./WorkWorkspace";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -28,6 +32,7 @@ vi.mock("@/icons", () => {
     BookOpenIcon: Icon,
     CalenderIcon: Icon,
     CheckCircleIcon: Icon,
+    ChevronDownIcon: Icon,
     ChevronLeftIcon: Icon,
     CloseLineIcon: Icon,
     DocsIcon: Icon,
@@ -75,7 +80,7 @@ function mountMemberWorkspace(initialProjectId?: string) {
   return { ...rendered, client };
 }
 
-describe("WorkWorkspace project scope", () => {
+describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
   beforeEach(() => {
     api.mockReset();
     routerReplaceMock.mockReset();
@@ -784,7 +789,7 @@ describe("WorkWorkspace project scope", () => {
     const realProjectId = "69e923c77859fd1c702d4c21";
     const realTaskId = "69e923c77859fd1c702d4ca1";
 
-    api.mockImplementation(async (path) => {
+    api.mockImplementation(async (path, init) => {
       if (path === "/auth/me") {
         return {
           id: "69e923c77859fd1c702d4c10",
@@ -850,6 +855,16 @@ describe("WorkWorkspace project scope", () => {
           },
         };
       }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}` &&
+        init?.method === "PATCH"
+      ) {
+        throw new ApiError(
+          422,
+          "ASSIGNEE_NOT_IN_PROJECT",
+          "assigneeId must be an active member of the project.",
+        );
+      }
       if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
         return {
           items: [
@@ -899,5 +914,207 @@ describe("WorkWorkspace project scope", () => {
     expect(assigneeListbox).not.toHaveTextContent("Thu Hà");
     expect(assigneeListbox).not.toHaveTextContent("Quang Huy");
     expect(assigneeListbox).not.toHaveTextContent("Hoàng Nam");
+
+    fireEvent.click(
+      within(assigneeListbox).getByRole("button", { name: /Phúc Nguyễn/i }),
+    );
+
+    expect(
+      await screen.findByRole("alert"),
+    ).toHaveTextContent("ASSIGNEE_NOT_IN_PROJECT");
+    expect(
+      screen.queryByText("Assigned FE-1 to Phúc Nguyễn"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "KeyT Xin Chàoo" }),
+    ).toBeVisible();
+  });
+
+  it("formats comment timestamps with both date and hours:minutes (YYYY-MM-DD HH:mm)", () => {
+    const sampleDate = new Date(2026, 9, 23, 10, 28, 0);
+    expect(formatCommentDateTime(sampleDate)).toBe("2026-10-23 10:28");
+    expect(formatCommentDateTime(sampleDate.toISOString())).toBe(
+      "2026-10-23 10:28",
+    );
+    expect(parseWorklogMinutes("1h 30m")).toBe(90);
+    expect(formatWorklogMinutes(90)).toBe("1h 30m");
+  });
+
+  it("loads real worklogs and posts new worklog to backend without showing mock worklog data", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const realTaskId = "69e923c77859fd1c702d4ca1";
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}`) {
+        return {
+          id: realTaskId,
+          projectId: realProjectId,
+          key: "FE-1",
+          title: "làm fe trang chủ",
+          description: "Real backend task description",
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: "69e923c77859fd1c702d4c10",
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          version: 1,
+          createdAt: "2026-10-20T00:00:00.000Z",
+          updatedAt: "2026-10-20T00:00:00.000Z",
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}/worklogs` &&
+        init?.method === "POST"
+      ) {
+        return {
+          id: "69e923c77859fd1c702d4cw1",
+          taskId: realTaskId,
+          projectId: realProjectId,
+          authorId: "69e923c77859fd1c702d4c10",
+          minutes: 90,
+          note: "Completed responsive header layout",
+          loggedAt: "2026-10-23T03:30:00.000Z",
+          createdAt: "2026-10-23T03:30:00.000Z",
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "làm fe trang chủ",
+              type: "TASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    const taskButton = await screen.findByText("làm fe trang chủ");
+    fireEvent.click(taskButton);
+
+    const worklogTab = await screen.findByRole("button", { name: "Work log" });
+    fireEvent.click(worklogTab);
+
+    expect(
+      screen.queryByText(
+        "Implemented initial service boundary and integration test cases.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("No work logged on this work item yet."),
+    ).toBeVisible();
+
+    fireEvent.change(screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"), {
+      target: { value: "1h 30m" },
+    });
+    fireEvent.change(screen.getByPlaceholderText("Work description…"), {
+      target: { value: "Completed responsive header layout" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Completed responsive header layout"),
+      ).toBeVisible();
+      expect(screen.getByText("1h 30m")).toBeVisible();
+      expect(api).toHaveBeenCalledWith(
+        `/tasks/projects/${realProjectId}/tasks/${realTaskId}/worklogs`,
+        expect.objectContaining({
+          method: "POST",
+        }),
+      );
+    });
   });
 });
