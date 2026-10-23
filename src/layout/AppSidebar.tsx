@@ -7,14 +7,11 @@ import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { Link, usePathname } from "@/i18n/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
-  BookOpenIcon,
-  CalenderIcon,
   ChatIcon,
   DocsIcon,
   FolderIcon,
   GridIcon,
   GroupIcon,
-  HandShakeIcon,
   PlugInIcon,
   SettingsIcon,
   ShootingStarIcon,
@@ -36,10 +33,7 @@ const primaryItems = [
   { key: "projects", path: "/projects", icon: FolderIcon },
   { key: "chat", path: "/chat", icon: ChatIcon },
   { key: "workNotes", icon: DocsIcon },
-  { key: "knowledge", icon: BookOpenIcon },
   { key: "aiSearch", icon: ShootingStarIcon },
-  { key: "handover", icon: HandShakeIcon },
-  { key: "calendar", path: "/calendar", icon: CalenderIcon },
 ] as const;
 
 const administrationItems = [
@@ -83,7 +77,6 @@ const AppSidebar: React.FC = () => {
     pageSize: 20,
     status: "ACTIVE",
   });
-  const activeProjects = projectsQuery.data?.data ?? [];
 
   const [fallbackWidth, setFallbackWidth] = useState(DEFAULT_WIDTH);
   const [fallbackExpanded, setFallbackExpanded] = useState<boolean | null>(null);
@@ -93,14 +86,15 @@ const AppSidebar: React.FC = () => {
   const resolvedExpandedWidth = safeClampWidth(
     sidebarWidth ?? fallbackWidth,
   );
-  const resolvedIsExpanded = setIsExpanded
-    ? isExpanded
-    : (fallbackExpanded ?? isExpanded);
+  const resolvedIsExpanded =
+    typeof setIsExpanded === "function"
+      ? isExpanded
+      : (fallbackExpanded ?? isExpanded);
   const activeIsResizing = isResizing ?? fallbackIsResizing;
 
   const updateExpanded = useCallback(
     (nextExpanded: boolean) => {
-      if (setIsExpanded) {
+      if (typeof setIsExpanded === "function") {
         setIsExpanded(nextExpanded);
       } else {
         setFallbackExpanded(nextExpanded);
@@ -112,7 +106,7 @@ const AppSidebar: React.FC = () => {
   const updateWidth = useCallback(
     (nextWidth: number) => {
       const clamped = safeClampWidth(nextWidth);
-      if (setSidebarWidth) {
+      if (typeof setSidebarWidth === "function") {
         setSidebarWidth(clamped);
       } else {
         setFallbackWidth(clamped);
@@ -123,7 +117,7 @@ const AppSidebar: React.FC = () => {
 
   const updateResizing = useCallback(
     (nextResizing: boolean) => {
-      if (setIsResizing) {
+      if (typeof setIsResizing === "function") {
         setIsResizing(nextResizing);
       } else {
         setFallbackIsResizing(nextResizing);
@@ -221,7 +215,7 @@ const AppSidebar: React.FC = () => {
     (event: React.MouseEvent<HTMLDivElement>) => {
       event.preventDefault();
       event.stopPropagation();
-      if (resetSidebarWidth) {
+      if (typeof resetSidebarWidth === "function") {
         resetSidebarWidth();
       } else {
         updateExpanded(true);
@@ -268,6 +262,9 @@ const AppSidebar: React.FC = () => {
   }, []);
 
   const canViewMembers = canReadOrganizationMemberships(currentUser.data);
+  const visiblePrimaryItems = primaryItems.filter(
+    (item) => item.key !== "overview" || canViewMembers,
+  );
   const visibleAdministrationItems = administrationItems.filter(
     (item) =>
       (item.key !== "members" && item.key !== "settings") || canViewMembers,
@@ -302,7 +299,7 @@ const AppSidebar: React.FC = () => {
         subtitle: "Recent & active project workspaces",
         primaryHref: "/projects",
         primaryCtaLabel: "View all",
-        projects: activeProjects,
+        projects: projectsQuery.data?.data ?? [],
         isLoadingProjects: Boolean(projectsQuery.isLoading),
         secondaryCta: {
           label: "Create project",
@@ -322,21 +319,6 @@ const AppSidebar: React.FC = () => {
             description: "Collaborate with organization and project members",
             href: "/chat",
             badge: "Live",
-          },
-        ],
-      },
-      calendar: {
-        key: "calendar",
-        title: t("items.calendar"),
-        subtitle: "Milestones, schedules & delivery dates",
-        primaryHref: "/calendar",
-        primaryCtaLabel: "Open",
-        quickLinks: [
-          {
-            id: "org-calendar",
-            label: "Workspace Calendar",
-            description: "View upcoming milestones and scheduled events",
-            href: "/calendar",
           },
         ],
       },
@@ -377,7 +359,7 @@ const AppSidebar: React.FC = () => {
         ],
       },
     }),
-    [activeProjects, organizationName, projectsQuery.isLoading, t],
+    [organizationName, projectsQuery.data?.data, projectsQuery.isLoading, t],
   );
 
   const activeFlyoutConfig =
@@ -527,7 +509,7 @@ const AppSidebar: React.FC = () => {
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
         <nav aria-label={t("navigation")} className="flex flex-col gap-3 pb-3">
           <ul className="flex flex-col gap-0.5">
-            {primaryItems.map(renderItem)}
+            {visiblePrimaryItems.map(renderItem)}
           </ul>
           <section
             aria-labelledby="sidebar-administration"

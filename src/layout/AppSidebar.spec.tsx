@@ -257,7 +257,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Calendar", "Members", "Settings"]);
+    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
     expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
@@ -277,7 +277,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Calendar"]);
+    ).toEqual(["Projects", "Chat"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -338,9 +338,9 @@ describe("AppSidebar navigation", () => {
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
     for (const label of [
       "Work Notes",
-      "Knowledge",
+      "Work Notes",
       "AI Search",
-      "Handover",
+      "AI Search",
       "Integrations",
     ]) {
       const button = screen.getByRole("button", { name: label });

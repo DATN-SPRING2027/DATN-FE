@@ -849,11 +849,11 @@ it("renders global KPI stat cards without 'on page' labels and separates status 
 
   fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });
   expect(
-    await screen.findByText("No matching projects"),
+    await screen.findByText("No matching projects on this page"),
   ).toBeVisible();
   expect(
     screen.getByText(
-      "No projects match your current search or filter criteria. Try adjusting or clearing your filters.",
+      "No projects on the current page match your search or filters. Try another page or clear filters.",
     ),
   ).toBeVisible();
 });

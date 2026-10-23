@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
@@ -17,10 +16,8 @@ import {
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
-  projectKeys,
   useProjectsQuery,
   type Project,
-  type ProjectList,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
 import ProjectCard from "./ProjectCard";
@@ -34,7 +31,6 @@ function isProjectLeaderless(project: Project): boolean {
 
 function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const t = useTranslations("projects");
-  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<Project["status"]>();
   const [visibilityFilter, setVisibilityFilter] = useState<
@@ -45,15 +41,26 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const [view, setView] = useState<"grid" | "list">("grid");
   const [sort, setSort] = useState<"updated" | "name" | "code">("updated");
 
-  const allProjectsQuery = useProjectsQuery(organizationId, {
-    page: 1,
-    pageSize: 20,
-  });
-
   const projects = useProjectsQuery(organizationId, {
     page,
     pageSize: 20,
     ...(status ? { status } : {}),
+  });
+
+  // Subscribe to server-side pagination totals for each status without relying on unobserved cache or 20-row page samples
+  const allProjectsTotalQuery = useProjectsQuery(organizationId, {
+    page: 1,
+    pageSize: 1,
+  });
+  const activeProjectsTotalQuery = useProjectsQuery(organizationId, {
+    page: 1,
+    pageSize: 1,
+    status: "ACTIVE",
+  });
+  const archivedProjectsTotalQuery = useProjectsQuery(organizationId, {
+    page: 1,
+    pageSize: 1,
+    status: "ARCHIVED",
   });
 
   const filters: readonly {
@@ -68,55 +75,25 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const loadedProjects = projects.data?.data ?? [];
   const totalItems = projects.data?.pagination.totalItems ?? 0;
 
-  const baseProjects = allProjectsQuery.data?.data ?? loadedProjects;
   const totalProjectsCount =
-    allProjectsQuery.data?.pagination.totalItems ?? totalItems;
-
-  const cachedActiveList = queryClient.getQueryData<ProjectList>(
-    projectKeys.list(organizationId, {
-      page: 1,
-      pageSize: 20,
-      status: "ACTIVE",
-    }),
-  );
-  const cachedArchivedList = queryClient.getQueryData<ProjectList>(
-    projectKeys.list(organizationId, {
-      page: 1,
-      pageSize: 20,
-      status: "ARCHIVED",
-    }),
-  );
-
-  const activeFromBase = baseProjects.filter(
-    (item) => item.status === "ACTIVE",
-  ).length;
-  const archivedFromBase = baseProjects.filter(
-    (item) => item.status === "ARCHIVED",
-  ).length;
+    status === undefined
+      ? totalItems
+      : (allProjectsTotalQuery.data?.pagination.totalItems ?? totalItems);
 
   const activeCount =
     status === "ACTIVE"
       ? totalItems
-      : (cachedActiveList?.pagination.totalItems ??
-        (cachedArchivedList
-          ? Math.max(
-              0,
-              totalProjectsCount - cachedArchivedList.pagination.totalItems,
-            )
-          : activeFromBase));
+      : (activeProjectsTotalQuery.data?.pagination.totalItems ?? 0);
 
   const archivedCount =
     status === "ARCHIVED"
       ? totalItems
-      : (cachedArchivedList?.pagination.totalItems ??
-        (cachedActiveList
-          ? Math.max(
-              0,
-              totalProjectsCount - cachedActiveList.pagination.totalItems,
-            )
-          : archivedFromBase));
+      : (archivedProjectsTotalQuery.data?.pagination.totalItems ?? 0);
 
-  const leaderlessCount = baseProjects.filter(isProjectLeaderless).length;
+  // Scoped strictly to the loaded page; only show "Healthy" when the entire organization directory fits on the single loaded page
+  const leaderlessCount = loadedProjects.filter(isProjectLeaderless).length;
+  const isCompleteOrgDirectoryLoaded =
+    status === undefined && (projects.data?.pagination.totalPages ?? 1) <= 1;
 
   const normalizedQuery = search.trim().toLowerCase();
   const filteredProjects = loadedProjects
@@ -189,7 +166,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
         </section>
       )}
 
-      {/* B2B KPI Summary Strip — Neutral Metric Numbers + Targeted Status Badges */}
+      {/* B2B KPI Summary Strip — Server Totals + Page-Scoped Leaderless Indicator */}
       {projects.isSuccess && !projects.isFetching && (
         <section
           aria-label={t("workspace")}
@@ -248,7 +225,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             </span>
           </div>
 
-          {/* Card 3: Need Attention (Missing Effective Leader) */}
+          {/* Card 3: Need Attention (Missing Effective Leader on current page) */}
           <div className="flex items-start justify-between gap-3 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <div className="min-w-0">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
@@ -266,11 +243,11 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                     />
                     {t("kpiAttentionBadge")}
                   </span>
-                ) : (
+                ) : isCompleteOrgDirectoryLoaded ? (
                   <span className="inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
                     {t("kpiHealthyBadge")}
                   </span>
-                )}
+                ) : null}
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {t("kpiAttentionHint")}

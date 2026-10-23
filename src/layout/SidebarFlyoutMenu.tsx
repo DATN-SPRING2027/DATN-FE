@@ -292,28 +292,30 @@ export function SidebarFlyoutPortal({
   onMouseLeave,
   onClose,
 }: SidebarFlyoutPortalProps) {
-  const [coords, setCoords] = useState<{ top: number; left: number }>({
-    top: 0,
-    left: 0,
-  });
-
   useLayoutEffect(() => {
-    if (!config || !anchorRect) return;
-    const panelHeight = flyoutElRef.current?.offsetHeight ?? 320;
+    const flyoutEl = flyoutElRef.current;
+    if (!config || !anchorRect || !flyoutEl) return;
+    const panelHeight = flyoutEl.offsetHeight || 320;
     const viewportHeight =
       typeof window !== "undefined" ? window.innerHeight : 800;
 
     const desiredLeft = Math.round(anchorRect.right + 6);
     const maxTop = Math.max(12, viewportHeight - panelHeight - 12);
-    const desiredTop = Math.min(Math.max(12, Math.round(anchorRect.top - 4)), maxTop);
+    const desiredTop = Math.min(
+      Math.max(12, Math.round(anchorRect.top - 4)),
+      maxTop,
+    );
 
-    setCoords({ top: desiredTop, left: desiredLeft });
+    flyoutEl.style.top = `${desiredTop}px`;
+    flyoutEl.style.left = `${desiredLeft}px`;
   }, [anchorRect, config, flyoutElRef]);
 
   if (typeof document === "undefined" || !config || !anchorRect) {
     return null;
   }
 
+  const initialLeft = Math.round(anchorRect.right + 6);
+  const initialTop = Math.max(12, Math.round(anchorRect.top - 4));
   const hasProjectsList = config.key === "projects";
   const projects = config.projects ?? [];
 
@@ -324,8 +326,8 @@ export function SidebarFlyoutPortal({
       aria-label={`${config.title} flyout menu`}
       data-testid={`sidebar-flyout-${config.key}`}
       style={{
-        top: `${coords.top}px`,
-        left: `${coords.left}px`,
+        top: `${initialTop}px`,
+        left: `${initialLeft}px`,
       }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
