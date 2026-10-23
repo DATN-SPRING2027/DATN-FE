@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import PlatformPagination from "./PlatformPagination";
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => `pagination.${key}`,
+  useTranslations: () => (key: string, values?: Record<string, number>) =>
+    key === "range" && values
+      ? `${values.from}–${values.to} of ${values.total}`
+      : `pagination.${key}`,
 }));
 
 describe("PlatformPagination", () => {
@@ -63,15 +66,42 @@ describe("PlatformPagination", () => {
       screen.getByRole("button", { name: "pagination.previous" }),
     ).toBeDisabled();
   });
-  it("changes dashboard page size and displays the current page out of total pages", () => {
+  it("hides the page size selector and preserves page navigation", () => {
     const onPageSizeChange = vi.fn();
     const onPageChange = vi.fn();
-    render(<PlatformPagination alwaysShow pageSize={10} onPageSizeChange={onPageSizeChange} ariaLabel="Organizations" page={2} totalPages={4} totalItems={35} onPageChange={onPageChange} />);
-    fireEvent.change(screen.getByRole("combobox"), { target: { value: "20" } });
-    expect(onPageSizeChange).toHaveBeenCalledWith(20);
-    expect(screen.getByText("/ 4")).toBeInTheDocument();
+    render(
+      <PlatformPagination
+        alwaysShow
+        pageSize={10}
+        onPageSizeChange={onPageSizeChange}
+        ariaLabel="Organizations"
+        page={2}
+        totalPages={4}
+        totalItems={35}
+        onPageChange={onPageChange}
+      />,
+    );
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
+    expect(onPageSizeChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "4" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "pagination.next" }));
     expect(onPageChange).toHaveBeenCalledWith(3);
   });
 
+  it("reports returned rows rather than claiming a full page when fewer records are received", () => {
+    render(
+      <PlatformPagination
+        alwaysShow
+        page={1}
+        pageSize={25}
+        returnedItems={3}
+        totalItems={186}
+        totalPages={8}
+        ariaLabel="users"
+        onPageChange={() => {}}
+      />,
+    );
+    expect(screen.getByText("1–3 of 186")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "8" })).toBeInTheDocument();
+  });
 });

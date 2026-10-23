@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api-client";
-import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
+import {
+  usePlatformOrganizationsQuery,
+  type PlatformPermission,
+} from "@/lib/queries/platform/usePlatformConsole";
 import {
   usePlatformAiOperationsQuery,
   usePlatformArchiveUserMutation,
@@ -97,6 +100,15 @@ export function usePlatformOperationsViewModel({
     "platform.incidents.incident.manage",
   );
   const [page, setPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState(25);
+  const [userOrganizationId, setUserOrganizationId] = useState("");
+  const canFilterUserOrganizations = has(
+    permissions,
+    "platform.organizations.organization.read",
+  );
+  const filterOrganizations = usePlatformOrganizationsQuery(
+    section === "users" && canReadUsers && canFilterUserOrganizations,
+  );
   const [organizationPage, setOrganizationPage] = useState(1);
   const [sessionPage, setSessionPage] = useState(1);
   const [incidentHistoryPage, setIncidentHistoryPage] = useState(1);
@@ -143,15 +155,12 @@ export function usePlatformOperationsViewModel({
   const users = usePlatformUsersQuery(
     {
       page,
-      pageSize: 25,
+      pageSize: userPageSize,
+      organizationId: userOrganizationId || undefined,
       search: search.trim() || undefined,
       status:
         section === "users" && status
-          ? (status as
-              | "ACTIVE"
-              | "SUSPENDED"
-              | "PENDING_INVITE"
-              | "ARCHIVED")
+          ? (status as "ACTIVE" | "SUSPENDED" | "PENDING_INVITE" | "ARCHIVED")
           : undefined,
     },
     section === "users" && canReadUsers,
@@ -251,7 +260,9 @@ export function usePlatformOperationsViewModel({
       return false;
     }
   }
-  async function runOperation(action: () => Promise<unknown>): Promise<boolean> {
+  async function runOperation(
+    action: () => Promise<unknown>,
+  ): Promise<boolean> {
     setFormMessage("");
     try {
       await action();
@@ -289,6 +300,12 @@ export function usePlatformOperationsViewModel({
     canReadDiagnostics,
     page,
     setPage,
+    userPageSize,
+    setUserPageSize,
+    userOrganizationId,
+    setUserOrganizationId,
+    canFilterUserOrganizations,
+    filterOrganizations,
     organizationPage,
     setOrganizationPage,
     sessionPage,

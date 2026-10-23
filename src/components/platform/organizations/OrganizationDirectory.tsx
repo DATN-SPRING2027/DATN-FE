@@ -1,27 +1,33 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import OrganizationRowMenu from "./OrganizationRowMenu";
+import { SearchIcon, PlatformBuildingIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import PlatformPagination from "../PlatformPagination";
 import { TableSkeleton } from "../ui/LoadingSkeleton";
 import EmptyState from "../ui/EmptyState";
-import styles from "../ui/operator.module.css";
+import jira from "../ui/jira.module.css";
 import type { PlatformOrganizationsViewProps } from "./types";
 
 export default function OrganizationDirectory({
   organizations,
   setOrganizationPage,
   canManage = false,
+  onCreate,
   onPageSizeChange,
 }: Pick<
   PlatformOrganizationsViewProps,
   "organizations" | "setOrganizationPage"
-> & { canManage?: boolean; onPageSizeChange?: (size: number) => void }) {
+> & {
+  canManage?: boolean;
+  onCreate?: () => void;
+  onPageSizeChange?: (size: number) => void;
+}) {
   const t = useTranslations("platformConsole");
-  const locale = useLocale();
   const [search, setSearch] = useState("");
   const [plan, setPlan] = useState("ALL");
   const rows = useMemo(
@@ -42,116 +48,34 @@ export default function OrganizationDirectory({
   };
   return (
     <section
-      className="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+      className={jira.directory}
       aria-label={t("organizations.directory")}
       aria-busy={organizations.isFetching}
     >
-      <header className="space-y-4 p-5">
-        <h2 className="font-semibold text-gray-900 dark:text-white">
-          {t("organizations.directory")}
-        </h2>
-        <p className="sr-only">{t("organizations.directoryHelp")}</p>
-        {!organizations.isPending &&
-          !organizations.isError &&
-          organizations.data && (
-            <div className={styles.directorySummary}>
-              <dl aria-describedby="organization-filter-note">
-                {[
-                  [
-                    t("referenceCharts.total"),
-                    organizations.data.pagination.totalItems,
-                  ],
-                  [
-                    t("referenceCharts.freePage"),
-                    organizations.data.data.filter((row) => row.plan === "FREE")
-                      .length,
-                  ],
-                  [
-                    t("referenceCharts.enterprisePage"),
-                    organizations.data.data.filter(
-                      (row) => row.plan === "ENTERPRISE",
-                    ).length,
-                  ],
-                ].map(([label, value], index) => (
-                  <div
-                    key={label}
-                    className={
-                      [
-                        styles.totalTone,
-                        styles.primaryTone,
-                        styles.secondaryTone,
-                      ][index]
-                    }
-                  >
-                    <dt>{label}</dt>
-                    <dd>{value}</dd>
-                    <p
-                      className={styles.summaryPercent}
-                      title={
-                        index === 0
-                          ? t("organizations.total", {
-                              count: organizations.data!.pagination.totalItems,
-                            })
-                          : t("organizations.planPercentNote")
-                      }
-                    >
-                      {new Intl.NumberFormat(locale, {
-                        style: "percent",
-                        maximumFractionDigits: 1,
-                      }).format(
-                        (
-                          index === 0
-                            ? organizations.data!.pagination.totalItems
-                            : organizations.data!.data.length
-                        )
-                          ? Number(value) /
-                              (index === 0
-                                ? organizations.data!.pagination.totalItems
-                                : organizations.data!.data.length)
-                          : 0,
-                      )}
-                    </p>
-                  </div>
-                ))}
-              </dl>
-              <div className={styles.statBars} aria-hidden="true">
-                {["TOTAL", "FREE", "ENTERPRISE"].map((value, index) => {
-                  const total = organizations.data!.pagination.totalItems;
-                  const count =
-                    value === "TOTAL"
-                      ? total
-                      : organizations.data!.data.filter(
-                          (row) => row.plan === value,
-                        ).length;
-                  const denominator =
-                    value === "TOTAL" ? total : organizations.data!.data.length;
-                  return (
-                    <span
-                      key={value}
-                      className={
-                        [
-                          styles.totalTrack,
-                          styles.primaryTrack,
-                          styles.secondaryTrack,
-                        ][index]
-                      }
-                    >
-                      <i
-                        style={{
-                          width: `${denominator ? (count / denominator) * 100 : 0}%`,
-                        }}
-                      />
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        <div className={styles.directoryToolbar}>
-          <div className={`${styles.directorySearch} [&>label]:sr-only`}>
-            <Label htmlFor="organization-search">
-              {t("organizations.search")}
-            </Label>
+      <header>
+        <div
+          className={jira.tabs}
+          role="group"
+          aria-label={t("organizations.plan")}
+        >
+          {["ALL", "FREE", "ENTERPRISE"].map((value) => (
+            <button
+              type="button"
+              key={value}
+              aria-pressed={plan === value}
+              onClick={() => setPlan(value)}
+              aria-describedby="organization-filter-note"
+            >
+              {value === "ALL" ? t("referenceCharts.all") : value}
+            </button>
+          ))}
+        </div>
+        <div className={jira.toolbar}>
+          <Label htmlFor="organization-search" className="sr-only">
+            {t("organizations.search")}
+          </Label>
+          <div className={jira.searchField}>
+            <SearchIcon aria-hidden="true" />{" "}
             <Input
               id="organization-search"
               placeholder={t("organizations.search")}
@@ -160,23 +84,25 @@ export default function OrganizationDirectory({
               onChange={(event) => setSearch(event.target.value)}
             />
           </div>
-          <div
-            className={styles.filterTabs}
-            role="group"
+          <select
             aria-label={t("organizations.plan")}
-            title={t("organizations.pageFilterNote")}
+            value={plan}
+            onChange={(event) => setPlan(event.target.value)}
+            aria-describedby="organization-filter-note"
           >
-            {["ALL", "FREE", "ENTERPRISE"].map((value) => (
-              <button
-                type="button"
-                key={value}
-                aria-pressed={plan === value}
-                onClick={() => setPlan(value)}
-              >
-                {value === "ALL" ? t("referenceCharts.all") : value}
-              </button>
-            ))}
-          </div>
+            <option value="ALL">{t("organizations.allPlans")}</option>
+            <option value="FREE">FREE</option>
+            <option value="ENTERPRISE">ENTERPRISE</option>
+          </select>
+          {onCreate && (
+            <button
+              type="button"
+              onClick={onCreate}
+              className={jira.createOrganization}
+            >
+              {t("organizations.create")}
+            </button>
+          )}
         </div>
         <p id="organization-filter-note" className="sr-only">
           {t("organizations.pageFilterNote")}
@@ -196,11 +122,11 @@ export default function OrganizationDirectory({
       ) : organizations.isPending ? (
         <TableSkeleton rows={4} columns={5} />
       ) : rows.length ? (
-        <div className="overflow-x-auto">
+        <div className={jira.tableFrame}>
           <table className="w-full text-start text-sm text-gray-700 dark:text-gray-300">
             <thead className="bg-gray-50 dark:bg-gray-800">
               <tr>
-                {["name", "slug", "plan", "updated"].map((key) => (
+                {["name", "slug", "plan", "created"].map((key) => (
                   <th key={key} scope="col" className="px-5 py-3 text-start">
                     {t(`organizations.${key}`)}
                   </th>
@@ -217,58 +143,35 @@ export default function OrganizationDirectory({
                   className="border-t border-gray-100 dark:border-gray-800"
                 >
                   <td className="px-5 py-4">
-                    <Link
-                      href={`/platform/organizations/${row.id}` as never}
-                      className="font-normal text-brand-600 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400"
-                    >
-                      {row.name}
-                    </Link>
+                    <span className={jira.directoryName}>
+                      <PlatformBuildingIcon aria-hidden="true" />
+                      <Link
+                        href={`/platform/organizations/${row.id}` as never}
+                        className="font-normal text-brand-600 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400"
+                      >
+                        {row.name}
+                      </Link>
+                    </span>
                   </td>
                   <td className="px-5 py-4">{row.slug}</td>
                   <td className="px-5 py-4">{row.plan}</td>
                   <td className="px-5 py-4">
-                    <time dateTime={row.updatedAt}>
-                      {new Date(row.updatedAt).toLocaleDateString(locale, {
-                        year: "2-digit",
-                        month: "2-digit",
-                        day: "2-digit",
+                    <time dateTime={row.createdAt}>
+                      {new Date(row.createdAt).toLocaleString("en-US", {
+                        year: "numeric",
+                        month: "short",
+                        day: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
                       })}
                     </time>
                   </td>
                   <td className="px-3 py-4">
-                    <details
-                      className={styles.rowActions}
-                      onKeyDown={(event) => {
-                        if (event.key === "Escape") {
-                          event.currentTarget.open = false;
-                          event.currentTarget.querySelector("summary")?.focus();
-                        }
-                      }}
-                    >
-                      <summary
-                        aria-label={t("organizations.rowActions", {
-                          name: row.name,
-                        })}
-                      >
-                        ⋮
-                      </summary>
-                      <div>
-                        <Link
-                          href={`/platform/organizations/${row.id}` as never}
-                        >
-                          {t("organizations.view")}
-                        </Link>
-                        {canManage && (
-                          <Link
-                            href={
-                              `/platform/organizations/${row.id}#edit` as never
-                            }
-                          >
-                            {t("organizations.editAction")}
-                          </Link>
-                        )}
-                      </div>
-                    </details>
+                    <OrganizationRowMenu
+                      id={row.id}
+                      name={row.name}
+                      canManage={canManage}
+                    />
                   </td>
                 </tr>
               ))}
@@ -293,6 +196,7 @@ export default function OrganizationDirectory({
             })}
           </p>
           <PlatformPagination
+            returnedItems={organizations.data.data.length}
             alwaysShow
             onPageSizeChange={
               onPageSizeChange

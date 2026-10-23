@@ -2,7 +2,8 @@
 import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import PlatformHeader from "./PlatformHeader";
-import styles from "./operator.module.css";
+import jira from "./jira.module.css";
+import PlatformSidebar from "./PlatformSidebar";
 
 export default function PlatformShell({
   activeSection,
@@ -22,7 +23,7 @@ export default function PlatformShell({
   const t = useTranslations("platformConsole");
   return (
     <div
-      className={`${styles.shell} ${activeSection === "dashboard" ? styles.dashboardPage : ""}`}
+      className={`${jira.console} ${activeSection === "dashboard" ? "" : jira.compact}`}
     >
       <a
         href="#operator-content"
@@ -37,13 +38,12 @@ export default function PlatformShell({
         isSigningOut={isSigningOut}
         onSignOut={onSignOut}
       />
-      <main id="operator-content" className={styles.main} tabIndex={-1}>
-        <div
-          className={activeSection === "dashboard" ? undefined : styles.content}
-        >
+      <div className={jira.body}>
+        <PlatformSidebar activeSection={activeSection} />
+        <main id="operator-content" className={jira.main} tabIndex={-1}>
           {children}
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
