@@ -2088,6 +2088,10 @@
     "workItemCount": "{count, plural, one {# work item} other {# work items}}",
     "selectedCount": "{count, plural, one {# item selected} other {# items selected}}",
     "clearSelection": "Clear selection",
+    "mutationError": {
+      "title": "Could not save changes.",
+      "dismiss": "Dismiss"
+    },
     "subtasks": "Subtasks",
     "selectExistingTask": "Select an existing project task",
     "chooseProjectTask": "Choose a task...",
