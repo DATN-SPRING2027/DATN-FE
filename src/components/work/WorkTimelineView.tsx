@@ -7,6 +7,7 @@ import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkStatusBadge } from"./WorkStatusBadge";
 import type {
   WorkItem,
+  WorkPerson,
   WorkStatus,
   WorkTimelineBarColor,
   WorkTimelineEpic,
@@ -24,10 +25,12 @@ const BAR_COLOR_STYLES: Record<WorkTimelineBarColor, string> = {
 
 export default function WorkTimelineView({
   items,
+  people,
   onOpenItem,
   onCreate,
 }: {
   items: readonly WorkItem[];
+  people?: readonly WorkPerson[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
   onCreate: () => void;
 }) {
@@ -286,7 +289,7 @@ export default function WorkTimelineView({
             >
               All
             </button>
-            {PREVIEW_PEOPLE.map((person) => {
+            {(people ?? PREVIEW_PEOPLE).map((person) => {
               const active = selectedAssignee === person.initials;
               return (
                 <button

@@ -12,18 +12,21 @@ import { PREVIEW_PEOPLE } from"./work-preview-data";
 import {
   type WorkItem,
   type WorkItemType,
+  type WorkPerson,
   type WorkPriority,
   type WorkStatus,
 } from"./work-types";
 
 export default function WorkOverviewView({
   items,
+  people,
   onOpenItem,
   onOpenSubtask,
   onOpenReports,
   onOpenList,
 }: {
   items: readonly WorkItem[];
+  people?: readonly WorkPerson[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
   onOpenSubtask?: (
     item: WorkItem,
@@ -156,7 +159,7 @@ export default function WorkOverviewView({
     },
   ];
 
-  const teamRows = PREVIEW_PEOPLE.flatMap((person) => {
+  const teamRows = (people ?? PREVIEW_PEOPLE).flatMap((person) => {
     const value = assigneeCounts.get(person.id) ?? 0;
     return value === 0
       ? []

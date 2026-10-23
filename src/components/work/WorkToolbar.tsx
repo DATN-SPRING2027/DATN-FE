@@ -12,6 +12,7 @@ import type {
   WorkFilterOperator,
   WorkGroupBy,
   WorkItem,
+  WorkPerson,
   WorkPriority,
   WorkStatus,
 } from"./work-types";
@@ -33,20 +34,13 @@ const OPERATOR_OPTIONS: ReadonlyArray<{
   { key:"contains", label:"contains"},
 ];
 
-const VALUE_SUGGESTIONS: Record<WorkFilterField, readonly string[]> = {
-  status: ["TODO","IN_PROGRESS","IN_REVIEW","DONE"],
-  priority: ["HIGH","MEDIUM","LOW"],
-  assignee: PREVIEW_PEOPLE.map((p) => p.name),
-  type: ["TASK","BUG","STORY","SUBTASK"],
-  reporter: PREVIEW_PEOPLE.map((p) => p.name),
-};
-
 export default function WorkToolbar({
   query,
   status,
   priority,
   assigneeId,
   groupBy,
+  people,
   filterConditions = [],
   hideDone = false,
   showHierarchy = true,
@@ -77,6 +71,7 @@ export default function WorkToolbar({
   priority: WorkPriority |"ALL";
   assigneeId: string |"ALL";
   groupBy: WorkGroupBy;
+  people?: readonly WorkPerson[];
   filterConditions?: readonly WorkFilterCondition[];
   hideDone?: boolean;
   showHierarchy?: boolean;
@@ -107,10 +102,18 @@ export default function WorkToolbar({
   onRefresh?: () => void;
 }) {
   const t = useTranslations("work");
+  const availablePeople = people ?? PREVIEW_PEOPLE;
+  const valueSuggestions: Record<WorkFilterField, readonly string[]> = {
+    status: ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"],
+    priority: ["HIGH", "MEDIUM", "LOW"],
+    assignee: availablePeople.map((p) => p.name),
+    type: ["TASK", "BUG", "STORY", "SUBTASK"],
+    reporter: availablePeople.map((p) => p.name),
+  };
   const [builderField, setBuilderField] = useState<WorkFilterField>("status");
   const [builderOp, setBuilderOp] = useState<WorkFilterOperator>("is");
   const [builderVal, setBuilderVal] = useState<string>(
-    VALUE_SUGGESTIONS.status[0],
+    valueSuggestions.status[0],
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [exportSubOpen, setExportSubOpen] = useState(false);
@@ -132,8 +135,14 @@ export default function WorkToolbar({
       onStatusChange("DONE");
     } else if (text.includes("progress")) {
       onStatusChange("IN_PROGRESS");
-    } else if (text.includes("assigned to me") || text.includes("minh anh")) {
-      onAssigneeChange(PREVIEW_PEOPLE[0].id);
+    } else if (
+      text.includes("assigned to me") ||
+      text.includes("minh anh") ||
+      (availablePeople[0] && text.includes(availablePeople[0].name.toLowerCase()))
+    ) {
+      if (availablePeople[0]) {
+        onAssigneeChange(availablePeople[0].id);
+      }
     } else {
       onQueryChange(askAiPrompt.trim());
     }
@@ -159,7 +168,7 @@ export default function WorkToolbar({
 
   function handleFieldChange(nextField: WorkFilterField) {
     setBuilderField(nextField);
-    setBuilderVal(VALUE_SUGGESTIONS[nextField][0] ??"");
+    setBuilderVal(valueSuggestions[nextField][0] ??"");
   }
 
   function handleAddCondition() {
@@ -194,7 +203,7 @@ export default function WorkToolbar({
         map.set(item.assignee.id, item.assignee);
       }
     }
-    for (const person of PREVIEW_PEOPLE) {
+    for (const person of availablePeople) {
       if (!map.has(person.id)) {
         map.set(person.id, person);
       }
@@ -429,7 +438,7 @@ export default function WorkToolbar({
                         className="h-8 cursor-pointer border border-gray-200 bg-white px-2 text-xs font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                       >
                         <option value="ALL">{t("allAssignees")}</option>
-                        {PREVIEW_PEOPLE.map((person) => (
+                        {availablePeople.map((person) => (
                           <option key={person.id} value={person.id}>
                             {person.name}
                           </option>
@@ -486,7 +495,7 @@ export default function WorkToolbar({
                           onChange={(e) => setBuilderVal(e.target.value)}
                           className="h-8 border border-gray-200 bg-white px-2 text-xs text-gray-800 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
                         >
-                          {VALUE_SUGGESTIONS[builderField].map((val) => (
+                          {valueSuggestions[builderField].map((val) => (
                             <option key={val} value={val}>
                               {val}
                             </option>
@@ -897,7 +906,7 @@ export default function WorkToolbar({
               <span>
                 Assignee ={""}
                 <strong>
-                  {PREVIEW_PEOPLE.find((p) => p.id === assigneeId)?.name ??
+                  {availablePeople.find((p) => p.id === assigneeId)?.name ??
                     assigneeId}
                 </strong>
               </span>

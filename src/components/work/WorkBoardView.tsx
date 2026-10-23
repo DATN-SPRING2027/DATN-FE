@@ -7,15 +7,22 @@ import { PREVIEW_PEOPLE } from"./work-preview-data";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
+  type WorkPerson,
   type WorkStatus,
   type WorkSubtaskItem,
 } from"./work-types";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 
 const WIP_LIMIT_IN_PROGRESS = 4;
+const UNASSIGNED_PERSON: WorkPerson = {
+  id: "unassigned",
+  name: "Unassigned",
+  initials: "UN",
+};
 
 export default function WorkBoardView({
   items,
+  people,
   onOpenItem,
   onOpenSubtask,
   onStatusChange,
@@ -28,6 +35,7 @@ export default function WorkBoardView({
   onQuickCreate,
 }: {
   items: readonly WorkItem[];
+  people?: readonly WorkPerson[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
   onOpenSubtask?: (
     item: WorkItem,
@@ -359,6 +367,7 @@ export default function WorkBoardView({
                         <WorkCard
                           key={item.id}
                           item={item}
+                          people={people}
                           status={status}
                           showEpicBadge={showEpicBadge}
                           showDueDate={showDueDate}
@@ -450,6 +459,7 @@ export default function WorkBoardView({
 
 function WorkCard({
   item,
+  people,
   status,
   showEpicBadge = true,
   showDueDate = true,
@@ -466,6 +476,7 @@ function WorkCard({
   onConvertSubtaskToTask,
 }: {
   item: WorkItem;
+  people?: readonly WorkPerson[];
   status: WorkStatus;
   showEpicBadge?: boolean;
   showDueDate?: boolean;
@@ -666,7 +677,13 @@ function WorkCard({
                           aria-label={`Assignee for ${sub.key}`}
                           value={(sub.assignee ?? item.assignee).id}
                           onChange={(e) => {
-                            const nextP = PREVIEW_PEOPLE.find(
+                            const choices = [
+                              UNASSIGNED_PERSON,
+                              ...(people ?? PREVIEW_PEOPLE).filter(
+                                (p) => p.id !== UNASSIGNED_PERSON.id,
+                              ),
+                            ];
+                            const nextP = choices.find(
                               (p) => p.id === e.target.value,
                             );
                             if (nextP) {
@@ -677,7 +694,12 @@ function WorkCard({
                           }}
                           className="h-5 w-14 cursor-pointer border border-gray-200 bg-white px-0.5 text-[10px] text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                         >
-                          {PREVIEW_PEOPLE.map((p) => (
+                          {[
+                            UNASSIGNED_PERSON,
+                            ...(people ?? PREVIEW_PEOPLE).filter(
+                              (p) => p.id !== UNASSIGNED_PERSON.id,
+                            ),
+                          ].map((p) => (
                             <option key={p.id} value={p.id}>
                               {p.initials} • {p.name}
                             </option>

@@ -491,6 +491,34 @@ describe("WorkWorkspace project scope", () => {
           updatedAt: "2026-10-05T00:00:00Z",
         };
       }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
       if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
         return {
           items: [
@@ -560,6 +588,34 @@ describe("WorkWorkspace project scope", () => {
           createdBy: "69e923c77859fd1c702d4c10",
           createdAt: "2026-10-05T00:00:00Z",
           updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "minhanh@example.com",
+                fullName: "Minh Anh",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
         };
       }
       if (
@@ -722,5 +778,126 @@ describe("WorkWorkspace project scope", () => {
     expect(
       screen.queryByRole("listbox", { name: /Select priority for KNW-142/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("shows only Unassigned and active project members in the Assignee dropdown on a real backend project without mock PREVIEW_PEOPLE", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const realTaskId = "69e923c77859fd1c702d4ca1";
+
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+            {
+              id: "membership-2",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c11",
+              role: "MEMBER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-06T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c11",
+                email: "phuc@example.com",
+                fullName: "Phúc Nguyễn",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 2,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "làm fe trang chủ",
+              type: "TASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    expect(await screen.findByText("làm fe trang chủ")).toBeVisible();
+
+    const assigneeTrigger = screen.getByTitle("Click to change assignee");
+    fireEvent.click(assigneeTrigger);
+
+    const assigneeListbox = screen.getByRole("listbox", {
+      name: /Select assignee for FE-1/i,
+    });
+    expect(assigneeListbox).toBeVisible();
+    expect(assigneeListbox).toHaveTextContent("Unassigned");
+    expect(assigneeListbox).toHaveTextContent("KeyT Xin Chàoo");
+    expect(assigneeListbox).toHaveTextContent("Phúc Nguyễn");
+    expect(assigneeListbox).not.toHaveTextContent("Automatic");
+    expect(assigneeListbox).not.toHaveTextContent("Thu Hà");
+    expect(assigneeListbox).not.toHaveTextContent("Quang Huy");
+    expect(assigneeListbox).not.toHaveTextContent("Hoàng Nam");
   });
 });

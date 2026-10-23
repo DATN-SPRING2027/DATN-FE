@@ -16,30 +16,53 @@ import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import type {
   CreatePreviewWorkItem,
   WorkItemType,
+  WorkPerson,
   WorkPriority,
 } from"./work-types";
 
+const UNASSIGNED_PERSON: WorkPerson = {
+  id: "unassigned",
+  name: "Unassigned",
+  initials: "UN",
+};
+
 export default function WorkItemCreateDialog({
   isOpen,
+  people,
   onClose,
   onCreate,
 }: {
   isOpen: boolean;
+  people?: readonly WorkPerson[];
   onClose: () => void;
   onCreate: (item: CreatePreviewWorkItem) => void;
 }) {
   const t = useTranslations("work");
+  const availablePeople = people ?? PREVIEW_PEOPLE;
+  const assigneeChoices =
+    people !== undefined
+      ? [
+          UNASSIGNED_PERSON,
+          ...availablePeople.filter((p) => p.id !== UNASSIGNED_PERSON.id),
+        ]
+      : availablePeople;
+  const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
   const titleRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [type, setType] = useState<WorkItemType>("TASK");
   const [priority, setPriority] = useState<WorkPriority>("MEDIUM");
-  const [assigneeId, setAssigneeId] = useState(PREVIEW_PEOPLE[0].id);
+  const [assigneeId, setAssigneeId] = useState(defaultAssignee.id);
   const [dueDate, setDueDate] = useState("");
   const [createAnother, setCreateAnother] = useState(false);
   const [isCompactMode, setIsCompactMode] = useState(false);
   const [validationError, setValidationError] = useState("");
+  const effectiveAssigneeId = assigneeChoices.some(
+    (person) => person.id === assigneeId,
+  )
+    ? assigneeId
+    : defaultAssignee.id;
 
   useEffect(() => {
     if (isOpen) titleRef.current?.focus();
@@ -71,8 +94,9 @@ export default function WorkItemCreateDialog({
       return;
     }
 
-    const assignee = PREVIEW_PEOPLE.find((person) => person.id === assigneeId);
-    if (!assignee) return;
+    const assignee =
+      assigneeChoices.find((person) => person.id === effectiveAssigneeId) ??
+      defaultAssignee;
     onCreate({
       title: normalizedTitle,
       type,
@@ -85,7 +109,7 @@ export default function WorkItemCreateDialog({
     setDescription("");
     setType("TASK");
     setPriority("MEDIUM");
-    setAssigneeId(PREVIEW_PEOPLE[0].id);
+    setAssigneeId(defaultAssignee.id);
     setDueDate("");
     setValidationError("");
     if (createAnother) {
@@ -94,7 +118,8 @@ export default function WorkItemCreateDialog({
   }
 
   const selectedAssignee =
-    PREVIEW_PEOPLE.find((p) => p.id === assigneeId) ?? PREVIEW_PEOPLE[0];
+    assigneeChoices.find((p) => p.id === effectiveAssigneeId) ??
+    defaultAssignee;
 
   return (
     <Modal
@@ -263,11 +288,11 @@ export default function WorkItemCreateDialog({
             <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
               {t("assignee")}
               <select
-                value={assigneeId}
+                value={effectiveAssigneeId}
                 onChange={(event) => setAssigneeId(event.target.value)}
                 className="h-11 cursor-pointer border border-gray-200 bg-white px-3.5 text-sm font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
               >
-                {PREVIEW_PEOPLE.map((person) => (
+                {assigneeChoices.map((person) => (
                   <option key={person.id} value={person.id}>
                     {person.name}
                   </option>

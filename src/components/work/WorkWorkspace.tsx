@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
 import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
+import { useProjectMembersQuery } from"@/lib/queries/projects/useProjectMembers";
 import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects";
 import ProjectState from"@/components/projects/ProjectState";
 import Button from"@/components/ui/button/Button";
@@ -54,6 +55,18 @@ import {
 } from"@/lib/queries/tasks/useTasks";
 
 const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
+const UNASSIGNED_WORK_PERSON: WorkPerson = {
+  id: "unassigned",
+  name: "Unassigned",
+  initials: "UN",
+};
+
+function toPersonInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
+}
 
 function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
   if (status ==="IN_PROGRESS"|| status ==="BLOCKED") return"IN_PROGRESS";
@@ -64,21 +77,29 @@ function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
 
 function resolvePersonById(
   personId: string | null,
+  peopleById: ReadonlyMap<string, WorkPerson>,
   currentUser?: { id: string; name: string } | null,
+  isRealProject = false,
 ): WorkPerson {
-  if (!personId) {
-    return PREVIEW_PEOPLE[0];
+  if (!personId || personId === UNASSIGNED_WORK_PERSON.id) {
+    return isRealProject ? UNASSIGNED_WORK_PERSON : PREVIEW_PEOPLE[0];
+  }
+  const fromProjectMembers = peopleById.get(personId);
+  if (fromProjectMembers) {
+    return fromProjectMembers;
   }
   if (currentUser && currentUser.id === personId) {
-    const parts = currentUser.name.trim().split(/\s+/);
-    const initials = parts
-      .slice(0, 2)
-      .map((p) => p[0]?.toUpperCase() ??"U")
-      .join("");
     return {
       id: currentUser.id,
       name: currentUser.name,
-      initials: initials ||"ME",
+      initials: toPersonInitials(currentUser.name) || "ME",
+    };
+  }
+  if (isRealProject) {
+    return {
+      id: personId,
+      name: `Member ${personId.slice(-4)}`,
+      initials: "MB",
     };
   }
   const found = PREVIEW_PEOPLE.find((p) => p.id === personId);
@@ -151,6 +172,54 @@ export default function WorkWorkspace({
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
   const tasksQuery = useProjectTasksQuery(projectId);
+  const projectMembersQuery = useProjectMembersQuery(
+    isRealProject ? organizationId : "",
+    isRealProject ? projectId : "",
+    { page: 1, pageSize: 100, status: "ACTIVE" },
+  );
+  const currentUserPerson = useMemo<WorkPerson | null>(() => {
+    if (!user.data) return null;
+    const displayName = user.data.name?.trim() || "Current User";
+    return {
+      id: user.data.id,
+      name: displayName,
+      initials: toPersonInitials(displayName) || "ME",
+    };
+  }, [user.data]);
+  const projectPeople = useMemo<readonly WorkPerson[]>(() => {
+    if (!isRealProject) {
+      return PREVIEW_PEOPLE;
+    }
+    const memberships = projectMembersQuery.data?.data ?? [];
+    const seenIds = new Set<string>();
+    const list: WorkPerson[] = [];
+    for (const membership of memberships) {
+      if (membership.status && membership.status !== "ACTIVE") continue;
+      const memberId = membership.user?.id ?? membership.userId;
+      if (!memberId || seenIds.has(memberId)) continue;
+      seenIds.add(memberId);
+      const displayName =
+        membership.user?.fullName?.trim() ||
+        membership.user?.email?.trim() ||
+        (currentUserPerson?.id === memberId ? currentUserPerson.name : "") ||
+        `Member ${memberId.slice(-4)}`;
+      list.push({
+        id: memberId,
+        name: displayName,
+        initials: toPersonInitials(displayName),
+      });
+    }
+    if (list.length === 0 && currentUserPerson) {
+      return [currentUserPerson];
+    }
+    return list;
+  }, [currentUserPerson, isRealProject, projectMembersQuery.data]);
+  const projectPeopleById = useMemo(
+    () => new Map(projectPeople.map((person) => [person.id, person])),
+    [projectPeople],
+  );
+  const defaultAssigneePerson =
+    projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON;
   const taskVersionsRef = useRef<Map<string, number>>(new Map());
   const pendingIdPromisesRef = useRef<Map<string, Promise<string | null>>>(
     new Map(),
@@ -315,8 +384,18 @@ export default function WorkWorkspace({
           done: subStatus === "DONE",
           status: subStatus,
           priority: sub.priority,
-          assignee: resolvePersonById(sub.assigneeId, user.data),
-          reporter: resolvePersonById(sub.createdBy, user.data),
+          assignee: resolvePersonById(
+            sub.assigneeId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          ),
+          reporter: resolvePersonById(
+            sub.createdBy,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          ),
           dueDate: sub.dueDate ? sub.dueDate.slice(0, 10) : null,
           startDate: sub.startDate ? sub.startDate.slice(0, 10) : null,
           createdAt: sub.createdAt,
@@ -345,8 +424,18 @@ export default function WorkWorkspace({
         key: t.key,
         title: t.title,
         type: t.type,
-        assignee: resolvePersonById(t.assigneeId, user.data),
-        reporter: resolvePersonById(t.createdBy, user.data),
+        assignee: resolvePersonById(
+          t.assigneeId,
+          projectPeopleById,
+          user.data,
+          isRealProject,
+        ),
+        reporter: resolvePersonById(
+          t.createdBy,
+          projectPeopleById,
+          user.data,
+          isRealProject,
+        ),
         priority: t.priority,
         status: uiStatus,
         resolution: uiStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
@@ -368,6 +457,7 @@ export default function WorkWorkspace({
   }, [
     isRealProject,
     projectId,
+    projectPeopleById,
     resolvedProject?.name,
     tasksQuery.data,
     user.data,
@@ -388,7 +478,12 @@ export default function WorkWorkspace({
         if (cancelled) return;
         taskVersionsRef.current.set(detail.id, detail.version);
         const liveComments = commentsPage.items.map((c) => {
-          const authorPerson = resolvePersonById(c.authorId, user.data);
+          const authorPerson = resolvePersonById(
+            c.authorId,
+            projectPeopleById,
+            user.data,
+            isRealProject,
+          );
           return {
             id: c.id,
             author: authorPerson.name,
@@ -415,7 +510,7 @@ export default function WorkWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [isRealProject, openedTaskId, projectId, user.data]);
+  }, [isRealProject, openedTaskId, projectId, projectPeopleById, user.data]);
 
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
@@ -514,8 +609,8 @@ export default function WorkWorkspace({
   );
 
   const groups = useMemo(
-    () => groupWorkItems(visibleItems, groupBy),
-    [groupBy, visibleItems],
+    () => groupWorkItems(visibleItems, groupBy, projectPeople),
+    [groupBy, projectPeople, visibleItems],
   );
   const allVisibleSelected =
     visibleItems.length > 0 &&
@@ -651,7 +746,9 @@ export default function WorkWorkspace({
         title: input.title,
         type: input.type,
         assignee: input.assignee,
-        reporter: PREVIEW_PEOPLE[1],
+        reporter: isRealProject
+          ? (currentUserPerson ?? defaultAssigneePerson)
+          : PREVIEW_PEOPLE[1],
         priority: input.priority,
         status: targetStatus,
         resolution: targetStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
@@ -823,7 +920,7 @@ export default function WorkWorkspace({
 
   function updateItemAssignee(id: string, nextAssignee: WorkPerson) {
     const existing = items.find((item) => item.id === id);
-    const prevAssignee = existing?.assignee ?? PREVIEW_PEOPLE[0];
+    const prevAssignee = existing?.assignee ?? defaultAssigneePerson;
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, assignee: nextAssignee } : item,
@@ -946,7 +1043,7 @@ export default function WorkWorkspace({
           history: [
             {
               id: `hist-${Date.now()}`,
-              author: user.data?.name ?? PREVIEW_PEOPLE[0].name,
+              author: currentUserPerson?.name ?? defaultAssigneePerson.name,
               action: `created subtask ${item.key}.${nextIdx}`,
               createdAt: "Just now",
             },
@@ -1548,8 +1645,9 @@ export default function WorkWorkspace({
         const existing = item.comments ?? [];
         const newComment = {
           id: tempCommentId,
-          author: user.data?.name ?? PREVIEW_PEOPLE[0].name,
-          initials: PREVIEW_PEOPLE[0].initials,
+          author: currentUserPerson?.name ?? defaultAssigneePerson.name,
+          initials:
+            currentUserPerson?.initials ?? defaultAssigneePerson.initials,
           createdAt: "Just now",
           text,
         };
@@ -1717,7 +1815,7 @@ export default function WorkWorkspace({
       title: `[IMPORTED] Work item imported from ${fileName}`,
       type:"TASK",
       priority:"MEDIUM",
-      assignee: PREVIEW_PEOPLE[0],
+      assignee: defaultAssigneePerson,
       dueDate: null,
       status:"TODO",
     });
@@ -1802,6 +1900,8 @@ export default function WorkWorkspace({
           mode="page"
           item={fullPageWorkItem}
           allItems={items}
+          people={projectPeople}
+          currentUserPerson={currentUserPerson}
           initialSubtaskId={fullPageSubtaskId}
           onSelectSubtask={setFullPageSubtaskId}
           onClose={() => {
@@ -1837,6 +1937,7 @@ export default function WorkWorkspace({
               priority={priority}
               assigneeId={assigneeId}
               groupBy={groupBy}
+              people={projectPeople}
               filterConditions={filterConditions}
               hideDone={hideDone}
               showHierarchy={showHierarchy}
@@ -1864,7 +1965,10 @@ export default function WorkWorkspace({
               onGoToReports={() => setView("reports")}
               onRefresh={() => {
                 void project.refetch();
-                if (isRealProject) void tasksQuery.refetch();
+                if (isRealProject) {
+                  void tasksQuery.refetch();
+                  void projectMembersQuery.refetch();
+                }
               }}
             />
           )}
@@ -1931,6 +2035,7 @@ export default function WorkWorkspace({
           {view ==="timeline"? (
             <WorkTimelineView
               items={visibleItems}
+              people={projectPeople}
               onOpenItem={openWorkItem}
               onCreate={() => setCreateOpen(true)}
             />
@@ -1944,7 +2049,11 @@ export default function WorkWorkspace({
           ) : view ==="docs"? (
             <WorkDocsView items={visibleItems} onOpenItem={openWorkItem} />
           ) : view ==="reports"? (
-            <WorkReportsView items={visibleItems} onOpenItem={openWorkItem} />
+            <WorkReportsView
+              items={visibleItems}
+              people={projectPeople}
+              onOpenItem={openWorkItem}
+            />
           ) : visibleItems.length === 0 &&
             (items.length > 0 ||
               Boolean(query.trim()) ||
@@ -1975,6 +2084,8 @@ export default function WorkWorkspace({
             <WorkListView
               groups={groups}
               allItems={items}
+              people={projectPeople}
+              currentUserPerson={currentUserPerson}
               totalCount={items.length}
               selectedIds={selectedIds}
               allVisibleSelected={allVisibleSelected}
@@ -2006,18 +2117,22 @@ export default function WorkWorkspace({
                   title,
                   type: type ??"TASK",
                   priority:"MEDIUM",
-                  assignee: options?.assignee ?? PREVIEW_PEOPLE[0],
+                  assignee: options?.assignee ?? defaultAssigneePerson,
                   dueDate: options?.dueDate ?? null,
                 })
               }
               onRefresh={() => {
                 void project.refetch();
-                if (isRealProject) void tasksQuery.refetch();
+                if (isRealProject) {
+                  void tasksQuery.refetch();
+                  void projectMembersQuery.refetch();
+                }
               }}
             />
           ) : view ==="overview"? (
             <WorkOverviewView
               items={visibleItems}
+              people={projectPeople}
               onOpenItem={openWorkItem}
               onOpenSubtask={openSubtask}
               onOpenReports={() => setView("reports")}
@@ -2026,6 +2141,7 @@ export default function WorkWorkspace({
           ) : view ==="board"? (
             <WorkBoardView
               items={visibleItems}
+              people={projectPeople}
               onOpenItem={openWorkItem}
               onOpenSubtask={openSubtask}
               onStatusChange={updateItemStatus}
@@ -2040,7 +2156,7 @@ export default function WorkWorkspace({
                   title,
                   type:"TASK",
                   priority:"MEDIUM",
-                  assignee: PREVIEW_PEOPLE[0],
+                  assignee: defaultAssigneePerson,
                   dueDate: null,
                   status: targetStatus,
                 })
@@ -2062,6 +2178,7 @@ export default function WorkWorkspace({
       </p>
       <WorkItemCreateDialog
         isOpen={createOpen}
+        people={projectPeople}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
       />
@@ -2076,6 +2193,8 @@ export default function WorkWorkspace({
           mode="modal"
           item={activeWorkItem}
           allItems={items}
+          people={projectPeople}
+          currentUserPerson={currentUserPerson}
           initialSubtaskId={activeSubtaskId}
           onSelectSubtask={setActiveSubtaskId}
           onOpenFullPage={(subId) => openFullPageWorkItem(activeWorkItem, subId)}
@@ -2105,6 +2224,7 @@ export default function WorkWorkspace({
 function groupWorkItems(
   items: readonly WorkItem[],
   groupBy: WorkGroupBy,
+  people: readonly WorkPerson[],
 ): WorkItemGroup[] {
   if (groupBy ==="NONE") {
     return [{ id:"all", label: null, labelKind:"text", items }];
@@ -2142,7 +2262,10 @@ function groupWorkItems(
   return keys.map((key) => {
     const label =
       groupBy ==="ASSIGNEE"
-        ? (PREVIEW_PEOPLE.find((person) => person.id === key)?.name ?? key)
+        ? (people.find((person) => person.id === key)?.name ??
+            (key === UNASSIGNED_WORK_PERSON.id
+              ? UNASSIGNED_WORK_PERSON.name
+              : key))
         : key;
     return {
       id: key,

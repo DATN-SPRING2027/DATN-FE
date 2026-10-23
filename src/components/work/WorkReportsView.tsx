@@ -4,7 +4,7 @@ import { useState } from"react";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
-import type { WorkItem } from"./work-types";
+import type { WorkItem, WorkPerson } from"./work-types";
 
 const REPORT_TYPES = [
   {
@@ -43,9 +43,11 @@ const PAGE_SIZE = 5;
 
 export default function WorkReportsView({
   items,
+  people,
   onOpenItem,
 }: {
   items: readonly WorkItem[];
+  people?: readonly WorkPerson[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
 }) {
   const [activeReportId, setActiveReportId] = useState<string>("burndown");
@@ -72,7 +74,7 @@ export default function WorkReportsView({
   const storyCount = items.filter((item) => item.type ==="STORY").length;
   const bugCount = items.filter((item) => item.type ==="BUG").length;
 
-  const assigneeRows = PREVIEW_PEOPLE.map((person, index) => {
+  const assigneeRows = (people ?? PREVIEW_PEOPLE).map((person, index) => {
     const colors = ["#0C66E4","#22A06B","#8270DB","#E56910","#E2483D"];
     const count = items.filter((item) => item.assignee.id === person.id).length;
     return {

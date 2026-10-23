@@ -34,9 +34,17 @@ type SubtaskSortBy =
   | "due"
   | "key";
 
+const UNASSIGNED_PERSON: WorkPerson = {
+  id: "unassigned",
+  name: "Unassigned",
+  initials: "UN",
+};
+
 export default function WorkItemDetailDialog({
   item,
   allItems = [],
+  people,
+  currentUserPerson,
   initialSubtaskId = null,
   mode = "modal",
   isSkeletonLoading = false,
@@ -59,6 +67,8 @@ export default function WorkItemDetailDialog({
 }: {
   item: WorkItem | null;
   allItems?: readonly WorkItem[];
+  people?: readonly WorkPerson[];
+  currentUserPerson?: WorkPerson | null;
   initialSubtaskId?: string | null;
   mode?: "modal" | "page";
   isSkeletonLoading?: boolean;
@@ -108,6 +118,16 @@ export default function WorkItemDetailDialog({
 }) {
   const t = useTranslations("work");
   const locale = useLocale();
+  const availablePeople = people ?? PREVIEW_PEOPLE;
+  const assigneeChoices =
+    people !== undefined
+      ? [
+          UNASSIGNED_PERSON,
+          ...availablePeople.filter((p) => p.id !== UNASSIGNED_PERSON.id),
+        ]
+      : availablePeople;
+  const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
+  const mePerson = currentUserPerson ?? defaultAssignee;
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [subtaskInput, setSubtaskInput] = useState("");
@@ -117,7 +137,7 @@ export default function WorkItemDetailDialog({
   const [subtaskPriority, setSubtaskPriority] =
     useState<WorkPriority>("MEDIUM");
   const [subtaskAssigneeId, setSubtaskAssigneeId] = useState(
-    PREVIEW_PEOPLE[0].id,
+    defaultAssignee.id,
   );
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
@@ -280,8 +300,8 @@ export default function WorkItemDetailDialog({
       ...(sub.comments ?? []),
       {
         id: `${sub.id}-c-${Date.now()}`,
-        author: PREVIEW_PEOPLE[0].name,
-        initials: PREVIEW_PEOPLE[0].initials,
+        author: mePerson.name,
+        initials: mePerson.initials,
         text: trimmed,
         createdAt: "Just now",
       },
@@ -313,7 +333,7 @@ export default function WorkItemDetailDialog({
     const trimmed = subtaskInput.trim();
     if (!trimmed) return;
     const assignee =
-      PREVIEW_PEOPLE.find((p) => p.id === subtaskAssigneeId) ?? item.assignee;
+      assigneeChoices.find((p) => p.id === subtaskAssigneeId) ?? item.assignee;
     onAddSubtask(item.id, trimmed, {
       assignee,
       priority: subtaskPriority,
@@ -341,7 +361,7 @@ export default function WorkItemDetailDialog({
       ...(sub.worklogs ?? []),
       {
         id: `${sub.id}-wl-${Date.now()}`,
-        author: PREVIEW_PEOPLE[0].name,
+        author: mePerson.name,
         timeSpent: spent,
         note:
           subtaskWorklogNote.trim() ||
@@ -374,7 +394,7 @@ export default function WorkItemDetailDialog({
       ...current,
       {
         id: `wl-${Date.now()}`,
-        author: PREVIEW_PEOPLE[0].name,
+        author: mePerson.name,
         timeSpent: worklogTime.trim(),
         note: worklogNote.trim() ||"Logged engineering progress.",
       },
@@ -697,16 +717,16 @@ export default function WorkItemDetailDialog({
                       onClick={() => {
                         setSubtaskHeaderMenuOpen(false);
                         onUpdateSubtask(item.id, activeSubtask.id, {
-                          assignee: PREVIEW_PEOPLE[0],
+                          assignee: mePerson,
                         });
                         showSubtaskFeedback(
-                          `Assigned ${activeSubtask.key} to ${PREVIEW_PEOPLE[0].name}`,
+                          `Assigned ${activeSubtask.key} to ${mePerson.name}`,
                         );
                       }}
                       className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
                       <MonoIcon name="user" size={12} />
-                      <span>Assign to me ({PREVIEW_PEOPLE[0].name})</span>
+                      <span>Assign to me ({mePerson.name})</span>
                     </button>
                   )}
                   {onUpdateSubtask && (
@@ -1446,7 +1466,7 @@ export default function WorkItemDetailDialog({
                                   (activeSubtask.assignee ?? item.assignee).id
                                 }
                                 onChange={(e) => {
-                                  const nextPerson = PREVIEW_PEOPLE.find(
+                                  const nextPerson = assigneeChoices.find(
                                     (p) => p.id === e.target.value,
                                   );
                                   if (nextPerson) {
@@ -1457,7 +1477,7 @@ export default function WorkItemDetailDialog({
                                 }}
                                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                               >
-                                {PREVIEW_PEOPLE.map((person) => (
+                                {assigneeChoices.map((person) => (
                                   <option key={person.id} value={person.id}>
                                     {person.name}
                                   </option>
@@ -1470,10 +1490,10 @@ export default function WorkItemDetailDialog({
                               type="button"
                               onClick={() => {
                                 onUpdateSubtask(item.id, activeSubtask.id, {
-                                  assignee: PREVIEW_PEOPLE[0],
+                                  assignee: mePerson,
                                 });
                                 showSubtaskFeedback(
-                                  `Assigned ${activeSubtask.key} to ${PREVIEW_PEOPLE[0].name}`,
+                                  `Assigned ${activeSubtask.key} to ${mePerson.name}`,
                                 );
                               }}
                               className="cursor-pointer ps-1.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
@@ -1896,10 +1916,10 @@ export default function WorkItemDetailDialog({
                                   onBulkUpdateSubtasks(
                                     item.id,
                                     subtaskList.map((s) => s.id),
-                                    { assignee: PREVIEW_PEOPLE[0] },
+                                    { assignee: mePerson },
                                   );
                                   showSubtaskFeedback(
-                                    `Assigned all subtasks to ${PREVIEW_PEOPLE[0].name}`,
+                                    `Assigned all subtasks to ${mePerson.name}`,
                                   );
                                 }}
                                 className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start font-medium text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -2298,7 +2318,7 @@ export default function WorkItemDetailDialog({
                                         aria-label={`Assignee for ${sub.key}`}
                                         value={subAssignee.id}
                                         onChange={(e) => {
-                                          const nextP = PREVIEW_PEOPLE.find(
+                                          const nextP = assigneeChoices.find(
                                             (p) => p.id === e.target.value,
                                           );
                                           if (nextP) {
@@ -2309,7 +2329,7 @@ export default function WorkItemDetailDialog({
                                         }}
                                         className="h-6 w-full cursor-pointer border border-gray-200 bg-transparent px-1 text-[11px] text-gray-700 dark:border-gray-700 dark:text-gray-300"
                                       >
-                                        {PREVIEW_PEOPLE.map((person) => (
+                                        {assigneeChoices.map((person) => (
                                           <option
                                             key={person.id}
                                             value={person.id}
@@ -2460,10 +2480,10 @@ export default function WorkItemDetailDialog({
                                           onClick={() => {
                                             setActiveSubtaskRowMenuId(null);
                                             onUpdateSubtask(item.id, sub.id, {
-                                              assignee: PREVIEW_PEOPLE[0],
+                                              assignee: mePerson,
                                             });
                                             showSubtaskFeedback(
-                                              `Assigned ${sub.key} to ${PREVIEW_PEOPLE[0].name}`,
+                                              `Assigned ${sub.key} to ${mePerson.name}`,
                                             );
                                           }}
                                           className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -2853,7 +2873,7 @@ export default function WorkItemDetailDialog({
                             }
                             className="h-7 cursor-pointer border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
                           >
-                            {PREVIEW_PEOPLE.map((person) => (
+                            {assigneeChoices.map((person) => (
                               <option key={person.id} value={person.id}>
                                 {person.name}
                               </option>
@@ -3158,7 +3178,7 @@ export default function WorkItemDetailDialog({
                               aria-label="Reassign work item"
                               value={item.assignee.id}
                               onChange={(event) => {
-                                const nextPerson = PREVIEW_PEOPLE.find(
+                                const nextPerson = assigneeChoices.find(
                                   (person) => person.id === event.target.value,
                                 );
                                 if (nextPerson) {
@@ -3167,7 +3187,7 @@ export default function WorkItemDetailDialog({
                               }}
                               className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                             >
-                              {PREVIEW_PEOPLE.map((person) => (
+                              {assigneeChoices.map((person) => (
                                 <option key={person.id} value={person.id}>
                                   {person.name}
                                 </option>
@@ -3179,9 +3199,9 @@ export default function WorkItemDetailDialog({
                           <button
                             type="button"
                             onClick={() => {
-                              onAssigneeChange(item.id, PREVIEW_PEOPLE[0]);
+                              onAssigneeChange(item.id, mePerson);
                               showSubtaskFeedback(
-                                `Assigned ${item.key} to ${PREVIEW_PEOPLE[0].name}`,
+                                `Assigned ${item.key} to ${mePerson.name}`,
                               );
                             }}
                             className="cursor-pointer ps-1.5 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"

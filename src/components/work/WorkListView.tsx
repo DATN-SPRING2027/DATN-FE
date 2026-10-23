@@ -39,15 +39,11 @@ const UNASSIGNED_PERSON: WorkPerson = {
   initials: "UN",
 };
 
-const AUTOMATIC_PERSON: WorkPerson = {
-  id: "automatic",
-  name: "Automatic",
-  initials: "AU",
-};
-
 export default function WorkListView({
   groups,
   allItems: allWorkspaceItems,
+  people,
+  currentUserPerson,
   totalCount,
   selectedIds,
   allVisibleSelected,
@@ -79,6 +75,8 @@ export default function WorkListView({
 }: {
   groups: readonly WorkItemGroup[];
   allItems?: readonly WorkItem[];
+  people?: readonly WorkPerson[];
+  currentUserPerson?: WorkPerson | null;
   totalCount?: number;
   selectedIds: ReadonlySet<string>;
   allVisibleSelected: boolean;
@@ -146,6 +144,13 @@ export default function WorkListView({
   onRefresh?: () => void;
 }) {
   const t = useTranslations("work");
+  const availablePeople = people ?? PREVIEW_PEOPLE;
+  const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
+  const mePerson = currentUserPerson ?? defaultAssignee;
+  const allAssigneeChoices = [
+    UNASSIGNED_PERSON,
+    ...availablePeople.filter((person) => person.id !== UNASSIGNED_PERSON.id),
+  ];
   const [columns, setColumns] = useState<WorkListColumn[]>([
     ...DEFAULT_WORK_LIST_COLUMNS,
   ]);
@@ -161,7 +166,7 @@ export default function WorkListView({
   const [inlineTitle, setInlineTitle] = useState("");
   const [inlineType, setInlineType] = useState<WorkItemType>("TASK");
   const [inlineDueDate, setInlineDueDate] = useState("");
-  const [inlineAssigneeId, setInlineAssigneeId] = useState(PREVIEW_PEOPLE[0].id);
+  const [inlineAssigneeId, setInlineAssigneeId] = useState(defaultAssignee.id);
   const [workHeaderMenuOpen, setWorkHeaderMenuOpen] = useState(false);
   const [freezeWorkColumn, setFreezeWorkColumn] = useState(true);
   const [workSortBy, setWorkSortBy] = useState<"none" | "type" | "key" | "summary">("none");
@@ -190,7 +195,7 @@ export default function WorkListView({
   const [newSubtaskPriority, setNewSubtaskPriority] =
     useState<WorkPriority>("MEDIUM");
   const [newSubtaskAssigneeId, setNewSubtaskAssigneeId] = useState(
-    PREVIEW_PEOPLE[0].id,
+    defaultAssignee.id,
   );
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskSummary, setEditingSubtaskSummary] = useState("");
@@ -266,7 +271,7 @@ export default function WorkListView({
     const trimmed = newSubtaskSummary.trim();
     if (!trimmed || !onAddSubtask) return;
     const assignee =
-      PREVIEW_PEOPLE.find((p) => p.id === newSubtaskAssigneeId) ??
+      allAssigneeChoices.find((p) => p.id === newSubtaskAssigneeId) ??
       parentItem.assignee;
     onAddSubtask(parentItem.id, trimmed, {
       assignee,
@@ -339,8 +344,8 @@ export default function WorkListView({
     const trimmed = inlineTitle.trim();
     if (!trimmed || !onInlineCreate) return;
     const selectedAssignee =
-      PREVIEW_PEOPLE.find((person) => person.id === inlineAssigneeId) ??
-      PREVIEW_PEOPLE[0];
+      allAssigneeChoices.find((person) => person.id === inlineAssigneeId) ??
+      defaultAssignee;
     onInlineCreate(trimmed, inlineType, {
       dueDate: inlineDueDate.trim() ? inlineDueDate.trim() : null,
       assignee: selectedAssignee,
@@ -753,6 +758,7 @@ export default function WorkListView({
                                 {renderCellContent({
                                   colKey: col.key,
                                   item,
+                                  allAssigneeChoices,
                                   hasSubtasks,
                                   isExpanded,
                                   isDone,
@@ -1193,13 +1199,11 @@ export default function WorkListView({
                                               aria-label={`Assignee for ${sub.key}`}
                                               value={subAssignee.id}
                                               onChange={(e) => {
-                                                const nextPerson = [
-                                                  UNASSIGNED_PERSON,
-                                                  ...PREVIEW_PEOPLE,
-                                                ].find(
-                                                  (p) =>
-                                                    p.id === e.target.value,
-                                                );
+                                                const nextPerson =
+                                                  allAssigneeChoices.find(
+                                                    (p) =>
+                                                      p.id === e.target.value,
+                                                  );
                                                 if (nextPerson) {
                                                   onUpdateSubtask(
                                                     item.id,
@@ -1213,10 +1217,7 @@ export default function WorkListView({
                                               }}
                                               className="h-6 w-full cursor-pointer border border-transparent bg-transparent px-1 text-xs text-gray-700 hover:border-gray-300 dark:text-gray-300 dark:hover:border-gray-700"
                                             >
-                                              {[
-                                                UNASSIGNED_PERSON,
-                                                ...PREVIEW_PEOPLE,
-                                              ].map((p) => (
+                                              {allAssigneeChoices.map((p) => (
                                                 <option key={p.id} value={p.id}>
                                                   {p.name}
                                                 </option>
@@ -1452,11 +1453,11 @@ export default function WorkListView({
                                                   item.id,
                                                   sub.id,
                                                   {
-                                                    assignee: PREVIEW_PEOPLE[0],
+                                                    assignee: mePerson,
                                                   },
                                                 );
                                                 showNotice(
-                                                  `Assigned ${sub.key} to ${PREVIEW_PEOPLE[0].name}`,
+                                                  `Assigned ${sub.key} to ${mePerson.name}`,
                                                 );
                                               }}
                                               className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -1937,7 +1938,7 @@ export default function WorkListView({
                                       }
                                       className="h-7 cursor-pointer border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                                     >
-                                      {PREVIEW_PEOPLE.map((person) => (
+                                      {allAssigneeChoices.map((person) => (
                                         <option
                                           key={person.id}
                                           value={person.id}
@@ -2017,7 +2018,7 @@ export default function WorkListView({
                       onChange={(e) => setInlineAssigneeId(e.target.value)}
                       className="h-8 cursor-pointer border border-gray-200 bg-white px-2 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                     >
-                      {PREVIEW_PEOPLE.map((person) => (
+                      {allAssigneeChoices.map((person) => (
                         <option key={person.id} value={person.id}>
                           {person.name}
                         </option>
@@ -2110,6 +2111,7 @@ export default function WorkListView({
 function renderCellContent({
   colKey,
   item,
+  allAssigneeChoices,
   hasSubtasks,
   isExpanded,
   isDone,
@@ -2137,6 +2139,7 @@ function renderCellContent({
 }: {
   colKey: WorkListColumnKey;
   item: WorkItem;
+  allAssigneeChoices: readonly WorkPerson[];
   hasSubtasks: boolean;
   isExpanded: boolean;
   isDone: boolean;
@@ -2374,11 +2377,6 @@ function renderCellContent({
 
   if (colKey ==="assignee") {
     const isEditing = activeAssigneeRowId === item.id;
-    const allAssigneeChoices = [
-      UNASSIGNED_PERSON,
-      AUTOMATIC_PERSON,
-      ...PREVIEW_PEOPLE,
-    ];
     return (
       <div className="relative">
         <button
@@ -2412,7 +2410,9 @@ function renderCellContent({
             </div>
             <div className="max-h-56 overflow-y-auto py-1">
               {allAssigneeChoices.map((person) => {
-                const selected = person.name === item.assignee.name;
+                const selected =
+                  person.id === item.assignee.id ||
+                  person.name === item.assignee.name;
                 return (
                   <button
                     key={person.id}
