@@ -73,22 +73,21 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   ];
 
   const loadedProjects = projects.data?.data ?? [];
-  const totalItems = projects.data?.pagination.totalItems ?? 0;
 
   const totalProjectsCount =
     status === undefined
-      ? totalItems
-      : (allProjectsTotalQuery.data?.pagination.totalItems ?? totalItems);
+      ? projects.data?.pagination.totalItems
+      : allProjectsTotalQuery.data?.pagination.totalItems;
 
   const activeCount =
     status === "ACTIVE"
-      ? totalItems
-      : (activeProjectsTotalQuery.data?.pagination.totalItems ?? 0);
+      ? projects.data?.pagination.totalItems
+      : activeProjectsTotalQuery.data?.pagination.totalItems;
 
   const archivedCount =
     status === "ARCHIVED"
-      ? totalItems
-      : (archivedProjectsTotalQuery.data?.pagination.totalItems ?? 0);
+      ? projects.data?.pagination.totalItems
+      : archivedProjectsTotalQuery.data?.pagination.totalItems;
 
   // Scoped strictly to the loaded page; only show "Healthy" when the entire organization directory fits on the single loaded page
   const leaderlessCount = loadedProjects.filter(isProjectLeaderless).length;
@@ -179,10 +178,16 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                 {t("kpiTotalLabel")}
               </p>
               <p className="mt-1.5 text-2xl font-bold tracking-tight text-gray-900 tabular-nums dark:text-white/90">
-                {totalProjectsCount}
+                {totalProjectsCount ?? "—"}
               </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {t("kpiTotalHint")}
+                {totalProjectsCount === undefined
+                  ? t(
+                      status !== undefined && allProjectsTotalQuery.isError
+                        ? "kpiCountUnavailable"
+                        : "kpiCountLoading",
+                    )
+                  : t("kpiTotalHint")}
               </p>
             </div>
             <span
@@ -201,9 +206,9 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               </p>
               <div className="mt-1.5 flex flex-wrap items-center gap-2">
                 <p className="text-2xl font-bold tracking-tight text-gray-900 tabular-nums dark:text-white/90">
-                  {activeCount}
+                  {activeCount ?? "—"}
                 </p>
-                {activeCount > 0 && (
+                {activeCount !== undefined && activeCount > 0 && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-success-200 bg-success-50 px-2 py-0.5 text-[11px] font-medium text-success-700 dark:border-success-500/25 dark:bg-success-500/10 dark:text-success-400">
                     <span
                       aria-hidden="true"
@@ -214,7 +219,13 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                 )}
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {t("kpiActiveHint")}
+                {activeCount === undefined
+                  ? t(
+                      status !== "ACTIVE" && activeProjectsTotalQuery.isError
+                        ? "kpiCountUnavailable"
+                        : "kpiCountLoading",
+                    )
+                  : t("kpiActiveHint")}
               </p>
             </div>
             <span
@@ -272,10 +283,16 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                 {t("kpiArchivedLabel")}
               </p>
               <p className="mt-1.5 text-2xl font-bold tracking-tight text-gray-900 tabular-nums dark:text-white/90">
-                {archivedCount}
+                {archivedCount ?? "—"}
               </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                {t("kpiArchivedHint")}
+                {archivedCount === undefined
+                  ? t(
+                      status !== "ARCHIVED" && archivedProjectsTotalQuery.isError
+                        ? "kpiCountUnavailable"
+                        : "kpiCountLoading",
+                    )
+                  : t("kpiArchivedHint")}
               </p>
             </div>
             <span
@@ -392,8 +409,15 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("searchPlaceholder")}
+              aria-describedby="project-search-page-hint"
               className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800/70 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
             />
+            <p
+              id="project-search-page-hint"
+              className="mt-1.5 text-xs text-gray-500 dark:text-gray-400"
+            >
+              {t("searchLoadedPageHint")}
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">

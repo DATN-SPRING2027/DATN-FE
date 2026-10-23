@@ -837,14 +837,20 @@ it("renders global KPI stat cards without 'on page' labels and separates status 
   expect(screen.getByText("Need attention")).toBeVisible();
   expect(screen.getByText("Archived projects")).toBeVisible();
   expect(
-    screen.queryByText(
+    screen.getByText(
       "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
     ),
-  ).not.toBeInTheDocument();
-  const searchInput = screen.getByLabelText("Search projects");
+  ).toBeVisible();
+  const searchInput = screen.getByLabelText(
+    "Search projects on the current page",
+  );
   expect(searchInput).toHaveAttribute(
     "placeholder",
-    "Search by project name, code, or description…",
+    "Filter current page by project name, code, or description…",
+  );
+  expect(searchInput).toHaveAttribute(
+    "aria-describedby",
+    "project-search-page-hint",
   );
 
   fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });
