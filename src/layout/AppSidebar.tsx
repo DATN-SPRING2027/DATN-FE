@@ -421,7 +421,11 @@ const AppSidebar: React.FC = () => {
               aria-label={label}
               aria-current={isActive ? "page" : undefined}
               title={!isExpandedView ? label : undefined}
-              onClick={() => setManualProjectsOpen(true)}
+              onClick={() =>
+                setManualProjectsOpen(
+                  (prev) => !(prev ?? Boolean(activeProjectIdFromPath)),
+                )
+              }
               className={cn(
                 "group menu-item h-8 min-h-8 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
                 isActive

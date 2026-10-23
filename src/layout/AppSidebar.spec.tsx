@@ -295,6 +295,17 @@ describe("AppSidebar navigation", () => {
   it("expands Projects dropdown to list organization projects, and expands each project to show its Workspace link", () => {
     render(<AppSidebar />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const projectsLink = within(nav).getByRole("link", { name: "Projects" });
+
+    fireEvent.click(projectsLink);
+    expect(
+      within(nav).getByRole("group", { name: "Organization projects" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(projectsLink);
+    expect(
+      within(nav).queryByRole("group", { name: "Organization projects" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       within(nav).getByRole("button", { name: "Toggle projects list" }),
