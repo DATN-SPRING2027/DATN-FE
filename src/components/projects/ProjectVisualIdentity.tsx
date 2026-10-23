@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode, type SVGProps } from "react";
+import { useEffect, useRef, useState, type ReactNode, type SVGProps } from "react";
+import { createPortal } from "react-dom";
 import RoleLabel from "@/components/common/RoleLabel";
 import { Link } from "@/i18n/navigation";
 import type {
@@ -458,7 +459,8 @@ export function ProjectSquareAvatar({
 
 /**
  * Interactive Member Avatar with Floating Member Info Hover Card.
- * Displays full name, email, role badge, and status when hovered or focused.
+ * Rendered via React Portal (`document.body`) with fixed viewport coordinates so it is
+ * never clipped by table `overflow-x-auto` / `overflow-hidden` containers.
  */
 export function MemberAvatarWithHoverCard({
   userId,
@@ -479,10 +481,46 @@ export function MemberAvatarWithHoverCard({
   size?: "sm" | "lg";
   index?: number;
 }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const displayName = (fullName ?? "").trim() || (email ?? "").trim() || "Member";
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [coords, setCoords] = useState<{
+    left: number;
+    top: number;
+    placement: "top" | "bottom";
+  } | null>(null);
+
+  const updatePosition = () => {
+    const el = triggerRef.current;
+    if (!el) {
+      setCoords({ left: 0, top: 0, placement: "top" });
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const placeBottom = rect.top > 0 && rect.top < 140;
+    setCoords({
+      left: rect.left + rect.width / 2,
+      top: placeBottom ? rect.bottom + 10 : rect.top - 10,
+      placement: placeBottom ? "bottom" : "top",
+    });
+  };
+
+  const closeTooltip = () => setCoords(null);
+
+  useEffect(() => {
+    if (!coords) return;
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [coords]);
+
+  const displayName =
+    (fullName ?? "").trim() || (email ?? "").trim() || "Member";
   const displayEmail =
-    email && email.trim() && email.trim().toLowerCase() !== displayName.toLowerCase()
+    email &&
+    email.trim() &&
+    email.trim().toLowerCase() !== displayName.toLowerCase()
       ? email.trim()
       : null;
   const initials = getMemberInitials(fullName, email);
@@ -501,15 +539,96 @@ export function MemberAvatarWithHoverCard({
         ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300"
         : "bg-slate-100 text-slate-700 dark:bg-gray-800 dark:text-gray-300";
 
+  const tooltipNode =
+    coords && typeof document !== "undefined"
+      ? createPortal(
+          <div
+            role="tooltip"
+            style={{
+              position: "fixed",
+              left: coords.left,
+              top: coords.top,
+              transform:
+                coords.placement === "top"
+                  ? "translate(-50%, -100%)"
+                  : "translate(-50%, 0)",
+              zIndex: 9999,
+            }}
+            className="pointer-events-none w-max max-w-[260px] min-w-[205px] rounded-xl border border-gray-200/90 bg-white p-3 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+          >
+            <div className="flex items-center gap-2.5">
+              {avatarUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={avatarUrl}
+                  alt=""
+                  className="size-9 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
+                />
+              ) : (
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold tracking-tight ${palette}`}
+                >
+                  {initials}
+                </span>
+              )}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">
+                    {displayName}
+                  </p>
+                  {youBadgeLabel && (
+                    <span className="inline-flex shrink-0 items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
+                      {youBadgeLabel}
+                    </span>
+                  )}
+                </div>
+                {displayEmail && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-gray-500 dark:text-gray-400">
+                    <Mail aria-hidden="true" className="size-3 shrink-0" />
+                    <span className="truncate">{displayEmail}</span>
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 pt-2 dark:border-gray-800">
+              <span
+                className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}
+              >
+                <RoleLabel roleCode={roleCode ?? "MEMBER"} />
+              </span>
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                <span
+                  aria-hidden="true"
+                  className="size-1.5 rounded-full bg-emerald-500"
+                />
+                Active
+              </span>
+            </div>
+
+            <span
+              aria-hidden="true"
+              className={
+                coords.placement === "top"
+                  ? "absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                  : "absolute -top-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-t border-l border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+              }
+            />
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div
       className="relative inline-flex"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onFocus={() => setIsHovered(true)}
-      onBlur={() => setIsHovered(false)}
+      onMouseEnter={updatePosition}
+      onMouseLeave={closeTooltip}
+      onFocus={updatePosition}
+      onBlur={closeTooltip}
     >
       <button
+        ref={triggerRef}
         type="button"
         aria-label={displayName}
         className={`relative flex shrink-0 cursor-pointer items-center justify-center rounded-full font-bold tracking-tight ring-2 ring-white transition-transform duration-150 hover:z-30 hover:scale-105 hover:ring-indigo-300 focus-visible:z-30 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:ring-gray-900 dark:hover:ring-indigo-500/60 ${avatarSizeClass} ${
@@ -528,67 +647,7 @@ export function MemberAvatarWithHoverCard({
         )}
       </button>
 
-      {isHovered && (
-        <div
-          role="tooltip"
-          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2.5 w-max max-w-[260px] min-w-[205px] -translate-x-1/2 rounded-xl border border-gray-200/90 bg-white p-3 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
-        >
-          <div className="flex items-center gap-2.5">
-            {avatarUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={avatarUrl}
-                alt=""
-                className="size-9 shrink-0 rounded-full object-cover ring-1 ring-gray-200 dark:ring-gray-700"
-              />
-            ) : (
-              <span
-                className={`flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold tracking-tight ${palette}`}
-              >
-                {initials}
-              </span>
-            )}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">
-                  {displayName}
-                </p>
-                {youBadgeLabel && (
-                  <span className="inline-flex shrink-0 items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
-                    {youBadgeLabel}
-                  </span>
-                )}
-              </div>
-              {displayEmail && (
-                <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-gray-500 dark:text-gray-400">
-                  <Mail aria-hidden="true" className="size-3 shrink-0" />
-                  <span className="truncate">{displayEmail}</span>
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-gray-100 pt-2 dark:border-gray-800">
-            <span
-              className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold ${roleBadgeClass}`}
-            >
-              <RoleLabel roleCode={roleCode ?? "MEMBER"} />
-            </span>
-            <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-              <span
-                aria-hidden="true"
-                className="size-1.5 rounded-full bg-emerald-500"
-              />
-              Active
-            </span>
-          </div>
-
-          <span
-            aria-hidden="true"
-            className="absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
-          />
-        </div>
-      )}
+      {tooltipNode}
     </div>
   );
 }
@@ -608,7 +667,40 @@ export function ProjectMemberAvatarGroup({
   fallbackMemberName?: string;
   maxVisible?: number;
 }) {
-  const [isOverflowHovered, setIsOverflowHovered] = useState(false);
+  const overflowBtnRef = useRef<HTMLButtonElement | null>(null);
+  const [overflowCoords, setOverflowCoords] = useState<{
+    left: number;
+    top: number;
+    placement: "top" | "bottom";
+  } | null>(null);
+
+  const updateOverflowPosition = () => {
+    const el = overflowBtnRef.current;
+    if (!el) {
+      setOverflowCoords({ left: 0, top: 0, placement: "top" });
+      return;
+    }
+    const rect = el.getBoundingClientRect();
+    const placeBottom = rect.top > 0 && rect.top < 150;
+    setOverflowCoords({
+      left: rect.left + rect.width / 2,
+      top: placeBottom ? rect.bottom + 10 : rect.top - 10,
+      placement: placeBottom ? "bottom" : "top",
+    });
+  };
+
+  const closeOverflow = () => setOverflowCoords(null);
+
+  useEffect(() => {
+    if (!overflowCoords) return;
+    window.addEventListener("scroll", updateOverflowPosition, true);
+    window.addEventListener("resize", updateOverflowPosition);
+    return () => {
+      window.removeEventListener("scroll", updateOverflowPosition, true);
+      window.removeEventListener("resize", updateOverflowPosition);
+    };
+  }, [overflowCoords]);
+
   const knownMembers = members && members.length > 0 ? members : [];
   const visibleMembers: Array<{
     key: string;
@@ -665,12 +757,13 @@ export function ProjectMemberAvatarGroup({
       {remainingCount > 0 && (
         <div
           className="relative inline-flex"
-          onMouseEnter={() => setIsOverflowHovered(true)}
-          onMouseLeave={() => setIsOverflowHovered(false)}
-          onFocus={() => setIsOverflowHovered(true)}
-          onBlur={() => setIsOverflowHovered(false)}
+          onMouseEnter={updateOverflowPosition}
+          onMouseLeave={closeOverflow}
+          onFocus={updateOverflowPosition}
+          onBlur={closeOverflow}
         >
           <button
+            ref={overflowBtnRef}
             type="button"
             aria-label={`+${remainingCount} more members`}
             className="inline-flex h-6 min-w-6 cursor-pointer items-center justify-center rounded-lg bg-slate-100 px-1.5 text-[11px] font-semibold text-slate-600 tabular-nums transition hover:bg-slate-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
@@ -678,61 +771,79 @@ export function ProjectMemberAvatarGroup({
             +{remainingCount}
           </button>
 
-          {isOverflowHovered && overflowMembers.length > 0 && (
-            <div
-              role="tooltip"
-              className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2.5 w-max max-w-[260px] min-w-[200px] -translate-x-1/2 rounded-xl border border-gray-200/90 bg-white p-2.5 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
-            >
-              <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                +{remainingCount} more members
-              </p>
-              <ul className="space-y-1.5">
-                {overflowMembers.map((extra, idx) => {
-                  const initials = getMemberInitials(
-                    extra.fullName,
-                    extra.email,
-                  );
-                  const palette =
-                    AVATAR_PASTEL_PALETTES[
-                      hashSeed(extra.userId || initials || String(idx)) %
-                        AVATAR_PASTEL_PALETTES.length
-                    ];
-                  return (
-                    <li
-                      key={extra.userId}
-                      className="flex items-center justify-between gap-2"
-                    >
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span
-                          className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${palette}`}
-                        >
-                          {initials}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-xs font-medium text-gray-900 dark:text-white">
-                            {extra.fullName || extra.email}
-                          </p>
-                          {extra.email &&
-                            extra.email !== extra.fullName && (
-                              <p className="truncate text-[10px] text-gray-500 dark:text-gray-400">
-                                {extra.email}
-                              </p>
-                            )}
+          {overflowCoords &&
+            overflowMembers.length > 0 &&
+            typeof document !== "undefined" &&
+            createPortal(
+              <div
+                role="tooltip"
+                style={{
+                  position: "fixed",
+                  left: overflowCoords.left,
+                  top: overflowCoords.top,
+                  transform:
+                    overflowCoords.placement === "top"
+                      ? "translate(-50%, -100%)"
+                      : "translate(-50%, 0)",
+                  zIndex: 9999,
+                }}
+                className="pointer-events-none w-max max-w-[260px] min-w-[200px] rounded-xl border border-gray-200/90 bg-white p-2.5 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+              >
+                <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
+                  +{remainingCount} more members
+                </p>
+                <ul className="space-y-1.5">
+                  {overflowMembers.map((extra, idx) => {
+                    const initials = getMemberInitials(
+                      extra.fullName,
+                      extra.email,
+                    );
+                    const palette =
+                      AVATAR_PASTEL_PALETTES[
+                        hashSeed(extra.userId || initials || String(idx)) %
+                          AVATAR_PASTEL_PALETTES.length
+                      ];
+                    return (
+                      <li
+                        key={extra.userId}
+                        className="flex items-center justify-between gap-2"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span
+                            className={`flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${palette}`}
+                          >
+                            {initials}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium text-gray-900 dark:text-white">
+                              {extra.fullName || extra.email}
+                            </p>
+                            {extra.email &&
+                              extra.email !== extra.fullName && (
+                                <p className="truncate text-[10px] text-gray-500 dark:text-gray-400">
+                                  {extra.email}
+                                </p>
+                              )}
+                          </div>
                         </div>
-                      </div>
-                      <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-gray-800 dark:text-gray-300">
-                        <RoleLabel roleCode={extra.roleCode ?? "MEMBER"} />
-                      </span>
-                    </li>
-                  );
-                })}
-              </ul>
-              <span
-                aria-hidden="true"
-                className="absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
-              />
-            </div>
-          )}
+                        <span className="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 dark:bg-gray-800 dark:text-gray-300">
+                          <RoleLabel roleCode={extra.roleCode ?? "MEMBER"} />
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <span
+                  aria-hidden="true"
+                  className={
+                    overflowCoords.placement === "top"
+                      ? "absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                      : "absolute -top-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-t border-l border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                  }
+                />
+              </div>,
+              document.body,
+            )}
         </div>
       )}
     </div>

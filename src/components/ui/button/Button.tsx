@@ -59,9 +59,9 @@ const Button: React.FC<ButtonProps> = ({
       onClick={onClick}
       disabled={disabled}
     >
-      {startIcon && <span className="flex items-center">{startIcon}</span>}
+      {startIcon && <span className="inline-flex shrink-0 items-center justify-center">{startIcon}</span>}
       {children}
-      {endIcon && <span className="flex items-center">{endIcon}</span>}
+      {endIcon && <span className="inline-flex shrink-0 items-center justify-center">{endIcon}</span>}
     </button>
   );
 };
