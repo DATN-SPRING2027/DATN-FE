@@ -125,7 +125,11 @@ vi.mock("next-intl", () => ({
         "sidebar.groups.administration": "Administration",
         "sidebar.items.overview": "Overview",
         "sidebar.items.projects": "Projects",
+        "sidebar.items.projectOverview": "Overview",
+        "sidebar.items.projectMembers": "Project members",
         "sidebar.items.workspace": "Workspace",
+        "sidebar.items.projectWorkNotes": "Work Notes",
+        "sidebar.items.projectSettings": "Setting",
         "sidebar.items.chat": "Chat",
         "sidebar.items.workNotes": "Work Notes",
         "sidebar.items.knowledge": "Knowledge",
@@ -313,6 +317,12 @@ describe("AppSidebar navigation", () => {
     const projectActions = within(projectsGroup).getByRole("group", {
       name: "Continuum Workspace Core actions",
     });
+    expect(
+      within(projectActions).getByRole("link", { name: "Overview" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/overview");
+    expect(
+      within(projectActions).getByRole("link", { name: "Project members" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/members");
     const workspaceLink = within(projectActions).getByRole("link", {
       name: "Workspace",
     });
@@ -320,6 +330,12 @@ describe("AppSidebar navigation", () => {
       "href",
       "/projects/69e923c77859fd1c702d4c21/work",
     );
+    expect(
+      within(projectActions).getByRole("link", { name: "Work Notes" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/work-notes");
+    expect(
+      within(projectActions).getByRole("link", { name: "Setting" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/settings");
   });
 
   it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {

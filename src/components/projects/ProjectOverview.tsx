@@ -57,6 +57,11 @@ export function syncProjectTabUrl(projectId: string, nextTab: ProjectTab) {
   if (currentFull !== targetPath) {
     window.history.replaceState(window.history.state, "", targetPath);
   }
+  window.dispatchEvent(
+    new CustomEvent("continuum:project-tab-sync", {
+      detail: { projectId, tab: nextTab },
+    }),
+  );
 }
 
 export default function ProjectOverview({
@@ -117,8 +122,32 @@ export default function ProjectOverview({
         onTabChange?.(fromUrl);
       }
     };
+    const handleCustomTabChange = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ projectId?: string; tab?: ProjectTab }>
+      ).detail;
+      if (
+        detail?.projectId === project.id &&
+        detail.tab &&
+        (VALID_TABS as readonly string[]).includes(detail.tab)
+      ) {
+        setInternalTab(detail.tab);
+        onTabChange?.(detail.tab);
+        syncProjectTabUrl(project.id, detail.tab);
+      }
+    };
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener(
+      "continuum:project-tab-change",
+      handleCustomTabChange,
+    );
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener(
+        "continuum:project-tab-change",
+        handleCustomTabChange,
+      );
+    };
   }, [project.id, onTabChange]);
   const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
