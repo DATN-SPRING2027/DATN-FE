@@ -869,7 +869,8 @@
       "signOut": "Sign out",
       "signingOut": "Signing out…",
       "signOutError": "Could not sign out. Try again."
-    }
+    },
+    "createOrganization": "Create organization"
   },
   "header": {
     "searchPlaceholder": "Search or type command...",
@@ -1933,6 +1934,17 @@
     "kpiPrivateHint": "Restricted member access",
     "kpiPublicLabel": "Public projects",
     "kpiPublicHint": "Organization-readable",
+    "kpiProjectsUnit": "Projects",
+    "projectListTitle": "Project List",
+    "tableProjectName": "Project Name",
+    "tableWorkspaceKey": "Workspace Key",
+    "tableUpdatedDate": "Updated Date",
+    "tableAssignedTeam": "Assigned Team",
+    "tableGovernance": "Access & Governance",
+    "cardLeaderLabel": "Leader",
+    "cardMembersLabel": "Members",
+    "createCardTitle": "Create new project",
+    "createCardDescription": "Start a new project to organize your work, collaborate with your team, and track progress.",
     "sortCode": "Code",
     "openProject": "Open workspace",
     "updatedShort": "Updated {date}",
@@ -1940,7 +1952,7 @@
     "gridView": "Grid view",
     "listView": "List view",
     "sortProjects": "Sort projects",
-    "sortUpdated": "Updated",
+    "sortUpdated": "Last updated",
     "sortName": "Name",
     "projectProgress": "Project progress",
     "taskDataUnavailable": "Task data unavailable",
@@ -2039,7 +2051,25 @@
     "leaderlessProjectsBannerTitle": "{count, plural, one {# active project is missing an effective Leader} other {# active projects are missing an effective Leader}}",
     "leaderlessProjectsBannerDescription": "Organization Managers can recover project governance by appointing a new Project Leader.",
     "filterLeaderlessOnly": "Show Leaderless only",
-    "showAllProjectsFilter": "Show all projects"
+    "showAllProjectsFilter": "Show all projects",
+    "learnMore": "Learn more",
+    "filterByCategory": "Filter projects by category",
+    "allCategories": "Category",
+    "kpiLeaderlessLabel": "Projects missing a lead",
+    "kpiLeaderlessHint": "Requires leader assignment",
+    "atRisk": "At risk",
+    "tableProject": "Project",
+    "tableStatus": "Status",
+    "tableCategory": "Category",
+    "tableVisibility": "Visibility",
+    "tableOwner": "Owner",
+    "tableMembers": "Members",
+    "tableLastUpdated": "Last updated",
+    "tableActions": "Actions",
+    "showingRange": "Showing {start}–{end} of",
+    "perPage": "{count} per page",
+    "rowsPerPage": "Rows per page",
+    "selectAllProjects": "Select all projects"
   },
   "projectLeaders": {
     "title": "Leaders",
@@ -3585,5 +3615,6 @@
     "auditEventLeaders": "Project Leader appointments, replacements, and recoveries",
     "auditEventVisibility": "Project visibility and archive lifecycle changes",
     "auditPrivacyNote": "Audit entries record actor identity, timestamp, and safe field diffs while redacting passwords, tokens, and confidential content."
-  }
+  },
+  "accountOnboarding": {}
 }

@@ -257,7 +257,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
+    ).toEqual(["Overview", "Projects", "Members", "Chat", "Settings"]);
     expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",

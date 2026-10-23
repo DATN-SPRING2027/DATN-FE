@@ -31,13 +31,13 @@ import {
 const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon },
   { key: "projects", path: "/projects", icon: FolderIcon },
+  { key: "members", path: "/organization/members", icon: GroupIcon },
   { key: "chat", path: "/chat", icon: ChatIcon },
   { key: "workNotes", icon: DocsIcon },
   { key: "aiSearch", icon: ShootingStarIcon },
 ] as const;
 
 const administrationItems = [
-  { key: "members", path: "/organization/members", icon: GroupIcon },
   { key: "integrations", icon: PlugInIcon },
   { key: "settings", path: "/organization/settings", icon: SettingsIcon },
 ] as const;
@@ -263,11 +263,11 @@ const AppSidebar: React.FC = () => {
 
   const canViewMembers = canReadOrganizationMemberships(currentUser.data);
   const visiblePrimaryItems = primaryItems.filter(
-    (item) => item.key !== "overview" || canViewMembers,
+    (item) =>
+      (item.key !== "overview" && item.key !== "members") || canViewMembers,
   );
   const visibleAdministrationItems = administrationItems.filter(
-    (item) =>
-      (item.key !== "members" && item.key !== "settings") || canViewMembers,
+    (item) => item.key !== "settings" || canViewMembers,
   );
 
   const flyoutConfigs = useMemo<Record<string, FlyoutItemConfig>>(
