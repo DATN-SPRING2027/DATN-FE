@@ -9,7 +9,7 @@ import React, {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "@/i18n/navigation";
-import { ArrowRightIcon, DocsIcon, FolderIcon, GroupIcon, PlusIcon, SettingsIcon } from "@/icons/index";
+import { ArrowRightIcon, BookOpenIcon, DocsIcon, FolderIcon, GroupIcon, PlusIcon, SettingsIcon } from "@/icons/index";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 
@@ -386,7 +386,9 @@ export function SidebarFlyoutPortal({
             >
               {projects.slice(0, 6).map((project) => {
                 const detailHref = `/projects/${encodeURIComponent(project.id)}`;
+                const overviewHref = `${detailHref}/overview`;
                 const workHref = `${detailHref}/work`;
+                const workNotesHref = `${detailHref}/work-notes`;
                 const membersHref = `${detailHref}/members`;
                 const settingsHref = `${detailHref}/settings`;
                 const isCurrentProject =
@@ -430,7 +432,7 @@ export function SidebarFlyoutPortal({
                         <span>Work</span>
                       </Link>
                       <Link
-                        href={detailHref}
+                        href={overviewHref}
                         onClick={onClose}
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
@@ -442,16 +444,24 @@ export function SidebarFlyoutPortal({
                         onClick={onClose}
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
-                        <GroupIcon viewBox="0.5 0.5 23 23" className="size-3.5 shrink-0" />
-                        <span>Members</span>
+                        <GroupIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
+                        <span>Project members</span>
+                      </Link>
+                      <Link
+                        href={workNotesHref}
+                        onClick={onClose}
+                        className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
+                      >
+                        <BookOpenIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
+                        <span>Work Notes</span>
                       </Link>
                       <Link
                         href={settingsHref}
                         onClick={onClose}
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
-                        <SettingsIcon viewBox="0 0 24 24" className="size-3.5 shrink-0" />
-                        <span>Settings</span>
+                        <SettingsIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
+                        <span>Setting</span>
                       </Link>
                     </div>
                   </li>

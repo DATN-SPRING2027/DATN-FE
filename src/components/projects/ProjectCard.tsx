@@ -99,7 +99,7 @@ export default function ProjectCard({
 
   return (
     <article
-      className={`group relative flex h-full min-w-0 flex-col justify-between rounded-2xl border bg-white p-5 shadow-theme-xs transition-all duration-200 hover:border-brand-300 hover:shadow-theme-md dark:bg-gray-900 dark:hover:border-brand-500/60 ${
+      className={`group relative flex h-full min-w-0 flex-col justify-between rounded-2xl border bg-white p-5 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-theme-md dark:bg-gray-900 dark:hover:border-brand-500/60 ${
         isLeaderless
           ? "border-error-200/90 dark:border-error-500/30"
           : "border-gray-200/90 dark:border-gray-800"
@@ -176,13 +176,13 @@ export default function ProjectCard({
               {isLeaderless ? (
                 <Link
                   href={`${detailHref}/members`}
-                  className="inline-flex items-center gap-1 rounded-lg border border-error-200 bg-error-50 px-2 py-1 text-[11px] font-semibold text-error-700 transition-colors hover:bg-error-100 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300"
+                  className="group/cta inline-flex items-center gap-1 rounded-lg border border-error-200 bg-error-50 px-2 py-1 text-[11px] font-semibold text-error-700 transition-all duration-150 hover:bg-error-100 active:scale-[0.97] dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300 dark:hover:bg-error-500/25"
                 >
                   <span>{t("recoverLeaderCta")}</span>
                   <ArrowRightIcon
                     aria-hidden="true"
                     viewBox="0 0 20 20"
-                    className="h-3 w-3 shrink-0 rtl:rotate-180"
+                    className="h-3 w-3 shrink-0 transition-transform duration-150 group-hover/cta:translate-x-0.5 rtl:rotate-180"
                   />
                 </Link>
               ) : primaryLeader ? (
@@ -266,19 +266,19 @@ export default function ProjectCard({
         <div className="flex shrink-0 items-center gap-2">
           <Link
             href={`${detailHref}/work`}
-            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-2xs transition-all duration-150 hover:border-gray-300 hover:bg-gray-50 active:scale-[0.97] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
           >
             {t("work")}
           </Link>
           <Link
             href={detailHref}
-            className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50/70 px-3 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-100/80 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+            className="group/cta inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-brand-300 bg-brand-50/70 px-3 text-xs font-semibold text-brand-600 transition-all duration-150 hover:bg-brand-100/80 active:scale-[0.97] dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
           >
             <span>{t("overview")}</span>
             <ArrowRightIcon
               aria-hidden="true"
               viewBox="0 0 20 20"
-              className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
+              className="h-3.5 w-3.5 shrink-0 transition-transform duration-150 group-hover/cta:translate-x-0.5 rtl:rotate-180"
             />
           </Link>
         </div>

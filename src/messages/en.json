@@ -867,7 +867,11 @@
       "handover": "Handover",
       "members": "Members",
       "settings": "Settings",
-      "workspace": "Workspace"
+      "workspace": "Workspace",
+      "projectOverview": "Overview",
+      "projectMembers": "Project members",
+      "projectWorkNotes": "Work Notes",
+      "projectSettings": "Setting"
     },
     "organizationLabel": "Organization",
     "organizationSwitcherLabel": "Choose organization",

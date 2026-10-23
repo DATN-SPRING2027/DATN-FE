@@ -847,20 +847,16 @@ it("separates status tabs from search and sort controls without KPI stat cards",
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
   expect(screen.queryByText("Total projects")).not.toBeInTheDocument();
   expect(
-    screen.getByText(
+    screen.queryByText(
       "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
     ),
-  ).toBeVisible();
+  ).not.toBeInTheDocument();
   const searchInput = screen.getByLabelText(
     "Search projects on the current page",
   );
   expect(searchInput).toHaveAttribute(
     "placeholder",
     "Filter current page by project name, code, or description…",
-  );
-  expect(searchInput).toHaveAttribute(
-    "aria-describedby",
-    "project-search-page-hint",
   );
 
   fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });

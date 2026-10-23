@@ -667,6 +667,7 @@ function WorkCard({
   const isDone = status ==="DONE";
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
   const [addingCardSubtask, setAddingCardSubtask] = useState(false);
+  const [isDraggingCard, setIsDraggingCard] = useState(false);
   const [cardSubtaskSummary, setCardSubtaskSummary] = useState("");
   const subtaskPct =
     item.subtasks.total === 0
@@ -677,11 +678,17 @@ function WorkCard({
     <li
       draggable={Boolean(onStatusChange)}
       onDragStart={(event) => {
+        setIsDraggingCard(true);
         event.dataTransfer.setData("text/plain", item.id);
         event.dataTransfer.effectAllowed ="move";
       }}
+      onDragEnd={() => setIsDraggingCard(false)}
     >
-      <article className="group relative rounded-md border border-gray-200 bg-white p-2.5 shadow-theme-xs transition-colors hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500">
+      <article
+        className={`group relative rounded-md border border-gray-200 bg-white p-2.5 shadow-theme-xs transition-all duration-150 ease-out hover:-translate-y-[1px] hover:border-brand-300 hover:shadow-theme-sm dark:border-gray-700 dark:bg-gray-900 dark:hover:border-brand-500 ${
+          isDraggingCard ? "scale-[1.02] rotate-[1.5deg] opacity-90 shadow-theme-lg ring-2 ring-brand-500/30" : ""
+        }`}
+      >
         <button
           type="button"
           onClick={(event) => onOpenItem(item, event.currentTarget)}

@@ -125,7 +125,11 @@ vi.mock("next-intl", () => ({
         "sidebar.groups.administration": "Administration",
         "sidebar.items.overview": "Overview",
         "sidebar.items.projects": "Projects",
+        "sidebar.items.projectOverview": "Overview",
+        "sidebar.items.projectMembers": "Project members",
         "sidebar.items.workspace": "Workspace",
+        "sidebar.items.projectWorkNotes": "Work Notes",
+        "sidebar.items.projectSettings": "Setting",
         "sidebar.items.chat": "Chat",
         "sidebar.items.workNotes": "Work Notes",
         "sidebar.items.knowledge": "Knowledge",
@@ -291,6 +295,17 @@ describe("AppSidebar navigation", () => {
   it("expands Projects dropdown to list organization projects, and expands each project to show its Workspace link", () => {
     render(<AppSidebar />);
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const projectsLink = within(nav).getByRole("link", { name: "Projects" });
+
+    fireEvent.click(projectsLink);
+    expect(
+      within(nav).getByRole("group", { name: "Organization projects" }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(projectsLink);
+    expect(
+      within(nav).queryByRole("group", { name: "Organization projects" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       within(nav).getByRole("button", { name: "Toggle projects list" }),
@@ -313,6 +328,12 @@ describe("AppSidebar navigation", () => {
     const projectActions = within(projectsGroup).getByRole("group", {
       name: "Continuum Workspace Core actions",
     });
+    expect(
+      within(projectActions).getByRole("link", { name: "Overview" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/overview");
+    expect(
+      within(projectActions).getByRole("link", { name: "Project members" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/members");
     const workspaceLink = within(projectActions).getByRole("link", {
       name: "Workspace",
     });
@@ -320,6 +341,12 @@ describe("AppSidebar navigation", () => {
       "href",
       "/projects/69e923c77859fd1c702d4c21/work",
     );
+    expect(
+      within(projectActions).getByRole("link", { name: "Work Notes" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/work-notes");
+    expect(
+      within(projectActions).getByRole("link", { name: "Setting" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/settings");
   });
 
   it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
@@ -410,39 +437,45 @@ describe("AppSidebar navigation", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
   });
 
-  it("renders a portaled hover Flyout menu after 175ms intent delay, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
+  it("renders a portaled hover Flyout menu after 175ms intent delay, does not open a flyout on Projects, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
     vi.useFakeTimers();
     try {
       render(<AppSidebar />);
       const nav = screen.getByRole("navigation", { name: "Main navigation" });
       const projectsItem = within(nav).getByRole("link", { name: "Projects" }).closest("li")!;
+      const chatItem = within(nav).getByRole("link", { name: "Chat" }).closest("li")!;
       const overviewItem = within(nav).getByRole("link", { name: "Overview" }).closest("li")!;
 
       fireEvent.mouseEnter(projectsItem);
       act(() => {
-        vi.advanceTimersByTime(100);
-      });
-      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
-      act(() => {
-        vi.advanceTimersByTime(200);
+        vi.advanceTimersByTime(220);
       });
       expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
 
-      fireEvent.mouseEnter(projectsItem);
+      fireEvent.mouseEnter(chatItem);
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId("sidebar-flyout-chat")).not.toBeInTheDocument();
+
+      fireEvent.mouseEnter(chatItem);
       act(() => {
         vi.advanceTimersByTime(180);
       });
-      const projectsFlyout = screen.getByTestId("sidebar-flyout-projects");
-      expect(projectsFlyout).toBeInTheDocument();
-      expect(projectsFlyout.parentElement).toBe(document.body);
-      expect(within(projectsFlyout).getByText("Continuum Workspace Core")).toBeInTheDocument();
+      const chatFlyout = screen.getByTestId("sidebar-flyout-chat");
+      expect(chatFlyout).toBeInTheDocument();
+      expect(chatFlyout.parentElement).toBe(document.body);
 
-      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
+      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
       fireEvent.mouseEnter(overviewItem);
       act(() => {
         vi.advanceTimersByTime(180);
       });
-      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("sidebar-flyout-chat")).not.toBeInTheDocument();
       expect(screen.getByTestId("sidebar-flyout-overview")).toBeInTheDocument();
 
       expect(

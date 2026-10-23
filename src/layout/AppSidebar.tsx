@@ -92,6 +92,41 @@ const AppSidebar: React.FC = () => {
   const [toggledProjectIds, setToggledProjectIds] = useState<
     Record<string, boolean>
   >({});
+  const [syncedProjectTab, setSyncedProjectTab] = useState<{
+    pathnameAtSync: string;
+    projectId: string;
+    tab: "overview" | "members" | "settings";
+  } | null>(null);
+
+  useEffect(() => {
+    const handleProjectTabSync = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          projectId?: string;
+          tab?: string;
+        }>
+      ).detail;
+      if (
+        detail?.projectId &&
+        (detail.tab === "overview" ||
+          detail.tab === "members" ||
+          detail.tab === "settings")
+      ) {
+        setSyncedProjectTab({
+          pathnameAtSync: pathname,
+          projectId: detail.projectId,
+          tab: detail.tab,
+        });
+      }
+    };
+    window.addEventListener("continuum:project-tab-sync", handleProjectTabSync);
+    return () => {
+      window.removeEventListener(
+        "continuum:project-tab-sync",
+        handleProjectTabSync,
+      );
+    };
+  }, [pathname]);
 
   const [fallbackWidth, setFallbackWidth] = useState(DEFAULT_WIDTH);
   const [fallbackExpanded, setFallbackExpanded] = useState<boolean | null>(null);
@@ -308,19 +343,6 @@ const AppSidebar: React.FC = () => {
           },
         ],
       },
-      projects: {
-        key: "projects",
-        title: t("items.projects"),
-        subtitle: "Recent & active project workspaces",
-        primaryHref: "/projects",
-        primaryCtaLabel: "View all",
-        projects: projectsQuery.data?.data ?? [],
-        isLoadingProjects: Boolean(projectsQuery.isLoading),
-        secondaryCta: {
-          label: "Create project",
-          href: "/projects/new",
-        },
-      },
       chat: {
         key: "chat",
         title: t("items.chat"),
@@ -374,7 +396,7 @@ const AppSidebar: React.FC = () => {
         ],
       },
     }),
-    [organizationName, projectsQuery.data?.data, projectsQuery.isLoading, t],
+    [organizationName, t],
   );
 
   const activeFlyoutConfig =
@@ -392,31 +414,18 @@ const AppSidebar: React.FC = () => {
     if (item.key === "projects") {
       const isActive = isSidebarPathActive(item.path, pathname);
       return (
-        <li
-          key={item.key}
-          ref={(element) => {
-            if (hasFlyout) {
-              registerTrigger(item.key, element);
-            }
-          }}
-          onMouseEnter={() => {
-            if (hasFlyout && !activeIsResizing) {
-              handleTriggerMouseEnter(item.key);
-            }
-          }}
-          onMouseLeave={(event) => {
-            if (hasFlyout && !activeIsResizing) {
-              handleTriggerMouseLeave(item.key, event);
-            }
-          }}
-        >
+        <li key={item.key}>
           <div className="relative flex items-center">
             <Link
               href={item.path}
               aria-label={label}
               aria-current={isActive ? "page" : undefined}
               title={!isExpandedView ? label : undefined}
-              onClick={() => setManualProjectsOpen(true)}
+              onClick={() =>
+                setManualProjectsOpen(
+                  (prev) => !(prev ?? Boolean(activeProjectIdFromPath)),
+                )
+              }
               className={cn(
                 "group menu-item h-8 min-h-8 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
                 isActive
@@ -476,7 +485,7 @@ const AppSidebar: React.FC = () => {
             <ul
               role="group"
               aria-label={t("projectsSubmenuLabel")}
-              className="mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
+              className="continuum-accordion-open mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
             >
               {projectsQuery.isLoading ? (
                 <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -491,12 +500,80 @@ const AppSidebar: React.FC = () => {
                   const isProjectExpanded =
                     toggledProjectIds[project.id] ??
                     activeProjectIdFromPath === project.id;
-                  const projectWorkPath = `/projects/${project.id}/work`;
+                  const projectBasePath = `/projects/${project.id}`;
+                  const projectOverviewPath = `${projectBasePath}/overview`;
+                  const projectMembersPath = `${projectBasePath}/members`;
+                  const projectWorkPath = `${projectBasePath}/work`;
+                  const projectWorkNotesPath = `${projectBasePath}/work-notes`;
+                  const projectSettingsPath = `${projectBasePath}/settings`;
                   const isProjectWorkActive =
                     pathname === projectWorkPath ||
                     pathname.startsWith(`${projectWorkPath}/`);
+                  const isProjectWorkNotesActive =
+                    pathname === projectWorkNotesPath ||
+                    pathname.startsWith(`${projectWorkNotesPath}/`);
+                  const activeSyncedTab =
+                    syncedProjectTab?.pathnameAtSync === pathname &&
+                    syncedProjectTab.projectId === project.id &&
+                    !isProjectWorkActive &&
+                    !isProjectWorkNotesActive
+                      ? syncedProjectTab.tab
+                      : null;
+                  const isProjectMembersActive = activeSyncedTab
+                    ? activeSyncedTab === "members"
+                    : pathname === projectMembersPath ||
+                      pathname.startsWith(`${projectMembersPath}/`);
+                  const isProjectSettingsActive = activeSyncedTab
+                    ? activeSyncedTab === "settings"
+                    : pathname === projectSettingsPath ||
+                      pathname.startsWith(`${projectSettingsPath}/`);
+                  const isProjectOverviewActive = activeSyncedTab
+                    ? activeSyncedTab === "overview"
+                    : pathname === projectBasePath ||
+                      pathname === projectOverviewPath ||
+                      pathname.startsWith(`${projectOverviewPath}/`);
                   const isThisProjectActive =
                     activeProjectIdFromPath === project.id;
+                  const projectSubItems = [
+                    {
+                      key: "overview",
+                      label: t("items.projectOverview"),
+                      href: projectOverviewPath,
+                      isActive: isProjectOverviewActive,
+                      icon: GridIcon, viewBox: "1.5 1.5 21 21",
+                      tab: "overview" as const,
+                    },
+                    {
+                      key: "members",
+                      label: t("items.projectMembers"),
+                      href: projectMembersPath,
+                      isActive: isProjectMembersActive,
+                      icon: GroupIcon, viewBox: "0.5 0.5 23 23",
+                      tab: "members" as const,
+                    },
+                    {
+                      key: "workspace",
+                      label: t("items.workspace"),
+                      href: projectWorkPath,
+                      isActive: isProjectWorkActive,
+                      icon: DocsIcon, viewBox: "0.5 0.5 23 23",
+                    },
+                    {
+                      key: "workNotes",
+                      label: t("items.projectWorkNotes"),
+                      href: projectWorkNotesPath,
+                      isActive: isProjectWorkNotesActive,
+                      icon: BookOpenIcon, viewBox: "0.5 1.5 23 23",
+                    },
+                    {
+                      key: "settings",
+                      label: t("items.projectSettings"),
+                      href: projectSettingsPath,
+                      isActive: isProjectSettingsActive,
+                      icon: SettingsIcon, viewBox: "0 0 24 24",
+                      tab: "settings" as const,
+                    },
+                  ];
 
                   return (
                     <li key={project.id} className="flex flex-col gap-1">
@@ -540,27 +617,52 @@ const AppSidebar: React.FC = () => {
                           aria-label={t("projectActionsLabel", {
                             name: project.name,
                           })}
-                          className="ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
+                          className="continuum-accordion-open ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
                         >
-                          <li>
-                            <Link
-                              href={projectWorkPath}
-                              aria-current={
-                                isProjectWorkActive ? "page" : undefined
-                              }
-                              className={cn(
-                                "flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                                isProjectWorkActive
-                                  ? "bg-brand-50 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200",
-                              )}
-                            >
-                              <DocsIcon viewBox="0.5 0.5 23 23" className="h-3.5 w-3.5 shrink-0" />
-                              <span className="truncate">
-                                {t("items.workspace")}
-                              </span>
-                            </Link>
-                          </li>
+                          {projectSubItems.map((subItem) => {
+                            const SubIcon = subItem.icon;
+                            return (
+                              <li key={subItem.key}>
+                                <Link
+                                  href={subItem.href}
+                                  aria-current={
+                                    subItem.isActive ? "page" : undefined
+                                  }
+                                  onClick={() => {
+                                    if (subItem.tab) {
+                                      setSyncedProjectTab({
+                                        pathnameAtSync: pathname,
+                                        projectId: project.id,
+                                        tab: subItem.tab,
+                                      });
+                                      window.dispatchEvent(
+                                        new CustomEvent(
+                                          "continuum:project-tab-change",
+                                          {
+                                            detail: {
+                                              projectId: project.id,
+                                              tab: subItem.tab,
+                                            },
+                                          },
+                                        ),
+                                      );
+                                    }
+                                  }}
+                                  className={cn(
+                                    "flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
+                                    subItem.isActive
+                                      ? "bg-brand-50 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200",
+                                  )}
+                                >
+                                  <SubIcon viewBox={subItem.viewBox} className="h-3.5 w-3.5 shrink-0" />
+                                  <span className="truncate">
+                                    {subItem.label}
+                                  </span>
+                                </Link>
+                              </li>
+                            );
+                          })}
                         </ul>
                       )}
                     </li>

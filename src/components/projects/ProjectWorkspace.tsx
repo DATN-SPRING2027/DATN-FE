@@ -23,6 +23,7 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   useProjectsQuery,
   type Project,
+  type ProjectList,
   type ProjectLeaderSummary,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
@@ -137,7 +138,25 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     { value: "ARCHIVED", label: t("archived") },
   ];
 
-  const loadedProjects = projects.data?.data ?? [];
+  const [cachedList, setCachedList] = useState<ProjectList | null>(null);
+  if (
+    projects.isSuccess &&
+    !projects.isFetching &&
+    projects.data &&
+    cachedList !== projects.data
+  ) {
+    setCachedList(projects.data);
+  }
+
+  const activeList =
+    projects.isSuccess && !projects.isFetching
+      ? projects.data
+      : !projects.isError
+        ? cachedList
+        : null;
+  const isRefreshingList = projects.isFetching && activeList !== null;
+
+  const loadedProjects = activeList?.data ?? [];
   const leaderlessCount = loadedProjects.filter(isProjectLeaderless).length;
 
   const normalizedQuery = search.trim().toLowerCase();
@@ -198,12 +217,12 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     );
   };
 
-  const totalPages = Math.max(1, projects.data?.pagination.totalPages ?? 1);
+  const totalPages = Math.max(1, activeList?.pagination.totalPages ?? 1);
 
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
       {/* Leaderless Projects Warning Banner */}
-      {projects.isSuccess && !projects.isFetching && leaderlessCount > 0 && (
+      {activeList && !projects.isError && leaderlessCount > 0 && (
         <section
           aria-label={t("leaderlessProjectsBannerTitle", {
             count: leaderlessCount,
@@ -232,7 +251,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
       )}
 
       {/* Unified "Project List" Outer Card (Matching Reference Layout with TailAdmin Tokens) */}
-      <div className="rounded-2xl border border-gray-200/90 bg-white p-4 sm:p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+      <div className="continuum-stagger-3 rounded-2xl border border-gray-200/90 bg-white p-4 sm:p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
         {/* Card Header Row 1: "Project List" Heading + Segmented Status Tabs + Total Count + View Switcher */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 pb-3.5 dark:border-gray-800">
           <div className="flex flex-wrap items-center gap-3">
@@ -272,10 +291,23 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {projects.isSuccess && !projects.isFetching && (
+            {isRefreshingList && (
+              <span
+                role="status"
+                aria-live="polite"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300"
+              >
+                <span
+                  aria-hidden="true"
+                  className="inline-flex h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent dark:border-brand-300 dark:border-t-transparent"
+                />
+                <span>{t("loading")}</span>
+              </span>
+            )}
+            {activeList && (
               <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                 {t("totalProjects", {
-                  count: projects.data.pagination.totalItems,
+                  count: activeList.pagination.totalItems,
                 })}
               </span>
             )}
@@ -329,20 +361,18 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             <label htmlFor="project-search" className="sr-only">
               {t("searchProjects")}
             </label>
-            <span
+            <SearchIcon
+              viewBox="0 0 24 24"
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3.5 text-gray-400"
-            >
-              <SearchIcon viewBox="0 0 20 20" className="h-4 w-4" />
-            </span>
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            />
             <input
               id="project-search"
               type="search"
-              aria-describedby="project-search-page-hint"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("searchPlaceholder")}
-              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/60 ps-9 pe-12 text-xs sm:text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-12 text-xs sm:text-sm text-gray-800 shadow-theme-xs transition-all placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
             />
             <span
               aria-hidden="true"
@@ -403,15 +433,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
         </div>
 
-        <p
-          id="project-search-page-hint"
-          className="mt-2 text-xs text-gray-500 dark:text-gray-400"
-        >
-          {t("searchLoadedPageHint")}
-        </p>
-
         {/* Loading & Error states */}
-        {(projects.isPending || projects.isFetching) && (
+        {(projects.isPending || projects.isFetching) && !activeList && (
           <div className="mt-4">
             <ProjectState />
           </div>
@@ -427,10 +450,15 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
         )}
 
-        {/* Loaded Table or Grid */}
-        {projects.isSuccess && !projects.isFetching && (
-          <div className="mt-4 space-y-4">
-            {projects.data.data.length === 0 ? (
+        {/* Loaded Table or Grid (kept mounted with soft opacity during filter/page revalidation to prevent screen flicker) */}
+        {activeList && !projects.isError && (
+          <div
+            aria-busy={isRefreshingList || undefined}
+            className={`mt-4 space-y-4 transition-opacity duration-150 ${
+              isRefreshingList ? "pointer-events-none opacity-60" : "opacity-100"
+            }`}
+          >
+            {activeList.data.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-300 bg-gray-50/40 px-6 py-14 text-center dark:border-gray-700 dark:bg-gray-800/30">
                 <span
                   aria-hidden="true"
@@ -726,7 +754,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             <div className="flex flex-col gap-3 border-t border-gray-100 pt-3.5 @md:flex-row @md:items-center @md:justify-between dark:border-gray-800">
               <p className="text-xs font-medium text-gray-500 tabular-nums dark:text-gray-400">
                 {t("pageOf", {
-                  page: projects.data.pagination.page,
+                  page: activeList.pagination.page,
                   total: totalPages,
                 })}
               </p>
@@ -734,7 +762,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page <= 1}
+                  disabled={page <= 1 || isRefreshingList}
                   onClick={() => setPage(page - 1)}
                 >
                   {t("previous")}
@@ -743,12 +771,14 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                   aria-current="page"
                   className="inline-flex h-8 min-w-8 items-center justify-center rounded-lg bg-brand-500 px-2.5 text-xs font-semibold text-white shadow-theme-xs tabular-nums"
                 >
-                  {projects.data.pagination.page}
+                  {activeList.pagination.page}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={page >= projects.data.pagination.totalPages}
+                  disabled={
+                    page >= activeList.pagination.totalPages || isRefreshingList
+                  }
                   onClick={() => setPage(page + 1)}
                 >
                   {t("next")}

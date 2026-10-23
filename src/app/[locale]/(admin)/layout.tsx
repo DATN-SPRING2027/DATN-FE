@@ -5,6 +5,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
+import ContinuumTopLoader from "@/components/ui/loading/ContinuumTopLoader";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -18,7 +19,8 @@ export default function AdminLayout({
   const { isExpanded, isMobileOpen, sidebarWidth, isResizing, isHelpOpen } =
     useSidebar();
   const router = useRouter();
-  const isChat = usePathname() === "/chat";
+  const pathname = usePathname();
+  const isChat = pathname === "/chat";
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -101,6 +103,8 @@ export default function AdminLayout({
           : "flex min-h-screen flex-col"
       }
     >
+      <ContinuumTopLoader />
+
       {/* Full-width Top Header */}
       <AppHeader compact={isChat} />
 
@@ -126,10 +130,11 @@ export default function AdminLayout({
         >
           {/* Page Content */}
           <div
+            key={isChat ? "chat" : pathname}
             className={
               isChat
                 ? "flex min-h-0 flex-1 flex-col overflow-hidden"
-                : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+                : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
             }
           >
             {children}

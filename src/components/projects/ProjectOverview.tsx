@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState, type ReactNode } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import ProjectMembers from "./members/ProjectMembers";
 import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
@@ -57,6 +57,11 @@ export function syncProjectTabUrl(projectId: string, nextTab: ProjectTab) {
   if (currentFull !== targetPath) {
     window.history.replaceState(window.history.state, "", targetPath);
   }
+  window.dispatchEvent(
+    new CustomEvent("continuum:project-tab-sync", {
+      detail: { projectId, tab: nextTab },
+    }),
+  );
 }
 
 export default function ProjectOverview({
@@ -95,10 +100,23 @@ export default function ProjectOverview({
   const [internalTab, setInternalTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
+  const [tabDirection, setTabDirection] = useState<"left" | "right" | null>(
+    null,
+  );
+  const tabListRef = useRef<HTMLDivElement | null>(null);
+  const [indicatorStyle, setIndicatorStyle] = useState<{
+    left: number;
+    width: number;
+  }>({ left: 0, width: 0 });
   const currentTab = activeTab ?? internalTab;
   const tab: ProjectTab =
     currentTab === "teams" && !showTeams ? "overview" : currentTab;
   const setTab = (next: ProjectTab) => {
+    const prevIdx = VALID_TABS.indexOf(tab);
+    const nextIdx = VALID_TABS.indexOf(next);
+    if (prevIdx !== -1 && nextIdx !== -1 && prevIdx !== nextIdx) {
+      setTabDirection(nextIdx > prevIdx ? "right" : "left");
+    }
     setInternalTab(next);
     onTabChange?.(next);
     syncProjectTabUrl(project.id, next);
@@ -117,8 +135,32 @@ export default function ProjectOverview({
         onTabChange?.(fromUrl);
       }
     };
+    const handleCustomTabChange = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ projectId?: string; tab?: ProjectTab }>
+      ).detail;
+      if (
+        detail?.projectId === project.id &&
+        detail.tab &&
+        (VALID_TABS as readonly string[]).includes(detail.tab)
+      ) {
+        setInternalTab(detail.tab);
+        onTabChange?.(detail.tab);
+        syncProjectTabUrl(project.id, detail.tab);
+      }
+    };
     window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener(
+      "continuum:project-tab-change",
+      handleCustomTabChange,
+    );
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      window.removeEventListener(
+        "continuum:project-tab-change",
+        handleCustomTabChange,
+      );
+    };
   }, [project.id, onTabChange]);
   const [showAddModal, setShowAddModal] = useState(false);
   const tabId = useId();
@@ -149,6 +191,27 @@ export default function ProjectOverview({
     const index = tabs.indexOf(value);
     return tabs[(index + direction + tabs.length) % tabs.length];
   };
+
+  useLayoutEffect(() => {
+    const container = tabListRef.current;
+    if (!container) return;
+    const activeEl = container.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
+    if (activeEl && activeEl.offsetWidth > 0) {
+      setIndicatorStyle({
+        left: activeEl.offsetLeft,
+        width: activeEl.offsetWidth,
+      });
+    }
+  }, [tab, showTeams]);
+
+  const tabPanelSlideClass =
+    tabDirection === "right"
+      ? "continuum-tab-slide-right"
+      : tabDirection === "left"
+        ? "continuum-tab-slide-left"
+        : "continuum-stagger-2";
 
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
@@ -306,9 +369,10 @@ export default function ProjectOverview({
         >
           <div className="flex w-full min-w-max items-center justify-start gap-2">
             <div
+              ref={tabListRef}
               role="tablist"
               aria-label={project.name}
-              className="flex items-stretch gap-1 sm:gap-2"
+              className="relative flex items-stretch gap-1 sm:gap-2"
             >
               {tabs.map((value) => (
                 <button
@@ -341,6 +405,16 @@ export default function ProjectOverview({
                   {tabLabel(value)}
                 </button>
               ))}
+              {indicatorStyle.width > 0 && (
+                <span
+                  aria-hidden="true"
+                  style={{
+                    transform: `translateX(${indicatorStyle.left}px)`,
+                    width: `${indicatorStyle.width}px`,
+                  }}
+                  className="pointer-events-none absolute bottom-0 start-0 h-0.5 rounded-full bg-brand-500 transition-[transform,width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-brand-400"
+                />
+              )}
             </div>
 
             <div className="flex items-stretch gap-1 sm:gap-2">
@@ -429,11 +503,11 @@ export default function ProjectOverview({
         role="tabpanel"
         aria-labelledby={`${tabId}-overview-tab`}
         hidden={tab !== "overview"}
-        className="space-y-5 sm:space-y-6"
+        className={`space-y-5 sm:space-y-6 ${tab === "overview" ? tabPanelSlideClass : ""}`}
       >
         {/* 4-Card B2B Metric Strip */}
         <dl className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 @3xl:grid-cols-4">
-          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm sm:p-5 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 {t("code")}
@@ -463,7 +537,7 @@ export default function ProjectOverview({
             </p>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm sm:p-5 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 {t("visibility")}
@@ -529,7 +603,7 @@ export default function ProjectOverview({
             </p>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm sm:p-5 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 {t("activeMembers")}
@@ -576,7 +650,7 @@ export default function ProjectOverview({
             </p>
           </div>
 
-          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+          <div className="min-w-0 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-theme-xs transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-gray-300 hover:shadow-theme-sm sm:p-5 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700">
             <div className="flex items-center justify-between gap-2">
               <dt className="text-xs font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
                 {t("updatedAt")}

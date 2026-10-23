@@ -1162,3 +1162,253 @@ pre[class*="language-"].line-numbers {
   }
 }
 
+
+@keyframes continuumPageEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes continuumSlideFromRight {
+  from {
+    opacity: 0;
+    transform: translateX(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes continuumSlideFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes continuumAccordionOpen {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .continuum-page-enter {
+    animation: continuumPageEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-stagger-1 {
+    animation: continuumPageEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) 0ms both;
+  }
+  .continuum-stagger-2 {
+    animation: continuumPageEnter 210ms cubic-bezier(0.22, 1, 0.36, 1) 35ms both;
+  }
+  .continuum-stagger-3 {
+    animation: continuumPageEnter 220ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
+  }
+  .continuum-tab-slide-right {
+    animation: continuumSlideFromRight 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-tab-slide-left {
+    animation: continuumSlideFromLeft 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .continuum-accordion-open {
+    animation: continuumAccordionOpen 170ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+
+@keyframes continuumShimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes continuumTopBar {
+  0% {
+    transform: translateX(-100%) scaleX(0.2);
+  }
+  50% {
+    transform: translateX(0%) scaleX(0.55);
+  }
+  100% {
+    transform: translateX(100%) scaleX(0.2);
+  }
+}
+
+.continuum-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(241, 245, 249, 0.9) 0%,
+    rgba(226, 232, 240, 0.95) 50%,
+    rgba(241, 245, 249, 0.9) 100%
+  );
+  background-size: 200% 100%;
+  animation: continuumShimmer 1.6s ease-in-out infinite;
+}
+
+.dark .continuum-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.09) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+}
+
+.continuum-top-loader {
+  animation: continuumTopBar 1.15s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+
+@keyframes continuumBotFloat {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes continuumBotShadow {
+  0%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.22;
+  }
+  50% {
+    transform: scaleX(0.84);
+    opacity: 0.12;
+  }
+}
+
+@keyframes continuumBotBlink {
+  0%,
+  44%,
+  48%,
+  96%,
+  100% {
+    transform: scaleY(1);
+  }
+  46%,
+  98% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes continuumBotLook {
+  0%,
+  20%,
+  100% {
+    transform: translateX(0px);
+  }
+  35%,
+  55% {
+    transform: translateX(-2.5px);
+  }
+  70%,
+  88% {
+    transform: translateX(2.5px);
+  }
+}
+
+@keyframes continuumCardFloatLeft {
+  0%,
+  100% {
+    transform: translate(0px, 0px) rotate(-6deg);
+  }
+  50% {
+    transform: translate(-3px, -6px) rotate(-2deg);
+  }
+}
+
+@keyframes continuumCardFloatRight {
+  0%,
+  100% {
+    transform: translate(0px, 0px) rotate(6deg);
+  }
+  50% {
+    transform: translate(3px, -5px) rotate(2deg);
+  }
+}
+
+@keyframes continuumSparklePulse {
+  0%,
+  100% {
+    transform: scale(0.75) rotate(0deg);
+    opacity: 0.35;
+  }
+  50% {
+    transform: scale(1.15) rotate(15deg);
+    opacity: 1;
+  }
+}
+
+@keyframes continuumIslandEnter {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -10px) scale(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.continuum-bot-float {
+  animation: continuumBotFloat 2.6s ease-in-out infinite;
+}
+
+.continuum-bot-shadow {
+  transform-origin: center;
+  animation: continuumBotShadow 2.6s ease-in-out infinite;
+}
+
+.continuum-bot-eyes {
+  transform-origin: center;
+  animation:
+    continuumBotBlink 4.2s ease-in-out infinite,
+    continuumBotLook 5s ease-in-out infinite;
+}
+
+.continuum-card-left {
+  transform-origin: center;
+  animation: continuumCardFloatLeft 3s ease-in-out infinite;
+}
+
+.continuum-card-right {
+  transform-origin: center;
+  animation: continuumCardFloatRight 2.8s ease-in-out 0.3s infinite;
+}
+
+.continuum-sparkle-1 {
+  transform-origin: center;
+  animation: continuumSparklePulse 2.2s ease-in-out infinite;
+}
+
+.continuum-sparkle-2 {
+  transform-origin: center;
+  animation: continuumSparklePulse 2.5s ease-in-out 0.7s infinite;
+}
+
+.continuum-island-enter {
+  animation: continuumIslandEnter 200ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
