@@ -2321,53 +2321,6 @@ export default function WorkWorkspace({
     }
   }
 
-  function loadItemComments(itemId: string, subtaskId?: string) {
-    if (!isRealProject) return;
-    const targetId = subtaskId ?? itemId;
-    if (!OBJECT_ID_PATTERN.test(targetId)) return;
-    void (async () => {
-      try {
-        const commentItems = await fetchAllTaskComments(projectId, targetId);
-        const liveComments = commentItems.map((c) => {
-          const authorPerson = resolvePersonById(
-            c.authorId,
-            projectPeopleById,
-            user.data,
-            isRealProject,
-          );
-          return {
-            id: c.id,
-            author: authorPerson.name,
-            initials: authorPerson.initials,
-            createdAt: formatCommentDateTime(c.createdAt),
-            text: c.body,
-          };
-        });
-        setItems((current) =>
-          current.map((item) => {
-            if (item.id !== itemId) return item;
-            if (subtaskId) {
-              return {
-                ...item,
-                subtaskItems: item.subtaskItems?.map((sub) =>
-                  sub.id === subtaskId
-                    ? { ...sub, comments: liveComments }
-                    : sub,
-                ),
-              };
-            }
-            return {
-              ...item,
-              comments: liveComments,
-            };
-          }),
-        );
-      } catch {
-        // Keep current comment state if background fetch fails
-      }
-    })();
-  }
-
   async function addWorklog(
     itemId: string,
     timeSpentInput: string,
@@ -2886,8 +2839,6 @@ export default function WorkWorkspace({
               onReorderSubtask={reorderSubtask}
               onConvertSubtaskToTask={convertSubtaskToTask}
               onMoveSubtaskToParent={moveSubtaskToParent}
-              onAddComment={addComment}
-              onLoadItemComments={loadItemComments}
               onOpenSubtask={openSubtask}
               onInlineCreate={(title, type, options) =>
                 addPreviewItem({

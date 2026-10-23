@@ -127,7 +127,6 @@ export type WorkListColumnKey =
   | "progress"
   | "labels"
   | "storyPoints"
-  | "comments"
   | "team";
 
 export type WorkListColumn = Readonly<{

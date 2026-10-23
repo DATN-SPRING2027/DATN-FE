@@ -1292,11 +1292,11 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     });
   });
 
-  it("opens the floating comments popover when clicking the Comments cell in List view, displays existing comments, and posts a new comment", async () => {
+  it("does not render a Comments column in List view", async () => {
     const realProjectId = "69e923c77859fd1c702d4c21";
     const realTaskId = "69e923c77859fd1c702d4ca1";
 
-    api.mockImplementation(async (path, init) => {
+    api.mockImplementation(async (path) => {
       if (path === "/auth/me") {
         return {
           id: "69e923c77859fd1c702d4c10",
@@ -1346,38 +1346,6 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
           },
         };
       }
-      if (
-        path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}/comments` &&
-        init?.method === "POST"
-      ) {
-        return {
-          id: "69e923c77859fd1c702d4cc2",
-          taskId: realTaskId,
-          projectId: realProjectId,
-          authorId: "69e923c77859fd1c702d4c10",
-          body: "Bình luận trực tiếp từ bảng List",
-          createdAt: "2026-10-23T07:10:00.000Z",
-        };
-      }
-      if (
-        path.startsWith(
-          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/comments`,
-        )
-      ) {
-        return {
-          items: [
-            {
-              id: "69e923c77859fd1c702d4cc1",
-              taskId: realTaskId,
-              projectId: realProjectId,
-              authorId: "69e923c77859fd1c702d4c10",
-              body: "Đã hoàn thành phần giao diện chính",
-              createdAt: "2026-10-23T07:00:00.000Z",
-            },
-          ],
-          nextAfterId: null,
-        };
-      }
       if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
         return {
           items: [
@@ -1412,44 +1380,13 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     mount(realProjectId);
 
     expect(await screen.findByText("làm fe trang chủ")).toBeVisible();
-
-    const commentsTrigger = screen.getByRole("button", {
-      name: "Comments for FE-1",
-    });
-    fireEvent.click(commentsTrigger);
-
-    const commentsPopover = screen.getByRole("dialog", {
-      name: "Comments popover for FE-1",
-    });
-    expect(commentsPopover).toBeVisible();
-
+    expect(screen.queryByText("Comments", { exact: true })).not.toBeInTheDocument();
     expect(
-      await within(commentsPopover).findByText(
-        "Đã hoàn thành phần giao diện chính",
-      ),
-    ).toBeVisible();
-    expect(commentsTrigger).toHaveTextContent("1 comment");
-
-    fireEvent.change(
-      within(commentsPopover).getByLabelText("Write a comment for FE-1"),
-      { target: { value: "Bình luận trực tiếp từ bảng List" } },
-    );
-    fireEvent.click(
-      within(commentsPopover).getByRole("button", { name: "Send" }),
-    );
-
-    await waitFor(() => {
-      expect(
-        within(commentsPopover).getByText("Bình luận trực tiếp từ bảng List"),
-      ).toBeVisible();
-      expect(commentsTrigger).toHaveTextContent("2 comments");
-      expect(api).toHaveBeenCalledWith(
-        `/tasks/projects/${realProjectId}/tasks/${realTaskId}/comments`,
-        expect.objectContaining({
-          method: "POST",
-        }),
-      );
-    });
+      screen.queryByRole("columnheader", { name: "Comments" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Comments for FE-1" }),
+    ).not.toBeInTheDocument();
   });
 
   it("loads real task history events in the History tab and disables demo vulnerability task creation on real projects", async () => {

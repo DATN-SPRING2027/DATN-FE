@@ -16,7 +16,6 @@ export const DEFAULT_WORK_LIST_COLUMNS: readonly WorkListColumn[] = [
   { key: "priority", label: "Priority", category: "Attributes", visible: true, width: 120, minWidth: 95 },
   { key: "due", label: "Due date", category: "Dates", visible: true, width: 125, minWidth: 100 },
   { key: "parent", label: "Parent", category: "Core", visible: true, width: 150, minWidth: 115 },
-  { key: "comments", label: "Comments", category: "Content", visible: true, width: 115, minWidth: 90 },
   { key: "created", label: "Created", category: "Dates", visible: true, width: 130, minWidth: 100 },
   { key: "updated", label: "Updated", category: "Dates", visible: true, width: 130, minWidth: 100 },
   { key: "reporter", label: "Reporter", category: "People", visible: true, width: 160, minWidth: 120 },

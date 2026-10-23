@@ -77,8 +77,6 @@ export default function WorkListView({
   onReorderSubtask,
   onConvertSubtaskToTask,
   onMoveSubtaskToParent,
-  onAddComment,
-  onLoadItemComments,
   onInlineCreate,
   onRefresh,
 }: {
@@ -149,8 +147,6 @@ export default function WorkListView({
     subtaskId: string,
     toItemId: string,
   ) => void;
-  onAddComment?: (itemId: string, text: string) => void;
-  onLoadItemComments?: (itemId: string, subtaskId?: string) => void;
   onInlineCreate?: (
     title: string,
     type?: WorkItemType,
@@ -199,10 +195,6 @@ export default function WorkListView({
   const [activeSubtaskPopoverId, setActiveSubtaskPopoverId] = useState<
     string | null
   >(null);
-  const [activeCommentRowId, setActiveCommentRowId] = useState<string | null>(
-    null,
-  );
-  const [inlineCommentText, setInlineCommentText] = useState("");
   const [activeMenuRowId, setActiveMenuRowId] = useState<string | null>(null);
   const [activeSubtaskMenuId, setActiveSubtaskMenuId] = useState<string | null>(
     null,
@@ -258,7 +250,6 @@ export default function WorkListView({
     setActiveStatusRowId(null);
     setActivePriorityRowId(null);
     setActiveSubtaskPopoverId(null);
-    setActiveCommentRowId(null);
     setActiveMenuRowId(null);
     setActiveSubtaskMenuId(null);
     setWorkHeaderMenuOpen(false);
@@ -790,14 +781,10 @@ export default function WorkListView({
                                   activeStatusRowId,
                                   activePriorityRowId,
                                   activeSubtaskPopoverId,
-                                  activeCommentRowId,
-                                  inlineCommentText,
                                   setActiveAssigneeRowId,
                                   setActiveStatusRowId,
                                   setActivePriorityRowId,
                                   setActiveSubtaskPopoverId,
-                                  setActiveCommentRowId,
-                                  setInlineCommentText,
                                   closeAllCellPopovers,
                                   toggleExpandRow,
                                   onStartAddSubtask: onAddSubtask
@@ -811,8 +798,6 @@ export default function WorkListView({
                                   onPriorityChange,
                                   onAssigneeChange,
                                   onDueDateChange,
-                                  onAddComment,
-                                  onLoadItemComments,
                                   showNotice,
                                   t,
                                 })}
@@ -1364,204 +1349,6 @@ export default function WorkListView({
                                                 ? "50%"
                                                 : "0%"}
                                           </span>
-                                        ) : col.key === "comments" ? (
-                                          <div className="relative">
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                const isOpen =
-                                                  activeCommentRowId === sub.id;
-                                                const next = isOpen
-                                                  ? null
-                                                  : sub.id;
-                                                closeAllCellPopovers();
-                                                setActiveCommentRowId(next);
-                                                setInlineCommentText("");
-                                                if (next) {
-                                                  onLoadItemComments?.(
-                                                    item.id,
-                                                    sub.id,
-                                                  );
-                                                }
-                                              }}
-                                              aria-label={`Comments for ${sub.key}`}
-                                              aria-expanded={
-                                                activeCommentRowId === sub.id
-                                              }
-                                              title="Click to view or add comments"
-                                              className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-1 text-xs transition ${
-                                                activeCommentRowId === sub.id
-                                                  ? "bg-brand-50 font-medium text-brand-700 ring-2 ring-brand-500 dark:bg-brand-500/15 dark:text-brand-300"
-                                                  : (sub.comments?.length ?? 0) >
-                                                      0
-                                                    ? "font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                                                    : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                                              }`}
-                                            >
-                                              <MonoIcon
-                                                name="comment"
-                                                size={12}
-                                                className="text-gray-500"
-                                              />
-                                              <span>
-                                                {(sub.comments?.length ?? 0) > 0
-                                                  ? `${sub.comments?.length ?? 0} ${
-                                                      (sub.comments?.length ??
-                                                        0) === 1
-                                                        ? "comment"
-                                                        : "comments"
-                                                    }`
-                                                  : "Add comment"}
-                                              </span>
-                                            </button>
-
-                                            {activeCommentRowId === sub.id && (
-                                              <FloatingCellPopover
-                                                align="start"
-                                                widthClass="w-80"
-                                                role="dialog"
-                                                ariaLabel={`Comments popover for ${sub.key}`}
-                                                className="rounded-md p-3 text-start"
-                                                onClose={() =>
-                                                  setActiveCommentRowId(null)
-                                                }
-                                              >
-                                                <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-                                                  <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">
-                                                    Comments on {sub.key} (
-                                                    {sub.comments?.length ?? 0})
-                                                  </span>
-                                                  <div className="flex items-center gap-2">
-                                                    <button
-                                                      type="button"
-                                                      onClick={(e) => {
-                                                        setActiveCommentRowId(
-                                                          null,
-                                                        );
-                                                        if (onOpenSubtask) {
-                                                          onOpenSubtask(
-                                                            item,
-                                                            sub.id,
-                                                            e.currentTarget,
-                                                          );
-                                                        } else {
-                                                          onOpenItem(
-                                                            item,
-                                                            e.currentTarget,
-                                                          );
-                                                        }
-                                                      }}
-                                                      className="cursor-pointer text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
-                                                    >
-                                                      Open details ↗
-                                                    </button>
-                                                    <button
-                                                      type="button"
-                                                      onClick={() =>
-                                                        setActiveCommentRowId(
-                                                          null,
-                                                        )
-                                                      }
-                                                      aria-label="Close comments popover"
-                                                      className="cursor-pointer text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                                                    >
-                                                      ✕
-                                                    </button>
-                                                  </div>
-                                                </div>
-
-                                                {(sub.comments?.length ?? 0) ===
-                                                0 ? (
-                                                  <p className="py-3 text-center text-xs text-gray-400 dark:text-gray-500">
-                                                    No comments yet.
-                                                  </p>
-                                                ) : (
-                                                  <div className="max-h-56 space-y-2.5 overflow-y-auto pr-1">
-                                                    {(sub.comments ?? []).map(
-                                                      (c) => (
-                                                        <div
-                                                          key={c.id}
-                                                          className="rounded border border-gray-100 bg-gray-50/80 p-2 text-xs dark:border-gray-800 dark:bg-gray-800/60"
-                                                        >
-                                                          <div className="flex items-center justify-between gap-2">
-                                                            <div className="flex min-w-0 items-center gap-1.5">
-                                                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
-                                                                {c.initials}
-                                                              </span>
-                                                              <span className="truncate font-semibold text-gray-800 dark:text-gray-200">
-                                                                {c.author}
-                                                              </span>
-                                                            </div>
-                                                            <span className="shrink-0 font-mono text-[10px] tabular-nums text-gray-400 dark:text-gray-500">
-                                                              {c.createdAt}
-                                                            </span>
-                                                          </div>
-                                                          <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-gray-700 dark:text-gray-300">
-                                                            {c.text}
-                                                          </p>
-                                                        </div>
-                                                      ),
-                                                    )}
-                                                  </div>
-                                                )}
-
-                                                {onUpdateSubtask && (
-                                                  <form
-                                                    onSubmit={(e) => {
-                                                      e.preventDefault();
-                                                      const trimmed =
-                                                        inlineCommentText.trim();
-                                                      if (!trimmed) return;
-                                                      onUpdateSubtask(
-                                                        item.id,
-                                                        sub.id,
-                                                        {
-                                                          comments: [
-                                                            ...(sub.comments ??
-                                                              []),
-                                                            {
-                                                              id: `sub-cmt-${Date.now()}`,
-                                                              author:
-                                                                mePerson.name,
-                                                              initials:
-                                                                mePerson.initials,
-                                                              createdAt:
-                                                                "Just now",
-                                                              text: trimmed,
-                                                            },
-                                                          ],
-                                                        },
-                                                      );
-                                                      setInlineCommentText("");
-                                                      showNotice(
-                                                        `Added comment on ${sub.key}`,
-                                                      );
-                                                    }}
-                                                    className="mt-2.5 flex items-center gap-1.5 border-t border-gray-100 pt-2.5 dark:border-gray-800"
-                                                  >
-                                                    <input
-                                                      type="text"
-                                                      value={inlineCommentText}
-                                                      onChange={(e) =>
-                                                        setInlineCommentText(
-                                                          e.target.value,
-                                                        )
-                                                      }
-                                                      placeholder="Write a comment…"
-                                                      aria-label={`Write a comment for ${sub.key}`}
-                                                      className="h-7 min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 text-xs text-gray-800 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                                                    />
-                                                    <button
-                                                      type="submit"
-                                                      className="h-7 shrink-0 cursor-pointer rounded bg-brand-600 px-2.5 text-xs font-semibold text-white hover:bg-brand-700"
-                                                    >
-                                                      Send
-                                                    </button>
-                                                  </form>
-                                                )}
-                                              </FloatingCellPopover>
-                                            )}
-                                          </div>
                                         ) : (
                                           <span className="text-gray-400">
                                             —
@@ -2344,14 +2131,10 @@ function renderCellContent({
   activeStatusRowId,
   activePriorityRowId,
   activeSubtaskPopoverId,
-  activeCommentRowId,
-  inlineCommentText,
   setActiveAssigneeRowId,
   setActiveStatusRowId,
   setActivePriorityRowId,
   setActiveSubtaskPopoverId,
-  setActiveCommentRowId,
-  setInlineCommentText,
   closeAllCellPopovers,
   toggleExpandRow,
   onStartAddSubtask,
@@ -2363,8 +2146,6 @@ function renderCellContent({
   onPriorityChange,
   onAssigneeChange,
   onDueDateChange,
-  onAddComment,
-  onLoadItemComments,
   showNotice,
   t,
 }: {
@@ -2379,14 +2160,10 @@ function renderCellContent({
   activeStatusRowId: string | null;
   activePriorityRowId: string | null;
   activeSubtaskPopoverId: string | null;
-  activeCommentRowId: string | null;
-  inlineCommentText: string;
   setActiveAssigneeRowId: (id: string | null) => void;
   setActiveStatusRowId: (id: string | null) => void;
   setActivePriorityRowId: (id: string | null) => void;
   setActiveSubtaskPopoverId: (id: string | null) => void;
-  setActiveCommentRowId: (id: string | null) => void;
-  setInlineCommentText: (text: string) => void;
   closeAllCellPopovers: () => void;
   toggleExpandRow: (id: string) => void;
   onStartAddSubtask?: () => void;
@@ -2405,8 +2182,6 @@ function renderCellContent({
     assignee: WorkPerson,
   ) => void | Promise<boolean>;
   onDueDateChange?: (id: string, dueDate: string | null) => void;
-  onAddComment?: (itemId: string, text: string) => void;
-  onLoadItemComments?: (itemId: string, subtaskId?: string) => void;
   showNotice: (msg: string) => void;
   t: ReturnType<typeof useTranslations<"work">>;
 }) {
@@ -2923,143 +2698,6 @@ function renderCellContent({
       <span className="inline-flex h-5 min-w-5 items-center justify-center bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
         {item.storyPoints ?? 3}
       </span>
-    );
-  }
-
-  if (colKey ==="comments") {
-    const commentsList = item.comments ?? [];
-    const count = commentsList.length;
-    const isOpen = activeCommentRowId === item.id;
-    return (
-      <div className="relative">
-        <button
-          type="button"
-          onClick={() => {
-            const next = isOpen ? null : item.id;
-            closeAllCellPopovers();
-            setActiveCommentRowId(next);
-            setInlineCommentText("");
-            if (next) {
-              onLoadItemComments?.(item.id);
-            }
-          }}
-          aria-label={`Comments for ${item.key}`}
-          aria-expanded={isOpen}
-          title="Click to view or add comments"
-          className={`inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-1 text-xs transition ${
-            isOpen
-              ? "bg-brand-50 font-medium text-brand-700 ring-2 ring-brand-500 dark:bg-brand-500/15 dark:text-brand-300"
-              : count > 0
-                ? "font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                : "text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-          }`}
-        >
-          <MonoIcon name="comment" size={13} className="text-gray-500" />
-          <span>
-            {count > 0
-              ? `${count} ${count === 1 ? "comment" : "comments"}`
-              : "Add comment"}
-          </span>
-        </button>
-
-        {isOpen && (
-          <FloatingCellPopover
-            align="start"
-            widthClass="w-80"
-            role="dialog"
-            ariaLabel={`Comments popover for ${item.key}`}
-            className="rounded-md p-3 text-start"
-            onClose={() => setActiveCommentRowId(null)}
-          >
-            <div className="mb-2 flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
-              <span className="text-xs font-semibold text-gray-800 dark:text-gray-100">
-                Comments on {item.key} ({count})
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    setActiveCommentRowId(null);
-                    onOpenItem(item, e.currentTarget);
-                  }}
-                  className="cursor-pointer text-[11px] font-medium text-brand-600 hover:underline dark:text-brand-400"
-                >
-                  Open details ↗
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveCommentRowId(null)}
-                  aria-label="Close comments popover"
-                  className="cursor-pointer text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                >
-                  ✕
-                </button>
-              </div>
-            </div>
-
-            {count === 0 ? (
-              <p className="py-3 text-center text-xs text-gray-400 dark:text-gray-500">
-                No comments yet.
-              </p>
-            ) : (
-              <div className="max-h-56 space-y-2.5 overflow-y-auto pr-1">
-                {commentsList.map((c) => (
-                  <div
-                    key={c.id}
-                    className="rounded border border-gray-100 bg-gray-50/80 p-2 text-xs dark:border-gray-800 dark:bg-gray-800/60"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-brand-100 text-[10px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
-                          {c.initials}
-                        </span>
-                        <span className="truncate font-semibold text-gray-800 dark:text-gray-200">
-                          {c.author}
-                        </span>
-                      </div>
-                      <span className="shrink-0 font-mono text-[10px] tabular-nums text-gray-400 dark:text-gray-500">
-                        {c.createdAt}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-gray-700 dark:text-gray-300">
-                      {c.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {onAddComment && (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const trimmed = inlineCommentText.trim();
-                  if (!trimmed) return;
-                  onAddComment(item.id, trimmed);
-                  setInlineCommentText("");
-                  showNotice(`Added comment on ${item.key}`);
-                }}
-                className="mt-2.5 flex items-center gap-1.5 border-t border-gray-100 pt-2.5 dark:border-gray-800"
-              >
-                <input
-                  type="text"
-                  value={inlineCommentText}
-                  onChange={(e) => setInlineCommentText(e.target.value)}
-                  placeholder="Write a comment…"
-                  aria-label={`Write a comment for ${item.key}`}
-                  className="h-7 min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 text-xs text-gray-800 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
-                />
-                <button
-                  type="submit"
-                  className="h-7 shrink-0 cursor-pointer rounded bg-brand-600 px-2.5 text-xs font-semibold text-white hover:bg-brand-700"
-                >
-                  Send
-                </button>
-              </form>
-            )}
-          </FloatingCellPopover>
-        )}
-      </div>
     );
   }
 
