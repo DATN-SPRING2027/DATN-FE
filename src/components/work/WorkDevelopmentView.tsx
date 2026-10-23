@@ -136,7 +136,7 @@ export default function WorkDevelopmentView({
   onCreateItem,
 }: {
   items: readonly WorkItem[];
-  onCreateItem: (item: CreatePreviewWorkItem) => void;
+  onCreateItem?: (item: CreatePreviewWorkItem) => void;
 }) {
   const [subtab, setSubtab] = useState<DevSubtab>("connections");
   const [connectedTools, setConnectedTools] = useState<Set<string>>(
@@ -164,7 +164,7 @@ export default function WorkDevelopmentView({
   }
 
   function createVulnerabilityFixTask(vulnId: string, title: string) {
-    if (createdFixIds.has(vulnId)) return;
+    if (!onCreateItem || createdFixIds.has(vulnId)) return;
     onCreateItem({
       title: `[Security Fix] ${title}`,
       type:"BUG",
@@ -557,13 +557,22 @@ export default function WorkDevelopmentView({
                   </div>
                   <button
                     type="button"
-                    disabled={created}
+                    disabled={!onCreateItem || created}
+                    title={
+                      !onCreateItem
+                        ? "Connect a live security scanner integration to create remediation tasks"
+                        : undefined
+                    }
                     onClick={() =>
                       createVulnerabilityFixTask(vuln.id, vuln.title)
                     }
                     className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-default disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                   >
-                    {created ?"✓ Fix task created":"Create fix task"}
+                    {created
+                      ? "✓ Fix task created"
+                      : onCreateItem
+                        ? "Create fix task"
+                        : "Preview only (connect scanner)"}
                   </button>
                 </li>
               );

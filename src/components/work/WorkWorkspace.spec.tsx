@@ -1096,11 +1096,34 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       screen.getByText("No work logged on this work item yet."),
     ).toBeVisible();
 
+    expect(parseWorklogMinutes("abc")).toBe(0);
+    expect(parseWorklogMinutes("1h abc")).toBe(0);
+    expect(parseWorklogMinutes("")).toBe(0);
+
+    // Invalid time input should show error, preserve form values, and not call POST /worklogs
     fireEvent.change(screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"), {
-      target: { value: "1h 30m" },
+      target: { value: "abc" },
     });
     fireEvent.change(screen.getByPlaceholderText("Work description…"), {
       target: { value: "Completed responsive header layout" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
+
+    expect(
+      screen.getByText(
+        "Invalid duration. Use e.g. 30m, 1h 30m, 2h, or pick a preset.",
+      ),
+    ).toBeVisible();
+    expect(
+      screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"),
+    ).toHaveValue("abc");
+    expect(api).not.toHaveBeenCalledWith(
+      `/tasks/projects/${realProjectId}/tasks/${realTaskId}/worklogs`,
+      expect.objectContaining({ method: "POST" }),
+    );
+
+    fireEvent.change(screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"), {
+      target: { value: "1h 30m" },
     });
     fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
 
@@ -1427,5 +1450,173 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
         }),
       );
     });
+  });
+
+  it("loads real task history events in the History tab and disables demo vulnerability task creation on real projects", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const realTaskId = "69e923c77859fd1c702d4ca1";
+
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "69e923c77859fd1c702d4c10",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: "69e923c77859fd1c702d4c10",
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: "69e923c77859fd1c702d4c10",
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path === `/tasks/projects/${realProjectId}/tasks/${realTaskId}`) {
+        return {
+          id: realTaskId,
+          projectId: realProjectId,
+          key: "FE-1",
+          title: "làm fe trang chủ",
+          description: "Real backend task description",
+          type: "TASK",
+          status: "IN_PROGRESS",
+          priority: "MEDIUM",
+          assigneeId: "69e923c77859fd1c702d4c10",
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          version: 2,
+          createdAt: "2026-10-20T00:00:00.000Z",
+          updatedAt: "2026-10-20T00:00:00.000Z",
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${realTaskId}/history`,
+        )
+      ) {
+        return {
+          data: [
+            {
+              id: "69e923c77859fd1c702d4ch1",
+              type: "TASK_STATUS_TRANSITIONED",
+              actor: {
+                id: "69e923c77859fd1c702d4c10",
+                fullName: "KeyT Xin Chàoo",
+              },
+              fromStatus: "TODO",
+              toStatus: "IN_PROGRESS",
+              changedFields: ["status"],
+              occurredAt: "2026-10-23T08:15:00.000Z",
+              version: 2,
+            },
+          ],
+          pagination: {
+            page: 1,
+            limit: 50,
+            hasNext: false,
+          },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: realTaskId,
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "làm fe trang chủ",
+              type: "TASK",
+              status: "IN_PROGRESS",
+              priority: "MEDIUM",
+              assigneeId: "69e923c77859fd1c702d4c10",
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 2,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+
+    const taskButton = await screen.findByText("làm fe trang chủ");
+    fireEvent.click(taskButton);
+
+    const historyTab = await screen.findByRole("button", { name: "History" });
+    fireEvent.click(historyTab);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/updated status from TODO to IN_PROGRESS/i),
+      ).toBeVisible();
+    });
+    expect(screen.queryByText(/• Today/i)).not.toBeInTheDocument();
   });
 });

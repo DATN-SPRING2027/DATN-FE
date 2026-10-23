@@ -457,14 +457,34 @@ export async function fetchTaskComments(
   projectId: string,
   taskId: string,
   signal?: AbortSignal,
+  afterId?: string | null,
 ): Promise<BackendTaskCommentListResponse> {
+  const qs = new URLSearchParams({ limit: "100" });
+  if (afterId) qs.set("afterId", afterId);
   return apiClient<BackendTaskCommentListResponse>(
-    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments?limit=100`,
+    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/comments?${qs.toString()}`,
     {
       signal,
       cache: "no-store",
     },
   );
+}
+
+export async function fetchAllTaskComments(
+  projectId: string,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<BackendTaskComment[]> {
+  const all: BackendTaskComment[] = [];
+  let afterId: string | null = null;
+  let guard = 0;
+  do {
+    const res = await fetchTaskComments(projectId, taskId, signal, afterId);
+    all.push(...res.items);
+    afterId = res.nextAfterId ?? null;
+    guard += 1;
+  } while (afterId && guard < 25);
+  return all;
 }
 
 export async function createTaskCommentApi(
@@ -486,14 +506,38 @@ export async function fetchTaskWorklogs(
   projectId: string,
   taskId: string,
   signal?: AbortSignal,
+  afterId?: string | null,
 ): Promise<BackendTaskWorklogListResponse> {
+  const qs = new URLSearchParams({ limit: "100" });
+  if (afterId) qs.set("afterId", afterId);
   return apiClient<BackendTaskWorklogListResponse>(
-    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/worklogs?limit=100`,
+    `/tasks/projects/${encodeURIComponent(projectId)}/tasks/${encodeURIComponent(taskId)}/worklogs?${qs.toString()}`,
     {
       signal,
       cache: "no-store",
     },
   );
+}
+
+export async function fetchAllTaskWorklogs(
+  projectId: string,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<BackendTaskWorklogListResponse> {
+  const all: BackendTaskWorklog[] = [];
+  let totalMinutes = 0;
+  let afterId: string | null = null;
+  let guard = 0;
+  do {
+    const res = await fetchTaskWorklogs(projectId, taskId, signal, afterId);
+    all.push(...res.items);
+    if (guard === 0) {
+      totalMinutes = res.totalMinutes;
+    }
+    afterId = res.nextAfterId ?? null;
+    guard += 1;
+  } while (afterId && guard < 25);
+  return { items: all, totalMinutes, nextAfterId: null };
 }
 
 export async function createTaskWorklogApi(
@@ -525,6 +569,23 @@ export async function fetchTaskHistory(
       cache: "no-store",
     },
   );
+}
+
+export async function fetchAllTaskHistory(
+  projectId: string,
+  taskId: string,
+  signal?: AbortSignal,
+): Promise<BackendTaskHistoryEvent[]> {
+  const all: BackendTaskHistoryEvent[] = [];
+  let page = 1;
+  let hasNext = false;
+  do {
+    const res = await fetchTaskHistory(projectId, taskId, page, 50, signal);
+    all.push(...res.data);
+    hasNext = Boolean(res.pagination?.hasNext);
+    page += 1;
+  } while (hasNext && page <= 20);
+  return all;
 }
 
 export async function fetchProjectSprints(

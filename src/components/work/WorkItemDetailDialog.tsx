@@ -56,11 +56,37 @@ const UNASSIGNED_PERSON: WorkPerson = {
   initials: "UN",
 };
 
+const WORKLOG_DURATION_PRESETS = ["15m", "30m", "1h", "2h", "4h", "1d"] as const;
+
+function parseWorklogDurationMinutes(input: string): number {
+  const raw = input.trim().toLowerCase();
+  if (!raw) return 0;
+  const tokenMatch = raw.match(
+    /^(?:(\d+(?:\.\d+)?)\s*d)?\s*(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m)?$/,
+  );
+  if (tokenMatch && (tokenMatch[1] || tokenMatch[2] || tokenMatch[3])) {
+    const days = tokenMatch[1] ? parseFloat(tokenMatch[1]) : 0;
+    const hours = tokenMatch[2] ? parseFloat(tokenMatch[2]) : 0;
+    const mins = tokenMatch[3] ? parseFloat(tokenMatch[3]) : 0;
+    const totalMinutes = days * 8 * 60 + hours * 60 + mins;
+    if (totalMinutes <= 0) return 0;
+    return Math.max(1, Math.min(1440, Math.round(totalMinutes)));
+  }
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const numeric = parseFloat(raw);
+    if (!Number.isNaN(numeric) && numeric > 0) {
+      return Math.max(1, Math.min(1440, Math.round(numeric)));
+    }
+  }
+  return 0;
+}
+
 export default function WorkItemDetailDialog({
   item,
   allItems = [],
   people,
   currentUserPerson,
+  activityError = null,
   initialSubtaskId = null,
   mode = "modal",
   isSkeletonLoading = false,
@@ -88,6 +114,7 @@ export default function WorkItemDetailDialog({
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
+  activityError?: string | null;
   initialSubtaskId?: string | null;
   mode?: "modal" | "page";
   isSkeletonLoading?: boolean;
@@ -136,7 +163,11 @@ export default function WorkItemDetailDialog({
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) => void;
   onAddComment?: (itemId: string, text: string) => void;
-  onAddWorklog?: (itemId: string, timeSpent: string, note: string) => void;
+  onAddWorklog?: (
+    itemId: string,
+    timeSpent: string,
+    note: string,
+  ) => Promise<boolean> | boolean | void;
 }) {
   const t = useTranslations("work");
   const locale = useLocale();
@@ -226,6 +257,10 @@ export default function WorkItemDetailDialog({
   const [aiEnhancedDesc, setAiEnhancedDesc] = useState<string | null>(null);
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
+  const [worklogError, setWorklogError] = useState<string | null>(null);
+  const [subtaskWorklogError, setSubtaskWorklogError] = useState<string | null>(
+    null,
+  );
   const [automationRan, setAutomationRan] = useState(false);
 
   function showSubtaskFeedback(msg: string) {
@@ -397,6 +432,14 @@ export default function WorkItemDetailDialog({
     if (!item || !onUpdateSubtask) return;
     const spent = subtaskWorklogTime.trim();
     if (!spent) return;
+    const minutes = parseWorklogDurationMinutes(spent);
+    if (minutes < 1) {
+      setSubtaskWorklogError(
+        "Invalid duration. Use e.g. 30m, 1h 30m, 2h, or pick a preset.",
+      );
+      return;
+    }
+    setSubtaskWorklogError(null);
     const nextWorklogs = [
       ...(sub.worklogs ?? []),
       {
@@ -427,10 +470,30 @@ export default function WorkItemDetailDialog({
     setCommentInput("");
   }
 
-  function handleAddWorklog(event: FormEvent<HTMLFormElement>) {
+  async function handleAddWorklog(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!item || !worklogTime.trim()) return;
-    onAddWorklog?.(item.id, worklogTime.trim(), worklogNote.trim());
+    if (!item) return;
+    const trimmedTime = worklogTime.trim();
+    if (!trimmedTime) return;
+    const minutes = parseWorklogDurationMinutes(trimmedTime);
+    if (minutes < 1) {
+      setWorklogError(
+        "Invalid duration. Use e.g. 30m, 1h 30m, 2h, or pick a preset.",
+      );
+      return;
+    }
+    setWorklogError(null);
+    const result = await onAddWorklog?.(
+      item.id,
+      trimmedTime,
+      worklogNote.trim(),
+    );
+    if (result === false) {
+      setWorklogError(
+        "Unable to save worklog. Please check your connection and retry.",
+      );
+      return;
+    }
     setWorklogTime("");
     setWorklogNote("");
   }
@@ -1370,67 +1433,103 @@ export default function WorkItemDetailDialog({
                     </>
                   )}
 
-                  {subtaskActivityTab === "history" && (
-                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                      <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                        <strong>
-                          {(activeSubtask.assignee ?? item.assignee).name}
-                        </strong>{" "}
-                        updated subtask status to{" "}
-                        <strong>{activeSubtask.status}</strong> • Today
-                      </li>
-                      {(activeSubtask.history ?? []).map((h) => (
-                        <li
-                          key={h.id}
-                          className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
-                        >
-                          <strong>{h.author}</strong> {h.action} • {h.createdAt}
-                        </li>
-                      ))}
-                      <li className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900">
-                        <strong>
-                          {(activeSubtask.reporter ?? item.reporter).name}
-                        </strong>{" "}
-                        created subtask <strong>{activeSubtask.key}</strong>{" "}
-                        under parent <strong>{item.key}</strong>
-                      </li>
-                    </ul>
+                  {activityError && (
+                    <div
+                      role="alert"
+                      className="rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                    >
+                      Failed to load activity data: {activityError}
+                    </div>
                   )}
+
+                  {subtaskActivityTab === "history" &&
+                    (activeSubtask.history && activeSubtask.history.length > 0 ? (
+                      <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                        {activeSubtask.history.map((h) => (
+                          <li
+                            key={h.id}
+                            className="rounded border border-gray-100 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900"
+                          >
+                            <strong>{h.author}</strong> {h.action} •{" "}
+                            <span className="tabular-nums">{h.createdAt}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        No history recorded on this subtask yet.
+                      </p>
+                    ))}
 
                   {subtaskActivityTab === "worklog" && (
                     <div className="space-y-3">
                       {onUpdateSubtask && (
-                        <form
-                          onSubmit={(e) =>
-                            handleAddSubtaskWorklog(e, activeSubtask)
-                          }
-                          className="flex flex-wrap items-center gap-2"
-                        >
-                          <input
-                            value={subtaskWorklogTime}
-                            onChange={(e) =>
-                              setSubtaskWorklogTime(e.target.value)
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                              Duration:
+                            </span>
+                            {WORKLOG_DURATION_PRESETS.map((preset) => (
+                              <button
+                                key={preset}
+                                type="button"
+                                onClick={() => {
+                                  setSubtaskWorklogTime(preset);
+                                  setSubtaskWorklogError(null);
+                                }}
+                                className={`cursor-pointer rounded border px-2 py-0.5 text-[11px] font-medium transition ${
+                                  subtaskWorklogTime.trim() === preset
+                                    ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/40 dark:text-brand-300"
+                                    : "border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                }`}
+                              >
+                                {preset}
+                              </button>
+                            ))}
+                          </div>
+                          <form
+                            onSubmit={(e) =>
+                              handleAddSubtaskWorklog(e, activeSubtask)
                             }
-                            placeholder="Time spent (e.g. 1h 30m)"
-                            aria-label="Subtask worklog time spent"
-                            className="h-8 w-40 rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                          />
-                          <input
-                            value={subtaskWorklogNote}
-                            onChange={(e) =>
-                              setSubtaskWorklogNote(e.target.value)
-                            }
-                            placeholder="Subtask work log note…"
-                            aria-label="Subtask worklog note"
-                            className="h-8 flex-1 rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                          />
-                          <button
-                            type="submit"
-                            className="h-8 cursor-pointer rounded bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                            className="flex flex-wrap items-center gap-2"
                           >
-                            + Log subtask work
-                          </button>
-                        </form>
+                            <input
+                              value={subtaskWorklogTime}
+                              onChange={(e) => {
+                                setSubtaskWorklogTime(e.target.value);
+                                if (subtaskWorklogError) {
+                                  setSubtaskWorklogError(null);
+                                }
+                              }}
+                              placeholder="Time spent (e.g. 1h 30m)"
+                              aria-label="Subtask worklog time spent"
+                              className="h-8 w-40 rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            />
+                            <input
+                              value={subtaskWorklogNote}
+                              onChange={(e) =>
+                                setSubtaskWorklogNote(e.target.value)
+                              }
+                              placeholder="Subtask work log note…"
+                              aria-label="Subtask worklog note"
+                              className="h-8 flex-1 rounded border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                            />
+                            <button
+                              type="submit"
+                              className="h-8 cursor-pointer rounded bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                            >
+                              + Log subtask work
+                            </button>
+                          </form>
+                          {subtaskWorklogError && (
+                            <p
+                              role="alert"
+                              className="text-xs font-medium text-red-600 dark:text-red-400"
+                            >
+                              {subtaskWorklogError}
+                            </p>
+                          )}
+                        </div>
                       )}
                       {activeSubtask.worklogs &&
                       activeSubtask.worklogs.length > 0 ? (
@@ -3192,44 +3291,96 @@ export default function WorkItemDetailDialog({
                   </>
                 )}
 
-                {activityTab ==="history"&& (
-                  <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
-                    <li className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
-                      <strong>{item.assignee.name}</strong> updated status to{""}
-                      <strong>{item.status}</strong> • Today
-                    </li>
-                    <li className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
-                      <strong>{item.reporter.name}</strong> created work item{""}
-                      <strong>{item.key}</strong>
-                    </li>
-                  </ul>
+                {activityError && (
+                  <div
+                    role="alert"
+                    className="border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                  >
+                    Failed to load activity data: {activityError}
+                  </div>
                 )}
+
+                {activityTab ==="history"&&
+                  (item.history && item.history.length > 0 ? (
+                    <ul className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
+                      {item.history.map((h) => (
+                        <li
+                          key={h.id}
+                          className="border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900"
+                        >
+                          <strong>{h.author}</strong> {h.action} •{" "}
+                          <span className="tabular-nums">{h.createdAt}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      No history recorded on this work item yet.
+                    </p>
+                  ))}
 
                 {activityTab ==="worklog"&& (
                   <div className="space-y-3">
-                    <form
-                      onSubmit={handleAddWorklog}
-                      className="flex flex-wrap items-center gap-2"
-                    >
-                      <input
-                        value={worklogTime}
-                        onChange={(event) => setWorklogTime(event.target.value)}
-                        placeholder="Time spent (e.g. 1h 30m)"
-                        className="h-8 w-40 border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                      />
-                      <input
-                        value={worklogNote}
-                        onChange={(event) => setWorklogNote(event.target.value)}
-                        placeholder="Work description…"
-                        className="h-8 flex-1 border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                      />
-                      <button
-                        type="submit"
-                        className="h-8 cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                          Duration:
+                        </span>
+                        {WORKLOG_DURATION_PRESETS.map((preset) => (
+                          <button
+                            key={preset}
+                            type="button"
+                            onClick={() => {
+                              setWorklogTime(preset);
+                              setWorklogError(null);
+                            }}
+                            className={`cursor-pointer border px-2 py-0.5 text-[11px] font-medium transition ${
+                              worklogTime.trim() === preset
+                                ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-950/40 dark:text-brand-300"
+                                : "border-gray-200 bg-gray-50 text-gray-600 hover:border-brand-300 hover:bg-brand-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                            }`}
+                          >
+                            {preset}
+                          </button>
+                        ))}
+                      </div>
+                      <form
+                        onSubmit={handleAddWorklog}
+                        className="flex flex-wrap items-center gap-2"
                       >
-                        + Log work
-                      </button>
-                    </form>
+                        <input
+                          value={worklogTime}
+                          onChange={(event) => {
+                            setWorklogTime(event.target.value);
+                            if (worklogError) {
+                              setWorklogError(null);
+                            }
+                          }}
+                          placeholder="Time spent (e.g. 1h 30m)"
+                          className="h-8 w-40 border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        />
+                        <input
+                          value={worklogNote}
+                          onChange={(event) => setWorklogNote(event.target.value)}
+                          placeholder="Work description…"
+                          className="h-8 flex-1 border border-gray-200 bg-white px-2.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        />
+                        <button
+                          type="submit"
+                          className="h-8 cursor-pointer bg-brand-500 px-3 text-xs font-semibold text-white hover:bg-brand-600"
+                        >
+                          + Log work
+                        </button>
+                      </form>
+                      {worklogError && (
+                        <p
+                          role="alert"
+                          className="text-xs font-medium text-red-600 dark:text-red-400"
+                        >
+                          {worklogError}
+                        </p>
+                      )}
+                    </div>
                     {item.worklogs && item.worklogs.length > 0 ? (
                       <ul className="space-y-2 text-xs">
                         {item.worklogs.map((wl) => (

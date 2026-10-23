@@ -45,13 +45,15 @@ import {
 import { getCalendarMonthStart } from"./work-calendar-utils";
 import {
   type BackendTask,
+  type BackendTaskHistoryEvent,
   type BackendTaskStatus,
   createProjectTaskApi,
   createTaskCommentApi,
   createTaskWorklogApi,
+  fetchAllTaskComments,
+  fetchAllTaskHistory,
+  fetchAllTaskWorklogs,
   fetchProjectTaskDetail,
-  fetchTaskComments,
-  fetchTaskWorklogs,
   transitionProjectTaskApi,
   updateProjectTaskApi,
   useProjectTasksQuery,
@@ -110,31 +112,59 @@ export function formatWorklogMinutes(totalMinutes: number): string {
 export function parseWorklogMinutes(input: string): number {
   const raw = input.trim().toLowerCase();
   if (!raw) return 0;
-  let totalMinutes = 0;
-  let matchedUnit = false;
-  const daysMatch = raw.match(/(\d+(?:\.\d+)?)\s*d/);
-  if (daysMatch) {
-    totalMinutes += parseFloat(daysMatch[1]) * 8 * 60;
-    matchedUnit = true;
-  }
-  const hoursMatch = raw.match(/(\d+(?:\.\d+)?)\s*h/);
-  if (hoursMatch) {
-    totalMinutes += parseFloat(hoursMatch[1]) * 60;
-    matchedUnit = true;
-  }
-  const minsMatch = raw.match(/(\d+(?:\.\d+)?)\s*m/);
-  if (minsMatch) {
-    totalMinutes += parseFloat(minsMatch[1]);
-    matchedUnit = true;
-  }
-  if (matchedUnit) {
+  const tokenMatch = raw.match(
+    /^(?:(\d+(?:\.\d+)?)\s*d)?\s*(?:(\d+(?:\.\d+)?)\s*h)?\s*(?:(\d+(?:\.\d+)?)\s*m)?$/,
+  );
+  if (tokenMatch && (tokenMatch[1] || tokenMatch[2] || tokenMatch[3])) {
+    const days = tokenMatch[1] ? parseFloat(tokenMatch[1]) : 0;
+    const hours = tokenMatch[2] ? parseFloat(tokenMatch[2]) : 0;
+    const mins = tokenMatch[3] ? parseFloat(tokenMatch[3]) : 0;
+    const totalMinutes = days * 8 * 60 + hours * 60 + mins;
+    if (totalMinutes <= 0) return 0;
     return Math.max(1, Math.min(1440, Math.round(totalMinutes)));
   }
-  const numeric = parseFloat(raw);
-  if (!Number.isNaN(numeric) && numeric > 0) {
-    return Math.max(1, Math.min(1440, Math.round(numeric)));
+  if (/^\d+(?:\.\d+)?$/.test(raw)) {
+    const numeric = parseFloat(raw);
+    if (!Number.isNaN(numeric) && numeric > 0) {
+      return Math.max(1, Math.min(1440, Math.round(numeric)));
+    }
   }
-  return 30;
+  return 0;
+}
+
+function formatHistoryEventAction(
+  event: BackendTaskHistoryEvent,
+  itemKey: string,
+): string {
+  const type = event.type.toUpperCase();
+  if (type === "TASK_CREATED") {
+    return `created work item ${itemKey}`;
+  }
+  if (
+    event.fromStatus &&
+    event.toStatus &&
+    event.fromStatus !== event.toStatus
+  ) {
+    return `updated status from ${event.fromStatus} to ${event.toStatus}`;
+  }
+  if (event.toStatus) {
+    return `updated status to ${event.toStatus}`;
+  }
+  if (type === "TASK_COMMENT_ADDED") {
+    return "added a comment";
+  }
+  if (type === "TASK_WORKLOG_ADDED") {
+    return event.minutes
+      ? `logged ${formatWorklogMinutes(event.minutes)} of work`
+      : "logged work";
+  }
+  if (event.changedFields && event.changedFields.length > 0) {
+    return `updated ${event.changedFields.join(", ")}`;
+  }
+  if (event.reason) {
+    return `${event.type.toLowerCase().replace(/_/g, " ")} (${event.reason})`;
+  }
+  return event.type.toLowerCase().replace(/_/g, " ");
 }
 
 function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
@@ -237,6 +267,7 @@ export default function WorkWorkspace({
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [activityError, setActivityError] = useState<string | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
@@ -553,6 +584,9 @@ export default function WorkWorkspace({
               ...(prevSub.worklogs !== undefined
                 ? { worklogs: prevSub.worklogs }
                 : {}),
+              ...(prevSub.history !== undefined
+                ? { history: prevSub.history }
+                : {}),
               ...(prevSub.loggedTime !== undefined
                 ? { loggedTime: prevSub.loggedTime }
                 : {}),
@@ -568,6 +602,9 @@ export default function WorkWorkspace({
               : {}),
             ...(prev.worklogs && prev.worklogs.length > 0
               ? { worklogs: prev.worklogs }
+              : {}),
+            ...(prev.history && prev.history.length > 0
+              ? { history: prev.history }
               : {}),
             ...(mergedSubs ? { subtaskItems: mergedSubs } : {}),
           };
@@ -586,26 +623,48 @@ export default function WorkWorkspace({
   const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
+      setActivityError(null);
       return;
     }
     let cancelled = false;
+    setActivityError(null);
     void (async () => {
       try {
-        const [detail, commentsPage, worklogsPage] = await Promise.all([
-          fetchProjectTaskDetail(projectId, openedTaskId),
-          fetchTaskComments(projectId, openedTaskId).catch(() => ({
-            items: [],
-            nextAfterId: null,
-          })),
-          fetchTaskWorklogs(projectId, openedTaskId).catch(() => ({
-            items: [],
-            totalMinutes: 0,
-            nextAfterId: null,
-          })),
-        ]);
+        let fetchFailed = false;
+        const [detail, commentItems, worklogsData, historyItems] =
+          await Promise.all([
+            fetchProjectTaskDetail(projectId, openedTaskId),
+            fetchAllTaskComments(projectId, openedTaskId).catch((err) => {
+              fetchFailed = true;
+              if (!cancelled) {
+                setActivityError(describeMutationError(err));
+              }
+              return null;
+            }),
+            fetchAllTaskWorklogs(projectId, openedTaskId).catch((err) => {
+              fetchFailed = true;
+              if (!cancelled) {
+                setActivityError(describeMutationError(err));
+              }
+              return null;
+            }),
+            fetchAllTaskHistory(projectId, openedTaskId).catch((err) => {
+              const msg = err instanceof Error ? err.message : "";
+              if (!msg.includes("Unexpected API path")) {
+                fetchFailed = true;
+                if (!cancelled) {
+                  setActivityError(describeMutationError(err));
+                }
+              }
+              return null;
+            }),
+          ]);
         if (cancelled) return;
+        if (!fetchFailed) {
+          setActivityError(null);
+        }
         taskVersionsRef.current.set(detail.id, detail.version);
-        const liveComments = commentsPage.items.map((c) => {
+        const liveComments = commentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
             projectPeopleById,
@@ -620,7 +679,7 @@ export default function WorkWorkspace({
             text: c.body,
           };
         });
-        const liveWorklogs = worklogsPage.items.map((w) => {
+        const liveWorklogs = worklogsData?.items.map((w) => {
           const authorPerson = resolvePersonById(
             w.authorId,
             projectPeopleById,
@@ -635,20 +694,40 @@ export default function WorkWorkspace({
             createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
           };
         });
+        const liveHistory = historyItems?.map((ev) => {
+          const actorName =
+            ev.actor?.fullName ||
+            resolvePersonById(
+              ev.actor?.id ?? null,
+              projectPeopleById,
+              user.data,
+              isRealProject,
+            ).name;
+          return {
+            id: ev.id,
+            author: actorName,
+            action: formatHistoryEventAction(ev, detail.key),
+            createdAt: formatCommentDateTime(ev.occurredAt),
+          };
+        });
         setItems((current) =>
           current.map((item) =>
             item.id === openedTaskId
               ? {
                   ...item,
                   ...(detail.description ? { description: detail.description } : {}),
-                  comments: liveComments,
-                  worklogs: liveWorklogs,
+                  ...(liveComments ? { comments: liveComments } : {}),
+                  ...(liveWorklogs ? { worklogs: liveWorklogs } : {}),
+                  ...(liveHistory ? { history: liveHistory } : {}),
                 }
               : item,
           ),
         );
-      } catch {
-        // Keep current item state
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (!cancelled && !msg.includes("Unexpected API path")) {
+          setActivityError(describeMutationError(err));
+        }
       }
     })();
     return () => {
@@ -669,21 +748,41 @@ export default function WorkWorkspace({
     let cancelled = false;
     void (async () => {
       try {
-        const [subDetail, subCommentsPage, subWorklogsPage] = await Promise.all([
-          fetchProjectTaskDetail(projectId, openedSubtaskId),
-          fetchTaskComments(projectId, openedSubtaskId).catch(() => ({
-            items: [],
-            nextAfterId: null,
-          })),
-          fetchTaskWorklogs(projectId, openedSubtaskId).catch(() => ({
-            items: [],
-            totalMinutes: 0,
-            nextAfterId: null,
-          })),
-        ]);
+        let fetchFailed = false;
+        const [subDetail, subCommentItems, subWorklogsData, subHistoryItems] =
+          await Promise.all([
+            fetchProjectTaskDetail(projectId, openedSubtaskId),
+            fetchAllTaskComments(projectId, openedSubtaskId).catch((err) => {
+              fetchFailed = true;
+              if (!cancelled) {
+                setActivityError(describeMutationError(err));
+              }
+              return null;
+            }),
+            fetchAllTaskWorklogs(projectId, openedSubtaskId).catch((err) => {
+              fetchFailed = true;
+              if (!cancelled) {
+                setActivityError(describeMutationError(err));
+              }
+              return null;
+            }),
+            fetchAllTaskHistory(projectId, openedSubtaskId).catch((err) => {
+              const msg = err instanceof Error ? err.message : "";
+              if (!msg.includes("Unexpected API path")) {
+                fetchFailed = true;
+                if (!cancelled) {
+                  setActivityError(describeMutationError(err));
+                }
+              }
+              return null;
+            }),
+          ]);
         if (cancelled) return;
+        if (!fetchFailed) {
+          setActivityError(null);
+        }
         taskVersionsRef.current.set(subDetail.id, subDetail.version);
-        const liveSubComments = subCommentsPage.items.map((c) => {
+        const liveSubComments = subCommentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
             projectPeopleById,
@@ -698,7 +797,7 @@ export default function WorkWorkspace({
             text: c.body,
           };
         });
-        const liveSubWorklogs = subWorklogsPage.items.map((w) => {
+        const liveSubWorklogs = subWorklogsData?.items.map((w) => {
           const authorPerson = resolvePersonById(
             w.authorId,
             projectPeopleById,
@@ -713,9 +812,25 @@ export default function WorkWorkspace({
             createdAt: formatCommentDateTime(w.loggedAt || w.createdAt),
           };
         });
+        const liveSubHistory = subHistoryItems?.map((ev) => {
+          const actorName =
+            ev.actor?.fullName ||
+            resolvePersonById(
+              ev.actor?.id ?? null,
+              projectPeopleById,
+              user.data,
+              isRealProject,
+            ).name;
+          return {
+            id: ev.id,
+            author: actorName,
+            action: formatHistoryEventAction(ev, subDetail.key),
+            createdAt: formatCommentDateTime(ev.occurredAt),
+          };
+        });
         const totalLogged =
-          subWorklogsPage.totalMinutes > 0
-            ? formatWorklogMinutes(subWorklogsPage.totalMinutes)
+          subWorklogsData && subWorklogsData.totalMinutes > 0
+            ? formatWorklogMinutes(subWorklogsData.totalMinutes)
             : "0h";
         setItems((current) =>
           current.map((item) => {
@@ -729,8 +844,9 @@ export default function WorkWorkspace({
                       ...(subDetail.description
                         ? { description: subDetail.description }
                         : {}),
-                      comments: liveSubComments,
-                      worklogs: liveSubWorklogs,
+                      ...(liveSubComments ? { comments: liveSubComments } : {}),
+                      ...(liveSubWorklogs ? { worklogs: liveSubWorklogs } : {}),
+                      ...(liveSubHistory ? { history: liveSubHistory } : {}),
                       loggedTime: totalLogged,
                     }
                   : sub,
@@ -738,8 +854,11 @@ export default function WorkWorkspace({
             };
           }),
         );
-      } catch {
-        // Keep current subtask state
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "";
+        if (!cancelled && !msg.includes("Unexpected API path")) {
+          setActivityError(describeMutationError(err));
+        }
       }
     })();
     return () => {
@@ -2208,8 +2327,8 @@ export default function WorkWorkspace({
     if (!OBJECT_ID_PATTERN.test(targetId)) return;
     void (async () => {
       try {
-        const commentsPage = await fetchTaskComments(projectId, targetId);
-        const liveComments = commentsPage.items.map((c) => {
+        const commentItems = await fetchAllTaskComments(projectId, targetId);
+        const liveComments = commentItems.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
             projectPeopleById,
@@ -2249,9 +2368,13 @@ export default function WorkWorkspace({
     })();
   }
 
-  function addWorklog(itemId: string, timeSpentInput: string, noteInput: string) {
+  async function addWorklog(
+    itemId: string,
+    timeSpentInput: string,
+    noteInput: string,
+  ): Promise<boolean> {
     const minutes = parseWorklogMinutes(timeSpentInput);
-    if (minutes < 1) return;
+    if (minutes < 1) return false;
     const formattedTimeSpent = formatWorklogMinutes(minutes);
     const trimmedNote = noteInput.trim();
     const previousItems = items;
@@ -2274,44 +2397,45 @@ export default function WorkWorkspace({
       }),
     );
     if (isRealProject) {
-      void (async () => {
-        try {
-          const realId = await resolveBackendTaskId(itemId);
-          if (!realId) {
-            throw new Error("Task not persisted");
-          }
-          const created = await createTaskWorklogApi(projectId, realId, {
-            minutes,
-            note: trimmedNote || null,
-          });
-          setItems((current) =>
-            current.map((item) => {
-              if (item.id !== itemId && item.id !== realId) return item;
-              return {
-                ...item,
-                worklogs: (item.worklogs ?? []).map((wl) =>
-                  wl.id === tempWorklogId
-                    ? {
-                        ...wl,
-                        id: created.id,
-                        timeSpent: formatWorklogMinutes(created.minutes),
-                        note: created.note ?? "",
-                        createdAt: formatCommentDateTime(
-                          created.loggedAt || created.createdAt,
-                        ),
-                      }
-                    : wl,
-                ),
-              };
-            }),
-          );
-        } catch {
-          setItems(previousItems);
-          void tasksQuery.refetch();
-          setAnnouncement("Unable to log work. Restored latest state.");
+      try {
+        const realId = await resolveBackendTaskId(itemId);
+        if (!realId) {
+          throw new Error("Task not persisted");
         }
-      })();
+        const created = await createTaskWorklogApi(projectId, realId, {
+          minutes,
+          note: trimmedNote || null,
+        });
+        setItems((current) =>
+          current.map((item) => {
+            if (item.id !== itemId && item.id !== realId) return item;
+            return {
+              ...item,
+              worklogs: (item.worklogs ?? []).map((wl) =>
+                wl.id === tempWorklogId
+                  ? {
+                      ...wl,
+                      id: created.id,
+                      timeSpent: formatWorklogMinutes(created.minutes),
+                      note: created.note ?? "",
+                      createdAt: formatCommentDateTime(
+                        created.loggedAt || created.createdAt,
+                      ),
+                    }
+                  : wl,
+              ),
+            };
+          }),
+        );
+        return true;
+      } catch {
+        setItems(previousItems);
+        void tasksQuery.refetch();
+        setAnnouncement("Unable to log work. Restored latest state.");
+        return false;
+      }
     }
+    return true;
   }
 
   function bulkUpdateStatus(nextStatus: WorkStatus) {
@@ -2544,6 +2668,7 @@ export default function WorkWorkspace({
           allItems={items}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
+          activityError={activityError}
           initialSubtaskId={fullPageSubtaskId}
           onSelectSubtask={setFullPageSubtaskId}
           onClose={() => {
@@ -2687,10 +2812,14 @@ export default function WorkWorkspace({
           ) : view ==="development"? (
             <WorkDevelopmentView
               items={visibleItems}
-              onCreateItem={addPreviewItem}
+              onCreateItem={isRealProject ? undefined : addPreviewItem}
             />
           ) : view ==="forms"? (
-            <WorkFormsView onCreateItem={addPreviewItem} />
+            <WorkFormsView
+              projectId={projectId}
+              people={projectPeople}
+              onCreateItem={addPreviewItem}
+            />
           ) : view ==="docs"? (
             <WorkDocsView items={visibleItems} onOpenItem={openWorkItem} />
           ) : view ==="reports"? (
@@ -2843,6 +2972,7 @@ export default function WorkWorkspace({
           allItems={items}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
+          activityError={activityError}
           initialSubtaskId={activeSubtaskId}
           onSelectSubtask={setActiveSubtaskId}
           onOpenFullPage={(subId) => openFullPageWorkItem(activeWorkItem, subId)}

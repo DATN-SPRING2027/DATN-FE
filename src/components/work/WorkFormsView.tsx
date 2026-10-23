@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from"react";
+import { useEffect, useState, type FormEvent } from"react";
 import { INITIAL_INTAKE_FORMS, PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon, type MonoIconName } from"./WorkMonoIcons";
 import type {
@@ -8,6 +8,7 @@ import type {
   WorkIntakeForm,
   WorkIntakeFormType,
   WorkItemType,
+  WorkPerson,
 } from"./work-types";
 
 type FormFieldDef = {
@@ -112,13 +113,31 @@ const WORK_TYPES: readonly {
 ];
 
 export default function WorkFormsView({
+  projectId = "default",
+  people,
   onCreateItem,
 }: {
+  projectId?: string;
+  people?: readonly WorkPerson[];
   onCreateItem: (item: CreatePreviewWorkItem) => void;
 }) {
-  const [forms, setForms] = useState<WorkIntakeForm[]>([
-    ...INITIAL_INTAKE_FORMS,
-  ]);
+  const storageKey = `continuum:work-forms:${projectId}`;
+  const [forms, setForms] = useState<WorkIntakeForm[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { forms?: WorkIntakeForm[] };
+          if (Array.isArray(parsed.forms) && parsed.forms.length > 0) {
+            return parsed.forms;
+          }
+        }
+      } catch {
+        // Ignore storage read failure
+      }
+    }
+    return [...INITIAL_INTAKE_FORMS];
+  });
   const [availableFields, setAvailableFields] = useState<FormFieldDef[]>([
     ...DEFAULT_FIELDS,
   ]);
@@ -126,15 +145,80 @@ export default function WorkFormsView({
   const [typePopoverForTemplate, setTypePopoverForTemplate] = useState<
     string | null
   >(null);
-  const [workType, setWorkType] = useState<WorkIntakeFormType>("Epic");
-  const [formTitle, setFormTitle] = useState("Continuum AI - Epic Intake Form");
-  const [formDesc, setFormDesc] = useState(
-    "Add help text and instructions to fill in this form",
-  );
-  const [activeFields, setActiveFields] = useState<string[]>([
-    "assignee",
-    "duedate",
-  ]);
+  const [workType, setWorkType] = useState<WorkIntakeFormType>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { workType?: WorkIntakeFormType };
+          if (parsed.workType) return parsed.workType;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return "Epic";
+  });
+  const [formTitle, setFormTitle] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { formTitle?: string };
+          if (parsed.formTitle) return parsed.formTitle;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return "Continuum AI - Epic Intake Form";
+  });
+  const [formDesc, setFormDesc] = useState(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { formDesc?: string };
+          if (parsed.formDesc) return parsed.formDesc;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return "Add help text and instructions to fill in this form";
+  });
+  const [activeFields, setActiveFields] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = window.localStorage.getItem(storageKey);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { activeFields?: string[] };
+          if (Array.isArray(parsed.activeFields)) return parsed.activeFields;
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return ["assignee", "duedate"];
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        storageKey,
+        JSON.stringify({
+          forms,
+          workType,
+          formTitle,
+          formDesc,
+          activeFields,
+        }),
+      );
+    } catch {
+      // Ignore storage write failure
+    }
+  }, [activeFields, formDesc, formTitle, forms, storageKey, workType]);
   const [includeAttachment, setIncludeAttachment] = useState(true);
   const [formActive, setFormActive] = useState(true);
   const [accessLevel, setAccessLevel] = useState<"workspace"|"public">(
@@ -221,7 +305,7 @@ export default function WorkFormsView({
       title: normalized,
       type: mappedType,
       priority: workType ==="Bug"|| workType ==="Epic"?"HIGH":"MEDIUM",
-      assignee: PREVIEW_PEOPLE[0],
+      assignee: (people && people[0]) ?? PREVIEW_PEOPLE[0],
       dueDate: submitDueDate || null,
       description: submitDescription.trim() || undefined,
     });
@@ -281,7 +365,9 @@ export default function WorkFormsView({
           </button>
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-success-700 dark:text-success-400">
-              {formActive ?"✓ All changes saved":"⊘ Form deactivated"}
+              {formActive
+                ? "✓ Saved locally (Preview)"
+                : "⊘ Form deactivated (Preview)"}
             </span>
             <button
               type="button"
