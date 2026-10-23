@@ -52,6 +52,7 @@ export default function OrganizationMembershipRoleDialog({
   const roleLabel = useRoleDisplayLabel();
   const [roleCode, setRoleCode] = useState<OrganizationRoleCode | "">(membership?.roleCode ?? "");
   const [reason, setReason] = useState("");
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -99,7 +100,7 @@ export default function OrganizationMembershipRoleDialog({
   return (
     <Modal
       isOpen
-      onClose={() => { if (!busy && !hasError) onClose(); }}
+      onClose={() => { if (!busy && !hasError) setConfirmCloseOpen(true); }}
       showCloseButton={false}
       className="mx-4 max-w-lg"
     >
@@ -113,6 +114,61 @@ export default function OrganizationMembershipRoleDialog({
         onKeyDown={trapFocus}
         className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
       >
+        {confirmCloseOpen && !busy && !hasError && (
+          <div
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby={`${titleId}-confirm-dismiss-title`}
+            aria-describedby={`${titleId}-confirm-dismiss-desc`}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900">
+              <div className="flex items-start gap-3">
+                <span
+                  aria-hidden="true"
+                  className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-warning-100 text-sm font-bold text-warning-600 dark:bg-warning-500/20 dark:text-warning-400"
+                >
+                  !
+                </span>
+                <div className="min-w-0 flex-1">
+                  <h3
+                    id={`${titleId}-confirm-dismiss-title`}
+                    className="text-base font-semibold text-gray-900 dark:text-white/90"
+                  >
+                    {t("confirmDismissTitle")}
+                  </h3>
+                  <p
+                    id={`${titleId}-confirm-dismiss-desc`}
+                    className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-300"
+                  >
+                    {t("confirmDismissDescription")}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-5 flex flex-wrap justify-end gap-2.5 border-t border-gray-100 pt-4 dark:border-gray-800">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setConfirmCloseOpen(false)}
+                >
+                  {t("confirmDismissStay")}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    setConfirmCloseOpen(false);
+                    onClose();
+                  }}
+                >
+                  {t("confirmDismissLeave")}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2 id={titleId} className="text-lg font-semibold text-gray-900 dark:text-white/90">{t("changeRoleTitle")}</h2>

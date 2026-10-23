@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import Alert from "@/components/ui/alert/Alert";
@@ -21,7 +22,10 @@ import type {
 import { ApiError } from "@/lib/api-client";
 
 export type MembershipActionTarget =
-  | Readonly<{ action: "suspend"; membership: OrganizationMembership }>
+  | Readonly<{
+      action: "suspend" | "resume" | "remove";
+      membership: OrganizationMembership;
+    }>
   | Readonly<{ action: "resend" | "cancel"; invitation: AdminInvitation }>;
 export type MembershipActionReasonCode =
   | MembershipActionReason
@@ -39,6 +43,11 @@ function getErrorMessageKey(error: unknown): string {
   if (error.status === 404) return "notFound";
   if (error.status === 409 && error.code === "LAST_ELIGIBLE_ADMIN")
     return "lastAdmin";
+  if (
+    error.status === 409 &&
+    error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP"
+  )
+    return "activeProjectLeaderBlocker";
   if (error.status === 409) return "conflict";
   if (error.status === 422) return "validation";
   if (error.status === 429) return "rateLimit";
@@ -54,27 +63,27 @@ function isIneligibleResendError(error: unknown): boolean {
 }
 
 function getTitleKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "suspendTitle"
-    : target.action === "resend"
-      ? "resendTitle"
-      : "cancelTitle";
+  if (target.action === "suspend") return "suspendTitle";
+  if (target.action === "resume") return "resumeTitle";
+  if (target.action === "remove") return "removeTitle";
+  if (target.action === "resend") return "resendTitle";
+  return "cancelTitle";
 }
 
 function getHintKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "suspendHint"
-    : target.action === "resend"
-      ? "resendHint"
-      : "cancelHint";
+  if (target.action === "suspend") return "suspendHint";
+  if (target.action === "resume") return "resumeHint";
+  if (target.action === "remove") return "removeHint";
+  if (target.action === "resend") return "resendHint";
+  return "cancelHint";
 }
 
 function getConfirmKey(target: MembershipActionTarget): string {
-  return target.action === "suspend"
-    ? "confirmSuspend"
-    : target.action === "resend"
-      ? "confirmResend"
-      : "confirmCancelInvitation";
+  if (target.action === "suspend") return "confirmSuspend";
+  if (target.action === "resume") return "confirmResume";
+  if (target.action === "remove") return "confirmRemove";
+  if (target.action === "resend") return "confirmResend";
+  return "confirmCancelInvitation";
 }
 
 function getEmailInitials(email: string): string {
@@ -123,12 +132,17 @@ export default function OrganizationMembershipActionDialog({
   refreshFailed: boolean;
 }) {
   const t = useTranslations("organizationMembers");
-  const [reason, setReason] = useState<MembershipActionReasonCode | "">("");
+  const [reason, setReason] = useState<MembershipActionReasonCode | "">(
+    target?.action === "resume" || target?.action === "remove"
+      ? "ACCESS_REVIEW"
+      : "",
+  );
   const [resendReasonMode, setResendReasonMode] =
     useState<ResendReasonMode>("NONE");
   const [presetReason, setPresetReason] = useState<string>("");
   const [customReason, setCustomReason] = useState<string>("");
   const [mountNowMs] = useState<number>(() => Date.now());
+  const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
 
@@ -153,6 +167,61 @@ export default function OrganizationMembershipActionDialog({
   const activeTarget = target;
   const hasUnresolvedError = error !== undefined && error !== null;
   const busy = isPending || isRecovering;
+  const confirmDismissOverlay = confirmCloseOpen && !busy && !isSuccess ? (
+    <div
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="organization-members-action-confirm-dismiss-title"
+      aria-describedby="organization-members-action-confirm-dismiss-desc"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+      onClick={(event) => event.stopPropagation()}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-warning-100 text-sm font-bold text-warning-600 dark:bg-warning-500/20 dark:text-warning-400"
+          >
+            !
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3
+              id="organization-members-action-confirm-dismiss-title"
+              className="text-base font-semibold text-gray-900 dark:text-white/90"
+            >
+              {t("confirmDismissTitle")}
+            </h3>
+            <p
+              id="organization-members-action-confirm-dismiss-desc"
+              className="mt-1.5 text-sm leading-5 text-gray-600 dark:text-gray-300"
+            >
+              {t("confirmDismissDescription")}
+            </p>
+          </div>
+        </div>
+        <div className="mt-5 flex flex-wrap justify-end gap-2.5 border-t border-gray-100 pt-4 dark:border-gray-800">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmCloseOpen(false)}
+          >
+            {t("confirmDismissStay")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => {
+              setConfirmCloseOpen(false);
+              onClose();
+            }}
+          >
+            {t("confirmDismissLeave")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  ) : null;
 
   function trapFocus(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Tab") return;
@@ -214,7 +283,11 @@ export default function OrganizationMembershipActionDialog({
             if (hasUnresolvedError && onDismissError) {
               onDismissError();
             } else {
-              onClose();
+              if (isSuccess) {
+                onClose();
+              } else {
+                setConfirmCloseOpen(true);
+              }
             }
           }
         }}
@@ -231,6 +304,7 @@ export default function OrganizationMembershipActionDialog({
           onKeyDown={trapFocus}
           className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-7"
         >
+          {confirmDismissOverlay}
           {/* Header */}
           <div className="mb-4 flex items-start justify-between gap-4">
             <div>
@@ -661,11 +735,38 @@ export default function OrganizationMembershipActionDialog({
     value: MembershipActionReasonCode;
     label: string;
   }[] =
-    activeTarget.action === "suspend"
+    activeTarget.action === "resume" || activeTarget.action === "remove"
       ? [
-          { value: "SECURITY_INCIDENT", label: t("securityIncident") },
+          { value: "ACCESS_REQUEST", label: t("accessRequest") },
           { value: "ACCESS_REVIEW", label: t("accessReview") },
+          { value: "SECURITY_INCIDENT", label: t("securityIncident") },
         ]
+      : "membership" in activeTarget
+        ? [
+            { value: "SECURITY_INCIDENT", label: t("securityIncident") },
+            { value: "ACCESS_REVIEW", label: t("accessReview") },
+          ]
+        : [];
+
+  const blockingProjects: readonly {
+    id: string;
+    code?: string;
+    name?: string;
+  }[] =
+    error instanceof ApiError &&
+    error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP"
+      ? Array.isArray(error.details?.blockingProjects)
+        ? error.details.blockingProjects.filter(
+            (item): item is { id: string; code?: string; name?: string } =>
+              typeof item === "object" &&
+              item !== null &&
+              typeof (item as Record<string, unknown>).id === "string",
+          )
+        : Array.isArray(error.details?.projectIds)
+          ? error.details.projectIds
+              .filter((id): id is string => typeof id === "string")
+              .map((id) => ({ id }))
+          : []
       : [];
 
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -682,7 +783,7 @@ export default function OrganizationMembershipActionDialog({
     <Modal
       isOpen
       onClose={() => {
-        if (!busy && !hasUnresolvedError) onClose();
+        if (!busy && !hasUnresolvedError) setConfirmCloseOpen(true);
       }}
       showCloseButton={false}
       className="mx-4 max-w-lg"
@@ -696,6 +797,7 @@ export default function OrganizationMembershipActionDialog({
         onKeyDown={trapFocus}
         className="rounded-3xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900 sm:p-8"
       >
+        {confirmDismissOverlay}
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2
@@ -716,7 +818,7 @@ export default function OrganizationMembershipActionDialog({
             >
               <span className="font-medium">{t("actionTargetLabel")}:</span>{" "}
               <span>
-                {activeTarget.action === "suspend"
+                {"membership" in activeTarget
                   ? activeTarget.membership.user?.fullName ||
                     activeTarget.membership.user?.email ||
                     t("nameUnavailable")
@@ -734,6 +836,11 @@ export default function OrganizationMembershipActionDialog({
             <span aria-hidden="true">×</span>
           </button>
         </div>
+        {activeTarget.action === "remove" && (
+          <div className="mb-5 rounded-xl border border-warning-200 bg-warning-50/80 px-4 py-3 text-xs leading-5 text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+            {t("removeDependencyNotice")}
+          </div>
+        )}
         {reasonOptions.length > 0 && (
           <div className="mb-5">
             <Label htmlFor="organization-members-action-reason">
@@ -770,6 +877,24 @@ export default function OrganizationMembershipActionDialog({
               title={t("errorTitle")}
               message={t(getErrorMessageKey(error))}
             />
+            {blockingProjects.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {blockingProjects.map((project) => (
+                  <Link
+                    key={project.id}
+                    href={`/projects/${encodeURIComponent(project.id)}/members`}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-error-200 bg-white px-3 py-1.5 text-xs font-semibold text-error-700 transition hover:bg-error-50 dark:border-error-500/30 dark:bg-gray-900 dark:text-error-300 dark:hover:bg-error-500/15"
+                  >
+                    <span>
+                      {project.name
+                        ? `${project.name}${project.code ? ` (${project.code})` : ""}`
+                        : project.id}
+                    </span>
+                    <span aria-hidden="true">→</span>
+                  </Link>
+                ))}
+              </div>
+            )}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button
                 size="sm"

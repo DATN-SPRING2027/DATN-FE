@@ -5,22 +5,35 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
-import { useRouter } from "@/i18n/navigation";
+import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const { isExpanded, isMobileOpen, sidebarWidth, isResizing } = useSidebar();
   const router = useRouter();
+  const isChat = usePathname() === "/chat";
+  const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
   const unauthorized =
     currentUser.error instanceof ApiError && currentUser.error.status === 401;
+
+  useEffect(() => {
+    if (!isChat || !window.visualViewport) return;
+    const viewport = window.visualViewport;
+    const resize = () => {
+      if (shell.current) shell.current.style.height = `${viewport.height}px`;
+    };
+    resize();
+    viewport.addEventListener("resize", resize);
+    return () => viewport.removeEventListener("resize", resize);
+  }, [isChat, currentUser.data, currentUser.isError]);
 
   const retrySession = async () => {
     if (isRetrying || currentUser.isFetching) return;
@@ -59,31 +72,66 @@ export default function AdminLayout({
 
   if (currentUser.data.context === "ACCOUNT") {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900" aria-busy="true" />
+      <div
+        className="min-h-screen bg-white dark:bg-gray-900"
+        aria-busy="true"
+      />
     );
   }
 
-  // Dynamic class for main content margin based on sidebar state
+  const rawWidth = Number.isFinite(sidebarWidth) ? Number(sidebarWidth) : 240;
+  const resolvedExpandedWidth = Math.min(
+    420,
+    Math.max(180, Math.round(rawWidth)),
+  );
+  const desktopSidebarOffsetPx = isExpanded ? resolvedExpandedWidth : 64;
+
   const mainContentMargin = isMobileOpen
     ? "ms-0"
-    : isExpanded || isHovered
-      ? "lg:ms-[290px]"
-      : "lg:ms-[90px]";
+    : "lg:ms-[var(--sidebar-offset)]";
 
   return (
-    <div className="min-h-screen xl:flex">
-      {/* Sidebar and Backdrop */}
-      <AppSidebar />
-      <Backdrop />
-      {/* Main Content Area */}
+    <div
+      ref={shell}
+      className={
+        isChat
+          ? "flex h-dvh flex-col overflow-hidden"
+          : "flex min-h-screen flex-col"
+      }
+    >
+      {/* Full-width Top Header */}
+      <AppHeader compact={isChat} />
+
+      {/* Workspace Body below Header: Left Sidebar + Right Main Content */}
       <div
-        className={`min-w-0 flex-1 transition-all duration-300 ease-in-out ${mainContentMargin}`}
+        className={
+          isChat
+            ? "relative flex min-h-0 flex-1 overflow-hidden"
+            : "relative flex min-h-0 flex-1"
+        }
       >
-        {/* Header */}
-        <AppHeader />
-        {/* Page Content */}
-        <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
-          {children}
+        <AppSidebar />
+        <Backdrop />
+
+        {/* Main Content Area */}
+        <div
+          style={
+            {
+              "--sidebar-offset": `${desktopSidebarOffsetPx}px`,
+            } as React.CSSProperties
+          }
+          className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 ${isResizing ? "transition-none" : "transition-all duration-200 ease-in-out"} ${mainContentMargin}`}
+        >
+          {/* Page Content */}
+          <div
+            className={
+              isChat
+                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                : "mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+            }
+          >
+            {children}
+          </div>
         </div>
       </div>
     </div>

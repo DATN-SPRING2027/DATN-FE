@@ -43,6 +43,8 @@ vi.mock("@/components/teams/TeamsWorkspace", () => ({
   ),
 }));
 vi.mock("@/icons", () => ({
+  AlertIcon: () => null,
+  BoxIconLine: () => null,
   ChevronDownIcon: () => null,
   FolderIcon: () => null,
   GridIcon: () => null,
@@ -818,7 +820,7 @@ it("preserves the active tab across project refetches and syncs /overview, /memb
 });
 
 
-it("clearly labels Project search and filters as scoped to the currently loaded page", async () => {
+it("renders global KPI stat cards without 'on page' labels and separates status tabs from search and sort controls", async () => {
   api.mockImplementation(async (path) =>
     path === "/auth/me" ? user : list([project]),
   );
@@ -827,14 +829,28 @@ it("clearly labels Project search and filters as scoped to the currently loaded 
   expect(await screen.findByRole("link", { name: "Apollo" })).toBeVisible();
   expect(
     screen.getByText(
-      "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
+      "Total projects",
     ),
   ).toBeVisible();
 
-  const searchInput = screen.getByLabelText("Search current page");
+  expect(screen.getByText("Active projects")).toBeVisible();
+  expect(screen.getByText("Need attention")).toBeVisible();
+  expect(screen.getByText("Archived projects")).toBeVisible();
+  expect(
+    screen.getByText(
+      "Search, visibility filter, and sort apply to the 20 projects loaded on the current page.",
+    ),
+  ).toBeVisible();
+  const searchInput = screen.getByLabelText(
+    "Search projects on the current page",
+  );
   expect(searchInput).toHaveAttribute(
     "placeholder",
     "Filter current page by project name, code, or description…",
+  );
+  expect(searchInput).toHaveAttribute(
+    "aria-describedby",
+    "project-search-page-hint",
   );
 
   fireEvent.change(searchInput, { target: { value: "nonexistent-project" } });
@@ -843,7 +859,7 @@ it("clearly labels Project search and filters as scoped to the currently loaded 
   ).toBeVisible();
   expect(
     screen.getByText(
-      "No projects on the current page match your search or filters. Try another page or clear the filters.",
+      "No projects on the current page match your search or filters. Try another page or clear filters.",
     ),
   ).toBeVisible();
 });

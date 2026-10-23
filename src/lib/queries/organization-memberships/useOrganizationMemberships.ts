@@ -5,19 +5,28 @@ import type {
   CancelInvitationInput,
   InviteMemberInput,
   OrganizationRoleMutationAck,
+  OrganizationSettingsSummary,
+  RemoveMembershipInput,
   ResendInvitationInput,
+  ResumeMembershipInput,
   SetOrganizationMembershipRoleInput,
   SuspendMembershipInput,
+  UpdateOrganizationSettingsInput,
 } from "./organization-memberships.contract";
 import type { OrganizationMutationAck } from "./organization-memberships.contract";
 import {
   cancelOrganizationInvitation,
+  getOrganizationOverview,
+  getOrganizationSettings,
   inviteOrganizationMember,
   listOrganizationInvitations,
   listOrganizationMemberships,
+  removeOrganizationMembership,
   resendOrganizationInvitation,
+  resumeOrganizationMembership,
   setOrganizationMembershipRole,
   suspendOrganizationMembership,
+  updateOrganizationSettings,
   type MembershipListFilter,
 } from "./organization-memberships.service";
 
@@ -28,6 +37,10 @@ export const organizationMembershipKeys = {
     [...organizationMembershipKeys.scope(actorId, organizationId), "list", filter] as const,
   invitations: (actorId: string, organizationId: string, page: number, pageSize: number) =>
     [...organizationMembershipKeys.scope(actorId, organizationId), "invitations", page, pageSize] as const,
+  overview: (actorId: string, organizationId: string) =>
+    [...organizationMembershipKeys.scope(actorId, organizationId), "overview"] as const,
+  settings: (actorId: string, organizationId: string) =>
+    [...organizationMembershipKeys.scope(actorId, organizationId), "settings"] as const,
 };
 
 function queryOptions() {
@@ -66,6 +79,32 @@ export function useOrganizationInvitationsQuery(
     queryKey: organizationMembershipKeys.invitations(actorId, organizationId, page, pageSize),
     enabled: Boolean(actorId && organizationId),
     queryFn: ({ signal }) => listOrganizationInvitations(organizationId, page, pageSize, signal),
+  });
+}
+
+export function useOrganizationOverviewQuery(
+  actorId: string,
+  organizationId: string,
+  enabled = true,
+) {
+  return useQuery({
+    ...queryOptions(),
+    queryKey: organizationMembershipKeys.overview(actorId, organizationId),
+    enabled: Boolean(actorId && organizationId && enabled),
+    queryFn: ({ signal }) => getOrganizationOverview(organizationId, signal),
+  });
+}
+
+export function useOrganizationSettingsQuery(
+  actorId: string,
+  organizationId: string,
+  enabled = true,
+) {
+  return useQuery({
+    ...queryOptions(),
+    queryKey: organizationMembershipKeys.settings(actorId, organizationId),
+    enabled: Boolean(actorId && organizationId && enabled),
+    queryFn: ({ signal }) => getOrganizationSettings(organizationId, signal),
   });
 }
 
@@ -131,6 +170,28 @@ export function useSuspendOrganizationMembership(actorId: string, organizationId
   );
 }
 
+export function useResumeOrganizationMembership(actorId: string, organizationId: string) {
+  return useMembershipMutation<IdempotentInput<ResumeMembershipInput & { membershipId: string }>>(
+    actorId,
+    organizationId,
+    ({ input, idempotencyKey }) => {
+      const { membershipId, ...body } = input;
+      return resumeOrganizationMembership(organizationId, membershipId, body, idempotencyKey);
+    },
+  );
+}
+
+export function useRemoveOrganizationMembership(actorId: string, organizationId: string) {
+  return useMembershipMutation<IdempotentInput<RemoveMembershipInput & { membershipId: string }>>(
+    actorId,
+    organizationId,
+    ({ input, idempotencyKey }) => {
+      const { membershipId, ...body } = input;
+      return removeOrganizationMembership(organizationId, membershipId, body, idempotencyKey);
+    },
+  );
+}
+
 export function useSetOrganizationMembershipRole(actorId: string, organizationId: string) {
   const queryClient = useQueryClient();
   return useMutation<
@@ -148,6 +209,25 @@ export function useSetOrganizationMembershipRole(actorId: string, organizationId
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: organizationMembershipKeys.scope(actorId, organizationId),
+      });
+    },
+  });
+}
+
+export function useUpdateOrganizationSettings(actorId: string, organizationId: string) {
+  const queryClient = useQueryClient();
+  return useMutation<OrganizationSettingsSummary, Error, UpdateOrganizationSettingsInput>({
+    retry: false,
+    throwOnError: false,
+    networkMode: "always",
+    mutationFn: (input) => updateOrganizationSettings(organizationId, input),
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(organizationMembershipKeys.settings(actorId, organizationId), updated);
+      await queryClient.invalidateQueries({
+        queryKey: organizationMembershipKeys.scope(actorId, organizationId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["auth", "organizations"],
       });
     },
   });

@@ -775,6 +775,7 @@ export default function ProjectOverview({
             projectId={project.id}
             showAddButton={false}
             addModalOpen={showAddModal}
+            onOpenAdd={() => setShowAddModal(true)}
             onCloseAdd={() => setShowAddModal(false)}
           />
         </div>

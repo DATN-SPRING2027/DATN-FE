@@ -9,7 +9,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import Button from "@/components/ui/button/Button";
-import { GroupIcon } from "@/icons";
+import { ArrowRightIcon, GroupIcon, LockIcon, TrashBinIcon } from "@/icons";
 import type { ProjectMembership } from "@/lib/queries/projects/useProjectMembers";
 import type { LeaderRoleStatus } from "./MemberDetails";
 
@@ -19,6 +19,7 @@ export default function MemberDirectory({
   disabled,
   removeDisabled,
   leaderUserIds,
+  inactiveLeaderUserIds,
   leaderRoleStatus = "ready",
   canManageLeaders = false,
   leaderBusyUserId,
@@ -31,6 +32,7 @@ export default function MemberDirectory({
   disabled: boolean;
   removeDisabled: boolean;
   leaderUserIds?: ReadonlySet<string>;
+  inactiveLeaderUserIds?: ReadonlySet<string>;
   leaderRoleStatus?: LeaderRoleStatus;
   canManageLeaders?: boolean;
   leaderBusyUserId?: string;
@@ -107,7 +109,14 @@ export default function MemberDirectory({
             const isLeader =
               leaderRoleStatus === "ready" &&
               Boolean(leaderUserIds?.has(member.userId));
-            const isSoleLeader = isLeader && activeLeaderCount <= 1;
+            const isInactiveLeader =
+              leaderRoleStatus === "ready" &&
+              !isLeader &&
+              Boolean(inactiveLeaderUserIds?.has(member.userId));
+            const hasLeaderAssignment = isLeader || isInactiveLeader;
+            const isSoleLeader =
+              (isLeader && activeLeaderCount <= 1) ||
+              (isInactiveLeader && activeLeaderCount === 0);
             const isBusyLeader = leaderBusyUserId === member.userId;
             return (
               <TableRow
@@ -174,49 +183,20 @@ export default function MemberDirectory({
                     )}
                     {isLeader && (
                       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                        <svg
-                          aria-hidden="true"
-                          viewBox="0 0 16 16"
-                          fill="none"
-                          className="h-3.5 w-3.5 shrink-0"
-                        >
-                          <path
-                            d="M8 2.25l1.65 3.35 3.7.54-2.68 2.61.63 3.68L8 10.7l-3.3 1.73.63-3.68L2.65 6.14l3.7-.54L8 2.25Z"
-                            stroke="currentColor"
-                            strokeWidth="1.35"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
                         {t("projectLeaderBadge")}
                       </span>
                     )}
+                    {isInactiveLeader && (
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-warning-200 bg-warning-50 px-2.5 py-1 text-xs font-semibold whitespace-nowrap text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
+                        <LockIcon aria-hidden="true" className="h-3 w-3 shrink-0" />
+                        {t("inactiveLeaderBadge")}
+                      </span>
+                    )}
                     <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-50/70 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                      <svg
+                      <GroupIcon
                         aria-hidden="true"
-                        viewBox="0 0 16 16"
-                        fill="none"
                         className="h-3.5 w-3.5 shrink-0 text-gray-400"
-                      >
-                        <circle
-                          cx="6.25"
-                          cy="5.5"
-                          r="2.25"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                        />
-                        <path
-                          d="M2.5 12.75c0-1.9 1.68-3.25 3.75-3.25S10 10.85 10 12.75"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                          strokeLinecap="round"
-                        />
-                        <path
-                          d="M10.75 4.25a2 2 0 0 1 0 3.75M13.5 12.75c0-1.45-1.05-2.65-2.5-3.05"
-                          stroke="currentColor"
-                          strokeWidth="1.4"
-                          strokeLinecap="round"
-                        />
-                      </svg>
+                      />
                       {t("projectScope")}
                     </span>
                   </div>
@@ -280,24 +260,14 @@ export default function MemberDirectory({
                           : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                       }`}
                     >
-                      <svg
+                      <ArrowRightIcon
                         aria-hidden="true"
-                        viewBox="0 0 16 16"
-                        fill="none"
                         className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
-                      >
-                        <path
-                          d="M3.5 8h9M9 4.5L12.5 8 9 11.5"
-                          stroke="currentColor"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
+                      />
                     </button>
 
                     {canManageLeaders &&
-                      member.status === "ACTIVE" &&
+                      (member.status === "ACTIVE" || isInactiveLeader) &&
                       onToggleLeader && (
                         <button
                           type="button"
@@ -311,27 +281,16 @@ export default function MemberDirectory({
                               ? t("soleLeaderCannotRevoke")
                               : undefined
                           }
-                          onClick={() => onToggleLeader(member, isLeader)}
+                          onClick={() =>
+                            onToggleLeader(member, hasLeaderAssignment)
+                          }
                           className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 enabled:cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${
-                            isLeader
+                            hasLeaderAssignment
                               ? "border-warning-200 bg-warning-50/60 text-warning-700 enabled:hover:border-warning-300 enabled:hover:bg-warning-100/70 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300 dark:enabled:hover:bg-warning-500/20"
                               : "border-brand-200 bg-brand-50/60 text-brand-700 enabled:hover:border-brand-300 enabled:hover:bg-brand-100/70 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:enabled:hover:bg-brand-500/20"
                           }`}
                         >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            fill="none"
-                            className="h-3.5 w-3.5 shrink-0"
-                          >
-                            <path
-                              d="M8 2.25l1.65 3.35 3.7.54-2.68 2.61.63 3.68L8 10.7l-3.3 1.73.63-3.68L2.65 6.14l3.7-.54L8 2.25Z"
-                              stroke="currentColor"
-                              strokeWidth="1.35"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
-                          {isLeader
+                          {hasLeaderAssignment
                             ? t(isBusyLeader ? "revokingLeader" : "revokeLeader")
                             : t(
                                 isBusyLeader
@@ -347,7 +306,7 @@ export default function MemberDirectory({
                         size="sm"
                         disabled={
                           removeDisabled ||
-                          isLeader ||
+                          hasLeaderAssignment ||
                           leaderRoleStatus !== "ready"
                         }
                         title={
@@ -355,25 +314,15 @@ export default function MemberDirectory({
                             ? t("leaderRoleRequiredForRemove")
                             : isSoleLeader
                               ? t("soleLeaderCannotRevoke")
-                              : isLeader
+                              : hasLeaderAssignment
                                 ? t("leaderCannotBeRemoved")
                                 : undefined
                         }
                         startIcon={
-                          <svg
+                          <TrashBinIcon
                             aria-hidden="true"
-                            viewBox="0 0 16 16"
-                            fill="none"
                             className="h-3.5 w-3.5 shrink-0"
-                          >
-                            <path
-                              d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
-                              stroke="currentColor"
-                              strokeWidth="1.4"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            />
-                          </svg>
+                          />
                         }
                         onClick={() => onRemove(member)}
                         className="h-8 border-gray-200 px-2.5 text-xs text-error-600! enabled:cursor-pointer enabled:hover:border-error-200 enabled:hover:bg-error-50 dark:border-gray-700 dark:text-error-400! dark:enabled:hover:bg-error-950/20"

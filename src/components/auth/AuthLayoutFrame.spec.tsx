@@ -46,7 +46,11 @@ describe("Authentication presentation routes", () => {
     "/onboarding",
   ])("uses the scrollable organic layout on %s", (route) => {
     pathname = route;
-    renderLayout();
+    const { container } = renderLayout();
+    expect(container.querySelector("[data-auth-route]")).toHaveAttribute(
+      "data-auth-route",
+      route,
+    );
     expect(
       screen.getByRole("region", { name: "Account and workspace setup" }),
     ).toHaveAttribute("tabindex", "0");

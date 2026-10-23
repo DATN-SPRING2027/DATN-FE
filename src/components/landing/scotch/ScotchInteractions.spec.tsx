@@ -193,4 +193,24 @@ describe("Scotch landing interactions", () => {
     expect(window.location.hash).toBe("#cach-hoat-dong");
     document.body.removeChild(targetSection);
   });
+
+  it("marks the landing container as leaving-to-auth when an auth link is clicked", () => {
+    show(
+      <div data-testid="landing-wrapper">
+        <SmoothScrollHandler />
+        <main id="noi-dung">
+          {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+          <a href="/signin">Sign in</a>
+        </main>
+      </div>,
+    );
+
+    const signInLink = screen.getByRole("link", { name: "Sign in" });
+    fireEvent.click(signInLink, { button: 0 });
+
+    expect(screen.getByTestId("landing-wrapper")).toHaveAttribute(
+      "data-leaving-to-auth",
+      "true",
+    );
+  });
 });

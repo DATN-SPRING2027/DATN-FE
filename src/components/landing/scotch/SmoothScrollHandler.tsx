@@ -6,6 +6,17 @@ function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
+const AUTH_TRANSITION_PATHS = new Set([
+  "/signin",
+  "/signup",
+  "/reset-password",
+]);
+
+function isAuthTransitionHref(href: string): boolean {
+  const cleanPath = href.split("?")[0]?.split("#")[0] ?? "";
+  return AUTH_TRANSITION_PATHS.has(cleanPath);
+}
+
 export function scrollToTarget(targetId: string, duration = 1200) {
   if (typeof window === "undefined") return;
 
@@ -80,7 +91,27 @@ export default function SmoothScrollHandler() {
       if (!target) return;
 
       const href = target.getAttribute("href");
-      if (!href || !href.startsWith("#") || href === "#") return;
+      if (!href) return;
+
+      if (
+        isAuthTransitionHref(href) &&
+        e.button === 0 &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        !e.altKey &&
+        target.target !== "_blank"
+      ) {
+        const landingRoot =
+          target.closest("[data-landing-root]") ??
+          document.getElementById("noi-dung")?.parentElement;
+        if (landingRoot instanceof HTMLElement) {
+          landingRoot.setAttribute("data-leaving-to-auth", "true");
+        }
+        return;
+      }
+
+      if (!href.startsWith("#") || href === "#") return;
 
       const targetId = href.slice(1);
       const targetElement = document.getElementById(targetId);

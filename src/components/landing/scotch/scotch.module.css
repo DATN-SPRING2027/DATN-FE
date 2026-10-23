@@ -1921,3 +1921,40 @@
   font-size: 0.75rem;
   line-height: 1.4;
 }
+
+
+.landing main {
+  transform-origin: 50% 24%;
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.landing[data-leaving-to-auth="true"] main {
+  opacity: 0;
+  transform: scale(0.95) translate3d(0, 0.75rem, 0);
+  filter: blur(4px);
+}
+.heroCopy {
+  animation: scotchHeroReveal 0.65s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes scotchHeroReveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 0.85rem, 0) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing main,
+  .landing[data-leaving-to-auth="true"] main,
+  .heroCopy {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    filter: none !important;
+  }
+}

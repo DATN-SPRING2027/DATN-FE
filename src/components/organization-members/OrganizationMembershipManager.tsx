@@ -21,7 +21,9 @@ import type {
   InviteMemberInput,
   OrganizationMembership,
   OrganizationRoleCode,
+  RemoveMembershipInput,
   ResendInvitationInput,
+  ResumeMembershipInput,
   SetOrganizationMembershipRoleInput,
   SuspendMembershipInput,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
@@ -30,7 +32,9 @@ import {
   useInviteOrganizationMember,
   useOrganizationInvitationsQuery,
   useOrganizationMembershipsQuery,
+  useRemoveOrganizationMembership,
   useResendOrganizationInvitation,
+  useResumeOrganizationMembership,
   useSetOrganizationMembershipRole,
   useSuspendOrganizationMembership,
   type IdempotentInput,
@@ -55,7 +59,11 @@ function getErrorMessageKey(error: unknown, fallbackKey = "failure"): string {
   if (error.status === 403 || error.code === "ORGANIZATION_MEMBERSHIP_FORBIDDEN") return "forbidden";
   if (error.status === 401) return "unauthorized";
   if (error.status === 404) return "notFound";
-  if (error.status === 409) return error.code === "LAST_ELIGIBLE_ADMIN" ? "lastAdmin" : "conflict";
+  if (error.status === 409) {
+    if (error.code === "LAST_ELIGIBLE_ADMIN") return "lastAdmin";
+    if (error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP") return "activeProjectLeaderBlocker";
+    return "conflict";
+  }
   if (error.status === 422) return "validation";
   if (error.status === 429) return "rateLimit";
   if (error.status === 503) return "dependencyUnavailable";
@@ -142,7 +150,13 @@ function ScopedOrganizationMemberships({
   const cachedOrganizations = queryClient.getQueryData<readonly { id: string; name: string }[]>(["auth", "organizations"]);
   const organizationName = cachedOrganizations?.find((org) => org.id === organizationId)?.name;
   const inviteDialog = useModal();
-  const [activeTab, setActiveTab] = useState<DirectoryTab>("members");
+  const [activeTab, setActiveTab] = useState<DirectoryTab>(() => {
+    if (typeof window !== "undefined") {
+      const tabParam = new URLSearchParams(window.location.search).get("tab");
+      if (tabParam === "invitations") return "invitations";
+    }
+    return "members";
+  });
   const tabRefs = useRef<Record<DirectoryTab, HTMLButtonElement | null>>({ members: null, invitations: null });
   const [status, setStatus] = useState<MembershipStatusFilter>("ALL");
   const [searchTerm, setSearchTerm] = useState("");
@@ -166,6 +180,8 @@ function ScopedOrganizationMemberships({
   const resend = useResendOrganizationInvitation(actorId, organizationId);
   const cancel = useCancelOrganizationInvitation(actorId, organizationId);
   const suspend = useSuspendOrganizationMembership(actorId, organizationId);
+  const resume = useResumeOrganizationMembership(actorId, organizationId);
+  const remove = useRemoveOrganizationMembership(actorId, organizationId);
   const roleChange = useSetOrganizationMembershipRole(actorId, organizationId);
   const [inviteSuccess, setInviteSuccess] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
@@ -178,8 +194,10 @@ function ScopedOrganizationMemberships({
   const canManageInvitationCommands = canManage && organizationMembershipReadiness.invitationCommands.status === "READY";
   const actionMutation =
     target?.action === "suspend" ? suspend :
-      target?.action === "resend" ? resend :
-        target?.action === "cancel" ? cancel : undefined;
+      target?.action === "resume" ? resume :
+        target?.action === "remove" ? remove :
+          target?.action === "resend" ? resend :
+            target?.action === "cancel" ? cancel : undefined;
   const hasUnresolvedMutation = Boolean(
     actionMutation?.isPending || actionMutation?.isError || roleChange.isPending || roleChange.isError,
   );
@@ -194,6 +212,8 @@ function ScopedOrganizationMemberships({
 
   function resetActionMutation(actionTarget: MembershipActionTarget | null) {
     if (actionTarget?.action === "suspend") suspend.reset();
+    if (actionTarget?.action === "resume") resume.reset();
+    if (actionTarget?.action === "remove") remove.reset();
     if (actionTarget?.action === "resend") resend.reset();
     if (actionTarget?.action === "cancel") cancel.reset();
   }
@@ -221,6 +241,8 @@ function ScopedOrganizationMemberships({
     if (hasUnresolvedMutation || !canManage) return;
     if ((next.action === "resend" || next.action === "cancel") && !canManageInvitationCommands) return;
     suspend.reset();
+    resume.reset();
+    remove.reset();
     resend.reset();
     cancel.reset();
     setNotice(false);
@@ -251,7 +273,16 @@ function ScopedOrganizationMemberships({
     inviteAttempt.current = { input, idempotencyKey };
 
     try {
-      await invite.mutateAsync({ input, idempotencyKey });
+      const { emails, ...baseInput } = input;
+      const targetEmails = emails && emails.length > 1 ? emails : [input.email];
+      for (let idx = 0; idx < targetEmails.length; idx += 1) {
+        const emailItem = targetEmails[idx]!;
+        const itemKey = idx === 0 ? idempotencyKey : createIdempotencyKey();
+        await invite.mutateAsync({
+          input: { ...baseInput, email: emailItem },
+          idempotencyKey: itemKey,
+        });
+      }
       inviteAttempt.current = null;
       setInviteSuccess(true);
     } catch {
@@ -265,14 +296,35 @@ function ScopedOrganizationMemberships({
     setTarget(null);
   }
 
+  const isMembershipTargetAction = (action: MembershipActionTarget["action"]) =>
+    action === "suspend" || action === "resume" || action === "remove";
+
   async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
-    if (!canManage || (actionTarget.action !== "suspend" && !canManageInvitationCommands)) return;
+    if (!canManage || (!isMembershipTargetAction(actionTarget.action) && !canManageInvitationCommands)) return;
     if (actionTarget.action === "suspend") {
       await suspend.mutateAsync({
         input: {
           membershipId: actionTarget.membership.id,
           expectedMembershipVersion: actionTarget.membership.version,
           reasonCode: reasonCode as SuspendMembershipInput["reasonCode"],
+        },
+        idempotencyKey,
+      });
+    } else if (actionTarget.action === "resume") {
+      await resume.mutateAsync({
+        input: {
+          membershipId: actionTarget.membership.id,
+          expectedMembershipVersion: actionTarget.membership.version,
+          reasonCode: reasonCode as ResumeMembershipInput["reasonCode"],
+        },
+        idempotencyKey,
+      });
+    } else if (actionTarget.action === "remove") {
+      await remove.mutateAsync({
+        input: {
+          membershipId: actionTarget.membership.id,
+          expectedMembershipVersion: actionTarget.membership.version,
+          reasonCode: reasonCode as RemoveMembershipInput["reasonCode"],
         },
         idempotencyKey,
       });
@@ -291,6 +343,7 @@ function ScopedOrganizationMemberships({
           action: "resend",
           invitation: {
             ...actionTarget.invitation,
+            id: ack.invitation.id,
             status: ack.invitation.status,
             version: ack.invitation.version,
             expiresAt: ack.invitation.expiresAt,
@@ -300,7 +353,7 @@ function ScopedOrganizationMemberships({
       setResendSuccess(true);
       setNotice(true);
       return;
-    } else {
+    } else if (actionTarget.action === "cancel") {
       await cancel.mutateAsync({
         input: {
           invitationId: actionTarget.invitation.id,
@@ -317,7 +370,7 @@ function ScopedOrganizationMemberships({
 
   function confirmAction(reasonCode: MembershipActionReasonCode) {
     if (!target || hasUnresolvedMutation) return;
-    if (target.action !== "suspend" && !canManageInvitationCommands) return;
+    if (!isMembershipTargetAction(target.action) && !canManageInvitationCommands) return;
     void executeAction(target, reasonCode).catch(() => undefined);
   }
 
@@ -325,6 +378,10 @@ function ScopedOrganizationMemberships({
     if (!target) return;
     if (target.action === "suspend" && suspend.variables) {
       void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.idempotencyKey).catch(() => undefined);
+    } else if (target.action === "resume" && resume.variables) {
+      void executeAction(target, resume.variables.input.reasonCode, resume.variables.idempotencyKey).catch(() => undefined);
+    } else if (target.action === "remove" && remove.variables) {
+      void executeAction(target, remove.variables.input.reasonCode, remove.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "resend" && resend.variables) {
       void executeAction(target, resend.variables.input.reasonCode, resend.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "cancel" && cancel.variables) {
@@ -480,7 +537,7 @@ function ScopedOrganizationMemberships({
             className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${activeTab === "members" ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"}`}
           >
             {t("membersTab")}
-            {readyMembers && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{readyMembers.pagination.totalItems}</span>}
+            {readyMembers && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">{readyMembers.pagination.totalItems}</span>}
           </button>
           <button
             ref={(element) => { tabRefs.current.invitations = element; }}
@@ -495,7 +552,7 @@ function ScopedOrganizationMemberships({
             className={`inline-flex min-h-12 items-center gap-2 border-b-2 px-1 text-sm font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${activeTab === "invitations" ? "border-brand-500 text-brand-600 dark:text-brand-400" : "border-transparent text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-white/90"}`}
           >
             {t("invitationsTab")}
-            {readyInvitations && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300">{readyInvitations.pagination.totalItems}</span>}
+            {readyInvitations && <span aria-hidden="true" className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">{readyInvitations.pagination.totalItems}</span>}
           </button>
         </div>
 
@@ -535,7 +592,7 @@ function ScopedOrganizationMemberships({
                 {readyMembers ? (
                   <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-theme-xs sm:self-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     <span className="size-1.5 rounded-full bg-brand-500" aria-hidden="true" />
-                    <span aria-live="polite">{t("membersCount", { count: readyMembers.pagination.totalItems })}</span>
+                    <span aria-live="polite" className="tabular-nums">{t("membersCount", { count: readyMembers.pagination.totalItems })}</span>
                   </div>
                 ) : memberships.isFetching ? (
                   <div aria-hidden="true" className="h-6 w-20 animate-pulse rounded-md bg-gray-200 dark:bg-gray-800" />
@@ -566,6 +623,8 @@ function ScopedOrganizationMemberships({
                   searchTerm={searchTerm}
                   onPageChange={setMembershipPage}
                   onSuspend={(membership: OrganizationMembership) => openAction({ action: "suspend", membership })}
+                  onResume={(membership: OrganizationMembership) => openAction({ action: "resume", membership })}
+                  onRemove={(membership: OrganizationMembership) => openAction({ action: "remove", membership })}
                   onSetRole={openRoleDialog}
                 />
               )}
@@ -584,7 +643,7 @@ function ScopedOrganizationMemberships({
                 {readyInvitations && (
                   <div className="inline-flex items-center gap-1.5 self-start rounded-md border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-600 shadow-theme-xs sm:self-auto dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                     <span className="size-1.5 rounded-full bg-warning-500" aria-hidden="true" />
-                    <span aria-live="polite">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</span>
+                    <span aria-live="polite" className="tabular-nums">{t("invitationsCount", { count: readyInvitations.pagination.totalItems })}</span>
                   </div>
                 )}
               </div>
@@ -616,7 +675,7 @@ function ScopedOrganizationMemberships({
       </section>
 
       <OrganizationMembershipActionDialog
-        key={target ? `${target.action}:${target.action === "suspend" ? target.membership.id : target.invitation.id}` : "closed"}
+        key={target ? `${target.action}:${"membership" in target ? target.membership.id : target.invitation.invitedEmail}` : "closed"}
         target={target}
         error={modalError}
         isPending={actionMutation?.isPending ?? false}
@@ -649,7 +708,15 @@ function ScopedOrganizationMemberships({
         isSuccess={inviteSuccess}
         organizationId={organizationId}
         organizationName={organizationName}
+        hasPermission={canManage}
         allowedRoles={currentUser?.roles?.includes("ADMIN") ? ["MEMBER", "ADMIN"] : ["MEMBER"]}
+        existingMemberEmails={(readyMembers?.data ?? []).filter((m) => m.status === "ACTIVE" || m.status === "SUSPENDED").map((m) => m.user?.email ?? "").filter(Boolean)}
+        existingPendingInvitationEmails={[
+          ...(readyInvitations?.data ?? []).filter((inv) => inv.status === "PENDING").map((inv) => inv.invitedEmail),
+          ...(readyMembers?.data ?? []).filter((m) => m.status === "PENDING_INVITE").map((m) => m.user?.email ?? "").filter(Boolean),
+        ]}
+        onViewInvitation={() => { closeInviteDialog(); setActiveTab("invitations"); }}
+        onViewMember={(email) => { closeInviteDialog(); setActiveTab("members"); setSearchTerm(email); }}
         onInviteAnother={() => { setInviteSuccess(false); invite.reset(); inviteAttempt.current = null; }}
         onClearError={() => { invite.reset(); }}
         error={invite.isError ? invite.error : undefined}

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar from "./AppSidebar";
+import { isPointInSafeTriangle } from "./SidebarFlyoutMenu";
 
 const {
   replace,
@@ -67,11 +68,29 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
     isError: false,
   }),
 }));
+vi.mock("@/lib/queries/projects/useProjects", () => ({
+  useProjectsQuery: () => ({
+    data: {
+      data: [
+        {
+          id: "proj-1",
+          organizationId: "org-1",
+          name: "Continuum Core",
+          code: "CORE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    isLoading: false,
+  }),
+}));
 vi.mock("@/icons/index", () => {
   const Icon = () => null;
   return {
     ArrowRightIcon: Icon,
     BookOpenIcon: Icon,
+    ChatIcon: Icon,
     CalenderIcon: Icon,
     CheckCircleIcon: Icon,
     ChevronDownIcon: Icon,
@@ -81,6 +100,7 @@ vi.mock("@/icons/index", () => {
     HandShakeIcon: Icon,
     LogOutIcon: Icon,
     PlugInIcon: Icon,
+    PlusIcon: Icon,
     SettingsIcon: Icon,
     ShootingStarIcon: Icon,
     DocsIcon: Icon,
@@ -94,6 +114,7 @@ vi.mock("next-intl", () => ({
       "sidebar.groups.administration": "Administration",
       "sidebar.items.overview": "Overview",
       "sidebar.items.projects": "Projects",
+      "sidebar.items.chat": "Chat",
       "sidebar.items.workNotes": "Work Notes",
       "sidebar.items.knowledge": "Knowledge",
       "sidebar.items.aiSearch": "AI Search",
@@ -236,7 +257,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar", "Members"]);
+    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
     expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
@@ -244,7 +265,7 @@ describe("AppSidebar navigation", () => {
     );
   });
 
-  it("hides Organization Members from navigation when the user lacks organization.memberships.read", () => {
+  it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
     currentUser.data = {
       ...currentUser.data,
       roles: ["MEMBER"],
@@ -256,9 +277,12 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Calendar"]);
+    ).toEqual(["Projects", "Chat"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("link", { name: "Settings" }),
     ).not.toBeInTheDocument();
   });
 
@@ -301,20 +325,27 @@ describe("AppSidebar navigation", () => {
         .getAllByRole("link")
         .some((link) => link.getAttribute("href")?.includes("/platform")),
     ).toBe(false);
+    expect(
+      within(nav)
+        .getAllByRole("link")
+        .some((link) => link.getAttribute("href")?.includes("/platform")),
+    ).toBe(false);
   });
 
-  it("shows not-yet-routed features as disabled items instead of broken links", () => {
+  it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
     render(<AppSidebar />);
 
+    expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
     for (const label of [
       "Work Notes",
-      "Knowledge",
+      "Work Notes",
       "AI Search",
-      "Handover",
+      "AI Search",
       "Integrations",
-      "Settings",
     ]) {
-      expect(screen.getByRole("button", { name: label })).toBeDisabled();
+      const button = screen.getByRole("button", { name: label });
+      expect(button).toBeDisabled();
+      expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
     }
   });
 
@@ -327,5 +358,88 @@ describe("AppSidebar navigation", () => {
 
     expect(logoutAsync).toHaveBeenCalledOnce();
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
+  });
+
+  it("renders a portaled hover Flyout menu after 175ms intent delay, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
+    vi.useFakeTimers();
+    try {
+      render(<AppSidebar />);
+      const nav = screen.getByRole("navigation", { name: "Main navigation" });
+      const projectsItem = within(nav).getByRole("link", { name: "Projects" }).closest("li")!;
+      const overviewItem = within(nav).getByRole("link", { name: "Overview" }).closest("li")!;
+
+      fireEvent.mouseEnter(projectsItem);
+      act(() => {
+        vi.advanceTimersByTime(100);
+      });
+      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
+
+      fireEvent.mouseEnter(projectsItem);
+      act(() => {
+        vi.advanceTimersByTime(180);
+      });
+      const projectsFlyout = screen.getByTestId("sidebar-flyout-projects");
+      expect(projectsFlyout).toBeInTheDocument();
+      expect(projectsFlyout.parentElement).toBe(document.body);
+      expect(within(projectsFlyout).getByText("Continuum Core")).toBeInTheDocument();
+
+      fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
+      fireEvent.mouseEnter(overviewItem);
+      act(() => {
+        vi.advanceTimersByTime(180);
+      });
+      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
+      expect(screen.getByTestId("sidebar-flyout-overview")).toBeInTheDocument();
+
+      expect(
+        isPointInSafeTriangle(
+          { x: 240, y: 180 },
+          { x: 200, y: 160 },
+          { x: 290, y: 120 },
+          { x: 290, y: 320 },
+        ),
+      ).toBe(true);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+      expect(screen.queryByTestId("sidebar-flyout-overview")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("allows dragging the sidebar edge resizer between 180px and 420px and resets to 240px on double-click", () => {
+    render(<AppSidebar />);
+    const aside = screen.getByRole("complementary");
+    const resizer = screen.getByTestId("sidebar-resizer");
+
+    expect(aside).toHaveStyle({ width: "240px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 240 });
+    fireEvent.mouseMove(window, { clientX: 320 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "320px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 320 });
+    fireEvent.mouseMove(window, { clientX: 520 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "420px" });
+
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 420 });
+    fireEvent.mouseMove(window, { clientX: 90 });
+    fireEvent.mouseUp(window);
+    expect(aside).toHaveStyle({ width: "64px" });
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+
+    fireEvent.mouseEnter(aside);
+    expect(aside).toHaveStyle({ width: "64px" });
+    expect(screen.queryByText("Projects")).not.toBeInTheDocument();
+
+    fireEvent.doubleClick(resizer);
+    expect(aside).toHaveStyle({ width: "240px" });
+    expect(screen.getByText("Projects")).toBeInTheDocument();
   });
 });
