@@ -46,14 +46,14 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
 
   return (
     <header
-      className={`${compact ? "relative z-30 shrink-0" : "sticky top-0 z-99999"} flex w-full border-gray-200 bg-white xl:border-b dark:border-gray-800 dark:bg-gray-900`}
+      className="sticky top-0 z-50 flex min-h-14 w-full shrink-0 border-b border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
     >
-      <div className="flex grow flex-col items-center justify-between xl:flex-row xl:px-6">
+      <div className="flex grow flex-col items-center justify-between xl:flex-row xl:px-4">
         <div
-          className={`flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 ${compact ? "py-2 xl:py-2" : "py-3 xl:py-4"} sm:gap-4 xl:justify-normal xl:border-b-0 xl:px-0 dark:border-gray-800`}
+          className={`flex w-full items-center justify-between gap-2 border-b border-gray-200 px-3 ${compact ? "py-2 xl:py-2" : "py-2.5 xl:py-2.5"} sm:gap-3 xl:justify-normal xl:border-b-0 xl:px-0 dark:border-gray-800`}
         >
           <button
-            className={`z-99999 flex h-10 w-10 items-center justify-center rounded-lg border-gray-200 text-gray-500 lg:h-11 lg:w-11 lg:bg-transparent xl:border dark:border-gray-800 dark:text-gray-400 dark:lg:bg-transparent ${
+            className={`z-50 flex h-8 w-8 items-center justify-center rounded-[5px] border-gray-200 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 xl:border dark:border-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200 ${
               isMobileOpen ? "bg-gray-100 dark:bg-white/3" : ""
             }`}
             onClick={handleToggle}
@@ -94,8 +94,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
             {/* Cross Icon */}
           </button>
 
-          <Link href="/" className="xl:hidden">
-            <BrandLogo className="h-8" priority />
+          <Link href="/" className="inline-flex items-center">
+            <BrandLogo className="h-7" priority />
           </Link>
 
           <button
@@ -142,7 +142,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
                   ref={inputRef}
                   type="text"
                   placeholder={t("searchPlaceholder")}
-                  className="dark:bg-dark-900 h-11 w-full rounded-lg border border-gray-200 bg-transparent py-2.5 ps-12 pe-14 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-107.5 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                  className="dark:bg-dark-900 h-9 w-full rounded-md border border-gray-200 bg-transparent py-1.5 ps-10 pe-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-96 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
                 />
                 <button className="absolute inset-e-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-1.75 py-[4.5px] text-xs tracking-[-0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/3 dark:text-gray-400">
                   <span> ⌘ </span>
@@ -155,7 +155,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
         <div
           className={cn(
             "flex w-full items-center justify-between gap-4 px-5 shadow-theme-md xl:flex xl:justify-end xl:px-0 xl:shadow-none",
-            compact ? "py-2" : "py-4",
+            compact ? "py-2" : "py-2.5",
             isApplicationMenuOpen ? "flex" : "hidden",
           )}
         >

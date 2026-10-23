@@ -187,7 +187,7 @@ export default function ProjectCard({
                     maxVisible={3}
                   />
                   <span className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2 py-0.5 font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                    <GroupIcon aria-hidden="true" className="h-3 w-3 shrink-0" />
+                    <GroupIcon viewBox="0 0 24 24" aria-hidden="true" className="h-3 w-3 shrink-0" />
                     <span>
                       {t("membersCountBadge", {
                         count: project.activeMemberCount,
@@ -204,7 +204,7 @@ export default function ProjectCard({
                   <span>{t("recoverLeaderCta")}</span>
                   <ArrowRightIcon
                     aria-hidden="true"
-                    className="h-3 w-3 shrink-0 rtl:rotate-180"
+                    viewBox="0 0 20 20" className="h-3 w-3 shrink-0 rtl:rotate-180"
                   />
                 </Link>
               )}
@@ -218,7 +218,7 @@ export default function ProjectCard({
         <div className="inline-flex min-w-0 items-center gap-1.5 text-gray-500 tabular-nums dark:text-gray-400">
           <TimeIcon
             aria-hidden="true"
-            className="h-3.5 w-3.5 shrink-0 text-gray-400"
+            viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0 text-gray-400"
           />
           <time
             dateTime={project.updatedAt}
@@ -242,7 +242,7 @@ export default function ProjectCard({
             <span>{t("overview")}</span>
             <ArrowRightIcon
               aria-hidden="true"
-              className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
+              viewBox="0 0 20 20" className="h-3.5 w-3.5 shrink-0 rtl:rotate-180"
             />
           </Link>
         </div>
