@@ -31,17 +31,17 @@ import {
 } from "./SidebarFlyoutMenu";
 
 const primaryItems = [
-  { key: "overview", path: "/dashboard", icon: GridIcon },
-  { key: "projects", path: "/projects", icon: FolderIcon },
-  { key: "chat", path: "/chat", icon: ChatIcon },
-  { key: "knowledge", icon: BookOpenIcon },
-  { key: "aiSearch", icon: ShootingStarIcon },
+  { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
+  { key: "projects", path: "/projects", icon: FolderIcon, viewBox: "-2 -3 24 24" },
+  { key: "chat", path: "/chat", icon: ChatIcon, viewBox: "1 1.1 22 22" },
+  { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23" },
+  { key: "aiSearch", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
 ] as const;
 
 const administrationItems = [
-  { key: "members", path: "/organization/members", icon: GroupIcon },
-  { key: "integrations", icon: PlugInIcon },
-  { key: "settings", path: "/organization/settings", icon: SettingsIcon },
+  { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23" },
+  { key: "integrations", icon: PlugInIcon, viewBox: "0.5 0.5 23 23" },
+  { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24" },
 ] as const;
 
 const DEFAULT_WIDTH = 240;
@@ -420,7 +420,7 @@ const AppSidebar: React.FC = () => {
   ) => {
     const label = t(`items.${item.key}`);
     const Icon = item.icon;
-    const iconViewBox = item.key === "projects" ? "0 0 20 18" : "0 0 24 24";
+    const iconViewBox = item.viewBox;
     const hasFlyout = "path" in item && Boolean(flyoutConfigs[item.key]);
     const isFlyoutOpen = activeKey === item.key && !activeIsResizing;
 
@@ -453,11 +453,11 @@ const AppSidebar: React.FC = () => {
               title={!isExpandedView ? label : undefined}
               onClick={() => setManualProjectsOpen(true)}
               className={cn(
-                "group menu-item min-h-11 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
+                "group menu-item h-8 min-h-8 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
                 isActive
-                  ? "menu-item-active shadow-theme-xs"
+                  ? "menu-item-active"
                   : "menu-item-inactive",
-                isExpandedView ? "pe-9" : "justify-center px-2",
+                isExpandedView ? "pe-8" : "justify-center px-1.5",
               )}
             >
               <span
@@ -469,7 +469,11 @@ const AppSidebar: React.FC = () => {
                     : "menu-item-icon-inactive",
                 )}
               >
-                <Icon />
+                <Icon
+                  viewBox={iconViewBox}
+                  preserveAspectRatio="xMidYMid meet"
+                  className="size-[18px] shrink-0"
+                />
               </span>
               {isExpandedView && (
                 <span className="menu-item-text">{label}</span>
@@ -493,6 +497,7 @@ const AppSidebar: React.FC = () => {
                 )}
               >
                 <ChevronDownIcon
+                  viewBox="0 0 20 20"
                   className={cn(
                     "h-4 w-4 transition-transform duration-200",
                     isProjectsOpen && "rotate-180",
@@ -624,6 +629,7 @@ const AppSidebar: React.FC = () => {
                           {project.name}
                         </span>
                         <ChevronDownIcon
+                          viewBox="0 0 20 20"
                           className={cn(
                             "h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500",
                             isProjectExpanded && "rotate-180",
@@ -742,7 +748,11 @@ const AppSidebar: React.FC = () => {
                   : "menu-item-icon-inactive",
               )}
             >
-              <Icon viewBox={iconViewBox} className="size-4 shrink-0" />
+              <Icon
+                viewBox={iconViewBox}
+                preserveAspectRatio="xMidYMid meet"
+                className="size-[18px] shrink-0"
+              />
             </span>
             {isExpandedView && (
               <>
@@ -789,7 +799,11 @@ const AppSidebar: React.FC = () => {
               aria-hidden="true"
               className="menu-item-icon-inactive menu-item-icon"
             >
-              <Icon viewBox={iconViewBox} className="size-4 shrink-0" />
+              <Icon
+                viewBox={iconViewBox}
+                preserveAspectRatio="xMidYMid meet"
+                className="size-[18px] shrink-0"
+              />
             </span>
             {isExpandedView && (
               <span className="menu-item-text truncate">{label}</span>

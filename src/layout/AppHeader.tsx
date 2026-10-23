@@ -7,17 +7,358 @@ import HeaderSettingsDropdown from "@/components/header/HeaderSettingsDropdown";
 import HeaderUpdateButton from "@/components/header/HeaderUpdateButton";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSidebar } from "@/context/SidebarContext";
-import { Link } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
+import {
+  ChatIcon,
+  DocsIcon,
+  FolderIcon,
+  GridIcon,
+  GroupIcon,
+  PlusIcon,
+  SearchIcon,
+  SettingsIcon,
+  UserCircleIcon,
+} from "@/icons";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
+import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import type React from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type SystemFeatureItem = {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  href?: string;
+  keywords: string;
+  icon: React.ReactNode;
+  onSelect?: () => void;
+};
+
+function normalizeSearchText(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .toLowerCase()
+    .trim();
+}
 
 const AppHeader = ({ compact = false }: { compact?: boolean }) => {
   const t = useTranslations("header");
+  const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
 
-  const { isMobileOpen, toggleSidebar, toggleMobileSidebar } = useSidebar();
+  const {
+    isMobileOpen,
+    toggleSidebar,
+    toggleMobileSidebar,
+    setIsHelpOpen,
+  } = useSidebar();
+
+  const currentUser = useCurrentUserQuery();
+  const organizationId =
+    currentUser.data && "organizationId" in currentUser.data
+      ? (currentUser.data.organizationId ?? "")
+      : "";
+  const canViewMembers = canReadOrganizationMemberships(currentUser.data);
+  const projectsQuery = useProjectsQuery(organizationId, {
+    page: 1,
+    pageSize: 100,
+    status: "ACTIVE",
+  });
+
+  const systemFeatures = useMemo<SystemFeatureItem[]>(() => {
+    const translateOrFallback = (key: string, fallback: string) => {
+      const value = t(key);
+      if (!value || value === key || value === `header.${key}`) {
+        return fallback;
+      }
+      return value;
+    };
+    const items: SystemFeatureItem[] = [];
+
+    if (canViewMembers) {
+      items.push({
+        id: "feature-overview",
+        title: "Overview",
+        description: "Organization dashboard, summary, and recent activity",
+        category: "Workspace",
+        href: "/dashboard",
+        keywords:
+          "overview dashboard home summary organization workspace tong quan trang chu",
+        icon: (
+          <GridIcon
+            viewBox="1.5 1.5 21 21"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      });
+    }
+
+    items.push(
+      {
+        id: "feature-projects",
+        title: translateOrFallback("helpDrawer.projects", "Projects"),
+        description: "Browse and manage organization project workspaces",
+        category: "Workspace",
+        href: "/projects",
+        keywords:
+          "projects spaces directory workspace du an danh sach du an",
+        icon: (
+          <FolderIcon
+            viewBox="-2 -3 24 24"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
+      {
+        id: "feature-create-project",
+        title: "Create project",
+        description: "Start a new project workspace in this organization",
+        category: "Projects",
+        href: "/projects/new",
+        keywords:
+          "create project new project add project tao du an moi them du an",
+        icon: (
+          <PlusIcon
+            viewBox="0 0 12 12"
+            className="size-3.5 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
+      {
+        id: "feature-chat",
+        title: translateOrFallback("helpDrawer.chat", "Chat"),
+        description: "Real-time direct messages and team rooms",
+        category: "Workspace",
+        href: "/chat",
+        keywords:
+          "chat messages direct rooms channels conversation tin nhan tro chuyen phong chat",
+        icon: (
+          <ChatIcon
+            viewBox="1 1.1 22 22"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
+    );
+
+    if (canViewMembers) {
+      items.push(
+        {
+          id: "feature-members",
+          title: translateOrFallback(
+            "settingsMenu.userManagementTitle",
+            "User management",
+          ),
+          description: translateOrFallback(
+            "settingsMenu.userManagementDesc",
+            "Manage members, roles & invitations",
+          ),
+          category: "Administration",
+          href: "/organization/members",
+          keywords:
+            "members users team roles permissions user management thanh vien phan quyen nhan su",
+          icon: (
+            <GroupIcon
+              viewBox="0.5 0.5 23 23"
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ),
+        },
+        {
+          id: "feature-invitations",
+          title: "Pending invitations",
+          description: "Invite new members or manage pending invitations",
+          category: "Administration",
+          href: "/organization/members?tab=invitations",
+          keywords:
+            "invitations invite member pending loi moi them thanh vien",
+          icon: (
+            <GroupIcon
+              viewBox="0.5 0.5 23 23"
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ),
+        },
+        {
+          id: "feature-org-settings",
+          title: translateOrFallback(
+            "settingsMenu.systemTitle",
+            "Organization settings",
+          ),
+          description: translateOrFallback(
+            "settingsMenu.systemDesc",
+            "Profile, security & governance policies",
+          ),
+          category: "Administration",
+          href: "/organization/settings",
+          keywords:
+            "organization settings system governance policies cai dat to chuc cau hinh",
+          icon: (
+            <SettingsIcon
+              viewBox="0 0 24 24"
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ),
+        },
+      );
+    }
+
+    items.push(
+      {
+        id: "feature-profile",
+        title: translateOrFallback(
+          "settingsMenu.generalTitle",
+          "General settings",
+        ),
+        description: translateOrFallback(
+          "settingsMenu.generalDesc",
+          "Personal profile, security & preferences",
+        ),
+        category: "Account",
+        href: "/profile",
+        keywords:
+          "profile account general settings password security ho so ca nhan tai khoan mat khau",
+        icon: (
+          <UserCircleIcon
+            viewBox="0 0 24 24"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
+      {
+        id: "feature-switch-org",
+        title: "Switch organization",
+        description: "Choose or switch your active organization workspace",
+        category: "Account",
+        href: "/select-organization",
+        keywords:
+          "switch organization workspace change organization chuyen to chuc doi to chuc",
+        icon: (
+          <GridIcon
+            viewBox="1.5 1.5 21 21"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
+      {
+        id: "feature-help",
+        title: translateOrFallback(
+          "helpDrawer.keyboardShortcuts",
+          "Help & Keyboard shortcuts",
+        ),
+        description: "Open help guide and workspace keyboard shortcuts",
+        category: "Support",
+        keywords:
+          "help support keyboard shortcuts guide tro giup huong dan phim tat",
+        icon: (
+          <SearchIcon
+            viewBox="0 0 24 24"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+        onSelect: () => {
+          setIsHelpOpen?.(true);
+        },
+      },
+    );
+
+    const activeProjects = projectsQuery.data?.data ?? [];
+    for (const project of activeProjects.slice(0, 8)) {
+      const encodedId = encodeURIComponent(project.id);
+      items.push(
+        {
+          id: `project-overview-${project.id}`,
+          title: `${project.name} (${project.code})`,
+          description: "Project overview & workspace details",
+          category: "Projects",
+          href: `/projects/${encodedId}`,
+          keywords: `${project.name} ${project.code} project overview du an`,
+          icon: (
+            <FolderIcon
+              viewBox="-2 -3 24 24"
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ),
+        },
+        {
+          id: `project-work-${project.id}`,
+          title: `${project.name} — Work`,
+          description: `Tasks and work items for ${project.code}`,
+          category: "Projects",
+          href: `/projects/${encodedId}/work`,
+          keywords: `${project.name} ${project.code} work tasks cong viec`,
+          icon: (
+            <DocsIcon
+              viewBox="0.5 0.5 23 23"
+              className="size-4 shrink-0"
+              aria-hidden="true"
+            />
+          ),
+        },
+      );
+    }
+
+    return items;
+  }, [canViewMembers, projectsQuery.data?.data, setIsHelpOpen, t]);
+
+  const filteredFeatures = useMemo(() => {
+    const normalizedQuery = normalizeSearchText(searchQuery);
+    if (!normalizedQuery) {
+      return systemFeatures.slice(0, 8);
+    }
+    const tokens = normalizedQuery.split(/\s+/).filter(Boolean);
+    return systemFeatures
+      .filter((item) => {
+        const haystack = normalizeSearchText(
+          `${item.title} ${item.description} ${item.category} ${item.keywords}`,
+        );
+        return tokens.every((token) => haystack.includes(token));
+      })
+      .slice(0, 10);
+  }, [searchQuery, systemFeatures]);
+
+  const navigateToFeature = (item: SystemFeatureItem) => {
+    setIsSearchOpen(false);
+    setSearchQuery("");
+    if (item.onSelect) {
+      item.onSelect();
+      return;
+    }
+    if (item.href) {
+      const nav = router as {
+        push?: (href: string) => void;
+        replace: (href: string) => void;
+      };
+      if (typeof nav.push === "function") {
+        nav.push(item.href);
+      } else {
+        nav.replace(item.href);
+      }
+    }
+  };
 
   const handleToggle = () => {
     if (window.innerWidth >= 1280) {
@@ -43,13 +384,25 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       ) {
         event.preventDefault();
         searchInput.focus();
+        setIsSearchOpen(true);
+      }
+    };
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsSearchOpen(false);
       }
     };
 
     document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("mousedown", handlePointerDown);
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("mousedown", handlePointerDown);
     };
   }, []);
 
@@ -125,14 +478,35 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
           </button>
         </div>
 
-        <div className="hidden xl:flex xl:justify-center">
-          <form>
+        <div
+          ref={searchContainerRef}
+          onBlur={(event) => {
+            if (
+              event.relatedTarget instanceof Node &&
+              !event.currentTarget.contains(event.relatedTarget)
+            ) {
+              setIsSearchOpen(false);
+            }
+          }}
+          className="hidden xl:flex xl:justify-center"
+        >
+          <form
+            role="search"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const selected =
+                filteredFeatures[activeIndex] ?? filteredFeatures[0];
+              if (selected) {
+                navigateToFeature(selected);
+              }
+            }}
+          >
             <div className="relative">
-              <span className="pointer-events-none absolute inset-s-4 top-1/2 -translate-y-1/2">
+              <span className="pointer-events-none absolute inset-s-3.5 top-1/2 -translate-y-1/2">
                 <svg
                   className="fill-gray-500 dark:fill-gray-400"
-                  width="20"
-                  height="20"
+                  width="18"
+                  height="18"
                   viewBox="0 0 20 20"
                   fill="none"
                   xmlns="http://www.w3.org/2000/svg"
@@ -148,16 +522,139 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
               <input
                 ref={inputRef}
                 type="text"
+                value={searchQuery}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value);
+                  setActiveIndex(0);
+                  setIsSearchOpen(true);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setIsSearchOpen(false);
+                    inputRef.current?.blur();
+                    return;
+                  }
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    setIsSearchOpen(true);
+                    setActiveIndex((prev) =>
+                      filteredFeatures.length > 0
+                        ? (prev + 1) % filteredFeatures.length
+                        : 0,
+                    );
+                    return;
+                  }
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    setIsSearchOpen(true);
+                    setActiveIndex((prev) =>
+                      filteredFeatures.length > 0
+                        ? (prev - 1 + filteredFeatures.length) %
+                          filteredFeatures.length
+                        : 0,
+                    );
+                  }
+                }}
                 placeholder={t("searchPlaceholder")}
-                className="dark:bg-dark-900 h-9 w-full rounded-md border border-gray-200 bg-transparent py-1.5 ps-10 pe-12 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-96 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
+                className="dark:bg-dark-900 h-9 w-full rounded-md border border-gray-200 bg-transparent py-1.5 ps-10 pe-8 text-sm text-gray-800 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden xl:w-96 dark:border-gray-800 dark:bg-white/3 dark:text-white/90 dark:placeholder:text-white/30 dark:focus:border-brand-800"
               />
-              <button
-                type="button"
-                className="absolute inset-e-2.5 top-1/2 inline-flex -translate-y-1/2 items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 px-1.75 py-[4.5px] text-xs tracking-[-0.2px] text-gray-500 dark:border-gray-800 dark:bg-white/3 dark:text-gray-400"
-              >
-                <span> ⌘ </span>
-                <span> K </span>
-              </button>
+              {searchQuery && (
+                <button
+                  type="button"
+                  aria-label="Clear search"
+                  onClick={() => {
+                    setSearchQuery("");
+                    setActiveIndex(0);
+                    inputRef.current?.focus();
+                  }}
+                  className="inset-e-2.5 absolute top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  ×
+                </button>
+              )}
+
+              {isSearchOpen && (
+                <div
+                  id="header-feature-search-results"
+                  role="region"
+                  aria-label="System features"
+                  className="absolute inset-s-0 top-[calc(100%+0.375rem)] z-50 max-h-80 w-full min-w-80 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
+                >
+                  {filteredFeatures.length === 0 ? (
+                    <p className="px-3 py-3 text-center text-xs text-gray-500 dark:text-gray-400">
+                      No matching system features found.
+                    </p>
+                  ) : (
+                    <ul className="space-y-0.5">
+                      {filteredFeatures.map((item, index) => {
+                        const isActive = index === activeIndex;
+                        const rowClassName = cn(
+                          "group flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-start transition-colors",
+                          isActive
+                            ? "bg-brand-50/90 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+                            : "text-gray-700 hover:bg-gray-100/80 dark:text-gray-200 dark:hover:bg-white/[0.06]",
+                        );
+
+                        const content = (
+                          <>
+                            <span className="flex min-w-0 flex-1 items-center gap-2.5">
+                              <span
+                                className={cn(
+                                  "flex size-6 shrink-0 items-center justify-center rounded-md border",
+                                  isActive
+                                    ? "border-brand-200 bg-white text-brand-600 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
+                                    : "border-gray-200/80 bg-gray-50 text-gray-500 group-hover:text-gray-800 dark:border-gray-800 dark:bg-gray-800/60 dark:text-gray-400 dark:group-hover:text-white",
+                                )}
+                              >
+                                {item.icon}
+                              </span>
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate text-[13px] leading-4 font-medium text-gray-900 dark:text-white">
+                                  {item.title}
+                                </span>
+                                <span className="mt-0.5 block truncate text-[11px] leading-3.5 text-gray-500 dark:text-gray-400">
+                                  {item.description}
+                                </span>
+                              </span>
+                            </span>
+                            <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                              {item.category}
+                            </span>
+                          </>
+                        );
+
+                        return (
+                          <li key={item.id}>
+                            {item.href ? (
+                              <Link
+                                href={item.href}
+                                onMouseEnter={() => setActiveIndex(index)}
+                                onClick={() => {
+                                  setIsSearchOpen(false);
+                                  setSearchQuery("");
+                                }}
+                                className={rowClassName}
+                              >
+                                {content}
+                              </Link>
+                            ) : (
+                              <button
+                                type="button"
+                                onMouseEnter={() => setActiveIndex(index)}
+                                onClick={() => navigateToFeature(item)}
+                                className={rowClassName}
+                              >
+                                {content}
+                              </button>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+              )}
             </div>
           </form>
         </div>
@@ -181,7 +678,10 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
 
             {/* 4. Settings (Gear icon dropdown with role-based sections) */}
             <HeaderSettingsDropdown
-              onFocusSearch={() => inputRef.current?.focus()}
+              onFocusSearch={() => {
+                inputRef.current?.focus();
+                setIsSearchOpen(true);
+              }}
             />
           </div>
 

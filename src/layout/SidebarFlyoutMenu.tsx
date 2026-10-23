@@ -428,7 +428,7 @@ export function SidebarFlyoutPortal({
                         onClick={onClose}
                         className="inline-flex items-center gap-1 rounded-[4px] bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-700 ring-1 ring-gray-200/70 transition hover:text-brand-600 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:text-brand-300"
                       >
-                        <DocsIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
+                        <DocsIcon viewBox="0.5 0.5 23 23" className="size-3.5 shrink-0" />
                         <span>Work</span>
                       </Link>
                       <Link
@@ -436,7 +436,7 @@ export function SidebarFlyoutPortal({
                         onClick={onClose}
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
-                        <FolderIcon viewBox="0 0 20 18" className="h-3 w-3 shrink-0" />
+                        <FolderIcon viewBox="-2 -3 24 24" className="size-3.5 shrink-0" />
                         <span>Overview</span>
                       </Link>
                       <Link

@@ -42,6 +42,7 @@ import ChatSearchResults from "./ChatSearchResults";
 import { sameMessageGroup } from "./message-layout";
 import { preserveLocalReactions } from "./message-state";
 import { hasReadMessage } from "./read-receipt";
+import { foldSearchText } from "./search-text";
 
 type ComposeMode = "direct" | "room" | null;
 type ConnectionState = "connecting" | "connected" | "reconnecting";
@@ -221,9 +222,15 @@ export default function ChatWorkspace() {
     ? conversationSearchQuery
     : conversationsQuery;
 
+  const defaultOrgMembersQuery = useChatCandidatesQuery(organizationId, "");
+  const orgMembersQuery = useChatCandidatesQuery(
+    organizationId,
+    debouncedConversationSearch,
+  );
   const candidatesQuery = useChatCandidatesQuery(
     organizationId,
     debouncedPersonSearch,
+    Boolean(composeMode || roomManagementOpen),
   );
   const messagesQuery = useChatMessagesQuery(organizationId, activeId);
   const searchQuery = useChatMessageSearchQuery(
@@ -339,10 +346,36 @@ export default function ChatWorkspace() {
     activeConversation?.members.some(
       (member) => member.userId === actorId && member.role === "OWNER",
     ) ?? false;
-  const filteredConversations = [
-    ...(visibleConversationsQuery.data?.pages.flatMap((page) => page.data) ??
-      []),
-  ].sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)));
+  const filteredConversations = useMemo(() => {
+    const serverPages =
+      visibleConversationsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+    if (!debouncedConversationSearch || !visibleConversationsQuery.isError) {
+      return [...serverPages].sort(
+        (a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)),
+      );
+    }
+    const tokens = foldSearchText(debouncedConversationSearch)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    return conversations
+      .filter((conversation) => {
+        const foldedLabel = foldSearchText(
+          conversationName(conversation, actorId),
+        );
+        return (
+          tokens.length === 0 ||
+          tokens.every((token) => foldedLabel.includes(token))
+        );
+      })
+      .sort((a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)));
+  }, [
+    actorId,
+    conversations,
+    debouncedConversationSearch,
+    visibleConversationsQuery.data,
+    visibleConversationsQuery.isError,
+  ]);
   const searchResults =
     searchQuery.data?.pages.flatMap((page) => [...page.data].reverse()) ?? [];
 
@@ -390,6 +423,20 @@ export default function ChatWorkspace() {
               })),
             }
           : result,
+      );
+      queryClient.setQueriesData<{ data: readonly ChatCandidate[] }>(
+        { queryKey: ["chat", organizationId, "candidates"] },
+        (result) =>
+          result
+            ? {
+                ...result,
+                data: result.data.map((candidate) =>
+                  candidate.id === userId
+                    ? { ...candidate, isOnline }
+                    : candidate,
+                ),
+              }
+            : result,
       );
     },
     [organizationId, queryClient],
@@ -757,17 +804,22 @@ export default function ChatWorkspace() {
 
   useEffect(() => {
     if (connection !== "connected") return;
-    const peers = conversations
-      .filter((conversation) => conversation.type === "DIRECT")
-      .flatMap((conversation) =>
-        conversation.members
-          .filter((member) => member.userId !== actorId)
-          .map((member) => member.userId),
-      );
+    const peers = [
+      ...conversations
+        .filter((conversation) => conversation.type === "DIRECT")
+        .flatMap((conversation) =>
+          conversation.members
+            .filter((member) => member.userId !== actorId)
+            .map((member) => member.userId),
+        ),
+      ...(orgMembersQuery.data?.data
+        .filter((member) => member.id !== actorId)
+        .map((member) => member.id) ?? []),
+    ];
     sendSocketEvent(socketRef.current, "presence.watch", {
       userIds: [...new Set(peers)].slice(0, 100),
     });
-  }, [actorId, connection, conversations]);
+  }, [actorId, connection, conversations, orgMembersQuery.data]);
 
   useEffect(() => {
     if (!latestMessageId || !activeId) return;
@@ -1203,7 +1255,71 @@ export default function ChatWorkspace() {
       : connection === "connecting"
         ? t("connecting")
         : t("connectionLost");
-  const candidateResults = candidatesQuery.data?.data ?? [];
+  const orgMembers = useMemo(
+    () => orgMembersQuery.data?.data ?? [],
+    [orgMembersQuery.data],
+  );
+  const orgMemberById = useMemo(
+    () =>
+      new Map(
+        [...(defaultOrgMembersQuery.data?.data ?? []), ...orgMembers].map(
+          (member) => [member.id, member],
+        ),
+      ),
+    [defaultOrgMembersQuery.data, orgMembers],
+  );
+  const directPeerIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const conversation of filteredConversations) {
+      if (conversation.type !== "DIRECT") continue;
+      for (const member of conversation.members) {
+        if (member.userId !== actorId) ids.add(member.userId);
+      }
+    }
+    return ids;
+  }, [actorId, filteredConversations]);
+  const sidebarOrgMembers = useMemo(
+    () =>
+      orgMembers.filter(
+        (member) => member.id !== actorId && !directPeerIds.has(member.id),
+      ),
+    [actorId, directPeerIds, orgMembers],
+  );
+  const candidateResults = useMemo(() => {
+    const trimmedInput = personSearch.trim();
+    const trimmedDebounced = debouncedPersonSearch.trim();
+    if (trimmedInput === trimmedDebounced && candidatesQuery.data?.data) {
+      return candidatesQuery.data.data;
+    }
+    const baseList =
+      candidatesQuery.data?.data ??
+      defaultOrgMembersQuery.data?.data ??
+      orgMembers;
+    if (!trimmedInput) return baseList;
+    const tokens = foldSearchText(trimmedInput)
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean);
+    const lowerInput = trimmedInput.toLowerCase();
+    return baseList.filter((member) => {
+      const foldedName = foldSearchText(member.fullName);
+      const lowerEmail = member.email?.toLowerCase() ?? "";
+      return (
+        (tokens.length > 0 &&
+          tokens.every(
+            (token) =>
+              foldedName.includes(token) || lowerEmail.includes(token),
+          )) ||
+        lowerEmail.includes(lowerInput)
+      );
+    });
+  }, [
+    candidatesQuery.data,
+    debouncedPersonSearch,
+    defaultOrgMembersQuery.data,
+    orgMembers,
+    personSearch,
+  ]);
   useEffect(() => {
     if (!contextMessageId || !contextQuery.data) return;
     const target = document.getElementById(`chat-message-${contextMessageId}`);
@@ -1258,9 +1374,9 @@ export default function ChatWorkspace() {
                   }}
                   aria-label={t("newMessage")}
                   title={t("newMessage")}
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 px-2 text-xs font-medium whitespace-nowrap text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-2 text-xs font-medium whitespace-nowrap text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-transparent dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <ChatIcon />
+                  <ChatIcon viewBox="1 1.1 22 22" className="size-4 shrink-0" />
                   {t("newMessage")}
                 </button>
                 <button
@@ -1271,9 +1387,9 @@ export default function ChatWorkspace() {
                   }}
                   aria-label={t("newRoom")}
                   title={t("newRoom")}
-                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-50 px-2 text-xs font-medium whitespace-nowrap text-brand-700 transition hover:bg-brand-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                  className="inline-flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border border-gray-200 bg-white px-2 text-xs font-medium whitespace-nowrap text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-transparent dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <GroupIcon />
+                  <GroupIcon viewBox="0.5 0.5 23 23" className="size-4 shrink-0" />
                   {t("newRoom")}
                 </button>
               </div>
@@ -1307,7 +1423,9 @@ export default function ChatWorkspace() {
                   </li>
                 ))}
               </ul>
-            ) : visibleConversationsQuery.isError ? (
+            ) : visibleConversationsQuery.isError &&
+              filteredConversations.length === 0 &&
+              sidebarOrgMembers.length === 0 ? (
               <div className="space-y-2 px-3 py-5 text-sm text-error-600 dark:text-error-400">
                 <p>{t("conversationError")}</p>
                 <button
@@ -1318,7 +1436,8 @@ export default function ChatWorkspace() {
                   {t("connectionLost")}
                 </button>
               </div>
-            ) : filteredConversations.length === 0 ? (
+            ) : filteredConversations.length === 0 &&
+              sidebarOrgMembers.length === 0 ? (
               <div className="px-3 py-8 text-center">
                 <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
                   {t(
@@ -1344,88 +1463,160 @@ export default function ChatWorkspace() {
                 </button>
               </div>
             ) : (
-              <ul className="space-y-1">
-                {filteredConversations.map((conversation) => {
-                  const name = conversationName(conversation, actorId);
-                  const peer = conversation.members.find(
-                    (member) => member.userId !== actorId,
-                  );
-                  return (
-                    <li key={conversation.id}>
-                      <button
-                        type="button"
-                        aria-current={
-                          activeId === conversation.id ? "true" : undefined
-                        }
-                        onClick={() => openConversation(conversation)}
-                        className={`flex w-full items-center gap-3 rounded-md p-3 text-start transition focus-visible:outline-2 focus-visible:outline-brand-500 ${activeId === conversation.id ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
-                      >
-                        <span className="relative shrink-0">
-                          <AvatarText
-                            src={
-                              conversation.type === "DIRECT"
-                                ? peer?.avatarUrl
-                                : null
+              <div className="space-y-4">
+                {filteredConversations.length > 0 && (
+                  <ul className="space-y-1">
+                    {filteredConversations.map((conversation) => {
+                      const name = conversationName(conversation, actorId);
+                      const peer = conversation.members.find(
+                        (member) => member.userId !== actorId,
+                      );
+                      const peerEmail =
+                        conversation.type === "DIRECT" && peer
+                          ? orgMemberById.get(peer.userId)?.email
+                          : undefined;
+                      return (
+                        <li key={conversation.id}>
+                          <button
+                            type="button"
+                            aria-current={
+                              activeId === conversation.id ? "true" : undefined
                             }
-                            name={name || t("title")}
-                            className="h-11 w-11"
-                          />
-                          {conversation.type === "DIRECT" && (
-                            <span
-                              className={`absolute end-0 bottom-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 ${peer?.isOnline ? "bg-success-500" : "bg-gray-300"}`}
-                            />
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center justify-between gap-2">
-                            <span
-                              title={name}
-                              className="line-clamp-2 text-sm leading-5 font-semibold break-words text-gray-900 dark:text-white"
-                            >
-                              {conversation.isPinned && (
+                            onClick={() => openConversation(conversation)}
+                            className={`flex w-full items-center gap-3 rounded-md p-3 text-start transition focus-visible:outline-2 focus-visible:outline-brand-500 ${activeId === conversation.id ? "bg-brand-50 dark:bg-brand-500/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/70"}`}
+                          >
+                            <span className="relative shrink-0">
+                              <AvatarText
+                                src={
+                                  conversation.type === "DIRECT"
+                                    ? peer?.avatarUrl
+                                    : null
+                                }
+                                name={name || t("title")}
+                                className="h-11 w-11"
+                              />
+                              {conversation.type === "DIRECT" && (
                                 <span
-                                  className="me-1 text-xs text-brand-500"
-                                  title={t("pinnedConversation")}
+                                  className={`absolute end-0 bottom-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 ${peer?.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                                />
+                              )}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="flex items-center justify-between gap-2">
+                                <span
+                                  title={name}
+                                  className="line-clamp-2 text-sm leading-5 font-semibold break-words text-gray-900 dark:text-white"
                                 >
-                                  ◆
+                                  {conversation.isPinned && (
+                                    <span
+                                      className="me-1 text-xs text-brand-500"
+                                      title={t("pinnedConversation")}
+                                    >
+                                      ◆
+                                    </span>
+                                  )}
+                                  {name}
+                                </span>
+                              </span>
+                              {peerEmail && (
+                                <span className="block truncate text-[11px] text-gray-500 dark:text-gray-400">
+                                  {peerEmail}
                                 </span>
                               )}
-                              {name}
-                            </span>
-                          </span>
-                          <span className="mt-1 flex items-center justify-between gap-2">
-                            <span className="truncate text-xs text-gray-500 dark:text-gray-400">
-                              {conversation.lastMessagePreview ||
-                                t("messageEmpty")}
-                            </span>
-                            {conversation.lastMessageAt && (
-                              <time className="shrink-0 text-[11px] text-gray-400">
-                                {new Date(
-                                  conversation.lastMessageAt,
-                                ).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </time>
-                            )}
-                            {(conversation.unreadCount > 0 ||
-                              conversation.markedUnread) && (
-                              <span
-                                aria-label={t("unread", {
-                                  count: conversation.unreadCount,
-                                })}
-                                className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
-                              >
-                                {conversation.unreadCount || "•"}
+                              <span className="mt-1 flex items-center justify-between gap-2">
+                                <span className="truncate text-xs text-gray-500 dark:text-gray-400">
+                                  {conversation.lastMessagePreview ||
+                                    t("messageEmpty")}
+                                </span>
+                                {conversation.lastMessageAt && (
+                                  <time className="shrink-0 text-[11px] text-gray-400">
+                                    {new Date(
+                                      conversation.lastMessageAt,
+                                    ).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </time>
+                                )}
+                                {(conversation.unreadCount > 0 ||
+                                  conversation.markedUnread) && (
+                                  <span
+                                    aria-label={t("unread", {
+                                      count: conversation.unreadCount,
+                                    })}
+                                    className="rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-bold text-white"
+                                  >
+                                    {conversation.unreadCount || "•"}
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+                {sidebarOrgMembers.length > 0 && (
+                  <div className="space-y-1.5">
+                    <p className="px-3 text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                      {t("organizationMembers") === "chat.organizationMembers"
+                        ? "Organization members"
+                        : t("organizationMembers")}
+                    </p>
+                    {!composeMode && createDirect.isError && (
+                      <p
+                        role="alert"
+                        className="px-3 text-xs text-error-600 dark:text-error-400"
+                      >
+                        {t("conversationError")}
+                      </p>
+                    )}
+                    <ul className="space-y-1">
+                      {sidebarOrgMembers.map((member) => (
+                        <li key={member.id}>
+                          <button
+                            type="button"
+                            disabled={createDirect.isPending}
+                            onClick={() => openDirect(member)}
+                            aria-label={t("startChatWith", {
+                              name: member.fullName,
+                            })}
+                            className="flex w-full items-center gap-3 rounded-md p-3 text-start transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:hover:bg-gray-800/70"
+                          >
+                            <span className="relative shrink-0">
+                              <AvatarText
+                                src={member.avatarUrl}
+                                name={member.fullName}
+                                className="h-11 w-11"
+                              />
+                              <span
+                                className={`absolute end-0 bottom-0 h-3 w-3 rounded-full border-2 border-white dark:border-gray-900 ${member.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                              />
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-gray-900 dark:text-white">
+                                {member.fullName}
+                              </span>
+                              {member.email && (
+                                <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                                  {member.email}
+                                </span>
+                              )}
+                              <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                                <span
+                                  className={`h-1.5 w-1.5 rounded-full ${member.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                                />
+                                {member.isOnline ? t("online") : t("offline")}
+                              </span>
+                            </span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             )}
             <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-200 pt-3 dark:border-gray-700">
               <button
@@ -1902,70 +2093,83 @@ export default function ChatWorkspace() {
                   </div>
                 </div>
               )}
-              {personSearch.trim().length >= 2 && (
-                <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/50">
-                  {candidatesQuery.isError ? (
-                    <p role="alert" className="px-2 py-2 text-xs text-error-600">
-                      {t("searchError")}
-                    </p>
-                  ) : candidatesQuery.isFetching ? (
-                    <p className="px-2 py-2 text-xs text-gray-500">{t("loading")}</p>
-                  ) : roomCandidates.length === 0 ? (
-                    <p className="px-2 py-2 text-xs text-gray-500">{t("noPeople")}</p>
-                  ) : (
-                    roomCandidates.map((candidate) => {
-                      const selected = roomManagementMembers.some(
-                        (member) => member.id === candidate.id,
-                      );
-                      const atLimit =
-                        activeConversation.members.length +
-                          roomManagementMembers.length >=
-                        50;
-                      return (
-                        <button
-                          key={candidate.id}
-                          type="button"
-                          onClick={() => toggleRoomManagementMember(candidate)}
-                          disabled={
-                            roomMutationPending || (!selected && atLimit)
-                          }
-                          className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start text-xs transition focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 ${
-                            selected
-                              ? "border border-brand-200 bg-brand-50/80 dark:border-brand-500/30 dark:bg-brand-500/10"
-                              : "bg-white hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
-                          }`}
-                        >
+              <div className="max-h-48 space-y-1.5 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50/70 p-1.5 dark:border-gray-800 dark:bg-gray-900/50">
+                {candidatesQuery.isError && roomCandidates.length === 0 ? (
+                  <p role="alert" className="px-2 py-2 text-xs text-error-600">
+                    {t("searchError")}
+                  </p>
+                ) : candidatesQuery.isFetching &&
+                  roomCandidates.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-gray-500">
+                    {t("loading")}
+                  </p>
+                ) : roomCandidates.length === 0 ? (
+                  <p className="px-2 py-2 text-xs text-gray-500">
+                    {t("noPeople")}
+                  </p>
+                ) : (
+                  roomCandidates.map((candidate) => {
+                    const selected = roomManagementMembers.some(
+                      (member) => member.id === candidate.id,
+                    );
+                    const atLimit =
+                      activeConversation.members.length +
+                        roomManagementMembers.length >=
+                      50;
+                    return (
+                      <button
+                        key={candidate.id}
+                        type="button"
+                        onClick={() => toggleRoomManagementMember(candidate)}
+                        disabled={
+                          roomMutationPending || (!selected && atLimit)
+                        }
+                        className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-start text-xs transition focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 ${
+                          selected
+                            ? "border border-brand-200 bg-brand-50/80 dark:border-brand-500/30 dark:bg-brand-500/10"
+                            : "bg-white hover:bg-gray-100 dark:bg-gray-900 dark:hover:bg-gray-800"
+                        }`}
+                      >
+                        <span className="relative shrink-0">
                           <AvatarText
                             src={candidate.avatarUrl}
                             name={candidate.fullName}
                             className="h-8 w-8 shrink-0 text-xs"
                           />
-                          <span className="min-w-0 flex-1">
-                            <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
-                              {candidate.fullName}
-                            </span>
-                            <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-                              <span
-                                className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
-                              />
-                              {candidate.isOnline ? t("online") : t("offline")}
-                            </span>
-                          </span>
                           <span
-                            className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
-                              selected
-                                ? "bg-brand-500 text-white"
-                                : "border border-gray-200 bg-gray-50 text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-300"
-                            }`}
-                          >
-                            {selected ? "✓" : "+"}
+                            className={`absolute end-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-900 ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                          />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                            {candidate.fullName}
                           </span>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              )}
+                          {candidate.email && (
+                            <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                              {candidate.email}
+                            </span>
+                          )}
+                          <span className="mt-0.5 flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                            />
+                            {candidate.isOnline ? t("online") : t("offline")}
+                          </span>
+                        </span>
+                        <span
+                          className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
+                            selected
+                              ? "bg-brand-500 text-white"
+                              : "border border-gray-200 bg-gray-50 text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-300"
+                          }`}
+                        >
+                          {selected ? "✓" : "+"}
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
               <button
                 type="button"
                 onClick={() => void addRoomManagementMembers()}
@@ -2085,78 +2289,106 @@ export default function ChatWorkspace() {
               </div>
             </div>
           )}
-          <div className="max-h-44 space-y-1 overflow-y-auto">
-            {personSearch.trim().length < 2 ? (
-              <p className="px-2 py-2 text-xs text-gray-500">
-                {t("searchHint")}
-              </p>
-            ) : candidatesQuery.isError ? (
-              <p
-                role="alert"
-                className="px-2 py-2 text-xs text-error-600 dark:text-error-400"
-              >
-                {t("searchError")}
-              </p>
-            ) : candidatesQuery.isFetching ? (
-              <p className="px-2 py-2 text-xs text-gray-500">
-                {t("connecting")}
-              </p>
-            ) : candidateResults.length === 0 ? (
-              <p className="px-2 py-2 text-xs text-gray-500">{t("noPeople")}</p>
-            ) : (
-              candidateResults.map((candidate) => {
-                const selected = roomMembers.some(
-                  (member) => member.id === candidate.id,
-                );
-                return (
-                  <button
-                    key={candidate.id}
-                    type="button"
-                    onClick={() =>
-                      composeMode === "room"
-                        ? toggleRoomMember(candidate)
-                        : openDirect(candidate)
-                    }
-                    disabled={
-                      createDirect.isPending ||
-                      (composeMode === "room" &&
-                        !selected &&
-                        roomMembers.length >= 49)
-                    }
-                    aria-pressed={composeMode === "room" ? selected : undefined}
-                    aria-label={
-                      composeMode === "room"
-                        ? candidate.fullName
-                        : t("startChatWith", { name: candidate.fullName })
-                    }
-                    className="flex w-full items-center gap-3 border-b border-gray-100 px-2 py-2.5 text-start transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-gray-800 dark:hover:bg-gray-800"
-                  >
-                    <AvatarText
-                      src={candidate.avatarUrl}
-                      name={candidate.fullName}
-                      className="h-9 w-9 shrink-0 text-xs"
-                    />
-                    <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-800 dark:text-gray-100">
-                      {candidate.fullName}
-                    </span>
-                    {composeMode === "room" ? (
-                      <span
-                        className={`text-xs ${selected ? "text-brand-600" : "text-gray-400"}`}
-                      >
-                        {selected ? "✓" : "+"}
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-xs text-gray-500">
-                        <span
-                          className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+          <div className="space-y-1.5">
+            <p className="px-1 text-xs font-semibold text-gray-600 dark:text-gray-300">
+              {t("organizationMembers") === "chat.organizationMembers"
+                ? "Organization members"
+                : t("organizationMembers")}
+            </p>
+            <div className="max-h-56 space-y-1 overflow-y-auto">
+              {candidatesQuery.isError && candidateResults.length === 0 ? (
+                <p
+                  role="alert"
+                  className="px-2 py-2 text-xs text-error-600 dark:text-error-400"
+                >
+                  {t("searchError")}
+                </p>
+              ) : candidatesQuery.isFetching &&
+                candidateResults.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-gray-500">
+                  {t("connecting")}
+                </p>
+              ) : candidateResults.length === 0 ? (
+                <p className="px-2 py-2 text-xs text-gray-500">
+                  {t("noPeople")}
+                </p>
+              ) : (
+                candidateResults.map((candidate) => {
+                  const selected = roomMembers.some(
+                    (member) => member.id === candidate.id,
+                  );
+                  return (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      onClick={() =>
+                        composeMode === "room"
+                          ? toggleRoomMember(candidate)
+                          : openDirect(candidate)
+                      }
+                      disabled={
+                        createDirect.isPending ||
+                        (composeMode === "room" &&
+                          !selected &&
+                          roomMembers.length >= 49)
+                      }
+                      aria-pressed={
+                        composeMode === "room" ? selected : undefined
+                      }
+                      aria-label={
+                        composeMode === "room"
+                          ? candidate.fullName
+                          : t("startChatWith", { name: candidate.fullName })
+                      }
+                      className="flex w-full items-center gap-3 border-b border-gray-100 px-2 py-2.5 text-start transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-gray-800 dark:hover:bg-gray-800"
+                    >
+                      <span className="relative shrink-0">
+                        <AvatarText
+                          src={candidate.avatarUrl}
+                          name={candidate.fullName}
+                          className="h-9 w-9 shrink-0 text-xs"
                         />
-                        {candidate.isOnline ? t("online") : t("offline")}
+                        <span
+                          className={`absolute end-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-900 ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                        />
                       </span>
-                    )}
-                  </button>
-                );
-              })
-            )}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-gray-800 dark:text-gray-100">
+                          {candidate.fullName}
+                        </span>
+                        {candidate.email && (
+                          <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                            {candidate.email}
+                          </span>
+                        )}
+                      </span>
+                      {composeMode === "room" ? (
+                        <span className="flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span
+                              className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                            />
+                            {candidate.isOnline ? t("online") : t("offline")}
+                          </span>
+                          <span
+                            className={`text-xs font-semibold ${selected ? "text-brand-600" : "text-gray-400"}`}
+                          >
+                            {selected ? "✓" : "+"}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                          <span
+                            className={`h-1.5 w-1.5 rounded-full ${candidate.isOnline ? "bg-success-500" : "bg-gray-300"}`}
+                          />
+                          {candidate.isOnline ? t("online") : t("offline")}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
           </div>
           {composeMode === "direct" && createDirect.isError && (
             <p
