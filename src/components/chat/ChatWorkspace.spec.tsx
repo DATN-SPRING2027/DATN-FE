@@ -1,4 +1,11 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, expect, it, vi } from "vitest";
@@ -100,6 +107,7 @@ it("refreshes conversations and reconciles missed messages when the socket conne
   const conversations = vi
     .spyOn(chatApi, "conversations")
     .mockResolvedValue({ data: [conversation], nextCursor: null });
+  vi.spyOn(chatApi, "candidates").mockResolvedValue({ data: [] });
   const history = vi.spyOn(chatApi, "messages").mockResolvedValue({
     data: [message("1", "Before disconnect")],
     nextCursor: null,
@@ -143,6 +151,67 @@ it("refreshes conversations and reconciles missed messages when the socket conne
   expect(screen.queryByText("Before disconnect")).not.toBeInTheDocument();
   expect(conversations.mock.calls.length).toBeGreaterThan(
     listCallsBeforeReconnect,
+  );
+  client.clear();
+});
+
+it("displays organization members with email and online status in the sidebar and compose dialog without requiring a search query", async () => {
+  vi.stubGlobal("WebSocket", TestSocket);
+  Object.defineProperty(HTMLElement.prototype, "scrollTo", {
+    value: vi.fn(),
+    configurable: true,
+  });
+  vi.spyOn(chatApi, "conversations").mockResolvedValue({
+    data: [],
+    nextCursor: null,
+  });
+  vi.spyOn(chatApi, "candidates").mockResolvedValue({
+    data: [
+      {
+        id: "member-1",
+        fullName: "Nguyễn Văn A",
+        email: "nguyenvana@datn.edu.vn",
+        avatarUrl: null,
+        isOnline: true,
+      },
+    ],
+  });
+  const createDirect = vi
+    .spyOn(chatApi, "createDirect")
+    .mockResolvedValue({ id: "direct-1", type: "DIRECT" });
+  vi.spyOn(chatApi, "messages").mockResolvedValue({
+    data: [],
+    nextCursor: null,
+  });
+  vi.spyOn(chatApi, "wsTicket").mockResolvedValue({
+    ticket: "test",
+    expiresInSeconds: 30,
+  });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  render(
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="en" messages={translations}>
+        <ChatWorkspace />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByText("Nguyễn Văn A");
+  expect(screen.getByText("nguyenvana@datn.edu.vn")).toBeInTheDocument();
+
+  fireEvent.click(screen.getAllByRole("button", { name: "New message" })[0]);
+  expect(screen.getAllByText("Nguyễn Văn A").length).toBeGreaterThanOrEqual(2);
+  expect(
+    screen.getAllByText("nguyenvana@datn.edu.vn").length,
+  ).toBeGreaterThanOrEqual(2);
+
+  fireEvent.click(
+    screen.getAllByRole("button", { name: "Start chat with Nguyễn Văn A" })[0],
+  );
+  await waitFor(() =>
+    expect(createDirect).toHaveBeenCalledWith("member-1", expect.anything()),
   );
   client.clear();
 });

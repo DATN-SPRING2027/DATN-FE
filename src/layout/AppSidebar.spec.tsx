@@ -9,6 +9,7 @@ const {
   selectAsync,
   currentUser,
   organizations,
+  projectsData,
   routeState,
 } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -24,6 +25,29 @@ const {
     },
   },
   organizations: { data: [{ id: "org-1", name: "North Star Company" }] },
+  projectsData: {
+    data: {
+      data: [
+        {
+          id: "69e923c77859fd1c702d4c21",
+          organizationId: "org-1",
+          name: "Continuum Workspace Core",
+          code: "CNTM",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "69e923c77859fd1c702d4c99",
+          organizationId: "org-1",
+          name: "AI Knowledge Engine",
+          code: "AIKE",
+          visibility: "PUBLIC",
+          status: "ACTIVE",
+        },
+      ],
+    },
+    isLoading: false,
+  },
   routeState: { pathname: "/projects" },
 }));
 
@@ -69,21 +93,7 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   }),
 }));
 vi.mock("@/lib/queries/projects/useProjects", () => ({
-  useProjectsQuery: () => ({
-    data: {
-      data: [
-        {
-          id: "proj-1",
-          organizationId: "org-1",
-          name: "Continuum Core",
-          code: "CORE",
-          visibility: "PRIVATE",
-          status: "ACTIVE",
-        },
-      ],
-    },
-    isLoading: false,
-  }),
+  useProjectsQuery: () => projectsData,
 }));
 vi.mock("@/icons/index", () => {
   const Icon = () => null;
@@ -107,39 +117,47 @@ vi.mock("@/icons/index", () => {
   };
 });
 vi.mock("next-intl", () => ({
-  useTranslations: (namespace: string) => (key: string) => {
-    const translations: Record<string, string> = {
-      "sidebar.navigation": "Main navigation",
-      "sidebar.brandLabel": "Continuum AI home",
-      "sidebar.groups.administration": "Administration",
-      "sidebar.items.overview": "Overview",
-      "sidebar.items.projects": "Projects",
-      "sidebar.items.chat": "Chat",
-      "sidebar.items.workNotes": "Work Notes",
-      "sidebar.items.knowledge": "Knowledge",
-      "sidebar.items.aiSearch": "AI Search",
-      "sidebar.items.handover": "Handover",
-      "sidebar.items.calendar": "Calendar",
-      "sidebar.items.members": "Members",
-      "sidebar.items.integrations": "Integrations",
-      "sidebar.items.settings": "Settings",
-      "sidebar.organizationLabel": "Organization",
-      "sidebar.organizationUnavailable": "Organization unavailable",
-      "sidebar.organizationSwitcherLabel": "Choose organization",
-      "sidebar.organizationListLabel": "Organizations",
-      "sidebar.organizationLoading": "Loading organizations…",
-      "sidebar.organizationLoadError": "Could not load organizations.",
-      "sidebar.organizationRetry": "Try again",
-      "sidebar.organizationSelectError": "Could not switch organizations.",
-      "sidebar.organizationSwitching": "Switching…",
-      "sidebar.manageOrganizations": "Manage organizations",
-      "sidebar.account.signOut": "Sign out",
-      "sidebar.account.signingOut": "Signing out…",
-      "sidebar.account.signOutError": "Could not sign out. Try again.",
-      "sidebar.account.defaultRole": "Member",
-    };
-    return translations[`${namespace}.${key}`] ?? key;
-  },
+  useTranslations:
+    (namespace: string) => (key: string, values?: Record<string, string>) => {
+      const translations: Record<string, string> = {
+        "sidebar.navigation": "Main navigation",
+        "sidebar.brandLabel": "Continuum AI home",
+        "sidebar.groups.administration": "Administration",
+        "sidebar.items.overview": "Overview",
+        "sidebar.items.projects": "Projects",
+        "sidebar.items.workspace": "Workspace",
+        "sidebar.items.chat": "Chat",
+        "sidebar.items.workNotes": "Work Notes",
+        "sidebar.items.knowledge": "Knowledge",
+        "sidebar.items.aiSearch": "AI Search",
+        "sidebar.items.handover": "Handover",
+        "sidebar.items.calendar": "Calendar",
+        "sidebar.items.members": "Members",
+        "sidebar.items.integrations": "Integrations",
+        "sidebar.items.settings": "Settings",
+        "sidebar.projectsDropdownToggle": "Toggle projects list",
+        "sidebar.projectsSubmenuLabel": "Organization projects",
+        "sidebar.projectDropdownToggle": `Toggle ${values?.name ?? ""} options`,
+        "sidebar.projectActionsLabel": `${values?.name ?? ""} actions`,
+        "sidebar.projectsLoading": "Loading projects…",
+        "sidebar.projectsEmpty": "No active projects",
+        "sidebar.organizationLabel": "Organization",
+        "sidebar.organizationUnavailable": "Organization unavailable",
+        "sidebar.organizationSwitcherLabel": "Choose organization",
+        "sidebar.organizationListLabel": "Organizations",
+        "sidebar.organizationLoading": "Loading organizations…",
+        "sidebar.organizationLoadError": "Could not load organizations.",
+        "sidebar.organizationRetry": "Try again",
+        "sidebar.organizationSelectError": "Could not switch organizations.",
+        "sidebar.organizationSwitching": "Switching…",
+        "sidebar.manageOrganizations": "Manage organizations",
+        "sidebar.account.signOut": "Sign out",
+        "sidebar.account.signingOut": "Signing out…",
+        "sidebar.account.signOutError": "Could not sign out. Try again.",
+        "sidebar.account.defaultRole": "Member",
+      };
+      return translations[`${namespace}.${key}`] ?? key;
+    },
 }));
 
 describe("AppSidebar navigation", () => {
@@ -257,11 +275,50 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Members", "Chat", "Settings"]);
-    expect(within(nav).queryByRole("link", { name: "Work" })).not.toBeInTheDocument();
+    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
+    expect(
+      within(nav).queryByRole("button", { name: "Work Notes" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(nav).queryByRole("link", { name: "Work" }),
+    ).not.toBeInTheDocument();
     expect(within(nav).getByRole("link", { name: "Projects" })).toHaveAttribute(
       "aria-current",
       "page",
+    );
+  });
+
+  it("expands Projects dropdown to list organization projects, and expands each project to show its Workspace link", () => {
+    render(<AppSidebar />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+
+    fireEvent.click(
+      within(nav).getByRole("button", { name: "Toggle projects list" }),
+    );
+    const projectsGroup = within(nav).getByRole("group", {
+      name: "Organization projects",
+    });
+    expect(
+      within(projectsGroup).getByText("Continuum Workspace Core"),
+    ).toBeInTheDocument();
+    expect(
+      within(projectsGroup).getByText("AI Knowledge Engine"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      within(projectsGroup).getByRole("button", {
+        name: "Toggle Continuum Workspace Core options",
+      }),
+    );
+    const projectActions = within(projectsGroup).getByRole("group", {
+      name: "Continuum Workspace Core actions",
+    });
+    const workspaceLink = within(projectActions).getByRole("link", {
+      name: "Workspace",
+    });
+    expect(workspaceLink).toHaveAttribute(
+      "href",
+      "/projects/69e923c77859fd1c702d4c21/work",
     );
   });
 
@@ -325,11 +382,6 @@ describe("AppSidebar navigation", () => {
         .getAllByRole("link")
         .some((link) => link.getAttribute("href")?.includes("/platform")),
     ).toBe(false);
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .some((link) => link.getAttribute("href")?.includes("/platform")),
-    ).toBe(false);
   });
 
   it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
@@ -337,9 +389,7 @@ describe("AppSidebar navigation", () => {
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
     for (const label of [
-      "Work Notes",
-      "Work Notes",
-      "AI Search",
+      "Knowledge",
       "AI Search",
       "Integrations",
     ]) {
@@ -385,7 +435,7 @@ describe("AppSidebar navigation", () => {
       const projectsFlyout = screen.getByTestId("sidebar-flyout-projects");
       expect(projectsFlyout).toBeInTheDocument();
       expect(projectsFlyout.parentElement).toBe(document.body);
-      expect(within(projectsFlyout).getByText("Continuum Core")).toBeInTheDocument();
+      expect(within(projectsFlyout).getByText("Continuum Workspace Core")).toBeInTheDocument();
 
       fireEvent.mouseLeave(projectsItem, { clientX: 200, clientY: 160 });
       fireEvent.mouseEnter(overviewItem);

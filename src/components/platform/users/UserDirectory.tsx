@@ -1,4 +1,6 @@
 "use client";
+import DirectorySelect from "../ui/DirectorySelect";
+import { SearchIcon } from "@/icons";
 
 import { useState, type ComponentProps, type RefObject } from "react";
 import { useTranslations } from "next-intl";
@@ -27,12 +29,21 @@ interface UserDirectoryProps {
 
 export default function UserDirectory({
   model,
+  searchRef,
   onAction,
   actionsPending,
 }: UserDirectoryProps) {
   const t = useTranslations("platformUserDirectory");
-  const { users, status, setStatus, setPage, operatorId, canManageUsers } =
-    model;
+  const {
+    users,
+    search,
+    setSearch,
+    status,
+    setStatus,
+    setPage,
+    operatorId,
+    canManageUsers,
+  } = model;
   const [sort, setSort] = useState("fullName");
   const rows = [...(users.data?.data ?? [])].sort((a, b) => {
     const field =
@@ -84,7 +95,28 @@ export default function UserDirectory({
         ))}
       </div>
       <div className={jira.toolbar}>
-        <select
+        <label className={jira.searchField}>
+          <SearchIcon aria-hidden="true" />
+          <span className="sr-only">{t("search")}</span>
+          <input
+            ref={searchRef}
+            type="search"
+            aria-label={t("search")}
+            placeholder={t("searchPlaceholder")}
+            value={search}
+            onPointerDown={(event) => {
+              event.currentTarget.dataset.pointerFocus = "true";
+            }}
+            onBlur={(event) => {
+              delete event.currentTarget.dataset.pointerFocus;
+            }}
+            onChange={(event) => {
+              setPage(1);
+              setSearch(event.target.value);
+            }}
+          />
+        </label>
+        <DirectorySelect
           aria-label={t("sortBy")}
           value={sort}
           onChange={(event) => setSort(event.target.value)}
@@ -92,7 +124,7 @@ export default function UserDirectory({
           <option value="fullName">{t("sortName")}</option>
           <option value="email">{t("sortEmail")}</option>
           <option value="createdAt">{t("sortCreated")}</option>
-        </select>
+        </DirectorySelect>
       </div>
 
       {users.isPending ? (

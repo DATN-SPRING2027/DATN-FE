@@ -11,6 +11,7 @@ import {
 export type ChatCandidate = Readonly<{
   id: string;
   fullName: string;
+  email?: string;
   avatarUrl: string | null;
   isOnline: boolean;
 }>;
@@ -125,11 +126,14 @@ export const chatApi = {
       },
     );
   },
-  candidates: (search: string, signal?: AbortSignal) =>
-    apiClient<{ data: readonly ChatCandidate[] }>(
-      `/chat/candidates?search=${encodeURIComponent(search)}`,
+  candidates: (search = "", signal?: AbortSignal) => {
+    const trimmed = search.trim();
+    const query = trimmed ? `?search=${encodeURIComponent(trimmed)}` : "";
+    return apiClient<{ data: readonly ChatCandidate[] }>(
+      `/chat/candidates${query}`,
       { signal, cache: "no-store" },
-    ),
+    );
+  },
   messages: (conversationId: string, signal?: AbortSignal) =>
     apiClient<ChatPage<ChatMessage>>(
       `/chat/conversations/${encodeURIComponent(conversationId)}/messages?limit=50`,
@@ -330,11 +334,16 @@ export function useChatConversationsQuery(organizationId: string, search = "") {
   });
 }
 
-export function useChatCandidatesQuery(organizationId: string, search: string) {
+export function useChatCandidatesQuery(
+  organizationId: string,
+  search = "",
+  enabled = true,
+) {
+  const normalizedSearch = search.trim();
   return useQuery({
-    queryKey: chatKeys.candidates(organizationId, search),
-    queryFn: ({ signal }) => chatApi.candidates(search, signal),
-    enabled: Boolean(organizationId && search.trim().length >= 2),
+    queryKey: chatKeys.candidates(organizationId, normalizedSearch),
+    queryFn: ({ signal }) => chatApi.candidates(normalizedSearch, signal),
+    enabled: Boolean(organizationId && enabled),
     retry: false,
     staleTime: 3_000,
   });

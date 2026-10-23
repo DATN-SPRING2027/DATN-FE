@@ -1,6 +1,7 @@
 export function isSidebarPathActive(path: string, pathname: string): boolean {
   return (
     path === pathname ||
-    (path === "/projects" && pathname.startsWith(`${path}/`))
+    ((path === "/projects" || path === "/workspace") &&
+      pathname.startsWith(`${path}/`))
   );
 }

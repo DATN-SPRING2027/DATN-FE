@@ -7,6 +7,12 @@ it.each(["/projects", "/projects/p1", "/projects/new", "/projects/p1/members"])(
     expect(isSidebarPathActive("/projects", pathname)).toBe(true);
   },
 );
+it.each(["/workspace", "/workspace/p1"])(
+  "keeps Workspace active on %s",
+  (pathname) => {
+    expect(isSidebarPathActive("/workspace", pathname)).toBe(true);
+  },
+);
 it.each(["/", "/projects-other", "/projectsOther", "/users/projects"])(
   "does not match a different segment %s",
   (pathname) => {

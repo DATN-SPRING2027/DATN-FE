@@ -312,6 +312,10 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
     membershipListQuery(...args);
     return memberships;
   },
+  usePlatformMembershipDirectoryQuery: (...args: unknown[]) => {
+    membershipListQuery(...args);
+    return memberships;
+  },
   usePlatformUserLookupMutation: () => lookup,
   useCreatePlatformOrganizationMutation: () => createOrganization,
   useSuspendPlatformMembershipMutation: () => suspend,
@@ -711,9 +715,8 @@ describe("PlatformConsole", () => {
       screen.getByText("memberships.readPermissionNeeded"),
     ).toBeInTheDocument();
     expect(membershipListQuery).toHaveBeenLastCalledWith(
-      "651a2b3c4d5e6f7a8b9c0d21",
+      { page: 1, search: "", status: "", organizationId: "" },
       false,
-      1,
     );
   });
 
@@ -727,7 +730,7 @@ describe("PlatformConsole", () => {
         screen.getByRole("navigation", { name: "organizations.directory" }),
       ).getByRole("button", { name: "next" }),
     );
-    expect(organizationListQuery).toHaveBeenLastCalledWith(true, 2);
+    expect(organizationListQuery).toHaveBeenLastCalledWith(true, 2, 10);
   });
 
   it("shows a confirmation before the permission-gated membership suspend action", async () => {
@@ -763,25 +766,45 @@ describe("PlatformConsole", () => {
     );
   });
 
-  it("keeps every module discoverable while withholding ungranted operation controls", () => {
+  it("shows only navigation destinations granted by exact read permissions", () => {
     session.data.permissions = ["platform.memberships.membership.read"];
     render(<PlatformConsole />);
 
     expect(
-      screen.getAllByRole("link", { name: "navigation.services" }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("link", { name: "navigation.audit" }).length,
-    ).toBeGreaterThan(0);
-    expect(
-      screen.getAllByRole("link", { name: "navigation.dashboard" }),
-    ).toHaveLength(1);
+      screen.getByRole("link", { name: "navigation.memberships" }),
+    ).toHaveAttribute("href", "/platform/memberships");
+    for (const label of [
+      "navigation.dashboard",
+      "navigation.organizations",
+      "navigation.users",
+      "navigation.services",
+      "navigation.audit",
+    ]) {
+      expect(
+        screen.queryByRole("link", { name: label }),
+      ).not.toBeInTheDocument();
+    }
     expect(
       screen.queryByRole("button", { name: "organizations.create" }),
     ).not.toBeInTheDocument();
   });
 
   it("keeps all existing domain routes in grouped navigation", () => {
+    session.data.permissions = [
+      "platform.dashboard.summary.read",
+      "platform.organizations.organization.read",
+      "platform.users.account.read",
+      "platform.memberships.membership.read",
+      "platform.projects.project.read",
+      "platform.sessions.session.read",
+      "platform.services.service.read",
+      "platform.jobs.job.read",
+      "platform.ai.operations.read",
+      "platform.integrations.integration.read",
+      "platform.incidents.incident.read",
+      "platform.diagnostics.trace.read",
+      "platform.audit.read",
+    ];
     render(<PlatformConsole />);
 
     expect(
@@ -827,6 +850,34 @@ describe("PlatformConsole", () => {
       true,
     );
     expect(lookup.mutateAsync).not.toHaveBeenCalled();
+  });
+
+  it("searches users and resets pagination when the search changes", () => {
+    pathname.value = "/platform/users";
+    session.data.permissions = ["platform.users.account.read"];
+    operationState.usersQuery.data.pagination = {
+      page: 1,
+      pageSize: 25,
+      totalItems: 50,
+      totalPages: 2,
+    };
+    render(<PlatformConsole />);
+
+    fireEvent.click(screen.getByRole("button", { name: "next" }));
+    expect(operationState.operationQuery).toHaveBeenLastCalledWith(
+      "users",
+      expect.objectContaining({ page: 2 }),
+      true,
+    );
+
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search users" }), {
+      target: { value: "directory" },
+    });
+    expect(operationState.operationQuery).toHaveBeenLastCalledWith(
+      "users",
+      expect.objectContaining({ page: 1, search: "directory" }),
+      true,
+    );
   });
 
   it("allows profile review for pending invites without exposing suspend, reactivate, or archive actions", async () => {
@@ -1262,8 +1313,8 @@ describe("PlatformConsole", () => {
       screen.getByRole("heading", { name: "pages.dashboard.title" }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "dashboard.summary" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("region", { name: "dashboard.summary" }),
+    ).toHaveTextContent("2");
     expect(
       screen.getByText("operatorDesign.accountDistribution"),
     ).toBeInTheDocument();
@@ -1278,7 +1329,6 @@ describe("PlatformConsole", () => {
   it("supports membership review on its own route and requires confirmation before suspension", async () => {
     pathname.value = "/platform/memberships";
     session.data.permissions = [
-      "platform.organizations.organization.read",
       "platform.memberships.membership.read",
       "platform.memberships.lifecycle.manage",
     ];
@@ -1287,8 +1337,12 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("heading", { name: "pages.memberships.title" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("memberships.organization")).toHaveValue(
-      "651a2b3c4d5e6f7a8b9c0d21",
+    expect(
+      screen.getByRole("searchbox", { name: "memberships.search" }),
+    ).toBeInTheDocument();
+    expect(membershipListQuery).toHaveBeenLastCalledWith(
+      { page: 1, search: "", status: "", organizationId: "" },
+      true,
     );
     expect(screen.getByText("Member One")).toBeInTheDocument();
     fireEvent.click(
@@ -1312,12 +1366,9 @@ describe("PlatformConsole", () => {
     );
   });
 
-  it("requests the next membership page for the selected Organization", () => {
+  it("requests the next page of the global membership directory", () => {
     pathname.value = "/platform/memberships";
-    session.data.permissions = [
-      "platform.organizations.organization.read",
-      "platform.memberships.membership.read",
-    ];
+    session.data.permissions = ["platform.memberships.membership.read"];
     memberships.data.pagination.totalPages = 2;
     render(<PlatformConsole />);
 
@@ -1327,9 +1378,8 @@ describe("PlatformConsole", () => {
       ).getByRole("button", { name: "next" }),
     );
     expect(membershipListQuery).toHaveBeenLastCalledWith(
-      "651a2b3c4d5e6f7a8b9c0d21",
+      { page: 2, search: "", status: "", organizationId: "" },
       true,
-      2,
     );
   });
 

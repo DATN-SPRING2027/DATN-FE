@@ -143,8 +143,8 @@
         "description": "Browse user accounts with search, status filters, and pagination. Select Details to view permitted account, membership, permission, and session information. Sensitive authentication data is not exposed."
       },
       "memberships": {
-        "title": "Membership management",
-        "description": "Review memberships for an Organization and suspend an eligible membership when authorized."
+        "title": "Memberships",
+        "description": "Review memberships across organizations with search, status filters and authorized suspension."
       },
       "projects": {
         "title": "Project management",
@@ -341,7 +341,9 @@
       "event": "Event",
       "target": "Target",
       "actor": "Actor",
-      "time": "Time"
+      "time": "Time",
+      "actions": "Actions",
+      "email": "Email"
     },
     "errors": {
       "signOut": "Could not confirm sign out. Try again.",
@@ -399,7 +401,11 @@
       "save": "Save changes",
       "saving": "Saving…",
       "reloadBeforeEdit": "Close this form, refresh the organization, then reopen it before trying again.",
-      "details": "Details"
+      "details": "Details",
+      "sortBy": "Sort this page by",
+      "sortName": "Name (A–Z)",
+      "sortSlug": "Slug (A–Z)",
+      "sortCreated": "Created (newest first)"
     },
     "users": {
       "accountLookupPermissionNeeded": "The exact account lookup permission is required to select the first Organization Manager.",
@@ -412,7 +418,7 @@
       "readPermissionNeeded": "This session does not have the exact membership read permission.",
       "noOrganization": "No Organization is available in the current directory response.",
       "chooseOrganization": "Choose an Organization to load memberships.",
-      "directoryNote": "Current membership projection for the selected Organization. No invitation or role mutation is available here.",
+      "directoryNote": "Review membership identity, organization, role and status across the platform.",
       "noAction": "No action",
       "migrationRequired": "Suspension unavailable until membership lifecycle metadata is initialized.",
       "partialTitle": "Other membership actions are unavailable",
@@ -421,12 +427,23 @@
       "suspend": "Suspend",
       "currentOperator": "Current Admin",
       "emptyTitle": "No memberships found",
-      "emptyBody": "This Organization has no memberships in the selected page.",
+      "emptyBody": "No memberships match your search or filters. Try changing or clearing the filters.",
       "confirmTitle": "Suspend this membership?",
       "confirmBody": "Suspend access for {name}? This action changes Organization membership status and is recorded in the operational audit.",
       "confirmGuard": "The backend checks the current permission, Organization relationship, membership version, self-action rule, and last-Manager rule before writing.",
       "suspending": "Suspending…",
-      "confirmSuspend": "Confirm suspension"
+      "confirmSuspend": "Confirm suspension",
+      "workspace": "Workspace",
+      "all": "All memberships",
+      "search": "Search memberships",
+      "searchPlaceholder": "Search members or organizations",
+      "allOrganizations": "All organizations",
+      "statusFilter": "Membership status",
+      "clearFilters": "Clear filters",
+      "sortBy": "Sort this page by",
+      "sortName": "Name (A–Z)",
+      "sortEmail": "Email (A–Z)",
+      "sortUpdated": "Updated (newest first)"
     },
     "membershipStatus": {
       "PENDING_INVITE": "Pending invite",
@@ -586,6 +603,7 @@
     "messageSearchResults": "Search results ({count})",
     "messageSearchError": "Messages could not be searched. Try again.",
     "searchHint": "Enter at least two characters.",
+    "organizationMembers": "Organization members",
     "noPeople": "No active organization members found.",
     "searchError": "People could not be searched. Try again.",
     "noConversations": "Your conversations will appear here.",
@@ -848,7 +866,8 @@
       "aiSearch": "AI Search",
       "handover": "Handover",
       "members": "Members",
-      "settings": "Settings"
+      "settings": "Settings",
+      "workspace": "Workspace"
     },
     "organizationLabel": "Organization",
     "organizationSwitcherLabel": "Choose organization",
@@ -861,6 +880,12 @@
     "currentOrganization": "Current organization",
     "noOrganizations": "No organizations are available for this account.",
     "manageOrganizations": "Manage organizations",
+    "projectsDropdownToggle": "Toggle projects list",
+    "projectsSubmenuLabel": "Organization projects",
+    "projectsLoading": "Loading projects…",
+    "projectsEmpty": "No active projects",
+    "projectDropdownToggle": "Toggle {name} menu",
+    "projectActionsLabel": "{name} navigation",
     "comingSoon": "Coming soon",
     "account": {
       "profile": "Open profile for {name}",
@@ -1971,6 +1996,14 @@
     "createNew": "Create New Project",
     "createPageHint": "Configure and provision a new project workspace in your organization.",
     "overview": "Overview",
+    "list": "List",
+    "board": "Board",
+    "calendar": "Calendar",
+    "timeline": "Timeline",
+    "development": "Development",
+    "forms": "Forms",
+    "docs": "Docs",
+    "reports": "Reports",
     "teams": "Teams",
     "work": "Work",
     "workNotes": "Work Notes",
@@ -2107,7 +2140,7 @@
     "title": "Work",
     "breadcrumb": "Work breadcrumb",
     "projects": "Projects",
-    "projectSpace": "Project space",
+    "projectSpace": "Project workspace",
     "previewData": "Preview data",
     "create": "Create",
     "tabs": {
@@ -2115,7 +2148,10 @@
       "list": "List",
       "board": "Board",
       "calendar": "Calendar",
+      "workNotes": "Work Notes",
       "timeline": "Timeline",
+      "development": "Development",
+      "forms": "Forms",
       "docs": "Docs",
       "reports": "Reports"
     },
@@ -2225,11 +2261,35 @@
     "workItemCount": "{count, plural, one {# work item} other {# work items}}",
     "selectedCount": "{count, plural, one {# item selected} other {# items selected}}",
     "clearSelection": "Clear selection",
+    "mutationError": {
+      "title": "Could not save changes.",
+      "dismiss": "Dismiss"
+    },
     "subtasks": "Subtasks",
+    "selectExistingTask": "Select an existing project task",
+    "chooseProjectTask": "Choose a task...",
+    "noOtherProjectTasks": "No other tasks are available in this project.",
+    "newestTasksFirst": "Newest tasks are listed first.",
+    "taskHasSubtasks": "already has subtasks",
+    "addAsSubtask": "Add as subtask",
+    "createNewSubtask": "Create a new subtask instead",
+    "existingTaskAdded": "Added {key} as a subtask of {parent}.",
     "subtaskProgress": "{completed}/{total}",
     "assignedTo": "Assigned to {name}",
     "emptyColumn": "No work items in this status",
     "boardPreviewHint": "Preview only · status changes are unavailable",
+    "activeSprint": "Active sprint · {name}",
+    "loadingSprint": "Loading sprint…",
+    "sprintLoadFailed": "Sprint unavailable",
+    "noActiveSprint": "No active sprint",
+    "completeSprint": "Complete sprint",
+    "completingSprint": "Completing…",
+    "completeSprintDialog": "Complete sprint",
+    "completeSprintTitle": "Complete {sprintName}?",
+    "incompleteItemsMove": "{count, plural, one {# open work item will move to the backlog.} other {# open work items will move to the backlog.}}",
+    "completeSprintFailed": "Sprint could not be completed. Please try again.",
+    "sprintCompleted": "Sprint completed.",
+    "notAvailableYet": "Not available yet.",
     "noResultsTitle": "No matching work items",
     "noResultsDescription": "Try changing or clearing your search and filters.",
     "clearFilters": "Clear filters",
@@ -2243,7 +2303,15 @@
     "titleRequired": "Enter a summary.",
     "cancel": "Cancel",
     "addToPreview": "Add to preview",
-    "createAdded": "Preview item added. It has not been saved."
+    "createAdded": "Preview item added. It has not been saved.",
+    "createStatusFailed": "Work item created, but its status could not be updated.",
+    "subtaskStatusFailed": "Subtask created, but its status could not be updated.",
+    "workspaceTitle": "Workspace",
+    "selectProject": "Select project workspace",
+    "memberScopeBadge": "Member workspace",
+    "emptyProjectsTitle": "No active projects in this workspace",
+    "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",
+    "browseProjects": "View projects"
   },
   "organizationMembers": {
     "title": "Organization members",
