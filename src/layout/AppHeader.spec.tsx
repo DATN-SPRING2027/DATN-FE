@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider } from "@/context/SidebarContext";
 import { ThemeProvider } from "@/context/ThemeContext";
@@ -7,7 +7,7 @@ import AppHeader from "./AppHeader";
 
 const replace = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
-  useRouter: () => ({ replace }),
+  useRouter: () => ({ replace, push: replace }),
   usePathname: () => "/dashboard",
   Link: ({
     children,
@@ -123,12 +123,24 @@ describe("AppHeader", () => {
     });
   });
 
-  it("renders centered search input, opens Update modal, and toggles Help drawer", async () => {
+  it("renders centered search input without Ctrl/Cmd+K badge, searches system features, opens Update modal, and toggles Help drawer", async () => {
     mockSessionFetch(["ADMIN"]);
     renderHeader();
 
     const searchInput = screen.getByPlaceholderText("searchPlaceholder");
     expect(searchInput).toBeInTheDocument();
+    expect(screen.queryByText("⌘")).not.toBeInTheDocument();
+
+    // Search for Chat feature and press Enter to navigate
+    fireEvent.focus(searchInput);
+    fireEvent.change(searchInput, { target: { value: "tin nhan" } });
+    const resultsRegion = screen.getByRole("region", { name: "System features" });
+    expect(within(resultsRegion).getByRole("link", { name: /Chat/i })).toHaveAttribute(
+      "href",
+      "/chat",
+    );
+    fireEvent.submit(searchInput.closest("form")!);
+    expect(replace).toHaveBeenCalledWith("/chat");
 
     // Open Update modal
     fireEvent.click(screen.getByRole("button", { name: "update" }));

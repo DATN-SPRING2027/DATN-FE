@@ -64,8 +64,9 @@ export default function HeaderHelpDrawer() {
       href: "/projects",
       icon: (
         <FolderIcon
-          viewBox="0 0 20 18"
-          className="size-4"
+          viewBox="-2 -3 24 24"
+          preserveAspectRatio="xMidYMid meet"
+          className="size-[18px] shrink-0"
           aria-hidden="true"
         />
       ),
@@ -74,14 +75,28 @@ export default function HeaderHelpDrawer() {
       id: "chat",
       label: t("helpDrawer.chat"),
       href: "/chat",
-      icon: <ChatIcon className="size-4" aria-hidden="true" />,
+      icon: (
+        <ChatIcon
+          viewBox="1 1.1 22 22"
+          preserveAspectRatio="xMidYMid meet"
+          className="size-[18px] shrink-0"
+          aria-hidden="true"
+        />
+      ),
     },
     {
       id: "keyboard-shortcuts",
       label: t("helpDrawer.keyboardShortcuts"),
       onClick: () =>
         setActivePanel((prev) => (prev === "shortcuts" ? null : "shortcuts")),
-      icon: <SearchIcon className="size-4" aria-hidden="true" />,
+      icon: (
+        <SearchIcon
+          viewBox="0 0 24 24"
+          preserveAspectRatio="xMidYMid meet"
+          className="size-[18px] shrink-0"
+          aria-hidden="true"
+        />
+      ),
     },
   ];
 
@@ -123,8 +138,8 @@ export default function HeaderHelpDrawer() {
           className="fixed top-14 bottom-0 end-0 z-30 flex h-[calc(100dvh-3.5rem)] w-80 flex-col border-s border-gray-200 bg-white shadow-theme-lg lg:shadow-none dark:border-gray-800 dark:bg-gray-900"
         >
           {/* Top Header Bar */}
-          <div className="relative flex items-center justify-center border-b border-gray-200 bg-gray-100/90 px-4 py-3.5 dark:border-gray-800 dark:bg-gray-800/80">
-            <h2 className="text-theme-sm font-semibold text-gray-800 dark:text-gray-100">
+          <div className="relative flex items-center justify-center border-b border-gray-200 bg-gray-100/90 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/80">
+            <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">
               {t("helpDrawer.title")}
             </h2>
             <button
@@ -159,29 +174,37 @@ export default function HeaderHelpDrawer() {
                     <Link
                       href={item.href}
                       onClick={handleClose}
-                      className="group flex items-center gap-3 rounded-lg px-3 py-2 text-theme-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
+                      className="group flex h-9 items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] leading-5 font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
                     >
-                      <span className="shrink-0 text-gray-600 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white">
+                      <span className="flex size-5 shrink-0 items-center justify-center text-gray-500 group-hover:text-gray-800 dark:text-gray-400 dark:group-hover:text-white">
                         {item.icon}
                       </span>
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                     </Link>
                   ) : (
                     <button
                       type="button"
                       onClick={item.onClick}
                       className={cn(
-                        "group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-start text-theme-xs font-medium transition-colors",
+                        "group flex h-9 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-[13px] leading-5 font-medium transition-colors",
                         item.id === "keyboard-shortcuts" &&
                         activePanel === "shortcuts"
                           ? "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
                           : "text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white",
                       )}
                     >
-                      <span className="shrink-0 text-gray-600 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white">
+                      <span
+                        className={cn(
+                          "flex size-5 shrink-0 items-center justify-center",
+                          item.id === "keyboard-shortcuts" &&
+                            activePanel === "shortcuts"
+                            ? "text-brand-600 dark:text-brand-400"
+                            : "text-gray-500 group-hover:text-gray-800 dark:text-gray-400 dark:group-hover:text-white",
+                        )}
+                      >
                         {item.icon}
                       </span>
-                      <span>{item.label}</span>
+                      <span className="truncate">{item.label}</span>
                     </button>
                   )}
                 </li>
@@ -191,10 +214,10 @@ export default function HeaderHelpDrawer() {
             {/* Inline Keyboard Shortcuts Panel */}
             {activePanel === "shortcuts" && (
               <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-white/3">
-                <p className="mb-2 text-theme-xs font-semibold text-gray-800 dark:text-gray-200">
+                <p className="mb-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
                   {t("helpDrawer.keyboardShortcuts")}
                 </p>
-                <div className="space-y-2 text-theme-xs text-gray-600 dark:text-gray-300">
+                <div className="space-y-2 text-xs text-gray-600 dark:text-gray-300">
                   <div className="hidden items-center justify-between xl:flex">
                     <span>{t("helpDrawer.shortcutSearch")}</span>
                     <kbd className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold dark:border-gray-700 dark:bg-gray-800">
