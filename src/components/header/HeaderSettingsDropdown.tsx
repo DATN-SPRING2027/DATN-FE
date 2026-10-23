@@ -310,7 +310,7 @@ export default function HeaderSettingsDropdown({
           <button
             type="button"
             onClick={handleSearchShortcutClick}
-            className="inline-flex items-center gap-1 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            className="hidden items-center gap-1 rounded-md border border-gray-200 bg-gray-50/80 px-2 py-0.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-100 xl:inline-flex dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
           >
             <span>{t("settingsMenu.searchLabel")}</span>
             <kbd className="rounded bg-white px-1 py-px text-[10px] font-semibold text-gray-500 shadow-2xs dark:bg-gray-700 dark:text-gray-300">

@@ -33,9 +33,16 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
-      if ((event.metaKey || event.ctrlKey) && event.key === "k") {
+      const searchInput = inputRef.current;
+
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "k" &&
+        searchInput &&
+        searchInput.getClientRects().length > 0
+      ) {
         event.preventDefault();
-        inputRef.current?.focus();
+        searchInput.focus();
       }
     };
 

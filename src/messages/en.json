@@ -843,25 +843,12 @@
     "helpDrawer": {
       "title": "Help",
       "close": "Close help panel",
-      "whatsChanged": "Find out what's changed in Continuum",
-      "newNavigation": "Read about the new navigation",
-      "documentation": "Browse complete documentation",
-      "learning": "Build skills with Continuum Learning",
-      "community": "Ask our Community forums",
-      "contactSupport": "Contact support",
-      "giveFeedback": "Give feedback about Continuum",
+      "projects": "Projects",
+      "chat": "Chat",
       "keyboardShortcuts": "Keyboard shortcuts",
-      "mobileApp": "Get Continuum Mobile",
       "shortcutSearch": "Global search",
       "shortcutResize": "Resize sidebar",
-      "shortcutClose": "Close active panel",
-      "feedbackPlaceholder": "Share your thoughts or report an issue...",
-      "feedbackSubmit": "Send feedback",
-      "feedbackSent": "Thank you for your feedback!",
-      "about": "About Continuum",
-      "terms": "Terms of use",
-      "privacy": "Privacy policy",
-      "notice": "Notice at collection"
+      "shortcutClose": "Close active panel"
     },
     "settingsMenu": {
       "personalHeading": "Personal settings",
