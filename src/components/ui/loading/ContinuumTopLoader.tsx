@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useIsFetching, useIsMutating } from "@tanstack/react-query";
+import { useContext, useEffect, useState } from "react";
+import {
+  QueryClientContext,
+  useIsFetching,
+  useIsMutating,
+} from "@tanstack/react-query";
 import { usePathname } from "@/i18n/navigation";
 
 /**
@@ -13,6 +17,12 @@ import { usePathname } from "@/i18n/navigation";
  *   "Synced" checkmark before dismissing.
  */
 export default function ContinuumTopLoader() {
+  const queryClient = useContext(QueryClientContext);
+  if (!queryClient) return null;
+  return <ContinuumTopLoaderContent />;
+}
+
+function ContinuumTopLoaderContent() {
   const pathname = usePathname();
   const fetchingCount = useIsFetching();
   const mutatingCount = useIsMutating();
