@@ -343,19 +343,6 @@ const AppSidebar: React.FC = () => {
           },
         ],
       },
-      projects: {
-        key: "projects",
-        title: t("items.projects"),
-        subtitle: "Recent & active project workspaces",
-        primaryHref: "/projects",
-        primaryCtaLabel: "View all",
-        projects: projectsQuery.data?.data ?? [],
-        isLoadingProjects: Boolean(projectsQuery.isLoading),
-        secondaryCta: {
-          label: "Create project",
-          href: "/projects/new",
-        },
-      },
       chat: {
         key: "chat",
         title: t("items.chat"),
@@ -409,7 +396,7 @@ const AppSidebar: React.FC = () => {
         ],
       },
     }),
-    [organizationName, projectsQuery.data?.data, projectsQuery.isLoading, t],
+    [organizationName, t],
   );
 
   const activeFlyoutConfig =
@@ -427,24 +414,7 @@ const AppSidebar: React.FC = () => {
     if (item.key === "projects") {
       const isActive = isSidebarPathActive(item.path, pathname);
       return (
-        <li
-          key={item.key}
-          ref={(element) => {
-            if (hasFlyout) {
-              registerTrigger(item.key, element);
-            }
-          }}
-          onMouseEnter={() => {
-            if (hasFlyout && !activeIsResizing) {
-              handleTriggerMouseEnter(item.key);
-            }
-          }}
-          onMouseLeave={(event) => {
-            if (hasFlyout && !activeIsResizing) {
-              handleTriggerMouseLeave(item.key, event);
-            }
-          }}
-        >
+        <li key={item.key}>
           <div className="relative flex items-center">
             <Link
               href={item.path}
