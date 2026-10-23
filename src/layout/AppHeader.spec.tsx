@@ -1,0 +1,213 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SidebarProvider } from "@/context/SidebarContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { AppProviders } from "@/lib/providers/AppProviders";
+import AppHeader from "./AppHeader";
+
+const replace = vi.fn();
+vi.mock("@/i18n/navigation", () => ({
+  useRouter: () => ({ replace }),
+  usePathname: () => "/dashboard",
+  Link: ({
+    children,
+    href,
+    onClick,
+    className,
+    ...rest
+  }: {
+    children: React.ReactNode;
+    href: string;
+    onClick?: () => void;
+    className?: string;
+  }) => (
+    <a href={href} onClick={onClick} className={className} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
+vi.mock("next-intl", () => ({
+  useLocale: () => "en",
+  useTranslations: () => (key: string, values?: Record<string, string>) =>
+    values?.plan ? `${key}:${values.plan}` : key,
+}));
+
+vi.mock("@/i18n/languages", () => ({
+  getLanguage: () => ({
+    FlagIcon: () => null,
+    name: "English",
+    shortName: "English",
+  }),
+  languages: [
+    {
+      id: "en",
+      name: "English",
+      shortName: "English",
+      FlagIcon: () => null,
+    },
+  ],
+}));
+
+vi.mock("@/components/common/BrandLogo", () => ({
+  default: () => <span>ContinuumLogo</span>,
+}));
+
+vi.mock("@/components/chat/ChatNotifications", () => ({
+  default: () => <button type="button">NotificationsMock</button>,
+}));
+
+function mockSessionFetch(roles: string[]) {
+  vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+    const target = String(url);
+    if (target.endsWith("/auth/me")) {
+      return new Response(
+        JSON.stringify({
+          id: "user-1",
+          name: "Phuc Nguyen",
+          email: "phuc@continuum.ai",
+          organizationId: "org-1",
+          roles,
+        }),
+      );
+    }
+    if (target.endsWith("/iam/users/user-1")) {
+      return new Response(
+        JSON.stringify({
+          id: "user-1",
+          fullName: "Phuc Nguyen",
+          avatarUrl: null,
+        }),
+      );
+    }
+    if (target.includes("/projects")) {
+      return new Response(
+        JSON.stringify({
+          data: [],
+          pagination: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
+        }),
+      );
+    }
+    return new Response("{}");
+  });
+}
+
+function renderHeader() {
+  return render(
+    <AppProviders>
+      <ThemeProvider>
+        <SidebarProvider>
+          <AppHeader />
+        </SidebarProvider>
+      </ThemeProvider>
+    </AppProviders>,
+  );
+}
+
+describe("AppHeader", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    replace.mockReset();
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      })),
+    });
+  });
+
+  it("renders centered search input, opens Update modal, and toggles Help drawer", async () => {
+    mockSessionFetch(["ADMIN"]);
+    renderHeader();
+
+    const searchInput = screen.getByPlaceholderText("searchPlaceholder");
+    expect(searchInput).toBeInTheDocument();
+
+    // Open Update modal
+    fireEvent.click(screen.getByRole("button", { name: "update" }));
+    expect(screen.getByText("upgradeModal.title")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "upgradeModal.upgradeNow" }),
+    );
+    expect(
+      screen.getByText("upgradeModal.demoNotice:upgradeModal.plans.pro.name"),
+    ).toBeInTheDocument();
+
+    // Toggle Help right sidebar
+    fireEvent.click(screen.getByRole("button", { name: "help" }));
+    expect(
+      screen.getByRole("complementary", { name: "helpDrawer.title" }),
+    ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "helpDrawer.keyboardShortcuts" }),
+    );
+    expect(screen.getByText("helpDrawer.shortcutSearch")).toBeInTheDocument();
+  });
+
+  it("shows role-adapted Settings items and closes Settings when opening UserDropdown", async () => {
+    mockSessionFetch(["ADMIN"]);
+    renderHeader();
+
+    await waitFor(() =>
+      expect(screen.getByText("Phuc Nguyen")).toBeInTheDocument(),
+    );
+
+    // Open Settings dropdown as Manager (ADMIN)
+    fireEvent.click(screen.getByRole("button", { name: "settings" }));
+    expect(
+      screen.getByText("settingsMenu.systemTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("settingsMenu.userManagementTitle"),
+    ).toBeInTheDocument();
+
+    // Clicking UserDropdown avatar button closes Settings dropdown (mutual exclusion)
+    const avatarBtn = screen.getByRole("button", { name: /Phuc Nguyen/ });
+    fireEvent.mouseDown(avatarBtn);
+    fireEvent.click(avatarBtn);
+
+    expect(
+      screen.queryByText("settingsMenu.systemTitle"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("profile")).toBeInTheDocument();
+    expect(screen.getByText("theme")).toBeInTheDocument();
+    expect(screen.getByText("language")).toBeInTheDocument();
+    expect(screen.getByText("switchAccount")).toBeInTheDocument();
+
+    // Open Theme submenu inside UserDropdown
+    fireEvent.click(screen.getByRole("button", { name: "theme" }));
+    expect(screen.getByText("themeLight")).toBeInTheDocument();
+    expect(screen.getByText("themeDark")).toBeInTheDocument();
+    expect(screen.getByText("themeSystem")).toBeInTheDocument();
+  });
+
+  it("hides admin settings items for Member role", async () => {
+    mockSessionFetch(["MEMBER"]);
+    renderHeader();
+
+    await waitFor(() =>
+      expect(screen.getByText("Phuc Nguyen")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "settings" }));
+    expect(
+      screen.getByText("settingsMenu.generalTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("settingsMenu.spacesTitle"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("settingsMenu.systemTitle"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("settingsMenu.userManagementTitle"),
+    ).not.toBeInTheDocument();
+  });
+});

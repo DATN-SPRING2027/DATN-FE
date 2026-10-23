@@ -15,7 +15,8 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { isExpanded, isMobileOpen, sidebarWidth, isResizing } = useSidebar();
+  const { isExpanded, isMobileOpen, sidebarWidth, isResizing, isHelpOpen } =
+    useSidebar();
   const router = useRouter();
   const isChat = usePathname() === "/chat";
   const shell = useRef<HTMLDivElement>(null);
@@ -89,6 +90,7 @@ export default function AdminLayout({
   const mainContentMargin = isMobileOpen
     ? "ms-0"
     : "lg:ms-[var(--sidebar-offset)]";
+  const helpContentMargin = isHelpOpen ? "lg:me-80" : "me-0";
 
   return (
     <div
@@ -120,7 +122,7 @@ export default function AdminLayout({
               "--sidebar-offset": `${desktopSidebarOffsetPx}px`,
             } as React.CSSProperties
           }
-          className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 ${isResizing ? "transition-none" : "transition-all duration-200 ease-in-out"} ${mainContentMargin}`}
+          className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 ${isResizing ? "transition-none" : "transition-all duration-200 ease-in-out"} ${mainContentMargin} ${helpContentMargin}`}
         >
           {/* Page Content */}
           <div
