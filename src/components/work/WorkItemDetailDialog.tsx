@@ -3,6 +3,7 @@
 import {
   Fragment,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type FormEvent,
@@ -34,6 +35,20 @@ type SubtaskSortBy =
   | "due"
   | "key";
 
+type ExistingTaskCandidate = Readonly<{
+  id: string;
+  key: string;
+  summary: string;
+  createdAt?: string;
+  parentId: string | null;
+  hasChildren: boolean;
+}>;
+
+function createdAtTimestamp(value?: string): number {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 const UNASSIGNED_PERSON: WorkPerson = {
   id: "unassigned",
   name: "Unassigned",
@@ -56,6 +71,7 @@ export default function WorkItemDetailDialog({
   onAssigneeChange,
   onToggleSubtask,
   onAddSubtask,
+  onAddExistingTaskAsSubtask,
   onUpdateSubtask,
   onDeleteSubtask,
   onCloneSubtask,
@@ -91,6 +107,7 @@ export default function WorkItemDetailDialog({
       estimate?: string;
     },
   ) => void;
+  onAddExistingTaskAsSubtask?: (parentId: string, taskId: string) => void;
   onUpdateSubtask?: (
     itemId: string,
     subtaskId: string,
@@ -140,6 +157,9 @@ export default function WorkItemDetailDialog({
     defaultAssignee.id,
   );
   const [addingSubtask, setAddingSubtask] = useState(false);
+  const [selectingExistingSubtask, setSelectingExistingSubtask] =
+    useState(false);
+  const [existingSubtaskTaskId, setExistingSubtaskTaskId] = useState("");
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingSubtaskSummary, setEditingSubtaskSummary] = useState("");
   // Jira Cloud collapsible sections (Image 4)
@@ -349,6 +369,31 @@ export default function WorkItemDetailDialog({
     showSubtaskFeedback("Created new subtask");
   }
 
+  function openExistingSubtaskPicker() {
+    if (!onAddExistingTaskAsSubtask) {
+      setAddingSubtask(true);
+      return;
+    }
+    setAddingSubtask(false);
+    setExistingSubtaskTaskId("");
+    setSelectingExistingSubtask(true);
+  }
+
+  function handleAddExistingTaskAsSubtask() {
+    if (!item || !onAddExistingTaskAsSubtask) return;
+    const selectedTask = existingTaskCandidates.find(
+      (candidate) => candidate.id === existingSubtaskTaskId,
+    );
+    if (!selectedTask || selectedTask.hasChildren) return;
+
+    onAddExistingTaskAsSubtask(item.id, selectedTask.id);
+    setExistingSubtaskTaskId("");
+    setSelectingExistingSubtask(false);
+    showSubtaskFeedback(
+      t("existingTaskAdded", { key: selectedTask.key, parent: item.key }),
+    );
+  }
+
   function handleAddSubtaskWorklog(
     event: FormEvent<HTMLFormElement>,
     sub: WorkSubtaskItem,
@@ -412,6 +457,52 @@ export default function WorkItemDetailDialog({
   }
 
   const subtaskList = item?.subtaskItems ?? [];
+  const parentCandidatesNewestFirst = useMemo(
+    () =>
+      [...allItems].sort(
+        (a, b) =>
+          createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt),
+      ),
+    [allItems],
+  );
+  const currentItemId = item?.id ?? null;
+  const existingTaskCandidates = useMemo<ExistingTaskCandidate[]>(() => {
+    if (!currentItemId) return [];
+
+    const candidates = allItems.flatMap((parent) => [
+      {
+        id: parent.id,
+        key: parent.key,
+        summary: parent.title,
+        createdAt: parent.createdAt,
+        parentId: null,
+        hasChildren: parent.subtasks.total > 0,
+      },
+      ...(parent.subtaskItems ?? []).map((subtask) => ({
+        id: subtask.id,
+        key: subtask.key,
+        summary: subtask.summary,
+        createdAt: subtask.createdAt,
+        parentId: parent.id,
+        hasChildren: false,
+      })),
+    ]);
+
+    return candidates
+      .filter(
+        (candidate) =>
+          candidate.id !== currentItemId &&
+          candidate.parentId !== currentItemId,
+      )
+      .sort((a, b) => {
+        return (
+          createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt)
+        );
+      });
+  }, [allItems, currentItemId]);
+  const selectedExistingTask = existingTaskCandidates.find(
+    (candidate) => candidate.id === existingSubtaskTaskId,
+  );
   const displayedSubtasks = (() => {
     const filtered = hideDoneSubtasks
       ? subtaskList.filter((s) => !s.done)
@@ -1561,7 +1652,7 @@ export default function WorkItemDetailDialog({
                               }}
                               className="sr-only"
                             >
-                              {allItems.map((candidate) => (
+                              {parentCandidatesNewestFirst.map((candidate) => (
                                 <option key={candidate.id} value={candidate.id}>
                                   Parent: {candidate.key} ({candidate.title})
                                 </option>
@@ -1702,7 +1793,7 @@ export default function WorkItemDetailDialog({
                         role="menuitem"
                         onClick={() => {
                           setQuickAddMenuOpen(false);
-                          setAddingSubtask(true);
+                          openExistingSubtaskPicker();
                         }}
                         className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
                       >
@@ -1740,7 +1831,7 @@ export default function WorkItemDetailDialog({
                 {onAddSubtask && (
                   <button
                     type="button"
-                    onClick={() => setAddingSubtask(true)}
+                    onClick={openExistingSubtaskPicker}
                     className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                   >
                     <MonoIssueTypeIcon type="SUBTASK" size={12} />
@@ -1993,7 +2084,7 @@ export default function WorkItemDetailDialog({
                         type="button"
                         onClick={() => {
                           setSubtasksSectionCollapsed(false);
-                          setAddingSubtask(true);
+                          openExistingSubtaskPicker();
                         }}
                         title="Add subtask"
                         aria-label="Add subtask"
@@ -2821,7 +2912,79 @@ export default function WorkItemDetailDialog({
                 )}
 
                 {onAddSubtask &&
-                  (addingSubtask ? (
+                  (selectingExistingSubtask ? (
+                    <div className="space-y-2 border border-gray-300 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900">
+                      <label
+                        htmlFor="existing-subtask-task"
+                        className="block text-xs font-semibold text-gray-700 dark:text-gray-300"
+                      >
+                        {t("selectExistingTask")}
+                      </label>
+                      <select
+                        id="existing-subtask-task"
+                        aria-label={t("selectExistingTask")}
+                        value={existingSubtaskTaskId}
+                        onChange={(event) =>
+                          setExistingSubtaskTaskId(event.target.value)
+                        }
+                        className="h-8 w-full border border-gray-300 bg-white px-2.5 text-xs text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      >
+                        <option value="">
+                          {existingTaskCandidates.length > 0
+                            ? t("chooseProjectTask")
+                            : t("noOtherProjectTasks")}
+                        </option>
+                        {existingTaskCandidates.map((candidate) => (
+                          <option
+                            key={candidate.id}
+                            value={candidate.id}
+                            disabled={candidate.hasChildren}
+                          >
+                            {candidate.key} — {candidate.summary}
+                            {candidate.hasChildren
+                              ? ` (${t("taskHasSubtasks")})`
+                              : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        {t("newestTasksFirst")}
+                      </p>
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectingExistingSubtask(false);
+                            setAddingSubtask(true);
+                          }}
+                          className="me-auto h-7 cursor-pointer px-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                        >
+                          {t("createNewSubtask")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleAddExistingTaskAsSubtask}
+                          disabled={
+                            !selectedExistingTask ||
+                            selectedExistingTask.hasChildren
+                          }
+                          className="h-7 cursor-pointer bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {t("addAsSubtask")}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectingExistingSubtask(false);
+                            setExistingSubtaskTaskId("");
+                          }}
+                          className="h-7 cursor-pointer border border-gray-200 bg-white px-2.5 text-xs text-gray-600 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300"
+                        >
+                          {t("cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : addingSubtask ? (
                     <form
                       onSubmit={handleAddSubtask}
                       className="space-y-2 border border-gray-300 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-900"
@@ -2921,7 +3084,7 @@ export default function WorkItemDetailDialog({
                   ) : (
                     <button
                       type="button"
-                      onClick={() => setAddingSubtask(true)}
+                      onClick={openExistingSubtaskPicker}
                       className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                     >
                       <span>+</span>

@@ -39,6 +39,11 @@ const UNASSIGNED_PERSON: WorkPerson = {
   initials: "UN",
 };
 
+function createdAtTimestamp(value?: string): number {
+  const timestamp = Date.parse(value ?? "");
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
 export default function WorkListView({
   groups,
   allItems: allWorkspaceItems,
@@ -216,7 +221,10 @@ export default function WorkListView({
 
   const visibleColumns = columns.filter((col) => col.visible);
   const allItems = groups.flatMap((group) => group.items);
-  const parentCandidates = allWorkspaceItems ?? allItems;
+  const parentCandidates = [...(allWorkspaceItems ?? allItems)].sort(
+    (a, b) =>
+      createdAtTimestamp(b.createdAt) - createdAtTimestamp(a.createdAt),
+  );
   const expandableIds = allItems
     .filter((item) => (item.subtaskItems?.length ?? 0) > 0)
     .map((item) => item.id);

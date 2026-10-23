@@ -439,7 +439,7 @@ export default function WorkWorkspace({
         priority: t.priority,
         status: uiStatus,
         resolution: uiStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
-        createdAt: t.createdAt.slice(0, 10),
+        createdAt: t.createdAt,
         updatedAt: t.updatedAt.slice(0, 10),
         dueDate: t.dueDate ? t.dueDate.slice(0, 10) : null,
         startDate: t.startDate ? t.startDate.slice(0, 10) : null,
@@ -1544,6 +1544,105 @@ export default function WorkWorkspace({
     }
   }
 
+  function addExistingTaskAsSubtask(parentId: string, taskId: string) {
+    const sourceParent = items.find((parent) =>
+      parent.subtaskItems?.some((subtask) => subtask.id === taskId),
+    );
+    if (sourceParent) {
+      moveSubtaskToParent(sourceParent.id, taskId, parentId);
+      return;
+    }
+
+    const task = items.find((candidate) => candidate.id === taskId);
+    const parent = items.find((candidate) => candidate.id === parentId);
+    if (
+      !task ||
+      !parent ||
+      task.id === parent.id ||
+      task.subtasks.total > 0
+    ) {
+      return;
+    }
+
+    const previousItems = items;
+    const existingSubtask: WorkSubtaskItem = {
+      id: task.id,
+      key: task.key,
+      summary: task.title,
+      done: task.status === "DONE",
+      status: task.status,
+      priority: task.priority,
+      assignee: task.assignee,
+      reporter: task.reporter,
+      dueDate: task.dueDate,
+      startDate: task.startDate,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      description: task.description,
+      flagged: task.flagged,
+      labels: task.labels,
+      comments: task.comments,
+    };
+
+    setItems((current) => {
+      const target = current.find((candidate) => candidate.id === parentId);
+      if (
+        !current.some((candidate) => candidate.id === taskId) ||
+        !target
+      ) {
+        return current;
+      }
+
+      return current
+        .filter((candidate) => candidate.id !== taskId)
+        .map((candidate) => {
+          if (candidate.id !== parentId) return candidate;
+          const nextSubtasks = [
+            ...(candidate.subtaskItems ?? []),
+            existingSubtask,
+          ];
+          return {
+            ...candidate,
+            subtaskItems: nextSubtasks,
+            subtasks: {
+              completed:
+                candidate.subtasks.completed +
+                (existingSubtask.done ? 1 : 0),
+              total: Math.max(
+                candidate.subtasks.total,
+                candidate.subtaskItems?.length ?? 0,
+              ) + 1,
+            },
+          };
+        });
+    });
+    setAnnouncement(
+      t("existingTaskAdded", { key: task.key, parent: parent.key }),
+    );
+
+    if (isRealProject) {
+      enqueueTaskMutation(
+        taskId,
+        async (realTaskId, version) => {
+          const realParentId = await resolveBackendTaskId(parentId);
+          if (!realParentId) {
+            throw new Error("Target parent task not persisted");
+          }
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realTaskId,
+            version,
+            { parentId: realParentId },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems(previousItems);
+        },
+      );
+    }
+  }
+
   function bulkUpdateSubtasks(
     itemId: string,
     subtaskIds: readonly string[],
@@ -1913,6 +2012,7 @@ export default function WorkWorkspace({
           onAssigneeChange={updateItemAssignee}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
+          onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
           onUpdateSubtask={updateSubtask}
           onDeleteSubtask={deleteSubtask}
           onCloneSubtask={cloneSubtask}
@@ -2207,6 +2307,7 @@ export default function WorkWorkspace({
           onAssigneeChange={updateItemAssignee}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
+          onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
           onUpdateSubtask={updateSubtask}
           onDeleteSubtask={deleteSubtask}
           onCloneSubtask={cloneSubtask}
