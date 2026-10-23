@@ -70,15 +70,15 @@ describe("Platform overview", () => {
       "dashboard.permissionNeeded",
     );
   });
-  it("removes the summary cards and update toolbar", () => {
+  it("shows the live totals for organizations, users, projects and memberships", () => {
     render(<PlatformDashboard permissions={permissions} />);
-    expect(
-      screen.queryByRole("region", { name: "dashboard.summary" }),
-    ).not.toBeInTheDocument();
-    expect(
-      document.querySelector('time[datetime="2026-10-21T00:00:00.000Z"]'),
-    ).toBeNull();
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    const summary = screen.getByRole("region", { name: "dashboard.summary" });
+    expect(within(summary).getByText("dashboard.organizations")).toBeInTheDocument();
+    expect(within(summary).getByText("dashboard.users")).toBeInTheDocument();
+    expect(within(summary).getByText("dashboard.projects")).toBeInTheDocument();
+    expect(within(summary).getByText("dashboard.memberships")).toBeInTheDocument();
+    for (const total of ["23", "45", "11", "72"])
+      expect(within(summary).getByText(total)).toBeInTheDocument();
   });
   it("renders unknown service health and unavailable audit as unavailable", () => {
     render(<PlatformDashboard permissions={permissions} />);
@@ -109,7 +109,10 @@ describe("Platform overview", () => {
     const { rerender } = render(
       <PlatformDashboard permissions={permissions} />,
     );
-    const snapshot = () => screen.getAllByRole("definition")[0].closest("dl")!;
+    const snapshot = () =>
+      document.querySelector<HTMLElement>(
+        'dl[aria-label="liveDashboard.snapshot"]',
+      )!;
     expect(within(snapshot()).getByText("72")).toBeInTheDocument();
     expect(
       screen.getAllByText("liveDashboard.simulated").length,

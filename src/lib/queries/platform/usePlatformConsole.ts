@@ -91,6 +91,17 @@ export type PlatformMembership = Readonly<{
   }> | null;
   organizationRoles: readonly ("ADMIN" | "MEMBER")[];
 }>;
+export type PlatformDirectoryMembership = PlatformMembership &
+  Readonly<{
+    organization: Readonly<{ id: string; name: string; slug: string }> | null;
+  }>;
+export type PlatformMembershipFilters = Readonly<{
+  page: number;
+  search: string;
+  status: PlatformMembership["status"] | "";
+  organizationId: string;
+}>;
+
 export type PlatformMembershipSuspensionAcknowledgement = Readonly<{
   operationId: string;
   membership: Readonly<{
@@ -341,6 +352,7 @@ export const platformKeys = {
     [...platformKeys.all, "organization", id, "memberships"] as const,
   membershipsPage: (id: string, page: number) =>
     [...platformKeys.memberships(id), page] as const,
+  membershipDirectory: () => [...platformKeys.all, "memberships"] as const,
   health: () => [...platformKeys.all, "health"] as const,
   audit: () => [...platformKeys.all, "audit"] as const,
 };
@@ -456,6 +468,62 @@ export function usePlatformMembershipsQuery(
   });
 }
 
+export function usePlatformMembershipDirectoryQuery(
+  filters: PlatformMembershipFilters,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: [...platformKeys.membershipDirectory(), 10, filters],
+    queryFn: async ({ signal }) => {
+      const query = new URLSearchParams({
+        page: String(filters.page),
+        pageSize: "10",
+      });
+      if (filters.search) query.set("search", filters.search);
+      if (filters.status) query.set("status", filters.status);
+      if (filters.organizationId)
+        query.set("organizationId", filters.organizationId);
+      return parsePage<PlatformDirectoryMembership>(
+        await platformApiClient<unknown>(`/iam/platform/memberships?${query}`, {
+          cache: "no-store",
+          signal,
+        }),
+        (value) => {
+          if (
+            !record(value) ||
+            typeof value.organizationId !== "string" ||
+            !resourceIdPattern.test(value.organizationId) ||
+            (filters.organizationId &&
+              value.organizationId !== filters.organizationId)
+          )
+            throw invalidResponse();
+          const membership = parseMembership(value, value.organizationId);
+          let organization: PlatformDirectoryMembership["organization"] = null;
+          if (value.organization !== undefined && value.organization !== null) {
+            const row = value.organization;
+            if (
+              !record(row) ||
+              row.id !== membership.organizationId ||
+              typeof row.name !== "string" ||
+              typeof row.slug !== "string"
+            )
+              throw invalidResponse();
+            organization = {
+              id: membership.organizationId,
+              name: row.name,
+              slug: row.slug,
+            };
+          }
+          return { ...membership, organization };
+        },
+      );
+    },
+    enabled,
+    retry: false,
+    staleTime: 10_000,
+  });
+}
+
 export function useSuspendPlatformMembershipMutation(organizationId: string) {
   const client = useQueryClient();
   return useMutation({
@@ -499,9 +567,14 @@ export function useSuspendPlatformMembershipMutation(organizationId: string) {
       );
     },
     onSuccess: () =>
-      client.invalidateQueries({
-        queryKey: platformKeys.memberships(organizationId),
-      }),
+      Promise.all([
+        client.invalidateQueries({
+          queryKey: platformKeys.memberships(organizationId),
+        }),
+        client.invalidateQueries({
+          queryKey: platformKeys.membershipDirectory(),
+        }),
+      ]),
   });
 }
 

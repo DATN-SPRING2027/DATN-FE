@@ -4,9 +4,11 @@ import { useTranslations } from "next-intl";
 import PlatformHeader from "./PlatformHeader";
 import jira from "./jira.module.css";
 import PlatformSidebar from "./PlatformSidebar";
+import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 
 export default function PlatformShell({
   activeSection,
+  permissions,
   operatorName,
   operatorEmail,
   isSigningOut,
@@ -14,6 +16,7 @@ export default function PlatformShell({
   children,
 }: {
   activeSection: string;
+  permissions: readonly PlatformPermission[];
   operatorName?: string;
   operatorEmail?: string;
   isSigningOut?: boolean;
@@ -39,7 +42,10 @@ export default function PlatformShell({
         onSignOut={onSignOut}
       />
       <div className={jira.body}>
-        <PlatformSidebar activeSection={activeSection} />
+        <PlatformSidebar
+          activeSection={activeSection}
+          permissions={permissions}
+        />
         <main id="operator-content" className={jira.main} tabIndex={-1}>
           {children}
         </main>

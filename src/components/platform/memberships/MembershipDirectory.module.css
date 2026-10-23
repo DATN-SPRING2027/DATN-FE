@@ -1,0 +1,77 @@
+.directory {
+  min-width: 0;
+}
+.toolbar select {
+  max-width: 260px;
+}
+.tableFrame {
+  min-width: 0;
+}
+.scroll {
+  overflow-x: auto;
+}
+.identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.name {
+  display: block;
+  max-width: 208px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
+}
+.email {
+  display: block;
+  max-width: 256px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.organization {
+  display: block;
+  max-width: 210px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.secondary {
+  color: var(--op-muted);
+}
+.roles {
+  display: flex;
+  gap: 6px;
+}
+.suspend {
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.suspend:hover {
+  color: var(--color-error-700);
+  background: var(--color-error-50);
+}
+.message {
+  padding: 32px 20px;
+  text-align: center;
+  color: var(--op-muted);
+  font-size: 13px;
+}
+.message button {
+  color: var(--op-accent);
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 8px;
+  min-height: 40px;
+}
+@media (max-width: 700px) {
+  .toolbar :is(input, select, button) {
+    min-height: 44px;
+  }
+  .toolbar select {
+    max-width: 100%;
+  }
+  .suspend {
+    min-height: 44px;
+  }
+}
