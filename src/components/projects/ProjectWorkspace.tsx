@@ -397,27 +397,19 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             <label htmlFor="project-search" className="sr-only">
               {t("searchProjects")}
             </label>
-            <span
+            <SearchIcon
+              viewBox="0 0 24 24"
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-gray-400"
-            >
-              <SearchIcon viewBox="0 0 24 24" className="h-4 w-4" />
-            </span>
+              className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            />
             <input
               id="project-search"
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("searchPlaceholder")}
-              aria-describedby="project-search-page-hint"
-              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 text-sm text-gray-800 placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-800/70 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3.5 text-sm text-gray-800 shadow-theme-xs transition-all placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/70 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
             />
-            <p
-              id="project-search-page-hint"
-              className="mt-1.5 text-xs text-gray-500 dark:text-gray-400"
-            >
-              {t("searchLoadedPageHint")}
-            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
