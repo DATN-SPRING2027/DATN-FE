@@ -146,6 +146,41 @@ afterEach(() => {
 });
 
 describe("Organization membership management page", () => {
+  it("requires a replacement Leader for each project before suspending a Leader", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    const replacementUserId = "5123456789abcdef01234567";
+    const secondProjectId = "7123456789abcdef01234567";
+    const replacement = { ...membership("ACTIVE", "6123456789abcdef01234567"), userId: replacementUserId, user: { id: replacementUserId, fullName: "Robin Replacement", email: "robin@example.com", accountStatus: "ACTIVE" } };
+    const projects = { data: [
+      { id: projectId, name: "Project Alpha", code: "ALPHA", leaders: [{ userId, fullName: "Alex Member", email: "alex@example.com" }] },
+      { id: secondProjectId, name: "Project Beta", code: "BETA", leaders: [{ userId, fullName: "Alex Member", email: "alex@example.com" }] },
+    ], pagination: { page: 1, pageSize: 100, totalItems: 2, totalPages: 1 } };
+    api.mockImplementation(async (endpoint, options) => {
+      if (endpoint === "/auth/me") return user;
+      if (endpoint.includes("/memberships?")) return membershipPage([membership("ACTIVE"), replacement]);
+      if (endpoint.includes("/invitations?")) return invitationPage();
+      if (endpoint.startsWith("/iam/projects?")) return projects;
+      if (endpoint.endsWith("/suspend") && options?.method === "POST") return mutationAck("SUSPENDED");
+      throw new Error(`Unexpected request ${endpoint}`);
+    });
+    mount();
+    await screen.findByText("Leader");
+    fireEvent.click(screen.getAllByRole("button", { name: "Suspend" })[0]);
+    const dialog = await screen.findByRole("dialog", { name: "Suspend Organization membership?" });
+    expect(within(dialog).getByText("Hand over Project leadership")).toBeVisible();
+    const submit = within(dialog).getByRole("button", { name: "Suspend member" });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "ACCESS_REVIEW" } });
+    fireEvent.change(await within(dialog).findByLabelText("Project Alpha (ALPHA)"), { target: { value: replacementUserId } });
+    expect(submit).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Project Beta (BETA)"), { target: { value: replacementUserId } });
+    expect(submit).toBeEnabled();
+    fireEvent.click(submit);
+    await waitFor(() => expect(api.mock.calls.some(([endpoint]) => endpoint.endsWith("/suspend"))).toBe(true));
+    const call = api.mock.calls.find(([endpoint]) => endpoint.endsWith("/suspend"));
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ expectedMembershipVersion: 3, reasonCode: "ACCESS_REVIEW", handovers: [{ projectId, replacementUserId }, { projectId: secondProjectId, replacementUserId }] });
+  });
+
   it("shows an active project leader as Leader in the organization directory", async () => {
     respond({
       projects: {
@@ -273,7 +308,7 @@ describe("Organization membership management page", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Remove" }));
     const removeDialog = await screen.findByRole("dialog", { name: "Remove member from Organization" });
-    expect(within(removeDialog).getByText(/Removing a member deactivates their non-leader project memberships/)).toBeVisible();
+    expect(within(removeDialog).getByText(/Removing a member revokes their Organization and Project access/)).toBeVisible();
     fireEvent.click(within(removeDialog).getByRole("button", { name: "Confirm removal" }));
     expect(await within(removeDialog).findByText(/This member is currently an active Project Leader/)).toBeVisible();
     expect(within(removeDialog).getByRole("link", { name: /Continuum Core Engine \(CORE-AI\)/ })).toHaveAttribute(

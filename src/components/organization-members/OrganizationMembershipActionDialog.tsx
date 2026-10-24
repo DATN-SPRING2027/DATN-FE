@@ -18,7 +18,9 @@ import type {
   OrganizationMembership,
   MembershipActionReason,
   SuspensionReason,
+  ProjectLeaderHandover,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
+import type { Project } from "@/lib/queries/projects/useProjects";
 import { ApiError } from "@/lib/api-client";
 
 export type MembershipActionTarget =
@@ -48,6 +50,8 @@ function getErrorMessageKey(error: unknown): string {
     error.code === "MEMBER_HAS_ACTIVE_PROJECT_LEADERSHIP"
   )
     return "activeProjectLeaderBlocker";
+  if (error.status === 409 && error.code === "PROJECT_LEADER_HANDOVER_INVALID")
+    return "handoverInvalid";
   if (error.status === 409) return "conflict";
   if (error.status === 422) return "validation";
   if (error.status === 429) return "rateLimit";
@@ -106,6 +110,10 @@ function formatShortDate(isoDate: string): string {
 
 export default function OrganizationMembershipActionDialog({
   target,
+  leaderProjects,
+  candidates,
+  handoverLoading,
+  handoverError,
   error,
   isPending,
   isSuccess = false,
@@ -119,13 +127,17 @@ export default function OrganizationMembershipActionDialog({
   refreshFailed,
 }: {
   target: MembershipActionTarget | null;
+  leaderProjects: readonly Project[];
+  candidates: readonly OrganizationMembership[];
+  handoverLoading: boolean;
+  handoverError: boolean;
   error?: unknown;
   isPending: boolean;
   isSuccess?: boolean;
   onClose: () => void;
   onDismissError?: () => void;
   onResendAgain?: () => void;
-  onConfirm: (reason: MembershipActionReasonCode) => void;
+  onConfirm: (reason: MembershipActionReasonCode, handovers?: readonly ProjectLeaderHandover[]) => void;
   onRetry: () => void;
   onRefresh: () => void;
   isRecovering: boolean;
@@ -137,6 +149,7 @@ export default function OrganizationMembershipActionDialog({
       ? "ACCESS_REVIEW"
       : "",
   );
+  const [replacements, setReplacements] = useState<Record<string, string>>({});
   const [resendReasonMode, setResendReasonMode] =
     useState<ResendReasonMode>("NONE");
   const [presetReason, setPresetReason] = useState<string>("");
@@ -776,6 +789,7 @@ export default function OrganizationMembershipActionDialog({
       activeTarget.action === "cancel"
         ? "INVITATION_CANCELLED"
         : (reason as MembershipActionReasonCode),
+      leaderProjects.length ? leaderProjects.map((project) => ({ projectId: project.id, replacementUserId: replacements[project.id]! })) : undefined,
     );
   }
 
@@ -786,7 +800,7 @@ export default function OrganizationMembershipActionDialog({
         if (!busy && !hasUnresolvedError) setConfirmCloseOpen(true);
       }}
       showCloseButton={false}
-      className="mx-4 max-w-lg"
+      className="mx-4 max-h-[90dvh] max-w-lg overflow-y-auto"
     >
       <div
         ref={dialogRef}
@@ -839,6 +853,31 @@ export default function OrganizationMembershipActionDialog({
         {activeTarget.action === "remove" && (
           <div className="mb-5 rounded-xl border border-warning-200 bg-warning-50/80 px-4 py-3 text-xs leading-5 text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
             {t("removeDependencyNotice")}
+          </div>
+        )}
+        {(activeTarget.action === "suspend" || activeTarget.action === "remove") && leaderProjects.length > 0 && (
+          <div className="mb-5 space-y-3 rounded-xl border border-brand-200 bg-brand-25 p-4 dark:border-brand-500/30 dark:bg-brand-500/10">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white/90">{t("handoverTitle")}</p>
+            <p className="text-xs text-gray-600 dark:text-gray-300">{t("handoverHint")}</p>
+            {handoverLoading && <p role="status" className="text-sm text-gray-600 dark:text-gray-300">{t("handoverLoading")}</p>}
+            {handoverError && <p role="alert" className="text-sm text-error-600 dark:text-error-400">{t("handoverLoadError")}</p>}
+            {!handoverLoading && !handoverError && leaderProjects.map((project) => (
+              <div key={project.id}>
+                <Label htmlFor={`handover-${project.id}`}>{project.name} ({project.code})</Label>
+                <select
+                  id={`handover-${project.id}`}
+                  required
+                  value={replacements[project.id] ?? ""}
+                  disabled={busy || hasUnresolvedError}
+                  onChange={(event) => setReplacements((current) => ({ ...current, [project.id]: event.target.value }))}
+                  className="h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                >
+                  <option value="">{t("handoverSelect")}</option>
+                  {candidates.map((member) => <option key={member.userId} value={member.userId}>{member.user?.fullName || member.user?.email || member.userId}</option>)}
+                </select>
+              </div>
+            ))}
+            {!handoverLoading && !handoverError && candidates.length === 0 && <p role="alert" className="text-sm text-warning-700 dark:text-warning-300">{t("handoverNoCandidates")}</p>}
           </div>
         )}
         {reasonOptions.length > 0 && (
@@ -960,6 +999,8 @@ export default function OrganizationMembershipActionDialog({
             disabled={
               busy ||
               hasUnresolvedError ||
+              handoverLoading || handoverError ||
+              leaderProjects.some((project) => !replacements[project.id]) ||
               (reasonOptions.length > 0 && !reason)
             }
           >

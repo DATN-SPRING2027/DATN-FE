@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
@@ -14,13 +14,14 @@ import Label from "@/components/form/Label";
 import { MailIcon, SearchIcon, UserIcon } from "@/icons";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { organizationMembershipReadiness } from "@/lib/queries/organization-memberships/organization-membership-readiness";
-import { createIdempotencyKey, type MembershipListFilter } from "@/lib/queries/organization-memberships/organization-memberships.service";
+import { createIdempotencyKey, listOrganizationMemberships, type MembershipListFilter } from "@/lib/queries/organization-memberships/organization-memberships.service";
 import type {
   AdminInvitation,
   CancelInvitationInput,
   InviteMemberInput,
   OrganizationMembership,
   OrganizationRoleCode,
+  ProjectLeaderHandover,
   RemoveMembershipInput,
   ResendInvitationInput,
   ResumeMembershipInput,
@@ -177,6 +178,23 @@ function ScopedOrganizationMemberships({
   };
   const memberships = useOrganizationMembershipsQuery(actorId, organizationId, filter);
   const activeProjects = useActiveOrganizationProjects(organizationId, activeTab === "members");
+  const leaderProjects = target && "membership" in target && (target.action === "suspend" || target.action === "remove")
+    ? activeProjects.projects.filter((project) => project.leaders?.some((leader) => leader.userId === target.membership.userId))
+    : [];
+  const handoverCandidates = useQuery({
+    queryKey: ["organization-handover-candidates", actorId, organizationId],
+    enabled: Boolean(target && leaderProjects.length > 0),
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const first = await listOrganizationMemberships(organizationId, { page: 1, pageSize: 100, status: "ACTIVE" }, signal);
+      const members = [...first.data];
+      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+        const next = await listOrganizationMemberships(organizationId, { page, pageSize: 100, status: "ACTIVE" }, signal);
+        members.push(...next.data);
+      }
+      return members;
+    },
+  });
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
   const invite = useInviteOrganizationMember(actorId, organizationId);
   const resend = useResendOrganizationInvitation(actorId, organizationId);
@@ -301,7 +319,7 @@ function ScopedOrganizationMemberships({
   const isMembershipTargetAction = (action: MembershipActionTarget["action"]) =>
     action === "suspend" || action === "resume" || action === "remove";
 
-  async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, idempotencyKey = createIdempotencyKey()) {
+  async function executeAction(actionTarget: MembershipActionTarget, reasonCode: MembershipActionReasonCode, handovers?: readonly ProjectLeaderHandover[], idempotencyKey = createIdempotencyKey()) {
     if (!canManage || (!isMembershipTargetAction(actionTarget.action) && !canManageInvitationCommands)) return;
     if (actionTarget.action === "suspend") {
       await suspend.mutateAsync({
@@ -309,6 +327,7 @@ function ScopedOrganizationMemberships({
           membershipId: actionTarget.membership.id,
           expectedMembershipVersion: actionTarget.membership.version,
           reasonCode: reasonCode as SuspendMembershipInput["reasonCode"],
+          ...(handovers?.length ? { handovers } : {}),
         },
         idempotencyKey,
       });
@@ -327,6 +346,7 @@ function ScopedOrganizationMemberships({
           membershipId: actionTarget.membership.id,
           expectedMembershipVersion: actionTarget.membership.version,
           reasonCode: reasonCode as RemoveMembershipInput["reasonCode"],
+          ...(handovers?.length ? { handovers } : {}),
         },
         idempotencyKey,
       });
@@ -370,24 +390,24 @@ function ScopedOrganizationMemberships({
     setNotice(true);
   }
 
-  function confirmAction(reasonCode: MembershipActionReasonCode) {
+  function confirmAction(reasonCode: MembershipActionReasonCode, handovers?: readonly ProjectLeaderHandover[]) {
     if (!target || hasUnresolvedMutation) return;
     if (!isMembershipTargetAction(target.action) && !canManageInvitationCommands) return;
-    void executeAction(target, reasonCode).catch(() => undefined);
+    void executeAction(target, reasonCode, handovers).catch(() => undefined);
   }
 
   function retryAction() {
     if (!target) return;
     if (target.action === "suspend" && suspend.variables) {
-      void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.idempotencyKey).catch(() => undefined);
+      void executeAction(target, suspend.variables.input.reasonCode, suspend.variables.input.handovers, suspend.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "resume" && resume.variables) {
-      void executeAction(target, resume.variables.input.reasonCode, resume.variables.idempotencyKey).catch(() => undefined);
+      void executeAction(target, resume.variables.input.reasonCode, undefined, resume.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "remove" && remove.variables) {
-      void executeAction(target, remove.variables.input.reasonCode, remove.variables.idempotencyKey).catch(() => undefined);
+      void executeAction(target, remove.variables.input.reasonCode, remove.variables.input.handovers, remove.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "resend" && resend.variables) {
-      void executeAction(target, resend.variables.input.reasonCode, resend.variables.idempotencyKey).catch(() => undefined);
+      void executeAction(target, resend.variables.input.reasonCode, undefined, resend.variables.idempotencyKey).catch(() => undefined);
     } else if (target.action === "cancel" && cancel.variables) {
-      void executeAction(target, cancel.variables.input.reasonCode, cancel.variables.idempotencyKey).catch(() => undefined);
+      void executeAction(target, cancel.variables.input.reasonCode, undefined, cancel.variables.idempotencyKey).catch(() => undefined);
     }
   }
 
@@ -680,6 +700,10 @@ function ScopedOrganizationMemberships({
       <OrganizationMembershipActionDialog
         key={target ? `${target.action}:${"membership" in target ? target.membership.id : target.invitation.invitedEmail}` : "closed"}
         target={target}
+        leaderProjects={leaderProjects}
+        candidates={handoverCandidates.data?.filter((member) => member.userId !== (target && "membership" in target ? target.membership.userId : "")) ?? []}
+        handoverLoading={leaderProjects.length > 0 && handoverCandidates.isPending}
+        handoverError={leaderProjects.length > 0 && handoverCandidates.isError}
         error={modalError}
         isPending={actionMutation?.isPending ?? false}
         isSuccess={target?.action === "resend" && resendSuccess}

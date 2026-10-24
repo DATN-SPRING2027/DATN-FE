@@ -2355,6 +2355,13 @@
     "contentUnavailable": "Content is no longer available."
   },
   "organizationMembers": {
+    "handoverTitle": "Hand over Project leadership",
+    "handoverHint": "Choose a new Leader for every Project before this member loses Organization access.",
+    "handoverLoading": "Loading eligible members…",
+    "handoverLoadError": "Could not load eligible members. Close and try again.",
+    "handoverSelect": "Select a replacement Leader",
+    "handoverNoCandidates": "No other active Organization members are available.",
+    "handoverInvalid": "This handover could not be completed because a Project or replacement member changed. Refresh the list and choose again.",
     "title": "Organization members",
     "home": "Home",
     "breadcrumbLabel": "Breadcrumb",
@@ -2591,7 +2598,7 @@
     "removeTitle": "Remove member from Organization",
     "removeHint": "Permanently remove this member from active Organization access.",
     "confirmRemove": "Confirm removal",
-    "removeDependencyNotice": "Removing a member deactivates their non-leader project memberships while preserving historical authored records. Members who are the sole Leader of an active Project cannot be removed until a replacement Leader is appointed.",
+    "removeDependencyNotice": "Removing a member revokes their Organization and Project access while preserving historical authored records. If they lead active Projects, choose a replacement Leader for each Project below.",
     "activeProjectLeaderBlocker": "This member is currently an active Project Leader. Appoint or replace the Project Leader in their active project(s) before removing them from the Organization.",
     "confirmDismissInviteTitle": "Cancel this invitation?",
     "confirmDismissTitle": "Cancel this action?",

@@ -301,6 +301,15 @@ export function cancelOrganizationInvitation(
   return mutate(`/iam/organizations/${organization}/invitations/${invitation}/cancel`, organizationId, idempotencyKey, body);
 }
 
+function requireHandovers(handovers: readonly { projectId: string; replacementUserId: string }[]) {
+  if (handovers.length > 1000 || new Set(handovers.map((item) => item.projectId.toLowerCase())).size !== handovers.length)
+    throw new ApiError(422, "VALIDATION_FAILED", "Invalid Project Leader handovers");
+  return handovers.map((item) => ({
+    projectId: requireResourceId(item.projectId, "project identifier"),
+    replacementUserId: requireResourceId(item.replacementUserId, "replacement user identifier"),
+  }));
+}
+
 export function suspendOrganizationMembership(
   organizationId: string,
   membershipId: string,
@@ -312,6 +321,7 @@ export function suspendOrganizationMembership(
   const body = {
     expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
     reasonCode: input.reasonCode,
+    ...(input.handovers ? { handovers: requireHandovers(input.handovers) } : {}),
   };
   if (!["SECURITY_INCIDENT", "ACCESS_REVIEW"].includes(input.reasonCode)) {
     throw new ApiError(422, "VALIDATION_FAILED", "Invalid suspension reason");
@@ -348,6 +358,7 @@ export function removeOrganizationMembership(
   const body = {
     expectedMembershipVersion: requireVersion(input.expectedMembershipVersion),
     reasonCode: input.reasonCode,
+    ...(input.handovers ? { handovers: requireHandovers(input.handovers) } : {}),
   };
   if (
     !["ACCESS_REQUEST", "ACCESS_REVIEW", "SECURITY_INCIDENT"].includes(

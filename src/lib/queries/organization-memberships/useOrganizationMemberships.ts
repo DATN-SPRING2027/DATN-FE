@@ -120,9 +120,11 @@ function useMembershipMutation<TInput>(
     networkMode: "always",
     mutationFn,
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: organizationMembershipKeys.scope(actorId, organizationId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: organizationMembershipKeys.scope(actorId, organizationId) }),
+        queryClient.invalidateQueries({ queryKey: ["projects", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["organization-handover-candidates", actorId, organizationId] }),
+      ]);
     },
   });
 }
