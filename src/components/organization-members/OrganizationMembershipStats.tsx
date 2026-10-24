@@ -80,7 +80,7 @@ export default function OrganizationMembershipStats({
           </span>
           <div className="min-w-0">
             {value === undefined ? (
-              <span className="block h-7 w-10 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+              <span className="block h-7 w-10 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
             ) : (
               <p className="text-xl font-semibold leading-7 text-gray-900 dark:text-white/90">{value ?? "—"}</p>
             )}

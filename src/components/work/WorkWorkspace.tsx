@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
-import { ApiError } from"@/lib/api-client";
+import {
+  ApiError,
+  isAccessOrResourceUnavailableError,
+} from"@/lib/api-client";
 import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
 import { useProjectMembersQuery } from"@/lib/queries/projects/useProjectMembers";
 import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects";
 import ProjectState from"@/components/projects/ProjectState";
 import Button from"@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from"@/components/ui/loading/AsyncStatus";
 import { PlusIcon } from"@/icons";
 import WorkBoardView from"./WorkBoardView";
 import WorkCalendarView from"./WorkCalendarView";
@@ -72,6 +76,75 @@ const OUT_OF_SCOPE_WORK_VIEWS = new Set<WorkView>([
 
 function isOutOfScopeWorkView(view: WorkView): boolean {
   return OUT_OF_SCOPE_WORK_VIEWS.has(view);
+}
+
+function WorkItemsLoadingState({
+  view,
+  label,
+}: {
+  view: WorkView;
+  label: string;
+}) {
+  return (
+    <div role="status" aria-live="polite" aria-busy="true" aria-label={label}>
+      <span className="sr-only">{label}</span>
+      {view === "board" ? (
+        <div aria-hidden="true" className="grid gap-4 md:grid-cols-3">
+          {[0, 1, 2].map((column) => (
+            <div key={column} className="space-y-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
+              <div className="continuum-shimmer h-4 w-24 rounded-md" />
+              {[0, 1, 2].map((card) => (
+                <div key={card} className="space-y-3 rounded-lg border border-gray-100 p-3 dark:border-gray-800">
+                  <div className="continuum-shimmer h-4 w-3/4 rounded-md" />
+                  <div className="continuum-shimmer h-3 w-full rounded-md" />
+                  <div className="continuum-shimmer h-3 w-2/3 rounded-md" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : view === "calendar" ? (
+        <div aria-hidden="true" className="grid grid-cols-7 gap-2">
+          {Array.from({ length: 35 }, (_, item) => (
+            <div key={item} className="min-h-20 rounded-lg border border-gray-200 bg-white p-2 dark:border-gray-800 dark:bg-gray-900">
+              <div className="continuum-shimmer h-3 w-6 rounded-md" />
+              {item % 3 === 0 && <div className="continuum-shimmer mt-3 h-5 w-full rounded-md" />}
+            </div>
+          ))}
+        </div>
+      ) : view === "overview" ? (
+        <div aria-hidden="true" className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {[0, 1, 2, 3].map((item) => (
+              <div key={item} className="space-y-3 rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+                <div className="continuum-shimmer h-3 w-24 rounded-md" />
+                <div className="continuum-shimmer h-7 w-16 rounded-md" />
+              </div>
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[0, 1, 2].map((item) => <div key={item} className="continuum-shimmer h-16 rounded-lg" />)}
+          </div>
+        </div>
+      ) : (
+        <div aria-hidden="true" className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900">
+          <div className="divide-y divide-gray-100 dark:divide-gray-800">
+            {[0, 1, 2, 3, 4, 5].map((item) => (
+              <div key={item} className="flex items-center gap-4 px-4 py-4">
+                <div className="continuum-shimmer size-8 shrink-0 rounded-lg" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="continuum-shimmer h-4 w-40 max-w-full rounded-md" />
+                  <div className="continuum-shimmer h-3 w-64 max-w-full rounded-md" />
+                </div>
+                <div className="continuum-shimmer hidden h-6 w-20 rounded-full sm:block" />
+                <div className="continuum-shimmer hidden h-8 w-24 rounded-lg md:block" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 function describeMutationError(error: unknown): string {
@@ -242,10 +315,15 @@ export default function WorkWorkspace({
   hideProjectBanner?: boolean;
 }) {
   const t = useTranslations("work");
+  const common = useTranslations("common");
   const user = useCurrentUserQuery();
-  const organizationId = projectProp?.organizationId ?? user.data?.organizationId ??"";
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
+  const organizationId = projectProp?.organizationId ?? visibleUser?.organizationId ??"";
   const project = useProjectQuery(projectProp ?"": organizationId, projectId);
-  const resolvedProject = projectProp ?? project.data;
+  const projectAccessLost = isAccessOrResourceUnavailableError(project.error);
+  const visibleProject = projectAccessLost ? undefined : project.data;
+  const resolvedProject = projectProp ?? visibleProject;
   const [internalView, setInternalView] = useState<WorkView>(controlledView ??"list");
   const view = controlledView ?? internalView;
   const [fullPageWorkItemId, setFullPageWorkItemId] = useState<string | null>(null);
@@ -289,8 +367,12 @@ export default function WorkWorkspace({
   const dialogWasOpenRef = useRef(false);
   const detailWasOpenRef = useRef(false);
   const tasksQuery = useProjectTasksQuery(projectId);
+  const taskAccessLost = isAccessOrResourceUnavailableError(tasksQuery.error);
+  const visibleTasks = taskAccessLost ? undefined : tasksQuery.data;
   const sprintsQuery = useProjectSprintsQuery(isRealProject ? projectId : "");
-  const activeSprint = sprintsQuery.data?.items.find(
+  const sprintsAccessLost = isAccessOrResourceUnavailableError(sprintsQuery.error);
+  const visibleSprints = sprintsAccessLost ? undefined : sprintsQuery.data;
+  const activeSprint = visibleSprints?.items.find(
     (sprint) => sprint.status === "ACTIVE",
   ) ?? null;
   const projectMembersQuery = useProjectMembersQuery(
@@ -298,20 +380,22 @@ export default function WorkWorkspace({
     isRealProject ? projectId : "",
     { page: 1, pageSize: 100, status: "ACTIVE" },
   );
+  const projectMembersAccessLost = isAccessOrResourceUnavailableError(projectMembersQuery.error);
+  const visibleProjectMembers = projectMembersAccessLost ? undefined : projectMembersQuery.data;
   const currentUserPerson = useMemo<WorkPerson | null>(() => {
-    if (!user.data) return null;
-    const displayName = user.data.name?.trim() || "Current User";
+    if (!visibleUser) return null;
+    const displayName = visibleUser.name?.trim() || "Current User";
     return {
-      id: user.data.id,
+      id: visibleUser.id,
       name: displayName,
       initials: toPersonInitials(displayName) || "ME",
     };
-  }, [user.data]);
+  }, [visibleUser]);
   const projectPeople = useMemo<readonly WorkPerson[]>(() => {
     if (!isRealProject) {
       return PREVIEW_PEOPLE;
     }
-    const memberships = projectMembersQuery.data?.data ?? [];
+    const memberships = visibleProjectMembers?.data ?? [];
     const seenIds = new Set<string>();
     const list: WorkPerson[] = [];
     for (const membership of memberships) {
@@ -334,7 +418,7 @@ export default function WorkWorkspace({
       return [currentUserPerson];
     }
     return list;
-  }, [currentUserPerson, isRealProject, projectMembersQuery.data]);
+  }, [currentUserPerson, isRealProject, visibleProjectMembers]);
   const projectPeopleById = useMemo(
     () => new Map(projectPeople.map((person) => [person.id, person])),
     [projectPeople],
@@ -494,8 +578,8 @@ export default function WorkWorkspace({
   }
 
   useEffect(() => {
-    if (!isRealProject || !tasksQuery.data) return;
-    const rawTasks = tasksQuery.data.items.filter(
+    if (!isRealProject || !visibleTasks) return;
+    const rawTasks = visibleTasks.items.filter(
       (t) => t.projectId === projectId && t.status !== "CANCELLED",
     );
 
@@ -528,13 +612,13 @@ export default function WorkWorkspace({
           assignee: resolvePersonById(
             sub.assigneeId,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           ),
           reporter: resolvePersonById(
             sub.createdBy,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           ),
           dueDate: sub.dueDate ? sub.dueDate.slice(0, 10) : null,
@@ -568,13 +652,13 @@ export default function WorkWorkspace({
         assignee: resolvePersonById(
           t.assigneeId,
           projectPeopleById,
-          user.data,
+          visibleUser,
           isRealProject,
         ),
         reporter: resolvePersonById(
           t.createdBy,
           projectPeopleById,
-          user.data,
+          visibleUser,
           isRealProject,
         ),
         priority: t.priority,
@@ -648,8 +732,8 @@ export default function WorkWorkspace({
     projectId,
     projectPeopleById,
     resolvedProject?.name,
-    tasksQuery.data,
-    user.data,
+    visibleTasks,
+    visibleUser,
   ]);
 
   const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
@@ -717,8 +801,8 @@ export default function WorkWorkspace({
       return;
     }
 
-    if (isRealProject && tasksQuery.data) {
-      const rawMatched = tasksQuery.data.items.find(
+    if (isRealProject && visibleTasks) {
+      const rawMatched = visibleTasks.items.find(
         (t) => t.id === deepLinkTaskId && t.status !== "CANCELLED",
       );
       if (rawMatched) {
@@ -738,7 +822,7 @@ export default function WorkWorkspace({
         setUnavailableTaskNotice(t("contentUnavailable"));
       });
     }
-  }, [deepLinkOverrideTaskId, isRealProject, items, t, tasksQuery.data, tasksQuery.isError, tasksQuery.isFetched]);
+  }, [deepLinkOverrideTaskId, isRealProject, items, t, visibleTasks, tasksQuery.isError, tasksQuery.isFetched]);
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
       setActivityError(null);
@@ -786,7 +870,7 @@ export default function WorkWorkspace({
           const authorPerson = resolvePersonById(
             c.authorId,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           );
           return {
@@ -801,7 +885,7 @@ export default function WorkWorkspace({
           const authorPerson = resolvePersonById(
             w.authorId,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           );
           return {
@@ -818,7 +902,7 @@ export default function WorkWorkspace({
             resolvePersonById(
               ev.actor?.id ?? null,
               projectPeopleById,
-              user.data,
+              visibleUser,
               isRealProject,
             ).name;
           return {
@@ -851,7 +935,7 @@ export default function WorkWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [isRealProject, openedTaskId, projectId, projectPeopleById, user.data]);
+  }, [isRealProject, openedTaskId, projectId, projectPeopleById, visibleUser]);
 
   const openedSubtaskId = fullPageSubtaskId ?? activeSubtaskId;
   useEffect(() => {
@@ -904,7 +988,7 @@ export default function WorkWorkspace({
           const authorPerson = resolvePersonById(
             c.authorId,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           );
           return {
@@ -919,7 +1003,7 @@ export default function WorkWorkspace({
           const authorPerson = resolvePersonById(
             w.authorId,
             projectPeopleById,
-            user.data,
+            visibleUser,
             isRealProject,
           );
           return {
@@ -936,7 +1020,7 @@ export default function WorkWorkspace({
             resolvePersonById(
               ev.actor?.id ?? null,
               projectPeopleById,
-              user.data,
+              visibleUser,
               isRealProject,
             ).name;
           return {
@@ -988,7 +1072,7 @@ export default function WorkWorkspace({
     openedTaskId,
     projectId,
     projectPeopleById,
-    user.data,
+    visibleUser,
   ]);
 
   const projectName = resolvedProject?.name ??"";
@@ -2645,16 +2729,51 @@ export default function WorkWorkspace({
     view ==="board"||
     view ==="calendar";
 
+  if (userAccessLost) {
+    return <ProjectState error={user.error} retry={() => void user.refetch()} />;
+  }
+
   if (!projectProp) {
-    if (user.isPending || (organizationId && project.isPending)) {
+    if (
+      (user.isPending && !visibleUser) ||
+      (organizationId && project.isPending && !visibleProject)
+    ) {
       return <ProjectState />;
     }
-    if (user.isError) return <ProjectState error={user.error} />;
+    if (user.isError && !visibleUser)
+      return <ProjectState error={user.error} />;
     if (!organizationId) return <ProjectState error={new Error("No trusted organization")} />;
-    if (project.isError) {
+    if (project.isError && !visibleProject) {
       return <ProjectState error={project.error} retry={() => void project.refetch()} />;
     }
-    if (!project.data) return <ProjectState />;
+    if (!visibleProject) return <ProjectState />;
+  }
+
+  if (isRealProject && taskAccessLost) {
+    return (
+      <section className="space-y-4" aria-labelledby="work-access-error-title">
+        <h1
+          id="work-access-error-title"
+          className="text-lg font-semibold text-gray-900 dark:text-white/90"
+        >
+          {projectName || t("workspaceTitle")}
+        </h1>
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+        >
+          <span>{common("loadFailed")}</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={tasksQuery.isFetching}
+            onClick={() => void tasksQuery.refetch()}
+          >
+            {common("retry")}
+          </Button>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -2684,7 +2803,12 @@ export default function WorkWorkspace({
           showCreateButton={!isOutOfScopeWorkView(view)}
           isFullscreen={isFullscreen}
           onToggleFullscreen={() => setIsFullscreen((prev) => !prev)}
-          itemCount={!isOutOfScopeWorkView(view) ? visibleItems.length : undefined}
+          itemCount={
+            !isOutOfScopeWorkView(view) &&
+            (!isRealProject || visibleTasks !== undefined)
+              ? visibleItems.length
+              : undefined
+          }
           hideProjectBanner={hideProjectBanner}
         />
       ) : (
@@ -2714,6 +2838,18 @@ export default function WorkWorkspace({
             {t("create")}
           </button>
         </div>
+      )}
+
+      {isRealProject && visibleTasks !== undefined && tasksQuery.isFetching && (
+        <UpdatingStatus>{common("updating")}</UpdatingStatus>
+      )}
+      {isRealProject && tasksQuery.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void tasksQuery.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
       )}
 
       {unavailableTaskNotice && (
@@ -2894,7 +3030,16 @@ export default function WorkWorkspace({
             </div>
           )}
 
-          {view ==="timeline"? (
+          {isRealProject && tasksQuery.isPending && !visibleTasks ? (
+            <WorkItemsLoadingState view={view} label={common("loading")} />
+          ) : isRealProject && tasksQuery.isError && !visibleTasks ? (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+              <span>{common("loadFailed")}</span>
+              <Button variant="outline" size="sm" onClick={() => void tasksQuery.refetch()}>
+                {common("retry")}
+              </Button>
+            </div>
+          ) : view ==="timeline"? (
             <WorkTimelineView
               items={visibleItems}
               people={projectPeople}

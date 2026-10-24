@@ -6,6 +6,7 @@ import RoleLabel from "@/components/common/RoleLabel";
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   AlertIcon,
   ArrowRightIcon,
@@ -15,6 +16,7 @@ import {
   MailIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { isOrganizationResourceId } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { useOrganizationOverviewQuery } from "@/lib/queries/organization-memberships/useOrganizationMemberships";
@@ -41,18 +43,18 @@ function OverviewSkeleton({ label }: { label: string }) {
       className="space-y-6"
     >
       <span className="sr-only">{label}</span>
-      <div className="h-44 animate-pulse rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900" />
+      <div className="h-44 motion-safe:animate-pulse rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {Array.from({ length: 4 }, (_, index) => (
           <div
             key={index}
-            className="h-24 animate-pulse rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
+            className="h-24 motion-safe:animate-pulse rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900"
           />
         ))}
       </div>
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <div className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-white p-5 xl:col-span-8 dark:border-gray-800 dark:bg-gray-900" />
-        <div className="h-72 animate-pulse rounded-2xl border border-gray-200 bg-white p-5 xl:col-span-4 dark:border-gray-800 dark:bg-gray-900" />
+        <div className="h-72 motion-safe:animate-pulse rounded-2xl border border-gray-200 bg-white p-5 xl:col-span-8 dark:border-gray-800 dark:bg-gray-900" />
+        <div className="h-72 motion-safe:animate-pulse rounded-2xl border border-gray-200 bg-white p-5 xl:col-span-4 dark:border-gray-800 dark:bg-gray-900" />
       </div>
     </div>
   );
@@ -167,18 +169,23 @@ function ManagerOverviewWorkspace({
   organizationId: string;
 }) {
   const t = useTranslations("organizationOverview");
+  const common = useTranslations("common");
   const format = useFormatter();
   const overview = useOrganizationOverviewQuery(actorId, organizationId, true);
   const projectsQuery = useProjectsQuery(organizationId, {
     page: 1,
     pageSize: 6,
   });
+  const overviewAccessLost = isAccessOrResourceUnavailableError(overview.error);
+  const projectsAccessLost = isAccessOrResourceUnavailableError(projectsQuery.error);
+  const visibleOverview = overviewAccessLost ? undefined : overview.data;
+  const visibleProjects = projectsAccessLost ? undefined : projectsQuery.data;
 
-  if (overview.isPending) {
+  if (overview.isPending && !visibleOverview) {
     return <OverviewSkeleton label={t("loading")} />;
   }
 
-  if (overview.isError || !overview.data) {
+  if (overview.isError && !visibleOverview) {
     return (
       <div role="alert" className="space-y-4">
         <Alert
@@ -199,12 +206,13 @@ function ManagerOverviewWorkspace({
     );
   }
 
-  const { organization, metrics, leaderlessProjects, managers } = overview.data;
+  const { organization, metrics, leaderlessProjects, managers } = visibleOverview!;
   const isSoleManager = managers.length <= 1;
   const hasLeaderlessProjects = metrics.leaderlessProjectsCount > 0;
 
-  const projectRows: readonly Project[] =
-    projectsQuery.data?.data ??
+  const projectRows: readonly Project[] = projectsAccessLost
+    ? []
+    : visibleProjects?.data ??
     leaderlessProjects.map((item) => ({
       id: item.id,
       organizationId,
@@ -225,7 +233,16 @@ function ManagerOverviewWorkspace({
     managers[0]?.fullName || managers[0]?.email || "Organization Manager";
 
   return (
-    <div className="@container min-w-0 space-y-5">
+    <div className="@container min-w-0 space-y-5" aria-busy={overview.isFetching}>
+      {!overviewAccessLost && overview.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+      {!overviewAccessLost && overview.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={t("retry")}
+          onRetry={() => void overview.refetch()}
+        >
+          {t("errorDescription")}
+        </BackgroundRefreshError>
+      )}
       {/* 1. Hero Banner Section */}
       <header
         aria-labelledby="org-overview-heading"
@@ -524,6 +541,7 @@ function ManagerOverviewWorkspace({
           {/* Card A: Projects */}
           <section
             aria-labelledby="org-projects-governance-heading"
+            aria-busy={projectsQuery.isFetching}
             className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900"
           >
             <div className="mb-4 flex items-center justify-between gap-3">
@@ -550,16 +568,41 @@ function ManagerOverviewWorkspace({
               </Link>
             </div>
 
+            {visibleProjects !== undefined &&
+              !projectsAccessLost &&
+              (projectsQuery.isFetching || projectsQuery.isRefetchError) && (
+                <div className="mb-3">
+                  {projectsQuery.isFetching && (
+                    <UpdatingStatus>{common("updating")}</UpdatingStatus>
+                  )}
+                  {projectsQuery.isRefetchError && (
+                    <BackgroundRefreshError
+                      retryLabel={common("retry")}
+                      onRetry={() => void projectsQuery.refetch()}
+                    >
+                      {common("updateFailed")}
+                    </BackgroundRefreshError>
+                  )}
+                </div>
+              )}
+            {projectsQuery.isError && !visibleProjects && (
+              <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+                <span>{t("projectListLoadFailed")}</span>
+                <Button size="sm" variant="outline" onClick={() => void projectsQuery.refetch()}>
+                  {t("retry")}
+                </Button>
+              </div>
+            )}
             {projectsQuery.isPending && projectRows.length === 0 ? (
               <div className="space-y-3">
                 {Array.from({ length: 2 }, (_, idx) => (
                   <div
                     key={idx}
-                    className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+                    className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
                   />
                 ))}
               </div>
-            ) : projectRows.length === 0 ? (
+            ) : projectsQuery.isError && !visibleProjects ? null : projectRows.length === 0 ? (
               <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center dark:border-gray-800 dark:bg-gray-800/30">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
                   {t("noProjectsYetTitle")}
@@ -839,12 +882,14 @@ function ManagerOverviewWorkspace({
 export default function OrganizationOverviewDashboard() {
   const t = useTranslations("organizationOverview");
   const currentUser = useCurrentUserQuery();
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const visibleUser = currentUserAccessLost ? undefined : currentUser.data;
 
-  if (currentUser.isPending) {
+  if (currentUser.isPending && !visibleUser) {
     return <OverviewSkeleton label={t("loading")} />;
   }
 
-  if (currentUser.isError || !currentUser.data) {
+  if (currentUser.isError && !visibleUser) {
     return (
       <div role="alert" className="space-y-4">
         <Alert
@@ -865,7 +910,7 @@ export default function OrganizationOverviewDashboard() {
     );
   }
 
-  const user = currentUser.data;
+  const user = visibleUser!;
   const organizationId = user.organizationId;
   if (!organizationId || !isOrganizationResourceId(organizationId)) {
     return (
@@ -880,11 +925,22 @@ export default function OrganizationOverviewDashboard() {
 
   if (canReadOrganizationMemberships(user)) {
     return (
-      <ManagerOverviewWorkspace
-        key={`${user.id}:${organizationId}`}
-        actorId={user.id}
-        organizationId={organizationId}
-      />
+      <div className="space-y-4" aria-busy={currentUser.isFetching}>
+        {!currentUserAccessLost && currentUser.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+        {!currentUserAccessLost && currentUser.isRefetchError && (
+          <BackgroundRefreshError
+            retryLabel={t("retry")}
+            onRetry={() => void currentUser.refetch()}
+          >
+            {t("errorDescription")}
+          </BackgroundRefreshError>
+        )}
+        <ManagerOverviewWorkspace
+          key={`${user.id}:${organizationId}`}
+          actorId={user.id}
+          organizationId={organizationId}
+        />
+      </div>
     );
   }
 

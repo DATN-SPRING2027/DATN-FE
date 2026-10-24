@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useInfiniteProjectsQuery } from "./useProjects";
 
 /** Loads every active project visible to the current organization member. */
@@ -18,9 +19,10 @@ export function useActiveOrganizationProjects(organizationId: string, enabled = 
     }
   }, [isSuccess, hasNextPage, isFetchingNextPage, isFetchNextPageError, fetchNextPage]);
 
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
   const projects = useMemo(
-    () => query.data?.pages.flatMap((page) => page.data) ?? [],
-    [query.data],
+    () => accessLost ? [] : (query.data?.pages.flatMap((page) => page.data) ?? []),
+    [accessLost, query.data],
   );
   const leaderUserIds = useMemo(
     () => new Set(projects.flatMap((project) => project.leaders?.map((leader) => leader.userId) ?? [])),
@@ -29,6 +31,7 @@ export function useActiveOrganizationProjects(organizationId: string, enabled = 
 
   return {
     ...query,
+    data: accessLost ? undefined : query.data,
     projects,
     leaderUserIds,
     isComplete: query.isSuccess && !query.hasNextPage && !query.isFetchingNextPage && !query.isFetchNextPageError,

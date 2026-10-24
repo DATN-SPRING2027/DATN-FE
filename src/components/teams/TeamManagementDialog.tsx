@@ -1,12 +1,14 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import Button from "@/components/ui/button/Button";
 import { useTeam } from "@/lib/queries/teams/useTeams";
 import type { TeamResource, TeamScope } from "@/lib/queries/teams/team.contract";
 import TeamForm from "./TeamForm";
 import TeamState from "./TeamState";
 import TeamDialogShell from "./TeamDialogShell";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 export type TeamDialogAction =
   | { kind: "create" }
@@ -30,6 +32,7 @@ export default function TeamManagementDialog({
   onAction: (action: TeamDialogAction) => void;
 }) {
   const t = useTranslations("teamFoundation");
+  const common = useTranslations("common");
   const isCreate = action?.kind === "create";
   const query = useTeam(
     scope,
@@ -37,6 +40,8 @@ export default function TeamManagementDialog({
     action && action.kind !== "create" ? action.teamId : "",
     isOpen && Boolean(action) && !isCreate,
   );
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
+  const visibleResource = accessLost ? undefined : query.data;
   const kind = action?.kind;
   const title =
     kind === "create"
@@ -48,7 +53,7 @@ export default function TeamManagementDialog({
           : kind === "restore"
             ? t("restore")
             : kind === "view"
-              ? query.data?.team.name ?? t("detail")
+              ? visibleResource?.team.name ?? t("detail")
               : t("detail");
   const description =
     kind === "create"
@@ -56,9 +61,9 @@ export default function TeamManagementDialog({
       : kind === "edit"
         ? t("editDescription")
         : kind === "archive"
-          ? t("archiveDescription", { name: query.data?.team.name ?? "" })
+      ? t("archiveDescription", { name: visibleResource?.team.name ?? "" })
           : kind === "restore"
-            ? t("restoreDescription", { name: query.data?.team.name ?? "" })
+            ? t("restoreDescription", { name: visibleResource?.team.name ?? "" })
             : kind === "view"
               ? t("detailDescription")
               : undefined;
@@ -80,26 +85,37 @@ export default function TeamManagementDialog({
           onSuccess={onSuccess}
           onCancel={onClose}
         />
-      ) : !action ? null : query.isPending || query.isFetching ? (
+      ) : !action ? null : query.isPending && !visibleResource ? (
         <TeamState loading />
-      ) : query.isError ? (
+      ) : query.isError && !visibleResource ? (
         <TeamState
           error={query.error}
           retry={() => {
             void query.refetch();
           }}
         />
-      ) : !query.data ? null : (
-        <DialogContent
-          key={`${action.kind}:${query.data.etag}`}
-          action={action}
-          resource={query.data}
-          scope={scope}
-          actor={actor}
-          onClose={onClose}
-          onSuccess={onSuccess}
-          onAction={onAction}
-        />
+      ) : !visibleResource ? null : (
+        <div className="space-y-3">
+          {!accessLost && query.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+          {!accessLost && query.isRefetchError && (
+            <BackgroundRefreshError
+              retryLabel={common("retry")}
+              onRetry={() => void query.refetch()}
+            >
+              {common("updateFailed")}
+            </BackgroundRefreshError>
+          )}
+          <DialogContent
+            key={`${action.kind}:${visibleResource.etag}`}
+            action={action}
+            resource={visibleResource}
+            scope={scope}
+            actor={actor}
+            onClose={onClose}
+            onSuccess={onSuccess}
+            onAction={onAction}
+          />
+        </div>
       )}
     </TeamDialogShell>
   );

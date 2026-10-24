@@ -8,6 +8,10 @@ import PlatformOrganizationsView from "@/components/platform/PlatformOrganizatio
 import PlatformShell from "@/components/platform/ui/PlatformShell";
 import PageHeader from "@/components/platform/ui/PageHeader";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
+import {
+  isReadAccessLost,
+  QueryRefreshStatus,
+} from "@/components/platform/PlatformOperationsUi";
 import Button from "@/components/ui/button/Button";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
@@ -147,8 +151,9 @@ export default function PlatformConsole() {
   );
 
   useEffect(() => {
-    if (session.isError) router.replace("/signin");
-  }, [router, session.isError]);
+    if (session.isError && (!session.data || isReadAccessLost(session.error)))
+      router.replace("/signin");
+  }, [router, session.isError, session.data, session.error]);
 
   const pageTitle = t(`pages.${activeSection}.title`);
   const pageDescription = t(`pages.${activeSection}.description`);
@@ -234,7 +239,7 @@ export default function PlatformConsole() {
     }
   }
 
-  if (session.isPending || (session.isFetching && !session.data)) {
+  if (session.isPending && !session.data) {
     return (
       <main
         className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300"
@@ -244,7 +249,10 @@ export default function PlatformConsole() {
       </main>
     );
   }
-  if (session.isError || !session.data) {
+  if (
+    (session.isError && (!session.data || isReadAccessLost(session.error))) ||
+    !session.data
+  ) {
     return (
       <main
         className="flex min-h-screen items-center justify-center bg-gray-50 text-sm text-gray-600 dark:bg-gray-950 dark:text-gray-300"
@@ -264,6 +272,18 @@ export default function PlatformConsole() {
       isSigningOut={logout.isPending}
       onSignOut={() => void signOut()}
     >
+      {session.data &&
+        !isReadAccessLost(session.error) &&
+        (session.isFetching || session.isRefetchError) && (
+          <div className="mb-4">
+            <QueryRefreshStatus
+              hasData
+              isFetching={session.isFetching}
+              isRefetchError={session.isRefetchError}
+              onRetry={() => void session.refetch()}
+            />
+          </div>
+        )}
       {/* Top Page Header */}
       {["users", "dashboard", "memberships"].includes(activeSection) ||
       (activeSection === "organizations" &&
@@ -476,11 +496,21 @@ export default function PlatformConsole() {
                 </Button>
               </div>
 
-              {health.isPending ? (
+              {health.data !== undefined && !isReadAccessLost(health.error) && (health.isFetching || health.isRefetchError) && (
+                <div className="px-5 pt-4">
+                  <QueryRefreshStatus
+                    hasData
+                    isFetching={health.isFetching}
+                    isRefetchError={health.isRefetchError}
+                    onRetry={() => void health.refetch()}
+                  />
+                </div>
+              )}
+              {health.isPending && !health.data ? (
                 <p role="status" className="px-5 py-8 text-xs text-gray-500">
                   {t("health.checking")}
                 </p>
-              ) : health.isError ? (
+              ) : health.isError && (!health.data || isReadAccessLost(health.error)) ? (
                 <QueryError
                   message={t("errors.health")}
                   onRetry={() => void health.refetch()}

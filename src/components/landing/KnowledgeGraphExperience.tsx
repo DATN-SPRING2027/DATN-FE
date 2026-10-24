@@ -201,7 +201,7 @@ export default function KnowledgeGraphExperience() {
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/90 px-3.5 py-1 text-xs font-bold text-blue-700 shadow-2xs mb-3.5 backdrop-blur-md dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300">
-            <span className="flex h-2 w-2 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+            <span className="flex h-2 w-2 rounded-full bg-blue-600 motion-safe:animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
             <span>MẠNG LƯỚI TRI THỨC SỐNG • VECTOR SPACE GRAPH</span>
           </div>
 
@@ -272,7 +272,7 @@ export default function KnowledgeGraphExperience() {
             {/* Top HUD Metrics Bar */}
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3 text-xs dark:border-gray-800">
               <div className="flex items-center gap-2">
-                <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+                <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 motion-safe:animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
                 <span className="font-mono text-blue-700 font-bold uppercase text-[11px] dark:text-blue-400">
                   Graph Engine v2.4
                 </span>
@@ -317,7 +317,7 @@ export default function KnowledgeGraphExperience() {
                   stroke="url(#edgeGradMainLight)"
                   strokeWidth="2"
                   strokeDasharray="4 4"
-                  className={isSimulatingQuery ? "animate-pulse" : ""}
+                  className={isSimulatingQuery ? "motion-safe:animate-pulse" : ""}
                 />
                 {/* WN-104 (48%, 44%) to Benchmark (64%, 26%) */}
                 <line
@@ -394,7 +394,7 @@ export default function KnowledgeGraphExperience() {
                   >
                     <div className="flex items-center gap-1.5 mb-0.5">
                       {entity.type === "decision" && (
-                        <span className="flex h-2 w-2 rounded-full bg-white animate-ping" />
+                        <span className="flex h-2 w-2 rounded-full bg-white motion-safe:animate-ping" />
                       )}
                       {entity.type === "pr" && (
                         <FileIcon className="h-3 w-3 text-blue-600 dark:text-blue-400" />

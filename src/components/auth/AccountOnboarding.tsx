@@ -82,9 +82,9 @@ export default function AccountOnboarding() {
         aria-label={t("checkingSession")}
       >
         <div className="w-full max-w-lg space-y-4">
-          <div className="h-8 w-40 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          <div className="h-10 w-3/4 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          <div className="h-20 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+          <div className="h-8 w-40 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div className="h-10 w-3/4 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          <div className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
         </div>
       </main>
     );
@@ -114,7 +114,7 @@ export default function AccountOnboarding() {
             {[0, 1].map((item) => (
               <div
                 key={item}
-                className="h-18 animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
+                className="h-18 motion-safe:animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
               />
             ))}
           </div>

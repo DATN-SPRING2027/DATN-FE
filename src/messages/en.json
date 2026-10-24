@@ -1,6 +1,11 @@
 {
   "common": {
     "home": "Home",
+    "loading": "Loading…",
+    "loadFailed": "Could not load this data. Check your connection, then retry.",
+    "updating": "Updating…",
+    "updateFailed": "Could not refresh this data. The last available results are still shown.",
+    "retry": "Retry",
     "edit": "Edit",
     "close": "Close",
     "saveChanges": "Save Changes",
@@ -3688,6 +3693,7 @@
     "title": "Organization Overview",
     "home": "Home",
     "loading": "Loading organization overview…",
+    "projectListLoadFailed": "The project list could not be loaded. The organization overview remains available.",
     "errorTitle": "Unable to load organization overview",
     "errorDescription": "We could not load the latest organization metrics. Please try again.",
     "retry": "Retry",

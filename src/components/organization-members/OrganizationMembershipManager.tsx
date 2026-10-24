@@ -3,7 +3,10 @@
 import { useRef, useState, type KeyboardEvent } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { ApiError } from "@/lib/api-client";
+import {
+  ApiError,
+  isAccessOrResourceUnavailableError,
+} from "@/lib/api-client";
 import { useCurrentUserQuery, type CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 import { canManageOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { useModal } from "@/hooks/useModal";
@@ -50,6 +53,7 @@ import OrganizationMembershipActionDialog, {
   type MembershipActionTarget,
 } from "./OrganizationMembershipActionDialog";
 import OrganizationMembershipRoleDialog from "./OrganizationMembershipRoleDialog";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 const pageSize = 20;
 type MembershipStatusFilter = "ALL" | NonNullable<MembershipListFilter["status"]>;
@@ -81,20 +85,20 @@ function ListLoadingPanel({ label }: { label: string }) {
     <div role="status" aria-label={label} aria-busy="true" className="overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
       <span className="sr-only">{label}</span>
       <div aria-hidden="true" className="hidden grid-cols-4 gap-4 border-b border-gray-100 bg-gray-50 px-5 py-3 lg:grid dark:border-gray-800 dark:bg-white/2">
-        <div className="h-3 w-20 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-16 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
-        <div className="h-3 w-12 animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-20 motion-safe:animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-16 motion-safe:animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-16 motion-safe:animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
+        <div className="h-3 w-12 motion-safe:animate-pulse rounded bg-gray-200 dark:bg-gray-700" />
       </div>
       <div aria-hidden="true" className="divide-y divide-gray-100 dark:divide-gray-800">
         {Array.from({ length: 4 }, (_, index) => (
           <div key={index} className="flex items-center gap-4 px-4 py-4 sm:px-5">
-            <div className="size-10 shrink-0 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800" />
+            <div className="size-10 shrink-0 motion-safe:animate-pulse rounded-full bg-gray-100 dark:bg-gray-800" />
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="h-4 w-1/3 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-              <div className="h-3 w-1/2 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+              <div className="h-4 w-1/3 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+              <div className="h-3 w-1/2 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
             </div>
-            <div className="hidden h-6 w-20 animate-pulse rounded-full bg-gray-100 dark:bg-gray-800 sm:block" />
+            <div className="hidden h-6 w-20 motion-safe:animate-pulse rounded-full bg-gray-100 dark:bg-gray-800 sm:block" />
           </div>
         ))}
       </div>
@@ -147,6 +151,7 @@ function ScopedOrganizationMemberships({
   currentUser?: CurrentUserResponse;
 }) {
   const t = useTranslations("organizationMembers");
+  const common = useTranslations("common");
   const canManage = canManageOrganizationMemberships(currentUser);
   const queryClient = useQueryClient();
   const cachedOrganizations = queryClient.getQueryData<readonly { id: string; name: string }[]>(["auth", "organizations"]);
@@ -489,8 +494,12 @@ function ScopedOrganizationMemberships({
     }
   }
 
-  const readyMembers = memberships.isSuccess && !memberships.isFetching ? memberships.data : undefined;
-  const readyInvitations = invitations.isSuccess && !invitations.isFetching ? invitations.data : undefined;
+  const readyMembers = isAccessOrResourceUnavailableError(memberships.error)
+    ? undefined
+    : memberships.data;
+  const readyInvitations = isAccessOrResourceUnavailableError(invitations.error)
+    ? undefined
+    : invitations.data;
   const modalError = actionMutation?.isError ? actionMutation.error : undefined;
 
   function changeTab(next: DirectoryTab) {
@@ -617,11 +626,13 @@ function ScopedOrganizationMemberships({
                     <span aria-live="polite" className="tabular-nums">{t("membersCount", { count: readyMembers.pagination.totalItems })}</span>
                   </div>
                 ) : memberships.isFetching ? (
-                  <div aria-hidden="true" className="h-6 w-20 animate-pulse rounded-md bg-gray-200 dark:bg-gray-800" />
+                  <div aria-hidden="true" className="h-6 w-20 motion-safe:animate-pulse rounded-md bg-gray-200 dark:bg-gray-800" />
                 ) : <span />}
               </div>
-              {memberships.isFetching && <ListLoadingPanel label={t("membersLoading")} />}
-              {memberships.isError && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
+              {memberships.isFetching && readyMembers ? <UpdatingStatus>{common("updating")}</UpdatingStatus> : null}
+              {memberships.isPending && !readyMembers ? <ListLoadingPanel label={t("membersLoading")} /> : null}
+              {memberships.isRefetchError && readyMembers ? <BackgroundRefreshError retryLabel={common("retry")} onRetry={() => void memberships.refetch()}>{common("updateFailed")}</BackgroundRefreshError> : null}
+              {memberships.isError && !readyMembers && !memberships.isFetching && <MembershipError error={memberships.error} retry={() => { void memberships.refetch(); }} />}
               {readyMembers && readyMembers.data.length === 0 && (
                 <div role="status" className="flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-200 py-10 px-4 text-center dark:border-gray-800">
                   <span aria-hidden="true" className="mb-3 flex size-12 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-8 ring-brand-50/50 dark:bg-brand-500/10 dark:text-brand-400 dark:ring-brand-500/5">
@@ -670,8 +681,10 @@ function ScopedOrganizationMemberships({
                   </div>
                 )}
               </div>
-              {invitations.isFetching && <ListLoadingPanel label={t("invitationsLoading")} />}
-              {invitations.isError && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
+              {invitations.isFetching && readyInvitations ? <UpdatingStatus>{common("updating")}</UpdatingStatus> : null}
+              {invitations.isPending && !readyInvitations ? <ListLoadingPanel label={t("invitationsLoading")} /> : null}
+              {invitations.isRefetchError && readyInvitations ? <BackgroundRefreshError retryLabel={common("retry")} onRetry={() => void invitations.refetch()}>{common("updateFailed")}</BackgroundRefreshError> : null}
+              {invitations.isError && !readyInvitations && !invitations.isFetching && <MembershipError error={invitations.error} invitation retry={() => { void invitations.refetch(); }} />}
               {readyInvitations && readyInvitations.data.some((invitation) => invitation.status === "PENDING") && canManage && !canManageInvitationCommands && (
                 <p role="status" className="rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-400">{t("invitationActionsBlocked")}</p>
               )}
@@ -757,9 +770,11 @@ function ScopedOrganizationMemberships({
 export default function OrganizationMembershipManager() {
   const t = useTranslations("organizationMembers");
   const currentUser = useCurrentUserQuery();
-  if (currentUser.isPending) return <LoadingPanel label={t("contextLoading")} />;
-  if (currentUser.isError) return <MembershipError error={currentUser.error} retry={() => { void currentUser.refetch(); }} />;
-  const user = currentUser.data;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const visibleUser = currentUserAccessLost ? undefined : currentUser.data;
+  if (currentUser.isPending && !visibleUser) return <LoadingPanel label={t("contextLoading")} />;
+  if (currentUser.isError && !visibleUser) return <MembershipError error={currentUser.error} retry={() => { void currentUser.refetch(); }} />;
+  const user = visibleUser;
   const organizationId = user?.organizationId;
   if (!user || !organizationId || !isOrganizationResourceId(organizationId)) {
     return <div role="status" className="rounded-xl border border-warning-200 bg-warning-50 px-5 py-8 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">{t("noOrganization")}</div>;

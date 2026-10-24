@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { ApiError } from "@/lib/api-client";
 import {
   useProjectLeaderActions,
@@ -93,14 +94,14 @@ export default function ProjectLeaders({
     }
   }
 
-  if (leaders.isPending) {
+  if (leaders.isPending && !leaders.data) {
     return (
       <p role="status" className="text-sm text-gray-500">
         {t("loading")}
       </p>
     );
   }
-  if (leaders.isError) {
+  if (leaders.isError && (!leaders.data || denied)) {
     return (
       <section
         aria-labelledby="project-leaders-heading"
@@ -138,6 +139,15 @@ export default function ProjectLeaders({
       aria-labelledby="project-leaders-heading"
       className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
     >
+      {leaders.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+      {leaders.isRefetchError && !denied && (
+        <BackgroundRefreshError
+          retryLabel={t("retry")}
+          onRetry={() => void leaders.refetch()}
+        >
+          {t("loadFailed")}
+        </BackgroundRefreshError>
+      )}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2

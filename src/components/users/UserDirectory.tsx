@@ -9,9 +9,10 @@ import Select from "@/components/form/Select";
 import Alert from "@/components/ui/alert/Alert";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "@/components/ui/table";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useUsersQuery, type RoleCode, type UserStatus } from "@/lib/queries/users/useUsers";
 import UserEditor from "./UserEditor";
 import OrganizationInvitationManager from "./OrganizationInvitationManager";
@@ -21,6 +22,7 @@ const headingClass = "px-5 py-3 text-start text-theme-xs font-medium text-gray-5
 
 export default function UserDirectory() {
   const t = useTranslations("users");
+  const common = useTranslations("common");
   const roleLabel = useRoleDisplayLabel();
   const currentUser = useCurrentUserQuery();
   const [page, setPage] = useState(1);
@@ -28,9 +30,15 @@ export default function UserDirectory() {
   const [roleCode, setRoleCode] = useState<RoleCode | undefined>();
   const [selectedUserId, setSelectedUserId] = useState("");
   const [saved, setSaved] = useState(false);
-  const organizationId = currentUser.data?.organizationId ?? "";
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const organizationId = currentUserAccessLost ? "" : currentUser.data?.organizationId ?? "";
   const users = useUsersQuery(organizationId, { page, pageSize: 20, ...(status ? { status } : {}), ...(roleCode ? { roleCode } : {}) });
+  const accessLost = isAccessOrResourceUnavailableError(users.error);
   const forbidden = users.error instanceof ApiError && users.error.status === 403;
+
+  if (currentUser.isError && (!currentUser.data || currentUserAccessLost)) {
+    return <Alert variant="error" title={t("loadErrorTitle")} message={t("loadError")} />;
+  }
 
   return (
     <ComponentCard title={t("title")}>
@@ -58,11 +66,31 @@ export default function UserDirectory() {
           </div>
         </div>
 
-        {users.isPending && <p className="text-sm text-gray-500 dark:text-gray-400">{t("loading")}</p>}
-        {users.isError && <Alert variant="error" title={t("loadErrorTitle")} message={forbidden ? t("forbidden") : t("loadError")} />}
-        {users.isSuccess && (
+        {users.data && !accessLost && (users.isFetching || users.isRefetchError) && (
+          <div aria-busy={users.isFetching}>
+            {users.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+            {users.isRefetchError && !forbidden && (
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void users.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            )}
+          </div>
+        )}
+        {users.isPending && !users.data && (
+          <div role="status" aria-busy="true" aria-label={t("loading")} className="space-y-3">
+            <span className="sr-only">{t("loading")}</span>
+            {[0, 1, 2, 3, 4].map((item) => (
+              <div key={item} aria-hidden="true" className="continuum-shimmer h-12 rounded-lg" />
+            ))}
+          </div>
+        )}
+        {users.isError && (!users.data || accessLost) && <Alert variant="error" title={t("loadErrorTitle")} message={forbidden ? t("forbidden") : t("loadError")} />}
+        {users.data && !accessLost && (
           <>
-            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3">
+            <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/5 dark:bg-white/3" aria-busy={users.isFetching}>
               <div className="max-w-full overflow-x-auto">
                 <Table>
                   <TableHeader className="border-b border-gray-100 dark:border-white/5">
@@ -92,8 +120,8 @@ export default function UserDirectory() {
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-gray-500 dark:text-gray-400">{t("pageOf", { page: users.data.pagination.page, total: Math.max(1, users.data.pagination.totalPages) })}</span>
               <div className="flex gap-2">
-                <Button size="sm" variant="outline" disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>{t("previous")}</Button>
-                <Button size="sm" variant="outline" disabled={page >= users.data.pagination.totalPages} onClick={() => setPage((value) => value + 1)}>{t("next")}</Button>
+                <Button size="sm" variant="outline" disabled={page <= 1 || users.isFetching} onClick={() => setPage((value) => value - 1)}>{t("previous")}</Button>
+                <Button size="sm" variant="outline" disabled={page >= users.data.pagination.totalPages || users.isFetching} onClick={() => setPage((value) => value + 1)}>{t("next")}</Button>
               </div>
             </div>
           </>

@@ -418,7 +418,7 @@ export default function OrganizationMembershipActionDialog({
               >
                 <span
                   aria-hidden="true"
-                  className="size-7 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent"
+                  className="size-7 shrink-0 motion-safe:animate-spin rounded-full border-2 border-brand-500 border-t-transparent"
                 />
                 <div>
                   <p className="text-sm font-semibold text-gray-900 dark:text-white/90">

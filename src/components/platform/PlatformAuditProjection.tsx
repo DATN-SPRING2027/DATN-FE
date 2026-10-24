@@ -12,6 +12,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import EmptyState from "./ui/EmptyState";
 import { TableSkeleton } from "./ui/LoadingSkeleton";
+import { isReadAccessLost, QueryRefreshStatus } from "./PlatformOperationsUi";
 
 const auditActions = [
   "organization.create",
@@ -130,7 +131,7 @@ export default function PlatformAuditProjection({
           >
             {t("audit.permissionNeeded")}
           </p>
-        ) : audit.isError ? (
+        ) : audit.isError && (!audit.data || isReadAccessLost(audit.error)) ? (
           <div
             className="flex flex-wrap items-center justify-between gap-3 px-5 py-6"
             role="alert"
@@ -144,7 +145,7 @@ export default function PlatformAuditProjection({
               {t("retry")}
             </button>
           </div>
-        ) : audit.isPending ? (
+        ) : audit.isPending && !audit.data ? (
           <div>
             <p role="status" className="sr-only">
               {t("audit.loading")}
@@ -153,6 +154,16 @@ export default function PlatformAuditProjection({
           </div>
         ) : (
           <>
+            {audit.data !== undefined && !isReadAccessLost(audit.error) && (audit.isFetching || audit.isRefetchError) && (
+              <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+                <QueryRefreshStatus
+                  hasData
+                  isFetching={audit.isFetching}
+                  isRefetchError={audit.isRefetchError}
+                  onRetry={() => void audit.refetch()}
+                />
+              </div>
+            )}
             <div className="dark:bg-gray-850/40 grid gap-3 border-b border-gray-100 bg-gray-50/50 p-4 sm:grid-cols-2 xl:grid-cols-4 dark:border-gray-800">
               <label className="block text-xs font-semibold tracking-wider text-gray-500 uppercase">
                 {t("audit.filterAction")}
@@ -318,9 +329,21 @@ export default function PlatformAuditProjection({
               Close
             </Button>
           </div>
-          {detail.isPending ? (
+          {detail.data !== undefined &&
+            !isReadAccessLost(detail.error) &&
+            (detail.isFetching || detail.isRefetchError) && (
+              <div className="mb-4">
+                <QueryRefreshStatus
+                  hasData
+                  isFetching={detail.isFetching}
+                  isRefetchError={detail.isRefetchError}
+                  onRetry={() => void detail.refetch()}
+                />
+              </div>
+            )}
+          {detail.isPending && !detail.data ? (
             <TableSkeleton rows={2} columns={3} />
-          ) : detail.isError || !detail.data ? (
+          ) : detail.isError && (!detail.data || isReadAccessLost(detail.error)) ? (
             <p role="alert" className="text-xs text-rose-600">
               Audit event detail is unavailable.
             </p>
@@ -363,11 +386,23 @@ export default function PlatformAuditProjection({
               )}
               <div className="mt-5 border-t border-gray-100 pt-4 dark:border-gray-800">
                 <h4 className="text-xs font-bold">Resource history</h4>
-                {history.isPending ? (
+                {history.data !== undefined &&
+                  !isReadAccessLost(history.error) &&
+                  (history.isFetching || history.isRefetchError) && (
+                    <div className="mt-2">
+                      <QueryRefreshStatus
+                        hasData
+                        isFetching={history.isFetching}
+                        isRefetchError={history.isRefetchError}
+                        onRetry={() => void history.refetch()}
+                      />
+                    </div>
+                  )}
+                {history.isPending && !history.data ? (
                   <p role="status" className="mt-2 text-xs text-gray-500">
                     Loading history
                   </p>
-                ) : history.isError ? (
+                ) : history.isError && (!history.data || isReadAccessLost(history.error)) ? (
                   <p role="alert" className="mt-2 text-xs text-gray-500">
                     Resource history is unavailable.
                   </p>

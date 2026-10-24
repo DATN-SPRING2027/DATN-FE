@@ -51,7 +51,11 @@ it("shows the live active Project member total on Overview", () => {
     isError: false,
   } as unknown as ReturnType<typeof useProjectMembersQuery>);
 
-  renderOverview();
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ProjectOverview project={{ ...project, activeMemberCount: 7 }} />
+    </NextIntlClientProvider>,
+  );
 
   expect(screen.getByText("Active members")).toBeVisible();
   expect(screen.getByText("7")).toBeVisible();
@@ -60,7 +64,27 @@ it("shows the live active Project member total on Overview", () => {
     page: 1,
     pageSize: 1,
     status: "ACTIVE",
-  });
+  }, { enabled: false, staleTime: 15_000 });
+});
+
+it("falls back to the member summary endpoint when the Project summary omits its count", () => {
+  membersQuery.mockReturnValue({
+    data: {
+      data: [],
+      pagination: { page: 1, pageSize: 1, totalItems: 3, totalPages: 3 },
+    },
+    isPending: false,
+    isError: false,
+  } as unknown as ReturnType<typeof useProjectMembersQuery>);
+
+  renderOverview();
+
+  expect(screen.getByText("3")).toBeVisible();
+  expect(membersQuery).toHaveBeenCalledWith("org-1", "project-1", {
+    page: 1,
+    pageSize: 1,
+    status: "ACTIVE",
+  }, { enabled: true, staleTime: 15_000 });
 });
 
 it("does not invent a member total while the request is pending or denied", () => {

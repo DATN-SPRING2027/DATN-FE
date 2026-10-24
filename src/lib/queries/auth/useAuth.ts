@@ -88,7 +88,9 @@ export function useLoginMutation(
         body: JSON.stringify(credentials),
       }),
     onSuccess: (...args) => {
-      queryClient.removeQueries({ queryKey: authKeys.currentUser() });
+      // Tenant-scoped cached data may belong to a different account using the
+      // same browser. Drop it before the protected shell loads for this login.
+      queryClient.removeQueries();
       options?.onSuccess?.(...args);
     },
   });

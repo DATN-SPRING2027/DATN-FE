@@ -8,6 +8,10 @@ import { SearchIcon, PlatformBuildingIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
 import PlatformPagination from "../PlatformPagination";
 import { TableSkeleton } from "../ui/LoadingSkeleton";
+import {
+  isReadAccessLost,
+  QueryRefreshStatus,
+} from "@/components/platform/PlatformOperationsUi";
 import EmptyState from "../ui/EmptyState";
 import jira from "../ui/jira.module.css";
 import type { PlatformOrganizationsViewProps } from "./types";
@@ -127,7 +131,17 @@ export default function OrganizationDirectory({
           {t("organizations.pageFilterNote")}
         </p>
       </header>
-      {organizations.isError ? (
+      {organizations.data !== undefined && !isReadAccessLost(organizations.error) && (organizations.isFetching || organizations.isRefetchError) && (
+        <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+          <QueryRefreshStatus
+            hasData
+            isFetching={organizations.isFetching}
+            isRefetchError={organizations.isRefetchError ?? false}
+            onRetry={() => void organizations.refetch()}
+          />
+        </div>
+      )}
+      {organizations.isError && (!organizations.data || isReadAccessLost(organizations.error)) ? (
         <div role="alert" className="p-5 text-error-600 dark:text-error-400">
           {t("errors.organizationList")}
           <Button
@@ -138,7 +152,7 @@ export default function OrganizationDirectory({
             {t("retry")}
           </Button>
         </div>
-      ) : organizations.isPending ? (
+      ) : organizations.isPending && !organizations.data ? (
         <TableSkeleton rows={4} columns={5} />
       ) : rows.length ? (
         <div className={jira.tableFrame}>
@@ -210,7 +224,7 @@ export default function OrganizationDirectory({
           )}
         />
       )}
-      {organizations.data && !organizations.isError && (
+      {organizations.data && (
         <div>
           <p role="status" className="sr-only">
             {t("organizations.total", {
