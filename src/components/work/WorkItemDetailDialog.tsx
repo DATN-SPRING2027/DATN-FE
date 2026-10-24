@@ -1344,6 +1344,9 @@ export default function WorkItemDetailDialog({
                           { id: "comments", label: "Comments" },
                           { id: "history", label: "History" },
                           { id: "worklog", label: "Work log" },
+                          ...(projectId
+                            ? [{ id: "notes" as const, label: workNotesT("title") }]
+                            : []),
                         ] as const
                       ).map((tab) => (
                         <button
@@ -1572,6 +1575,14 @@ export default function WorkItemDetailDialog({
                       )}
                     </div>
                   )}
+                  {subtaskActivityTab === "notes" &&
+                    projectId &&
+                    activeSubtask && (
+                      <TaskNotesPanel
+                        projectId={projectId}
+                        taskId={activeSubtask.id}
+                      />
+                    )}
                 </section>
               </main>
 

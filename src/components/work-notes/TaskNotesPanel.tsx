@@ -35,6 +35,9 @@ export default function TaskNotesPanel({ projectId, taskId }: { projectId: strin
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    create.reset();
+    update.reset();
+    remove.reset();
     const cleaned = {
       title: input.title.trim(),
       accomplishments: input.accomplishments.trim(),
@@ -86,17 +89,23 @@ export default function TaskNotesPanel({ projectId, taskId }: { projectId: strin
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{t("by", { name: note.authorName })}</p>
                   {(note.permissions.canEdit || note.permissions.canDelete) && (
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {note.permissions.canEdit && <Button size="sm" variant="outline" onClick={() => { setEditingId(note.id); setInput({ title: note.title, accomplishments: note.accomplishments, approach: note.approach, reason: note.reason }); }}>{t("edit")}</Button>}
+                      {note.permissions.canEdit && <Button size="sm" variant="outline" onClick={() => { create.reset(); update.reset(); remove.reset(); setValidationError(""); setEditingId(note.id); setInput({ title: note.title, accomplishments: note.accomplishments, approach: note.approach, reason: note.reason }); }}>{t("edit")}</Button>}
                       {note.permissions.canDelete && <Button size="sm" variant="outline" disabled={remove.isPending} onClick={() => {
-                        if (window.confirm(t("deleteConfirm"))) remove.mutate(note.id, {
-                          onSuccess: () => {
-                            if (editingId === note.id) {
-                              setEditingId(null);
-                              setInput(EMPTY_INPUT);
-                              setValidationError("");
-                            }
-                          },
-                        });
+                        if (window.confirm(t("deleteConfirm"))) {
+                          create.reset();
+                          update.reset();
+                          remove.reset();
+                          setValidationError("");
+                          remove.mutate(note.id, {
+                            onSuccess: () => {
+                              if (editingId === note.id) {
+                                setEditingId(null);
+                                setInput(EMPTY_INPUT);
+                                setValidationError("");
+                              }
+                            },
+                          });
+                        }
                       }}>{t("delete")}</Button>}
                     </div>
                   )}
@@ -128,7 +137,7 @@ export default function TaskNotesPanel({ projectId, taskId }: { projectId: strin
             </div>
             {validationError && <p role="alert" className="text-xs text-error-600 dark:text-error-400">{validationError}</p>}
             {(create.isError || update.isError || remove.isError) && <p role="alert" className="text-xs text-error-600 dark:text-error-400">{(create.error ?? update.error ?? remove.error) instanceof Error ? (create.error ?? update.error ?? remove.error)?.message : t("saveError")}</p>}
-            {(create.isSuccess || update.isSuccess || remove.isSuccess) && <p role="status" className="text-xs text-success-700 dark:text-success-400">{t("saved")}</p>}
+            {!validationError && !(create.isError || update.isError || remove.isError) && (create.isSuccess || update.isSuccess || remove.isSuccess) && <p role="status" className="text-xs text-success-700 dark:text-success-400">{t("saved")}</p>}
             <div className="flex justify-end">
               {editingId && <Button type="button" variant="outline" size="sm" onClick={() => { setEditingId(null); setInput(EMPTY_INPUT); }}>{t("cancel")}</Button>}
               <Button type="submit" size="sm" isLoading={create.isPending || update.isPending}>{t("save")}</Button>

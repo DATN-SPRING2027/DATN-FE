@@ -98,16 +98,22 @@ it("edits and deletes a permitted Task Note through the API", async () => {
   vi.restoreAllMocks();
 });
 
-it("shows a deletion error and preserves the edited draft for retry", async () => {
+it("shows a deletion error, clears stale success banners, and preserves the edited draft for retry", async () => {
   api.mockImplementation(async (_path, options) => {
+    if (options?.method === "PATCH") return { ...note, permissions: { ...note.permissions, canEdit: true, canDelete: true } } as never;
     if (options?.method === "DELETE") throw new Error("Delete unavailable");
-    return { data: [{ ...note, permissions: { canEdit: true, canDelete: true } }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } } as never;
+    return { data: [{ ...note, permissions: { ...note.permissions, canEdit: true, canDelete: true } }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } } as never;
   });
   vi.spyOn(window, "confirm").mockReturnValue(true);
   mount();
   fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+  expect(await screen.findByText("Task note saved.")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("Delete unavailable");
+  expect(screen.queryByText("Task note saved.")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Title")).toHaveValue(note.title);
   vi.restoreAllMocks();
 });

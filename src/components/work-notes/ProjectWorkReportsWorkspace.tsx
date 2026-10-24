@@ -123,6 +123,9 @@ export default function ProjectWorkReportsWorkspace({ projectId }: { projectId: 
   const reportAction = useWorkNotesMutation((input: Readonly<{ id: string; action: "submit" | "approve" | "request-changes" | "reject"; comment?: string }>) => workNotesApi.reportAction(projectId, input.id, input.action, input.comment), [workNoteKeys.project(projectId)]);
 
   async function saveReportDraft(report: WorkReport, input: WorkReportInput) {
+    saveReport.reset();
+    updateReport.reset();
+    reportAction.reset();
     if (report.id === currentReport?.id) {
       return saveReport.mutateAsync(input);
     }
@@ -139,6 +142,7 @@ export default function ProjectWorkReportsWorkspace({ projectId }: { projectId: 
   }
 
   async function reviewReport(id: string, action: "approve" | "request-changes" | "reject", comment: string) {
+    reportAction.reset();
     setPendingReportId(id);
     try {
       await reportAction.mutateAsync({ id, action, ...(comment ? { comment } : {}) });

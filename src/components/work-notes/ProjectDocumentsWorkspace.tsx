@@ -45,6 +45,8 @@ const EMPTY_DOCUMENT: ProjectDocumentInput = {
 
 function DocumentEditor({
   initial,
+  file,
+  onFileChange,
   hasExistingFile,
   isPending,
   error,
@@ -52,6 +54,8 @@ function DocumentEditor({
   onClose,
 }: {
   initial: ProjectDocumentInput;
+  file: File | null;
+  onFileChange: (file: File | null) => void;
   hasExistingFile: boolean;
   isPending: boolean;
   error: string;
@@ -61,7 +65,6 @@ function DocumentEditor({
   const t = useTranslations("workNotes.documents");
   const common = useTranslations("workNotes");
   const [form, setForm] = useState(initial);
-  const [file, setFile] = useState<File | null>(null);
   const [validationError, setValidationError] = useState("");
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -158,9 +161,14 @@ function DocumentEditor({
         <input
           type="file"
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+          onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
           className={FIELD_CLASS}
         />
+        {file && (
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            {file.name}
+          </span>
+        )}
       </label>
       {validationError && (
         <p role="alert" className="text-sm text-error-600 dark:text-error-400">
@@ -197,6 +205,7 @@ export default function ProjectDocumentsWorkspace({
   const [selected, setSelected] = useState<ProjectDocumentSummary | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [uploadRetryInput, setUploadRetryInput] =
     useState<ProjectDocumentInput | null>(null);
   const [reviewComment, setReviewComment] = useState("");
@@ -246,13 +255,16 @@ export default function ProjectDocumentsWorkspace({
             description: current.description ?? "",
             type: current.type,
             content: current.content,
-            ...(current.taskId ? { taskId: current.taskId } : {}),
           }
         : EMPTY_DOCUMENT),
     [current, uploadRetryInput],
   );
 
   async function saveDocument(input: ProjectDocumentInput, file: File | null) {
+    create.reset();
+    update.reset();
+    upload.reset();
+    action.reset();
     try {
       if (isCreating) {
         const created = await create.mutateAsync(input);
@@ -262,13 +274,18 @@ export default function ProjectDocumentsWorkspace({
           setUploadRetryInput(input);
           setIsEditing(true);
           setSelected(await upload.mutateAsync({ id: created.id, file }));
+          setPendingFile(null);
           setUploadRetryInput(null);
           setIsEditing(false);
         }
       } else {
         await update.mutateAsync(input);
-        if (file)
+        if (file) {
+          setUploadRetryInput(input);
           setSelected(await upload.mutateAsync({ id: documentId, file }));
+          setPendingFile(null);
+          setUploadRetryInput(null);
+        }
         setIsEditing(false);
       }
     } catch {
@@ -279,6 +296,7 @@ export default function ProjectDocumentsWorkspace({
   async function runAction(
     actionName: "submit" | "approve" | "request-changes" | "reject" | "archive",
   ) {
+    action.reset();
     const comment = reviewComment.trim();
     if (
       (actionName === "request-changes" || actionName === "reject") &&
@@ -308,6 +326,7 @@ export default function ProjectDocumentsWorkspace({
     setSelected(document);
     setIsCreating(false);
     setIsEditing(false);
+    setPendingFile(null);
     setUploadRetryInput(null);
     setReviewComment("");
     setValidationError("");
@@ -321,6 +340,7 @@ export default function ProjectDocumentsWorkspace({
     setSelected(null);
     setIsCreating(false);
     setIsEditing(false);
+    setPendingFile(null);
     setUploadRetryInput(null);
   }
 
@@ -409,6 +429,7 @@ export default function ProjectDocumentsWorkspace({
                   update.reset();
                   upload.reset();
                   action.reset();
+                  setPendingFile(null);
                   setUploadRetryInput(null);
                   setIsEditing(false);
                   setIsCreating(true);
@@ -608,6 +629,8 @@ export default function ProjectDocumentsWorkspace({
             <DocumentEditor
               key={`${documentId}-${current?.version ?? 0}-${isCreating ? "new" : "edit"}-${uploadRetryInput ? "retry" : ""}`}
               initial={isCreating ? EMPTY_DOCUMENT : editingInitial}
+              file={pendingFile}
+              onFileChange={setPendingFile}
               hasExistingFile={Boolean(current?.file)}
               isPending={
                 create.isPending || update.isPending || upload.isPending
@@ -796,7 +819,14 @@ export default function ProjectDocumentsWorkspace({
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsEditing(true)}
+                    onClick={() => {
+                      create.reset();
+                      update.reset();
+                      upload.reset();
+                      action.reset();
+                      setValidationError("");
+                      setIsEditing(true);
+                    }}
                   >
                     {t("edit")}
                   </Button>
@@ -838,7 +868,9 @@ export default function ProjectDocumentsWorkspace({
                   </>
                 )}
                 {current.permissions.canConfigure &&
-                  current.status === "APPROVED" && (
+                  current.status !== "ARCHIVED" &&
+                  (current.status === "APPROVED" ||
+                    current.versions.some((v) => v.status === "APPROVED")) && (
                     <Button
                       variant="outline"
                       size="sm"

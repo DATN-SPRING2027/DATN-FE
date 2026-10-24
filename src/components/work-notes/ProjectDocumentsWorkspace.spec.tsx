@@ -116,12 +116,19 @@ it("hides the create action when project access is denied", async () => {
   ).not.toBeInTheDocument();
 });
 
-it("keeps the created draft editor open when its file upload fails", async () => {
+it("keeps the created draft editor open with the selected file when its upload fails, and succeeds on retry", async () => {
+  let uploadCalls = 0;
+  let uploadedFile: ProjectDocument | null = null;
   api.mockImplementation(async (path, options) => {
     if (path.includes("/documents?")) {
       return {
-        data: [],
-        pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+        data: uploadedFile ? [uploadedFile] : [],
+        pagination: {
+          page: 1,
+          pageSize: 50,
+          totalItems: uploadedFile ? 1 : 0,
+          totalPages: uploadedFile ? 1 : 0,
+        },
       } as never;
     }
     if (path.endsWith("/documents") && options?.method === "POST") {
@@ -135,9 +142,37 @@ it("keeps the created draft editor open when its file upload fails", async () =>
         content: input.content,
       } as never;
     }
-    if (path.endsWith(`/documents/${documentId}/file`))
-      throw new Error("Upload failed");
-    if (path.endsWith(`/documents/${documentId}`)) return document as never;
+    if (
+      path.endsWith(`/documents/${documentId}`) &&
+      options?.method === "PATCH"
+    ) {
+      const input = JSON.parse(String(options.body)) as {
+        title: string;
+        content: string;
+      };
+      return {
+        ...document,
+        title: input.title,
+        content: input.content,
+      } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}/file`)) {
+      uploadCalls += 1;
+      if (uploadCalls === 1) throw new Error("Upload failed");
+      uploadedFile = {
+        ...document,
+        title: "Architecture draft",
+        content: "Saved text draft",
+        file: {
+          name: "architecture.pdf",
+          contentType: "application/pdf",
+          size: 8,
+        },
+      };
+      return uploadedFile as never;
+    }
+    if (path.endsWith(`/documents/${documentId}`))
+      return (uploadedFile ?? document) as never;
     throw new Error(
       `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
     );
@@ -151,13 +186,18 @@ it("keeps the created draft editor open when its file upload fails", async () =>
   fireEvent.change(screen.getByLabelText("Document content"), {
     target: { value: "Saved text draft" },
   });
-  fireEvent.change(screen.getByLabelText("PDF or DOCX file (up to 20 MB)"), {
-    target: {
-      files: [
-        new File(["%PDF-1.4"], "architecture.pdf", { type: "application/pdf" }),
-      ],
+  fireEvent.change(
+    screen.getByLabelText("PDF or DOCX file (up to 20 MB)", { exact: false }),
+    {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "architecture.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
     },
-  });
+  );
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
   expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed");
@@ -168,4 +208,130 @@ it("keeps the created draft editor open when its file upload fails", async () =>
   expect(screen.getByLabelText("Document content")).toHaveValue(
     "Saved text draft",
   );
+  expect(screen.getByText("architecture.pdf")).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() => expect(uploadCalls).toBe(2));
+});
+
+it("allows archiving a document with an approved version even when a newer version is in draft", async () => {
+  const mixedDoc: ProjectDocument = {
+    ...document,
+    version: 2,
+    status: "DRAFT",
+    permissions: {
+      ...document.permissions,
+      canConfigure: true,
+      canReview: true,
+    },
+    versions: [
+      {
+        version: 1,
+        status: "APPROVED",
+        createdAt: "2026-10-24T08:00:00.000Z",
+        editedBy: "851a2b3c4d5e6f7a8b9c0d21",
+      },
+      {
+        version: 2,
+        status: "DRAFT",
+        createdAt: "2026-10-24T09:00:00.000Z",
+        editedBy: "851a2b3c4d5e6f7a8b9c0d21",
+      },
+    ],
+  };
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [mixedDoc],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}/archive`)) {
+      return { ...mixedDoc, status: "ARCHIVED" } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}`)) return mixedDoc as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: mixedDoc.title }));
+  const archiveBtn = await screen.findByRole("button", { name: "Archive" });
+  expect(archiveBtn).toBeVisible();
+  fireEvent.click(archiveBtn);
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/documents/${documentId}/archive`,
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
+});
+
+it("clears stale upload errors before retrying document updates and clears action status on validation error", async () => {
+  let patchCalls = 0;
+  const reviewableDoc: ProjectDocument = {
+    ...document,
+    status: "PENDING_REVIEW",
+    permissions: {
+      ...document.permissions,
+      canSubmit: true,
+      canReview: true,
+    },
+  };
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [reviewableDoc],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith("/documents") && options?.method === "POST") {
+      return document as never;
+    }
+    if (
+      path.endsWith(`/documents/${documentId}`) &&
+      options?.method === "PATCH"
+    ) {
+      patchCalls += 1;
+      throw new Error("Update failed");
+    }
+    if (path.endsWith(`/documents/${documentId}/file`)) {
+      throw new Error("Upload failed");
+    }
+    if (path.endsWith(`/documents/${documentId}/submit`)) {
+      return reviewableDoc as never;
+    }
+    if (path.endsWith(`/documents/${documentId}`)) return reviewableDoc as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "New document" }));
+  fireEvent.change(screen.getByLabelText("Document title"), {
+    target: { value: "Architecture draft" },
+  });
+  fireEvent.change(screen.getByLabelText("Document content"), {
+    target: { value: "Saved text draft" },
+  });
+  fireEvent.change(
+    screen.getByLabelText("PDF or DOCX file (up to 20 MB)", { exact: false }),
+    {
+      target: {
+        files: [
+          new File(["%PDF-1.4"], "architecture.pdf", {
+            type: "application/pdf",
+          }),
+        ],
+      },
+    },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed");
+
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  await waitFor(() => expect(patchCalls).toBe(1));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Update failed");
 });

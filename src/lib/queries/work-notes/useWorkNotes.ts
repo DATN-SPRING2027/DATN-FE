@@ -69,13 +69,11 @@ export type ProjectDocumentInput = Readonly<{
   description?: string;
   type: DocumentType;
   content: string;
-  taskId?: string;
 }>;
 
 export type ProjectDocumentSummary = Readonly<{
   id: string;
   projectId: string;
-  taskId?: string;
   title: string;
   description?: string;
   type: DocumentType;
@@ -169,13 +167,19 @@ type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
 function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
-  const cookie = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("__Host-csrf="));
-  if (!cookie) return {};
-  const value = cookie.slice("__Host-csrf=".length);
-  return { "X-CSRF-Token": decodeURIComponent(value) };
+  const parts = document.cookie.split(";").map((part) => part.trim());
+  for (const prefix of [
+    "__Host-csrf=",
+    "continuum_csrf=",
+    "csrf_token=",
+  ] as const) {
+    const cookie = parts.find((part) => part.startsWith(prefix));
+    if (cookie) {
+      const value = cookie.slice(prefix.length);
+      return { "X-CSRF-Token": decodeURIComponent(value) };
+    }
+  }
+  return {};
 }
 
 function projectPath(projectId: string) {
