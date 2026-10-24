@@ -350,7 +350,7 @@ function ReportEditor({
                 <UploadIcon className="me-1.5 h-3.5 w-3.5" />
                 {selectedFile || report.file
                   ? t("replaceFile")
-                  : t("attachFile")}
+                  : t("selectFile")}
               </Button>
 
               {selectedFile && (
