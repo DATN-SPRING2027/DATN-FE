@@ -978,12 +978,39 @@
       }
     },
     "notifications": {
-      "title": "Notification",
+      "title": "Notifications",
+      "subtitle": "Central activity across Organizations, Projects, Work Tasks, Work Notes, and Chat mentions.",
       "requestsPermission": "requests permission to change",
       "project": "Project",
       "minAgo": "{count} min ago",
       "hrAgo": "{count} hr ago",
-      "viewAll": "View All Notifications"
+      "justNow": "Just now",
+      "daysAgo": "{count}d ago",
+      "viewAll": "View All Notifications",
+      "markAllRead": "Mark all as read",
+      "markRead": "Mark as read",
+      "filterAll": "All",
+      "filterUnread": "Unread",
+      "unreadBadge": "{count} unread",
+      "emptyTitle": "You’re all caught up",
+      "emptyDescription": "Important updates about your organization, projects, assigned tasks, work notes, and mentions will appear here.",
+      "emptyUnreadTitle": "No unread notifications",
+      "emptyUnreadDescription": "You have read all of your notifications.",
+      "errorTitle": "Unable to load notifications",
+      "errorDescription": "Please check your connection and try again.",
+      "retry": "Retry",
+      "loadMore": "Load more notifications",
+      "loading": "Loading notifications…",
+      "contentUnavailableTitle": "Content is no longer available.",
+      "contentUnavailableDescription": "This resource may have been deleted or you no longer have permission to view it.",
+      "dismissNotice": "Dismiss",
+      "categories": {
+        "ORGANIZATION": "Organization",
+        "PROJECT": "Project",
+        "TASK": "Task",
+        "WORK_NOTE": "Work Note",
+        "CHAT": "Chat"
+      }
     }
   },
   "userDropdown": {
@@ -2106,7 +2133,8 @@
     "showingRange": "Showing {start}–{end} of",
     "perPage": "{count} per page",
     "rowsPerPage": "Rows per page",
-    "selectAllProjects": "Select all projects"
+    "selectAllProjects": "Select all projects",
+    "contentUnavailable": "Content is no longer available."
   },
   "projectLeaders": {
     "title": "Leaders",
@@ -2315,7 +2343,8 @@
     "memberScopeBadge": "Member workspace",
     "emptyProjectsTitle": "No active projects in this workspace",
     "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",
-    "browseProjects": "View projects"
+    "browseProjects": "View projects",
+    "contentUnavailable": "Content is no longer available."
   },
   "organizationMembers": {
     "title": "Organization members",
@@ -2801,7 +2830,8 @@
       "linkTask": "Link to a task",
       "noTask": "No task linked",
       "taskHint": "Optional. Choose a task in this Project.",
-      "savePreview": "Add to preview"
+      "savePreview": "Add to preview",
+      "mentionTeammates": "Mention teammates"
     },
     "validation": {
       "titleRequired": "Enter a title.",
@@ -2940,7 +2970,8 @@
         "reviewKnowledge": "Review knowledge",
         "manageConfiguration": "Manage configuration"
       }
-    }
+    },
+    "contentUnavailable": "Content is no longer available."
   },
   "projectVisibility": {
     "makePrivate": "Make private",

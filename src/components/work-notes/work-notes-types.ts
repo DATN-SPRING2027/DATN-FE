@@ -29,6 +29,12 @@ export type KnowledgeStatus = "PENDING" | "PUBLISHED" | "CHANGES_REQUESTED";
 export type ReportStatus = "SUBMITTED" | "MISSING";
 export type NotesWeek = "THIS_WEEK" | "LAST_WEEK" | "ALL";
 
+export type WorkNoteMentionCandidate = Readonly<{
+  id: string;
+  name: string;
+  email?: string;
+}>;
+
 export type WorkNote = Readonly<{
   id: string;
   author: string;
@@ -43,6 +49,7 @@ export type WorkNote = Readonly<{
   unfinished?: string;
   tags?: readonly string[];
   knowledgeStatus?: KnowledgeStatus;
+  mentionUserIds?: readonly string[];
   week: Exclude<NotesWeek, "ALL">;
   viewed: boolean;
 }>;

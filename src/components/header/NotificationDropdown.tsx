@@ -1,387 +1,402 @@
 "use client";
 
-import { Link } from "@/i18n/navigation";
-import { cn } from "@/utils";
+import React, { useState } from "react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
-import { useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { DropdownItem } from "../ui/dropdown/DropdownItem";
+import { Link, useRouter } from "@/i18n/navigation";
+import {
+  AlertIcon,
+  ChatIcon,
+  CheckCircleIcon,
+  CloseIcon,
+  DocsIcon,
+  PlatformBellIcon,
+  PlatformBuildingIcon,
+  PlatformProjectsIcon,
+  TaskIcon,
+  TimeIcon,
+} from "@/icons";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { ApiError } from "@/lib/api-client";
+import {
+  notificationsApi,
+  useMarkAllNotificationsReadMutation,
+  useMarkNotificationReadMutation,
+  useNotificationRealtimeSubscription,
+  useNotificationsQuery,
+  useUnreadNotificationCountQuery,
+  type NotificationItem,
+} from "@/lib/queries/notifications/useNotifications";
+import { useChatNavigation } from "@/stores/chat-navigation";
+import {
+  formatRelativeNotificationTime,
+  resolveDefaultTargetUrl,
+  resolveNotificationCategory,
+} from "../notifications/notification-utils";
+
+function NotificationTypeBadge({ item }: { item: NotificationItem }) {
+  const category = resolveNotificationCategory(item);
+  const isOverdue = item.type === "TASK_DEADLINE_OVERDUE";
+  const isApproaching = item.type === "TASK_DEADLINE_APPROACHING";
+
+  if (isOverdue) {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-error-50 text-error-600 dark:bg-error-500/15 dark:text-error-400">
+        <AlertIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  if (isApproaching) {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-warning-50 text-warning-600 dark:bg-warning-500/15 dark:text-warning-400">
+        <TimeIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  if (category === "TASK") {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+        <TaskIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  if (category === "WORK_NOTE") {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-purple-50 text-purple-600 dark:bg-purple-500/15 dark:text-purple-400">
+        <DocsIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  if (category === "CHAT") {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-blue-light-50 text-blue-light-600 dark:bg-blue-light-500/15 dark:text-blue-light-400">
+        <ChatIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  if (category === "PROJECT") {
+    return (
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-success-50 text-success-600 dark:bg-success-500/15 dark:text-success-400">
+        <PlatformProjectsIcon className="h-4.5 w-4.5" />
+      </span>
+    );
+  }
+  return (
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+      <PlatformBuildingIcon className="h-4.5 w-4.5" />
+    </span>
+  );
+}
 
 export default function NotificationDropdown() {
   const t = useTranslations("header.notifications");
+  const router = useRouter();
+  const openChatMessage = useChatNavigation((state) => state.open);
+  const currentUser = useCurrentUserQuery();
+  const userId = currentUser.data?.id ?? null;
+  const organizationId =
+    currentUser.data && "organizationId" in currentUser.data
+      ? (currentUser.data.organizationId ?? null)
+      : null;
+
+  useNotificationRealtimeSubscription(userId, organizationId);
+
   const [isOpen, setIsOpen] = useState(false);
-  const [notifying, setNotifying] = useState(true);
+  const [unavailableNotice, setUnavailableNotice] = useState<string | null>(
+    null,
+  );
+  const [resolveErrorItem, setResolveErrorItem] =
+    useState<NotificationItem | null>(null);
+
+  const isAuthenticated = Boolean(userId);
+  const unreadQuery = useUnreadNotificationCountQuery(isAuthenticated);
+  const listQuery = useNotificationsQuery({
+    limit: 12,
+    enabled: isAuthenticated,
+  });
+  const markReadMutation = useMarkNotificationReadMutation();
+  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+
+  const items = listQuery.data?.items ?? [];
+  const unreadCount =
+    unreadQuery.data?.count ?? listQuery.data?.unreadCount ?? 0;
 
   function toggleDropdown() {
-    setIsOpen(!isOpen);
+    setIsOpen((prev) => !prev);
+    setUnavailableNotice(null);
+    setResolveErrorItem(null);
   }
 
   function closeDropdown() {
     setIsOpen(false);
   }
 
-  const handleClick = () => {
-    toggleDropdown();
-    setNotifying(false);
-  };
+  async function handleNotificationClick(item: NotificationItem) {
+    setUnavailableNotice(null);
+    setResolveErrorItem(null);
+    if (!item.readAt) {
+      void markReadMutation.mutateAsync(item.id).catch(() => undefined);
+    }
+
+    try {
+      const resolution = await notificationsApi.resolveTarget(item.id);
+      if (!resolution.available) {
+        setUnavailableNotice(t("contentUnavailableTitle"));
+        return;
+      }
+      const target = resolution.target ?? item.target;
+      const url =
+        resolution.url ?? target?.url ?? resolveDefaultTargetUrl(item);
+      if (
+        target?.kind === "CHAT" &&
+        target.conversationId &&
+        target.messageId
+      ) {
+        openChatMessage(target.conversationId, target.messageId);
+      }
+      closeDropdown();
+      router.push(url);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("continuum:deep-link", { detail: { url } }),
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404 || error.status === 410)
+      ) {
+        setUnavailableNotice(t("contentUnavailableTitle"));
+        return;
+      }
+      setResolveErrorItem(item);
+    }
+  }
+
   return (
     <div className="relative">
       <button
+        type="button"
         className="dropdown-toggle relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-        onClick={handleClick}
+        onClick={toggleDropdown}
+        aria-label={t("title")}
+        aria-expanded={isOpen}
+        data-testid="notification-bell-button"
       >
-        <span
-          className={cn(
-            "absolute top-0.5 right-0 z-10 h-2 w-2 rounded-full bg-orange-400",
-            !notifying ? "hidden" : "flex",
-          )}
-        >
-          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-        </span>
-        <svg
-          className="fill-current"
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            fillRule="evenodd"
-            clipRule="evenodd"
-            d="M10.75 2.29248C10.75 1.87827 10.4143 1.54248 10 1.54248C9.58583 1.54248 9.25004 1.87827 9.25004 2.29248V2.83613C6.08266 3.20733 3.62504 5.9004 3.62504 9.16748V14.4591H3.33337C2.91916 14.4591 2.58337 14.7949 2.58337 15.2091C2.58337 15.6234 2.91916 15.9591 3.33337 15.9591H4.37504H15.625H16.6667C17.0809 15.9591 17.4167 15.6234 17.4167 15.2091C17.4167 14.7949 17.0809 14.4591 16.6667 14.4591H16.375V9.16748C16.375 5.9004 13.9174 3.20733 10.75 2.83613V2.29248ZM14.875 14.4591V9.16748C14.875 6.47509 12.6924 4.29248 10 4.29248C7.30765 4.29248 5.12504 6.47509 5.12504 9.16748V14.4591H14.875ZM8.00004 17.7085C8.00004 18.1228 8.33583 18.4585 8.75004 18.4585H11.25C11.6643 18.4585 12 18.1228 12 17.7085C12 17.2943 11.6643 16.9585 11.25 16.9585H8.75004C8.33583 16.9585 8.00004 17.2943 8.00004 17.7085Z"
-            fill="currentColor"
-          />
-        </svg>
+        {unreadCount > 0 && (
+          <span
+            data-testid="notification-unread-badge"
+            className="absolute -top-1 -end-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-[11px] font-semibold text-white tabular-nums shadow-theme-xs"
+          >
+            {unreadCount > 99 ? "99+" : unreadCount}
+          </span>
+        )}
+        <PlatformBellIcon className="h-5 w-5" />
       </button>
 
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className="absolute -left-13.5 mt-4.25 flex h-120 w-87.5 flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg sm:w-90.25 xl:right-0 xl:left-auto dark:border-gray-800 dark:bg-gray-dark"
+        className="absolute end-0 mt-[17px] flex max-h-[520px] w-[360px] flex-col rounded-2xl border border-gray-200 bg-white p-3 shadow-theme-lg sm:w-[390px] dark:border-gray-800 dark:bg-gray-900"
       >
-        <div className="mb-3 flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-700">
-          <h5 className="text-lg font-semibold text-gray-800 dark:text-gray-200">
-            {t("title")}
-          </h5>
-          <button
-            onClick={toggleDropdown}
-            className="dropdown-toggle text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-          >
-            <svg
-              className="fill-current"
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
+        <div className="mb-2.5 flex items-center justify-between border-b border-gray-100 pb-2.5 dark:border-gray-800">
+          <div className="flex items-center gap-2">
+            <h5 className="text-base font-semibold text-gray-800 dark:text-white/90">
+              {t("title")}
+            </h5>
+            {unreadCount > 0 && (
+              <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-600 tabular-nums dark:bg-brand-500/15 dark:text-brand-400">
+                {t("unreadBadge", { count: unreadCount })}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={() => void markAllReadMutation.mutateAsync()}
+                disabled={markAllReadMutation.isPending}
+                data-testid="notification-mark-all-read"
+                className="text-xs font-medium text-brand-600 transition hover:text-brand-700 disabled:opacity-50 dark:text-brand-400 dark:hover:text-brand-300"
+              >
+                {t("markAllRead")}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closeDropdown}
+              aria-label={t("dismissNotice")}
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
             >
-              <path
-                fillRule="evenodd"
-                clipRule="evenodd"
-                d="M6.21967 7.28131C5.92678 6.98841 5.92678 6.51354 6.21967 6.22065C6.51256 5.92775 6.98744 5.92775 7.28033 6.22065L11.999 10.9393L16.7176 6.22078C17.0105 5.92789 17.4854 5.92788 17.7782 6.22078C18.0711 6.51367 18.0711 6.98855 17.7782 7.28144L13.0597 12L17.7782 16.7186C18.0711 17.0115 18.0711 17.4863 17.7782 17.7792C17.4854 18.0721 17.0105 18.0721 16.7176 17.7792L11.999 13.0607L7.28033 17.7794C6.98744 18.0722 6.51256 18.0722 6.21967 17.7794C5.92678 17.4865 5.92678 17.0116 6.21967 16.7187L10.9384 12L6.21967 7.28131Z"
-                fill="currentColor"
-              />
-            </svg>
-          </button>
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <ul className="flex custom-scrollbar h-auto flex-col overflow-y-auto">
-          {/* Example notification items */}
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+        {unavailableNotice && (
+          <div
+            role="alert"
+            data-testid="notification-unavailable-alert"
+            className="mb-2.5 flex items-start justify-between gap-2 rounded-xl border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
+          >
+            <div>
+              <p className="font-semibold">{unavailableNotice}</p>
+              <p className="mt-0.5 text-warning-700 dark:text-warning-400">
+                {t("contentUnavailableDescription")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setUnavailableNotice(null)}
+              className="shrink-0 text-warning-700 hover:text-warning-900 dark:text-warning-300"
+              aria-label={t("dismissNotice")}
             >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-02.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
-              </span>
+              <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
 
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Terry Franci
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 5 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
+        {resolveErrorItem && (
+          <div
+            role="alert"
+            data-testid="notification-resolve-error-alert"
+            className="mb-2.5 flex items-start justify-between gap-2 rounded-xl border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-800 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          >
+            <div>
+              <p className="font-semibold">{t("errorTitle")}</p>
+              <p className="mt-0.5 text-error-700 dark:text-error-400">
+                {t("errorDescription")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleNotificationClick(resolveErrorItem)}
+              data-testid="notification-resolve-retry"
+              className="shrink-0 rounded-lg border border-error-300 bg-white px-2.5 py-1 text-xs font-medium text-error-700 hover:bg-error-100 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-300"
             >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-03.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
-              </span>
+              {t("retry")}
+            </button>
+          </div>
+        )}
 
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Alena Franci
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 8 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-              href="#"
+        <div className="custom-scrollbar flex-1 overflow-y-auto">
+          {listQuery.isLoading ? (
+            <div
+              role="status"
+              data-testid="notification-loading-state"
+              className="space-y-2 py-2"
             >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-04.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
-              </span>
-
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Jocelyn Kenter
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 15 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-              href="#"
+              {[0, 1, 2].map((idx) => (
+                <div
+                  key={idx}
+                  className="flex items-start gap-3 rounded-xl p-3"
+                >
+                  <div className="h-9 w-9 shrink-0 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                    <div className="h-3 w-full animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : listQuery.isError ? (
+            <div
+              role="alert"
+              data-testid="notification-error-state"
+              className="flex flex-col items-center justify-center px-4 py-8 text-center"
             >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-05.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900"></span>
-              </span>
-
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Brandon Philips
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("hrAgo", { count: 1 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-              onItemClick={closeDropdown}
+              <AlertIcon className="mb-2 h-6 w-6 text-error-500" />
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {t("errorTitle")}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t("errorDescription")}
+              </p>
+              <button
+                type="button"
+                onClick={() => void listQuery.refetch()}
+                className="mt-3 rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                {t("retry")}
+              </button>
+            </div>
+          ) : items.length === 0 ? (
+            <div
+              data-testid="notification-empty-state"
+              className="flex flex-col items-center justify-center px-4 py-10 text-center"
             >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-02.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
+              <span className="mb-2.5 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                <CheckCircleIcon className="h-5 w-5" />
               </span>
+              <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                {t("emptyTitle")}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                {t("emptyDescription")}
+              </p>
+            </div>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {items.map((item) => {
+                const isUnread = !item.readAt;
+                return (
+                  <li key={item.id}>
+                    <div
+                      className={`group flex items-start gap-3 rounded-xl p-2.5 transition-colors ${
+                        isUnread
+                          ? "bg-brand-50/60 hover:bg-brand-50 dark:bg-brand-500/10 dark:hover:bg-brand-500/15"
+                          : "hover:bg-gray-50 dark:hover:bg-white/5"
+                      }`}
+                    >
+                      <NotificationTypeBadge item={item} />
 
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Terry Franci
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
+                      <button
+                        type="button"
+                        onClick={() => void handleNotificationClick(item)}
+                        data-testid={`notification-item-${item.id}`}
+                        className="min-w-0 flex-1 text-start"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="truncate text-xs font-semibold text-gray-800 dark:text-white/90">
+                            {item.title}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-gray-500 tabular-nums dark:text-gray-400">
+                            {formatRelativeNotificationTime(item.createdAt, t)}
+                          </span>
+                        </div>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
+                          {item.message}
+                        </p>
+                      </button>
 
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 5 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
+                      {isUnread && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void markReadMutation.mutateAsync(item.id);
+                          }}
+                          title={t("markRead")}
+                          aria-label={t("markRead")}
+                          data-testid={`notification-mark-read-${item.id}`}
+                          className="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-500 hover:bg-brand-100 dark:hover:bg-brand-500/20"
+                        >
+                          <span className="h-2 w-2 rounded-full bg-brand-500" />
+                        </button>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
 
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-            >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-03.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
-              </span>
-
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Alena Franci
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 8 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-            >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-04.jpg"
-                  alt="User"
-                  className="w-full overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-success-500 dark:border-gray-900"></span>
-              </span>
-
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Jocelyn Kenter
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("minAgo", { count: 15 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-
-          <li>
-            <DropdownItem
-              onItemClick={closeDropdown}
-              className="flex gap-3 rounded-lg border-b border-gray-100 p-3 px-4.5 py-3 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-white/5"
-              href="#"
-            >
-              <span className="relative z-1 block h-10 w-full max-w-10 rounded-full">
-                <Image
-                  width={40}
-                  height={40}
-                  src="/images/user/user-05.jpg"
-                  alt="User"
-                  className="overflow-hidden rounded-full"
-                />
-                <span className="absolute right-0 bottom-0 z-10 h-2.5 w-full max-w-2.5 rounded-full border-[1.5px] border-white bg-error-500 dark:border-gray-900"></span>
-              </span>
-
-              <span className="block">
-                <span className="mb-1.5 block space-x-1 text-theme-sm text-gray-500 dark:text-gray-400">
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Brandon Philips
-                  </span>
-                  <span>{t("requestsPermission")}</span>
-                  <span className="font-medium text-gray-800 dark:text-white/90">
-                    Project - Nganter App
-                  </span>
-                </span>
-
-                <span className="flex items-center gap-2 text-theme-xs text-gray-500 dark:text-gray-400">
-                  <span>{t("project")}</span>
-                  <span className="h-1 w-1 rounded-full bg-gray-400"></span>
-                  <span>{t("hrAgo", { count: 1 })}</span>
-                </span>
-              </span>
-            </DropdownItem>
-          </li>
-          {/* Add more items as needed */}
-        </ul>
         <Link
-          href="/"
-          className="mt-3 block rounded-lg border border-gray-300 bg-white px-4 py-2 text-center text-sm font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700"
+          href="/notifications"
+          onClick={closeDropdown}
+          data-testid="notification-view-all-link"
+          className="mt-2.5 block rounded-xl border border-gray-200 bg-white px-4 py-2 text-center text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
         >
           {t("viewAll")}
         </Link>

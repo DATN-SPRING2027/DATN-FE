@@ -6,7 +6,12 @@ import { CloseLineIcon } from"@/icons";
 import Button from"@/components/ui/button/Button";
 import { Modal } from"@/components/ui/modal";
 import { PREVIEW_TASKS } from"./work-notes-preview-data";
-import type { CreateWorkNoteInput, WorkNoteKind, WorkNotesIdentity } from"./work-notes-types";
+import type {
+  CreateWorkNoteInput,
+  WorkNoteKind,
+  WorkNoteMentionCandidate,
+  WorkNotesIdentity,
+} from"./work-notes-types";
 
 const FIELD_CLASS ="w-full border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
 
@@ -14,12 +19,14 @@ export default function WorkNoteCreateDialog({
   isOpen,
   initialKind,
   currentUser,
+  mentionCandidates = [],
   onClose,
   onCreate,
 }: {
   isOpen: boolean;
   initialKind: WorkNoteKind;
   currentUser: WorkNotesIdentity;
+  mentionCandidates?: readonly WorkNoteMentionCandidate[];
   onClose: () => void;
   onCreate: (note: CreateWorkNoteInput) => void;
 }) {
@@ -36,6 +43,7 @@ export default function WorkNoteCreateDialog({
   const [nextStep, setNextStep] = useState("");
   const [taskKey, setTaskKey] = useState("");
   const [tags, setTags] = useState("");
+  const [selectedMentionIds, setSelectedMentionIds] = useState<string[]>([]);
   const [error, setError] = useState("");
 
   if (initialKind !== previousInitialKind) {
@@ -78,7 +86,14 @@ export default function WorkNoteCreateDialog({
     setNextStep("");
     setTaskKey("");
     setTags("");
+    setSelectedMentionIds([]);
     setError("");
+  }
+
+  function toggleMention(userId: string) {
+    setSelectedMentionIds((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId],
+    );
   }
 
   function close() {
@@ -113,6 +128,7 @@ export default function WorkNoteCreateDialog({
             knowledgeStatus:"PENDING"as const,
           }
         : {}),
+      ...(selectedMentionIds.length > 0 ? { mentionUserIds: selectedMentionIds } : {}),
     });
     reset();
   }
@@ -179,6 +195,31 @@ export default function WorkNoteCreateDialog({
           )}
           {kind ==="KNOWLEDGE"&& (
             <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">{t("form.tagsLabel")}<input value={tags} onChange={(event) => setTags(event.target.value)} placeholder={t("form.tagsPlaceholder")} className={FIELD_CLASS} /><span className="text-xs font-normal text-gray-500 dark:text-gray-400">{t("form.tagsHint")}</span></label>
+          )}
+          {mentionCandidates.length > 0 && (
+            <div className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span>{t("form.mentionTeammates")}</span>
+              <div className="flex flex-wrap gap-1.5">
+                {mentionCandidates.map((candidate) => {
+                  const selected = selectedMentionIds.includes(candidate.id);
+                  return (
+                    <button
+                      key={candidate.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => toggleMention(candidate.id)}
+                      className={`border px-2.5 py-1 text-xs font-medium transition ${
+                        selected
+                          ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/15 dark:text-brand-300"
+                          : "border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                      }`}
+                    >
+                      @{candidate.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
           <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
             {t("form.linkTask")}

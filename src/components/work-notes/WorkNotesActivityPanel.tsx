@@ -11,6 +11,7 @@ export default function WorkNotesActivityPanel({
   role,
   currentUserName,
   currentUserReportSubmitted,
+  highlightedNoteId,
   onMarkViewed,
   onConvert,
   onOpenReports,
@@ -20,6 +21,7 @@ export default function WorkNotesActivityPanel({
   role: WorkNotesRole;
   currentUserName: string;
   currentUserReportSubmitted: boolean;
+  highlightedNoteId?: string | null;
   onMarkViewed: (id: string) => void;
   onConvert: (note: WorkNote) => void;
   onOpenReports: () => void;
@@ -48,8 +50,8 @@ export default function WorkNotesActivityPanel({
         ) : (
           <ol className="space-y-3"aria-label={t("activity.timelineLabel")}>
             {notes.map((note) => (
-              <li key={note.id}>
-                <article className={` border border-gray-200 border-s-4 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 ${note.blocker ?"border-s-error-500": note.unfinished || note.kind ==="DECISION"?"border-s-warning-500":"border-s-brand-500"}`}>
+              <li key={note.id} data-testid={`work-note-item-${note.id}`}>
+                <article className={` border border-gray-200 border-s-4 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 ${note.blocker ?"border-s-error-500": note.unfinished || note.kind ==="DECISION"?"border-s-warning-500":"border-s-brand-500"} ${highlightedNoteId === note.id ? "ring-2 ring-brand-500" : ""}`}>
                   <header className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-2.5">
                       <Avatar initials={note.initials} />

@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from"react";
+import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
+import { apiClient } from"@/lib/api-client";
 import { useRoleDisplayLabel } from"@/components/common/RoleLabel";
 import { useCurrentUserQuery } from"@/lib/queries/auth/useAuth";
 import { useProjectQuery, type Project } from"@/lib/queries/projects/useProjects";
+import { workNotesApi, type WorkNoteDto } from"@/lib/queries/work-notes/useWorkNotes";
 import ProjectState from"@/components/projects/ProjectState";
 import Button from"@/components/ui/button/Button";
 import {
@@ -36,12 +38,14 @@ import type {
   KnowledgeStatus,
   WorkNote,
   WorkNoteKind,
+  WorkNoteMentionCandidate,
   WorkNotesTab,
   WorkNotesIdentity,
   WeeklyReport,
 } from"./work-notes-types";
 import { getWorkNotesInitials, resolveWorkNotesRole } from"./work-notes-types";
 
+const OBJECT_ID_PATTERN = /^[0-9a-f]{24}$/i;
 const FIELD_CLASS =
   "h-10 min-w-0 border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-300 dark:placeholder:text-gray-500";
 
@@ -70,8 +74,11 @@ export default function WorkNotesWorkspace({
   const role = user.data &&"roles"in user.data
     ? resolveWorkNotesRole(user.data.roles ?? [])
     : undefined;
+  const isRealProject = OBJECT_ID_PATTERN.test(projectId);
   const [tab, setTab] = useState<WorkNotesTab>("ACTIVITY");
-  const [notes, setNotes] = useState<WorkNote[]>([...INITIAL_PREVIEW_NOTES]);
+  const [notes, setNotes] = useState<WorkNote[]>(() =>
+    isRealProject ? [] : [...INITIAL_PREVIEW_NOTES],
+  );
   const [reports, setReports] = useState<WeeklyReport[]>([...INITIAL_PREVIEW_REPORTS]);
   const [search, setSearch] = useState("");
   const [member, setMember] = useState("ALL");
@@ -82,6 +89,150 @@ export default function WorkNotesWorkspace({
   const [createOpen, setCreateOpen] = useState(false);
   const [createKind, setCreateKind] = useState<WorkNoteKind>("WORK_UPDATE");
   const [announcement, setAnnouncement] = useState("");
+  const [highlightedNoteId, setHighlightedNoteId] = useState<string | null>(null);
+  const [unavailableNoteNotice, setUnavailableNoteNotice] = useState<string | null>(null);
+  const [backendNotesLoaded, setBackendNotesLoaded] = useState(false);
+  const [backendNoteItems, setBackendNoteItems] = useState<readonly WorkNoteDto[]>([]);
+  const [mentionCandidates, setMentionCandidates] = useState<readonly WorkNoteMentionCandidate[]>([]);
+  const [deepLinkOverrideId, setDeepLinkOverrideId] = useState<string | null>(null);
+  const handledDeepLinkNoteRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isRealProject) return;
+    let cancelled = false;
+    void workNotesApi
+      .list(projectId)
+      .then((res) => {
+        if (cancelled) return;
+        setBackendNoteItems(res.items);
+        const mapped: WorkNote[] = res.items.map((item) => ({
+          id: item.id,
+          author: item.authorName || "Member",
+          initials: getWorkNotesInitials(item.authorName || "Member"),
+          createdAt: item.createdAt.slice(0, 10),
+          kind: item.kind,
+          title: item.title,
+          body: item.body,
+          ...(item.taskKey ? { taskKey: item.taskKey } : {}),
+          ...(item.blocker ? { blocker: item.blocker } : {}),
+          ...(item.unfinished ? { unfinished: item.unfinished } : {}),
+          ...(item.nextStep ? { nextStep: item.nextStep } : {}),
+          ...(item.tags.length > 0 ? { tags: item.tags } : {}),
+          ...(item.kind === "KNOWLEDGE" ? { knowledgeStatus: "PENDING" as const } : {}),
+          mentionUserIds: item.mentionUserIds,
+          week: "THIS_WEEK",
+          viewed: false,
+        }));
+        setNotes(mapped);
+        setBackendNotesLoaded(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBackendNotesLoaded(true);
+        }
+      });
+
+    void apiClient<{
+      data?: readonly {
+        userId: string;
+        status?: string;
+        user?: { id: string; fullName?: string | null; email?: string | null } | null;
+      }[];
+    }>(`/iam/projects/${encodeURIComponent(projectId)}/members?page=1&pageSize=100&status=ACTIVE`)
+      .then((res) => {
+        if (cancelled) return;
+        const memberships = res.data ?? [];
+        const list: WorkNoteMentionCandidate[] = [];
+        const seen = new Set<string>();
+        for (const m of memberships) {
+          if (m.status && m.status !== "ACTIVE") continue;
+          const memberId = m.user?.id ?? m.userId;
+          if (!memberId || memberId === currentUser.id || seen.has(memberId)) continue;
+          seen.add(memberId);
+          const name =
+            m.user?.fullName?.trim() ||
+            m.user?.email?.trim() ||
+            `Member ${memberId.slice(-4)}`;
+          list.push({
+            id: memberId,
+            name,
+            ...(m.user?.email ? { email: m.user.email } : {}),
+          });
+        }
+        setMentionCandidates(list);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [currentUser.id, isRealProject, projectId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onDeepLink = (event: Event) => {
+      const detailUrl = (event as CustomEvent<{ url?: string }>).detail?.url;
+      if (detailUrl) {
+        const qIndex = detailUrl.indexOf("?");
+        const searchPart = qIndex >= 0 ? detailUrl.slice(qIndex) : "";
+        const nextId = new URLSearchParams(searchPart).get("noteId")?.trim() ?? null;
+        if (nextId) {
+          handledDeepLinkNoteRef.current = null;
+          setDeepLinkOverrideId(nextId);
+        }
+      } else {
+        handledDeepLinkNoteRef.current = null;
+        setDeepLinkOverrideId(
+          new URLSearchParams(window.location.search).get("noteId")?.trim() ?? null,
+        );
+      }
+    };
+    window.addEventListener("continuum:deep-link", onDeepLink);
+    window.addEventListener("popstate", onDeepLink);
+    return () => {
+      window.removeEventListener("continuum:deep-link", onDeepLink);
+      window.removeEventListener("popstate", onDeepLink);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const deepLinkNoteId =
+      deepLinkOverrideId ?? params.get("noteId")?.trim() ?? null;
+    if (!deepLinkNoteId) return;
+    if (handledDeepLinkNoteRef.current === deepLinkNoteId) return;
+
+    if (isRealProject && !backendNotesLoaded) {
+      return;
+    }
+
+    const found = notes.find((n) => n.id === deepLinkNoteId);
+    if (found) {
+      handledDeepLinkNoteRef.current = deepLinkNoteId;
+      queueMicrotask(() => {
+        setUnavailableNoteNotice(null);
+        setHighlightedNoteId(found.id);
+        setMember("ALL");
+        setTask("ALL");
+        setKind("ALL");
+        setAttentionOnly(false);
+        setSearch("");
+        setWeek("ALL");
+        setTab(found.kind === "KNOWLEDGE" ? "KNOWLEDGE" : "ACTIVITY");
+      });
+      return;
+    }
+
+    if (isRealProject && backendNoteItems.some((item) => item.id === deepLinkNoteId)) {
+      return;
+    }
+
+    handledDeepLinkNoteRef.current = deepLinkNoteId;
+    queueMicrotask(() => {
+      setUnavailableNoteNotice(t("contentUnavailable"));
+    });
+  }, [backendNoteItems, backendNotesLoaded, deepLinkOverrideId, isRealProject, notes, t]);
 
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
@@ -154,6 +305,31 @@ export default function WorkNotesWorkspace({
     setNotes((current) => [note, ...current]);
     setCreateOpen(false);
     setAnnouncement(t("noteAddedPreview"));
+
+    if (isRealProject) {
+      void workNotesApi
+        .create(projectId, {
+          title: input.title,
+          body: input.body,
+          kind: input.kind,
+          ...(input.taskKey ? { taskKey: input.taskKey } : {}),
+          ...(input.blocker ? { blocker: input.blocker } : {}),
+          ...(input.unfinished ? { unfinished: input.unfinished } : {}),
+          ...(input.nextStep ? { nextStep: input.nextStep } : {}),
+          ...(input.tags ? { tags: [...input.tags] } : {}),
+          ...(input.mentionUserIds
+            ? { mentionUserIds: [...input.mentionUserIds] }
+            : {}),
+        })
+        .then((created) => {
+          setNotes((current) =>
+            current.map((item) =>
+              item.id === note.id ? { ...item, id: created.id } : item,
+            ),
+          );
+        })
+        .catch(() => undefined);
+    }
   }
 
   function updateNote(id: string, updater: (note: WorkNote) => WorkNote) {
@@ -263,7 +439,7 @@ export default function WorkNotesWorkspace({
           >
             {roleLabel(role)}
           </span>
-          {role ==="MEMBER"&& (
+          {(role ==="MEMBER"|| isRealProject) && (
             <Button
               type="button"
               size="sm"
@@ -276,6 +452,23 @@ export default function WorkNotesWorkspace({
           )}
         </div>
       </header>
+
+      {unavailableNoteNotice && (
+        <div
+          role="alert"
+          data-testid="work-note-unavailable-banner"
+          className="flex flex-wrap items-center justify-between gap-3 border border-warning-200 bg-warning-50 px-4 py-3 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
+        >
+          <span className="font-medium">{unavailableNoteNotice}</span>
+          <button
+            type="button"
+            onClick={() => setUnavailableNoteNotice(null)}
+            className="font-semibold underline underline-offset-2"
+          >
+            {t("close")}
+          </button>
+        </div>
+      )}
 
       {role ==="LEADER"&& (
         <section aria-label={t("leaderSummaryLabel")} className="grid grid-cols-1 gap-3 sm:grid-cols-2 2xl:grid-cols-4">
@@ -376,6 +569,7 @@ export default function WorkNotesWorkspace({
               role={role}
               currentUserName={currentUser.name}
               currentUserReportSubmitted={currentUserReportSubmitted}
+              highlightedNoteId={highlightedNoteId}
               onMarkViewed={(noteId) => {
                 updateNote(noteId, (note) => ({ ...note, viewed: true }));
                 setAnnouncement(t("markedViewedPreview"));
@@ -406,7 +600,7 @@ export default function WorkNotesWorkspace({
       </section>
 
       <p role="status"aria-live="polite"className="sr-only">{announcement}</p>
-      <WorkNoteCreateDialog key={createKind} isOpen={createOpen} initialKind={createKind} currentUser={currentUser} onClose={() => setCreateOpen(false)} onCreate={addNote} />
+      <WorkNoteCreateDialog key={createKind} isOpen={createOpen} initialKind={createKind} currentUser={currentUser} mentionCandidates={mentionCandidates} onClose={() => setCreateOpen(false)} onCreate={addNote} />
     </div>
   );
 }

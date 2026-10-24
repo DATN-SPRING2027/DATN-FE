@@ -379,7 +379,7 @@ export default function WorkListView({
   const totalColSpan = visibleColumns.length + 2; // Checkbox + visible columns + Config/More col
 
   return (
-    <div className="relative flex min-h-[440px] min-w-0 flex-col justify-between overflow-hidden border border-gray-300 bg-white shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
+    <div className="relative flex min-w-0 flex-col justify-between overflow-hidden border border-gray-300 bg-white shadow-theme-xs dark:border-gray-700 dark:bg-gray-900">
       {/* Column Manager Popover (+ button or [|||] button) */}
       {columnPopoverOpen && (
         <div
@@ -440,7 +440,7 @@ export default function WorkListView({
         </div>
       )}
 
-      <div className="min-h-[380px] flex-1 min-w-0 overflow-x-auto">
+      <div className="flex-1 min-w-0 overflow-x-auto">
         <Table className="min-w-max border-collapse text-sm">
           <caption className="sr-only">{t("listCaption")}</caption>
           <thead className="border-b border-gray-300 bg-gray-100/80 dark:border-gray-700 dark:bg-gray-800/80">
