@@ -123,9 +123,19 @@ export default function ProjectState({
     error instanceof ApiError
       ? (messages[error.status] ?? "failure")
       : "failure";
+  const isUnavailableStatus =
+    error instanceof ApiError && (error.status === 403 || error.status === 404);
   return (
     <div role="alert" className="space-y-3">
       <Alert variant="error" title={t("errorTitle")} message={t(key)} />
+      {isUnavailableStatus && (
+        <p
+          data-testid="project-content-unavailable"
+          className="text-xs text-gray-500 dark:text-gray-400"
+        >
+          Content is no longer available.
+        </p>
+      )}
       {retry && (
         <Button variant="outline" onClick={retry}>
           {t("retry")}

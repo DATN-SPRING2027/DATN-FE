@@ -275,6 +275,8 @@ export default function WorkWorkspace({
   const [announcement, setAnnouncement] = useState("");
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
+  const [unavailableTaskNotice, setUnavailableTaskNotice] = useState<string | null>(null);
+  const handledDeepLinkTaskRef = useRef<string | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
@@ -644,6 +646,64 @@ export default function WorkWorkspace({
   ]);
 
   const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const deepLinkTaskId = params.get("taskId")?.trim();
+    if (!deepLinkTaskId) return;
+    if (handledDeepLinkTaskRef.current === deepLinkTaskId) return;
+
+    if (isRealProject && !tasksQuery.isFetched) {
+      return;
+    }
+
+    const directItem = items.find((item) => item.id === deepLinkTaskId);
+    if (directItem) {
+      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      queueMicrotask(() => {
+        setUnavailableTaskNotice(null);
+        setActiveSubtaskId(null);
+        setActiveWorkItemId(directItem.id);
+      });
+      return;
+    }
+
+    const parentWithSubtask = items.find((item) =>
+      (item.subtaskItems ?? []).some((sub) => sub.id === deepLinkTaskId),
+    );
+    if (parentWithSubtask) {
+      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      queueMicrotask(() => {
+        setUnavailableTaskNotice(null);
+        setActiveWorkItemId(parentWithSubtask.id);
+        setActiveSubtaskId(deepLinkTaskId);
+      });
+      return;
+    }
+
+    if (isRealProject && tasksQuery.data) {
+      const rawMatched = tasksQuery.data.items.find(
+        (t) => t.id === deepLinkTaskId && t.status !== "CANCELLED",
+      );
+      if (rawMatched) {
+        // Wait for items state sync effect to populate `items`
+        return;
+      }
+      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      queueMicrotask(() => {
+        setUnavailableTaskNotice("Content is no longer available.");
+      });
+      return;
+    }
+
+    if (!isRealProject || tasksQuery.isError) {
+      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      queueMicrotask(() => {
+        setUnavailableTaskNotice("Content is no longer available.");
+      });
+    }
+  }, [isRealProject, items, tasksQuery.data, tasksQuery.isError, tasksQuery.isFetched]);
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
       setActivityError(null);
@@ -2614,6 +2674,23 @@ export default function WorkWorkspace({
               aria-hidden="true"
             />
             {t("create")}
+          </button>
+        </div>
+      )}
+
+      {unavailableTaskNotice && (
+        <div
+          role="alert"
+          data-testid="work-task-unavailable-banner"
+          className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded border border-warning-200 bg-warning-50 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200"
+        >
+          <p className="font-medium">{unavailableTaskNotice}</p>
+          <button
+            type="button"
+            onClick={() => setUnavailableTaskNotice(null)}
+            className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+          >
+            {t("mutationError.dismiss")}
           </button>
         </div>
       )}
