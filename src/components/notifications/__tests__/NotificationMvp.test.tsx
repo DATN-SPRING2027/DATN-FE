@@ -404,6 +404,80 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     expect(routerPushMock).not.toHaveBeenCalled();
   });
 
+  it("keeps user on list and shows retry banner when /resolve fails with 500/network error, then navigates on successful retry", async () => {
+    const taskNotif = {
+      id: "507f1f77bcf86cd799439088",
+      recipientId: "507f1f77bcf86cd799439001",
+      actorId: "507f1f77bcf86cd799439099",
+      organizationId: "507f1f77bcf86cd799439002",
+      projectId: "507f1f77bcf86cd799439011",
+      taskId: "507f1f77bcf86cd799439022",
+      noteId: null,
+      conversationId: null,
+      type: "TASK_ASSIGNED",
+      title: "Task assigned",
+      message: "You were assigned to Task Retry Verification.",
+      target: {
+        kind: "TASK",
+        organizationId: "507f1f77bcf86cd799439002",
+        projectId: "507f1f77bcf86cd799439011",
+        taskId: "507f1f77bcf86cd799439022",
+        noteId: null,
+        conversationId: null,
+        messageId: null,
+        url: "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
+      },
+      readAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    let shouldFailResolve = true;
+    api.mockImplementation(async (path: string) => {
+      if (path === "/notifications/unread-count") {
+        return { count: 0 };
+      }
+      if (path.startsWith("/notifications?")) {
+        return { items: [taskNotif], nextCursor: null, unreadCount: 0 };
+      }
+      if (path === "/notifications/507f1f77bcf86cd799439088/resolve") {
+        if (shouldFailResolve) {
+          throw new ApiError(500, "INTERNAL_ERROR", "Temporary server error");
+        }
+        return {
+          available: true,
+          reason: "OK",
+          message: null,
+          url: "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    renderWithProviders(<NotificationsWorkspace />);
+
+    expect(await screen.findByText("Task assigned")).toBeInTheDocument();
+
+    // First click fails with 500 -> does NOT navigate, displays retry banner
+    fireEvent.click(
+      screen.getByTestId("notifications-page-item-507f1f77bcf86cd799439088"),
+    );
+
+    expect(
+      await screen.findByTestId("notifications-page-resolve-error-banner"),
+    ).toBeInTheDocument();
+    expect(routerPushMock).not.toHaveBeenCalled();
+
+    // Click Retry -> succeeds and navigates
+    shouldFailResolve = false;
+    fireEvent.click(screen.getByTestId("notifications-page-resolve-retry"));
+
+    await waitFor(() => {
+      expect(routerPushMock).toHaveBeenCalledWith(
+        "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
+      );
+    });
+  });
+
   it("displays safe state on WorkNotesWorkspace when deep-linked noteId no longer exists", async () => {
     const originalLocation = window.location;
     Object.defineProperty(window, "location", {

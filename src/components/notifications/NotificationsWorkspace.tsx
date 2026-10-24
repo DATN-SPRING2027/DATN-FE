@@ -94,6 +94,8 @@ export default function NotificationsWorkspace() {
   const [unavailableMessage, setUnavailableMessage] = useState<string | null>(
     null,
   );
+  const [resolveErrorItem, setResolveErrorItem] =
+    useState<NotificationItem | null>(null);
 
   const isUnreadOnly = filter === "unread";
   const unreadQuery = useUnreadNotificationCountQuery(Boolean(userId));
@@ -112,6 +114,7 @@ export default function NotificationsWorkspace() {
 
   async function handleOpenNotification(item: NotificationItem) {
     setUnavailableMessage(null);
+    setResolveErrorItem(null);
     if (!item.readAt) {
       void markReadMutation.mutateAsync(item.id).catch(() => undefined);
     }
@@ -146,13 +149,7 @@ export default function NotificationsWorkspace() {
         setUnavailableMessage(t("contentUnavailableTitle"));
         return;
       }
-      const fallbackUrl = resolveDefaultTargetUrl(item);
-      router.push(fallbackUrl);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("continuum:deep-link", { detail: { url: fallbackUrl } }),
-        );
-      }
+      setResolveErrorItem(item);
     }
   }
 
@@ -259,6 +256,32 @@ export default function NotificationsWorkspace() {
             className="text-warning-700 hover:text-warning-900 dark:text-warning-300"
           >
             <CloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {resolveErrorItem && (
+        <div
+          role="alert"
+          data-testid="notifications-page-resolve-error-banner"
+          className="flex items-start justify-between gap-3 rounded-2xl border border-error-200 bg-error-50 p-4 text-sm text-error-900 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-200"
+        >
+          <div className="flex items-start gap-3">
+            <AlertIcon className="mt-0.5 h-5 w-5 shrink-0 text-error-600 dark:text-error-400" />
+            <div>
+              <p className="font-semibold">{t("errorTitle")}</p>
+              <p className="mt-0.5 text-xs text-error-700 dark:text-error-300">
+                {t("errorDescription")}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => void handleOpenNotification(resolveErrorItem)}
+            data-testid="notifications-page-resolve-retry"
+            className="shrink-0 rounded-xl border border-error-300 bg-white px-3 py-1.5 text-xs font-medium text-error-700 hover:bg-error-100 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-300"
+          >
+            {t("retry")}
           </button>
         </div>
       )}

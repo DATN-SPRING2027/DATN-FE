@@ -105,6 +105,8 @@ export default function NotificationDropdown() {
   const [unavailableNotice, setUnavailableNotice] = useState<string | null>(
     null,
   );
+  const [resolveErrorItem, setResolveErrorItem] =
+    useState<NotificationItem | null>(null);
 
   const isAuthenticated = Boolean(userId);
   const unreadQuery = useUnreadNotificationCountQuery(isAuthenticated);
@@ -122,6 +124,7 @@ export default function NotificationDropdown() {
   function toggleDropdown() {
     setIsOpen((prev) => !prev);
     setUnavailableNotice(null);
+    setResolveErrorItem(null);
   }
 
   function closeDropdown() {
@@ -130,6 +133,7 @@ export default function NotificationDropdown() {
 
   async function handleNotificationClick(item: NotificationItem) {
     setUnavailableNotice(null);
+    setResolveErrorItem(null);
     if (!item.readAt) {
       void markReadMutation.mutateAsync(item.id).catch(() => undefined);
     }
@@ -165,14 +169,7 @@ export default function NotificationDropdown() {
         setUnavailableNotice(t("contentUnavailableTitle"));
         return;
       }
-      const fallbackUrl = resolveDefaultTargetUrl(item);
-      closeDropdown();
-      router.push(fallbackUrl);
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("continuum:deep-link", { detail: { url: fallbackUrl } }),
-        );
-      }
+      setResolveErrorItem(item);
     }
   }
 
@@ -255,6 +252,29 @@ export default function NotificationDropdown() {
               aria-label={t("dismissNotice")}
             >
               <CloseIcon className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        {resolveErrorItem && (
+          <div
+            role="alert"
+            data-testid="notification-resolve-error-alert"
+            className="mb-2.5 flex items-start justify-between gap-2 rounded-xl border border-error-200 bg-error-50 px-3 py-2 text-xs text-error-800 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          >
+            <div>
+              <p className="font-semibold">{t("errorTitle")}</p>
+              <p className="mt-0.5 text-error-700 dark:text-error-400">
+                {t("errorDescription")}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void handleNotificationClick(resolveErrorItem)}
+              data-testid="notification-resolve-retry"
+              className="shrink-0 rounded-lg border border-error-300 bg-white px-2.5 py-1 text-xs font-medium text-error-700 hover:bg-error-100 dark:border-error-500/40 dark:bg-gray-900 dark:text-error-300"
+            >
+              {t("retry")}
             </button>
           </div>
         )}
