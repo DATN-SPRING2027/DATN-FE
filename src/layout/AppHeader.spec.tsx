@@ -171,7 +171,7 @@ describe("AppHeader", () => {
     expect(screen.getByText("helpDrawer.shortcutSearch")).toBeInTheDocument();
   });
 
-  it("reuses the project search page while filtering locally without unsupported query parameters", async () => {
+  it("debounces project search and requests suggestions with the search query", async () => {
     mockSessionFetch(["ADMIN"], [
       {
         id: "project-1",
@@ -198,18 +198,19 @@ describe("AppHeader", () => {
         .filter((url) => url.includes("/projects?"));
       expect(projectRequests).toHaveLength(1);
       expect(projectRequests[0]).toContain(
-        "/projects?page=1&pageSize=8&status=ACTIVE&includeTotal=false",
+        "/projects?page=1&pageSize=8&status=ACTIVE&q=Ap&includeTotal=false",
       );
-      expect(projectRequests[0]).not.toContain("q=");
     });
 
     fireEvent.change(searchInput, { target: { value: "Apollo" } });
-    await new Promise((resolve) => setTimeout(resolve, 350));
-    const projectRequests = vi
-      .mocked(global.fetch)
-      .mock.calls.map(([url]) => String(url))
-      .filter((url) => url.includes("/projects?"));
-    expect(projectRequests).toHaveLength(1);
+    await waitFor(() => {
+      const projectRequests = vi
+        .mocked(global.fetch)
+        .mock.calls.map(([url]) => String(url))
+        .filter((url) => url.includes("/projects?"));
+      expect(projectRequests).toHaveLength(2);
+      expect(projectRequests[1]).toContain("q=Apollo");
+    });
   });
 
   it("shows role-adapted Settings items and closes Settings when opening UserDropdown", async () => {
