@@ -11,6 +11,11 @@ vi.mock("@/icons", () => ({
   CloseLineIcon: () => null,
   TaskIcon: () => null,
 }));
+vi.mock("@/components/work-notes/TaskNotesPanel", () => ({
+  default: ({ projectId, taskId }: { projectId: string; taskId: string }) => (
+    <div data-testid="subtask-notes-panel">{`${projectId}:${taskId}`}</div>
+  ),
+}));
 
 const sampleItemWithSubtasks: WorkItem = {
   id: "work-1",
@@ -101,6 +106,7 @@ describe("WorkItemDetailDialog", () => {
     render(
       <WorkItemDetailDialog
         item={sampleItemWithSubtasks}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
         initialSubtaskId="sub-2"
         onClose={vi.fn()}
         onUpdateSubtask={onUpdateSubtask}
@@ -118,5 +124,11 @@ describe("WorkItemDetailDialog", () => {
     expect(
       screen.getByRole("button", { name: "+ Log subtask work" }),
     ).toBeInTheDocument();
+
+    // Switch to Task Notes tab in subtask detail view
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    expect(screen.getByTestId("subtask-notes-panel")).toHaveTextContent(
+      "651a2b3c4d5e6f7a8b9c0d21:sub-2",
+    );
   });
 });

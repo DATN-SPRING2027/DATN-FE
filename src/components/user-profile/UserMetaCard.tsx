@@ -7,6 +7,7 @@ import UserAvatar, { safeAvatarUrl } from "@/components/common/UserAvatar";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useUserQuery, useUpdateUserMutation } from "@/lib/queries/users/useUsers";
 import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
+import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import { useModal } from "@/hooks/useModal";
 import Input from "../form/input/InputField";
 import Label from "../form/Label";
@@ -28,12 +29,20 @@ export default function UserMetaCard() {
   const currentUser = currentUserQuery.data;
   const organizationId = currentUser?.context === "ACCOUNT" ? "" : currentUser?.organizationId ?? "";
   const userId = currentUser?.id ?? "";
+  const activeProjects = useActiveOrganizationProjects(
+    organizationId,
+    !currentUser?.roles?.includes("ADMIN"),
+  );
   const directoryQuery = useUserQuery(organizationId, userId);
   const updateUser = useUpdateUserMutation();
   const directoryUser = directoryQuery.data?.id === currentUser?.id ? directoryQuery.data : undefined;
   const fullName = directoryUser?.fullName || currentUser?.name || "";
   const avatarUrl = safeAvatarUrl(directoryUser?.avatarUrl);
-  const roleNames = currentUser?.roles?.map(roleLabel).filter(Boolean) ?? [];
+  const roleNames = currentUser?.roles?.includes("ADMIN")
+    ? [roleLabel("ADMIN")]
+    : activeProjects.isComplete && activeProjects.leaderUserIds.has(userId)
+      ? [roleLabel("TEAM_LEADER")]
+      : currentUser?.roles?.map(roleLabel).filter(Boolean) ?? [];
   const [avatarUrlError, setAvatarUrlError] = useState(false);
   const editButtonRef = useRef<HTMLDivElement>(null);
 

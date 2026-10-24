@@ -1,0 +1,229 @@
+{
+  "runAt": "2026-10-24T05:26:40.038Z",
+  "projectId": "898f7d00f9f1e9e98da9075a",
+  "results": [
+    {
+      "label": "Project Documents responsive 375px",
+      "pass": true,
+      "overflow": false
+    },
+    {
+      "label": "Project Documents responsive 390px",
+      "pass": true,
+      "overflow": false
+    },
+    {
+      "label": "Project Documents responsive 768px",
+      "pass": true,
+      "overflow": false
+    },
+    {
+      "label": "Project Documents responsive 1280px",
+      "pass": true,
+      "overflow": false
+    },
+    {
+      "label": "Project Documents responsive 1440px",
+      "pass": true,
+      "overflow": false
+    },
+    {
+      "label": "Failed upload preserves the draft and retry editor",
+      "pass": true
+    },
+    {
+      "label": "upload PDF and download current version",
+      "status": 200,
+      "pass": true
+    },
+    {
+      "label": "Member reads submitted version 1",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Leader approves version 1",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Member creates version 2 from approved Document",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Member submits version 2",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Leader approves replacement version",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Leader archives approved Document",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Member reads scheduler-created periodic report",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Member reads report cadence",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Create QA Task for Task Note test",
+      "status": 201,
+      "expected": 201,
+      "pass": true
+    },
+    {
+      "label": "Member creates Task Note",
+      "status": 201,
+      "expected": 201,
+      "pass": true
+    },
+    {
+      "label": "Owner edits Task Note",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Owner archives Task Note",
+      "status": 204,
+      "expected": 204,
+      "pass": true
+    },
+    {
+      "label": "Member creates Task Note for Leader ACL test",
+      "status": 201,
+      "expected": 201,
+      "pass": true
+    },
+    {
+      "label": "Leader edits Task Note in project scope",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Leader archives Task Note in project scope",
+      "status": 204,
+      "expected": 204,
+      "pass": true
+    },
+    {
+      "label": "Leader reads archived Project Document",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    },
+    {
+      "label": "Project Document archived status is queryable",
+      "status": 200,
+      "expected": 200,
+      "pass": true
+    }
+  ],
+  "consoleErrors": [],
+  "failedRequests": [],
+  "cancelledRequests": [
+    "GET http://127.0.0.1:3100/api/backend/iam/projects?page=1&pageSize=20&status=ACTIVE: net::ERR_ABORTED",
+    "GET http://127.0.0.1:3100/api/backend/iam/projects?page=1&pageSize=100&status=ACTIVE: net::ERR_ABORTED",
+    "GET http://127.0.0.1:3100/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents?page=1&pageSize=50: net::ERR_ABORTED",
+    "GET http://127.0.0.1:3100/api/backend/iam/projects/898f7d00f9f1e9e98da9075a: net::ERR_ABORTED"
+  ],
+  "expectedUploadFailures": [
+    "PUT http://127.0.0.1:3100/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents/6adc418c846aef6c5f10976d/file: net::ERR_FAILED",
+    "Failed to load resource: net::ERR_FAILED"
+  ],
+  "findings": [
+    "Knowledge index consumer is not part of this deployment; event contract and outbox writes are verified, downstream de-indexing must be wired by its owning consumer."
+  ],
+  "followUpBrowserSmoke": {
+    "runAt": "2026-10-24T06:29:17Z",
+    "runtime": "Next.js BFF to modular monolith",
+    "loginStatus": 200,
+    "authMeStatus": 200,
+    "projectDocumentsListStatus": 200,
+    "requiredFieldValidation": "blocked with inline required-fields alert",
+    "createDraftStatus": 201,
+    "uploadPdfStatus": 200,
+    "downloadStatus": 200,
+    "downloadContentType": "application/pdf",
+    "consoleErrors": [],
+    "viewportMetrics": [
+      {
+        "route": "documents-list",
+        "width": 375,
+        "innerWidth": 375,
+        "clientWidth": 375,
+        "scrollWidth": 375,
+        "bodyScrollWidth": 375
+      },
+      {
+        "route": "documents-list",
+        "width": 390,
+        "innerWidth": 390,
+        "clientWidth": 390,
+        "scrollWidth": 390,
+        "bodyScrollWidth": 390
+      },
+      {
+        "route": "documents-list",
+        "width": 768,
+        "innerWidth": 768,
+        "clientWidth": 768,
+        "scrollWidth": 768,
+        "bodyScrollWidth": 768
+      },
+      {
+        "route": "documents-list",
+        "width": 1280,
+        "innerWidth": 1280,
+        "clientWidth": 1280,
+        "scrollWidth": 1280,
+        "bodyScrollWidth": 1280
+      },
+      {
+        "route": "documents-list",
+        "width": 1440,
+        "innerWidth": 1440,
+        "clientWidth": 1440,
+        "scrollWidth": 1440,
+        "bodyScrollWidth": 1440
+      }
+    ],
+    "formScreenshots": [
+      "document-create-form-375.png",
+      "document-create-form-390.png",
+      "document-create-form-768.png",
+      "document-create-form-1280.png",
+      "document-create-form-1440.png"
+    ],
+    "listScreenshots": [
+      "documents-list-375.png",
+      "documents-list-390.png",
+      "documents-list-768.png",
+      "documents-list-1280.png",
+      "documents-list-1440.png"
+    ],
+    "successfulUploadScreenshot": "document-upload-success-1280.png",
+    "environmentNote": "Final smoke used a fresh disposable single-node MongoDB replica set; transaction-required create/upload/download passed.",
+    "gatewayNote": "Standalone Gateway browser integration not run; Gateway forwarding unit test passed."
+  }
+}

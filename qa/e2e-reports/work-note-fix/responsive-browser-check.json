@@ -1,0 +1,42 @@
+[
+  {
+    "route": "documents-list",
+    "width": 375,
+    "innerWidth": 375,
+    "clientWidth": 375,
+    "scrollWidth": 375,
+    "bodyScrollWidth": 375
+  },
+  {
+    "route": "documents-list",
+    "width": 390,
+    "innerWidth": 390,
+    "clientWidth": 390,
+    "scrollWidth": 390,
+    "bodyScrollWidth": 390
+  },
+  {
+    "route": "documents-list",
+    "width": 768,
+    "innerWidth": 768,
+    "clientWidth": 768,
+    "scrollWidth": 768,
+    "bodyScrollWidth": 768
+  },
+  {
+    "route": "documents-list",
+    "width": 1280,
+    "innerWidth": 1280,
+    "clientWidth": 1280,
+    "scrollWidth": 1280,
+    "bodyScrollWidth": 1280
+  },
+  {
+    "route": "documents-list",
+    "width": 1440,
+    "innerWidth": 1440,
+    "clientWidth": 1440,
+    "scrollWidth": 1440,
+    "bodyScrollWidth": 1440
+  }
+]

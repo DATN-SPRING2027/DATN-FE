@@ -17,6 +17,7 @@ import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { WorkDatePickerCell } from "./WorkDatePicker";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
+import TaskNotesPanel from "@/components/work-notes/TaskNotesPanel";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -26,7 +27,7 @@ import {
   type WorkSubtaskItem,
 } from"./work-types";
 
-type ActivityTab ="all"|"comments"|"history"|"worklog";
+type ActivityTab ="all"|"comments"|"history"|"worklog"|"notes";
 
 type SubtaskSortBy =
   | "default"
@@ -83,6 +84,7 @@ function parseWorklogDurationMinutes(input: string): number {
 
 export default function WorkItemDetailDialog({
   item,
+  projectId,
   allItems = [],
   people,
   currentUserPerson,
@@ -111,6 +113,7 @@ export default function WorkItemDetailDialog({
   onAddWorklog,
 }: {
   item: WorkItem | null;
+  projectId?: string;
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
@@ -170,6 +173,7 @@ export default function WorkItemDetailDialog({
   ) => Promise<boolean> | boolean | void;
 }) {
   const t = useTranslations("work");
+  const workNotesT = useTranslations("workNotes.taskNotes");
   const locale = useLocale();
   const availablePeople = people ?? PREVIEW_PEOPLE;
   const assigneeChoices =
@@ -1340,6 +1344,9 @@ export default function WorkItemDetailDialog({
                           { id: "comments", label: "Comments" },
                           { id: "history", label: "History" },
                           { id: "worklog", label: "Work log" },
+                          ...(projectId
+                            ? [{ id: "notes" as const, label: workNotesT("title") }]
+                            : []),
                         ] as const
                       ).map((tab) => (
                         <button
@@ -1568,6 +1575,14 @@ export default function WorkItemDetailDialog({
                       )}
                     </div>
                   )}
+                  {subtaskActivityTab === "notes" &&
+                    projectId &&
+                    activeSubtask && (
+                      <TaskNotesPanel
+                        projectId={projectId}
+                        taskId={activeSubtask.id}
+                      />
+                    )}
                 </section>
               </main>
 
@@ -3215,11 +3230,13 @@ export default function WorkItemDetailDialog({
                         { id:"comments", label:"Comments"},
                         { id:"history", label:"History"},
                         { id:"worklog", label:"Work log"},
+                        ...(projectId ? [{ id:"notes" as const, label: workNotesT("title") }] : []),
                       ] as const
                     ).map((tab) => (
                       <button
                         key={tab.id}
                         type="button"
+                        aria-pressed={activityTab === tab.id}
                         onClick={() => setActivityTab(tab.id)}
                         className={`cursor-pointer px-2.5 py-1 font-medium transition ${
                           activityTab === tab.id
@@ -3437,6 +3454,9 @@ export default function WorkItemDetailDialog({
                       </p>
                     )}
                   </div>
+                )}
+                {activityTab === "notes" && projectId && item && (
+                  <TaskNotesPanel projectId={projectId} taskId={item.id} />
                 )}
               </section>
             </main>

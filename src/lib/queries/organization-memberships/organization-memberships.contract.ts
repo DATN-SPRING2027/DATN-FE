@@ -137,7 +137,9 @@ export type InviteMemberInput = Readonly<{
 export type SuspendMembershipInput = Readonly<{
   expectedMembershipVersion: number;
   reasonCode: SuspensionReason;
+  handovers?: readonly ProjectLeaderHandover[];
 }>;
+export type ProjectLeaderHandover = Readonly<{ projectId: string; replacementUserId: string }>;
 export type SetOrganizationMembershipRoleInput = Readonly<{
   expectedMembershipVersion: number;
   expectedRoleVersion: number;
@@ -461,6 +463,7 @@ export type ResumeMembershipInput = Readonly<{
 export type RemoveMembershipInput = Readonly<{
   expectedMembershipVersion: number;
   reasonCode: MembershipActionReason | SuspensionReason;
+  handovers?: readonly ProjectLeaderHandover[];
 }>;
 export type OrganizationManagerSummary = Readonly<{
   userId: string;
