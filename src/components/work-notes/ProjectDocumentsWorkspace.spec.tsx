@@ -426,6 +426,21 @@ it("renders the Leader review queue banner, row Review button, and Leader review
         pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
       } as never;
     }
+    if (path.endsWith(`/documents/${documentId}/comment`)) {
+      current = {
+        ...current,
+        reviewComment: "Please verify section 2 before final approval.",
+        reviewHistory: [
+          {
+            action: "PENDING_REVIEW",
+            reviewerId: "64d000000000000000000004",
+            comment: "Please verify section 2 before final approval.",
+            at: "2026-04-08T12:00:00.000Z",
+          },
+        ],
+      };
+      return current as never;
+    }
     if (path.endsWith(`/documents/${documentId}/approve`)) {
       current = {
         ...current,
@@ -447,6 +462,34 @@ it("renders the Leader review queue banner, row Review button, and Leader review
   fireEvent.click(screen.getByRole("button", { name: "Review" }));
 
   expect(await screen.findByText("Leader review decision")).toBeVisible();
+  const sendCommentBtn = screen.getByRole("button", { name: "Send comment" });
+  expect(sendCommentBtn).toBeDisabled();
+
+  fireEvent.change(screen.getByLabelText("Review comment", { exact: false }), {
+    target: { value: "Please verify section 2 before final approval." },
+  });
+  expect(sendCommentBtn).toBeEnabled();
+  fireEvent.click(sendCommentBtn);
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/documents/${documentId}/comment`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          comment: "Please verify section 2 before final approval.",
+        }),
+      }),
+    ),
+  );
+  expect(
+    (
+      await screen.findAllByText(
+        "Please verify section 2 before final approval.",
+      )
+    ).length,
+  ).toBeGreaterThanOrEqual(1);
+
   fireEvent.change(screen.getByLabelText("Review comment", { exact: false }), {
     target: { value: "Looks solid and ready for team reference." },
   });

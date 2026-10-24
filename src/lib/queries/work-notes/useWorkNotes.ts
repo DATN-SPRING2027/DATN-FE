@@ -90,7 +90,7 @@ export type ProjectDocumentSummary = Readonly<{
 }>;
 
 export type ReviewEvent = Readonly<{
-  action: "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
+  action: "PENDING_REVIEW" | "APPROVED" | "CHANGES_REQUESTED" | "REJECTED";
   reviewerId: string;
   comment?: string;
   at: string;
@@ -162,7 +162,12 @@ export type WorkReportSettings = Readonly<{
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
 type DocumentAction =
-  "submit" | "approve" | "request-changes" | "reject" | "archive";
+  | "submit"
+  | "comment"
+  | "approve"
+  | "request-changes"
+  | "reject"
+  | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
 function csrfHeaders(): HeadersInit {
@@ -352,7 +357,8 @@ export const workNotesApi = {
       {
         method: "POST",
         headers: csrfHeaders(),
-        ...(action === "approve" ||
+        ...(action === "comment" ||
+        action === "approve" ||
         action === "request-changes" ||
         action === "reject"
           ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }

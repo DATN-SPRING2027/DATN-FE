@@ -689,7 +689,13 @@ export default function ProjectDocumentsWorkspace({
   const action = useWorkNotesMutation(
     (
       input: Readonly<{
-        action: "submit" | "approve" | "request-changes" | "reject" | "archive";
+        action:
+          | "submit"
+          | "comment"
+          | "approve"
+          | "request-changes"
+          | "reject"
+          | "archive";
         comment?: string;
       }>,
     ) =>
@@ -757,13 +763,26 @@ export default function ProjectDocumentsWorkspace({
   }
 
   async function runAction(
-    actionName: "submit" | "approve" | "request-changes" | "reject" | "archive",
+    actionName:
+      | "submit"
+      | "comment"
+      | "approve"
+      | "request-changes"
+      | "reject"
+      | "archive",
   ) {
     action.reset();
     const comment = reviewComment.trim();
+    const effectiveComment =
+      comment ||
+      ((actionName === "request-changes" || actionName === "reject") &&
+      current?.reviewComment?.trim()
+        ? current.reviewComment.trim()
+        : "");
     if (
-      (actionName === "request-changes" || actionName === "reject") &&
-      !comment
+      (actionName === "comment" && !comment) ||
+      ((actionName === "request-changes" || actionName === "reject") &&
+        !effectiveComment)
     ) {
       setValidationError(t("reviewCommentRequired"));
       return;
@@ -772,7 +791,7 @@ export default function ProjectDocumentsWorkspace({
     try {
       const result = await action.mutateAsync({
         action: actionName,
-        ...(comment ? { comment } : {}),
+        ...(effectiveComment ? { comment: effectiveComment } : {}),
       });
       setSelected(result);
       setReviewComment("");
@@ -1375,6 +1394,22 @@ export default function ProjectDocumentsWorkspace({
                         className={`${FIELD_CLASS} resize-y bg-white dark:bg-gray-950`}
                       />
                     </label>
+                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {t("sendCommentHint")}
+                      </p>
+                      <div className="flex justify-end">
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={!reviewComment.trim()}
+                          isLoading={action.isPending}
+                          onClick={() => void runAction("comment")}
+                        >
+                          {t("sendComment")}
+                        </Button>
+                      </div>
+                    </div>
                   </section>
                 )}
                 {validationError && (

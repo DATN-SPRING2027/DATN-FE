@@ -2875,6 +2875,8 @@
       "reviewComment": "Review comment",
       "reviewCommentPlaceholder": "Add feedback or notes for the document author…",
       "reviewCommentRequired": "Add a comment when requesting changes or rejecting a document.",
+      "sendComment": "Send comment",
+      "sendCommentHint": "Send a review comment now, or use the buttons below to Approve, Request changes, or Reject.",
       "history": "Version history",
       "reviewHistory": "Review history",
       "version": "Version {version}",
