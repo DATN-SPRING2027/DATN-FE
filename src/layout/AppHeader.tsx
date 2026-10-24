@@ -55,8 +55,17 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedProjectSearch, setDebouncedProjectSearch] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setDebouncedProjectSearch(searchQuery.trim()),
+      250,
+    );
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   const {
     isMobileOpen,
@@ -71,11 +80,22 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       ? (currentUser.data.organizationId ?? "")
       : "";
   const canViewMembers = canReadOrganizationMemberships(currentUser.data);
-  const projectsQuery = useProjectsQuery(organizationId, {
-    page: 1,
-    pageSize: 100,
-    status: "ACTIVE",
-  });
+  const projectsQuery = useProjectsQuery(
+    organizationId,
+    {
+      page: 1,
+      pageSize: 8,
+      status: "ACTIVE",
+      ...(debouncedProjectSearch.length >= 2
+        ? { q: debouncedProjectSearch, includeTotal: false }
+        : {}),
+    },
+    {
+      enabled: isSearchOpen && debouncedProjectSearch.length >= 2,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
 
   const systemFeatures = useMemo<SystemFeatureItem[]>(() => {
     const translateOrFallback = (key: string, fallback: string) => {

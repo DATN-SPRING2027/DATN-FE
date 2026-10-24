@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
 export type ProjectLeaderSummary = Readonly<{
@@ -43,14 +48,17 @@ export type ProjectListInput = Readonly<{
   page: number;
   pageSize: number;
   status?: Project["status"];
+  q?: string;
+  includeTotal?: boolean;
 }>;
 export type ProjectList = Readonly<{
   data: readonly Project[];
   pagination: Readonly<{
     page: number;
     pageSize: number;
-    totalItems: number;
-    totalPages: number;
+    totalItems?: number;
+    totalPages?: number;
+    hasMore?: boolean;
   }>;
 }>;
 export const projectKeys = {
@@ -70,6 +78,8 @@ async function fetchProjectsPage(
     pageSize: String(input.pageSize),
   });
   if (input.status) params.set("status", input.status);
+  if (input.q?.trim()) params.set("q", input.q.trim());
+  if (input.includeTotal === false) params.set("includeTotal", "false");
   return apiClient<ProjectList>(`/iam/projects?${params}`, {
     signal,
     cache: "no-store",
@@ -79,41 +89,53 @@ async function fetchProjectsPage(
 export function useProjectsQuery(
   organizationId: string,
   input: ProjectListInput,
+  options: {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  } = {},
 ) {
   return useQuery({
     queryKey: projectKeys.list(organizationId, input),
-    queryFn: async ({ signal }) => {
-      const firstPage = await fetchProjectsPage(input, signal);
-      const totalPages = firstPage.pagination?.totalPages ?? 1;
-      if (input.page !== 1 || totalPages <= 1 || input.pageSize < 100) {
-        return firstPage;
-      }
-      const seenIds = new Set<string>(firstPage.data.map((p) => p.id));
-      const merged: Project[] = [...firstPage.data];
-      for (let page = 2; page <= totalPages; page += 1) {
-        if (signal?.aborted) break;
-        const nextPage = await fetchProjectsPage(
-          { ...input, page },
-          signal,
-        );
-        for (const project of nextPage.data) {
-          if (!seenIds.has(project.id)) {
-            seenIds.add(project.id);
-            merged.push(project);
-          }
-        }
-      }
-      return {
-        data: merged,
-        pagination: firstPage.pagination,
-      };
-    },
-    enabled: Boolean(organizationId),
+    queryFn: ({ signal }) => fetchProjectsPage(input, signal),
+    enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: options.staleTime ?? 0,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
   });
 }
+
+export function useInfiniteProjectsQuery(
+  organizationId: string,
+  input: Omit<ProjectListInput, "page">,
+  options: {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ["projects", organizationId, "infinite-list", input],
+    queryFn: ({ pageParam, signal }) =>
+      fetchProjectsPage({ ...input, page: pageParam }, signal),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (
+        lastPage.pagination.totalPages !== undefined &&
+        lastPage.pagination.page < lastPage.pagination.totalPages
+      ) {
+        return lastPage.pagination.page + 1;
+      }
+      if (lastPage.pagination.hasMore) return lastPage.pagination.page + 1;
+      return undefined;
+    },
+    enabled: Boolean(organizationId) && options.enabled !== false,
+    retry: false,
+    staleTime: options.staleTime ?? 0,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
+  });
+}
+
 export function useProjectQuery(organizationId: string, id: string) {
   return useQuery({
     queryKey: projectKeys.detail(organizationId, id),

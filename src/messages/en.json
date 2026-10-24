@@ -2340,6 +2340,8 @@
     "subtaskStatusFailed": "Subtask created, but its status could not be updated.",
     "workspaceTitle": "Workspace",
     "selectProject": "Select project workspace",
+    "loadMoreProjects": "Load more projects",
+    "loadingMoreProjects": "Loading more projects…",
     "memberScopeBadge": "Member workspace",
     "emptyProjectsTitle": "No active projects in this workspace",
     "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",

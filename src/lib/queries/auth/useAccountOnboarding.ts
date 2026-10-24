@@ -160,8 +160,6 @@ export function useSelectOrganizationMutation() {
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== "auth",
       });
-      void queryClient.invalidateQueries({ queryKey: authKeys.currentUser() });
-      void queryClient.invalidateQueries({ queryKey: ["auth", "organizations"] });
     },
   });
 }
