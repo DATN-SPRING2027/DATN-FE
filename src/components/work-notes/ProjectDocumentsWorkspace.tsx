@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
@@ -16,11 +17,27 @@ import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/
 import { Modal } from "@/components/ui/modal";
 import {
   AlertIcon,
+  ChatIcon,
+  CheckCircleIcon,
+  CheckLineIcon,
   CloseLineIcon,
+  DocsIcon,
   DownloadIcon,
+  EyeIcon,
+  InfoIcon,
+  MoreDotIcon,
+  PaperPlaneIcon,
   TrashBinIcon,
   UploadIcon,
+  UserCircleIcon,
 } from "@/icons";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
+import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
+import {
+  useProjectMembersQuery,
+  type ProjectMemberPage,
+} from "@/lib/queries/projects/useProjectMembers";
+import type { ProjectList } from "@/lib/queries/projects/useProjects";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   DOCUMENT_TYPES,
@@ -133,6 +150,50 @@ function getFileTypeBadge(name: string, contentType?: string): string {
   if (contentType === "application/pdf") return "PDF";
   if (contentType?.startsWith("text/")) return "TXT";
   return "FILE";
+}
+
+function getFilePreviewType(
+  name: string,
+  contentType?: string,
+): "text" | "pdf" | "image" | "binary" {
+  const lower = name.toLowerCase();
+  const mime = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (lower.endsWith(".pdf") || mime === "application/pdf") return "pdf";
+  if (
+    lower.endsWith(".png") ||
+    lower.endsWith(".jpg") ||
+    lower.endsWith(".jpeg") ||
+    lower.endsWith(".webp") ||
+    mime.startsWith("image/")
+  ) {
+    return "image";
+  }
+  if (
+    [
+      ".txt",
+      ".md",
+      ".markdown",
+      ".csv",
+      ".tsv",
+      ".json",
+      ".yaml",
+      ".yml",
+      ".xml",
+      ".drawio",
+      ".sql",
+    ].some((ext) => lower.endsWith(ext)) ||
+    mime.startsWith("text/") ||
+    [
+      "application/json",
+      "application/yaml",
+      "application/x-yaml",
+      "application/xml",
+      "application/sql",
+    ].includes(mime)
+  ) {
+    return "text";
+  }
+  return "binary";
 }
 
 function isSupportedDocumentFile(candidate: File): boolean {
@@ -648,6 +709,15 @@ const STATUS_BADGE_CLASSES: Record<DocumentStatus, string> = {
     "border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400",
 };
 
+const STATUS_DOT_CLASSES: Record<DocumentStatus, string> = {
+  DRAFT: "bg-gray-400 dark:bg-gray-500",
+  PENDING_REVIEW: "bg-brand-500 dark:bg-brand-400",
+  CHANGES_REQUESTED: "bg-warning-500 dark:bg-warning-400",
+  APPROVED: "bg-success-500 dark:bg-success-400",
+  REJECTED: "bg-error-500 dark:bg-error-400",
+  ARCHIVED: "bg-gray-400 dark:bg-gray-500",
+};
+
 export default function ProjectDocumentsWorkspace({
   projectId,
 }: {
@@ -656,6 +726,7 @@ export default function ProjectDocumentsWorkspace({
   const t = useTranslations("workNotes.documents");
   const common = useTranslations("workNotes");
   const format = useFormatter();
+  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<DocumentStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ProjectDocumentSummary | null>(null);
@@ -668,9 +739,35 @@ export default function ProjectDocumentsWorkspace({
   const [validationError, setValidationError] = useState("");
   const [isEditorDirty, setIsEditorDirty] = useState(false);
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [selectedVersionNumber, setSelectedVersionNumber] = useState<
+    number | null
+  >(null);
+  const [showActionSuccess, setShowActionSuccess] = useState(false);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const [previewState, setPreviewState] = useState<{
+    open: boolean;
+    loading: boolean;
+    mode: "text" | "pdf" | "image" | "binary";
+    text?: string;
+    url?: string;
+    error?: string;
+  }>({ open: false, loading: false, mode: "binary" });
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasModalOpenRef = useRef(false);
+  const cachedCurrentUser = queryClient.getQueryData<CurrentUserResponse>(
+    authKeys.currentUser(),
+  );
+  const activeOrganizationId =
+    cachedCurrentUser && "organizationId" in cachedCurrentUser
+      ? (cachedCurrentUser.organizationId ?? "")
+      : "";
+  const projectMembers = useProjectMembersQuery(
+    activeOrganizationId,
+    projectId,
+    { page: 1, pageSize: 100 },
+  );
   const list = useDocumentsQuery(projectId, filter, page);
   const documentId = selected?.id ?? "";
   const detail = useDocumentQuery(projectId, documentId);
@@ -717,6 +814,206 @@ export default function ProjectDocumentsWorkspace({
     () => (visibleList?.data ?? []).filter((doc) => doc.permissions.canReview),
     [visibleList?.data],
   );
+  const userLookup = useMemo(() => {
+    const map = new Map<string, string>();
+    if (cachedCurrentUser?.id) {
+      map.set(
+        cachedCurrentUser.id.toLowerCase(),
+        cachedCurrentUser.name || cachedCurrentUser.email,
+      );
+    }
+    for (const member of projectMembers.data?.data ?? []) {
+      const label = member.user?.fullName || member.user?.email;
+      if (member.userId && label) {
+        map.set(member.userId.toLowerCase(), label);
+      }
+    }
+    const projectQueries = queryClient.getQueriesData<ProjectList>({
+      queryKey: ["projects"],
+    });
+    for (const [, data] of projectQueries) {
+      for (const proj of data?.data ?? []) {
+        for (const leader of proj.leaders ?? []) {
+          if (leader.userId && (leader.fullName || leader.email)) {
+            map.set(
+              leader.userId.toLowerCase(),
+              leader.fullName || leader.email,
+            );
+          }
+        }
+        for (const preview of proj.memberPreviews ?? []) {
+          if (preview.userId && (preview.fullName || preview.email)) {
+            map.set(
+              preview.userId.toLowerCase(),
+              preview.fullName || preview.email,
+            );
+          }
+        }
+      }
+    }
+    const memberQueries = queryClient.getQueriesData<ProjectMemberPage>({
+      queryKey: ["project-members"],
+    });
+    for (const [, pageData] of memberQueries) {
+      for (const member of pageData?.data ?? []) {
+        const label = member.user?.fullName || member.user?.email;
+        if (member.userId && label) {
+          map.set(member.userId.toLowerCase(), label);
+        }
+      }
+    }
+    return map;
+  }, [cachedCurrentUser, projectMembers.data?.data, queryClient]);
+
+  function resolveActorLabel(
+    actorId: string | undefined,
+    roleHint: "author" | "reviewer",
+  ): string {
+    if (!actorId) {
+      return roleHint === "author" ? t("authorActor") : t("reviewerActor");
+    }
+    const normalized = actorId.trim();
+    const mapped = userLookup.get(normalized.toLowerCase());
+    if (mapped) {
+      if (
+        cachedCurrentUser?.id &&
+        cachedCurrentUser.id.toLowerCase() === normalized.toLowerCase()
+      ) {
+        return t("youSuffix", { name: mapped });
+      }
+      return mapped;
+    }
+    if (!/^[a-f0-9]{24}$/i.test(normalized)) {
+      return normalized;
+    }
+    if (current && normalized === current.createdBy) {
+      return t("authorActor");
+    }
+    return roleHint === "author" ? t("authorActor") : t("reviewerActor");
+  }
+
+  const sortedVersions = useMemo(
+    () =>
+      current
+        ? [...current.versions].sort((a, b) => b.version - a.version)
+        : [],
+    [current],
+  );
+  const latestApprovedVersion = useMemo(
+    () =>
+      current?.versions
+        .filter((v) => v.status === "APPROVED")
+        .reduce((max, v) => Math.max(max, v.version), 0) ?? 0,
+    [current?.versions],
+  );
+  const viewedVersion = useMemo(() => {
+    if (!current) return null;
+    const targetVersion = selectedVersionNumber ?? current.version;
+    return (
+      current.versions.find((v) => v.version === targetVersion) ??
+      current.versions.find((v) => v.version === current.version) ??
+      current.versions.at(-1) ??
+      null
+    );
+  }, [current, selectedVersionNumber]);
+  const isViewingHistoricalVersion = Boolean(
+    current && viewedVersion && viewedVersion.version !== current.version,
+  );
+  const activeFile = useMemo(() => {
+    if (!current) return undefined;
+    if (viewedVersion) {
+      if (viewedVersion.file) return viewedVersion.file;
+      if (viewedVersion.version === current.version) return current.file;
+      return undefined;
+    }
+    return current.file;
+  }, [current, viewedVersion]);
+  const activeContent = useMemo(() => {
+    if (!current) return "";
+    if (viewedVersion && typeof viewedVersion.content === "string") {
+      return viewedVersion.content;
+    }
+    return current.content;
+  }, [current, viewedVersion]);
+  const canArchiveDocument = Boolean(
+    current &&
+      current.permissions.canConfigure &&
+      current.status !== "ARCHIVED" &&
+      (current.status === "APPROVED" ||
+        current.versions.some((v) => v.status === "APPROVED")),
+  );
+
+  useEffect(() => {
+    if (!showActionSuccess) return;
+    const timer = window.setTimeout(() => {
+      setShowActionSuccess(false);
+    }, 4500);
+    return () => window.clearTimeout(timer);
+  }, [showActionSuccess]);
+
+  useEffect(() => {
+    return () => {
+      if (previewState.url) {
+        URL.revokeObjectURL(previewState.url);
+      }
+    };
+  }, [previewState.url]);
+
+  function resetPreview() {
+    setPreviewState((prev) => {
+      if (prev.url) URL.revokeObjectURL(prev.url);
+      return { open: false, loading: false, mode: "binary" };
+    });
+  }
+
+  async function toggleFilePreview() {
+    if (!current || !activeFile) return;
+    if (previewState.open) {
+      resetPreview();
+      return;
+    }
+    const mode = getFilePreviewType(activeFile.name, activeFile.contentType);
+    if (mode === "binary") {
+      setPreviewState({ open: true, loading: false, mode: "binary" });
+      return;
+    }
+    setPreviewState({ open: true, loading: true, mode });
+    try {
+      const targetVersion =
+        viewedVersion && viewedVersion.version !== current.version
+          ? viewedVersion.version
+          : undefined;
+      const blob = await workNotesApi.downloadDocumentFile(
+        projectId,
+        current.id,
+        targetVersion,
+      );
+      if (mode === "text") {
+        const textContent = await blob.text();
+        setPreviewState({
+          open: true,
+          loading: false,
+          mode: "text",
+          text: textContent,
+        });
+      } else {
+        const objectUrl = URL.createObjectURL(blob);
+        setPreviewState({
+          open: true,
+          loading: false,
+          mode,
+          url: objectUrl,
+        });
+      }
+    } catch (err) {
+      setPreviewState({
+        open: true,
+        loading: false,
+        mode,
+        error: err instanceof Error ? err.message : common("saveFailed"),
+      });
+    }
+  }
   const editingInitial = useMemo<ProjectDocumentInput>(
     () =>
       uploadRetryInput ??
@@ -737,6 +1034,7 @@ export default function ProjectDocumentsWorkspace({
     upload.reset();
     action.reset();
     setConfirmingDiscard(false);
+    setShowActionSuccess(false);
     try {
       if (isCreating) {
         const created = await create.mutateAsync(input);
@@ -777,6 +1075,7 @@ export default function ProjectDocumentsWorkspace({
       | "archive",
   ) {
     action.reset();
+    setShowActionSuccess(false);
     const comment = reviewComment.trim();
     const effectiveComment =
       comment ||
@@ -800,6 +1099,9 @@ export default function ProjectDocumentsWorkspace({
       });
       setSelected(result);
       setReviewComment("");
+      setConfirmingArchive(false);
+      setMoreActionsOpen(false);
+      setShowActionSuccess(true);
     } catch {
       // Mutation error is displayed in the modal.
     }
@@ -810,7 +1112,12 @@ export default function ProjectDocumentsWorkspace({
     update.reset();
     upload.reset();
     action.reset();
+    resetPreview();
     setSelected(document);
+    setSelectedVersionNumber(null);
+    setShowActionSuccess(false);
+    setMoreActionsOpen(false);
+    setConfirmingArchive(false);
     setIsCreating(false);
     setIsEditing(false);
     setPendingFile(null);
@@ -826,7 +1133,12 @@ export default function ProjectDocumentsWorkspace({
     update.reset();
     upload.reset();
     action.reset();
+    resetPreview();
     setSelected(null);
+    setSelectedVersionNumber(null);
+    setShowActionSuccess(false);
+    setMoreActionsOpen(false);
+    setConfirmingArchive(false);
     setIsCreating(false);
     setIsEditing(false);
     setPendingFile(null);
@@ -1164,8 +1476,10 @@ export default function ProjectDocumentsWorkspace({
         onBackdropClick={requestCloseModal}
         backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
-        className={`mx-3 overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800 ${
-          isCreating || isEditing ? "max-w-2xl" : "max-w-3xl"
+        className={`overflow-hidden border border-gray-200 shadow-theme-lg dark:border-gray-800 ${
+          isCreating || isEditing
+            ? "mx-3 max-w-2xl rounded-xl"
+            : "max-md:mx-0 max-md:h-dvh max-md:w-full max-md:rounded-none md:mx-4 md:max-w-5xl md:rounded-2xl"
         }`}
       >
         <div
@@ -1174,19 +1488,30 @@ export default function ProjectDocumentsWorkspace({
           aria-modal="true"
           aria-labelledby="document-dialog-title"
           onKeyDown={trapDialogFocus}
-          className="flex max-h-[min(88vh,48rem)] flex-col overflow-hidden"
+          className={`flex flex-col overflow-hidden ${
+            isCreating || isEditing
+              ? "max-h-[min(90vh,54rem)]"
+              : "max-md:h-dvh md:max-h-[min(90vh,54rem)]"
+          }`}
         >
-          <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
-            <div className="min-w-0">
+          <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
+            <div className="min-w-0 flex-1">
+              {!isCreating && !isEditing && (current || (!detailAccessLost && selected)) && (
+                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                  {t("documentEyebrow", {
+                    type: t(`type.${(current ?? selected)!.type}`),
+                  })}
+                </p>
+              )}
               <h2
                 id="document-dialog-title"
-                className="text-lg font-semibold break-words text-gray-900 dark:text-white/90"
+                className="text-lg sm:text-xl font-semibold tracking-tight break-words text-gray-900 dark:text-white/95"
               >
                 {isCreating
                   ? t("formTitleNew")
                   : isEditing
                     ? t("formTitleEdit")
-                    : (current?.title ?? selected?.title ?? t("open"))}
+                    : (current?.title ?? (detailAccessLost ? undefined : selected?.title) ?? t("open"))}
               </h2>
               {isCreating ? (
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -1197,10 +1522,33 @@ export default function ProjectDocumentsWorkspace({
                   {t("formSubtitleEdit")}
                 </p>
               ) : current ? (
-                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                  {t(`status.${current.status}`)} ·{" "}
-                  {t("version", { version: current.version })}
-                </p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-xs font-semibold ${STATUS_BADGE_CLASSES[viewedVersion?.status ?? current.status]}`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_CLASSES[viewedVersion?.status ?? current.status]}`}
+                    />
+                    {t(`status.${viewedVersion?.status ?? current.status}`)}
+                  </span>
+                  <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-semibold text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                    v{viewedVersion?.version ?? current.version}
+                  </span>
+                  <span className="inline-flex items-center rounded-md border border-gray-200/80 bg-white px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                    {t(`type.${current.type}`)}
+                  </span>
+                  <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                    {t("created", {
+                      date: format.dateTime(
+                        new Date(viewedVersion?.createdAt ?? current.createdAt),
+                        {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        },
+                      ),
+                    })}
+                  </span>
+                </div>
               ) : null}
             </div>
             <button
@@ -1274,327 +1622,844 @@ export default function ProjectDocumentsWorkspace({
                   {common("updateFailed")}
                 </BackgroundRefreshError>
               )}
-              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-                <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                  {t("created", {
-                    date: format.dateTime(new Date(current.createdAt), {
-                      dateStyle: "medium",
-                      timeZone: "UTC",
-                    }),
-                  })}
-                </p>
-                {current.status === "DRAFT" && current.permissions.canSubmit && (
-                  <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
-                    <p className="font-semibold">{t("draftBannerTitle")}</p>
-                    <p className="mt-0.5 text-brand-800 dark:text-brand-300">
-                      {t("draftBannerDescription")}
-                    </p>
-                  </div>
-                )}
-                {current.status === "CHANGES_REQUESTED" &&
-                  current.permissions.canSubmit && (
-                    <div className="rounded-lg border border-warning-200 bg-warning-50/80 px-3.5 py-2.5 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200">
-                      <p className="font-semibold">
-                        {t("changesRequestedBannerTitle")}
-                      </p>
-                      <p className="mt-0.5 text-warning-800 dark:text-warning-300">
-                        {t("changesRequestedBannerDescription")}
-                      </p>
-                    </div>
-                  )}
-                {current.status === "PENDING_REVIEW" &&
-                  !current.permissions.canReview && (
-                    <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
-                      <p className="font-semibold">
-                        {current.permissions.canConfigure
-                          ? t("selfReviewRestrictedTitle")
-                          : t("pendingLeaderReviewTitle")}
-                      </p>
-                      <p className="mt-0.5 text-brand-800 dark:text-brand-300">
-                        {current.permissions.canConfigure
-                          ? t("selfReviewRestrictedDescription")
-                          : t("pendingLeaderReviewDescription")}
-                      </p>
-                    </div>
-                  )}
-                {current.reviewComment && (
-                  <div className="rounded-e-lg border-s-2 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-sm text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
-                    <strong>{t("reviewComment")}:</strong>{" "}
-                    {current.reviewComment}
-                  </div>
-                )}
-                {current.content && (
-                  <div className="text-sm leading-7 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                    {current.content}
-                  </div>
-                )}
-                {current.file && (
-                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 dark:border-gray-800 dark:bg-gray-900/60">
-                    <div className="flex min-w-0 items-center gap-2.5">
-                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
-                        {getFileTypeBadge(
-                          current.file.name,
-                          current.file.contentType,
-                        )}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
-                          {current.file.name}
-                        </p>
-                        <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                          {formatFileSize(current.file.size)}
-                        </p>
-                      </div>
-                    </div>
-                    <a
-                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300"
-                      href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file`}
-                    >
-                      <DownloadIcon className="h-4 w-4" />
-                      {t("downloadFile", { name: current.file.name })}
-                    </a>
-                  </div>
-                )}
-                {current.versions.some(
-                  (version) =>
-                    version.file && version.version !== current.version,
-                ) && (
-                  <div className="flex flex-wrap gap-3 text-xs">
-                    {current.versions
-                      .filter(
-                        (version) =>
-                          version.file && version.version !== current.version,
-                      )
-                      .map((version) => (
-                        <a
-                          key={version.version}
-                          className="text-brand-700 underline dark:text-brand-300"
-                          href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file?version=${version.version}`}
-                        >
-                          {t("downloadVersion", {
-                            version: version.version,
-                            name: version.file!.name,
-                          })}
-                        </a>
-                      ))}
-                  </div>
-                )}
-                {current.permissions.canReview && (
-                  <section
-                    aria-labelledby="leader-review-panel-heading"
-                    className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10"
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
+                {showActionSuccess && action.isSuccess && (
+                  <div
+                    role="status"
+                    className="flex items-center justify-between gap-3 rounded-xl border border-success-200 bg-success-50/90 px-4 py-2.5 text-sm text-success-800 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-200"
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div>
-                        <h3
-                          id="leader-review-panel-heading"
-                          className="text-sm font-semibold text-gray-900 dark:text-white/90"
-                        >
-                          {t("leaderReviewPanelTitle")}
-                        </h3>
-                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-                          {t("leaderReviewPanelDescription")}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[current.status]}`}
-                      >
-                        {t(`status.${current.status}`)}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <CheckCircleIcon className="h-4 w-4 shrink-0 text-success-600 dark:text-success-400" />
+                      <span className="font-medium">{t("actionSuccess")}</span>
                     </div>
-                    <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-                      <span className="flex flex-wrap items-center justify-between gap-1">
-                        <span>{t("reviewComment")}</span>
-                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
-                          {t("reviewCommentHint")}
-                        </span>
-                      </span>
-                      <textarea
-                        value={reviewComment}
-                        onChange={(event) => {
-                          setReviewComment(event.target.value);
-                          setValidationError("");
-                        }}
-                        placeholder={t("reviewCommentPlaceholder")}
-                        rows={3}
-                        maxLength={5000}
-                        className={`${FIELD_CLASS} resize-y bg-white dark:bg-gray-950`}
-                      />
-                    </label>
-                    <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {t("sendCommentHint")}
-                      </p>
-                      <div className="flex justify-end">
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={!reviewComment.trim()}
-                          isLoading={action.isPending}
-                          onClick={() => void runAction("comment")}
-                        >
-                          {t("sendComment")}
-                        </Button>
-                      </div>
-                    </div>
-                  </section>
+                    <button
+                      type="button"
+                      onClick={() => setShowActionSuccess(false)}
+                      aria-label={t("close")}
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md text-success-700 hover:bg-success-100 dark:text-success-300 dark:hover:bg-success-500/20"
+                    >
+                      <CloseLineIcon className="h-3.5 w-3.5 fill-current" />
+                    </button>
+                  </div>
                 )}
                 {validationError && (
-                  <p
+                  <div
                     role="alert"
-                    className="text-sm text-error-600 dark:text-error-400"
+                    className="flex items-center gap-2 rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
                   >
-                    {validationError}
-                  </p>
+                    <AlertIcon className="h-4 w-4 shrink-0" />
+                    <span>{validationError}</span>
+                  </div>
                 )}
                 {action.isError && (
-                  <p
+                  <div
                     role="alert"
-                    className="text-sm text-error-600 dark:text-error-400"
+                    className="flex items-center gap-2 rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
                   >
-                    {action.error instanceof Error
-                      ? action.error.message
-                      : t("permissionDenied")}
-                  </p>
+                    <AlertIcon className="h-4 w-4 shrink-0" />
+                    <span>
+                      {action.error instanceof Error
+                        ? action.error.message
+                        : t("permissionDenied")}
+                    </span>
+                  </div>
                 )}
-                {action.isSuccess && (
-                  <p
-                    role="status"
-                    className="text-sm text-success-700 dark:text-success-400"
-                  >
-                    {t("actionSuccess")}
-                  </p>
-                )}
-                <div className="grid gap-5 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800">
-                  <section>
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      {t("history")}
-                    </h3>
-                    <ol className="mt-2 space-y-2">
-                      {current.versions.map((version) => (
-                        <li
-                          key={version.version}
-                          className="flex flex-wrap justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
+
+                <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+                  {/* Left Column (~60%): Document Content, Attachment, Description, Leader Review Decision */}
+                  <div className="space-y-5 lg:col-span-7">
+                    {isViewingHistoricalVersion && viewedVersion && (
+                      <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand-200 bg-brand-50/75 px-3.5 py-2.5 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                        <span className="font-semibold">
+                          {t("viewingHistoricalVersion", {
+                            version: viewedVersion.version,
+                            status: t(`status.${viewedVersion.status}`),
+                          })}
+                        </span>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            resetPreview();
+                            setSelectedVersionNumber(null);
+                          }}
                         >
-                          <span>
-                            {t("version", { version: version.version })} ·{" "}
-                            {t(`status.${version.status}`)}
-                          </span>
-                          <time className="text-gray-500 tabular-nums dark:text-gray-400">
-                            {format.dateTime(new Date(version.createdAt), {
+                          {t("returnToLatestVersion", {
+                            version: current.version,
+                          })}
+                        </Button>
+                      </div>
+                    )}
+
+                    {current.status === "DRAFT" &&
+                      current.permissions.canSubmit && (
+                        <div className="rounded-xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                          <p className="font-semibold">
+                            {t("draftBannerTitle")}
+                          </p>
+                          <p className="mt-0.5 text-brand-800 dark:text-brand-300">
+                            {t("draftBannerDescription")}
+                          </p>
+                        </div>
+                      )}
+
+                    {current.status === "CHANGES_REQUESTED" && (
+                      <div className="space-y-2 rounded-xl border border-warning-200 bg-warning-50/80 px-4 py-3 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200">
+                        <div>
+                          <p className="font-semibold">
+                            {t("changesRequestedBannerTitle")}
+                          </p>
+                          <p className="mt-0.5 text-warning-800 dark:text-warning-300">
+                            {t("changesRequestedBannerDescription")}
+                          </p>
+                        </div>
+                        {current.reviewComment && (
+                          <div className="rounded-lg border border-warning-200/80 bg-white/80 px-3 py-2 text-xs text-warning-950 dark:border-warning-500/20 dark:bg-gray-950/60 dark:text-warning-100">
+                            <span className="font-semibold">
+                              {t("reviewComment")}:
+                            </span>{" "}
+                            {current.reviewComment}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {current.status === "REJECTED" && (
+                      <div className="space-y-2 rounded-xl border border-error-200 bg-error-50/80 px-4 py-3 text-xs text-error-900 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-200">
+                        <div>
+                          <p className="font-semibold">
+                            {t("rejectedBannerTitle")}
+                          </p>
+                          <p className="mt-0.5 text-error-800 dark:text-error-300">
+                            {t("rejectedBannerDescription")}
+                          </p>
+                        </div>
+                        {current.reviewComment && (
+                          <div className="rounded-lg border border-error-200/80 bg-white/80 px-3 py-2 text-xs text-error-950 dark:border-error-500/20 dark:bg-gray-950/60 dark:text-error-100">
+                            <span className="font-semibold">
+                              {t("reviewComment")}:
+                            </span>{" "}
+                            {current.reviewComment}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {current.status === "PENDING_REVIEW" &&
+                      !current.permissions.canReview && (
+                        <div className="rounded-xl border border-brand-200 bg-brand-50/70 px-4 py-3 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                          <p className="font-semibold">
+                            {current.permissions.canConfigure
+                              ? t("selfReviewRestrictedTitle")
+                              : t("pendingLeaderReviewTitle")}
+                          </p>
+                          <p className="mt-0.5 text-brand-800 dark:text-brand-300">
+                            {current.permissions.canConfigure
+                              ? t("selfReviewRestrictedDescription")
+                              : t("pendingLeaderReviewDescription")}
+                          </p>
+                        </div>
+                      )}
+
+                    {/* Document Content Section */}
+                    <section
+                      aria-labelledby="detail-document-content-heading"
+                      className="space-y-2"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <h3
+                          id="detail-document-content-heading"
+                          className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                        >
+                          <DocsIcon className="h-3.5 w-3.5 text-gray-400 dark:text-gray-500" />
+                          {t("contentLabel")}
+                        </h3>
+                        <span className="text-xs font-medium text-gray-400 tabular-nums dark:text-gray-500">
+                          v{viewedVersion?.version ?? current.version}
+                        </span>
+                      </div>
+                      <div className="rounded-xl border border-gray-200/90 bg-white p-4 sm:p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900/70">
+                        {activeContent ? (
+                          <div className="text-sm leading-7 break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
+                            {activeContent}
+                          </div>
+                        ) : (
+                          <p className="text-xs italic text-gray-500 dark:text-gray-400">
+                            {t("noTextContent")}
+                          </p>
+                        )}
+                      </div>
+                    </section>
+
+                    {/* Attachment Section */}
+                    <section
+                      aria-labelledby="detail-attachment-heading"
+                      className="space-y-2"
+                    >
+                      <h3
+                        id="detail-attachment-heading"
+                        className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                      >
+                        {t("attachmentHeading")}
+                      </h3>
+                      {activeFile ? (
+                        <div className="space-y-3 rounded-xl border border-gray-200/90 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-900/60">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-xs font-bold text-brand-700 uppercase ring-1 ring-brand-600/15 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/20">
+                                {getFileTypeBadge(
+                                  activeFile.name,
+                                  activeFile.contentType,
+                                )}
+                              </span>
+                              <div className="min-w-0 flex-1">
+                                <p className="truncate text-sm font-semibold text-gray-900 dark:text-white/90">
+                                  {activeFile.name}
+                                </p>
+                                <p className="mt-0.5 text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                                  {getFileTypeBadge(
+                                    activeFile.name,
+                                    activeFile.contentType,
+                                  )}{" "}
+                                  · {formatFileSize(activeFile.size)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex shrink-0 flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => void toggleFilePreview()}
+                                className="inline-flex h-8.5 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-theme-xs transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                              >
+                                <EyeIcon className="h-3.5 w-3.5" />
+                                {previewState.open
+                                  ? t("hidePreviewAction")
+                                  : t("previewAction")}
+                              </button>
+                              <a
+                                aria-label={t("downloadFile", {
+                                  name: activeFile.name,
+                                })}
+                                className="inline-flex h-8.5 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-theme-xs transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                                href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file${isViewingHistoricalVersion && viewedVersion ? `?version=${viewedVersion.version}` : ""}`}
+                              >
+                                <DownloadIcon className="h-3.5 w-3.5" />
+                                {t("downloadAction")}
+                              </a>
+                            </div>
+                          </div>
+
+                          {previewState.open && (
+                            <div className="rounded-lg border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-950">
+                              {previewState.loading ? (
+                                <p className="text-xs text-gray-500 dark:text-gray-400">
+                                  {t("previewLoading")}
+                                </p>
+                              ) : previewState.error ? (
+                                <p className="text-xs text-error-600 dark:text-error-400">
+                                  {previewState.error}
+                                </p>
+                              ) : previewState.mode === "text" ? (
+                                <pre className="max-h-72 overflow-y-auto text-xs leading-6 break-words whitespace-pre-wrap font-mono text-gray-800 dark:text-gray-200">
+                                  {previewState.text || t("noTextContent")}
+                                </pre>
+                              ) : previewState.mode === "pdf" &&
+                                previewState.url ? (
+                                <iframe
+                                  title={activeFile.name}
+                                  src={previewState.url}
+                                  className="h-80 w-full rounded border border-gray-200 dark:border-gray-800"
+                                />
+                              ) : previewState.mode === "image" &&
+                                previewState.url ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={previewState.url}
+                                  alt={activeFile.name}
+                                  className="max-h-80 w-auto rounded border border-gray-200 object-contain dark:border-gray-800"
+                                />
+                              ) : (
+                                <p className="text-xs text-gray-600 dark:text-gray-300">
+                                  {t("previewBinaryNotice")}
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/40 px-4 py-3 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                          {t("noAttachment")}
+                        </div>
+                      )}
+                    </section>
+
+                    {/* Description Section */}
+                    <section
+                      aria-labelledby="detail-description-heading"
+                      className="space-y-2"
+                    >
+                      <h3
+                        id="detail-description-heading"
+                        className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                      >
+                        {t("descriptionLabel")}
+                      </h3>
+                      <div className="rounded-xl border border-gray-200/80 bg-gray-50/40 px-4 py-3 text-sm text-gray-700 dark:border-gray-800 dark:bg-gray-900/40 dark:text-gray-300">
+                        {current.description?.trim() ? (
+                          <p className="break-words whitespace-pre-wrap">
+                            {current.description}
+                          </p>
+                        ) : (
+                          <p className="text-xs italic text-gray-500 dark:text-gray-400">
+                            {t("noDescription")}
+                          </p>
+                        )}
+                      </div>
+                    </section>
+
+                    {/* Leader Review Decision Panel (only when canReview is true) */}
+                    {current.permissions.canReview &&
+                      !isViewingHistoricalVersion && (
+                        <section
+                          aria-labelledby="leader-review-panel-heading"
+                          className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <h3
+                                id="leader-review-panel-heading"
+                                className="text-sm font-semibold text-gray-900 dark:text-white/90"
+                              >
+                                {t("leaderReviewPanelTitle")}
+                              </h3>
+                              <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                                {t("leaderReviewPanelDescription")}
+                              </p>
+                            </div>
+                            <span
+                              className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[current.status]}`}
+                            >
+                              {t(`status.${current.status}`)}
+                            </span>
+                          </div>
+                          <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                            <span className="flex flex-wrap items-center justify-between gap-1">
+                              <span>{t("reviewComment")}</span>
+                              <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                                {t("reviewCommentHint")}
+                              </span>
+                            </span>
+                            <textarea
+                              value={reviewComment}
+                              onChange={(event) => {
+                                setReviewComment(event.target.value);
+                                setValidationError("");
+                              }}
+                              placeholder={t("reviewCommentPlaceholder")}
+                              rows={3}
+                              maxLength={5000}
+                              className={`${FIELD_CLASS} resize-y bg-white dark:bg-gray-950`}
+                            />
+                          </label>
+                          <div className="flex flex-col gap-2 pt-1 sm:flex-row sm:items-center sm:justify-between">
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {t("sendCommentHint")}
+                            </p>
+                            <div className="flex justify-end">
+                              <Button
+                                type="button"
+                                size="sm"
+                                disabled={!reviewComment.trim()}
+                                isLoading={action.isPending}
+                                onClick={() => void runAction("comment")}
+                              >
+                                {t("sendComment")}
+                              </Button>
+                            </div>
+                          </div>
+                        </section>
+                      )}
+                  </div>
+
+                  {/* Right Column (~40%): Document Information, Interactive Version History, Review Activity Timeline */}
+                  <aside className="space-y-5 lg:col-span-5">
+                    {/* Document Information Card */}
+                    <section
+                      aria-labelledby="detail-doc-info-heading"
+                      className="rounded-xl border border-gray-200/90 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-900/50"
+                    >
+                      <h3
+                        id="detail-doc-info-heading"
+                        className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                      >
+                        {t("documentInfoHeading")}
+                      </h3>
+                      <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 text-xs">
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">
+                            {t("statusLabel")}
+                          </dt>
+                          <dd className="mt-1">
+                            <span
+                              className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[viewedVersion?.status ?? current.status]}`}
+                            >
+                              <span
+                                className={`h-1.5 w-1.5 rounded-full ${STATUS_DOT_CLASSES[viewedVersion?.status ?? current.status]}`}
+                              />
+                              {t(
+                                `status.${viewedVersion?.status ?? current.status}`,
+                              )}
+                            </span>
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">
+                            {t("versionLabel")}
+                          </dt>
+                          <dd className="mt-1 font-semibold text-gray-900 tabular-nums dark:text-white/90">
+                            v{viewedVersion?.version ?? current.version}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">
+                            {t("typeLabel")}
+                          </dt>
+                          <dd className="mt-1 font-medium text-gray-800 dark:text-gray-200">
+                            {t(`type.${current.type}`)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">
+                            {t("createdDateLabel")}
+                          </dt>
+                          <dd className="mt-1 font-medium text-gray-800 tabular-nums dark:text-gray-200">
+                            {format.dateTime(new Date(current.createdAt), {
                               dateStyle: "medium",
                               timeZone: "UTC",
                             })}
-                          </time>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                  <section>
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      {t("reviewHistory")}
-                    </h3>
-                    {current.reviewHistory.length ? (
-                      <ol className="mt-2 space-y-2">
-                        {current.reviewHistory.map((event, index) => (
-                          <li
-                            key={`${event.at}-${index}`}
-                            className="rounded-lg border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
-                          >
-                            <span className="font-medium">
-                              {t(`status.${event.action}`)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-gray-500 dark:text-gray-400">
+                            {t("createdByLabel")}
+                          </dt>
+                          <dd className="mt-1 flex items-center gap-1.5 font-medium text-gray-800 dark:text-gray-200">
+                            <UserCircleIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                            <span className="truncate">
+                              {resolveActorLabel(current.createdBy, "author")}
                             </span>
-                            <time className="ms-2 text-gray-500 tabular-nums dark:text-gray-400">
-                              {format.dateTime(new Date(event.at), {
-                                dateStyle: "medium",
-                                timeStyle: "short",
-                                timeZone: "UTC",
-                              })}
-                            </time>
-                            {event.comment && (
-                              <p className="mt-1 break-words whitespace-pre-wrap text-gray-600 dark:text-gray-300">
-                                {event.comment}
-                              </p>
-                            )}
-                          </li>
-                        ))}
+                          </dd>
+                        </div>
+                        {current.reviewedBy && (
+                          <div>
+                            <dt className="text-gray-500 dark:text-gray-400">
+                              {t("reviewedByLabel")}
+                            </dt>
+                            <dd className="mt-1 flex items-center gap-1.5 font-medium text-gray-800 dark:text-gray-200">
+                              <UserCircleIcon className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                              <span className="truncate">
+                                {resolveActorLabel(
+                                  current.reviewedBy,
+                                  "reviewer",
+                                )}
+                              </span>
+                            </dd>
+                          </div>
+                        )}
+                      </dl>
+                    </section>
+
+                    {/* Interactive Version History */}
+                    <section
+                      aria-labelledby="detail-version-history-heading"
+                      className="rounded-xl border border-gray-200/90 bg-white p-4 dark:border-gray-800 dark:bg-gray-900/60"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <h3
+                          id="detail-version-history-heading"
+                          className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                        >
+                          {t("history")}
+                        </h3>
+                        <span className="inline-flex rounded-md bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                          {current.versions.length}
+                        </span>
+                      </div>
+                      <ol className="mt-3 space-y-2">
+                        {sortedVersions.map((version) => {
+                          const isSelected =
+                            (viewedVersion?.version ?? current.version) ===
+                            version.version;
+                          const lifecycleLabel =
+                            version.version === latestApprovedVersion
+                              ? t("latestApprovedVersion")
+                              : version.version === current.version &&
+                                  version.status === "DRAFT"
+                                ? t("currentDraftVersion")
+                                : version.version === current.version &&
+                                    version.status === "PENDING_REVIEW"
+                                  ? t("currentPendingVersion")
+                                  : version.version === current.version
+                                    ? t("currentVersionBadge")
+                                    : version.status === "APPROVED"
+                                      ? t("supersededApprovedVersion")
+                                      : t("previousVersionBadge");
+                          return (
+                            <li key={version.version}>
+                              <div
+                                className={`rounded-xl border p-3 transition-colors ${
+                                  isSelected
+                                    ? "border-brand-300 bg-brand-50/50 ring-1 ring-brand-500/15 dark:border-brand-500/40 dark:bg-brand-500/10"
+                                    : "border-gray-100 bg-gray-50/40 hover:border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:bg-gray-950/40 dark:hover:border-gray-700"
+                                }`}
+                              >
+                                <button
+                                  type="button"
+                                  aria-pressed={isSelected}
+                                  onClick={() => {
+                                    resetPreview();
+                                    setSelectedVersionNumber(
+                                      version.version === current.version
+                                        ? null
+                                        : version.version,
+                                    );
+                                  }}
+                                  className="w-full text-start focus-visible:outline-2 focus-visible:outline-brand-500"
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                    <span className="font-semibold text-gray-900 dark:text-white/90">
+                                      {t("version", {
+                                        version: version.version,
+                                      })}{" "}
+                                      · {t(`status.${version.status}`)}
+                                    </span>
+                                    <time className="text-gray-500 tabular-nums dark:text-gray-400">
+                                      {format.dateTime(
+                                        new Date(version.createdAt),
+                                        {
+                                          dateStyle: "medium",
+                                          timeZone: "UTC",
+                                        },
+                                      )}
+                                    </time>
+                                  </div>
+                                  <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+                                    <span
+                                      className={
+                                        version.version ===
+                                        latestApprovedVersion
+                                          ? "font-medium text-success-700 dark:text-success-400"
+                                          : "font-medium text-gray-600 dark:text-gray-300"
+                                      }
+                                    >
+                                      {lifecycleLabel}
+                                    </span>
+                                    <span>
+                                      {t("editedByActor", {
+                                        actor: resolveActorLabel(
+                                          version.editedBy,
+                                          "author",
+                                        ),
+                                      })}
+                                    </span>
+                                  </div>
+                                </button>
+                                {version.file &&
+                                  version.version !== current.version && (
+                                    <div className="mt-2 border-t border-gray-200/70 pt-2 dark:border-gray-800">
+                                      <a
+                                        className="inline-flex items-center gap-1 text-xs font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300"
+                                        href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file?version=${version.version}`}
+                                      >
+                                        <DownloadIcon className="h-3 w-3" />
+                                        {t("downloadVersion", {
+                                          version: version.version,
+                                          name: version.file.name,
+                                        })}
+                                      </a>
+                                    </div>
+                                  )}
+                              </div>
+                            </li>
+                          );
+                        })}
                       </ol>
-                    ) : (
-                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        {common("noData")}
-                      </p>
-                    )}
-                  </section>
+                    </section>
+
+                    {/* Review Activity Timeline */}
+                    <section
+                      aria-labelledby="detail-review-activity-heading"
+                      className="rounded-xl border border-gray-200/90 bg-white p-4 dark:border-gray-800 dark:bg-gray-900/60"
+                    >
+                      <h3
+                        id="detail-review-activity-heading"
+                        className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                      >
+                        {t("reviewActivityHeading")}
+                      </h3>
+                      {current.reviewHistory.length > 0 ||
+                      Boolean(current.submittedAt) ? (
+                        <ol className="relative ms-2 mt-3 space-y-4 border-s border-gray-200 ps-4 dark:border-gray-700">
+                          {current.submittedAt &&
+                            !current.reviewHistory.some(
+                              (e) =>
+                                e.action === "PENDING_REVIEW" && !e.comment,
+                            ) && (
+                              <li className="relative text-xs">
+                                <span className="absolute -start-[21px] top-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full bg-brand-100 text-brand-700 ring-2 ring-white dark:bg-brand-500/20 dark:text-brand-300 dark:ring-gray-900">
+                                  <PaperPlaneIcon className="h-2.5 w-2.5" />
+                                </span>
+                                <div className="flex flex-wrap items-center justify-between gap-1">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white/90">
+                                    <span>{t("timelineSubmitted")}</span>
+                                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                                      v{viewedVersion?.version ?? current.version}
+                                    </span>
+                                  </span>
+                                  <time className="text-gray-500 tabular-nums dark:text-gray-400">
+                                    {format.dateTime(
+                                      new Date(current.submittedAt),
+                                      {
+                                        dateStyle: "medium",
+                                        timeStyle: "short",
+                                        timeZone: "UTC",
+                                      },
+                                    )}
+                                  </time>
+                                </div>
+                                <p className="mt-0.5 text-gray-500 dark:text-gray-400">
+                                  {t("submittedByActor", {
+                                    actor: resolveActorLabel(
+                                      current.createdBy,
+                                      "author",
+                                    ),
+                                  })}
+                                </p>
+                              </li>
+                            )}
+                          {current.reviewHistory.map((event, index) => {
+                            const nodeColor =
+                              event.action === "APPROVED"
+                                ? "bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-300"
+                                : event.action === "CHANGES_REQUESTED"
+                                  ? "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-300"
+                                  : event.action === "REJECTED"
+                                    ? "bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300"
+                                    : "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300";
+                            return (
+                              <li
+                                key={`${event.at}-${index}`}
+                                className="relative text-xs"
+                              >
+                                <span
+                                  className={`absolute -start-[21px] top-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-white dark:ring-gray-900 ${nodeColor}`}
+                                >
+                                  {event.action === "APPROVED" ? (
+                                    <CheckLineIcon className="h-2.5 w-2.5" />
+                                  ) : event.action === "PENDING_REVIEW" ? (
+                                    <ChatIcon className="h-2.5 w-2.5" />
+                                  ) : (
+                                    <InfoIcon className="h-2.5 w-2.5" />
+                                  )}
+                                </span>
+                                <div className="flex flex-wrap items-center justify-between gap-1">
+                                  <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white/90">
+                                    <span>
+                                      {event.action === "PENDING_REVIEW" &&
+                                      event.comment
+                                        ? t("timelineReviewComment")
+                                        : t(`status.${event.action}`)}
+                                    </span>
+                                    <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                                      v{viewedVersion?.version ?? current.version}
+                                    </span>
+                                  </span>
+                                  <time className="text-gray-500 tabular-nums dark:text-gray-400">
+                                    {format.dateTime(new Date(event.at), {
+                                      dateStyle: "medium",
+                                      timeStyle: "short",
+                                      timeZone: "UTC",
+                                    })}
+                                  </time>
+                                </div>
+                                <p className="mt-0.5 text-gray-500 dark:text-gray-400">
+                                  {t("reviewedByActor", {
+                                    actor: resolveActorLabel(
+                                      event.reviewerId,
+                                      "reviewer",
+                                    ),
+                                  })}
+                                </p>
+                                {event.comment && (
+                                  <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50/90 px-3 py-2 text-xs break-words whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200">
+                                    {event.comment}
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ol>
+                      ) : (
+                        <p className="mt-2 rounded-lg border border-dashed border-gray-200 px-3 py-2.5 text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                          {t("noReviewActivity")}
+                        </p>
+                      )}
+                    </section>
+                  </aside>
                 </div>
               </div>
-              <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900/90">
-                {current.permissions.canEdit && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      create.reset();
-                      update.reset();
-                      upload.reset();
-                      action.reset();
-                      setValidationError("");
-                      setIsEditorDirty(false);
-                      setConfirmingDiscard(false);
-                      setIsEditing(true);
-                    }}
+
+              {/* Sticky Footer */}
+              <div className="shrink-0 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900/90">
+                {confirmingArchive ? (
+                  <div
+                    role="alertdialog"
+                    aria-label={t("archiveConfirmTitle")}
+                    className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    {t("edit")}
-                  </Button>
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-semibold text-gray-900 dark:text-white/90">
+                        {t("archiveConfirmTitle")}
+                      </p>
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        {t("archiveConfirmDescription")}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setConfirmingArchive(false)}
+                      >
+                        {t("cancel")}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="danger"
+                        size="sm"
+                        isLoading={action.isPending}
+                        onClick={() => void runAction("archive")}
+                      >
+                        {t("confirmArchive")}
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="relative flex flex-wrap items-center gap-2.5">
+                      <span className="hidden text-xs font-medium text-gray-500 sm:inline dark:text-gray-400">
+                        {current.permissions.canReview
+                          ? t("reviewDecisionMode")
+                          : current.permissions.canEdit ||
+                              current.permissions.canSubmit
+                            ? t("authorDraftMode")
+                            : t("readOnlyViewMode")}
+                      </span>
+                      {canArchiveDocument && (
+                        <div className="relative">
+                          <button
+                            type="button"
+                            aria-expanded={moreActionsOpen}
+                            onClick={() =>
+                              setMoreActionsOpen((prev) => !prev)
+                            }
+                            className="inline-flex h-9 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-theme-xs transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                          >
+                            <MoreDotIcon className="h-4 w-4 text-gray-400" />
+                            {t("moreActions")}
+                          </button>
+                          {moreActionsOpen && (
+                            <div className="absolute bottom-full start-0 z-20 mb-2 min-w-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setMoreActionsOpen(false);
+                                  setConfirmingArchive(true);
+                                }}
+                                className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-start text-xs font-medium text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
+                              >
+                                <TrashBinIcon className="h-3.5 w-3.5" />
+                                {t("archive")}
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {current.permissions.canEdit && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            create.reset();
+                            update.reset();
+                            upload.reset();
+                            action.reset();
+                            setValidationError("");
+                            setShowActionSuccess(false);
+                            setIsEditorDirty(false);
+                            setConfirmingDiscard(false);
+                            setIsEditing(true);
+                          }}
+                        >
+                          {t("edit")}
+                        </Button>
+                      )}
+                      {current.permissions.canSubmit && (
+                        <Button
+                          size="sm"
+                          isLoading={action.isPending}
+                          onClick={() => void runAction("submit")}
+                        >
+                          {t("submit")}
+                        </Button>
+                      )}
+                      {current.permissions.canReview &&
+                        !isViewingHistoricalVersion && (
+                          <>
+                            <Button
+                              size="sm"
+                              isLoading={action.isPending}
+                              onClick={() => void runAction("approve")}
+                            >
+                              {t("approve")}
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              isLoading={action.isPending}
+                              onClick={() => void runAction("request-changes")}
+                            >
+                              {t("requestChanges")}
+                            </Button>
+                            <Button
+                              variant="danger"
+                              size="sm"
+                              isLoading={action.isPending}
+                              onClick={() => void runAction("reject")}
+                            >
+                              {t("reject")}
+                            </Button>
+                          </>
+                        )}
+                      {!current.permissions.canReview &&
+                        !current.permissions.canSubmit && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={requestCloseModal}
+                          >
+                            {t("close")}
+                          </Button>
+                        )}
+                    </div>
+                  </div>
                 )}
-                {current.permissions.canSubmit && (
-                  <Button
-                    size="sm"
-                    isLoading={action.isPending}
-                    onClick={() => void runAction("submit")}
-                  >
-                    {t("submit")}
-                  </Button>
-                )}
-                {current.permissions.canReview && (
-                  <>
-                    <Button
-                      size="sm"
-                      isLoading={action.isPending}
-                      onClick={() => void runAction("approve")}
-                    >
-                      {t("approve")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={action.isPending}
-                      onClick={() => void runAction("request-changes")}
-                    >
-                      {t("requestChanges")}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      isLoading={action.isPending}
-                      onClick={() => void runAction("reject")}
-                    >
-                      {t("reject")}
-                    </Button>
-                  </>
-                )}
-                {current.permissions.canConfigure &&
-                  current.status !== "ARCHIVED" &&
-                  (current.status === "APPROVED" ||
-                    current.versions.some((v) => v.status === "APPROVED")) && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      isLoading={action.isPending}
-                      onClick={() => void runAction("archive")}
-                    >
-                      {t("archive")}
-                    </Button>
-                  )}
               </div>
             </>
           ) : null}
