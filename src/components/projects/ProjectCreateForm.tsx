@@ -25,7 +25,8 @@ import {
 } from "lucide-react";
 import Label from "@/components/form/Label";
 import Button from "@/components/ui/button/Button";
-import { apiClient, ApiError } from "@/lib/api-client";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import { apiClient, ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   useCreateProjectMutation,
   type Project,
@@ -123,6 +124,7 @@ export default function ProjectCreateForm({
   onCancel?: () => void;
 }) {
   const t = useTranslations("projects");
+  const common = useTranslations("common");
   const mutation = useCreateProjectMutation(organizationId);
   const [step, setStep] = useState<WizardStep>(1);
   const [name, setName] = useState("");
@@ -189,7 +191,9 @@ export default function ProjectCreateForm({
     },
   });
 
-  const unselectedOrgMembers = (orgMembersQuery.data ?? []).filter(
+  const orgMembersAccessLost = isAccessOrResourceUnavailableError(orgMembersQuery.error);
+  const visibleOrgMembers = orgMembersAccessLost ? undefined : orgMembersQuery.data;
+  const unselectedOrgMembers = (visibleOrgMembers ?? []).filter(
     (member) => !selectedMembers.some((m) => m.userId === member.userId),
   );
 
@@ -879,11 +883,34 @@ export default function ProjectCreateForm({
                         </div>
 
                         <div className="mt-3 max-h-64 flex-1 divide-y divide-gray-100 overflow-y-auto dark:divide-gray-800">
-                          {orgMembersQuery.isPending ? (
+                          {visibleOrgMembers !== undefined && !orgMembersAccessLost &&
+                            (orgMembersQuery.isFetching ||
+                              orgMembersQuery.isRefetchError) && (
+                              <div className="py-2">
+                                {orgMembersQuery.isFetching && (
+                                  <UpdatingStatus>
+                                    {common("updating")}
+                                  </UpdatingStatus>
+                                )}
+                                {orgMembersQuery.isRefetchError && (
+                                  <BackgroundRefreshError
+                                    retryLabel={common("retry")}
+                                    onRetry={() =>
+                                      void orgMembersQuery.refetch()
+                                    }
+                                  >
+                                    {common("updateFailed")}
+                                  </BackgroundRefreshError>
+                                )}
+                              </div>
+                            )}
+                          {orgMembersQuery.isPending &&
+                          !visibleOrgMembers ? (
                             <p className="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
                               Loading organization members...
                             </p>
-                          ) : orgMembersQuery.isError ? (
+                          ) : orgMembersQuery.isError &&
+                            !visibleOrgMembers ? (
                             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
                               <p className="text-xs text-error-600 dark:text-error-400">
                                 Unable to load organization members.

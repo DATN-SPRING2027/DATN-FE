@@ -371,7 +371,7 @@ export function SidebarFlyoutPortal({
               {Array.from({ length: 3 }, (_, idx) => (
                 <div
                   key={idx}
-                  className="h-9 animate-pulse rounded-md bg-gray-100 dark:bg-gray-800"
+                  className="h-9 motion-safe:animate-pulse rounded-md bg-gray-100 dark:bg-gray-800"
                 />
               ))}
             </div>

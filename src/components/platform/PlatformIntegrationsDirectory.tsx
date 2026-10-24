@@ -7,8 +7,10 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   box,
   cell,
+  isReadAccessLost,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
@@ -32,9 +34,21 @@ export default function PlatformIntegrationsDirectory({
           withheld.
         </p>
       </div>
-      {integrations.isPending ? (
+      {integrations.data !== undefined &&
+        !isReadAccessLost(integrations.error) &&
+        (integrations.isFetching || integrations.isRefetchError) && (
+        <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+        <QueryRefreshStatus
+          hasData
+          isFetching={integrations.isFetching}
+          isRefetchError={integrations.isRefetchError}
+          onRetry={() => void integrations.refetch()}
+        />
+        </div>
+      )}
+      {integrations.isPending && !integrations.data ? (
         <Loading columns={4} />
-      ) : integrations.isError ? (
+      ) : integrations.isError && (!integrations.data || isReadAccessLost(integrations.error)) ? (
         <ErrorState retry={() => void integrations.refetch()} />
       ) : integrations.data?.data.length ? (
         <DirectoryTable

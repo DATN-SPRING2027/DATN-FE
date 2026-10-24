@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   useInfiniteQuery,
   useMutation,
@@ -106,6 +106,12 @@ export const notificationKeys = {
   unreadCount: () => ["notifications", "unread-count"] as const,
 };
 
+export function unreadNotificationPollingInterval(
+  realtimeConnected: boolean,
+): number | false {
+  return realtimeConnected ? false : NOTIFICATION_POLL_INTERVAL_MS;
+}
+
 export const notificationsApi = {
   list: async (
     params: { cursor?: string; limit?: number; unreadOnly?: boolean } = {},
@@ -198,12 +204,15 @@ export function useInfiniteNotificationsQuery(
   });
 }
 
-export function useUnreadNotificationCountQuery(enabled = true) {
+export function useUnreadNotificationCountQuery(
+  enabled = true,
+  realtimeConnected = false,
+) {
   return useQuery({
     queryKey: notificationKeys.unreadCount(),
     queryFn: ({ signal }) => notificationsApi.unreadCount(signal),
     enabled,
-    refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
+    refetchInterval: unreadNotificationPollingInterval(realtimeConnected),
     staleTime: 5_000,
   });
 }
@@ -233,12 +242,14 @@ export function useNotificationRealtimeSubscription(
   organizationId?: string | null,
 ) {
   const queryClient = useQueryClient();
+  const [connectedIdentity, setConnectedIdentity] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userId || !organizationId) return;
     if (typeof window === "undefined" || typeof WebSocket === "undefined") {
       return;
     }
+    const identityKey = `${userId}:${organizationId}`;
 
     let stopped = false;
     let socket: WebSocket | null = null;
@@ -247,25 +258,27 @@ export function useNotificationRealtimeSubscription(
 
     const connect = async () => {
       try {
-        const { ticket } = await chatApi.wsTicket();
+        const { ticket } = await getSharedWsTicket();
         if (stopped) return;
         const defaultUrl = `${
           window.location.protocol === "https:" ? "wss:" : "ws:"
         }//${window.location.host}/internal/chat/ws`;
-        socket = new WebSocket(
+        const connection = new WebSocket(
           process.env.NEXT_PUBLIC_CHAT_WS_URL || defaultUrl,
           ["continuum-chat.v1", `ticket.${ticket}`],
         );
+        socket = connection;
 
-        socket.onopen = () => {
+        connection.onopen = () => {
           if (stopped) {
-            socket?.close();
+            connection.close();
             return;
           }
+          setConnectedIdentity(identityKey);
           delay = 2000;
         };
 
-        socket.onmessage = (event) => {
+        connection.onmessage = (event) => {
           try {
             const packet = JSON.parse(String(event.data)) as {
               event?: unknown;
@@ -284,15 +297,25 @@ export function useNotificationRealtimeSubscription(
           }
         };
 
-        socket.onclose = () => {
+        connection.onclose = () => {
           if (stopped) return;
+          setConnectedIdentity((current) =>
+            current === identityKey ? null : current,
+          );
           reconnectTimer = setTimeout(() => {
             void connect();
           }, delay);
           delay = Math.min(delay * 2, 30_000);
         };
       } catch {
-        // Polling fallback remains active when WS is unavailable
+        if (stopped) return;
+        setConnectedIdentity((current) =>
+          current === identityKey ? null : current,
+        );
+        reconnectTimer = setTimeout(() => {
+          void connect();
+        }, delay);
+        delay = Math.min(delay * 2, 30_000);
       }
     };
 
@@ -301,6 +324,9 @@ export function useNotificationRealtimeSubscription(
     return () => {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      setConnectedIdentity((current) =>
+        current === identityKey ? null : current,
+      );
       if (
         socket &&
         (socket.readyState === WebSocket.OPEN ||
@@ -310,4 +336,21 @@ export function useNotificationRealtimeSubscription(
       }
     };
   }, [organizationId, queryClient, userId]);
+
+  return Boolean(
+    userId &&
+      organizationId &&
+      connectedIdentity === `${userId}:${organizationId}`,
+  );
+}
+
+let wsTicketInFlight: ReturnType<typeof chatApi.wsTicket> | undefined;
+
+function getSharedWsTicket() {
+  if (!wsTicketInFlight) {
+    wsTicketInFlight = chatApi.wsTicket().finally(() => {
+      wsTicketInFlight = undefined;
+    });
+  }
+  return wsTicketInFlight;
 }

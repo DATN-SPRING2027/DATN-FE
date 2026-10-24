@@ -7,6 +7,7 @@ import {
 } from "@/lib/queries/platform/usePlatformOperations";
 import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import styles from "../ui/platformCharts.module.css";
+import { isReadAccessLost, QueryRefreshStatus } from "../PlatformOperationsUi";
 export default function PlatformServiceHealth({
   health,
   permissions,
@@ -17,12 +18,23 @@ export default function PlatformServiceHealth({
   const t = useTranslations("platformConsole");
   const allowed = permissions.includes("platform.services.service.read");
   const query = usePlatformServicesQuery(allowed);
-  const visible = allowed && !query.isError && query.data?.length;
+  const canKeepQueryData = !isReadAccessLost(query.error);
+  const visible = allowed && canKeepQueryData && query.data?.length;
   return (
     <section className={styles.services} aria-labelledby="operator-health">
       <h2 id="operator-health">{t("dashboard.serviceHealth")}</h2>
       <p className="sr-only">{t("dashboard.serviceHealthNote")}</p>
-      {allowed && query.isError && (
+      {allowed && canKeepQueryData && query.data !== undefined && (query.isFetching || query.isRefetchError) && (
+        <div className="my-2">
+          <QueryRefreshStatus
+            hasData
+            isFetching={query.isFetching}
+            isRefetchError={query.isRefetchError}
+            onRetry={() => void query.refetch()}
+          />
+        </div>
+      )}
+      {allowed && query.isError && (!query.data || !canKeepQueryData) && (
         <div role="alert" className="my-2 text-xs">
           <p>{t("jira.servicesError")}</p>
           <button

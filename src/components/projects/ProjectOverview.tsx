@@ -83,18 +83,22 @@ export default function ProjectOverview({
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
+  const hasProjectMemberCount =
+    typeof project.activeMemberCount === "number";
   const memberSummary = useProjectMembersQuery(
     project.organizationId,
     project.id,
     { page: 1, pageSize: 1, status: "ACTIVE" },
+    { enabled: !hasProjectMemberCount, staleTime: 15_000 },
   );
   const activeMemberTotal =
-    memberSummary.isPending || memberSummary.isError
+    project.activeMemberCount ??
+    (memberSummary.isPending || memberSummary.isError
       ? undefined
-      : memberSummary.data?.pagination.totalItems;
+      : memberSummary.data?.pagination.totalItems);
   const activeMemberValue =
     activeMemberTotal === undefined
-      ? memberSummary.isPending
+      ? !hasProjectMemberCount && memberSummary.isPending
         ? memberLabels("loading")
         : t("memberDataUnavailable")
       : format.number(activeMemberTotal);

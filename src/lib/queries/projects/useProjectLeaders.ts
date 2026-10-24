@@ -108,8 +108,8 @@ export function useProjectLeadersQuery(
     queryKey: projectLeaderKeys.scope(organizationId, projectId),
     enabled: Boolean(organizationId && isResourceId(projectId)),
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: 15_000,
+    gcTime: 120_000,
     refetchOnWindowFocus: true,
     networkMode: "always",
     queryFn: async ({ signal }) => {

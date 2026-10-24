@@ -20,6 +20,7 @@ import {
   UserCircleIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
@@ -75,20 +76,21 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
   } = useSidebar();
 
   const currentUser = useCurrentUserQuery();
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const visibleCurrentUser = currentUserAccessLost ? undefined : currentUser.data;
   const organizationId =
-    currentUser.data && "organizationId" in currentUser.data
-      ? (currentUser.data.organizationId ?? "")
+    visibleCurrentUser && "organizationId" in visibleCurrentUser
+      ? (visibleCurrentUser.organizationId ?? "")
       : "";
-  const canViewMembers = canReadOrganizationMemberships(currentUser.data);
+  const canViewMembers = canReadOrganizationMemberships(visibleCurrentUser);
   const projectsQuery = useProjectsQuery(
     organizationId,
     {
       page: 1,
       pageSize: 8,
       status: "ACTIVE",
-      ...(debouncedProjectSearch.length >= 2
-        ? { q: debouncedProjectSearch, includeTotal: false }
-        : {}),
+      q: debouncedProjectSearch,
+      includeTotal: false,
     },
     {
       enabled: isSearchOpen && debouncedProjectSearch.length >= 2,
@@ -96,6 +98,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       refetchOnWindowFocus: false,
     },
   );
+  const projectsAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(projectsQuery.error);
+  const visibleProjects = projectsAccessLost ? undefined : projectsQuery.data;
 
   const systemFeatures = useMemo<SystemFeatureItem[]>(() => {
     const translateOrFallback = (key: string, fallback: string) => {
@@ -304,7 +308,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       },
     );
 
-    const activeProjects = projectsQuery.data?.data ?? [];
+    const activeProjects = visibleProjects?.data ?? [];
     for (const project of activeProjects.slice(0, 8)) {
       const encodedId = encodeURIComponent(project.id);
       items.push(
@@ -342,7 +346,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
     }
 
     return items;
-  }, [canViewMembers, projectsQuery.data?.data, setIsHelpOpen, t]);
+  }, [canViewMembers, visibleProjects?.data, setIsHelpOpen, t]);
 
   const filteredFeatures = useMemo(() => {
     const normalizedQuery = normalizeSearchText(searchQuery);

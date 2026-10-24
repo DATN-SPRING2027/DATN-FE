@@ -257,9 +257,19 @@ it("allows archiving a document with an approved version even when a newer versi
 
   mount();
   fireEvent.click(await screen.findByRole("button", { name: mixedDoc.title }));
+  const moreActionsBtn = await screen.findByRole("button", {
+    name: "More actions",
+  });
+  expect(moreActionsBtn).toBeVisible();
+  fireEvent.click(moreActionsBtn);
+
   const archiveBtn = await screen.findByRole("button", { name: "Archive" });
   expect(archiveBtn).toBeVisible();
   fireEvent.click(archiveBtn);
+
+  expect(await screen.findByText("Archive this document?")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Confirm archive" }));
+
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       `/capture/projects/${projectId}/documents/${documentId}/archive`,
@@ -507,4 +517,127 @@ it("renders the Leader review queue banner, row Review button, and Leader review
     ),
   );
   expect(await screen.findByText("Document workflow updated.")).toBeVisible();
+});
+
+it("renders the two-column Document Detail Modal with interactive version switching, review activity timeline, and attachment preview", async () => {
+  const multiVersionDoc: ProjectDocument = {
+    ...document,
+    title: "Database Schema Specification",
+    description: "",
+    type: "DATABASE_DESIGN",
+    version: 2,
+    status: "APPROVED",
+    submittedAt: "2026-10-24T10:00:00.000Z",
+    reviewedBy: "951a2b3c4d5e6f7a8b9c0d99",
+    reviewedAt: "2026-10-24T11:00:00.000Z",
+    reviewComment: "Approved for production rollout.",
+    permissions: {
+      canCreate: true,
+      canEdit: false,
+      canSubmit: false,
+      canReview: false,
+      canConfigure: false,
+    },
+    file: {
+      name: "schema-v2.docx",
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      size: 131200,
+    },
+    versions: [
+      {
+        version: 1,
+        status: "APPROVED",
+        createdAt: "2026-10-23T09:00:00.000Z",
+        editedBy: "851a2b3c4d5e6f7a8b9c0d21",
+        content: "Initial v1 database schema.",
+        file: {
+          name: "schema-v1.docx",
+          contentType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          size: 65536,
+        },
+      },
+      {
+        version: 2,
+        status: "APPROVED",
+        createdAt: "2026-10-24T09:00:00.000Z",
+        editedBy: "851a2b3c4d5e6f7a8b9c0d21",
+        content: "Updated v2 database schema with indexes.",
+        file: {
+          name: "schema-v2.docx",
+          contentType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          size: 131200,
+        },
+      },
+    ],
+    reviewHistory: [
+      {
+        action: "APPROVED",
+        reviewerId: "951a2b3c4d5e6f7a8b9c0d99",
+        comment: "Approved for production rollout.",
+        at: "2026-10-24T11:00:00.000Z",
+      },
+    ],
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [multiVersionDoc],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}`))
+      return multiVersionDoc as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  fireEvent.click(
+    await screen.findByRole("button", { name: multiVersionDoc.title }),
+  );
+
+  // Header eyebrow, metadata, and Read-only mode
+  expect(
+    await screen.findByText("Project Document / Database design"),
+  ).toBeVisible();
+  expect(await screen.findByText("Document information")).toBeVisible();
+  expect(screen.getByText("No additional description.")).toBeVisible();
+  expect(screen.getByText("Read-only document view")).toBeVisible();
+  expect(screen.getByText("Latest approved version")).toBeVisible();
+  expect(screen.getByText("Previous approved version")).toBeVisible();
+
+  // Review activity timeline shows Submitted for review + Approved comment
+  expect(screen.getByText("Review activity")).toBeVisible();
+  expect(screen.getByText("Submitted for review")).toBeVisible();
+  expect(screen.getByText("Approved for production rollout.")).toBeVisible();
+
+  // Attachment Preview button shows binary preview notice for .docx
+  expect(screen.getByText("schema-v2.docx")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+  expect(
+    await screen.findByText(
+      "Direct browser preview is not available for this binary document format. Use Download to open the file in its native application.",
+    ),
+  ).toBeVisible();
+
+  // Interactive Version History: switch to Version 1
+  fireEvent.click(screen.getByText("Version 1 · Approved"));
+  expect(
+    await screen.findByText("Viewing Version 1 (Approved)"),
+  ).toBeVisible();
+  expect(screen.getByText("Initial v1 database schema.")).toBeVisible();
+  expect(screen.getByText("schema-v1.docx")).toBeVisible();
+
+  // Return to latest version (v2)
+  fireEvent.click(
+    screen.getByRole("button", { name: "Return to latest (v2)" }),
+  );
+  expect(
+    await screen.findByText("Updated v2 database schema with indexes."),
+  ).toBeVisible();
 });

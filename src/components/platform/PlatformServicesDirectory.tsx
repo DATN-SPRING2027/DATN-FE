@@ -6,8 +6,10 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   box,
   cell,
+  isReadAccessLost,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
@@ -30,9 +32,21 @@ export default function PlatformServicesDirectory({
           Platform API.
         </p>
       </div>
-      {services.isPending ? (
+      {services.data !== undefined &&
+        !isReadAccessLost(services.error) &&
+        (services.isFetching || services.isRefetchError) && (
+        <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+        <QueryRefreshStatus
+          hasData
+          isFetching={services.isFetching}
+          isRefetchError={services.isRefetchError}
+          onRetry={() => void services.refetch()}
+        />
+        </div>
+      )}
+      {services.isPending && !services.data ? (
         <Loading columns={4} />
-      ) : services.isError ? (
+      ) : services.isError && (!services.data || isReadAccessLost(services.error)) ? (
         <ErrorState retry={() => void services.refetch()} />
       ) : services.data?.length ? (
         <DirectoryTable

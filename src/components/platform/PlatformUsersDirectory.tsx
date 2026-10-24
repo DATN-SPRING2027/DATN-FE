@@ -12,7 +12,14 @@ import StatusBadge from "@/components/platform/ui/StatusBadge";
 import UserDirectory from "./users/UserDirectory";
 import type { PlatformUserAction } from "@/components/platform/PlatformUserActionsMenu";
 import { UserCircleIcon } from "@/icons";
-import { ErrorState, Loading, TextField, box } from "./PlatformOperationsUi";
+import {
+  ErrorState,
+  Loading,
+  QueryRefreshStatus,
+  TextField,
+  box,
+  isReadAccessLost,
+} from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 import type { PlatformUserRecord } from "@/lib/queries/platform/usePlatformOperations";
 
@@ -398,10 +405,26 @@ export default function PlatformUsersDirectory({
                   Close
                 </button>
               </header>
-              <div className={dialogStyles.userDetailGrid}>
-                {selectedUser.isPending ? (
+              <div
+                className={dialogStyles.userDetailGrid}
+                aria-busy={selectedUser.isFetching}
+              >
+                {selectedUser.data !== undefined &&
+                  !isReadAccessLost(selectedUser.error) &&
+                  (selectedUser.isFetching || selectedUser.isRefetchError) && (
+                    <div className="col-span-full">
+                      <QueryRefreshStatus
+                        hasData
+                        isFetching={selectedUser.isFetching}
+                        isRefetchError={selectedUser.isRefetchError}
+                        onRetry={() => void selectedUser.refetch()}
+                      />
+                    </div>
+                  )}
+                {selectedUser.isPending && !selectedUser.data ? (
                   <Loading columns={3} />
-                ) : selectedUser.isError || !selectedUser.data ? (
+                ) : selectedUser.isError &&
+                  (!selectedUser.data || isReadAccessLost(selectedUser.error)) ? (
                   <ErrorState retry={() => void selectedUser.refetch()} />
                 ) : (
                   <>
@@ -480,9 +503,25 @@ export default function PlatformUsersDirectory({
                           </span>
                         )}
                       </div>
-                      {userOrganizations.isPending ? (
+                      {userOrganizations.data !== undefined &&
+                        !isReadAccessLost(userOrganizations.error) &&
+                        (userOrganizations.isFetching ||
+                          userOrganizations.isRefetchError) && (
+                          <div className="mb-3">
+                            <QueryRefreshStatus
+                              hasData
+                              isFetching={userOrganizations.isFetching}
+                              isRefetchError={userOrganizations.isRefetchError}
+                              onRetry={() => void userOrganizations.refetch()}
+                            />
+                          </div>
+                        )}
+                      {userOrganizations.isPending &&
+                      !userOrganizations.data ? (
                         <Loading columns={2} />
-                      ) : userOrganizations.isError ? (
+                      ) : userOrganizations.isError &&
+                        (!userOrganizations.data ||
+                          isReadAccessLost(userOrganizations.error)) ? (
                         <ErrorState
                           retry={() => void userOrganizations.refetch()}
                         />
@@ -554,9 +593,24 @@ export default function PlatformUsersDirectory({
                             </span>
                           )}
                         </div>
-                        {userSessions.isPending ? (
+                        {userSessions.data !== undefined &&
+                          !isReadAccessLost(userSessions.error) &&
+                          (userSessions.isFetching ||
+                            userSessions.isRefetchError) && (
+                            <div className="mb-3">
+                              <QueryRefreshStatus
+                                hasData
+                                isFetching={userSessions.isFetching}
+                                isRefetchError={userSessions.isRefetchError}
+                                onRetry={() => void userSessions.refetch()}
+                              />
+                            </div>
+                          )}
+                        {userSessions.isPending && !userSessions.data ? (
                           <Loading columns={4} />
-                        ) : userSessions.isError ? (
+                        ) : userSessions.isError &&
+                          (!userSessions.data ||
+                            isReadAccessLost(userSessions.error)) ? (
                           <ErrorState
                             retry={() => void userSessions.refetch()}
                           />
@@ -670,10 +724,27 @@ export default function PlatformUsersDirectory({
                                 Close
                               </Button>
                             </div>
-                            {selectedSession.isPending ? (
+                            {selectedSession.data !== undefined &&
+                              !isReadAccessLost(selectedSession.error) &&
+                              (selectedSession.isFetching ||
+                                selectedSession.isRefetchError) && (
+                                <div className="mb-3">
+                                  <QueryRefreshStatus
+                                    hasData
+                                    isFetching={selectedSession.isFetching}
+                                    isRefetchError={selectedSession.isRefetchError}
+                                    onRetry={() =>
+                                      void selectedSession.refetch()
+                                    }
+                                  />
+                                </div>
+                              )}
+                            {selectedSession.isPending &&
+                            !selectedSession.data ? (
                               <Loading columns={3} />
-                            ) : selectedSession.isError ||
-                              !selectedSession.data ? (
+                            ) : !selectedSession.data ||
+                              (selectedSession.isError &&
+                                isReadAccessLost(selectedSession.error)) ? (
                               <ErrorState
                                 retry={() => void selectedSession.refetch()}
                               />

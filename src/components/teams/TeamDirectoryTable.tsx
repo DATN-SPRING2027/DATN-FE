@@ -46,6 +46,8 @@ export default function TeamDirectoryTable({
   copy,
   renderActions,
   stateContent,
+  statusContent,
+  isBusy = false,
   createAction,
 }: {
   items: readonly TeamDirectoryItem[];
@@ -59,6 +61,8 @@ export default function TeamDirectoryTable({
   copy: TeamDirectoryCopy;
   renderActions: (team: TeamDirectoryItem) => ReactNode;
   stateContent?: ReactNode;
+  statusContent?: ReactNode;
+  isBusy?: boolean;
   createAction?: { label: string; onClick: () => void };
 }) {
   const cell =
@@ -71,7 +75,7 @@ export default function TeamDirectoryTable({
   ] as const;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" aria-busy={isBusy || undefined}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <label className="flex items-center gap-2 text-sm">
           <span className="text-gray-500 dark:text-gray-400">
@@ -118,6 +122,7 @@ export default function TeamDirectoryTable({
         </div>
       </div>
 
+      {statusContent}
       {stateContent ? (
         stateContent
       ) : items.length ? (

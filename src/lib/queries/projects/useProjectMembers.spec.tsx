@@ -17,10 +17,9 @@ const api = vi.mocked(apiClient);
 const projectId = "123456789012345678901234";
 const userId = "123456789012345678901235";
 const membershipId = "123456789012345678901236";
-function wrapper() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+function wrapper(client = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+})) {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -50,6 +49,49 @@ it("lists the documented page and status without role inference", async () => {
     `/iam/projects/${projectId}/memberships?page=1&pageSize=20&status=ACTIVE`,
     expect.objectContaining({ signal: expect.any(AbortSignal) }),
   );
+});
+it("reuses a fresh membership page when the route remounts", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const sharedWrapper = wrapper(client);
+  api.mockResolvedValue({
+    data: [],
+    pagination: { page: 1, pageSize: 20, totalItems: 0, totalPages: 0 },
+  });
+  const useMembers = () =>
+    useProjectMembersQuery(
+      "org",
+      projectId,
+      { page: 1, pageSize: 20 },
+      { staleTime: 15_000 },
+    );
+
+  const first = renderHook(useMembers, { wrapper: sharedWrapper });
+  await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+  first.unmount();
+
+  const second = renderHook(useMembers, { wrapper: sharedWrapper });
+  expect(second.result.current.data?.pagination.totalItems).toBe(0);
+  expect(api).toHaveBeenCalledTimes(1);
+
+  second.unmount();
+  client.clear();
+});
+it("does not request a member page when the caller already has its count", () => {
+  const { result } = renderHook(
+    () =>
+      useProjectMembersQuery(
+        "org",
+        projectId,
+        { page: 1, pageSize: 1, status: "ACTIVE" },
+        { enabled: false },
+      ),
+    { wrapper: wrapper() },
+  );
+
+  expect(result.current.fetchStatus).toBe("idle");
+  expect(api).not.toHaveBeenCalled();
 });
 it("preserves a denied candidate search as a query error", async () => {
   api.mockRejectedValue(new ApiError(403, "FORBIDDEN", "denied"));

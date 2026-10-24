@@ -9,9 +9,11 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   TextField,
   box,
   cell,
+  isReadAccessLost,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
@@ -48,9 +50,19 @@ export default function PlatformSecurityDirectory({
               Session metadata for the authenticated Platform account.
             </p>
           </div>
-          {userSessions.isPending ? (
+          {userSessions.data !== undefined && !isReadAccessLost(userSessions.error) && (userSessions.isFetching || userSessions.isRefetchError) && (
+            <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+              <QueryRefreshStatus
+                hasData
+                isFetching={userSessions.isFetching}
+                isRefetchError={userSessions.isRefetchError}
+                onRetry={() => void userSessions.refetch()}
+              />
+            </div>
+          )}
+          {userSessions.isPending && !userSessions.data ? (
             <Loading columns={5} />
-          ) : userSessions.isError ? (
+          ) : userSessions.isError && (!userSessions.data || isReadAccessLost(userSessions.error)) ? (
             <ErrorState retry={() => void userSessions.refetch()} />
           ) : userSessions.data?.data.length ? (
             <DirectoryTable
@@ -150,9 +162,19 @@ export default function PlatformSecurityDirectory({
                   Close
                 </Button>
               </div>
-              {selectedSession.isPending ? (
+              {selectedSession.data !== undefined && !isReadAccessLost(selectedSession.error) && (selectedSession.isFetching || selectedSession.isRefetchError) && (
+                <div className="mb-3">
+                  <QueryRefreshStatus
+                    hasData
+                    isFetching={selectedSession.isFetching}
+                    isRefetchError={selectedSession.isRefetchError}
+                    onRetry={() => void selectedSession.refetch()}
+                  />
+                </div>
+              )}
+              {selectedSession.isPending && !selectedSession.data ? (
                 <Loading columns={3} />
-              ) : selectedSession.isError || !selectedSession.data ? (
+              ) : !selectedSession.data || (selectedSession.isError && isReadAccessLost(selectedSession.error)) ? (
                 <ErrorState retry={() => void selectedSession.refetch()} />
               ) : (
                 <dl className="grid gap-3 sm:grid-cols-2">

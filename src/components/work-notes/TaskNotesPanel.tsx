@@ -5,6 +5,10 @@ import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
+import {
   AlertIcon,
   CheckCircleIcon,
   ChevronDownIcon,
@@ -15,6 +19,7 @@ import {
   PlusIcon,
   TrashBinIcon,
 } from "@/icons";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   useTaskNotesQuery,
   useWorkNotesMutation,
@@ -115,6 +120,8 @@ function TaskNotesContent({
   const initialDraft = getDraftMap(queryClient).get(draftKey);
 
   const query = useTaskNotesQuery(projectId, taskId);
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
+  const visibleNotes = accessLost ? undefined : query.data;
   const [input, setInput] = useState<TaskNoteInput>(
     initialDraft?.input ?? EMPTY_INPUT,
   );
@@ -179,8 +186,8 @@ function TaskNotesContent({
     };
   }, [openMenuId]);
 
-  const notes = query.data?.data ?? [];
-  const notesCount = query.data?.pagination.totalItems ?? notes.length;
+  const notes = visibleNotes?.data ?? [];
+  const notesCount = visibleNotes?.pagination.totalItems ?? notes.length;
   const showComposer = isComposerOpen || editingId !== null;
   const isDraftDirty = hasDraftContent(input);
 
@@ -328,6 +335,24 @@ function TaskNotesContent({
           {t("newNote")}
         </Button>
       </div>
+
+      {visibleNotes !== undefined &&
+        !accessLost &&
+        (query.isFetching || query.isRefetchError) && (
+          <div>
+            {query.isFetching && (
+              <UpdatingStatus>{t("loading")}</UpdatingStatus>
+            )}
+            {query.isRefetchError && (
+              <BackgroundRefreshError
+                retryLabel={t("retry")}
+                onRetry={() => void query.refetch()}
+              >
+                {t("loadError")}
+              </BackgroundRefreshError>
+            )}
+          </div>
+        )}
 
       {/* Saved Status Banner */}
       {showSavedBanner && !validationError && !hasMutationError && (
@@ -530,7 +555,7 @@ function TaskNotesContent({
       )}
 
       {/* Query Load Error Banner (always visible if refetch or initial load fails) */}
-      {query.isError && (
+      {query.isError && !visibleNotes && (
         <div
           role="alert"
           className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-3.5 py-3 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -554,7 +579,7 @@ function TaskNotesContent({
       )}
 
       {/* Loading Skeletons */}
-      {query.isLoading ? (
+      {query.isLoading && !visibleNotes ? (
         <div role="status" className="space-y-2.5" aria-label={t("loading")}>
           <div className="h-20 animate-pulse rounded-lg border border-gray-200/80 bg-gray-100/80 dark:border-gray-800 dark:bg-gray-800/60" />
           <div className="h-20 animate-pulse rounded-lg border border-gray-200/80 bg-gray-100/80 dark:border-gray-800 dark:bg-gray-800/60" />

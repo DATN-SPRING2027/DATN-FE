@@ -216,8 +216,8 @@ export default function MemberAddForm({
       {showCandidateSection && (
         <div className="space-y-2">
           {isFetching && (
-            <div className="flex items-center gap-2 p-3 text-sm text-gray-500 animate-pulse">
-              <span className="size-4 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            <div className="flex items-center gap-2 p-3 text-sm text-gray-500 motion-safe:animate-pulse">
+              <span className="size-4 border-2 border-brand-500 border-t-transparent rounded-full motion-safe:animate-spin" />
               <span>{t("searching")}</span>
             </div>
           )}

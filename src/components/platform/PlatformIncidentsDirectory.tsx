@@ -8,9 +8,11 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   TextField,
   box,
   cell,
+  isReadAccessLost,
   input,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
@@ -130,9 +132,19 @@ export default function PlatformIncidentsDirectory({
             ))}
           </select>
         </div>
-        {incidents.isPending ? (
+        {incidents.data !== undefined && !isReadAccessLost(incidents.error) && (incidents.isFetching || incidents.isRefetchError) && (
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+            <QueryRefreshStatus
+              hasData
+              isFetching={incidents.isFetching}
+              isRefetchError={incidents.isRefetchError}
+              onRetry={() => void incidents.refetch()}
+            />
+          </div>
+        )}
+        {incidents.isPending && !incidents.data ? (
           <Loading />
-        ) : incidents.isError ? (
+        ) : incidents.isError && (!incidents.data || isReadAccessLost(incidents.error)) ? (
           <ErrorState retry={() => void incidents.refetch()} />
         ) : incidents.data?.data.length ? (
           <DirectoryTable
@@ -209,9 +221,19 @@ export default function PlatformIncidentsDirectory({
               Close
             </Button>
           </div>
-          {selectedIncident.isPending ? (
+          {selectedIncident.data !== undefined && !isReadAccessLost(selectedIncident.error) && (selectedIncident.isFetching || selectedIncident.isRefetchError) && (
+            <div className="mb-4">
+              <QueryRefreshStatus
+                hasData
+                isFetching={selectedIncident.isFetching}
+                isRefetchError={selectedIncident.isRefetchError}
+                onRetry={() => void selectedIncident.refetch()}
+              />
+            </div>
+          )}
+          {selectedIncident.isPending && !selectedIncident.data ? (
             <Loading columns={4} />
-          ) : selectedIncident.isError || !selectedIncident.data ? (
+          ) : selectedIncident.isError && (!selectedIncident.data || isReadAccessLost(selectedIncident.error)) ? (
             <ErrorState retry={() => void selectedIncident.refetch()} />
           ) : (
             <dl className="mb-5 grid gap-4 rounded-xl bg-gray-50 p-4 sm:grid-cols-2 lg:grid-cols-4 dark:bg-gray-800">
@@ -230,9 +252,19 @@ export default function PlatformIncidentsDirectory({
               />
             </dl>
           )}
-          {incidentHistory.isPending ? (
+          {incidentHistory.data !== undefined && !isReadAccessLost(incidentHistory.error) && (incidentHistory.isFetching || incidentHistory.isRefetchError) && (
+            <div className="mb-3">
+              <QueryRefreshStatus
+                hasData
+                isFetching={incidentHistory.isFetching}
+                isRefetchError={incidentHistory.isRefetchError}
+                onRetry={() => void incidentHistory.refetch()}
+              />
+            </div>
+          )}
+          {incidentHistory.isPending && !incidentHistory.data ? (
             <Loading columns={4} />
-          ) : incidentHistory.isError ? (
+          ) : incidentHistory.isError && (!incidentHistory.data || isReadAccessLost(incidentHistory.error)) ? (
             <ErrorState retry={() => void incidentHistory.refetch()} />
           ) : incidentHistory.data?.data.length ? (
             <ul className="space-y-2">
