@@ -5,12 +5,20 @@ import {
   useMemo,
   useRef,
   useState,
+  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
+import {
+  AlertIcon,
+  CloseLineIcon,
+  DownloadIcon,
+  TrashBinIcon,
+  UploadIcon,
+} from "@/icons";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   DOCUMENT_TYPES,
@@ -35,162 +43,535 @@ const STATUSES: readonly (DocumentStatus | "ALL")[] = [
   "ARCHIVED",
 ];
 const FIELD_CLASS =
-  "w-full min-w-0 border border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
+  "w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
 const EMPTY_DOCUMENT: ProjectDocumentInput = {
   title: "",
   description: "",
   type: "OTHER",
   content: "",
 };
+const ACCEPTED_FILE_TYPES = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+];
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+function getFileTypeBadge(name: string, contentType?: string): "PDF" | "DOCX" {
+  const lower = name.toLowerCase();
+  if (contentType === "application/pdf" || lower.endsWith(".pdf")) return "PDF";
+  return "DOCX";
+}
+
+function isSupportedDocumentFile(candidate: File): boolean {
+  const lower = candidate.name.toLowerCase();
+  const validType =
+    ACCEPTED_FILE_TYPES.includes(candidate.type) ||
+    lower.endsWith(".pdf") ||
+    lower.endsWith(".docx");
+  return validType && candidate.size > 0 && candidate.size <= 20 * 1024 * 1024;
+}
 
 function DocumentEditor({
   initial,
   file,
   onFileChange,
-  hasExistingFile,
+  existingFile,
   isPending,
+  isUploading,
+  hasUploadError,
   error,
+  onDirtyChange,
+  confirmingDiscard,
+  onKeepEditing,
+  onConfirmDiscard,
   onSubmit,
   onClose,
 }: {
   initial: ProjectDocumentInput;
   file: File | null;
   onFileChange: (file: File | null) => void;
-  hasExistingFile: boolean;
+  existingFile?: { name: string; contentType: string; size: number } | null;
   isPending: boolean;
+  isUploading: boolean;
+  hasUploadError: boolean;
   error: string;
+  onDirtyChange: (dirty: boolean) => void;
+  confirmingDiscard: boolean;
+  onKeepEditing: () => void;
+  onConfirmDiscard: () => void;
   onSubmit: (input: ProjectDocumentInput, file: File | null) => Promise<void>;
   onClose: () => void;
 }) {
   const t = useTranslations("workNotes.documents");
   const common = useTranslations("workNotes");
   const [form, setForm] = useState(initial);
+  const [titleError, setTitleError] = useState("");
+  const [contentError, setContentError] = useState("");
+  const [fileError, setFileError] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const dirty =
+      form.title !== initial.title ||
+      (form.description ?? "") !== (initial.description ?? "") ||
+      form.type !== initial.type ||
+      form.content !== initial.content ||
+      Boolean(file);
+    onDirtyChange(dirty);
+  }, [file, form, initial, onDirtyChange]);
+
+  function handleFileSelection(nextFile: File | null) {
+    setFileError("");
+    setContentError("");
+    setValidationError("");
+    if (nextFile && !isSupportedDocumentFile(nextFile)) {
+      setFileError(t("fileInvalid"));
+      setValidationError(t("fileInvalid"));
+      onFileChange(nextFile);
+      return;
+    }
+    onFileChange(nextFile);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>) {
+    event.preventDefault();
+    setIsDragging(false);
+    const dropped = event.dataTransfer.files?.[0] ?? null;
+    if (dropped) handleFileSelection(dropped);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const title = form.title.trim();
     const content = form.content.trim();
-    if (!title || (!content && !file && !hasExistingFile)) {
+    const missingTitle = !title;
+    const missingContentAndFile = !content && !file && !existingFile;
+
+    setTitleError(missingTitle ? t("titleRequiredError") : "");
+    setContentError(
+      missingContentAndFile ? t("contentOrFileRequiredError") : "",
+    );
+
+    if (missingTitle || missingContentAndFile) {
       setValidationError(common("validationRequired"));
       return;
     }
-    setValidationError("");
-    if (
-      file &&
-      (file.size > 20 * 1024 * 1024 ||
-        ![
-          "application/pdf",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        ].includes(file.type))
-    ) {
+    if (file && !isSupportedDocumentFile(file)) {
+      setFileError(t("fileInvalid"));
       setValidationError(t("fileInvalid"));
       return;
     }
+    setFileError("");
+    setValidationError("");
     await onSubmit(
       { ...form, title, content, description: form.description?.trim() ?? "" },
       file,
     );
   }
 
+  const activeAlert = validationError || error;
+
   return (
     <form
       onSubmit={(event) => void submit(event)}
-      className="space-y-4 px-5 py-5 sm:px-6"
+      noValidate
+      className="flex min-h-0 flex-1 flex-col"
     >
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t("titleLabel")}
-        <input
-          required
-          maxLength={240}
-          autoFocus
-          value={form.title}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, title: event.target.value }))
-          }
-          className={FIELD_CLASS}
-        />
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t("descriptionLabel")}
-        <textarea
-          maxLength={2000}
-          rows={2}
-          value={form.description ?? ""}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              description: event.target.value,
-            }))
-          }
-          className={`${FIELD_CLASS} resize-y`}
-        />
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t("typeLabel")}
-        <select
-          value={form.type}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              type: event.target.value as DocumentType,
-            }))
-          }
-          className={FIELD_CLASS}
-        >
-          {DOCUMENT_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {t(`type.${type}`)}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t("contentLabel")}
-        <textarea
-          maxLength={200000}
-          rows={12}
-          value={form.content}
-          onChange={(event) =>
-            setForm((current) => ({ ...current, content: event.target.value }))
-          }
-          className={`${FIELD_CLASS} font-mono min-h-64 resize-y text-xs leading-5`}
-        />
-      </label>
-      <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-        {t("fileLabel")}
-        <input
-          type="file"
-          accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
-          className={FIELD_CLASS}
-        />
-        {file && (
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            {file.name}
-          </span>
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-4 sm:px-6">
+        {activeAlert && (
+          <div
+            role="alert"
+            className="flex items-start gap-2.5 rounded-lg border border-error-200 bg-error-50 px-3.5 py-2.5 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          >
+            <AlertIcon className="mt-0.5 h-4 w-4 shrink-0 fill-current" />
+            <span>{activeAlert}</span>
+          </div>
         )}
-      </label>
-      {validationError && (
-        <p role="alert" className="text-sm text-error-600 dark:text-error-400">
-          {validationError}
-        </p>
-      )}
-      {error && (
-        <p role="alert" className="text-sm text-error-600 dark:text-error-400">
-          {error}
-        </p>
-      )}
-      <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-        <Button type="button" variant="outline" size="sm" onClick={onClose}>
-          {t("close")}
-        </Button>
-        <Button type="submit" size="sm" isLoading={isPending}>
-          {t("saveDraft")}
-        </Button>
+
+        <section
+          aria-labelledby="doc-basic-info-heading"
+          className="space-y-3"
+        >
+          <h3
+            id="doc-basic-info-heading"
+            className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+          >
+            {t("basicInfoSection")}
+          </h3>
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <label
+                htmlFor="doc-title-input"
+                className="flex items-center justify-between gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                <span>
+                  {t("titleLabel")}
+                  <span
+                    className="ms-1 text-error-600 dark:text-error-400"
+                    aria-hidden="true"
+                  >
+                    *
+                  </span>
+                </span>
+                <span className="text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                  {t("required")}
+                </span>
+              </label>
+              <input
+                id="doc-title-input"
+                aria-label={t("titleLabel")}
+                aria-invalid={Boolean(titleError)}
+                required
+                maxLength={240}
+                autoFocus
+                placeholder={t("titlePlaceholder")}
+                value={form.title}
+                onChange={(event) => {
+                  const nextTitle = event.target.value;
+                  setForm((current) => ({ ...current, title: nextTitle }));
+                  if (titleError && nextTitle.trim()) setTitleError("");
+                  if (validationError) setValidationError("");
+                }}
+                className={`${FIELD_CLASS} ${
+                  titleError
+                    ? "border-error-400 focus:border-error-500 dark:border-error-500"
+                    : ""
+                }`}
+              />
+              {titleError && (
+                <p className="text-xs text-error-600 dark:text-error-400">
+                  {titleError}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label
+                htmlFor="doc-type-select"
+                className="flex items-center justify-between gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                <span>
+                  {t("typeLabel")}
+                  <span
+                    className="ms-1 text-error-600 dark:text-error-400"
+                    aria-hidden="true"
+                  >
+                    *
+                  </span>
+                </span>
+                <span className="text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                  {t("required")}
+                </span>
+              </label>
+              <select
+                id="doc-type-select"
+                aria-label={t("typeLabel")}
+                value={form.type}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    type: event.target.value as DocumentType,
+                  }))
+                }
+                className={FIELD_CLASS}
+              >
+                {DOCUMENT_TYPES.map((type) => (
+                  <option key={type} value={type}>
+                    {t(`type.${type}`)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="doc-description-input"
+              className="flex items-center justify-between gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <span>{t("descriptionLabel")}</span>
+              <span className="text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                {t("optional")}
+              </span>
+            </label>
+            <textarea
+              id="doc-description-input"
+              aria-label={t("descriptionLabel")}
+              maxLength={2000}
+              rows={2}
+              placeholder={t("descriptionPlaceholder")}
+              value={form.description ?? ""}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  description: event.target.value,
+                }))
+              }
+              className={`${FIELD_CLASS} resize-y`}
+            />
+          </div>
+        </section>
+
+        <section
+          aria-labelledby="doc-content-attachments-heading"
+          className="space-y-3 border-t border-gray-100 pt-3.5 dark:border-gray-800"
+        >
+          <div className="flex flex-wrap items-baseline justify-between gap-1">
+            <h3
+              id="doc-content-attachments-heading"
+              className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+            >
+              {t("contentAndAttachmentsSection")}
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t("contentAndAttachmentsHint")}
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label
+              htmlFor="doc-content-input"
+              className="flex flex-wrap items-center justify-between gap-2 text-sm font-medium text-gray-700 dark:text-gray-300"
+            >
+              <span>
+                {t("contentLabel")}{" "}
+                <span className="ms-1 text-xs font-normal text-gray-400 dark:text-gray-500">
+                  ({file || existingFile ? t("optional") : t("requiredIfNoFile")})
+                </span>
+              </span>
+              <span className="text-xs font-normal text-gray-400 tabular-nums dark:text-gray-500">
+                {form.content.length.toLocaleString()} / 200,000
+              </span>
+            </label>
+            <textarea
+              id="doc-content-input"
+              aria-label={t("contentLabel")}
+              aria-invalid={Boolean(contentError)}
+              maxLength={200000}
+              rows={3}
+              placeholder={t("contentPlaceholder")}
+              value={form.content}
+              onChange={(event) => {
+                const nextContent = event.target.value;
+                setForm((current) => ({ ...current, content: nextContent }));
+                if (contentError && nextContent.trim()) setContentError("");
+                if (validationError) setValidationError("");
+              }}
+              className={`${FIELD_CLASS} min-h-24 max-h-56 resize-y text-sm leading-6 ${
+                contentError
+                  ? "border-error-400 focus:border-error-500 dark:border-error-500"
+                  : ""
+              }`}
+            />
+            {contentError && (
+              <p className="text-xs text-error-600 dark:text-error-400">
+                {contentError}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="doc-file-input"
+                className="text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {t("fileLabel")}
+              </label>
+              <span className="text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                {t("optional")}
+              </span>
+            </div>
+
+            <input
+              ref={fileInputRef}
+              id="doc-file-input"
+              type="file"
+              aria-label={t("fileLabel")}
+              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              onChange={(event) =>
+                handleFileSelection(event.target.files?.[0] ?? null)
+              }
+              className="sr-only"
+            />
+
+            {file ? (
+              <div
+                className={`flex flex-wrap items-center justify-between gap-3 rounded-lg border px-3.5 py-3 ${
+                  fileError || hasUploadError
+                    ? "border-error-300 bg-error-50/50 dark:border-error-500/40 dark:bg-error-500/10"
+                    : "border-gray-200 bg-gray-50/70 dark:border-gray-800 dark:bg-gray-900/60"
+                }`}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-xs font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                    {getFileTypeBadge(file.name, file.type)}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
+                      {file.name}
+                    </p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                      <span>{formatFileSize(file.size)}</span>
+                      <span aria-hidden="true">·</span>
+                      <span
+                        className={
+                          hasUploadError
+                            ? "font-medium text-error-600 dark:text-error-400"
+                            : "text-brand-700 dark:text-brand-300"
+                        }
+                      >
+                        {isUploading
+                          ? t("fileUploadingBadge")
+                          : hasUploadError
+                            ? t("fileRetryBadge")
+                            : t("fileReadyBadge")}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    {t("replaceFile")}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                      handleFileSelection(null);
+                    }}
+                    aria-label={t("removeFile")}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-gray-200 text-gray-500 transition hover:bg-gray-100 hover:text-error-600 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-error-400"
+                  >
+                    <TrashBinIcon className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDragging(true);
+                }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={handleDrop}
+                className={`flex flex-col items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3.5 transition sm:flex-row ${
+                  isDragging
+                    ? "border-brand-500 bg-brand-50/50 dark:border-brand-400 dark:bg-brand-500/10"
+                    : "border-gray-300 bg-gray-50/50 hover:border-gray-400 dark:border-gray-700 dark:bg-gray-900/40 dark:hover:border-gray-600"
+                }`}
+              >
+                <div className="flex items-center gap-3 text-center sm:text-start">
+                  <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
+                    <UploadIcon className="h-4 w-4" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
+                      {t("fileDropzoneTitle")}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                      {existingFile
+                        ? `${existingFile.name} (${formatFileSize(existingFile.size)}) · ${t("existingFileBadge")}`
+                        : t("fileDropzoneHint")}
+                    </p>
+                  </div>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {existingFile ? t("replaceFile") : t("browseFiles")}
+                </Button>
+              </div>
+            )}
+
+            {fileError && (
+              <p className="text-xs text-error-600 dark:text-error-400">
+                {fileError}
+              </p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <div className="shrink-0 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900/90">
+        {confirmingDiscard ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs font-medium text-warning-800 dark:text-warning-300">
+              {t("unsavedChangesPrompt")}
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onKeepEditing}
+              >
+                {t("keepEditing")}
+              </Button>
+              <Button
+                type="button"
+                variant="danger"
+                size="sm"
+                onClick={onConfirmDiscard}
+              >
+                {t("discardChanges")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t("draftWorkflowHint")}
+            </p>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={onClose}
+              >
+                {t("cancel")}
+              </Button>
+              <Button type="submit" size="sm" isLoading={isPending}>
+                {t("saveDraft")}
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
     </form>
   );
 }
+
+const STATUS_BADGE_CLASSES: Record<DocumentStatus, string> = {
+  DRAFT:
+    "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300",
+  PENDING_REVIEW:
+    "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300",
+  CHANGES_REQUESTED:
+    "border-warning-200 bg-warning-50 text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300",
+  APPROVED:
+    "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300",
+  REJECTED:
+    "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300",
+  ARCHIVED:
+    "border-gray-200 bg-gray-100 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400",
+};
 
 export default function ProjectDocumentsWorkspace({
   projectId,
@@ -210,6 +591,8 @@ export default function ProjectDocumentsWorkspace({
     useState<ProjectDocumentInput | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [validationError, setValidationError] = useState("");
+  const [isEditorDirty, setIsEditorDirty] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasModalOpenRef = useRef(false);
@@ -265,6 +648,7 @@ export default function ProjectDocumentsWorkspace({
     update.reset();
     upload.reset();
     action.reset();
+    setConfirmingDiscard(false);
     try {
       if (isCreating) {
         const created = await create.mutateAsync(input);
@@ -278,6 +662,7 @@ export default function ProjectDocumentsWorkspace({
           setUploadRetryInput(null);
           setIsEditing(false);
         }
+        setIsEditorDirty(false);
       } else {
         await update.mutateAsync(input);
         if (file) {
@@ -287,6 +672,7 @@ export default function ProjectDocumentsWorkspace({
           setUploadRetryInput(null);
         }
         setIsEditing(false);
+        setIsEditorDirty(false);
       }
     } catch {
       // Keep the editor open so the user can retry without losing the draft.
@@ -330,6 +716,8 @@ export default function ProjectDocumentsWorkspace({
     setUploadRetryInput(null);
     setReviewComment("");
     setValidationError("");
+    setIsEditorDirty(false);
+    setConfirmingDiscard(false);
   }
 
   function closeModal() {
@@ -342,6 +730,16 @@ export default function ProjectDocumentsWorkspace({
     setIsEditing(false);
     setPendingFile(null);
     setUploadRetryInput(null);
+    setIsEditorDirty(false);
+    setConfirmingDiscard(false);
+  }
+
+  function requestCloseModal() {
+    if ((isCreating || isEditing) && isEditorDirty && !confirmingDiscard) {
+      setConfirmingDiscard(true);
+      return;
+    }
+    closeModal();
   }
 
   const modalOpen = isCreating || Boolean(selected);
@@ -356,7 +754,7 @@ export default function ProjectDocumentsWorkspace({
       }
       dialogRef.current
         ?.querySelector<HTMLElement>(
-          "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+          "input:not([disabled]):not(.sr-only), select:not([disabled]), textarea:not([disabled]), button:not([disabled])",
         )
         ?.focus();
     } else if (wasModalOpenRef.current) {
@@ -368,7 +766,7 @@ export default function ProjectDocumentsWorkspace({
   function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
     if (event.key !== "Tab") return;
     const nodes = dialogRef.current?.querySelectorAll<HTMLElement>(
-      "button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])",
+      "button:not([disabled]), input:not([disabled]):not(.sr-only), select:not([disabled]), textarea:not([disabled])",
     );
     if (!nodes?.length) return;
     const first = nodes[0];
@@ -410,7 +808,7 @@ export default function ProjectDocumentsWorkspace({
                   setFilter(event.target.value as DocumentStatus | "ALL");
                   setPage(1);
                 }}
-                className="h-10 min-w-44 border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"
+                className="h-10 min-w-44 rounded-lg border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950"
               >
                 {STATUSES.map((status) => (
                   <option key={status} value={status}>
@@ -431,6 +829,8 @@ export default function ProjectDocumentsWorkspace({
                   action.reset();
                   setPendingFile(null);
                   setUploadRetryInput(null);
+                  setIsEditorDirty(false);
+                  setConfirmingDiscard(false);
                   setIsEditing(false);
                   setIsCreating(true);
                   setSelected(null);
@@ -451,14 +851,14 @@ export default function ProjectDocumentsWorkspace({
             {[0, 1, 2].map((item) => (
               <div
                 key={item}
-                className="h-16 animate-pulse border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                className="h-16 animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
               />
             ))}
           </div>
         ) : list.isError ? (
           <div
             role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
           >
             <span>
               {list.error instanceof Error
@@ -474,7 +874,7 @@ export default function ProjectDocumentsWorkspace({
             </Button>
           </div>
         ) : list.data?.data.length ? (
-          <div className="overflow-x-auto border border-gray-200 dark:border-gray-800">
+          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
             <table className="w-full min-w-[40rem] border-collapse text-start text-sm">
               <thead className="bg-gray-50 text-xs tracking-wide text-gray-500 uppercase dark:bg-gray-900 dark:text-gray-400">
                 <tr>
@@ -515,7 +915,9 @@ export default function ProjectDocumentsWorkspace({
                       {t(`type.${document.type}`)}
                     </td>
                     <td className="px-4 py-3">
-                      <span className="inline-flex border border-gray-200 px-2 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300">
+                      <span
+                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[document.status]}`}
+                      >
                         {t(`status.${document.status}`)}
                       </span>
                     </td>
@@ -534,7 +936,7 @@ export default function ProjectDocumentsWorkspace({
             </table>
           </div>
         ) : (
-          <div className="border border-dashed border-gray-300 bg-white px-5 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
+          <div className="rounded-lg border border-dashed border-gray-300 bg-white px-5 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
               {t("empty")}
             </h3>
@@ -575,10 +977,13 @@ export default function ProjectDocumentsWorkspace({
 
       <Modal
         isOpen={modalOpen}
-        onClose={closeModal}
-        backdropClassName="bg-gray-900/25 backdrop-blur-[1px] dark:bg-gray-950/45"
+        onClose={requestCloseModal}
+        onBackdropClick={requestCloseModal}
+        backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
-        className="mx-3 max-h-[min(92vh,56rem)] max-w-4xl overflow-y-auto border border-gray-200 shadow-theme-lg dark:border-gray-800"
+        className={`mx-3 overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800 ${
+          isCreating || isEditing ? "max-w-2xl" : "max-w-3xl"
+        }`}
       >
         <div
           ref={dialogRef}
@@ -586,8 +991,9 @@ export default function ProjectDocumentsWorkspace({
           aria-modal="true"
           aria-labelledby="document-dialog-title"
           onKeyDown={trapDialogFocus}
+          className="flex max-h-[min(88vh,48rem)] flex-col overflow-hidden"
         >
-          <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 dark:border-gray-800 dark:bg-gray-900">
+          <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="min-w-0">
               <h2
                 id="document-dialog-title"
@@ -599,42 +1005,42 @@ export default function ProjectDocumentsWorkspace({
                     ? t("formTitleEdit")
                     : (current?.title ?? selected?.title ?? t("open"))}
               </h2>
-              {current && !isEditing && (
+              {isCreating ? (
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {t("formSubtitleNew")}
+                </p>
+              ) : isEditing ? (
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                  {t("formSubtitleEdit")}
+                </p>
+              ) : current ? (
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {t(`status.${current.status}`)} ·{" "}
                   {t("version", { version: current.version })}
                 </p>
-              )}
+              ) : null}
             </div>
             <button
               type="button"
-              onClick={closeModal}
+              onClick={requestCloseModal}
               aria-label={t("close")}
-              className="shrink-0 border border-gray-200 px-3 py-2 text-sm text-gray-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
             >
-              {t("close")}
+              <CloseLineIcon className="h-4 w-4 fill-current" />
             </button>
           </div>
-          {current && !isEditing && (
-            <p className="px-5 pt-3 text-xs text-gray-500 tabular-nums sm:px-6 dark:text-gray-400">
-              {t("created", {
-                date: format.dateTime(new Date(current.createdAt), {
-                  dateStyle: "medium",
-                  timeZone: "UTC",
-                }),
-              })}
-            </p>
-          )}
           {isCreating || isEditing ? (
             <DocumentEditor
               key={`${documentId}-${current?.version ?? 0}-${isCreating ? "new" : "edit"}-${uploadRetryInput ? "retry" : ""}`}
               initial={isCreating ? EMPTY_DOCUMENT : editingInitial}
               file={pendingFile}
               onFileChange={setPendingFile}
-              hasExistingFile={Boolean(current?.file)}
+              existingFile={current?.file ?? null}
               isPending={
                 create.isPending || update.isPending || upload.isPending
               }
+              isUploading={upload.isPending}
+              hasUploadError={Boolean(upload.error)}
               error={
                 upload.error instanceof Error
                   ? upload.error.message
@@ -644,8 +1050,12 @@ export default function ProjectDocumentsWorkspace({
                       ? update.error.message
                       : ""
               }
+              onDirtyChange={setIsEditorDirty}
+              confirmingDiscard={confirmingDiscard}
+              onKeepEditing={() => setConfirmingDiscard(false)}
+              onConfirmDiscard={closeModal}
               onSubmit={saveDocument}
-              onClose={closeModal}
+              onClose={requestCloseModal}
             />
           ) : detail.isPending ? (
             <div
@@ -671,150 +1081,202 @@ export default function ProjectDocumentsWorkspace({
               </Button>
             </div>
           ) : current ? (
-            <div className="space-y-5 px-5 py-5 sm:px-6">
-              {current.reviewComment && (
-                <div className="border-s-2 border-warning-500 bg-warning-50 px-3 py-2 text-sm text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
-                  <strong>{t("reviewComment")}:</strong> {current.reviewComment}
-                </div>
-              )}
-              <div className="text-sm leading-7 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                {current.content}
-              </div>
-              {current.file && (
-                <a
-                  className="text-sm font-medium text-brand-700 underline dark:text-brand-300"
-                  href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file`}
-                >
-                  {t("downloadFile", { name: current.file.name })}
-                </a>
-              )}
-              {current.versions.some(
-                (version) =>
-                  version.file && version.version !== current.version,
-              ) && (
-                <div className="flex flex-wrap gap-3 text-xs">
-                  {current.versions
-                    .filter(
-                      (version) =>
-                        version.file && version.version !== current.version,
-                    )
-                    .map((version) => (
-                      <a
-                        key={version.version}
-                        className="text-brand-700 underline dark:text-brand-300"
-                        href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file?version=${version.version}`}
-                      >
-                        {t("downloadVersion", {
-                          version: version.version,
-                          name: version.file!.name,
-                        })}
-                      </a>
-                    ))}
-                </div>
-              )}
-              <div className="grid gap-5 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800">
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                    {t("history")}
-                  </h3>
-                  <ol className="mt-2 space-y-2">
-                    {current.versions.map((version) => (
-                      <li
-                        key={version.version}
-                        className="flex flex-wrap justify-between gap-2 border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
-                      >
-                        <span>
-                          {t("version", { version: version.version })} ·{" "}
-                          {t(`status.${version.status}`)}
-                        </span>
-                        <time className="text-gray-500 tabular-nums dark:text-gray-400">
-                          {format.dateTime(new Date(version.createdAt), {
-                            dateStyle: "medium",
-                            timeZone: "UTC",
-                          })}
-                        </time>
-                      </li>
-                    ))}
-                  </ol>
-                </section>
-                <section>
-                  <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                    {t("reviewHistory")}
-                  </h3>
-                  {current.reviewHistory.length ? (
-                    <ol className="mt-2 space-y-2">
-                      {current.reviewHistory.map((event, index) => (
-                        <li
-                          key={`${event.at}-${index}`}
-                          className="border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
+            <>
+              <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+                <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                  {t("created", {
+                    date: format.dateTime(new Date(current.createdAt), {
+                      dateStyle: "medium",
+                      timeZone: "UTC",
+                    }),
+                  })}
+                </p>
+                {current.status === "DRAFT" && current.permissions.canSubmit && (
+                  <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                    <p className="font-semibold">{t("draftBannerTitle")}</p>
+                    <p className="mt-0.5 text-brand-800 dark:text-brand-300">
+                      {t("draftBannerDescription")}
+                    </p>
+                  </div>
+                )}
+                {current.status === "CHANGES_REQUESTED" &&
+                  current.permissions.canSubmit && (
+                    <div className="rounded-lg border border-warning-200 bg-warning-50/80 px-3.5 py-2.5 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200">
+                      <p className="font-semibold">
+                        {t("changesRequestedBannerTitle")}
+                      </p>
+                      <p className="mt-0.5 text-warning-800 dark:text-warning-300">
+                        {t("changesRequestedBannerDescription")}
+                      </p>
+                    </div>
+                  )}
+                {current.reviewComment && (
+                  <div className="rounded-e-lg border-s-2 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-sm text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
+                    <strong>{t("reviewComment")}:</strong>{" "}
+                    {current.reviewComment}
+                  </div>
+                )}
+                {current.content && (
+                  <div className="text-sm leading-7 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+                    {current.content}
+                  </div>
+                )}
+                {current.file && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-gray-200 bg-gray-50/60 px-3.5 py-2.5 dark:border-gray-800 dark:bg-gray-900/60">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-brand-50 text-xs font-bold text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
+                        {getFileTypeBadge(
+                          current.file.name,
+                          current.file.contentType,
+                        )}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
+                          {current.file.name}
+                        </p>
+                        <p className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                          {formatFileSize(current.file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    <a
+                      className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 underline hover:text-brand-800 dark:text-brand-300"
+                      href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file`}
+                    >
+                      <DownloadIcon className="h-4 w-4" />
+                      {t("downloadFile", { name: current.file.name })}
+                    </a>
+                  </div>
+                )}
+                {current.versions.some(
+                  (version) =>
+                    version.file && version.version !== current.version,
+                ) && (
+                  <div className="flex flex-wrap gap-3 text-xs">
+                    {current.versions
+                      .filter(
+                        (version) =>
+                          version.file && version.version !== current.version,
+                      )
+                      .map((version) => (
+                        <a
+                          key={version.version}
+                          className="text-brand-700 underline dark:text-brand-300"
+                          href={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file?version=${version.version}`}
                         >
-                          <span className="font-medium">
-                            {t(`status.${event.action}`)}
+                          {t("downloadVersion", {
+                            version: version.version,
+                            name: version.file!.name,
+                          })}
+                        </a>
+                      ))}
+                  </div>
+                )}
+                <div className="grid gap-5 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800">
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      {t("history")}
+                    </h3>
+                    <ol className="mt-2 space-y-2">
+                      {current.versions.map((version) => (
+                        <li
+                          key={version.version}
+                          className="flex flex-wrap justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
+                        >
+                          <span>
+                            {t("version", { version: version.version })} ·{" "}
+                            {t(`status.${version.status}`)}
                           </span>
-                          <time className="ms-2 text-gray-500 tabular-nums dark:text-gray-400">
-                            {format.dateTime(new Date(event.at), {
+                          <time className="text-gray-500 tabular-nums dark:text-gray-400">
+                            {format.dateTime(new Date(version.createdAt), {
                               dateStyle: "medium",
-                              timeStyle: "short",
                               timeZone: "UTC",
                             })}
                           </time>
-                          {event.comment && (
-                            <p className="mt-1 break-words whitespace-pre-wrap text-gray-600 dark:text-gray-300">
-                              {event.comment}
-                            </p>
-                          )}
                         </li>
                       ))}
                     </ol>
-                  ) : (
-                    <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      {common("noData")}
-                    </p>
-                  )}
-                </section>
+                  </section>
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
+                      {t("reviewHistory")}
+                    </h3>
+                    {current.reviewHistory.length ? (
+                      <ol className="mt-2 space-y-2">
+                        {current.reviewHistory.map((event, index) => (
+                          <li
+                            key={`${event.at}-${index}`}
+                            className="rounded-lg border border-gray-100 px-3 py-2 text-xs dark:border-gray-800"
+                          >
+                            <span className="font-medium">
+                              {t(`status.${event.action}`)}
+                            </span>
+                            <time className="ms-2 text-gray-500 tabular-nums dark:text-gray-400">
+                              {format.dateTime(new Date(event.at), {
+                                dateStyle: "medium",
+                                timeStyle: "short",
+                                timeZone: "UTC",
+                              })}
+                            </time>
+                            {event.comment && (
+                              <p className="mt-1 break-words whitespace-pre-wrap text-gray-600 dark:text-gray-300">
+                                {event.comment}
+                              </p>
+                            )}
+                          </li>
+                        ))}
+                      </ol>
+                    ) : (
+                      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        {common("noData")}
+                      </p>
+                    )}
+                  </section>
+                </div>
+                {validationError && (
+                  <p
+                    role="alert"
+                    className="text-sm text-error-600 dark:text-error-400"
+                  >
+                    {validationError}
+                  </p>
+                )}
+                {action.isError && (
+                  <p
+                    role="alert"
+                    className="text-sm text-error-600 dark:text-error-400"
+                  >
+                    {action.error instanceof Error
+                      ? action.error.message
+                      : t("permissionDenied")}
+                  </p>
+                )}
+                {action.isSuccess && (
+                  <p
+                    role="status"
+                    className="text-sm text-success-700 dark:text-success-400"
+                  >
+                    {t("actionSuccess")}
+                  </p>
+                )}
+                {current.permissions.canReview && (
+                  <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t("reviewComment")}
+                    <textarea
+                      value={reviewComment}
+                      onChange={(event) => {
+                        setReviewComment(event.target.value);
+                        setValidationError("");
+                      }}
+                      placeholder={t("reviewCommentPlaceholder")}
+                      rows={3}
+                      maxLength={5000}
+                      className={`${FIELD_CLASS} resize-y`}
+                    />
+                  </label>
+                )}
               </div>
-              {validationError && (
-                <p
-                  role="alert"
-                  className="text-sm text-error-600 dark:text-error-400"
-                >
-                  {validationError}
-                </p>
-              )}
-              {action.isError && (
-                <p
-                  role="alert"
-                  className="text-sm text-error-600 dark:text-error-400"
-                >
-                  {action.error instanceof Error
-                    ? action.error.message
-                    : t("permissionDenied")}
-                </p>
-              )}
-              {action.isSuccess && (
-                <p
-                  role="status"
-                  className="text-sm text-success-700 dark:text-success-400"
-                >
-                  {t("actionSuccess")}
-                </p>
-              )}
-              {current.permissions.canReview && (
-                <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t("reviewComment")}
-                  <textarea
-                    value={reviewComment}
-                    onChange={(event) => {
-                      setReviewComment(event.target.value);
-                      setValidationError("");
-                    }}
-                    rows={3}
-                    maxLength={5000}
-                    className={`${FIELD_CLASS} resize-y`}
-                  />
-                </label>
-              )}
-              <div className="flex flex-wrap justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
+              <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900/90">
                 {current.permissions.canEdit && (
                   <Button
                     variant="outline"
@@ -825,6 +1287,8 @@ export default function ProjectDocumentsWorkspace({
                       upload.reset();
                       action.reset();
                       setValidationError("");
+                      setIsEditorDirty(false);
+                      setConfirmingDiscard(false);
                       setIsEditing(true);
                     }}
                   >
@@ -881,7 +1345,7 @@ export default function ProjectDocumentsWorkspace({
                     </Button>
                   )}
               </div>
-            </div>
+            </>
           ) : null}
         </div>
       </Modal>

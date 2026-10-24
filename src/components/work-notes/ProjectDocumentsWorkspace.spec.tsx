@@ -335,3 +335,73 @@ it("clears stale upload errors before retrying document updates and clears actio
   await waitFor(() => expect(patchCalls).toBe(1));
   expect(await screen.findByRole("alert")).toHaveTextContent("Update failed");
 });
+
+it("displays inline field validation errors, supports drag-and-drop file selection, and prompts before discarding unsaved changes", async () => {
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+      } as never;
+    }
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "New document" }));
+
+  // Submit empty form -> shows summary alert + inline field errors for title and content/file
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Complete all required fields before saving.",
+  );
+  expect(screen.getByText("Enter a document title.")).toBeVisible();
+  expect(
+    screen.getByText(
+      "Enter document content or attach a PDF/DOCX file before saving.",
+    ),
+  ).toBeVisible();
+
+  // Fill title -> dirty state is active
+  fireEvent.change(screen.getByLabelText("Document title"), {
+    target: { value: "Database Design v1" },
+  });
+
+  // Drop a valid PDF file onto the dropzone
+  const dropzoneText = screen.getByText("Drag and drop your document here");
+  const dropzone = dropzoneText.closest("div.border-dashed")!;
+  fireEvent.drop(dropzone, {
+    dataTransfer: {
+      files: [
+        new File(["%PDF-1.4"], "schema-design.pdf", {
+          type: "application/pdf",
+        }),
+      ],
+    },
+  });
+  expect(await screen.findByText("schema-design.pdf")).toBeVisible();
+  expect(screen.getByText("Ready to upload")).toBeVisible();
+
+  // Remove selected file
+  fireEvent.click(screen.getByRole("button", { name: "Remove file" }));
+  expect(screen.queryByText("schema-design.pdf")).not.toBeInTheDocument();
+
+  // Click Cancel when dirty -> shows unsaved changes confirmation
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  expect(
+    await screen.findByText("You have unsaved changes. Discard this draft?"),
+  ).toBeVisible();
+
+  // Keep editing keeps the dialog open with the entered title
+  fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.getByLabelText("Document title")).toHaveValue(
+    "Database Design v1",
+  );
+
+  // Cancel again and confirm Discard -> closes dialog
+  fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+  fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
