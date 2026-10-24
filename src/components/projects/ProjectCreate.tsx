@@ -2,13 +2,18 @@
 
 import { Link, useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useTranslations } from "next-intl";
 import ProjectCreateForm from "./ProjectCreateForm";
 import ProjectState from "./ProjectState";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 export default function ProjectCreate() {
   const t = useTranslations("projects");
+  const common = useTranslations("common");
   const user = useCurrentUserQuery();
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
   const router = useRouter();
 
   return (
@@ -42,22 +47,33 @@ export default function ProjectCreate() {
         </header>
       </div>
 
-      {user.isPending ? (
+      {!userAccessLost && visibleUser && user.isFetching && (
+        <UpdatingStatus>{common("updating")}</UpdatingStatus>
+      )}
+      {!userAccessLost && visibleUser && user.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void user.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      {user.isPending && !visibleUser ? (
         <ProjectState />
-      ) : user.isError ? (
+      ) : user.isError && !visibleUser ? (
         <ProjectState
           error={user.error}
           retry={() => {
             void user.refetch();
           }}
         />
-      ) : user.data?.organizationId ? (
+      ) : visibleUser?.organizationId ? (
         <ProjectCreateForm
-          key={`${user.data.id}:${user.data.organizationId}`}
-          organizationId={user.data.organizationId}
-          currentUserId={user.data.id}
-          currentUserName={user.data.name || user.data.email}
-          currentUserEmail={user.data.email}
+          key={`${visibleUser.id}:${visibleUser.organizationId}`}
+          organizationId={visibleUser.organizationId}
+          currentUserId={visibleUser.id}
+          currentUserName={visibleUser.name || visibleUser.email}
+          currentUserEmail={visibleUser.email}
           onCancel={() => router.push("/projects")}
           onCreated={(project) =>
             router.push(`/projects/${encodeURIComponent(project.id)}`)

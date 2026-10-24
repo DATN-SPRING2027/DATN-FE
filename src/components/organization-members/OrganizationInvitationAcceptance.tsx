@@ -136,7 +136,7 @@ export default function OrganizationInvitationAcceptance() {
   const acceptanceConflict = acceptError instanceof ApiError && acceptError.status === 409;
 
   if (loadState === "loading" || currentUser.isFetching) {
-    return <main className="mx-auto flex min-h-[60vh] w-full max-w-xl items-center px-4"><p role="status" aria-busy="true" className="w-full animate-pulse rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{t("invitationLoading")}</p></main>;
+    return <main className="mx-auto flex min-h-[60vh] w-full max-w-xl items-center px-4"><p role="status" aria-busy="true" className="w-full motion-safe:animate-pulse rounded-2xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">{t("invitationLoading")}</p></main>;
   }
 
   if (loadState === "error") {

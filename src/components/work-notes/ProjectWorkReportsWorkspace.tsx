@@ -4,6 +4,10 @@ import { useRef, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
+import {
   AlertIcon,
   CalenderIcon,
   CheckCircleIcon,
@@ -21,6 +25,7 @@ import {
   UploadIcon,
   UserCircleIcon,
 } from "@/icons";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   REPORT_FREQUENCIES,
@@ -312,28 +317,29 @@ function ReportEditor({
           </label>
         </div>
 
-        <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-950/60 lg:grid-cols-2">
-          <div className="min-w-0 space-y-2">
+        <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-950/60 md:grid-cols-2">
+          <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
                 <UploadIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-                {t("attachmentLabel")}
+                {t("attachmentsLabel")}
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("attachmentHint")}
+              {t("attachmentsHint")}
             </p>
+
             <input
               ref={fileInputRef}
               type="file"
               accept={DOCUMENT_FILE_ACCEPT}
-              aria-label={t("attachmentLabel")}
-              onChange={(event) => {
-                const next = event.target.files?.[0] ?? null;
-                setSelectedFile(next);
-              }}
               className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0] ?? null;
+                setSelectedFile(file);
+              }}
             />
+
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
                 type="button"
@@ -342,15 +348,17 @@ function ReportEditor({
                 onClick={() => fileInputRef.current?.click()}
               >
                 <UploadIcon className="me-1.5 h-3.5 w-3.5" />
-                {report.file || selectedFile
+                {selectedFile || report.file
                   ? t("replaceFile")
-                  : t("selectFile")}
+                  : t("uploadFile")}
               </Button>
+
               {selectedFile && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
                   <FileIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-48 truncate">
-                    {t("selectedFileReady", { name: selectedFile.name })}
+                  <span className="max-w-44 truncate">{selectedFile.name}</span>
+                  <span className="tabular-nums text-[11px] opacity-80">
+                    ({formatFileSize(selectedFile.size)})
                   </span>
                   <button
                     type="button"
@@ -359,91 +367,77 @@ function ReportEditor({
                       setSelectedFile(null);
                       if (fileInputRef.current) fileInputRef.current.value = "";
                     }}
-                    className="ms-1 rounded p-0.5 text-brand-700 hover:bg-brand-100 dark:text-brand-300 dark:hover:bg-brand-500/20"
+                    className="ms-1 rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/20"
                   >
-                    <CloseIcon className="h-3 w-3 fill-current" />
+                    <CloseIcon className="h-3 w-3" />
                   </button>
                 </span>
               )}
+
               {!selectedFile && report.file && (
                 <button
                   type="button"
                   onClick={() => void onDownloadFile(report)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium tabular-nums text-gray-700 transition hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                 >
                   <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                  <span className="max-w-48 truncate">
-                    {t("currentUploadedFile", {
-                      name: report.file.name,
-                      size: formatFileSize(report.file.size),
-                    })}
+                  <span className="max-w-44 truncate">{report.file.name}</span>
+                  <span className="tabular-nums text-[11px] text-gray-400">
+                    ({formatFileSize(report.file.size)})
                   </span>
                 </button>
               )}
             </div>
           </div>
 
-          <div className="min-w-0 space-y-2 border-t border-gray-200/80 pt-3 dark:border-gray-800 lg:border-s lg:border-t-0 lg:ps-4 lg:pt-0">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
-                <DocsIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-                {t("linkedDocumentsLabel")}
-              </span>
-              {(form.documentIds?.length ?? 0) > 0 && (
-                <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                  {t("linkedDocumentsCount", {
-                    count: form.documentIds?.length ?? 0,
-                  })}
-                </span>
-              )}
-            </div>
+          <div className="space-y-2 border-t border-gray-200/70 pt-3 md:border-s md:border-t-0 md:ps-4 md:pt-0 dark:border-gray-800">
+            <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
+              <DocsIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
+              {t("linkedDocumentsLabel")}
+            </span>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {t("linkedDocumentsHint")}
             </p>
+
             {availableDocuments.length > 0 ? (
               <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pt-1">
                 {availableDocuments.map((doc) => {
-                  const isSelected = (form.documentIds ?? []).includes(doc.id);
+                  const selected = Boolean(
+                    form.documentIds?.includes(doc.id),
+                  );
                   return (
                     <button
                       key={doc.id}
                       type="button"
                       onClick={() => toggleDocumentLink(doc.id)}
-                      className={`inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                        isSelected
+                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
+                        selected
                           ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/20 dark:text-brand-200"
                           : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                       }`}
                     >
                       <DocsIcon className="h-3 w-3 shrink-0" />
-                      <span className="truncate">{doc.title}</span>
+                      <span className="max-w-40 truncate">{doc.title}</span>
                     </button>
                   );
                 })}
               </div>
             ) : (
               <p className="pt-1 text-xs text-gray-400 dark:text-gray-500">
-                {t("noProjectDocuments")}
+                {t("noProjectDocumentsToLink")}
               </p>
             )}
           </div>
         </div>
 
-        {validationError && (
-          <p
+        {(validationError || error) && (
+          <div
             role="alert"
-            className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+            className="flex items-center gap-2 rounded-lg border border-error-200 bg-error-50 px-3.5 py-2.5 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
           >
-            {validationError}
-          </p>
-        )}
-        {error && (
-          <p
-            role="alert"
-            className="rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
-          >
-            {error}
-          </p>
+            <AlertIcon className="h-4 w-4 shrink-0" />
+            <span>{validationError || error}</span>
+          </div>
         )}
       </div>
 
@@ -577,14 +571,25 @@ export default function ProjectWorkReportsWorkspace({
   const currentReports = useWorkReportsQuery(projectId, "ALL", 1, activeScope);
   const documentsQuery = useDocumentsQuery(projectId, "ALL", 1);
 
-  const actorRole = settings.data?.actorRole;
+  const settingsAccessLost = isAccessOrResourceUnavailableError(settings.error);
+  const reportsAccessLost = isAccessOrResourceUnavailableError(reports.error);
+  const currentReportsAccessLost = isAccessOrResourceUnavailableError(
+    currentReports.error,
+  );
+  const settingsData = settingsAccessLost ? undefined : settings.data;
+  const reportsData = reportsAccessLost ? undefined : reports.data;
+  const currentReportsData = currentReportsAccessLost
+    ? undefined
+    : currentReports.data;
+
+  const actorRole = settingsData?.actorRole;
   const canSwitchLeaderTier =
     actorRole === "LEADER" ||
     actorRole === "MANAGER" ||
-    Boolean(settings.data?.permissions.canConfigure);
+    Boolean(settingsData?.permissions.canConfigure);
 
   const currentTime = Date.now();
-  const currentReport = currentReports.data?.data.find(
+  const currentReport = currentReportsData?.data.find(
     (report) =>
       report.permissions.canEdit &&
       Date.parse(report.periodStart) <= currentTime &&
@@ -727,9 +732,9 @@ export default function ProjectWorkReportsWorkspace({
     }));
   }
 
-  const allScopeReports = currentReports.data?.data ?? [];
+  const allScopeReports = currentReportsData?.data ?? [];
   const totalReportsCount =
-    currentReports.data?.pagination.totalItems ?? allScopeReports.length;
+    currentReportsData?.pagination.totalItems ?? allScopeReports.length;
   const pendingReviewCount = allScopeReports.filter(
     (r) => r.status === "PENDING_REVIEW",
   ).length;
@@ -757,7 +762,7 @@ export default function ProjectWorkReportsWorkspace({
             ? reportAction.error.message
             : "";
 
-  const activeFrequency = settings.data?.frequency ?? "WEEKLY";
+  const activeFrequency = settingsData?.frequency ?? "WEEKLY";
   const selectedFrequency = frequency ?? activeFrequency;
 
   return (
@@ -798,9 +803,9 @@ export default function ProjectWorkReportsWorkspace({
                   <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
                     {t("tabs.memberReports")}
                   </span>
-                  {settings.data && activeScope === "MEMBER" && (
+                  {settingsData && activeScope === "MEMBER" && (
                     <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium tabular-nums text-brand-700 shadow-2xs dark:bg-gray-800 dark:text-brand-300">
-                      {t(`daysShort.${settings.data.frequency}`)}
+                      {t(`daysShort.${settingsData.frequency}`)}
                     </span>
                   )}
                 </span>
@@ -840,10 +845,10 @@ export default function ProjectWorkReportsWorkspace({
                       ? t("tabs.managerLeaderReports")
                       : t("tabs.leaderMyReport")}
                   </span>
-                  {settings.data?.leaderSettings && (
+                  {settingsData?.leaderSettings && (
                     <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium tabular-nums text-brand-700 shadow-2xs dark:bg-gray-800 dark:text-brand-300">
                       {t(
-                        `daysShort.${settings.data.leaderSettings.frequency}`,
+                        `daysShort.${settingsData.leaderSettings.frequency}`,
                       )}
                     </span>
                   )}
@@ -891,24 +896,42 @@ export default function ProjectWorkReportsWorkspace({
                 </p>
               </div>
 
-              {settings.data && (
+              {settingsData && (
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold tabular-nums text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
                     <CalenderIcon className="h-3.5 w-3.5" />
-                    {t(settings.data.frequency)}
+                    {t(settingsData.frequency)}
                   </span>
                 </div>
               )}
             </div>
 
-            {settings.isPending ? (
+            {settingsData !== undefined &&
+              !settingsAccessLost &&
+              (settings.isFetching || settings.isRefetchError) && (
+                <div className="mt-4">
+                  {settings.isFetching && (
+                    <UpdatingStatus>{common("loading")}</UpdatingStatus>
+                  )}
+                  {settings.isRefetchError && (
+                    <BackgroundRefreshError
+                      retryLabel={common("retry")}
+                      onRetry={() => void settings.refetch()}
+                    >
+                      {common("updateFailed")}
+                    </BackgroundRefreshError>
+                  )}
+                </div>
+              )}
+
+            {settings.isPending && !settingsData ? (
               <p
                 role="status"
                 className="mt-4 text-sm text-gray-500 dark:text-gray-400"
               >
                 {common("loading")}
               </p>
-            ) : settings.isError ? (
+            ) : settings.isError && !settingsData ? (
               <div
                 role="alert"
                 className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-3.5 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -926,7 +949,7 @@ export default function ProjectWorkReportsWorkspace({
                   {common("retry")}
                 </Button>
               </div>
-            ) : settings.data?.permissions.canConfigure ? (
+            ) : settingsData?.permissions.canConfigure ? (
               <div className="mt-4 space-y-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-950/50 sm:p-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
@@ -997,7 +1020,7 @@ export default function ProjectWorkReportsWorkspace({
                     type="submit"
                     size="sm"
                     disabled={
-                      !frequency || frequency === settings.data.frequency
+                      !frequency || frequency === settingsData.frequency
                     }
                     isLoading={settingsMutation.isPending}
                   >
@@ -1005,7 +1028,7 @@ export default function ProjectWorkReportsWorkspace({
                   </Button>
                 </form>
               </div>
-            ) : settings.data ? (
+            ) : settingsData ? (
               <div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 dark:border-brand-500/25 dark:bg-brand-500/10 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-3">
                   <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 dark:bg-brand-400/15 dark:text-brand-300">
@@ -1026,13 +1049,13 @@ export default function ProjectWorkReportsWorkspace({
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   <span className="inline-flex items-center rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-bold tabular-nums text-brand-700 shadow-2xs dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300">
-                    {t(`daysFull.${settings.data.frequency}`)}
+                    {t(`daysFull.${settingsData.frequency}`)}
                   </span>
                 </div>
               </div>
             ) : null}
 
-            {settings.data?.permissions.canConfigure &&
+            {settingsData?.permissions.canConfigure &&
               isConfirmingSchedule &&
               frequency && (
                 <div
@@ -1069,11 +1092,11 @@ export default function ProjectWorkReportsWorkspace({
                 </div>
               )}
 
-            {settings.data?.nextEffectiveAt && (
+            {settingsData?.nextEffectiveAt && (
               <p className="mt-3 text-xs tabular-nums text-gray-600 dark:text-gray-300">
                 {t("scheduledChange", {
                   date: format.dateTime(
-                    new Date(settings.data.nextEffectiveAt),
+                    new Date(settingsData.nextEffectiveAt),
                     {
                       dateStyle: "medium",
                       timeStyle: "short",
@@ -1102,13 +1125,13 @@ export default function ProjectWorkReportsWorkspace({
               </p>
             )}
 
-            {settings.data?.history.length ? (
+            {settingsData?.history.length ? (
               <details className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
                 <summary className="cursor-pointer text-xs font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
-                  {t("scheduleHistory")} ({settings.data.history.length})
+                  {t("scheduleHistory")} ({settingsData.history.length})
                 </summary>
                 <ol className="mt-2.5 space-y-1.5">
-                  {settings.data.history.map((entry, idx) => (
+                  {settingsData.history.map((entry, idx) => (
                     <li
                       key={`${entry.effectiveAt}-${entry.frequency}-${idx}`}
                       className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-1.5 text-xs text-gray-600 dark:bg-gray-800/60 dark:text-gray-400"
@@ -1204,7 +1227,25 @@ export default function ProjectWorkReportsWorkspace({
           </div>
         </section>
 
-        {reports.isPending ? (
+        {reportsData !== undefined &&
+          !reportsAccessLost &&
+          (reports.isFetching || reports.isRefetchError) && (
+            <div>
+              {reports.isFetching && (
+                <UpdatingStatus>{common("loading")}</UpdatingStatus>
+              )}
+              {reports.isRefetchError && (
+                <BackgroundRefreshError
+                  retryLabel={common("retry")}
+                  onRetry={() => void reports.refetch()}
+                >
+                  {common("updateFailed")}
+                </BackgroundRefreshError>
+              )}
+            </div>
+          )}
+
+        {reports.isPending && !reportsData ? (
           <div
             role="status"
             aria-label={common("loading")}
@@ -1217,7 +1258,7 @@ export default function ProjectWorkReportsWorkspace({
               />
             ))}
           </div>
-        ) : reports.isError ? (
+        ) : reports.isError && !reportsData ? (
           <div
             role="alert"
             className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -1276,7 +1317,33 @@ export default function ProjectWorkReportsWorkspace({
               </section>
             )}
 
-            {currentReports.isError && (
+            {currentReports.isPending && !currentReportsData && (
+              <p
+                role="status"
+                className="text-sm text-gray-500 dark:text-gray-400"
+              >
+                {common("loading")}
+              </p>
+            )}
+            {currentReportsData !== undefined &&
+              !currentReportsAccessLost &&
+              (currentReports.isFetching || currentReports.isRefetchError) && (
+                <div className="mb-3">
+                  {currentReports.isFetching && (
+                    <UpdatingStatus>{common("loading")}</UpdatingStatus>
+                  )}
+                  {currentReports.isRefetchError && (
+                    <BackgroundRefreshError
+                      retryLabel={common("retry")}
+                      onRetry={() => void currentReports.refetch()}
+                    >
+                      {common("updateFailed")}
+                    </BackgroundRefreshError>
+                  )}
+                </div>
+              )}
+
+            {currentReports.isError && !currentReportsData && (
               <div
                 role="alert"
                 className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -1367,9 +1434,9 @@ export default function ProjectWorkReportsWorkspace({
                 </p>
               )}
 
-              {reports.data?.data.length ? (
+              {reportsData?.data.length ? (
                 <ul className="space-y-3">
-                  {reports.data.data.map((report) => {
+                  {reportsData.data.map((report) => {
                     const hasContent = Boolean(
                       report.accomplishments.trim() ||
                         report.approach.trim() ||
@@ -1613,11 +1680,11 @@ export default function ProjectWorkReportsWorkspace({
                 </div>
               )}
 
-              {reports.data && reports.data.pagination.totalPages > 1 && (
+              {reportsData && reportsData.pagination.totalPages > 1 && (
                 <div className="flex items-center justify-between border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
                   <span className="tabular-nums text-gray-500 dark:text-gray-400">
                     {common("pagination.total", {
-                      count: reports.data.pagination.totalItems,
+                      count: reportsData.pagination.totalItems,
                     })}
                   </span>
                   <div className="flex gap-2">
@@ -1632,7 +1699,7 @@ export default function ProjectWorkReportsWorkspace({
                     <Button
                       variant="outline"
                       size="sm"
-                      disabled={page >= reports.data.pagination.totalPages}
+                      disabled={page >= reportsData.pagination.totalPages}
                       onClick={() => setPage((value) => value + 1)}
                     >
                       {common("pagination.next")}

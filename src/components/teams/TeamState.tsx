@@ -21,6 +21,8 @@ export default function TeamState({
     return (
       <div
         role="status"
+        aria-live="polite"
+        aria-busy="true"
         className="space-y-4 text-sm text-gray-600 dark:text-gray-400"
       >
         <p>{t("loading")}</p>

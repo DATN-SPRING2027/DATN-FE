@@ -213,9 +213,10 @@ describe("Platform Organizations", () => {
     ).toBeDisabled();
     expect(p.changeOrganizationMetadata.mutateAsync).toHaveBeenCalledTimes(1);
   });
-  it("hides stale detail content after a failed request", () => {
+  it("keeps stale detail content and reports a failed background refresh", () => {
     const p = props();
     p.organization.isError = true;
+    p.organization.isRefetchError = true;
     render(
       <PlatformOrganizationsView
         {...p}
@@ -223,9 +224,7 @@ describe("Platform Organizations", () => {
         hasValidRouteOrganizationId
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "errors.organizationDetail",
-    );
-    expect(screen.queryByText("Fresh server name")).not.toBeInTheDocument();
+    expect(screen.getByText("Fresh server name")).toBeInTheDocument();
+    expect(screen.getByText("updateFailed")).toBeInTheDocument();
   });
 });

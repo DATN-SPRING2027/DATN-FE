@@ -144,7 +144,7 @@ export default function OrganizationChoices({
                   className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-gray-50 text-gray-500 transition-all duration-200 group-hover:border-brand-500 group-hover:bg-brand-500 group-hover:text-white dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400 dark:group-hover:border-brand-500 dark:group-hover:bg-brand-500 dark:group-hover:text-white"
                 >
                   {isSelectingThis ? (
-                    <span className="size-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    <span className="size-3.5 motion-safe:animate-spin rounded-full border-2 border-current border-t-transparent" />
                   ) : (
                     <ArrowRightIcon className="size-4 transition-transform duration-200 group-hover:translate-x-0.5 rtl:rotate-180 rtl:group-hover:-translate-x-0.5" />
                   )}

@@ -78,7 +78,7 @@ async function fetchProjectsPage(
     pageSize: String(input.pageSize),
   });
   if (input.status) params.set("status", input.status);
-  if (input.q?.trim()) params.set("q", input.q.trim());
+  if (input.q) params.set("q", input.q);
   if (input.includeTotal === false) params.set("includeTotal", "false");
   return apiClient<ProjectList>(`/iam/projects?${params}`, {
     signal,
@@ -100,7 +100,7 @@ export function useProjectsQuery(
     queryFn: ({ signal }) => fetchProjectsPage(input, signal),
     enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: options.staleTime ?? 0,
+    staleTime: options.staleTime ?? 15_000,
     refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
   });
 }
@@ -146,7 +146,7 @@ export function useProjectQuery(organizationId: string, id: string) {
       }),
     enabled: Boolean(organizationId && id),
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     refetchOnWindowFocus: true,
   });
 }

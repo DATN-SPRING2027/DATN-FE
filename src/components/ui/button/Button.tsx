@@ -67,7 +67,7 @@ const Button: React.FC<ButtonProps> = ({
       {isLoading ? (
         <span
           aria-hidden="true"
-          className="inline-flex h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent"
+          className="inline-flex h-3.5 w-3.5 shrink-0 motion-safe:animate-spin rounded-full border-2 border-current border-t-transparent"
         />
       ) : (
         startIcon && (

@@ -98,7 +98,7 @@ export default function SidebarAccountFooter({
           {logout.isPending ? (
             <span
               aria-hidden="true"
-              className="size-3.5 animate-spin rounded-full border-2 border-gray-300 border-t-brand-500"
+              className="size-3.5 motion-safe:animate-spin rounded-full border-2 border-gray-300 border-t-brand-500"
             />
           ) : (
             <LogOutIcon

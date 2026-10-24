@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useModal } from "@/hooks/useModal";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { teamKeys, useTeam, useTeams } from "@/lib/queries/teams/useTeams";
 import type { TeamFilter, TeamScope } from "@/lib/queries/teams/team.contract";
 import TeamDirectoryTable from "./TeamDirectoryTable";
@@ -17,6 +17,7 @@ import TeamManagementDialog, {
   type TeamDialogAction,
 } from "./TeamManagementDialog";
 import TeamRowActions from "./TeamRowActions";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 export default function TeamsWorkspace({
   projectId,
@@ -30,9 +31,11 @@ export default function TeamsWorkspace({
   embedded?: boolean;
 }) {
   const user = useCurrentUserQuery();
-  if (user.isPending) return <TeamState loading />;
-  if (user.isError) return <TeamState error={user.error} />;
-  if (!user.data?.organizationId)
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
+  if (user.isPending && !visibleUser) return <TeamState loading />;
+  if (user.isError && !visibleUser) return <TeamState error={user.error} />;
+  if (!visibleUser?.organizationId)
     return (
       <TeamState
         error={
@@ -44,12 +47,12 @@ export default function TeamsWorkspace({
         }
       />
     );
-  const scope = { organizationId: user.data.organizationId, projectId };
+  const scope = { organizationId: visibleUser.organizationId, projectId };
   return (
     <ScopedTeams
-      key={`${user.data.id}:${scope.organizationId}:${projectId}:${teamId ?? ""}:${mode}`}
+      key={`${visibleUser.id}:${scope.organizationId}:${projectId}:${teamId ?? ""}:${mode}`}
       scope={scope}
-      actor={user.data.id}
+      actor={visibleUser.id}
       teamId={teamId}
       mode={mode}
       embedded={embedded}
@@ -184,10 +187,13 @@ function TeamDirectory({
   onAction: (action: TeamDialogAction) => void;
 }) {
   const t = useTranslations("teamFoundation");
+  const common = useTranslations("common");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<TeamFilter>("ACTIVE");
   const query = useTeams(scope, actor, page, status);
-  const list = query.data?.data ?? [];
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
+  const visibleData = accessLost ? undefined : query.data;
+  const list = visibleData?.data ?? [];
   return (
     <TeamDirectoryTable
       items={list}
@@ -200,14 +206,11 @@ function TeamDirectory({
         setStatus(next);
         setPage(1);
       }}
-      totalItems={
-        query.data && !query.isError
-          ? query.data.pagination.totalItems
-          : undefined
-      }
+      totalItems={visibleData?.pagination.totalItems}
       page={page}
-      totalPages={query.data?.pagination.totalPages ?? 0}
+      totalPages={visibleData?.pagination.totalPages ?? 0}
       isPageChanging={query.isFetching}
+      isBusy={query.isFetching && Boolean(visibleData)}
       onPageChange={setPage}
       copy={{
         statusFilter: t("status"),
@@ -232,10 +235,22 @@ function TeamDirectory({
         previous: t("previous"),
         next: t("next"),
       }}
+      statusContent={
+        !accessLost && query.isFetching && visibleData ? (
+          <UpdatingStatus>{common("updating")}</UpdatingStatus>
+        ) : !accessLost && query.isRefetchError && visibleData ? (
+          <BackgroundRefreshError
+            retryLabel={common("retry")}
+            onRetry={() => void query.refetch()}
+          >
+            {common("updateFailed")}
+          </BackgroundRefreshError>
+        ) : null
+      }
       stateContent={
-        query.isPending || query.isFetching ? (
+        query.isPending && !visibleData ? (
           <TeamState loading />
-        ) : query.isError ? (
+        ) : query.isError && !visibleData ? (
           <TeamState
             error={query.error}
             retry={() => {
@@ -265,11 +280,14 @@ function TeamDetails({
   base: string;
 }) {
   const t = useTranslations("teamFoundation");
+  const common = useTranslations("common");
   const router = useRouter();
   const query = useTeam(scope, actor, id);
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
+  const resource = accessLost ? undefined : query.data;
   const [lifecycle, setLifecycle] = useState<"archive" | "restore">();
-  if (query.isPending || query.isFetching) return <TeamState loading />;
-  if (query.isError)
+  if (query.isPending && !resource) return <TeamState loading />;
+  if (query.isError && !resource)
     return (
       <TeamState
         error={query.error}
@@ -278,7 +296,7 @@ function TeamDetails({
         }}
       />
     );
-  const resource = query.data;
+  if (!resource) return <TeamState loading />;
   const team = resource.team;
   function completed() {
     setLifecycle(undefined);
@@ -287,6 +305,16 @@ function TeamDetails({
   }
   return (
     <ComponentCard title={t("information")} className="rounded-xl">
+      {!accessLost && query.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {!accessLost && query.isRefetchError && (
+        <BackgroundRefreshError
+          className="mb-4"
+          retryLabel={common("retry")}
+          onRetry={() => void query.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
       {edit ? (
         team.status === "ARCHIVED" ? (
           <p role="alert">{t("archivedError")}</p>

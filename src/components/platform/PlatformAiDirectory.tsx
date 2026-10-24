@@ -1,6 +1,13 @@
 "use client";
 
-import { ErrorState, Loading, TextField, box } from "./PlatformOperationsUi";
+import {
+  ErrorState,
+  Loading,
+  QueryRefreshStatus,
+  TextField,
+  box,
+  isReadAccessLost,
+} from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
 export default function PlatformAiDirectory({
@@ -20,9 +27,19 @@ export default function PlatformAiDirectory({
         Operational metadata only; model/provider health and processing job
         details are not exposed by the current BE contract.
       </p>
-      {ai.isPending ? (
+      {ai.data !== undefined && !isReadAccessLost(ai.error) && (ai.isFetching || ai.isRefetchError) && (
+        <div className="mt-4">
+          <QueryRefreshStatus
+            hasData
+            isFetching={ai.isFetching}
+            isRefetchError={ai.isRefetchError}
+            onRetry={() => void ai.refetch()}
+          />
+        </div>
+      )}
+      {ai.isPending && !ai.data ? (
         <Loading columns={3} />
-      ) : ai.isError || !ai.data ? (
+      ) : ai.isError && (!ai.data || isReadAccessLost(ai.error)) ? (
         <ErrorState retry={() => void ai.refetch()} />
       ) : (
         <>

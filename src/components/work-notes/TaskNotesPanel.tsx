@@ -3,6 +3,8 @@
 import { useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { useTaskNotesQuery, useWorkNotesMutation, workNoteKeys, workNotesApi, type TaskNoteInput } from "@/lib/queries/work-notes/useWorkNotes";
 
 const EMPTY_INPUT: TaskNoteInput = {
@@ -17,6 +19,8 @@ const FIELD_CLASS = "w-full min-w-0 border border-gray-200 bg-white px-3 py-2.5 
 export default function TaskNotesPanel({ projectId, taskId }: { projectId: string; taskId: string }) {
   const t = useTranslations("workNotes.taskNotes");
   const query = useTaskNotesQuery(projectId, taskId);
+  const accessLost = isAccessOrResourceUnavailableError(query.error);
+  const visibleNotes = accessLost ? undefined : query.data;
   const [input, setInput] = useState<TaskNoteInput>(EMPTY_INPUT);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState("");
@@ -66,21 +70,34 @@ export default function TaskNotesPanel({ projectId, taskId }: { projectId: strin
         <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400">{t("description")}</p>
       </div>
 
-      {query.isPending ? (
-        <div role="status" className="space-y-2" aria-label={t("loading")}>
-          <div className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />
-          <div className="h-12 animate-pulse bg-gray-100 dark:bg-gray-800" />
+      {visibleNotes !== undefined && !accessLost && (query.isFetching || query.isRefetchError) && (
+        <div>
+          {query.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+          {query.isRefetchError && (
+            <BackgroundRefreshError
+              retryLabel={t("retry")}
+              onRetry={() => void query.refetch()}
+            >
+              {t("loadError")}
+            </BackgroundRefreshError>
+          )}
         </div>
-      ) : query.isError ? (
+      )}
+      {query.isPending && !visibleNotes ? (
+        <div role="status" className="space-y-2" aria-label={t("loading")}>
+          <div className="h-12 motion-safe:animate-pulse bg-gray-100 dark:bg-gray-800" />
+          <div className="h-12 motion-safe:animate-pulse bg-gray-100 dark:bg-gray-800" />
+        </div>
+      ) : query.isError && !visibleNotes ? (
         <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-3 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
           <span>{query.error instanceof Error ? query.error.message : t("loadError")}</span>
           <Button variant="outline" size="sm" onClick={() => void query.refetch()}>{t("retry")}</Button>
         </div>
       ) : (
         <>
-          {query.data?.data.length ? (
+          {visibleNotes?.data.length ? (
             <ul className="space-y-3">
-              {query.data.data.map((note) => (
+              {visibleNotes.data.map((note) => (
                 <li key={note.id} className="min-w-0 border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-900">
                   <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
                     <h5 className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white/90">{note.title}</h5>

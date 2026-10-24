@@ -10,8 +10,10 @@ import ProjectOverview, {
 } from "./ProjectOverview";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import ProjectState from "./ProjectState";
 import TeamsWorkspace from "@/components/teams/TeamsWorkspace";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 const TeamFixturePreview = lazy(
   () => import("@/components/team-preview/TeamPreview"),
@@ -43,6 +45,7 @@ function OrganizationProject({
   });
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
+  const common = useTranslations("common");
   const changes = useMutationState({
     filters: {
       mutationKey: ["project-visibility-change", organizationId, projectId],
@@ -54,6 +57,7 @@ function OrganizationProject({
     }),
   });
   const latest = changes.at(-1);
+  const accessWasRevoked = isAccessOrResourceUnavailableError(project.error);
   const notice =
     latest?.status === "success" &&
     (project.isError || project.data?.visibility === latest.target) &&
@@ -64,9 +68,9 @@ function OrganizationProject({
       />
     ) : null;
 
-  if (project.isPending || project.isFetching)
+  if (project.isPending && !project.data)
     return <ProjectState variant="detail" />;
-  if (project.isError)
+  if (project.isError && (!project.data || accessWasRevoked))
     return (
       <div className="space-y-3">
         {notice}
@@ -81,8 +85,17 @@ function OrganizationProject({
   return (
     <div className="space-y-3">
       {notice}
+      {project.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {project.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void project.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
       <ProjectOverview
-        project={project.data}
+        project={project.data!}
         showTeams={showTeams}
         initialTab={activeTab}
         activeTab={activeTab}
@@ -113,16 +126,18 @@ export default function ProjectDetail({
   initialTab?: ProjectTab;
 }) {
   const user = useCurrentUserQuery();
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
   return (
     <div className="space-y-5">
-      {user.isPending ? (
+      {user.isPending && !visibleUser ? (
         <ProjectState />
-      ) : user.isError ? (
+      ) : user.isError && !visibleUser ? (
         <ProjectState error={user.error} />
-      ) : user.data?.organizationId ? (
+      ) : visibleUser?.organizationId ? (
         <OrganizationProject
-          key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
-          organizationId={user.data.organizationId}
+          key={`${visibleUser.id}:${visibleUser.organizationId}:${projectId}`}
+          organizationId={visibleUser.organizationId}
           projectId={projectId}
           showTeams={showTeams}
           teamMode={teamMode}

@@ -12,6 +12,7 @@ import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConso
 import { usePlatformDashboardQuery } from "@/lib/queries/platform/usePlatformOperations";
 import { TableSkeleton } from "./ui/LoadingSkeleton";
 import PlatformServiceHealth from "./overview/PlatformServiceHealth";
+import { isReadAccessLost, QueryRefreshStatus } from "./PlatformOperationsUi";
 import OperatorActivity from "./overview/OperatorActivity";
 import RevenueCostsCard from "./dribbble/RevenueCostsCard";
 import BalanceCostsCard from "./dribbble/BalanceCostsCard";
@@ -37,7 +38,7 @@ export default function PlatformDashboard({
       </p>
     );
 
-  if (query.isError)
+  if (query.isError && (!query.data || isReadAccessLost(query.error)))
     return (
       <div role="alert" className={styles.section}>
         <p className="mb-4 text-error-600 dark:text-error-400">
@@ -53,7 +54,7 @@ export default function PlatformDashboard({
       </div>
     );
 
-  if (query.isPending || !query.data)
+  if (query.isPending && !query.data)
     return (
       <section
         aria-label={t("dashboard.loading")}
@@ -68,6 +69,12 @@ export default function PlatformDashboard({
 
   return (
     <div aria-busy={query.isFetching}>
+      {!isReadAccessLost(query.error) && <QueryRefreshStatus
+        hasData
+        isFetching={query.isFetching}
+        isRefetchError={query.isRefetchError}
+        onRetry={() => void query.refetch()}
+      />}
       <h1 className="sr-only">{t("pages.dashboard.title")}</h1>
       <section
         aria-label={t("dashboard.summary")}

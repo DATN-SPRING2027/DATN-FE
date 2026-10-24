@@ -4,7 +4,6 @@ import { useTranslations } from "next-intl";
 import { ApiError } from "@/lib/api-client";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
-import ContinuumMascotScene from "@/components/ui/loading/ContinuumMascotScene";
 
 export default function ProjectState({
   error,
@@ -13,14 +12,13 @@ export default function ProjectState({
 }: {
   error?: unknown;
   retry?: () => void;
-  variant?: "grid" | "detail";
+  variant?: "grid" | "list" | "detail";
 }) {
   const t = useTranslations("projects");
   if (!error)
     return (
-      <div role="status" aria-live="polite" className="space-y-4">
-        {/* Continuum AI Mascot Scene + Smart Rotating Copy */}
-        <ContinuumMascotScene label={t("loading")} />
+      <div role="status" aria-live="polite" aria-busy="true" className="space-y-4">
+        <span className="sr-only">{t("loading")}</span>
 
         {variant === "detail" ? (
           <div aria-hidden="true" className="space-y-5">
@@ -66,11 +64,30 @@ export default function ProjectState({
               </div>
             </div>
           </div>
+        ) : variant === "list" ? (
+          <div
+            aria-hidden="true"
+            className="overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="divide-y divide-gray-100 dark:divide-gray-800">
+              {[0, 1, 2, 3, 4].map((item) => (
+                <div key={item} className="flex items-center gap-4 px-5 py-4">
+                  <div className="continuum-shimmer size-10 shrink-0 rounded-xl" />
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="continuum-shimmer h-4 w-40 max-w-full rounded-md" />
+                    <div className="continuum-shimmer h-3 w-64 max-w-full rounded-md" />
+                  </div>
+                  <div className="continuum-shimmer hidden h-6 w-20 rounded-full sm:block" />
+                  <div className="continuum-shimmer hidden h-8 w-24 rounded-lg md:block" />
+                </div>
+              ))}
+            </div>
+          </div>
         ) : (
           /* Realistic 3-Card B2B Shimmer Grid matching ProjectCard anatomy */
           <div
             aria-hidden="true"
-            className="grid grid-cols-1 gap-4 @md:grid-cols-2 @3xl:grid-cols-3"
+            className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
           >
             {[0, 1, 2].map((item) => (
               <div

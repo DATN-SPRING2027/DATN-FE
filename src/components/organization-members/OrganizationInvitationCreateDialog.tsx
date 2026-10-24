@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import { Modal } from "@/components/ui/modal";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { ApiError } from "@/lib/api-client";
 import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import type {
@@ -175,6 +176,7 @@ export default function OrganizationInvitationCreateDialog({
   onSubmit: (input: InviteMemberInput) => void;
 }) {
   const t = useTranslations("organizationMembers");
+  const common = useTranslations("common");
   const defaultRole: OrganizationRoleCode = allowedRoles.includes("MEMBER")
     ? "MEMBER"
     : (allowedRoles[0] ?? "MEMBER");
@@ -970,7 +972,7 @@ export default function OrganizationInvitationCreateDialog({
                   >
                     <span
                       aria-hidden="true"
-                      className="size-4 shrink-0 animate-spin rounded-full border-2 border-brand-500 border-t-transparent"
+                      className="size-4 shrink-0 motion-safe:animate-spin rounded-full border-2 border-brand-500 border-t-transparent"
                     />
                     <span>{t("inviteCheckingAccount")}</span>
                     <span className="sr-only">{t("inviting")}</span>
@@ -1214,9 +1216,30 @@ export default function OrganizationInvitationCreateDialog({
                   <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
                     {t("inviteSelectProjects")} <span aria-hidden="true" className="text-error-500">*</span>
                   </legend>
-                  {projectsQuery.isPending ? (
+                  {projectsQuery.projects.length > 0 &&
+                    (projectsQuery.isFetching ||
+                      projectsQuery.isRefetchError) && (
+                      <div>
+                        {projectsQuery.isFetching && (
+                          <UpdatingStatus>
+                            {common("updating")}
+                          </UpdatingStatus>
+                        )}
+                        {projectsQuery.isRefetchError && (
+                          <BackgroundRefreshError
+                            retryLabel={common("retry")}
+                            onRetry={() => void projectsQuery.refetch()}
+                          >
+                            {common("updateFailed")}
+                          </BackgroundRefreshError>
+                        )}
+                      </div>
+                    )}
+                  {projectsQuery.isPending &&
+                  projectsQuery.projects.length === 0 ? (
                     <p role="status" className="text-xs text-gray-500 dark:text-gray-400">{t("inviteProjectsLoading")}</p>
-                  ) : projectsQuery.isError ? (
+                  ) : projectsQuery.isError &&
+                    projectsQuery.projects.length === 0 ? (
                     <div role="alert" className="text-xs text-error-600 dark:text-error-400">
                       {t("loadError")}{" "}
                       <button type="button" className="font-medium underline" onClick={() => void projectsQuery.refetch()}>{t("retryLoad")}</button>
@@ -1372,7 +1395,7 @@ export default function OrganizationInvitationCreateDialog({
                     <span className="inline-flex items-center gap-2">
                       <span
                         aria-hidden="true"
-                        className="size-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+                        className="size-4 motion-safe:animate-spin rounded-full border-2 border-white border-t-transparent"
                       />
                       <span>{t("inviteSendingButton")}</span>
                     </span>

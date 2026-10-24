@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   useInfiniteProjectsQuery,
   useProjectQuery,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "@/components/projects/ProjectState";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import WorkWorkspace from "./WorkWorkspace";
 import type { WorkView } from "./WorkPageHeader";
 
@@ -20,10 +22,13 @@ export default function MemberWorkspace({
   initialView?: WorkView;
 }) {
   const t = useTranslations("work");
+  const common = useTranslations("common");
   const pathname = usePathname?.() ?? "/workspace";
   const router = useRouter?.();
   const user = useCurrentUserQuery();
-  const organizationId = user.data?.organizationId ?? "";
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
+  const organizationId = visibleUser?.organizationId ?? "";
   const projects = useInfiniteProjectsQuery(organizationId, {
     pageSize: 20,
     status: "ACTIVE",
@@ -51,7 +56,9 @@ export default function MemberWorkspace({
     }
   }
 
-  const loadedProjects = projects.data?.pages.flatMap((page) => page.data) ?? [];
+  const projectsAccessLost = isAccessOrResourceUnavailableError(projects.error);
+  const visibleProjects = projectsAccessLost ? undefined : projects.data;
+  const loadedProjects = visibleProjects?.pages.flatMap((page) => page.data) ?? [];
   const matchedFromPage = selectedProjectId
     ? loadedProjects.find((project) => project.id === selectedProjectId)
     : undefined;
@@ -67,17 +74,17 @@ export default function MemberWorkspace({
   );
 
   if (
-    user.isPending ||
-    (organizationId && projects.isPending) ||
-    (needsDirectProjectFetch && directProject.isPending)
+      (user.isPending && !visibleUser) ||
+    (organizationId && projects.isPending && !visibleProjects) ||
+    (needsDirectProjectFetch && directProject.isPending && !directProject.data)
   ) {
     return <ProjectState />;
   }
-  if (user.isError) return <ProjectState error={user.error} />;
+  if (user.isError && !visibleUser) return <ProjectState error={user.error} />;
   if (!organizationId) {
     return <ProjectState error={new Error("No trusted organization")} />;
   }
-  if (projects.isError) {
+  if (projects.isError && !visibleProjects) {
     return (
       <ProjectState
         error={projects.error}
@@ -85,7 +92,9 @@ export default function MemberWorkspace({
       />
     );
   }
-  if (needsDirectProjectFetch && directProject.isError) {
+  const directProjectAccessLost = isAccessOrResourceUnavailableError(directProject.error);
+  const visibleDirectProject = directProjectAccessLost ? undefined : directProject.data;
+  if (needsDirectProjectFetch && directProject.isError && !visibleDirectProject) {
     return (
       <ProjectState
         error={directProject.error}
@@ -95,7 +104,7 @@ export default function MemberWorkspace({
   }
 
   const activeProject =
-    matchedFromPage ?? directProject.data ?? loadedProjects[0];
+    matchedFromPage ?? visibleDirectProject ?? loadedProjects[0];
 
   if (!activeProject) {
     return (
@@ -120,28 +129,61 @@ export default function MemberWorkspace({
   }
 
   const workspaceProjects =
-    directProject.data && !matchedFromPage
+    visibleDirectProject && !matchedFromPage
       ? [
-          directProject.data,
+          visibleDirectProject,
           ...loadedProjects.filter(
-            (project) => project.id !== directProject.data?.id,
+            (project) => project.id !== visibleDirectProject.id,
           ),
         ]
       : loadedProjects;
 
   return (
-    <WorkWorkspace
-      key={activeProject.id}
-      projectId={activeProject.id}
-      project={activeProject}
-      projects={workspaceProjects}
-      onProjectChange={handleProjectChange}
-      hasMoreProjects={projects.hasNextPage}
-      isLoadingMoreProjects={projects.isFetchingNextPage}
-      onLoadMoreProjects={() => void projects.fetchNextPage()}
-      view={view}
-      onViewChange={setView}
-      hideProjectBanner
-    />
+    <div className="space-y-3">
+      {!userAccessLost && user.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {!userAccessLost && user.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void user.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      {!projectsAccessLost && projects.isFetching && visibleProjects && (
+        <UpdatingStatus>{common("updating")}</UpdatingStatus>
+      )}
+      {!projectsAccessLost && projects.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void projects.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      {!directProjectAccessLost && directProject.isFetching && visibleDirectProject && (
+        <UpdatingStatus>{common("updating")}</UpdatingStatus>
+      )}
+      {!directProjectAccessLost && directProject.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void directProject.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      <WorkWorkspace
+        key={activeProject.id}
+        projectId={activeProject.id}
+        project={activeProject}
+        projects={workspaceProjects}
+        onProjectChange={handleProjectChange}
+        hasMoreProjects={projects.hasNextPage}
+        isLoadingMoreProjects={projects.isFetchingNextPage}
+        onLoadMoreProjects={() => void projects.fetchNextPage()}
+        view={view}
+        onViewChange={setView}
+        hideProjectBanner
+      />
+    </div>
   );
 }
