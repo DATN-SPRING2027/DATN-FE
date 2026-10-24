@@ -90,7 +90,11 @@ const AppSidebar: React.FC = () => {
       pageSize: 20,
       status: "ACTIVE",
     },
-    { enabled: isProjectsOpen },
+    {
+      enabled: isProjectsOpen,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
   );
   const sidebarProjects = projectsQuery.data?.data ?? [];
   const totalProjects =

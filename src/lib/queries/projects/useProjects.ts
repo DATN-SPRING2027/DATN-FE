@@ -81,15 +81,19 @@ async function fetchProjectsPage(
 export function useProjectsQuery(
   organizationId: string,
   input: ProjectListInput,
-  options: { enabled?: boolean } = {},
+  options: {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  } = {},
 ) {
   return useQuery({
     queryKey: projectKeys.list(organizationId, input),
     queryFn: ({ signal }) => fetchProjectsPage(input, signal),
     enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: 30_000,
-    refetchOnWindowFocus: false,
+    staleTime: options.staleTime ?? 0,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
   });
 }
 export function useProjectQuery(organizationId: string, id: string) {

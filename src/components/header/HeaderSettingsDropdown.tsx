@@ -45,7 +45,11 @@ export default function HeaderSettingsDropdown({
       pageSize: 20,
       status: "ACTIVE",
     },
-    { enabled: isOpen },
+    {
+      enabled: isOpen,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
   );
 
   const isProjectLeader =

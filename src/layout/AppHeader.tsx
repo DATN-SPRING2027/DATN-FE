@@ -90,7 +90,11 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
         ? { q: debouncedProjectSearch }
         : {}),
     },
-    { enabled: isSearchOpen && debouncedProjectSearch.length >= 2 },
+    {
+      enabled: isSearchOpen && debouncedProjectSearch.length >= 2,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
   );
 
   const systemFeatures = useMemo<SystemFeatureItem[]>(() => {
