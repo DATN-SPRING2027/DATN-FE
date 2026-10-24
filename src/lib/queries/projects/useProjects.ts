@@ -1,6 +1,11 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 
 export type ProjectLeaderSummary = Readonly<{
@@ -99,6 +104,38 @@ export function useProjectsQuery(
     refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
   });
 }
+
+export function useInfiniteProjectsQuery(
+  organizationId: string,
+  input: Omit<ProjectListInput, "page">,
+  options: {
+    enabled?: boolean;
+    staleTime?: number;
+    refetchOnWindowFocus?: boolean;
+  } = {},
+) {
+  return useInfiniteQuery({
+    queryKey: ["projects", organizationId, "infinite-list", input],
+    queryFn: ({ pageParam, signal }) =>
+      fetchProjectsPage({ ...input, page: pageParam }, signal),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (
+        lastPage.pagination.totalPages !== undefined &&
+        lastPage.pagination.page < lastPage.pagination.totalPages
+      ) {
+        return lastPage.pagination.page + 1;
+      }
+      if (lastPage.pagination.hasMore) return lastPage.pagination.page + 1;
+      return undefined;
+    },
+    enabled: Boolean(organizationId) && options.enabled !== false,
+    retry: false,
+    staleTime: options.staleTime ?? 0,
+    refetchOnWindowFocus: options.refetchOnWindowFocus ?? true,
+  });
+}
+
 export function useProjectQuery(organizationId: string, id: string) {
   return useQuery({
     queryKey: projectKeys.detail(organizationId, id),
