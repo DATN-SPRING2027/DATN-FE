@@ -29,14 +29,29 @@ const document = {
   createdBy: "851a2b3c4d5e6f7a8b9c0d21",
   createdAt: "2026-10-24T09:00:00.000Z",
   updatedAt: "2026-10-24T09:00:00.000Z",
-  permissions: { canCreate: true, canEdit: true, canSubmit: true, canReview: false, canConfigure: false },
+  permissions: {
+    canCreate: true,
+    canEdit: true,
+    canSubmit: true,
+    canReview: false,
+    canConfigure: false,
+  },
   content: "Use an idempotent invitation command.",
-  versions: [{ version: 1, status: "DRAFT" as const, createdAt: "2026-10-24T09:00:00.000Z", editedBy: "851a2b3c4d5e6f7a8b9c0d21" }],
+  versions: [
+    {
+      version: 1,
+      status: "DRAFT" as const,
+      createdAt: "2026-10-24T09:00:00.000Z",
+      editedBy: "851a2b3c4d5e6f7a8b9c0d21",
+    },
+  ],
   reviewHistory: [],
 };
 
 function mount() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -54,14 +69,23 @@ it("loads a Project Document and submits the server-permitted draft for review",
   let current: ProjectDocument = document;
   api.mockImplementation(async (path, options) => {
     if (path.includes("/documents?")) {
-      return { data: [current], pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 } } as never;
+      return {
+        data: [current],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
     }
     if (path.endsWith(`/documents/${documentId}/submit`)) {
-      current = { ...current, status: "PENDING_REVIEW", permissions: { ...current.permissions, canSubmit: false } };
+      current = {
+        ...current,
+        status: "PENDING_REVIEW",
+        permissions: { ...current.permissions, canSubmit: false },
+      };
       return current as never;
     }
     if (path.endsWith(`/documents/${documentId}`)) return current as never;
-    throw new Error(`Unexpected API request: ${options?.method ?? "GET"} ${path}`);
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
   });
 
   mount();
@@ -70,10 +94,12 @@ it("loads a Project Document and submits the server-permitted draft for review",
   expect(screen.getByText("Version 1 · Draft")).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Submit for review" }));
 
-  await waitFor(() => expect(api).toHaveBeenCalledWith(
-    `/capture/projects/${projectId}/documents/${documentId}/submit`,
-    expect.objectContaining({ method: "POST" }),
-  ));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/documents/${documentId}/submit`,
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
   expect(await screen.findByText("Document workflow updated.")).toBeVisible();
 });
 
@@ -82,6 +108,64 @@ it("hides the create action when project access is denied", async () => {
 
   mount();
 
-  expect(await screen.findByRole("alert")).toHaveTextContent("Project not found.");
-  expect(screen.queryByRole("button", { name: "New document" })).not.toBeInTheDocument();
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Project not found.",
+  );
+  expect(
+    screen.queryByRole("button", { name: "New document" }),
+  ).not.toBeInTheDocument();
+});
+
+it("keeps the created draft editor open when its file upload fails", async () => {
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+      } as never;
+    }
+    if (path.endsWith("/documents") && options?.method === "POST") {
+      const input = JSON.parse(String(options.body)) as {
+        title: string;
+        content: string;
+      };
+      return {
+        ...document,
+        title: input.title,
+        content: input.content,
+      } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}/file`))
+      throw new Error("Upload failed");
+    if (path.endsWith(`/documents/${documentId}`)) return document as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "New document" }));
+  fireEvent.change(screen.getByLabelText("Document title"), {
+    target: { value: "Architecture draft" },
+  });
+  fireEvent.change(screen.getByLabelText("Document content"), {
+    target: { value: "Saved text draft" },
+  });
+  fireEvent.change(screen.getByLabelText("PDF or DOCX file (up to 20 MB)"), {
+    target: {
+      files: [
+        new File(["%PDF-1.4"], "architecture.pdf", { type: "application/pdf" }),
+      ],
+    },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Upload failed");
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeVisible();
+  expect(screen.getByLabelText("Document title")).toHaveValue(
+    "Architecture draft",
+  );
+  expect(screen.getByLabelText("Document content")).toHaveValue(
+    "Saved text draft",
+  );
 });

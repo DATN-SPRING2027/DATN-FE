@@ -1,5 +1,7 @@
 # Work Note E2E Workflow Report
 
+> **Historical baseline:** This run predates Project Document file upload/download and Task Note edit/archive. Its “N/A” and append-only statements describe that earlier implementation, not the corrected workflow. Use [`../work-note-fix/e2e-report.md`](../work-note-fix/e2e-report.md) for later monolith E2E evidence and its separate Gateway browser-integration boundary.
+
 ## Environment
 
 - Frontend: `http://127.0.0.1:3100` (Next.js local runtime).

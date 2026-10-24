@@ -1,6 +1,6 @@
 # Work Note E2E QA
 
-Playwright QA evidence for the Task Note, Project Document, and Periodic Work Report workflows. Start with [`workflow-report.md`](workflow-report.md), then use [`test-results.md`](test-results.md) and [`role-matrix.md`](role-matrix.md) for action-level results.
+Historical Playwright QA evidence for the initial Task Note, Project Document, and Periodic Work Report workflows. Those records predate file upload and Task Note edit/archive support. For the corrected implementation, start with [`../work-note-fix/e2e-report.md`](../work-note-fix/e2e-report.md); use [`workflow-report.md`](workflow-report.md), [`test-results.md`](test-results.md), and [`role-matrix.md`](role-matrix.md) only as earlier baseline evidence.
 
 ## Evidence
 

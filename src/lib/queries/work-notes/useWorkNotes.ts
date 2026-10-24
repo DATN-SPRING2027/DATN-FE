@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 export type WorkNotePermissions = Readonly<{
   canCreate: boolean;
   canEdit: boolean;
+  canDelete?: boolean;
   canSubmit: boolean;
   canReview: boolean;
   canConfigure: boolean;
@@ -28,18 +29,19 @@ export type TaskNoteInput = Readonly<{
   reason: string;
 }>;
 
-export type TaskNote = TaskNoteInput & Readonly<{
-  id: string;
-  projectId: string;
-  taskId: string;
-  authorId: string;
-  authorName: string;
-  type: "TASK_NOTE";
-  status: "CONFIRMED";
-  createdAt: string;
-  updatedAt: string;
-  permissions: WorkNotePermissions;
-}>;
+export type TaskNote = TaskNoteInput &
+  Readonly<{
+    id: string;
+    projectId: string;
+    taskId: string;
+    authorId: string;
+    authorName: string;
+    type: "TASK_NOTE";
+    status: "CONFIRMED";
+    createdAt: string;
+    updatedAt: string;
+    permissions: WorkNotePermissions;
+  }>;
 
 export const DOCUMENT_TYPES = [
   "MVP",
@@ -96,16 +98,19 @@ export type ReviewEvent = Readonly<{
   at: string;
 }>;
 
-export type ProjectDocument = ProjectDocumentSummary & Readonly<{
-  content: string;
-  versions: readonly Readonly<{
-    version: number;
-    status: DocumentStatus;
-    createdAt: string;
-    editedBy: string;
-  }>[];
-  reviewHistory: readonly ReviewEvent[];
-}>;
+export type ProjectDocument = ProjectDocumentSummary &
+  Readonly<{
+    content: string;
+    file?: Readonly<{ name: string; contentType: string; size: number }>;
+    versions: readonly Readonly<{
+      version: number;
+      status: DocumentStatus;
+      createdAt: string;
+      editedBy: string;
+      file?: Readonly<{ name: string; contentType: string; size: number }>;
+    }>[];
+    reviewHistory: readonly ReviewEvent[];
+  }>;
 
 export type ReportFrequency = "DAILY" | "EVERY_3_DAYS" | "WEEKLY";
 export type WorkReportStatus =
@@ -122,25 +127,26 @@ export type WorkReportInput = Readonly<{
   blockers?: string;
   nextSteps?: string;
 }>;
-export type WorkReport = WorkReportInput & Readonly<{
-  id: string;
-  projectId: string;
-  memberId: string;
-  memberName: string;
-  frequency: ReportFrequency;
-  periodStart: string;
-  periodEnd: string;
-  dueAt: string;
-  status: WorkReportStatus;
-  createdAt: string;
-  updatedAt: string;
-  submittedAt?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
-  reviewComment?: string;
-  reviewHistory: readonly ReviewEvent[];
-  permissions: WorkNotePermissions;
-}>;
+export type WorkReport = WorkReportInput &
+  Readonly<{
+    id: string;
+    projectId: string;
+    memberId: string;
+    memberName: string;
+    frequency: ReportFrequency;
+    periodStart: string;
+    periodEnd: string;
+    dueAt: string;
+    status: WorkReportStatus;
+    createdAt: string;
+    updatedAt: string;
+    submittedAt?: string;
+    reviewedBy?: string;
+    reviewedAt?: string;
+    reviewComment?: string;
+    reviewHistory: readonly ReviewEvent[];
+    permissions: WorkNotePermissions;
+  }>;
 
 export type WorkReportSettings = Readonly<{
   projectId: string;
@@ -157,12 +163,15 @@ export type WorkReportSettings = Readonly<{
 }>;
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
-type DocumentAction = "submit" | "approve" | "request-changes" | "reject" | "archive";
+type DocumentAction =
+  "submit" | "approve" | "request-changes" | "reject" | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
 function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
-  const cookie = document.cookie.split(";").map((part) => part.trim())
+  const cookie = document.cookie
+    .split(";")
+    .map((part) => part.trim())
     .find((part) => part.startsWith("__Host-csrf="));
   if (!cookie) return {};
   const value = cookie.slice("__Host-csrf=".length);
@@ -185,15 +194,24 @@ export const workNoteKeys = {
   project: (projectId: string) => ["work-notes", projectId] as const,
   taskNotes: (projectId: string, taskId: string) =>
     [...workNoteKeys.project(projectId), "task", taskId] as const,
+  note: (projectId: string, noteId: string) =>
+    [...workNoteKeys.project(projectId), "note", noteId] as const,
   projectNotes: (projectId: string, page: number) =>
     [...workNoteKeys.project(projectId), "list", page] as const,
-  documents: (projectId: string, status: DocumentStatus | "ALL", page: number) =>
-    [...workNoteKeys.project(projectId), "documents", status, page] as const,
+  documents: (
+    projectId: string,
+    status: DocumentStatus | "ALL",
+    page: number,
+  ) => [...workNoteKeys.project(projectId), "documents", status, page] as const,
   document: (projectId: string, documentId: string) =>
     [...workNoteKeys.project(projectId), "document", documentId] as const,
-  reports: (projectId: string, status: WorkReportStatus | "ALL", page: number) =>
-    [...workNoteKeys.project(projectId), "reports", status, page] as const,
-  settings: (projectId: string) => [...workNoteKeys.project(projectId), "settings"] as const,
+  reports: (
+    projectId: string,
+    status: WorkReportStatus | "ALL",
+    page: number,
+  ) => [...workNoteKeys.project(projectId), "reports", status, page] as const,
+  settings: (projectId: string) =>
+    [...workNoteKeys.project(projectId), "settings"] as const,
 };
 
 export const workNotesApi = {
@@ -209,12 +227,52 @@ export const workNotesApi = {
       { signal, cache: "no-store" },
     );
   },
-  createTaskNote(projectId: string, taskId: string, input: TaskNoteInput) {
-    return apiClient<TaskNote>(`${projectPath(projectId)}/tasks/${encodeURIComponent(taskId)}/notes`, {
-      method: "POST", headers: csrfHeaders(), body: JSON.stringify(input),
-    });
+  getProjectTaskNote(projectId: string, noteId: string, signal?: AbortSignal) {
+    return apiClient<TaskNote>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}`,
+      { signal, cache: "no-store" },
+    );
   },
-  listDocuments(projectId: string, status: DocumentStatus | "ALL", page: number, signal?: AbortSignal) {
+  createTaskNote(projectId: string, taskId: string, input: TaskNoteInput) {
+    return apiClient<TaskNote>(
+      `${projectPath(projectId)}/tasks/${encodeURIComponent(taskId)}/notes`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
+  },
+  updateTaskNote(
+    projectId: string,
+    taskId: string,
+    noteId: string,
+    input: TaskNoteInput,
+  ) {
+    return apiClient<TaskNote>(
+      `${projectPath(projectId)}/tasks/${encodeURIComponent(taskId)}/notes/${encodeURIComponent(noteId)}`,
+      {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
+  },
+  deleteTaskNote(projectId: string, taskId: string, noteId: string) {
+    return apiClient<void>(
+      `${projectPath(projectId)}/tasks/${encodeURIComponent(taskId)}/notes/${encodeURIComponent(noteId)}`,
+      {
+        method: "DELETE",
+        headers: csrfHeaders(),
+      },
+    );
+  },
+  listDocuments(
+    projectId: string,
+    status: DocumentStatus | "ALL",
+    page: number,
+    signal?: AbortSignal,
+  ) {
     const params = new URLSearchParams(listQuery({ page, pageSize: 50 }));
     if (status !== "ALL") params.set("status", status);
     return apiClient<WorkNotesPage<ProjectDocumentSummary>>(
@@ -223,69 +281,159 @@ export const workNotesApi = {
     );
   },
   getDocument(projectId: string, documentId: string, signal?: AbortSignal) {
-    return apiClient<ProjectDocument>(`${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}`, {
-      signal, cache: "no-store",
-    });
+    return apiClient<ProjectDocument>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}`,
+      {
+        signal,
+        cache: "no-store",
+      },
+    );
   },
   createDocument(projectId: string, input: ProjectDocumentInput) {
     return apiClient<ProjectDocument>(`${projectPath(projectId)}/documents`, {
-      method: "POST", headers: csrfHeaders(), body: JSON.stringify(input),
+      method: "POST",
+      headers: csrfHeaders(),
+      body: JSON.stringify(input),
     });
   },
-  updateDocument(projectId: string, documentId: string, input: ProjectDocumentInput) {
-    return apiClient<ProjectDocument>(`${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}`, {
-      method: "PATCH", headers: csrfHeaders(), body: JSON.stringify(input),
-    });
+  updateDocument(
+    projectId: string,
+    documentId: string,
+    input: ProjectDocumentInput,
+  ) {
+    return apiClient<ProjectDocument>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}`,
+      {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
   },
-  documentAction(projectId: string, documentId: string, action: DocumentAction, comment?: string) {
-    return apiClient<ProjectDocument>(`${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/${action}`, {
-      method: "POST", headers: csrfHeaders(),
-      ...(action === "approve" || action === "request-changes" || action === "reject"
-        ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }
-        : {}),
+  uploadDocumentFile(projectId: string, documentId: string, file: File) {
+    const headers = new Headers(csrfHeaders());
+    headers.set("Content-Type", file.type);
+    headers.set("X-File-Name", encodeURIComponent(file.name));
+    return apiClient<ProjectDocument>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/file`,
+      {
+        method: "PUT",
+        headers,
+        body: file,
+      },
+    );
+  },
+  async downloadDocumentFile(
+    projectId: string,
+    documentId: string,
+    version?: number,
+  ) {
+    const path = `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/file${version ? `?version=${version}` : ""}`;
+    const response = await fetch(`/api/backend${path}`, {
+      credentials: "include",
+      cache: "no-store",
     });
+    if (!response.ok)
+      throw new Error(`Could not download document file (${response.status}).`);
+    return response.blob();
+  },
+  documentAction(
+    projectId: string,
+    documentId: string,
+    action: DocumentAction,
+    comment?: string,
+  ) {
+    return apiClient<ProjectDocument>(
+      `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/${action}`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        ...(action === "approve" ||
+        action === "request-changes" ||
+        action === "reject"
+          ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }
+          : {}),
+      },
+    );
   },
   getReportSettings(projectId: string, signal?: AbortSignal) {
-    return apiClient<WorkReportSettings>(`${projectPath(projectId)}/work-report-settings`, {
-      signal, cache: "no-store",
-    });
+    return apiClient<WorkReportSettings>(
+      `${projectPath(projectId)}/work-report-settings`,
+      {
+        signal,
+        cache: "no-store",
+      },
+    );
   },
   updateReportSettings(projectId: string, frequency: ReportFrequency) {
-    return apiClient<WorkReportSettings>(`${projectPath(projectId)}/work-report-settings`, {
-      method: "PATCH", headers: csrfHeaders(), body: JSON.stringify({ frequency }),
-    });
+    return apiClient<WorkReportSettings>(
+      `${projectPath(projectId)}/work-report-settings`,
+      {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ frequency }),
+      },
+    );
   },
-  listReports(projectId: string, status: WorkReportStatus | "ALL", page: number, signal?: AbortSignal) {
+  listReports(
+    projectId: string,
+    status: WorkReportStatus | "ALL",
+    page: number,
+    signal?: AbortSignal,
+  ) {
     const params = new URLSearchParams(listQuery({ page, pageSize: 100 }));
     if (status !== "ALL") params.set("status", status);
-    return apiClient<WorkNotesPage<WorkReport>>(`${projectPath(projectId)}/work-reports?${params}`, {
-      signal, cache: "no-store",
-    });
+    return apiClient<WorkNotesPage<WorkReport>>(
+      `${projectPath(projectId)}/work-reports?${params}`,
+      {
+        signal,
+        cache: "no-store",
+      },
+    );
   },
   saveCurrentReport(projectId: string, input: WorkReportInput) {
     return apiClient<WorkReport>(`${projectPath(projectId)}/work-reports`, {
-      method: "POST", headers: csrfHeaders(), body: JSON.stringify(input),
+      method: "POST",
+      headers: csrfHeaders(),
+      body: JSON.stringify(input),
     });
   },
   updateReport(projectId: string, reportId: string, input: WorkReportInput) {
-    return apiClient<WorkReport>(`${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}`, {
-      method: "PATCH", headers: csrfHeaders(), body: JSON.stringify(input),
-    });
+    return apiClient<WorkReport>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}`,
+      {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
   },
-  reportAction(projectId: string, reportId: string, action: ReportAction, comment?: string) {
-    return apiClient<WorkReport>(`${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/${action}`, {
-      method: "POST", headers: csrfHeaders(),
-      ...(action === "approve" || action === "request-changes" || action === "reject"
-        ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }
-        : {}),
-    });
+  reportAction(
+    projectId: string,
+    reportId: string,
+    action: ReportAction,
+    comment?: string,
+  ) {
+    return apiClient<WorkReport>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/${action}`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        ...(action === "approve" ||
+        action === "request-changes" ||
+        action === "reject"
+          ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }
+          : {}),
+      },
+    );
   },
 };
 
 export function useTaskNotesQuery(projectId: string, taskId: string) {
   return useQuery({
     queryKey: workNoteKeys.taskNotes(projectId, taskId),
-    queryFn: ({ signal }) => workNotesApi.listTaskNotes(projectId, taskId, signal),
+    queryFn: ({ signal }) =>
+      workNotesApi.listTaskNotes(projectId, taskId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(taskId),
     retry: false,
     staleTime: 0,
@@ -295,17 +443,34 @@ export function useTaskNotesQuery(projectId: string, taskId: string) {
 export function useProjectTaskNotesQuery(projectId: string, page: number) {
   return useQuery({
     queryKey: workNoteKeys.projectNotes(projectId, page),
-    queryFn: ({ signal }) => workNotesApi.listProjectTaskNotes(projectId, page, signal),
+    queryFn: ({ signal }) =>
+      workNotesApi.listProjectTaskNotes(projectId, page, signal),
     enabled: isWorkNoteId(projectId),
     retry: false,
     staleTime: 0,
   });
 }
 
-export function useDocumentsQuery(projectId: string, status: DocumentStatus | "ALL", page: number) {
+export function useProjectTaskNoteQuery(projectId: string, noteId: string) {
+  return useQuery({
+    queryKey: workNoteKeys.note(projectId, noteId),
+    queryFn: ({ signal }) =>
+      workNotesApi.getProjectTaskNote(projectId, noteId, signal),
+    enabled: isWorkNoteId(projectId) && isWorkNoteId(noteId),
+    retry: false,
+    staleTime: 0,
+  });
+}
+
+export function useDocumentsQuery(
+  projectId: string,
+  status: DocumentStatus | "ALL",
+  page: number,
+) {
   return useQuery({
     queryKey: workNoteKeys.documents(projectId, status, page),
-    queryFn: ({ signal }) => workNotesApi.listDocuments(projectId, status, page, signal),
+    queryFn: ({ signal }) =>
+      workNotesApi.listDocuments(projectId, status, page, signal),
     enabled: isWorkNoteId(projectId),
     retry: false,
     staleTime: 0,
@@ -315,17 +480,23 @@ export function useDocumentsQuery(projectId: string, status: DocumentStatus | "A
 export function useDocumentQuery(projectId: string, documentId: string) {
   return useQuery({
     queryKey: workNoteKeys.document(projectId, documentId),
-    queryFn: ({ signal }) => workNotesApi.getDocument(projectId, documentId, signal),
+    queryFn: ({ signal }) =>
+      workNotesApi.getDocument(projectId, documentId, signal),
     enabled: isWorkNoteId(projectId) && isWorkNoteId(documentId),
     retry: false,
     staleTime: 0,
   });
 }
 
-export function useWorkReportsQuery(projectId: string, status: WorkReportStatus | "ALL", page = 1) {
+export function useWorkReportsQuery(
+  projectId: string,
+  status: WorkReportStatus | "ALL",
+  page = 1,
+) {
   return useQuery({
     queryKey: workNoteKeys.reports(projectId, status, page),
-    queryFn: ({ signal }) => workNotesApi.listReports(projectId, status, page, signal),
+    queryFn: ({ signal }) =>
+      workNotesApi.listReports(projectId, status, page, signal),
     enabled: isWorkNoteId(projectId),
     retry: false,
     staleTime: 0,
@@ -350,7 +521,11 @@ export function useWorkNotesMutation<TInput, TResult>(
   return useMutation({
     mutationFn,
     onSuccess: async () => {
-      await Promise.all(invalidationKeys.map((queryKey) => client.invalidateQueries({ queryKey })));
+      await Promise.all(
+        invalidationKeys.map((queryKey) =>
+          client.invalidateQueries({ queryKey }),
+        ),
+      );
     },
   });
 }

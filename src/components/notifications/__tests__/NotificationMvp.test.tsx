@@ -18,6 +18,10 @@ vi.mock("@/lib/api-client", async (original) => ({
 
 const routerPushMock = vi.fn();
 
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
+}));
+
 vi.mock("@/i18n/navigation", () => ({
   Link: ({
     href,

@@ -1,5 +1,7 @@
 # Work Note Playwright Test Results
 
+> **Historical baseline:** These results cover the pre-file-upload, append-only Task Note implementation. See [`../work-note-fix/e2e-report.md`](../work-note-fix/e2e-report.md) for later evidence and its separate Gateway browser-integration boundary.
+
 **Run date:** 2026-10-24 (Asia/Bangkok)
 **Browser:** Playwright Chromium, headless, real Next.js pages and authenticated API requests
 **Result key:** PASS means the observed result matched the expected policy/state. `N/A` means the product exposes no such control or endpoint.
