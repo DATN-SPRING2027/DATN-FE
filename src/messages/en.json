@@ -2133,7 +2133,8 @@
     "showingRange": "Showing {start}–{end} of",
     "perPage": "{count} per page",
     "rowsPerPage": "Rows per page",
-    "selectAllProjects": "Select all projects"
+    "selectAllProjects": "Select all projects",
+    "contentUnavailable": "Content is no longer available."
   },
   "projectLeaders": {
     "title": "Leaders",
@@ -2342,7 +2343,8 @@
     "memberScopeBadge": "Member workspace",
     "emptyProjectsTitle": "No active projects in this workspace",
     "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",
-    "browseProjects": "View projects"
+    "browseProjects": "View projects",
+    "contentUnavailable": "Content is no longer available."
   },
   "organizationMembers": {
     "title": "Organization members",
@@ -2828,7 +2830,8 @@
       "linkTask": "Link to a task",
       "noTask": "No task linked",
       "taskHint": "Optional. Choose a task in this Project.",
-      "savePreview": "Add to preview"
+      "savePreview": "Add to preview",
+      "mentionTeammates": "Mention teammates"
     },
     "validation": {
       "titleRequired": "Enter a title.",
@@ -2967,7 +2970,8 @@
         "reviewKnowledge": "Review knowledge",
         "manageConfiguration": "Manage configuration"
       }
-    }
+    },
+    "contentUnavailable": "Content is no longer available."
   },
   "projectVisibility": {
     "makePrivate": "Make private",

@@ -74,8 +74,11 @@ export default function WorkNotesWorkspace({
   const role = user.data &&"roles"in user.data
     ? resolveWorkNotesRole(user.data.roles ?? [])
     : undefined;
+  const isRealProject = OBJECT_ID_PATTERN.test(projectId);
   const [tab, setTab] = useState<WorkNotesTab>("ACTIVITY");
-  const [notes, setNotes] = useState<WorkNote[]>([...INITIAL_PREVIEW_NOTES]);
+  const [notes, setNotes] = useState<WorkNote[]>(() =>
+    isRealProject ? [] : [...INITIAL_PREVIEW_NOTES],
+  );
   const [reports, setReports] = useState<WeeklyReport[]>([...INITIAL_PREVIEW_REPORTS]);
   const [search, setSearch] = useState("");
   const [member, setMember] = useState("ALL");
@@ -91,8 +94,8 @@ export default function WorkNotesWorkspace({
   const [backendNotesLoaded, setBackendNotesLoaded] = useState(false);
   const [backendNoteItems, setBackendNoteItems] = useState<readonly WorkNoteDto[]>([]);
   const [mentionCandidates, setMentionCandidates] = useState<readonly WorkNoteMentionCandidate[]>([]);
+  const [deepLinkOverrideId, setDeepLinkOverrideId] = useState<string | null>(null);
   const handledDeepLinkNoteRef = useRef<string | null>(null);
-  const isRealProject = OBJECT_ID_PATTERN.test(projectId);
 
   useEffect(() => {
     if (!isRealProject) return;
@@ -167,8 +170,36 @@ export default function WorkNotesWorkspace({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const onDeepLink = (event: Event) => {
+      const detailUrl = (event as CustomEvent<{ url?: string }>).detail?.url;
+      if (detailUrl) {
+        const qIndex = detailUrl.indexOf("?");
+        const searchPart = qIndex >= 0 ? detailUrl.slice(qIndex) : "";
+        const nextId = new URLSearchParams(searchPart).get("noteId")?.trim() ?? null;
+        if (nextId) {
+          handledDeepLinkNoteRef.current = null;
+          setDeepLinkOverrideId(nextId);
+        }
+      } else {
+        handledDeepLinkNoteRef.current = null;
+        setDeepLinkOverrideId(
+          new URLSearchParams(window.location.search).get("noteId")?.trim() ?? null,
+        );
+      }
+    };
+    window.addEventListener("continuum:deep-link", onDeepLink);
+    window.addEventListener("popstate", onDeepLink);
+    return () => {
+      window.removeEventListener("continuum:deep-link", onDeepLink);
+      window.removeEventListener("popstate", onDeepLink);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const deepLinkNoteId = params.get("noteId")?.trim();
+    const deepLinkNoteId =
+      deepLinkOverrideId ?? params.get("noteId")?.trim() ?? null;
     if (!deepLinkNoteId) return;
     if (handledDeepLinkNoteRef.current === deepLinkNoteId) return;
 
@@ -182,6 +213,11 @@ export default function WorkNotesWorkspace({
       queueMicrotask(() => {
         setUnavailableNoteNotice(null);
         setHighlightedNoteId(found.id);
+        setMember("ALL");
+        setTask("ALL");
+        setKind("ALL");
+        setAttentionOnly(false);
+        setSearch("");
         setWeek("ALL");
         setTab(found.kind === "KNOWLEDGE" ? "KNOWLEDGE" : "ACTIVITY");
       });
@@ -194,9 +230,9 @@ export default function WorkNotesWorkspace({
 
     handledDeepLinkNoteRef.current = deepLinkNoteId;
     queueMicrotask(() => {
-      setUnavailableNoteNotice("Content is no longer available.");
+      setUnavailableNoteNotice(t("contentUnavailable"));
     });
-  }, [backendNoteItems, backendNotesLoaded, isRealProject, notes]);
+  }, [backendNoteItems, backendNotesLoaded, deepLinkOverrideId, isRealProject, notes, t]);
 
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";

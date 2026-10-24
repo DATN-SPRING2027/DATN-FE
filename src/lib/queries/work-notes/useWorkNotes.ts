@@ -225,15 +225,25 @@ type DocumentAction =
   | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
+const CSRF_COOKIE_PREFIXES = [
+  "__Host-csrf=",
+  "continuum_csrf=",
+  "csrf_token=",
+] as const;
+
 function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
-  const cookie = document.cookie
-    .split(";")
-    .map((part) => part.trim())
-    .find((part) => part.startsWith("__Host-csrf="));
-  if (!cookie) return {};
-  const value = cookie.slice("__Host-csrf=".length);
-  return { "X-CSRF-Token": decodeURIComponent(value) };
+  for (const part of document.cookie.split(";")) {
+    const trimmed = part.trim();
+    for (const prefix of CSRF_COOKIE_PREFIXES) {
+      if (trimmed.startsWith(prefix)) {
+        return {
+          "X-CSRF-Token": decodeURIComponent(trimmed.slice(prefix.length)),
+        };
+      }
+    }
+  }
+  return {};
 }
 
 function projectPath(projectId: string) {
@@ -249,7 +259,13 @@ function listQuery(options: ListOptions = {}) {
 }
 
 function normalizeWorkNoteDto(raw: Record<string, unknown>): WorkNoteDto {
-  const kindRaw = typeof raw.kind === "string" ? raw.kind : typeof raw.category === "string" ? raw.category : "WORK_UPDATE";
+  const kindRaw = (
+    typeof raw.kind === "string"
+      ? raw.kind
+      : typeof raw.category === "string"
+        ? raw.category
+        : "WORK_UPDATE"
+  ).toUpperCase();
   const kind: WorkNoteKind =
     kindRaw === "WEEKLY_SUMMARY" || kindRaw === "KNOWLEDGE" || kindRaw === "DECISION"
       ? kindRaw
@@ -359,6 +375,7 @@ export const workNotesApi = {
       `/projects/${encodeURIComponent(projectId)}/work-notes`,
       {
         method: "POST",
+        headers: csrfHeaders(),
         body: JSON.stringify({
           ...payload,
           content,
@@ -378,6 +395,7 @@ export const workNotesApi = {
       `/projects/${encodeURIComponent(projectId)}/work-notes/${encodeURIComponent(noteId)}`,
       {
         method: "PATCH",
+        headers: csrfHeaders(),
         body: JSON.stringify({
           ...payload,
           ...(payload.body !== undefined && payload.content === undefined
@@ -395,7 +413,7 @@ export const workNotesApi = {
   delete: (projectId: string, noteId: string) =>
     apiClient<{ deleted: true; id: string }>(
       `/projects/${encodeURIComponent(projectId)}/work-notes/${encodeURIComponent(noteId)}`,
-      { method: "DELETE" },
+      { method: "DELETE", headers: csrfHeaders() },
     ),
 
   listTaskNotes(projectId: string, taskId: string, signal?: AbortSignal) {

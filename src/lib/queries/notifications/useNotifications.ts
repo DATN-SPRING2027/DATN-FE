@@ -74,12 +74,33 @@ export type NotificationResolveResponse = Readonly<{
   target?: NotificationTarget | null;
 }>;
 
+const CSRF_COOKIE_PREFIXES = [
+  "__Host-csrf=",
+  "continuum_csrf=",
+  "csrf_token=",
+] as const;
+
+function csrfHeaders(): HeadersInit {
+  if (typeof document === "undefined") return {};
+  for (const part of document.cookie.split(";")) {
+    const trimmed = part.trim();
+    for (const prefix of CSRF_COOKIE_PREFIXES) {
+      if (trimmed.startsWith(prefix)) {
+        return {
+          "X-CSRF-Token": decodeURIComponent(trimmed.slice(prefix.length)),
+        };
+      }
+    }
+  }
+  return {};
+}
+
 export const notificationKeys = {
   all: ["notifications"] as const,
-  list: (unreadOnly = false) =>
-    ["notifications", "list", { unreadOnly }] as const,
-  infinite: (unreadOnly = false) =>
-    ["notifications", "infinite", { unreadOnly }] as const,
+  list: (unreadOnly = false, limit = 15) =>
+    ["notifications", "list", { unreadOnly, limit }] as const,
+  infinite: (unreadOnly = false, limit = 20) =>
+    ["notifications", "infinite", { unreadOnly, limit }] as const,
   unreadCount: () => ["notifications", "unread-count"] as const,
 };
 
@@ -118,13 +139,13 @@ export const notificationsApi = {
   markRead: (id: string) =>
     apiClient<NotificationItem>(
       `/notifications/${encodeURIComponent(id)}/read`,
-      { method: "PATCH" },
+      { method: "PATCH", headers: csrfHeaders() },
     ),
 
   markAllRead: () =>
     apiClient<{ updatedCount: number; readAt: string }>(
       "/notifications/read-all",
-      { method: "PATCH" },
+      { method: "PATCH", headers: csrfHeaders() },
     ),
 
   resolveTarget: (id: string, signal?: AbortSignal) =>
@@ -137,13 +158,14 @@ export const notificationsApi = {
 export function useNotificationsQuery(
   options: { unreadOnly?: boolean; limit?: number; enabled?: boolean } = {},
 ) {
+  const limit = options.limit ?? 15;
   return useQuery({
-    queryKey: notificationKeys.list(Boolean(options.unreadOnly)),
+    queryKey: notificationKeys.list(Boolean(options.unreadOnly), limit),
     queryFn: ({ signal }) =>
       notificationsApi.list(
         {
           unreadOnly: options.unreadOnly,
-          limit: options.limit ?? 15,
+          limit,
         },
         signal,
       ),
@@ -156,15 +178,16 @@ export function useNotificationsQuery(
 export function useInfiniteNotificationsQuery(
   options: { unreadOnly?: boolean; limit?: number; enabled?: boolean } = {},
 ) {
+  const limit = options.limit ?? 20;
   return useInfiniteQuery({
-    queryKey: notificationKeys.infinite(Boolean(options.unreadOnly)),
+    queryKey: notificationKeys.infinite(Boolean(options.unreadOnly), limit),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
       notificationsApi.list(
         {
           cursor: pageParam,
           unreadOnly: options.unreadOnly,
-          limit: options.limit ?? 20,
+          limit,
         },
         signal,
       ),
@@ -276,7 +299,11 @@ export function useNotificationRealtimeSubscription(
     return () => {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      if (socket && socket.readyState === WebSocket.OPEN) {
+      if (
+        socket &&
+        (socket.readyState === WebSocket.OPEN ||
+          socket.readyState === WebSocket.CONNECTING)
+      ) {
         socket.close();
       }
     };

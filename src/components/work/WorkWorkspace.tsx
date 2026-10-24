@@ -276,6 +276,7 @@ export default function WorkWorkspace({
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [unavailableTaskNotice, setUnavailableTaskNotice] = useState<string | null>(null);
+  const [deepLinkOverrideTaskId, setDeepLinkOverrideTaskId] = useState<string | null>(null);
   const handledDeepLinkTaskRef = useRef<string | null>(null);
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
@@ -649,8 +650,36 @@ export default function WorkWorkspace({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    const onDeepLink = (event: Event) => {
+      const detailUrl = (event as CustomEvent<{ url?: string }>).detail?.url;
+      if (detailUrl) {
+        const qIndex = detailUrl.indexOf("?");
+        const searchPart = qIndex >= 0 ? detailUrl.slice(qIndex) : "";
+        const nextId = new URLSearchParams(searchPart).get("taskId")?.trim() ?? null;
+        if (nextId) {
+          handledDeepLinkTaskRef.current = null;
+          setDeepLinkOverrideTaskId(nextId);
+        }
+      } else {
+        handledDeepLinkTaskRef.current = null;
+        setDeepLinkOverrideTaskId(
+          new URLSearchParams(window.location.search).get("taskId")?.trim() ?? null,
+        );
+      }
+    };
+    window.addEventListener("continuum:deep-link", onDeepLink);
+    window.addEventListener("popstate", onDeepLink);
+    return () => {
+      window.removeEventListener("continuum:deep-link", onDeepLink);
+      window.removeEventListener("popstate", onDeepLink);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
-    const deepLinkTaskId = params.get("taskId")?.trim();
+    const deepLinkTaskId =
+      deepLinkOverrideTaskId ?? params.get("taskId")?.trim() ?? null;
     if (!deepLinkTaskId) return;
     if (handledDeepLinkTaskRef.current === deepLinkTaskId) return;
 
@@ -692,7 +721,7 @@ export default function WorkWorkspace({
       }
       handledDeepLinkTaskRef.current = deepLinkTaskId;
       queueMicrotask(() => {
-        setUnavailableTaskNotice("Content is no longer available.");
+        setUnavailableTaskNotice(t("contentUnavailable"));
       });
       return;
     }
@@ -700,10 +729,10 @@ export default function WorkWorkspace({
     if (!isRealProject || tasksQuery.isError) {
       handledDeepLinkTaskRef.current = deepLinkTaskId;
       queueMicrotask(() => {
-        setUnavailableTaskNotice("Content is no longer available.");
+        setUnavailableTaskNotice(t("contentUnavailable"));
       });
     }
-  }, [isRealProject, items, tasksQuery.data, tasksQuery.isError, tasksQuery.isFetched]);
+  }, [deepLinkOverrideTaskId, isRealProject, items, t, tasksQuery.data, tasksQuery.isError, tasksQuery.isFetched]);
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
       setActivityError(null);

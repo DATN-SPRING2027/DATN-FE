@@ -133,7 +133,7 @@ export default function ProjectState({
           data-testid="project-content-unavailable"
           className="text-xs text-gray-500 dark:text-gray-400"
         >
-          Content is no longer available.
+          {t("contentUnavailable")}
         </p>
       )}
       {retry && (

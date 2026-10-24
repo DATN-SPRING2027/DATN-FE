@@ -4,7 +4,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
 import messages from "@/messages/en.json";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import NotificationsWorkspace from "@/components/notifications/NotificationsWorkspace";
 import WorkNotesWorkspace from "@/components/work-notes/WorkNotesWorkspace";
@@ -118,7 +118,8 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     });
   });
 
-  it("loads real notifications in dropdown, marks single item as read, and marks all as read", async () => {
+  it("loads real notifications in dropdown, marks single item as read, and marks all as read with CSRF header", async () => {
+    document.cookie = "continuum_csrf=test-csrf-token-123";
     const sampleNotifications = [
       {
         id: "507f1f77bcf86cd799439010",
@@ -133,7 +134,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         title: "New task assigned",
         message: "You were assigned to task ATL-101: Implement Notification MVP.",
         target: {
-          resourceType: "TASK",
+          kind: "TASK",
           organizationId: "507f1f77bcf86cd799439002",
           projectId: "507f1f77bcf86cd799439011",
           taskId: "507f1f77bcf86cd799439022",
@@ -142,7 +143,6 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
           messageId: null,
           url: "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
         },
-        isRead: false,
         readAt: null,
         createdAt: new Date().toISOString(),
       },
@@ -159,7 +159,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         title: "Mentioned in chat",
         message: "Alex mentioned you in #general.",
         target: {
-          resourceType: "CHAT_MESSAGE",
+          kind: "CHAT",
           organizationId: "507f1f77bcf86cd799439002",
           projectId: null,
           taskId: null,
@@ -168,7 +168,6 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
           messageId: "507f1f77bcf86cd799439044",
           url: "/chat?conversation=507f1f77bcf86cd799439033&message=507f1f77bcf86cd799439044",
         },
-        isRead: false,
         readAt: null,
         createdAt: new Date().toISOString(),
       },
@@ -179,7 +178,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         return { count: 2 };
       }
       if (path.startsWith("/notifications?")) {
-        return { data: sampleNotifications, nextCursor: null };
+        return { items: sampleNotifications, nextCursor: null, unreadCount: 2 };
       }
       if (
         path === "/notifications/507f1f77bcf86cd799439010/read" &&
@@ -187,12 +186,11 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
       ) {
         return {
           ...sampleNotifications[0],
-          isRead: true,
           readAt: new Date().toISOString(),
         };
       }
       if (path === "/notifications/read-all" && init?.method === "PATCH") {
-        return { updatedCount: 2 };
+        return { updatedCount: 2, readAt: new Date().toISOString() };
       }
       throw new Error(`Unexpected path: ${path}`);
     });
@@ -221,7 +219,10 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     await waitFor(() => {
       expect(api).toHaveBeenCalledWith(
         "/notifications/507f1f77bcf86cd799439010/read",
-        expect.objectContaining({ method: "PATCH" }),
+        expect.objectContaining({
+          method: "PATCH",
+          headers: { "X-CSRF-Token": "test-csrf-token-123" },
+        }),
       );
     });
 
@@ -231,12 +232,15 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     await waitFor(() => {
       expect(api).toHaveBeenCalledWith(
         "/notifications/read-all",
-        expect.objectContaining({ method: "PATCH" }),
+        expect.objectContaining({
+          method: "PATCH",
+          headers: { "X-CSRF-Token": "test-csrf-token-123" },
+        }),
       );
     });
   });
 
-  it("navigates to deep-link when target resource is accessible and shows safe fallback when deleted or forbidden", async () => {
+  it("navigates to deep-link when target resource is accessible and shows safe fallback when deleted or forbidden (both 200 available:false and HTTP 403/404)", async () => {
     const taskNotif = {
       id: "507f1f77bcf86cd799439010",
       recipientId: "507f1f77bcf86cd799439001",
@@ -250,7 +254,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
       title: "Task deadline approaching",
       message: "Task ATL-101 is due within 24 hours.",
       target: {
-        resourceType: "TASK",
+        kind: "TASK",
         organizationId: "507f1f77bcf86cd799439002",
         projectId: "507f1f77bcf86cd799439011",
         taskId: "507f1f77bcf86cd799439022",
@@ -259,7 +263,6 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         messageId: null,
         url: "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
       },
-      isRead: false,
       readAt: null,
       createdAt: new Date().toISOString(),
     };
@@ -277,7 +280,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
       title: "Mentioned in a work note",
       message: "You were mentioned in a work note.",
       target: {
-        resourceType: "WORK_NOTE",
+        kind: "WORK_NOTE",
         organizationId: "507f1f77bcf86cd799439002",
         projectId: "507f1f77bcf86cd799439011",
         taskId: null,
@@ -286,7 +289,32 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         messageId: null,
         url: "/projects/507f1f77bcf86cd799439011/work-notes?noteId=507f1f77bcf86cd799439055",
       },
-      isRead: true,
+      readAt: new Date().toISOString(),
+      createdAt: new Date().toISOString(),
+    };
+
+    const forbiddenProjectNotif = {
+      id: "507f1f77bcf86cd799439019",
+      recipientId: "507f1f77bcf86cd799439001",
+      actorId: "507f1f77bcf86cd799439099",
+      organizationId: "507f1f77bcf86cd799439002",
+      projectId: "507f1f77bcf86cd799439098",
+      taskId: null,
+      noteId: null,
+      conversationId: null,
+      type: "PROJECT_MEMBER_REMOVED",
+      title: "Removed from project",
+      message: "Your access to the project was revoked.",
+      target: {
+        kind: "PROJECT",
+        organizationId: "507f1f77bcf86cd799439002",
+        projectId: "507f1f77bcf86cd799439098",
+        taskId: null,
+        noteId: null,
+        conversationId: null,
+        messageId: null,
+        url: "/projects/507f1f77bcf86cd799439098",
+      },
       readAt: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     };
@@ -296,18 +324,22 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         return { count: 1 };
       }
       if (path.startsWith("/notifications?")) {
-        return { data: [taskNotif, deletedNoteNotif], nextCursor: null };
+        return {
+          items: [taskNotif, deletedNoteNotif, forbiddenProjectNotif],
+          nextCursor: null,
+          unreadCount: 1,
+        };
       }
       if (
         path === "/notifications/507f1f77bcf86cd799439010/read" &&
         init?.method === "PATCH"
       ) {
-        return { ...taskNotif, isRead: true, readAt: new Date().toISOString() };
+        return { ...taskNotif, readAt: new Date().toISOString() };
       }
       if (path === "/notifications/507f1f77bcf86cd799439010/resolve") {
         return {
           available: true,
-          reason: null,
+          reason: "OK",
           message: null,
           url: "/projects/507f1f77bcf86cd799439011/work?taskId=507f1f77bcf86cd799439022",
         };
@@ -319,6 +351,9 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
           message: "Content is no longer available.",
           url: null,
         };
+      }
+      if (path === "/notifications/507f1f77bcf86cd799439019/resolve") {
+        throw new ApiError(403, "FORBIDDEN", "Forbidden");
       }
       throw new Error(`Unexpected path: ${path}`);
     });
@@ -344,10 +379,22 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     routerPushMock.mockClear();
 
-    // Click deleted/forbidden notification -> shows safe fallback banner without navigating or crashing
+    // Click deleted notification -> shows safe fallback banner without navigating or crashing
     fireEvent.click(
       screen.getByTestId(
         "notifications-page-item-507f1f77bcf86cd799439015",
+      ),
+    );
+
+    expect(
+      await screen.findByTestId("notifications-page-unavailable-banner"),
+    ).toHaveTextContent("Content is no longer available.");
+    expect(routerPushMock).not.toHaveBeenCalled();
+
+    // Dismiss and click HTTP 403 rejected notification -> also shows safe fallback without navigating
+    fireEvent.click(
+      screen.getByTestId(
+        "notifications-page-item-507f1f77bcf86cd799439019",
       ),
     );
 

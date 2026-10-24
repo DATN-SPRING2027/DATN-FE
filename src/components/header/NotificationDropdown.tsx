@@ -17,6 +17,7 @@ import {
   TimeIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { ApiError } from "@/lib/api-client";
 import {
   notificationsApi,
   useMarkAllNotificationsReadMutation,
@@ -151,10 +152,27 @@ export default function NotificationDropdown() {
       }
       closeDropdown();
       router.push(url);
-    } catch {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("continuum:deep-link", { detail: { url } }),
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404 || error.status === 410)
+      ) {
+        setUnavailableNotice(t("contentUnavailableTitle"));
+        return;
+      }
       const fallbackUrl = resolveDefaultTargetUrl(item);
       closeDropdown();
       router.push(fallbackUrl);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("continuum:deep-link", { detail: { url: fallbackUrl } }),
+        );
+      }
     }
   }
 
@@ -211,7 +229,7 @@ export default function NotificationDropdown() {
               type="button"
               onClick={closeDropdown}
               aria-label={t("dismissNotice")}
-              className="text-gray-500 transition hover:text-gray-700 dark:text-gray-400 dark:hover:text-white"
+              className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
             >
               <CloseIcon className="h-5 w-5" />
             </button>

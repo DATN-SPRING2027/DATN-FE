@@ -198,7 +198,7 @@ export default function WorkNoteCreateDialog({
           )}
           {mentionCandidates.length > 0 && (
             <div className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-              <span>Mention teammates</span>
+              <span>{t("form.mentionTeammates")}</span>
               <div className="flex flex-wrap gap-1.5">
                 {mentionCandidates.map((candidate) => {
                   const selected = selectedMentionIds.includes(candidate.id);

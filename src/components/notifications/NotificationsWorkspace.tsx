@@ -16,12 +16,12 @@ import {
   TimeIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { ApiError } from "@/lib/api-client";
 import {
   notificationsApi,
   useInfiniteNotificationsQuery,
   useMarkAllNotificationsReadMutation,
   useMarkNotificationReadMutation,
-  useNotificationRealtimeSubscription,
   useUnreadNotificationCountQuery,
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
@@ -89,12 +89,6 @@ export default function NotificationsWorkspace() {
   const openChatMessage = useChatNavigation((state) => state.open);
   const currentUser = useCurrentUserQuery();
   const userId = currentUser.data?.id ?? null;
-  const organizationId =
-    currentUser.data && "organizationId" in currentUser.data
-      ? (currentUser.data.organizationId ?? null)
-      : null;
-
-  useNotificationRealtimeSubscription(userId, organizationId);
 
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [unavailableMessage, setUnavailableMessage] = useState<string | null>(
@@ -139,8 +133,26 @@ export default function NotificationsWorkspace() {
         openChatMessage(target.conversationId, target.messageId);
       }
       router.push(url);
-    } catch {
-      router.push(resolveDefaultTargetUrl(item));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("continuum:deep-link", { detail: { url } }),
+        );
+      }
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        (error.status === 403 || error.status === 404 || error.status === 410)
+      ) {
+        setUnavailableMessage(t("contentUnavailableTitle"));
+        return;
+      }
+      const fallbackUrl = resolveDefaultTargetUrl(item);
+      router.push(fallbackUrl);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("continuum:deep-link", { detail: { url: fallbackUrl } }),
+        );
+      }
     }
   }
 
@@ -204,7 +216,7 @@ export default function NotificationsWorkspace() {
               }`}
             >
               <span>{t("filterUnread")}</span>
-              <span className="rounded-full bg-brand-500/10 px-1.5 py-0.2 text-[11px] font-semibold text-brand-600 tabular-nums dark:text-brand-400">
+              <span className="rounded-full bg-brand-500/10 px-1.5 py-0.5 text-[11px] font-semibold text-brand-600 tabular-nums dark:text-brand-400">
                 {unreadCount}
               </span>
             </button>
