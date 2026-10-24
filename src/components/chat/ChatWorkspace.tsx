@@ -272,13 +272,10 @@ export default function ChatWorkspace() {
     const params = new URLSearchParams(window.location.search);
     const conversationId = params.get("conversation");
     const messageId = params.get("message");
-    if (
-      conversationId &&
-      messageId &&
-      /^[a-f\d]{24}$/i.test(conversationId) &&
-      /^[a-f\d]{24}$/i.test(messageId)
-    ) {
-      pendingContext.current = messageId;
+    if (conversationId && /^[a-f\d]{24}$/i.test(conversationId)) {
+      if (messageId && /^[a-f\d]{24}$/i.test(messageId)) {
+        pendingContext.current = messageId;
+      }
       setActiveId(conversationId);
     }
   }, []);
@@ -746,6 +743,14 @@ export default function ChatWorkspace() {
                 });
                 remoteTypingTimers.current.delete(userId);
               }
+            } else if (
+              packet.event === "notification.created" ||
+              packet.event === "notification.read" ||
+              packet.event === "notification.read_all"
+            ) {
+              void queryClient.invalidateQueries({
+                queryKey: ["notifications"],
+              });
             }
           } catch {
             // Ignore malformed realtime frames; persisted messages are fetched over HTTP.

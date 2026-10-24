@@ -1942,4 +1942,44 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     expect(screen.queryByText(/Create a form from template/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Forms" })).not.toBeInTheDocument();
   });
+
+  it("portals the task detail modal to document.body outside the workspace container with a sticky header", async () => {
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return { id: "user-1", name: "Minh Anh", organizationId: "org-1", roles: ["MEMBER"] };
+      }
+      if (path === "/iam/projects/project-1") {
+        return {
+          id: "project-1",
+          organizationId: "org-1",
+          name: "Apollo",
+          code: "AP",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: "user-1",
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    const { container } = mount("project-1");
+    await screen.findByRole("heading", { level: 1, name: "Apollo" });
+
+    const openTaskBtn = screen.getByRole("button", {
+      name: /Open work item KNW-142/i,
+    });
+    fireEvent.click(openTaskBtn);
+
+    const dialog = await screen.findByRole("dialog");
+    expect(dialog).toBeVisible();
+    expect(container.contains(dialog)).toBe(false);
+    expect(document.body.contains(dialog)).toBe(true);
+
+    const header = dialog.querySelector("header");
+    expect(header?.className).toContain("sticky");
+    expect(header?.className).toContain("top-0");
+    expect(within(dialog).getByRole("button", { name: "Close work item details" })).toBeVisible();
+  });
 });

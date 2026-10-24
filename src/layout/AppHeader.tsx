@@ -1,6 +1,6 @@
 "use client";
 
-import NotificationDropdown from "@/components/chat/ChatNotifications";
+import NotificationDropdown from "@/components/header/NotificationDropdown";
 import BrandLogo from "@/components/common/BrandLogo";
 import HeaderHelpDrawer from "@/components/header/HeaderHelpDrawer";
 import HeaderSettingsDropdown from "@/components/header/HeaderSettingsDropdown";
