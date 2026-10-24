@@ -612,7 +612,7 @@ export default function WorkItemDetailDialog({
       className={
         mode === "page"
           ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-          : "relative max-h-[92vh] overflow-y-auto bg-white dark:bg-gray-900"
+          : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
       }
     >
       {/* 2-Column Jira Skeleton Loading Overlay */}
@@ -671,7 +671,7 @@ export default function WorkItemDetailDialog({
           </button>
         </div>
       )}
-      <header className="flex items-center justify-between gap-4 border-b border-gray-200 px-5 py-3 sm:px-6 dark:border-gray-800">
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-gray-200 bg-white/95 px-5 py-3 backdrop-blur-xs sm:px-6 dark:border-gray-800 dark:bg-gray-900/95">
         <div className="min-w-0">
           <nav
             aria-label={t("detailBreadcrumb")}
@@ -2260,8 +2260,8 @@ export default function WorkItemDetailDialog({
                   )}
 
                 {!subtasksSectionCollapsed && displayedSubtasks.length > 0 && (
-                  <div className="rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-                    <table className="w-full table-fixed border-collapse text-xs">
+                  <div className="overflow-x-auto rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+                    <table className="w-full min-w-[36rem] table-fixed border-collapse text-xs">
                       <thead className="border-b border-gray-200 bg-gray-50/80 text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
                         <tr>
                           <th className="w-[41%] px-3 py-2 text-start">
@@ -3743,8 +3743,8 @@ export default function WorkItemDetailDialog({
       onClose={onClose}
       backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
-      className={`mx-3 overflow-hidden rounded-lg p-0 shadow-theme-lg ${
-        isMaximized ? "max-h-[96vh] max-w-7xl" : "max-h-[92vh] max-w-6xl"
+      className={`overflow-hidden rounded-lg p-0 shadow-theme-lg ${
+        isMaximized ? "max-h-[92vh] max-w-7xl" : "max-h-[88vh] max-w-6xl"
       }`}
     >
       {detailContent}

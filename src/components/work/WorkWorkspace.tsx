@@ -2653,7 +2653,7 @@ export default function WorkWorkspace({
 
   return (
     <div
-      className={`@container w-full min-w-0 space-y-2.5 ${
+      className={`w-full min-w-0 space-y-2.5 ${
         isFullscreen
           ?"fixed inset-0 z-50 overflow-y-auto bg-gray-50 p-4 dark:bg-gray-950"
           : embedded
