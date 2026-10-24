@@ -322,11 +322,11 @@ function ReportEditor({
             <div className="flex items-center justify-between gap-2">
               <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
                 <UploadIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-                {t("attachmentsLabel")}
+                {t("attachmentLabel")}
               </span>
             </div>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("attachmentsHint")}
+              {t("attachmentHint")}
             </p>
 
             <input
@@ -350,7 +350,7 @@ function ReportEditor({
                 <UploadIcon className="me-1.5 h-3.5 w-3.5" />
                 {selectedFile || report.file
                   ? t("replaceFile")
-                  : t("uploadFile")}
+                  : t("attachFile")}
               </Button>
 
               {selectedFile && (
@@ -424,7 +424,7 @@ function ReportEditor({
               </div>
             ) : (
               <p className="pt-1 text-xs text-gray-400 dark:text-gray-500">
-                {t("noProjectDocumentsToLink")}
+                {t("noProjectDocuments")}
               </p>
             )}
           </div>
