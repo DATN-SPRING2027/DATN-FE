@@ -2640,6 +2640,7 @@ export default function WorkWorkspace({
       {fullPageWorkItem ? (
         <WorkItemDetailDialog
           mode="page"
+          projectId={projectId}
           item={fullPageWorkItem}
           allItems={items}
           people={projectPeople}
@@ -2928,6 +2929,7 @@ export default function WorkWorkspace({
       {activeWorkItem && (
         <WorkItemDetailDialog
           mode="modal"
+          projectId={projectId}
           item={activeWorkItem}
           allItems={items}
           people={projectPeople}
