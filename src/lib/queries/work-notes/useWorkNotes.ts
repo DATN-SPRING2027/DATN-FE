@@ -110,7 +110,17 @@ export type ProjectDocument = ProjectDocumentSummary &
     reviewHistory: readonly ReviewEvent[];
   }>;
 
-export type ReportFrequency = "DAILY" | "EVERY_3_DAYS" | "WEEKLY";
+export const REPORT_FREQUENCIES = [
+  "DAILY",
+  "EVERY_2_DAYS",
+  "EVERY_3_DAYS",
+  "EVERY_4_DAYS",
+  "EVERY_5_DAYS",
+  "EVERY_6_DAYS",
+  "WEEKLY",
+] as const;
+export type ReportFrequency = (typeof REPORT_FREQUENCIES)[number];
+export type WorkReportScope = "MEMBER" | "LEADER";
 export type WorkReportStatus =
   | "DRAFT"
   | "PENDING_REVIEW"
@@ -124,6 +134,7 @@ export type WorkReportInput = Readonly<{
   reason: string;
   blockers?: string;
   nextSteps?: string;
+  documentIds?: readonly string[];
 }>;
 export type WorkReport = WorkReportInput &
   Readonly<{
@@ -131,11 +142,14 @@ export type WorkReport = WorkReportInput &
     projectId: string;
     memberId: string;
     memberName: string;
+    reportScope?: WorkReportScope;
     frequency: ReportFrequency;
     periodStart: string;
     periodEnd: string;
     dueAt: string;
     status: WorkReportStatus;
+    file?: Readonly<{ name: string; contentType: string; size: number }>;
+    documentIds?: readonly string[];
     createdAt: string;
     updatedAt: string;
     submittedAt?: string;
@@ -148,8 +162,11 @@ export type WorkReport = WorkReportInput &
 
 export type WorkReportSettings = Readonly<{
   projectId: string;
+  scope?: WorkReportScope;
+  actorRole?: "MANAGER" | "LEADER" | "MEMBER";
   frequency: ReportFrequency;
   effectiveAt: string;
+  nextFrequency?: ReportFrequency;
   nextEffectiveAt?: string;
   updatedBy: string;
   history: readonly Readonly<{
@@ -158,6 +175,17 @@ export type WorkReportSettings = Readonly<{
     updatedBy: string;
   }>[];
   permissions: Readonly<{ canConfigure: boolean }>;
+  leaderSettings?: Readonly<{
+    frequency: ReportFrequency;
+    effectiveAt: string;
+    updatedBy: string;
+    history: readonly Readonly<{
+      frequency: ReportFrequency;
+      effectiveAt: string;
+      updatedBy: string;
+    }>[];
+    permissions: Readonly<{ canConfigure: boolean }>;
+  }>;
 }>;
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
@@ -218,9 +246,26 @@ export const workNoteKeys = {
     projectId: string,
     status: WorkReportStatus | "ALL",
     page: number,
-  ) => [...workNoteKeys.project(projectId), "reports", status, page] as const,
-  settings: (projectId: string) =>
-    [...workNoteKeys.project(projectId), "settings"] as const,
+    scope: WorkReportScope = "MEMBER",
+  ) =>
+    scope === "LEADER"
+      ? ([
+          ...workNoteKeys.project(projectId),
+          "reports",
+          "LEADER",
+          status,
+          page,
+        ] as const)
+      : ([
+          ...workNoteKeys.project(projectId),
+          "reports",
+          status,
+          page,
+        ] as const),
+  settings: (projectId: string, scope: WorkReportScope = "MEMBER") =>
+    scope === "LEADER"
+      ? ([...workNoteKeys.project(projectId), "settings", "LEADER"] as const)
+      : ([...workNoteKeys.project(projectId), "settings"] as const),
 };
 
 export const workNotesApi = {
@@ -366,22 +411,33 @@ export const workNotesApi = {
       },
     );
   },
-  getReportSettings(projectId: string, signal?: AbortSignal) {
+  getReportSettings(
+    projectId: string,
+    signal?: AbortSignal,
+    scope?: WorkReportScope,
+  ) {
+    const query = scope && scope !== "MEMBER" ? `?scope=${scope}` : "";
     return apiClient<WorkReportSettings>(
-      `${projectPath(projectId)}/work-report-settings`,
+      `${projectPath(projectId)}/work-report-settings${query}`,
       {
         signal,
         cache: "no-store",
       },
     );
   },
-  updateReportSettings(projectId: string, frequency: ReportFrequency) {
+  updateReportSettings(
+    projectId: string,
+    frequency: ReportFrequency,
+    scope?: WorkReportScope,
+  ) {
     return apiClient<WorkReportSettings>(
       `${projectPath(projectId)}/work-report-settings`,
       {
         method: "PATCH",
         headers: csrfHeaders(),
-        body: JSON.stringify({ frequency }),
+        body: JSON.stringify(
+          scope && scope !== "MEMBER" ? { frequency, scope } : { frequency },
+        ),
       },
     );
   },
@@ -390,9 +446,11 @@ export const workNotesApi = {
     status: WorkReportStatus | "ALL",
     page: number,
     signal?: AbortSignal,
+    scope?: WorkReportScope,
   ) {
     const params = new URLSearchParams(listQuery({ page, pageSize: 100 }));
     if (status !== "ALL") params.set("status", status);
+    if (scope && scope !== "MEMBER") params.set("scope", scope);
     return apiClient<WorkNotesPage<WorkReport>>(
       `${projectPath(projectId)}/work-reports?${params}`,
       {
@@ -401,12 +459,20 @@ export const workNotesApi = {
       },
     );
   },
-  saveCurrentReport(projectId: string, input: WorkReportInput) {
-    return apiClient<WorkReport>(`${projectPath(projectId)}/work-reports`, {
-      method: "POST",
-      headers: csrfHeaders(),
-      body: JSON.stringify(input),
-    });
+  saveCurrentReport(
+    projectId: string,
+    input: WorkReportInput,
+    scope?: WorkReportScope,
+  ) {
+    const query = scope && scope !== "MEMBER" ? `?scope=${scope}` : "";
+    return apiClient<WorkReport>(
+      `${projectPath(projectId)}/work-reports${query}`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
+    );
   },
   updateReport(projectId: string, reportId: string, input: WorkReportInput) {
     return apiClient<WorkReport>(
@@ -417,6 +483,29 @@ export const workNotesApi = {
         body: JSON.stringify(input),
       },
     );
+  },
+  uploadReportFile(projectId: string, reportId: string, file: File) {
+    const headers = new Headers(csrfHeaders());
+    headers.set("Content-Type", file.type || "application/octet-stream");
+    headers.set("X-File-Name", encodeURIComponent(file.name));
+    return apiClient<WorkReport>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`,
+      {
+        method: "PUT",
+        headers,
+        body: file,
+      },
+    );
+  },
+  async downloadReportFile(projectId: string, reportId: string) {
+    const path = `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`;
+    const response = await fetch(`/api/backend${path}`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!response.ok)
+      throw new Error(`Could not download report file (${response.status}).`);
+    return response.blob();
   },
   reportAction(
     projectId: string,
@@ -502,22 +591,33 @@ export function useWorkReportsQuery(
   projectId: string,
   status: WorkReportStatus | "ALL",
   page = 1,
+  scope: WorkReportScope = "MEMBER",
+  enabled = true,
 ) {
   return useQuery({
-    queryKey: workNoteKeys.reports(projectId, status, page),
+    queryKey: workNoteKeys.reports(projectId, status, page, scope),
     queryFn: ({ signal }) =>
-      workNotesApi.listReports(projectId, status, page, signal),
-    enabled: isWorkNoteId(projectId),
+      scope === "LEADER"
+        ? workNotesApi.listReports(projectId, status, page, signal, "LEADER")
+        : workNotesApi.listReports(projectId, status, page, signal),
+    enabled: isWorkNoteId(projectId) && enabled,
     retry: false,
     staleTime: 0,
   });
 }
 
-export function useWorkReportSettingsQuery(projectId: string) {
+export function useWorkReportSettingsQuery(
+  projectId: string,
+  scope: WorkReportScope = "MEMBER",
+  enabled = true,
+) {
   return useQuery({
-    queryKey: workNoteKeys.settings(projectId),
-    queryFn: ({ signal }) => workNotesApi.getReportSettings(projectId, signal),
-    enabled: isWorkNoteId(projectId),
+    queryKey: workNoteKeys.settings(projectId, scope),
+    queryFn: ({ signal }) =>
+      scope === "LEADER"
+        ? workNotesApi.getReportSettings(projectId, signal, "LEADER")
+        : workNotesApi.getReportSettings(projectId, signal),
+    enabled: isWorkNoteId(projectId) && enabled,
     retry: false,
     staleTime: 0,
   });
