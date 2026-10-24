@@ -89,6 +89,38 @@ describe("auth query hooks", () => {
     });
   });
 
+  it("clears cached tenant data after a successful account login", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    queryClient.setQueryData(["projects", "org-1"], {
+      data: [{ id: "private-project" }],
+    });
+    mockedApiClient.mockResolvedValue({
+      user: {
+        id: "user-2",
+        email: "new-user@continuum.ai",
+        name: "New User",
+        organizationId: "org-1",
+        roles: ["MEMBER"],
+      },
+    });
+    const wrapper = ({ children }: PropsWithChildren) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useLoginMutation(), { wrapper });
+    await act(() =>
+      result.current.mutateAsync({
+        email: "new-user@continuum.ai",
+        password: "password123",
+      }),
+    );
+
+    expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
+    queryClient.clear();
+  });
+
   it("logs out via useLogoutMutation", async () => {
     mockedLogoutSession.mockResolvedValue(undefined);
 

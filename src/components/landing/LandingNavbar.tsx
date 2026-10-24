@@ -19,7 +19,7 @@ export default function LandingNavbar() {
         <span
           aria-label="Đang kiểm tra phiên đăng nhập"
           aria-busy="true"
-          className={`inline-block animate-pulse rounded-lg bg-slate-100 dark:bg-gray-800 ${
+          className={`inline-block motion-safe:animate-pulse rounded-lg bg-slate-100 dark:bg-gray-800 ${
             isMobile ? "h-10 w-full" : "h-9 w-24"
           }`}
         />

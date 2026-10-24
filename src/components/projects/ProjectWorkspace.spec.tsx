@@ -344,13 +344,17 @@ it("shows a text-only Setting tab in the Project section navigation", async () =
   expect(settingTab).toBeVisible();
   expect(settingTab.querySelector('[data-testid="settings-icon"]')).toBeNull();
 });
-it.each([401, 403, 404, 500])(
+it.each([401, 403, 404])(
   "hides detail on server denial %s even with cached project and selection",
   async (status) => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
     client.setQueryData(["projects", "org1", "detail", "p1"], project);
+    await client.invalidateQueries({
+      queryKey: ["projects", "org1", "detail", "p1"],
+      refetchType: "none",
+    });
     useClientStateStore.setState({ activeProjectId: "p1" });
     api.mockImplementation(async (path) => {
       if (path === "/auth/me") return user;
@@ -361,12 +365,39 @@ it.each([401, 403, 404, 500])(
     expect(screen.queryByText("Apollo")).not.toBeInTheDocument();
   },
 );
-
-it("does not show cached detail before a fresh backend response", async () => {
+it("keeps cached detail visible and reports a failed background refresh", async () => {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
   client.setQueryData(["projects", "org1", "detail", "p1"], project);
+  await client.invalidateQueries({
+    queryKey: ["projects", "org1", "detail", "p1"],
+    refetchType: "none",
+  });
+  api.mockImplementation(async (path) => {
+    if (path === "/auth/me") return user;
+    throw new ApiError(500, undefined, "Unavailable");
+  });
+
+  mount(<ProjectDetail projectId="p1" />, client);
+
+  expect(await screen.findByRole("heading", { name: "Apollo" })).toBeVisible();
+  expect(
+    await screen.findByText(
+      "Could not refresh this data. The last available results are still shown.",
+    ),
+  ).toBeVisible();
+});
+
+it("keeps cached detail visible during a background refresh", async () => {
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  client.setQueryData(["projects", "org1", "detail", "p1"], project);
+  await client.invalidateQueries({
+    queryKey: ["projects", "org1", "detail", "p1"],
+    refetchType: "none",
+  });
   api.mockImplementation(async (path) =>
     path === "/auth/me" ? user : new Promise(() => {}),
   );
@@ -374,7 +405,8 @@ it("does not show cached detail before a fresh backend response", async () => {
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith("/iam/projects/p1", expect.anything()),
   );
-  expect(screen.queryByText("Apollo")).not.toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: "Apollo" })).toBeVisible();
+  expect(screen.getByRole("status")).toHaveTextContent("Updating…");
 });
 it("clears displayed projects when the trusted organization changes", async () => {
   let organization = "org1";

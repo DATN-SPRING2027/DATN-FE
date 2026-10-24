@@ -16,7 +16,7 @@ import {
   TimeIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   notificationsApi,
   useInfiniteNotificationsQuery,
@@ -26,6 +26,7 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
   resolveDefaultTargetUrl,
@@ -85,10 +86,12 @@ function NotificationCenterIcon({ item }: { item: NotificationItem }) {
 
 export default function NotificationsWorkspace() {
   const t = useTranslations("header.notifications");
+  const common = useTranslations("common");
   const router = useRouter();
   const openChatMessage = useChatNavigation((state) => state.open);
   const currentUser = useCurrentUserQuery();
-  const userId = currentUser.data?.id ?? null;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
 
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [unavailableMessage, setUnavailableMessage] = useState<string | null>(
@@ -107,10 +110,12 @@ export default function NotificationsWorkspace() {
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
-  const pages = infiniteQuery.data?.pages ?? [];
+  const notificationsAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(infiniteQuery.error);
+  const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
+  const pages = notificationsAccessLost ? [] : (infiniteQuery.data?.pages ?? []);
   const items = pages.flatMap((page) => page?.items ?? []);
   const unreadCount =
-    unreadQuery.data?.count ?? pages[0]?.unreadCount ?? 0;
+    (unreadAccessLost ? undefined : unreadQuery.data?.count) ?? pages[0]?.unreadCount ?? 0;
 
   async function handleOpenNotification(item: NotificationItem) {
     setUnavailableMessage(null);
@@ -288,6 +293,21 @@ export default function NotificationsWorkspace() {
 
       {/* Notification List */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+        {!notificationsAccessLost && infiniteQuery.isFetching && items.length > 0 && (
+          <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+            <UpdatingStatus>{common("updating")}</UpdatingStatus>
+          </div>
+        )}
+        {!notificationsAccessLost && infiniteQuery.isRefetchError && items.length > 0 && (
+          <div className="border-b border-gray-100 p-3 dark:border-gray-800">
+            <BackgroundRefreshError
+              retryLabel={common("retry")}
+              onRetry={() => void infiniteQuery.refetch()}
+            >
+              {common("updateFailed")}
+            </BackgroundRefreshError>
+          </div>
+        )}
         {infiniteQuery.isLoading ? (
           <div
             role="status"
@@ -296,15 +316,15 @@ export default function NotificationsWorkspace() {
           >
             {[0, 1, 2, 3].map((idx) => (
               <div key={idx} className="flex items-start gap-3.5 p-4 sm:p-5">
-                <div className="h-10 w-10 shrink-0 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                <div className="h-10 w-10 shrink-0 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 w-48 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-                  <div className="h-3.5 w-3/4 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-4 w-48 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-3.5 w-3/4 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
                 </div>
               </div>
             ))}
           </div>
-        ) : infiniteQuery.isError ? (
+        ) : infiniteQuery.isError && items.length === 0 ? (
           <div
             role="alert"
             data-testid="notifications-page-error"

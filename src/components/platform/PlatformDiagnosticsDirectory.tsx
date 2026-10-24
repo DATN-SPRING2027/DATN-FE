@@ -6,9 +6,11 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   box,
   cell,
   input,
+  isReadAccessLost,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
@@ -59,9 +61,19 @@ export default function PlatformDiagnosticsDirectory({
           </Button>
         </form>
       </div>
-      {trace.isPending && traceId ? (
+      {trace.data !== undefined && !isReadAccessLost(trace.error) && (trace.isFetching || trace.isRefetchError) && (
+        <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+          <QueryRefreshStatus
+            hasData
+            isFetching={trace.isFetching}
+            isRefetchError={trace.isRefetchError}
+            onRetry={() => void trace.refetch()}
+          />
+        </div>
+      )}
+      {trace.isPending && traceId && !trace.data ? (
         <Loading />
-      ) : trace.isError ? (
+      ) : trace.isError && (!trace.data || isReadAccessLost(trace.error)) ? (
         <ErrorState retry={() => void trace.refetch()} />
       ) : trace.data ? (
         <>

@@ -1,9 +1,7 @@
-:root {
+.shell {
   --jira-font:
     -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
     "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
-}
-.shell {
   --op-bg: #ffffff;
   --op-surface: #ffffff;
   --op-panel: #fafbfc;

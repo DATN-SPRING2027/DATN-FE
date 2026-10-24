@@ -227,7 +227,7 @@ export default function OrganizationCreateForm({
                     >
                       <span
                         aria-hidden="true"
-                        className="size-2.5 animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
+                        className="size-2.5 motion-safe:animate-spin rounded-full border-2 border-gray-400 border-t-transparent"
                       />
                       <span>{t("onboardingSlugChecking")}</span>
                     </span>

@@ -7,6 +7,10 @@ import Button from "@/components/ui/button/Button";
 import { TableSkeleton } from "../ui/LoadingSkeleton";
 import type { PlatformOrganizationsViewProps } from "./types";
 import type { PlatformOrganization } from "@/lib/queries/platform/usePlatformConsole";
+import {
+  isReadAccessLost,
+  QueryRefreshStatus,
+} from "@/components/platform/PlatformOperationsUi";
 
 export default function OrganizationDetail({
   organization,
@@ -23,6 +27,7 @@ export default function OrganizationDetail({
   const locale = useLocale();
   const record =
     organization.data?.id === organizationId ? organization.data : undefined;
+  const accessLost = isReadAccessLost(organization.error);
   const handledEdit = useRef("");
   useEffect(() => {
     if (
@@ -30,6 +35,7 @@ export default function OrganizationDetail({
       record &&
       !organization.isFetching &&
       !organization.isError &&
+      !accessLost &&
       window.location.hash === "#edit" &&
       handledEdit.current !== organizationId
     ) {
@@ -41,6 +47,7 @@ export default function OrganizationDetail({
     record,
     organization.isFetching,
     organization.isError,
+    accessLost,
     organizationId,
     onEdit,
   ]);
@@ -55,9 +62,19 @@ export default function OrganizationDetail({
       >
         {t("organizations.back")}
       </Link>
-      {organization.isPending ? (
+      {record && !accessLost && (organization.isFetching || organization.isRefetchError) && (
+        <div className="my-3">
+          <QueryRefreshStatus
+            hasData
+            isFetching={organization.isFetching}
+            isRefetchError={organization.isRefetchError ?? false}
+            onRetry={() => void organization.refetch()}
+          />
+        </div>
+      )}
+      {organization.isPending && !record ? (
         <TableSkeleton rows={3} columns={2} />
-      ) : organization.isError || !record ? (
+      ) : (organization.isError && (!record || accessLost)) || !record ? (
         <p role="alert" className="text-error-600 dark:text-error-400">
           {t("errors.organizationDetail")}
         </p>

@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import { ApiError } from "@/lib/api-client";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   isWorkNoteId,
@@ -25,20 +26,22 @@ export default function WorkNotesWorkspace({
     projectId,
     deepLinkNoteId ?? "",
   );
+  const listAccessLost = isAccessOrResourceUnavailableError(query.error);
+  const deepLinkAccessLost = isAccessOrResourceUnavailableError(deepLinkQuery.error);
+  const visibleList = listAccessLost ? undefined : query.data;
+  const visibleDeepLink = deepLinkAccessLost ? undefined : deepLinkQuery.data;
   const invalidDeepLink = Boolean(
     deepLinkNoteId &&
     (!isWorkNoteId(projectId) || !isWorkNoteId(deepLinkNoteId)),
   );
   const unavailableDeepLink = Boolean(
     deepLinkNoteId &&
-    (invalidDeepLink ||
-      (deepLinkQuery.error instanceof ApiError &&
-        [403, 404].includes(deepLinkQuery.error.status))),
+      (invalidDeepLink || deepLinkAccessLost),
   );
   const [search, setSearch] = useState("");
   const notes = useMemo(() => {
     const needle = search.trim().toLocaleLowerCase();
-    return (query.data?.data ?? []).filter(
+    return (visibleList?.data ?? []).filter(
       (note) =>
         !needle ||
         [
@@ -50,7 +53,7 @@ export default function WorkNotesWorkspace({
           note.taskId,
         ].some((value) => value.toLocaleLowerCase().includes(needle)),
     );
-  }, [query.data?.data, search]);
+  }, [visibleList?.data, search]);
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -68,7 +71,7 @@ export default function WorkNotesWorkspace({
         !unavailableDeepLink &&
         isWorkNoteId(projectId) &&
         isWorkNoteId(deepLinkNoteId) &&
-        deepLinkQuery.isPending && (
+        deepLinkQuery.isPending && !visibleDeepLink && (
           <div
             role="status"
             className="mb-4 text-sm text-gray-500 dark:text-gray-400"
@@ -76,7 +79,28 @@ export default function WorkNotesWorkspace({
             {t("loading")}
           </div>
         )}
-      {deepLinkNoteId && !unavailableDeepLink && deepLinkQuery.isError && (
+      {deepLinkNoteId &&
+        !unavailableDeepLink &&
+        visibleDeepLink !== undefined && !deepLinkAccessLost &&
+        (deepLinkQuery.isFetching || deepLinkQuery.isRefetchError) && (
+          <div className="mb-4">
+            {deepLinkQuery.isFetching && (
+              <UpdatingStatus>{t("loading")}</UpdatingStatus>
+            )}
+            {deepLinkQuery.isRefetchError && (
+              <BackgroundRefreshError
+                retryLabel={t("retry")}
+                onRetry={() => void deepLinkQuery.refetch()}
+              >
+                {t("taskNotes.loadError")}
+              </BackgroundRefreshError>
+            )}
+          </div>
+        )}
+      {deepLinkNoteId &&
+        !unavailableDeepLink &&
+        deepLinkQuery.isError &&
+        !visibleDeepLink && (
         <div
           role="alert"
           className="mb-4 flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -95,7 +119,7 @@ export default function WorkNotesWorkspace({
           </Button>
         </div>
       )}
-      {deepLinkQuery.data && (
+      {visibleDeepLink && (
         <article
           className="mb-5 border border-brand-200 bg-brand-50/60 p-4 sm:p-5 dark:border-brand-500/30 dark:bg-brand-500/5"
           aria-labelledby="deep-linked-task-note-title"
@@ -104,10 +128,10 @@ export default function WorkNotesWorkspace({
             id="deep-linked-task-note-title"
             className="text-base font-semibold text-gray-900 dark:text-white/90"
           >
-            {deepLinkQuery.data.title}
+            {visibleDeepLink.title}
           </h2>
           <p className="mt-1 text-xs break-all text-gray-500 dark:text-gray-400">
-            {t("taskNotes.taskId", { id: deepLinkQuery.data.taskId })}
+            {t("taskNotes.taskId", { id: visibleDeepLink.taskId })}
           </p>
           <dl className="mt-4 grid gap-4 md:grid-cols-3">
             {(["accomplishments", "approach", "reason"] as const).map(
@@ -117,7 +141,7 @@ export default function WorkNotesWorkspace({
                     {t(`taskNotes.${field}`)}
                   </dt>
                   <dd className="mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">
-                    {deepLinkQuery.data[field]}
+                    {visibleDeepLink[field]}
                   </dd>
                 </div>
               ),
@@ -150,16 +174,30 @@ export default function WorkNotesWorkspace({
           </label>
         </div>
 
-        {query.isPending ? (
+        {visibleList !== undefined && !listAccessLost &&
+          (query.isFetching || query.isRefetchError) && (
+            <div>
+              {query.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+              {query.isRefetchError && (
+                <BackgroundRefreshError
+                  retryLabel={t("retry")}
+                  onRetry={() => void query.refetch()}
+                >
+                  {t("taskNotes.loadError")}
+                </BackgroundRefreshError>
+              )}
+            </div>
+          )}
+        {query.isPending && !visibleList ? (
           <div role="status" className="space-y-3" aria-label={t("loading")}>
             {[0, 1, 2].map((item) => (
               <div
                 key={item}
-                className="h-32 animate-pulse border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                className="h-32 motion-safe:animate-pulse border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
               />
             ))}
           </div>
-        ) : query.isError ? (
+        ) : query.isError && !visibleList ? (
           <div
             role="alert"
             className="flex flex-wrap items-center justify-between gap-3 border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -230,18 +268,18 @@ export default function WorkNotesWorkspace({
                 </li>
               ))}
             </ul>
-            {query.data && query.data.pagination.totalPages > 1 && (
+            {visibleList && visibleList.pagination.totalPages > 1 && (
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
                 <p className="text-gray-500 tabular-nums dark:text-gray-400">
                   {t("pagination.total", {
-                    count: query.data.pagination.totalItems,
+                    count: visibleList.pagination.totalItems,
                   })}
                 </p>
                 <div className="flex gap-2">
                   <Button
                     variant="outline"
                     size="sm"
-                    disabled={query.data.pagination.page <= 1}
+                    disabled={visibleList.pagination.page <= 1}
                     onClick={() =>
                       setPage((current) => Math.max(1, current - 1))
                     }
@@ -252,8 +290,8 @@ export default function WorkNotesWorkspace({
                     variant="outline"
                     size="sm"
                     disabled={
-                      query.data.pagination.page >=
-                      query.data.pagination.totalPages
+                      visibleList.pagination.page >=
+                      visibleList.pagination.totalPages
                     }
                     onClick={() => setPage((current) => current + 1)}
                   >

@@ -404,6 +404,7 @@ describe("PlatformConsole", () => {
   beforeEach(() => {
     routerReplace.mockReset();
     pathname.value = "/platform/memberships";
+    Object.assign(session, { error: undefined });
     session.isPending = false;
     session.isFetching = false;
     session.isError = false;
@@ -698,6 +699,9 @@ describe("PlatformConsole", () => {
 
   it("hides cached console data as soon as the Platform session probe fails", () => {
     session.isError = true;
+    Object.assign(session, {
+      error: new ApiError(403, "PLATFORM_SESSION_FORBIDDEN", "Denied"),
+    });
     render(<PlatformConsole />);
 
     expect(screen.getByText("sessionChecking")).toBeInTheDocument();
@@ -1386,6 +1390,7 @@ describe("PlatformConsole", () => {
   it("offers a retry when the bounded Audit API fails", () => {
     pathname.value = "/platform/audit";
     session.data.permissions = ["platform.audit.read"];
+    Object.assign(operationState.auditEvents, { data: undefined });
     operationState.auditEvents.isError = true;
     render(<PlatformConsole />);
 

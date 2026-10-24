@@ -9,7 +9,7 @@ import {
 } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { canManageOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import {
@@ -24,6 +24,7 @@ import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import RoleLabel from "@/components/common/RoleLabel";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import Label from "@/components/form/Label";
 import {
   ArrowRightIcon,
@@ -1173,7 +1174,8 @@ function SettingsWorkspace({
 export default function OrganizationSettingsManager() {
   const t = useTranslations("organizationSettings");
   const currentUser = useCurrentUserQuery();
-  const user = currentUser.data;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const user = currentUserAccessLost ? undefined : currentUser.data;
   const organizationId = user?.organizationId ?? "";
   const canManage = canManageOrganizationMemberships(user);
   const validOrg = Boolean(
@@ -1184,6 +1186,8 @@ export default function OrganizationSettingsManager() {
     organizationId,
     validOrg && canManage,
   );
+  const settingsAccessLost = isAccessOrResourceUnavailableError(settings.error);
+  const visibleSettings = settingsAccessLost ? undefined : settings.data;
 
   const renderHeader = () => (
     <>
@@ -1206,10 +1210,38 @@ export default function OrganizationSettingsManager() {
     </>
   );
 
-  if (currentUser.isLoading || (validOrg && canManage && settings.isLoading)) {
+  if (currentUser.isPending && !currentUser.data) {
     return (
-      <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center text-gray-500 dark:border-gray-800 dark:bg-white/[0.03] dark:text-gray-400">
-        {t("loading")}
+      <div className="space-y-5" role="status" aria-busy="true">
+        {renderHeader()}
+        <div aria-hidden="true" className="space-y-4">
+          <div className="continuum-shimmer h-28 rounded-2xl" />
+          <div className="continuum-shimmer h-64 rounded-2xl" />
+        </div>
+        <span className="sr-only">{t("loading")}</span>
+      </div>
+    );
+  }
+
+  if (currentUser.isError && !user) {
+    return (
+      <div className="space-y-5">
+        {renderHeader()}
+        <div className="space-y-4" role="alert">
+          <Alert
+            variant="error"
+            title={t("errorTitle")}
+            message={t(getSettingsErrorKey(currentUser.error))}
+          />
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void currentUser.refetch()}
+          >
+            {t("retry")}
+          </Button>
+        </div>
       </div>
     );
   }
@@ -1246,7 +1278,20 @@ export default function OrganizationSettingsManager() {
     );
   }
 
-  if (settings.isError || !settings.data) {
+  if (settings.isPending && !visibleSettings) {
+    return (
+      <div className="space-y-5" role="status" aria-busy="true">
+        {renderHeader()}
+        <div aria-hidden="true" className="space-y-4">
+          <div className="continuum-shimmer h-16 rounded-xl" />
+          <div className="continuum-shimmer h-72 rounded-2xl" />
+        </div>
+        <span className="sr-only">{t("loading")}</span>
+      </div>
+    );
+  }
+
+  if (settings.isError && !visibleSettings) {
     return (
       <div className="space-y-5">
         {renderHeader()}
@@ -1270,13 +1315,31 @@ export default function OrganizationSettingsManager() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-5" aria-busy={settings.isFetching}>
       {renderHeader()}
+      {!currentUserAccessLost && currentUser.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+      {!currentUserAccessLost && currentUser.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={t("retry")}
+          onRetry={() => void currentUser.refetch()}
+        >
+          {t("networkError")}
+        </BackgroundRefreshError>
+      )}
+      {!settingsAccessLost && settings.isFetching && <UpdatingStatus>{t("loading")}</UpdatingStatus>}
+      {!settingsAccessLost && settings.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={t("retry")}
+          onRetry={() => void settings.refetch()}
+        >
+          {t(getSettingsErrorKey(settings.error))}
+        </BackgroundRefreshError>
+      )}
       <SettingsWorkspace
-        key={settings.data.organization.id}
+        key={visibleSettings!.organization.id}
         actorId={user.id}
         organizationId={organizationId}
-        settings={settings.data}
+        settings={visibleSettings!}
         canEdit={canManage}
         onRefetch={async () => {
           const refreshed = await settings.refetch();

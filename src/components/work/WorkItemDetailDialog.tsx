@@ -626,7 +626,7 @@ export default function WorkItemDetailDialog({
           data-testid="work-detail-skeleton"
           className=" absolute inset-0 z-40 grid min-h-[28rem] grid-cols-1 bg-white/95 backdrop-blur-[1px] lg:grid-cols-[minmax(0,1fr)_22rem] dark:bg-gray-900/95"
         >
-          <div className="animate-pulse space-y-5 p-6">
+          <div className="motion-safe:animate-pulse space-y-5 p-6">
             <div className="h-3.5 w-48 rounded bg-gray-200 dark:bg-gray-800" />
             <div className="h-7 w-3/4 rounded bg-gray-200 dark:bg-gray-800" />
             <div className="flex gap-2">
@@ -644,7 +644,7 @@ export default function WorkItemDetailDialog({
               <div className="h-9 w-full rounded bg-gray-100 dark:bg-gray-800/70" />
             </div>
           </div>
-          <div className="animate-pulse space-y-4 border-t border-gray-200 bg-gray-50/50 p-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-950/40">
+          <div className="motion-safe:animate-pulse space-y-4 border-t border-gray-200 bg-gray-50/50 p-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-950/40">
             <div className="h-8 w-28 rounded bg-gray-200 dark:bg-gray-800" />
             <div className="space-y-3 rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
               <div className="h-4 w-24 rounded bg-gray-200 dark:bg-gray-800" />

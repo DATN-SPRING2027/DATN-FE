@@ -143,7 +143,7 @@ export default function KnowledgeEcosystemGraph({
       {/* Top Bar: Trace Header & Status */}
       <div className="relative z-10 flex flex-wrap items-center justify-between border-b border-blue-100 pb-3 mb-4 gap-2 text-xs">
         <div className="flex items-center gap-2">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
+          <span className="flex h-2.5 w-2.5 rounded-full bg-blue-600 motion-safe:animate-pulse shadow-[0_0_8px_rgba(37,99,235,0.8)]" />
           <span className="font-extrabold tracking-wider text-slate-800 text-[11px] uppercase dark:text-slate-200">
             CONTINUUM KNOWLEDGE TRACE
           </span>
@@ -201,7 +201,7 @@ export default function KnowledgeEcosystemGraph({
             stroke="url(#edgeGradient)"
             strokeWidth="2"
             strokeDasharray="4 4"
-            className="animate-pulse"
+            className="motion-safe:animate-pulse"
           />
 
           {/* Line 2: Center to Top-Right (Benchmark) */}
@@ -213,7 +213,7 @@ export default function KnowledgeEcosystemGraph({
             stroke="url(#edgeGradient)"
             strokeWidth="2"
             strokeDasharray="4 4"
-            className="animate-pulse"
+            className="motion-safe:animate-pulse"
           />
 
           {/* Line 3: Center to Bottom-Right (Tech Lead) */}
@@ -225,7 +225,7 @@ export default function KnowledgeEcosystemGraph({
             stroke="url(#edgeGradient)"
             strokeWidth="2"
             strokeDasharray="4 4"
-            className="animate-pulse"
+            className="motion-safe:animate-pulse"
           />
 
           {/* Line 4: Center to Bottom-Left (Successor) */}
@@ -237,7 +237,7 @@ export default function KnowledgeEcosystemGraph({
             stroke="url(#edgeGradient)"
             strokeWidth="2"
             strokeDasharray="4 4"
-            className="animate-pulse"
+            className="motion-safe:animate-pulse"
           />
         </svg>
 
@@ -254,7 +254,7 @@ export default function KnowledgeEcosystemGraph({
           <div className="flex items-center gap-1.5 mb-0.5">
             <span
               className={`h-2 w-2 rounded-full ${
-                activeNodeKey === "center" ? "bg-white animate-ping" : "bg-blue-600"
+                activeNodeKey === "center" ? "bg-white motion-safe:animate-ping" : "bg-blue-600"
               }`}
             />
             <span className="text-[10px] font-black uppercase tracking-wider">

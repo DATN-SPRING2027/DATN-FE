@@ -12,6 +12,8 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { Modal } from "@/components/ui/modal";
 import {
   AlertIcon,
@@ -804,10 +806,13 @@ export default function ProjectDocumentsWorkspace({
       ),
     [workNoteKeys.project(projectId)],
   );
-  const current = detail.data;
+  const listAccessLost = isAccessOrResourceUnavailableError(list.error);
+  const detailAccessLost = isAccessOrResourceUnavailableError(detail.error);
+  const visibleList = listAccessLost ? undefined : list.data;
+  const current = detailAccessLost ? undefined : detail.data;
   const reviewableDocuments = useMemo(
-    () => (list.data?.data ?? []).filter((doc) => doc.permissions.canReview),
-    [list.data?.data],
+    () => (visibleList?.data ?? []).filter((doc) => doc.permissions.canReview),
+    [visibleList?.data],
   );
   const userLookup = useMemo(() => {
     const map = new Map<string, string>();
@@ -1227,7 +1232,7 @@ export default function ProjectDocumentsWorkspace({
                 ))}
               </select>
             </label>
-            {list.isSuccess && (
+            {visibleList !== undefined && (
               <Button
                 size="sm"
                 onClick={() => {
@@ -1250,7 +1255,20 @@ export default function ProjectDocumentsWorkspace({
           </div>
         </div>
 
-        {list.isPending ? (
+        {visibleList !== undefined && !listAccessLost && (list.isFetching || list.isRefetchError) && (
+          <div>
+            {list.isFetching && <UpdatingStatus>{common("loading")}</UpdatingStatus>}
+            {list.isRefetchError && (
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void list.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            )}
+          </div>
+        )}
+        {list.isPending && !visibleList ? (
           <div
             role="status"
             aria-label={common("loading")}
@@ -1259,11 +1277,11 @@ export default function ProjectDocumentsWorkspace({
             {[0, 1, 2].map((item) => (
               <div
                 key={item}
-                className="h-16 animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                className="h-16 motion-safe:animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
               />
             ))}
           </div>
-        ) : list.isError ? (
+        ) : list.isError && !visibleList ? (
           <div
             role="alert"
             className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
@@ -1281,7 +1299,7 @@ export default function ProjectDocumentsWorkspace({
               {common("retry")}
             </Button>
           </div>
-        ) : list.data?.data.length ? (
+        ) : visibleList?.data.length ? (
           <div className="space-y-4">
             {reviewableDocuments.length > 0 && (
               <div
@@ -1348,7 +1366,7 @@ export default function ProjectDocumentsWorkspace({
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-                  {list.data.data.map((document) => (
+                  {visibleList.data.map((document) => (
                     <tr
                       key={document.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-900"
@@ -1423,11 +1441,11 @@ export default function ProjectDocumentsWorkspace({
           </div>
         )}
 
-        {list.data && list.data.pagination.totalPages > 1 && (
+        {visibleList && visibleList.pagination.totalPages > 1 && (
           <div className="flex items-center justify-between border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
             <span className="text-gray-500 tabular-nums dark:text-gray-400">
               {common("pagination.total", {
-                count: list.data.pagination.totalItems,
+                count: visibleList.pagination.totalItems,
               })}
             </span>
             <div className="flex gap-2">
@@ -1442,7 +1460,7 @@ export default function ProjectDocumentsWorkspace({
               <Button
                 variant="outline"
                 size="sm"
-                disabled={page >= list.data.pagination.totalPages}
+                disabled={page >= visibleList.pagination.totalPages}
                 onClick={() => setPage((value) => value + 1)}
               >
                 {common("pagination.next")}
@@ -1478,7 +1496,7 @@ export default function ProjectDocumentsWorkspace({
         >
           <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="min-w-0 flex-1">
-              {!isCreating && !isEditing && (current || selected) && (
+              {!isCreating && !isEditing && (current || (!detailAccessLost && selected)) && (
                 <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
                   {t("documentEyebrow", {
                     type: t(`type.${(current ?? selected)!.type}`),
@@ -1493,7 +1511,7 @@ export default function ProjectDocumentsWorkspace({
                   ? t("formTitleNew")
                   : isEditing
                     ? t("formTitleEdit")
-                    : (current?.title ?? selected?.title ?? t("open"))}
+                    : (current?.title ?? (detailAccessLost ? undefined : selected?.title) ?? t("open"))}
               </h2>
               {isCreating ? (
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -1570,14 +1588,14 @@ export default function ProjectDocumentsWorkspace({
               onSubmit={saveDocument}
               onClose={requestCloseModal}
             />
-          ) : detail.isPending ? (
+          ) : detail.isPending && !current ? (
             <div
               role="status"
               className="p-6 text-sm text-gray-500 dark:text-gray-400"
             >
               {common("loading")}
             </div>
-          ) : detail.isError ? (
+          ) : detail.isError && !current ? (
             <div
               role="alert"
               className="p-6 text-sm text-error-700 dark:text-error-300"
@@ -1595,6 +1613,15 @@ export default function ProjectDocumentsWorkspace({
             </div>
           ) : current ? (
             <>
+              {!detailAccessLost && detail.isFetching && <UpdatingStatus>{common("loading")}</UpdatingStatus>}
+              {!detailAccessLost && detail.isRefetchError && (
+                <BackgroundRefreshError
+                  retryLabel={common("retry")}
+                  onRetry={() => void detail.refetch()}
+                >
+                  {common("updateFailed")}
+                </BackgroundRefreshError>
+              )}
               <div className="min-h-0 flex-1 space-y-5 overflow-y-auto p-5 sm:p-6">
                 {showActionSuccess && action.isSuccess && (
                   <div

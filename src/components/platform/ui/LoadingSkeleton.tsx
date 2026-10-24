@@ -6,7 +6,7 @@ export function MetricCardSkeleton({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        "flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs animate-pulse dark:border-gray-800 dark:bg-gray-900",
+        "flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs motion-safe:animate-pulse dark:border-gray-800 dark:bg-gray-900",
         className
       )}
     >
@@ -37,7 +37,7 @@ export function TableSkeleton({
   className?: string;
 }) {
   return (
-    <div className={cn("overflow-hidden divide-y divide-gray-100 dark:divide-gray-800 animate-pulse", className)}>
+    <div className={cn("overflow-hidden divide-y divide-gray-100 dark:divide-gray-800 motion-safe:animate-pulse", className)}>
       <div className="flex bg-gray-50/75 px-5 py-3 dark:bg-gray-800/40">
         {Array.from({ length: columns }).map((_, i) => (
           <div
@@ -68,7 +68,7 @@ export function TableSkeleton({
 
 export function DetailSkeleton({ className }: { className?: string }) {
   return (
-    <div className={cn("space-y-4 p-5 animate-pulse", className)}>
+    <div className={cn("space-y-4 p-5 motion-safe:animate-pulse", className)}>
       <div className="h-5 w-48 rounded bg-gray-200 dark:bg-gray-800" />
       <div className="h-3.5 w-72 rounded bg-gray-100 dark:bg-gray-800/60" />
       <div className="grid grid-cols-2 gap-4 pt-4">

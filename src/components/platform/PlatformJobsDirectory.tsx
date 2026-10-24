@@ -8,9 +8,11 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   box,
   cell,
   input,
+  isReadAccessLost,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
 
@@ -44,9 +46,21 @@ export default function PlatformJobsDirectory({
             Live queue health, worker counts, and bounded job counts.
           </p>
         </div>
-        {queues.isPending ? (
+        {queues.data !== undefined &&
+          !isReadAccessLost(queues.error) &&
+          (queues.isFetching || queues.isRefetchError) && (
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+          <QueryRefreshStatus
+            hasData
+            isFetching={queues.isFetching}
+            isRefetchError={queues.isRefetchError}
+            onRetry={() => void queues.refetch()}
+          />
+          </div>
+        )}
+        {queues.isPending && !queues.data ? (
           <Loading columns={4} />
-        ) : queues.isError ? (
+        ) : queues.isError && (!queues.data || isReadAccessLost(queues.error)) ? (
           <ErrorState retry={() => void queues.refetch()} />
         ) : queues.data?.length ? (
           <DirectoryTable
@@ -108,9 +122,21 @@ export default function PlatformJobsDirectory({
             ))}
           </select>
         </div>
-        {jobs.isPending ? (
+        {jobs.data !== undefined &&
+          !isReadAccessLost(jobs.error) &&
+          (jobs.isFetching || jobs.isRefetchError) && (
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+          <QueryRefreshStatus
+            hasData
+            isFetching={jobs.isFetching}
+            isRefetchError={jobs.isRefetchError}
+            onRetry={() => void jobs.refetch()}
+          />
+          </div>
+        )}
+        {jobs.isPending && !jobs.data ? (
           <Loading />
-        ) : jobs.isError ? (
+        ) : jobs.isError && (!jobs.data || isReadAccessLost(jobs.error)) ? (
           <ErrorState retry={() => void jobs.refetch()} />
         ) : jobs.data?.data.length ? (
           <DirectoryTable

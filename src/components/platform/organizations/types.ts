@@ -10,6 +10,8 @@ export type PlatformOrganizationsViewProps = {
     isPending: boolean;
     isError: boolean;
     isFetching: boolean;
+    isRefetchError?: boolean;
+    error?: unknown;
     refetch: () => Promise<unknown>;
   };
   setOrganizationPage: (page: number) => void;
@@ -51,6 +53,8 @@ export type PlatformOrganizationsViewProps = {
     isPending: boolean;
     isError: boolean;
     isFetching: boolean;
+    isRefetchError?: boolean;
+    error?: unknown;
     refetch: () => Promise<unknown>;
   };
   changeOrganizationMetadata: {

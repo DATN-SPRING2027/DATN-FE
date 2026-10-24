@@ -3,7 +3,10 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import { ApiError } from "@/lib/api-client";
+import {
+  ApiError,
+  isAccessOrResourceUnavailableError,
+} from "@/lib/api-client";
 import { isResourceId } from "@/lib/queries/projects/project-members.contract";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -30,6 +33,8 @@ import MemberRemoveConfirmation from "./MemberRemoveConfirmation";
 import MemberError, { isMemberActionDenied } from "./MemberError";
 import { GroupIcon, LockIcon, PlusIcon, SearchIcon } from "@/icons";
 import { Modal } from "@/components/ui/modal";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import { TableSkeleton } from "@/components/platform/ui/LoadingSkeleton";
 
 function ScopedProjectMembers({
   organizationId,
@@ -49,6 +54,7 @@ function ScopedProjectMembers({
   onCloseAdd?: () => void;
 }) {
   const t = useTranslations("projectMembers");
+  const common = useTranslations("common");
   const format = useFormatter();
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState<"ACTIVE" | "INACTIVE">("ACTIVE");
@@ -102,9 +108,11 @@ function ScopedProjectMembers({
   const leaderActions = useProjectLeaderActions(organizationId, projectId);
   const add = useAddProjectMember(organizationId, projectId);
   const remove = useRemoveProjectMember(organizationId, projectId);
+  const membersAccessLost = isAccessOrResourceUnavailableError(members.error);
+  const leadersAccessLost = isAccessOrResourceUnavailableError(leaders.error);
 
   const leaderRoleStatus: LeaderRoleStatus =
-    leaders.isPending || leaders.isFetching
+    leaders.isPending && !leaders.data
       ? "loading"
       : leaders.isError
         ? "unavailable"
@@ -114,20 +122,20 @@ function ScopedProjectMembers({
   const leaderUserIds = useMemo(
     () =>
       new Set(
-        leaders.isSuccess
+        leaders.data && !leadersAccessLost
           ? leaders.data
               .filter((leader) => leader.status === "ACTIVE")
               .map((leader) => leader.userId)
           : [],
       ),
-    [leaders.isSuccess, leaders.data],
+    [leaders.data, leadersAccessLost],
   );
   const inactiveLeaders = useMemo(
     () =>
-      leaders.isSuccess
+      leaders.data && !leadersAccessLost
         ? leaders.data.filter((leader) => leader.status === "INACTIVE")
         : [],
-    [leaders.isSuccess, leaders.data],
+    [leaders.data, leadersAccessLost],
   );
   const inactiveLeaderUserIds = useMemo(
     () => new Set(inactiveLeaders.map((leader) => leader.userId)),
@@ -208,8 +216,8 @@ function ScopedProjectMembers({
     });
   }
 
-  const visibleMembers =
-    members.isSuccess && !members.isFetching ? members.data.data : [];
+  const memberPage = membersAccessLost ? undefined : members.data;
+  const visibleMembers = memberPage?.data ?? [];
   const listedMembers = visibleMembers.filter((member) => {
     const term = search.toLowerCase().trim();
     if (!term) return true;
@@ -262,8 +270,7 @@ function ScopedProjectMembers({
         </Button>
       )}
       {leaderRoleStatus === "unavailable" &&
-        members.isSuccess &&
-        !members.isFetching && (
+        memberPage && (
           <p
             role="status"
             className="rounded-xl border border-warning-200 bg-warning-50/70 px-4 py-3 text-xs font-medium text-warning-800 sm:text-sm dark:border-warning-500/25 dark:bg-warning-500/10 dark:text-warning-300"
@@ -275,8 +282,7 @@ function ScopedProjectMembers({
       {/* Leaderless Project Governance Recovery Banner (Manager only) */}
       {canManageLeaders &&
         leaderUserIds.size === 0 &&
-        members.isSuccess &&
-        !members.isFetching && (
+        memberPage && (
           <section
             aria-label={t("leaderlessRecoveryTitle")}
             className="flex flex-col justify-between gap-4 rounded-2xl border border-error-200 bg-error-50/80 p-4 sm:flex-row sm:items-center sm:p-5 dark:border-error-500/30 dark:bg-error-500/10"
@@ -309,8 +315,7 @@ function ScopedProjectMembers({
       {/* Inactive Leaders Governance Callout (Manager only) */}
       {canManageLeaders &&
         inactiveLeaders.length > 0 &&
-        members.isSuccess &&
-        !members.isFetching && (
+        memberPage && (
           <section
             aria-label={t("inactiveLeadersNoticeTitle")}
             className="space-y-3 rounded-2xl border border-warning-200 bg-warning-50/70 p-4 sm:p-5 dark:border-warning-500/30 dark:bg-warning-500/10"
@@ -383,9 +388,9 @@ function ScopedProjectMembers({
                 <h2 className="text-base font-semibold text-gray-900 dark:text-white/90">
                   {t("title")}
                 </h2>
-                {members.isSuccess && !members.isFetching && (
+                {memberPage && (
                   <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                    {format.number(members.data.pagination.totalItems)}{" "}
+                    {format.number(memberPage.pagination.totalItems)}{" "}
                     {t("membersMetric")}
                   </span>
                 )}
@@ -441,19 +446,26 @@ function ScopedProjectMembers({
           </div>
         </div>
 
-        {members.isFetching || members.isPending ? (
-          <p
-            role="status"
-            className="p-6 text-sm text-gray-600 dark:text-gray-400"
-          >
-            {t("loading")}
-          </p>
-        ) : members.isError ? (
+        {members.isPending && !memberPage ? (
+          <div role="status" aria-live="polite" aria-busy="true" className="space-y-3 p-4">
+            <span className="sr-only">{t("loading")}</span>
+            <TableSkeleton rows={5} columns={4} />
+          </div>
+        ) : members.isError && !memberPage ? (
           <div className="p-5">
             <MemberError error={members.error} action="list" />
           </div>
-        ) : (
+        ) : memberPage ? (
           <>
+            {members.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+            {members.isRefetchError && (
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void members.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            )}
             <MemberDirectory
               members={listedMembers}
               selectedId={focusedMember?.id}
@@ -473,8 +485,8 @@ function ScopedProjectMembers({
             <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
               <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
                 {t("pageOf", {
-                  page: members.data.pagination.page,
-                  total: Math.max(1, members.data.pagination.totalPages),
+                  page: memberPage.pagination.page,
+                  total: Math.max(1, memberPage.pagination.totalPages),
                 })}
               </p>
               <div className="flex gap-2">
@@ -493,7 +505,7 @@ function ScopedProjectMembers({
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled={busy || page >= members.data.pagination.totalPages}
+                  disabled={busy || page >= memberPage.pagination.totalPages}
                   onClick={() => {
                     setPage(page + 1);
                     setFocusedId(undefined);
@@ -505,7 +517,7 @@ function ScopedProjectMembers({
               </div>
             </footer>
           </>
-        )}
+        ) : null}
       </section>
       <div className="[&_.modal>div:first-child]:bg-gray-900/35 [&_.modal>div:first-child]:backdrop-blur-none">
         <Modal
@@ -660,7 +672,7 @@ function ScopedProjectMembers({
           <MemberLifecycle member={focusedMember} />
         </div>
       )}
-      {((selected && members.isSuccess && !members.isFetching) ||
+      {((selected && memberPage) ||
         remove.isError) && (
         <MemberRemoveConfirmation
           isOpen={confirmation.isOpen}
@@ -720,8 +732,12 @@ export default function ProjectMembers({
   onCloseAdd?: () => void;
 }) {
   const user = useCurrentUserQuery();
-  if (user.isPending) return <ProjectState />;
-  if (user.isError) return <ProjectState error={user.error} />;
+  const common = useTranslations("common");
+  const invalidIdentity =
+    user.error instanceof ApiError && [401, 403, 404].includes(user.error.status);
+  if (user.isPending && !user.data) return <ProjectState />;
+  if (user.isError && (!user.data || invalidIdentity))
+    return <ProjectState error={user.error} retry={() => void user.refetch()} />;
   if (!user.data?.organizationId)
     return <ProjectState error={new Error("No trusted organization")} />;
   if (!isResourceId(projectId))
@@ -734,15 +750,26 @@ export default function ProjectMembers({
       />
     );
   return (
-    <ScopedProjectMembers
-      key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
-      organizationId={user.data.organizationId}
-      projectId={projectId}
-      canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
-      showAddButton={showAddButton}
-      addModalOpen={addModalOpen}
-      onOpenAdd={onOpenAdd}
-      onCloseAdd={onCloseAdd}
-    />
+    <div className="space-y-3">
+      {user.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {user.isRefetchError && !invalidIdentity && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void user.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      <ScopedProjectMembers
+        key={`${user.data.id}:${user.data.organizationId}:${projectId}`}
+        organizationId={user.data.organizationId}
+        projectId={projectId}
+        canAppointLeaders={Boolean(user.data.roles?.includes("ADMIN"))}
+        showAddButton={showAddButton}
+        addModalOpen={addModalOpen}
+        onOpenAdd={onOpenAdd}
+        onCloseAdd={onCloseAdd}
+      />
+    </div>
   );
 }
