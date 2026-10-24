@@ -1337,7 +1337,7 @@ export default function WorkItemDetailDialog({
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
                       ▾ Activity
                     </h3>
-                    <div className="inline-flex rounded border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
+                    <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                       {(
                         [
                           { id: "all", label: "All" },
@@ -1353,7 +1353,7 @@ export default function WorkItemDetailDialog({
                           key={tab.id}
                           type="button"
                           onClick={() => setSubtaskActivityTab(tab.id)}
-                          className={`cursor-pointer rounded px-2.5 py-1 font-medium transition ${
+                          className={`cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 font-medium transition ${
                             subtaskActivityTab === tab.id
                               ? "bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
                               : "text-gray-600 hover:text-gray-900 dark:text-gray-400"
@@ -3223,7 +3223,7 @@ export default function WorkItemDetailDialog({
                   >
                     Activity
                   </h3>
-                  <div className="inline-flex border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
+                  <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                     {(
                       [
                         { id:"all", label:"All"},
@@ -3238,7 +3238,7 @@ export default function WorkItemDetailDialog({
                         type="button"
                         aria-pressed={activityTab === tab.id}
                         onClick={() => setActivityTab(tab.id)}
-                        className={`cursor-pointer px-2.5 py-1 font-medium transition ${
+                        className={`cursor-pointer whitespace-nowrap rounded-md px-2.5 py-1 font-medium transition ${
                           activityTab === tab.id
                             ?"bg-white text-brand-600 shadow-theme-xs dark:bg-gray-800 dark:text-brand-400"
                             :"text-gray-600 hover:text-gray-900 dark:text-gray-400"
