@@ -9,9 +9,11 @@ import {
   DirectoryTable,
   ErrorState,
   Loading,
+  QueryRefreshStatus,
   TextField,
   box,
   cell,
+  isReadAccessLost,
   input,
 } from "./PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
@@ -79,9 +81,19 @@ export default function PlatformProjectsDirectory({
                 </select>
               </div>
             </div>
-            {projects.isPending ? (
+            {projects.data !== undefined && !isReadAccessLost(projects.error) && (projects.isFetching || projects.isRefetchError) && (
+              <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+                <QueryRefreshStatus
+                  hasData
+                  isFetching={projects.isFetching}
+                  isRefetchError={projects.isRefetchError}
+                  onRetry={() => void projects.refetch()}
+                />
+              </div>
+            )}
+            {projects.isPending && !projects.data ? (
               <Loading />
-            ) : projects.isError ? (
+            ) : projects.isError && (!projects.data || isReadAccessLost(projects.error)) ? (
               <ErrorState retry={() => void projects.refetch()} />
             ) : projects.data?.data.length ? (
               <DirectoryTable
@@ -149,9 +161,19 @@ export default function PlatformProjectsDirectory({
                   Close
                 </Button>
               </div>
-              {selectedProject.isPending ? (
+              {selectedProject.data !== undefined && !isReadAccessLost(selectedProject.error) && (selectedProject.isFetching || selectedProject.isRefetchError) && (
+                <div className="mb-4">
+                  <QueryRefreshStatus
+                    hasData
+                    isFetching={selectedProject.isFetching}
+                    isRefetchError={selectedProject.isRefetchError}
+                    onRetry={() => void selectedProject.refetch()}
+                  />
+                </div>
+              )}
+              {selectedProject.isPending && !selectedProject.data ? (
                 <Loading columns={3} />
-              ) : selectedProject.isError || !selectedProject.data ? (
+              ) : selectedProject.isError && (!selectedProject.data || isReadAccessLost(selectedProject.error)) ? (
                 <ErrorState retry={() => void selectedProject.refetch()} />
               ) : (
                 <>

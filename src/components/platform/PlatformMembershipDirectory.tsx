@@ -9,6 +9,7 @@ import jira from "./ui/jira.module.css";
 import EmptyState from "./ui/EmptyState";
 import { TableSkeleton } from "./ui/LoadingSkeleton";
 import MembershipTable from "./memberships/MembershipTable";
+import { isReadAccessLost, QueryRefreshStatus } from "./PlatformOperationsUi";
 import styles from "./memberships/MembershipDirectory.module.css";
 import {
   usePlatformMembershipDirectoryQuery,
@@ -80,6 +81,7 @@ export default function PlatformMembershipDirectory(props: Props) {
     <section
       className={`${jira.directory} ${styles.directory}`}
       aria-labelledby="membership-directory-title"
+      aria-busy={memberships.isFetching || undefined}
     >
       <header className="sr-only">
         <h1 id="membership-directory-title">{t("pages.memberships.title")}</h1>
@@ -141,21 +143,33 @@ export default function PlatformMembershipDirectory(props: Props) {
           <p className={styles.message} role="status">
             {t("memberships.readPermissionNeeded")}
           </p>
-        ) : memberships.isError ? (
+        ) : memberships.isError && (!memberships.data || isReadAccessLost(memberships.error)) ? (
           <div className={styles.message} role="alert">
             <p>{t("errors.membershipList")}</p>
             <button type="button" onClick={() => void memberships.refetch()}>
               {t("retry")}
             </button>
           </div>
-        ) : memberships.isPending ? (
+        ) : memberships.isPending && !memberships.data ? (
           <>
             <p role="status" className="sr-only">
               {t("loadingMemberships")}
             </p>
             <TableSkeleton rows={6} columns={6} />
           </>
-        ) : rows.length ? (
+        ) : (
+          <>
+        {memberships.data !== undefined && !isReadAccessLost(memberships.error) && (memberships.isFetching || memberships.isRefetchError) && (
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+            <QueryRefreshStatus
+              hasData
+              isFetching={memberships.isFetching}
+              isRefetchError={memberships.isRefetchError}
+              onRetry={() => void memberships.refetch()}
+            />
+          </div>
+        )}
+        {rows.length ? (
           <MembershipTable
             rows={rows}
             canSuspend={props.canSuspendMemberships}
@@ -168,7 +182,9 @@ export default function PlatformMembershipDirectory(props: Props) {
             body={t("memberships.emptyBody")}
           />
         )}
-        {props.canReadMemberships && !memberships.isError && pagination && (
+          </>
+        )}
+        {props.canReadMemberships && memberships.data && pagination && (
           <nav aria-label={t("memberships.title")} className={jira.pagination}>
             <span aria-live="polite">
               {t("pagination.range", {

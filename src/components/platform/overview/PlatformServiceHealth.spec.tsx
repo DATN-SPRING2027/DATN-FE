@@ -5,6 +5,7 @@ const { query, useServices } = vi.hoisted(() => ({
   query: {
     data: [{ id: "iam", name: "IAM", status: "READY" }],
     isError: false,
+    isRefetchError: false,
     refetch: vi.fn(),
   },
   useServices: vi.fn(),
@@ -27,6 +28,7 @@ const health = {
 describe("Dashboard service evidence", () => {
   beforeEach(() => {
     query.isError = false;
+    query.isRefetchError = false;
     vi.clearAllMocks();
   });
   it("hides cached service names and status when service permission is absent", () => {
@@ -46,16 +48,17 @@ describe("Dashboard service evidence", () => {
     expect(screen.getByText("IAM")).toBeInTheDocument();
     expect(screen.getByText("jira.ready")).toBeInTheDocument();
   });
-  it("hides stale readiness on service-list failure and allows retry", () => {
+  it("keeps stale readiness on service-list refresh failure and allows retry", () => {
     query.isError = true;
+    query.isRefetchError = true;
     render(
       <PlatformServiceHealth
         health={health}
         permissions={["platform.services.service.read"]}
       />,
     );
-    expect(screen.queryByText("IAM")).not.toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent("jira.servicesError");
+    expect(screen.getByText("IAM")).toBeInTheDocument();
+    expect(screen.getByText("updateFailed")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "retry" }));
     expect(query.refetch).toHaveBeenCalledOnce();
   });

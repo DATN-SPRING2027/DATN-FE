@@ -5,10 +5,12 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
-import ContinuumTopLoader from "@/components/ui/loading/ContinuumTopLoader";
+import AdminSessionLoadingShell from "@/components/auth/AdminSessionLoadingShell";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useTranslations } from "next-intl";
 import React, { useEffect, useRef, useState } from "react";
 
 export default function AdminLayout({
@@ -20,12 +22,20 @@ export default function AdminLayout({
     useSidebar();
   const router = useRouter();
   const pathname = usePathname();
+  const common = useTranslations("common");
   const isChat = pathname === "/chat";
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
   const unauthorized =
     currentUser.error instanceof ApiError && currentUser.error.status === 401;
+  const sessionRecoveryFailed =
+    currentUser.error instanceof ApiError &&
+    currentUser.error.sessionRecoveryFailed;
+  const invalidSession =
+    currentUser.error instanceof ApiError &&
+    ([401, 403, 404].includes(currentUser.error.status) ||
+      sessionRecoveryFailed);
 
   useEffect(() => {
     if (!isChat || !window.visualViewport) return;
@@ -48,6 +58,13 @@ export default function AdminLayout({
     }
   };
 
+  const rawWidth = Number.isFinite(sidebarWidth) ? Number(sidebarWidth) : 240;
+  const resolvedExpandedWidth = Math.min(
+    420,
+    Math.max(180, Math.round(rawWidth)),
+  );
+  const desktopSidebarOffsetPx = isExpanded ? resolvedExpandedWidth : 64;
+
   useEffect(() => {
     if (unauthorized) {
       router.replace("/signin");
@@ -56,8 +73,23 @@ export default function AdminLayout({
     }
   }, [unauthorized, currentUser.data?.context, router]);
 
-  if (isRetrying || currentUser.isError || !currentUser.data) {
-    if ((isRetrying || currentUser.isError) && !unauthorized) {
+  if (
+    !currentUser.data ||
+    (currentUser.isError && invalidSession) ||
+    (isRetrying && !currentUser.data)
+  ) {
+    if (!currentUser.data && !currentUser.isError && !isRetrying) {
+      return (
+        <AdminSessionLoadingShell
+          isChat={isChat}
+          sidebarOffset={isMobileOpen ? 0 : desktopSidebarOffsetPx}
+          sidebarWidth={isExpanded ? resolvedExpandedWidth : 64}
+          isMobileOpen={isMobileOpen}
+          isHelpOpen={isHelpOpen}
+        />
+      );
+    }
+    if ((currentUser.isError && !unauthorized) || isRetrying) {
       return (
         <SessionRecoveryPanel
           state="error"
@@ -82,13 +114,6 @@ export default function AdminLayout({
     );
   }
 
-  const rawWidth = Number.isFinite(sidebarWidth) ? Number(sidebarWidth) : 240;
-  const resolvedExpandedWidth = Math.min(
-    420,
-    Math.max(180, Math.round(rawWidth)),
-  );
-  const desktopSidebarOffsetPx = isExpanded ? resolvedExpandedWidth : 64;
-
   const mainContentMargin = isMobileOpen
     ? "ms-0"
     : "lg:ms-[var(--sidebar-offset)]";
@@ -103,8 +128,6 @@ export default function AdminLayout({
           : "flex min-h-screen flex-col"
       }
     >
-      <ContinuumTopLoader />
-
       {/* Full-width Top Header */}
       <AppHeader compact={isChat} />
 
@@ -137,6 +160,20 @@ export default function AdminLayout({
                 : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
             }
           >
+            {currentUser.data && currentUser.isFetching && (
+              <UpdatingStatus className="mx-4 mt-4">
+                {common("updating")}
+              </UpdatingStatus>
+            )}
+            {currentUser.data && currentUser.isRefetchError && (
+              <BackgroundRefreshError
+                className="mx-4 mt-3"
+                retryLabel={common("retry")}
+                onRetry={() => void retrySession()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            )}
             {children}
           </div>
         </div>

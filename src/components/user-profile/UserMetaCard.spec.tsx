@@ -9,7 +9,10 @@ import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 import type { DirectoryUser } from "@/lib/queries/users/useUsers";
 import UserMetaCard from "./UserMetaCard";
 
-vi.mock("@/lib/api-client", () => ({ apiClient: vi.fn() }));
+vi.mock("@/lib/api-client", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/api-client")>();
+  return { ...actual, apiClient: vi.fn() };
+});
 
 const mockedApiClient = vi.mocked(apiClient);
 

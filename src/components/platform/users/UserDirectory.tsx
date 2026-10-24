@@ -17,7 +17,12 @@ import styles from "./UserDirectory.module.css";
 import PlatformUserActionsMenu from "../PlatformUserActionsMenu";
 import EmptyState from "../ui/EmptyState";
 import StatusBadge from "../ui/StatusBadge";
-import { ErrorState } from "../PlatformOperationsUi";
+import {
+  ErrorState,
+  isReadAccessLost,
+  Loading,
+  QueryRefreshStatus,
+} from "../PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "../usePlatformOperationsViewModel";
 
 interface UserDirectoryProps {
@@ -127,14 +132,21 @@ export default function UserDirectory({
         </DirectorySelect>
       </div>
 
-      {users.isPending ? (
-        <p
-          role="status"
-          className="px-5 py-8 text-sm text-gray-500 dark:text-gray-400"
-        >
-          {t("loading")}
-        </p>
-      ) : users.isError ? (
+      {users.data !== undefined &&
+        !isReadAccessLost(users.error) &&
+        (users.isFetching || users.isRefetchError) && (
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+            <QueryRefreshStatus
+              hasData
+              isFetching={users.isFetching}
+              isRefetchError={users.isRefetchError}
+              onRetry={() => void users.refetch()}
+            />
+          </div>
+        )}
+      {users.isPending && !users.data ? (
+        <Loading columns={5} />
+      ) : users.isError && (!users.data || isReadAccessLost(users.error)) ? (
         <ErrorState retry={() => void users.refetch()} />
       ) : users.data?.data.length ? (
         <div className="overflow-x-auto" aria-busy={users.isFetching}>
@@ -234,7 +246,7 @@ export default function UserDirectory({
         <EmptyState title={t("emptyTitle")} body={t("emptyBody")} />
       )}
 
-      {pagination && !users.isError && (
+      {pagination && (
         <nav aria-label={t("pagination")} className={jira.pagination}>
           <div className="flex flex-wrap items-center gap-3">
             <span aria-live="polite">

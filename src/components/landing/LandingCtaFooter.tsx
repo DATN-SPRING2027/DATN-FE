@@ -47,7 +47,7 @@ export default function LandingCtaFooter() {
 
             <div className="relative z-10 max-w-3xl mx-auto">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-3.5 py-1 text-xs font-bold text-blue-300 border border-blue-400/20 mb-5 backdrop-blur-xs">
-                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-blue-400 motion-safe:animate-pulse" />
                 <span>Bảo toàn giá trị tri thức doanh nghiệp</span>
               </span>
 
@@ -75,7 +75,7 @@ export default function LandingCtaFooter() {
                   <span
                     aria-label="Đang kiểm tra phiên đăng nhập"
                     aria-busy="true"
-                    className="h-14 w-48 animate-pulse rounded-xl bg-white/10"
+                    className="h-14 w-48 motion-safe:animate-pulse rounded-xl bg-white/10"
                   />
                 ) : currentUser.data ? (
                   <Link
@@ -157,7 +157,7 @@ export default function LandingCtaFooter() {
                 <span
                   aria-label="Đang kiểm tra phiên đăng nhập"
                   aria-busy="true"
-                  className="inline-block h-4 w-14 animate-pulse rounded bg-slate-200 dark:bg-gray-800"
+                  className="inline-block h-4 w-14 motion-safe:animate-pulse rounded bg-slate-200 dark:bg-gray-800"
                 />
               ) : currentUser.data ? (
                 <Link href="/profile" className="hover:text-blue-600 transition-colors">

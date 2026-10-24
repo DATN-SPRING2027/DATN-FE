@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { Modal } from "@/components/ui/modal";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
@@ -73,7 +74,7 @@ function EditorForm({ user, actorId, onClose, onSaved }: Readonly<{ user: Direct
       )}
       <div className="flex justify-end gap-3">
         <Button variant="outline" size="sm" onClick={onClose}>{t("cancel")}</Button>
-        <Button size="sm" disabled={!changed || !fullName.trim() || update.isPending} onClick={save}>{t("save")}</Button>
+        <Button size="sm" isLoading={update.isPending} disabled={!changed || !fullName.trim()} onClick={save}>{t("save")}</Button>
       </div>
     </div>
   );
@@ -81,12 +82,18 @@ function EditorForm({ user, actorId, onClose, onSaved }: Readonly<{ user: Direct
 
 export default function UserEditor({ organizationId, userId, actorId, onClose, onSaved }: Props) {
   const t = useTranslations("users");
+  const common = useTranslations("common");
   const user = useUserQuery(organizationId, userId);
+  const invalidRecord = user.error instanceof ApiError && [401, 403, 404].includes(user.error.status);
   return (
     <Modal isOpen={Boolean(userId)} onClose={onClose} className="mx-4 max-w-xl">
-      {user.isPending ? <div className="p-8 text-sm text-gray-500">{t("loading")}</div> : user.isError
-        ? <div className="p-8"><Alert variant="error" title={t("loadErrorTitle")} message={t("loadError")} /></div>
-        : <EditorForm key={user.data.id} user={user.data} actorId={actorId} onClose={onClose} onSaved={onSaved} />}
+      {user.isPending && !user.data ? <div role="status" aria-busy="true" className="space-y-4 p-8"><span className="sr-only">{t("loading")}</span><div aria-hidden="true" className="continuum-shimmer h-5 w-40 rounded-md" /><div aria-hidden="true" className="continuum-shimmer h-12 rounded-lg" /></div> : null}
+      {user.isError && (!user.data || invalidRecord) ? <div className="space-y-4 p-8"><Alert variant="error" title={t("loadErrorTitle")} message={invalidRecord && user.error instanceof ApiError && user.error.status === 403 ? t("forbidden") : t("loadError")} /><Button size="sm" variant="outline" onClick={() => void user.refetch()}>{t("retry")}</Button></div> : null}
+      {user.data && !invalidRecord ? <div aria-busy={user.isFetching}>
+        {user.isFetching && <div className="px-6 pt-5"><UpdatingStatus>{common("updating")}</UpdatingStatus></div>}
+        {user.isRefetchError && <div className="px-6 pt-5"><BackgroundRefreshError retryLabel={common("retry")} onRetry={() => void user.refetch()}>{common("updateFailed")}</BackgroundRefreshError></div>}
+        <EditorForm key={user.data.id} user={user.data} actorId={actorId} onClose={onClose} onSaved={onSaved} />
+      </div> : null}
     </Modal>
   );
 }

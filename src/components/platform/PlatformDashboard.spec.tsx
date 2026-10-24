@@ -7,6 +7,7 @@ const { query, useDashboard } = vi.hoisted(() => ({
     isError: false,
     isPending: false,
     isFetching: false,
+    isRefetchError: false,
     refetch: vi.fn(),
   },
   useDashboard: vi.fn(),
@@ -60,6 +61,7 @@ describe("Platform overview", () => {
     query.isError = false;
     query.isPending = false;
     query.isFetching = false;
+    query.isRefetchError = false;
     vi.clearAllMocks();
   });
   it("never exposes cached metrics when dashboard permission is absent", () => {
@@ -89,10 +91,15 @@ describe("Platform overview", () => {
       screen.queryByText("dashboard.noRecentActivity"),
     ).not.toBeInTheDocument();
   });
-  it("hides cached aggregates on failure and offers retry", () => {
+  it("keeps cached aggregates on refresh failure and offers retry", () => {
     query.isError = true;
+    query.isRefetchError = true;
     render(<PlatformDashboard permissions={permissions} />);
-    expect(screen.queryByText("23")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "dashboard.summary" }))
+        .getByText("23"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("updateFailed")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "retry" }));
     expect(query.refetch).toHaveBeenCalledOnce();
   });

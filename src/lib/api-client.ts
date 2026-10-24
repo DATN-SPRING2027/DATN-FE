@@ -31,6 +31,12 @@ export class ApiError extends Error {
   }
 }
 
+export function isAccessOrResourceUnavailableError(
+  error: unknown,
+): error is ApiError {
+  return error instanceof ApiError && [401, 403, 404].includes(error.status);
+}
+
 let refreshInFlight: Promise<unknown> | undefined;
 let sessionGeneration = 0;
 let logoutInFlight: Promise<void> | undefined;

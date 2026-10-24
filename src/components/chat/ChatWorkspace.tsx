@@ -5,6 +5,7 @@ import ChatTools, { type ChatToolMode } from "./ChatTools";
 import ChatDraftComposer from "./ChatDraftComposer";
 import { chatFeatures } from "@/lib/queries/chat/features";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   ChatIcon,
   GroupIcon,
@@ -33,7 +34,7 @@ import {
   useQueryClient,
   type InfiniteData,
 } from "@tanstack/react-query";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatDialog from "./ChatDialog";
@@ -129,13 +130,16 @@ function sendSocketEvent(
 
 export default function ChatWorkspace() {
   const t = useTranslations("chat");
+  const common = useTranslations("common");
   const queryClient = useQueryClient();
   const currentUser = useCurrentUserQuery();
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const visibleCurrentUser = currentUserAccessLost ? undefined : currentUser.data;
   const refreshCurrentUser = currentUser.refetch;
-  const actorId = currentUser.data?.id ?? "";
+  const actorId = visibleCurrentUser?.id ?? "";
   const organizationId =
-    currentUser.data && "organizationId" in currentUser.data
-      ? (currentUser.data.organizationId ?? "")
+    visibleCurrentUser && "organizationId" in visibleCurrentUser
+      ? (visibleCurrentUser.organizationId ?? "")
       : "";
   const conversationsQuery = useChatConversationsQuery(organizationId);
   const createDirect = useCreateDirectMutation(organizationId);
@@ -238,6 +242,18 @@ export default function ChatWorkspace() {
     activeId,
     searchOpen ? debouncedMessageSearch : "",
   );
+  const conversationsAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(conversationsQuery.error);
+  const conversationSearchAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(conversationSearchQuery.error);
+  const defaultMembersAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(defaultOrgMembersQuery.error);
+  const orgMembersAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(orgMembersQuery.error);
+  const candidatesAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(candidatesQuery.error);
+  const messageSearchAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(searchQuery.error);
+  const visibleConversationPages = conversationsAccessLost ? undefined : conversationsQuery.data;
+  const visibleConversationSearchPages = conversationSearchAccessLost ? undefined : conversationSearchQuery.data;
+  const visibleDefaultOrgMembers = defaultMembersAccessLost ? undefined : defaultOrgMembersQuery.data;
+  const visibleOrgMembers = orgMembersAccessLost ? undefined : orgMembersQuery.data;
+  const visibleCandidates = candidatesAccessLost ? undefined : candidatesQuery.data;
+  const visibleSearchResults = messageSearchAccessLost ? undefined : searchQuery.data;
   useEffect(() => {
     const timer = setTimeout(
       () => setDebouncedMessageSearch(messageSearch.trim()),
@@ -246,8 +262,8 @@ export default function ChatWorkspace() {
     return () => clearTimeout(timer);
   }, [messageSearch]);
   const conversations = useMemo(
-    () => conversationsQuery.data?.pages.flatMap((page) => page.data) ?? [],
-    [conversationsQuery.data],
+    () => visibleConversationPages?.pages.flatMap((page) => page.data) ?? [],
+    [visibleConversationPages],
   );
   const detailQuery = useQuery({
     queryKey: ["chat", organizationId, "detail", activeId],
@@ -290,17 +306,19 @@ export default function ChatWorkspace() {
     setMobileListOpen(false);
     clearNavigation();
   }, [navigationTarget, activeId, clearNavigation]);
+  const detailAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(detailQuery.error);
+  const visibleConversationDetail = detailAccessLost ? undefined : detailQuery.data;
   const activeConversation =
     conversations.find((item) => item.id === activeId) ??
-    conversationSearchQuery.data?.pages
+    visibleConversationSearchPages?.pages
       .flatMap((page) => page.data)
       .find((item) => item.id === activeId) ??
-    detailQuery.data ??
-    activeFallback?.conversation;
+    visibleConversationDetail ??
+    (detailAccessLost ? undefined : activeFallback?.conversation);
   const activeName = activeConversation
     ? conversationName(activeConversation, actorId)
-    : (activeFallback?.name ?? "");
-  const activeType = activeConversation?.type ?? activeFallback?.type;
+    : (detailAccessLost ? "" : activeFallback?.name ?? "");
+  const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
   const contextQuery = useChatMessageContextQuery(
     organizationId,
     activeId,
@@ -309,7 +327,9 @@ export default function ChatWorkspace() {
   const displayedMessagesQuery = contextMessageId
     ? contextQuery
     : messagesQuery;
-  const messages = displayedMessagesQuery.data?.data ?? [];
+  const messagesAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(displayedMessagesQuery.error);
+  const visibleMessages = messagesAccessLost ? undefined : displayedMessagesQuery.data;
+  const messages = visibleMessages?.data ?? [];
   const latestMessageId = messages.at(-1)?.id;
   const latestOwnMessage = [...messages]
     .reverse()
@@ -344,9 +364,12 @@ export default function ChatWorkspace() {
       (member) => member.userId === actorId && member.role === "OWNER",
     ) ?? false;
   const filteredConversations = useMemo(() => {
-    const serverPages =
-      visibleConversationsQuery.data?.pages.flatMap((page) => page.data) ?? [];
-    if (!debouncedConversationSearch || !visibleConversationsQuery.isError) {
+    const searchAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(visibleConversationsQuery.error);
+    const visiblePages = searchAccessLost
+      ? undefined
+      : visibleConversationsQuery.data;
+    const serverPages = visiblePages?.pages.flatMap((page) => page.data) ?? [];
+    if (searchAccessLost || !debouncedConversationSearch || !visibleConversationsQuery.isError) {
       return [...serverPages].sort(
         (a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)),
       );
@@ -370,11 +393,13 @@ export default function ChatWorkspace() {
     actorId,
     conversations,
     debouncedConversationSearch,
+    currentUserAccessLost,
+    visibleConversationsQuery.error,
     visibleConversationsQuery.data,
     visibleConversationsQuery.isError,
   ]);
   const searchResults =
-    searchQuery.data?.pages.flatMap((page) => [...page.data].reverse()) ?? [];
+    visibleSearchResults?.pages.flatMap((page) => [...page.data].reverse()) ?? [];
 
   useEffect(() => {
     if (!activeId || !messagesQuery.dataUpdatedAt) return;
@@ -817,14 +842,14 @@ export default function ChatWorkspace() {
             .filter((member) => member.userId !== actorId)
             .map((member) => member.userId),
         ),
-      ...(orgMembersQuery.data?.data
+      ...(visibleOrgMembers?.data
         .filter((member) => member.id !== actorId)
         .map((member) => member.id) ?? []),
     ];
     sendSocketEvent(socketRef.current, "presence.watch", {
       userIds: [...new Set(peers)].slice(0, 100),
     });
-  }, [actorId, connection, conversations, orgMembersQuery.data]);
+  }, [actorId, connection, conversations, visibleOrgMembers]);
 
   useEffect(() => {
     if (!latestMessageId || !activeId) return;
@@ -1025,7 +1050,7 @@ export default function ChatWorkspace() {
   };
 
   const loadEarlier = async () => {
-    const cursor = displayedMessagesQuery.data?.nextCursor;
+    const cursor = visibleMessages?.nextCursor;
     const conversationId = activeIdRef.current;
     if (!conversationId || !cursor || isLoadingEarlierRef.current) return;
     isLoadingEarlierRef.current = true;
@@ -1261,17 +1286,17 @@ export default function ChatWorkspace() {
         ? t("connecting")
         : t("connectionLost");
   const orgMembers = useMemo(
-    () => orgMembersQuery.data?.data ?? [],
-    [orgMembersQuery.data],
+    () => visibleOrgMembers?.data ?? [],
+    [visibleOrgMembers],
   );
   const orgMemberById = useMemo(
     () =>
       new Map(
-        [...(defaultOrgMembersQuery.data?.data ?? []), ...orgMembers].map(
+        [...(visibleDefaultOrgMembers?.data ?? []), ...orgMembers].map(
           (member) => [member.id, member],
         ),
       ),
-    [defaultOrgMembersQuery.data, orgMembers],
+    [visibleDefaultOrgMembers, orgMembers],
   );
   const directPeerIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1293,12 +1318,12 @@ export default function ChatWorkspace() {
   const candidateResults = useMemo(() => {
     const trimmedInput = personSearch.trim();
     const trimmedDebounced = debouncedPersonSearch.trim();
-    if (trimmedInput === trimmedDebounced && candidatesQuery.data?.data) {
-      return candidatesQuery.data.data;
+    if (trimmedInput === trimmedDebounced && visibleCandidates?.data) {
+      return visibleCandidates.data;
     }
     const baseList =
-      candidatesQuery.data?.data ??
-      defaultOrgMembersQuery.data?.data ??
+      visibleCandidates?.data ??
+      visibleDefaultOrgMembers?.data ??
       orgMembers;
     if (!trimmedInput) return baseList;
     const tokens = foldSearchText(trimmedInput)
@@ -1319,9 +1344,9 @@ export default function ChatWorkspace() {
       );
     });
   }, [
-    candidatesQuery.data,
+    visibleCandidates,
     debouncedPersonSearch,
-    defaultOrgMembersQuery.data,
+    visibleDefaultOrgMembers,
     orgMembers,
     personSearch,
   ]);
@@ -1420,10 +1445,10 @@ export default function ChatWorkspace() {
               >
                 {Array.from({ length: 6 }, (_, index) => (
                   <li key={index} className="flex items-center gap-3 px-2 py-3">
-                    <span className="h-11 w-11 shrink-0 animate-pulse bg-gray-200 dark:bg-gray-800" />
+                    <span className="h-11 w-11 shrink-0 motion-safe:animate-pulse bg-gray-200 dark:bg-gray-800" />
                     <span className="min-w-0 flex-1 space-y-2">
-                      <span className="block h-3 w-2/3 animate-pulse bg-gray-200 dark:bg-gray-800" />
-                      <span className="block h-3 w-full animate-pulse bg-gray-100 dark:bg-gray-800/70" />
+                      <span className="block h-3 w-2/3 motion-safe:animate-pulse bg-gray-200 dark:bg-gray-800" />
+                      <span className="block h-3 w-full motion-safe:animate-pulse bg-gray-100 dark:bg-gray-800/70" />
                     </span>
                   </li>
                 ))}
@@ -1773,6 +1798,20 @@ export default function ChatWorkspace() {
                 onScroll={handleMessageScroll}
                 className="min-h-0 flex-1 overflow-y-auto px-4 pt-1 pb-5 md:px-6"
               >
+                {displayedMessagesQuery.isFetching && messages.length > 0 && (
+                  <div className="mb-3 flex justify-center">
+                    <UpdatingStatus>{common("updating")}</UpdatingStatus>
+                  </div>
+                )}
+                {displayedMessagesQuery.isRefetchError && messages.length > 0 && (
+                  <BackgroundRefreshError
+                    className="mb-3"
+                    retryLabel={common("retry")}
+                    onRetry={() => void displayedMessagesQuery.refetch()}
+                  >
+                    {common("updateFailed")}
+                  </BackgroundRefreshError>
+                )}
                 {(isLoadingEarlier || olderMessagesError) && (
                   <div
                     role={olderMessagesError ? "alert" : "status"}
@@ -1795,15 +1834,15 @@ export default function ChatWorkspace() {
                         className={`flex ${index % 2 === 0 ? "justify-start" : "justify-end"}`}
                       >
                         <div className="w-56 space-y-2">
-                          <span className="block h-3 w-24 animate-pulse bg-gray-200 dark:bg-gray-800" />
+                          <span className="block h-3 w-24 motion-safe:animate-pulse bg-gray-200 dark:bg-gray-800" />
                           <span
-                            className={`block h-12 animate-pulse bg-gray-200 dark:bg-gray-800 ${index % 2 === 0 ? "w-5/6" : "w-full"}`}
+                            className={`block h-12 motion-safe:animate-pulse bg-gray-200 dark:bg-gray-800 ${index % 2 === 0 ? "w-5/6" : "w-full"}`}
                           />
                         </div>
                       </div>
                     ))}
                   </div>
-                ) : displayedMessagesQuery.isError ? (
+                ) : displayedMessagesQuery.isError && !visibleMessages ? (
                   <p
                     role="alert"
                     className="py-8 text-center text-sm text-error-600 dark:text-error-400"

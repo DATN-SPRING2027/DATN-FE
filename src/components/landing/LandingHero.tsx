@@ -30,7 +30,7 @@ export default function LandingHero() {
           <div className="lg:col-span-5 xl:col-span-5">
             {/* Pill Badge */}
             <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50/80 px-3.5 py-1 text-xs font-bold text-blue-700 mb-4 shadow-2xs dark:border-blue-900/60 dark:bg-blue-950/60 dark:text-blue-300">
-              <span className="flex h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.8)] animate-pulse" />
+              <span className="flex h-2 w-2 rounded-full bg-blue-600 shadow-[0_0_8px_rgba(37,99,235,0.8)] motion-safe:animate-pulse" />
               <span>Tiếp nối tri thức & năng lực dự án</span>
             </div>
 

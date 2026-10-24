@@ -3,6 +3,7 @@
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { Link } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
@@ -27,16 +28,18 @@ export default function HeaderSettingsDropdown({
   const t = useTranslations("header");
   const [isOpen, setIsOpen] = useState(false);
   const currentUser = useCurrentUserQuery();
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const visibleCurrentUser = currentUserAccessLost ? undefined : currentUser.data;
   const organizationId =
-    currentUser.data && "organizationId" in currentUser.data
-      ? (currentUser.data.organizationId ?? "")
+    visibleCurrentUser && "organizationId" in visibleCurrentUser
+      ? (visibleCurrentUser.organizationId ?? "")
       : "";
   const roles =
-    currentUser.data && "roles" in currentUser.data
-      ? (currentUser.data.roles ?? [])
+    visibleCurrentUser && "roles" in visibleCurrentUser
+      ? (visibleCurrentUser.roles ?? [])
       : [];
 
-  const isManager = canReadOrganizationMemberships(currentUser.data);
+  const isManager = canReadOrganizationMemberships(visibleCurrentUser);
 
   const projectsQuery = useProjectsQuery(
     organizationId,
@@ -57,9 +60,11 @@ export default function HeaderSettingsDropdown({
     (roles.includes("TEAM_LEADER") ||
       roles.includes("LEADER") ||
       Boolean(
-        projectsQuery.data?.data?.some((project) =>
+        !currentUserAccessLost &&
+          !isAccessOrResourceUnavailableError(projectsQuery.error) &&
+          projectsQuery.data?.data?.some((project) =>
           project.leaders?.some(
-            (leader) => leader.userId === currentUser.data?.id,
+            (leader) => leader.userId === visibleCurrentUser?.id,
           ),
         ),
       ));

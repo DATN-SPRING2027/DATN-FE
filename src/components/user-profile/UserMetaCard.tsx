@@ -2,6 +2,7 @@
 
 import { useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useTranslations } from "next-intl";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { PencilIcon } from "@/icons";
 import UserAvatar, { safeAvatarUrl } from "@/components/common/UserAvatar";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -13,6 +14,7 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import Button from "../ui/button/Button";
 import { Modal } from "../ui/modal";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
 function parseAvatarUrl(value: string): string | null | undefined {
   const trimmed = value.trim();
@@ -23,6 +25,7 @@ function parseAvatarUrl(value: string): string | null | undefined {
 
 export default function UserMetaCard() {
   const t = useTranslations("profile");
+  const common = useTranslations("common");
   const roleLabel = useRoleDisplayLabel();
   const { isOpen, openModal, closeModal } = useModal();
   const currentUserQuery = useCurrentUserQuery();
@@ -35,7 +38,8 @@ export default function UserMetaCard() {
   );
   const directoryQuery = useUserQuery(organizationId, userId);
   const updateUser = useUpdateUserMutation();
-  const directoryUser = directoryQuery.data?.id === currentUser?.id ? directoryQuery.data : undefined;
+  const directoryAccessLost = isAccessOrResourceUnavailableError(directoryQuery.error);
+  const directoryUser = !directoryAccessLost && directoryQuery.data?.id === currentUser?.id ? directoryQuery.data : undefined;
   const fullName = directoryUser?.fullName || currentUser?.name || "";
   const avatarUrl = safeAvatarUrl(directoryUser?.avatarUrl);
   const roleNames = currentUser?.roles?.includes("ADMIN")
@@ -124,16 +128,18 @@ export default function UserMetaCard() {
     </header>
   );
 
-  if (currentUserQuery.isPending) {
+  if (currentUserQuery.isPending && !currentUser) {
     return (
       <>{profileHeader}<section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900" aria-busy="true" aria-label={t("loading")}>
-        <div className="flex animate-pulse items-center gap-4" aria-hidden="true"><span className="size-16 rounded-full bg-gray-200 dark:bg-gray-800" /><span className="h-5 w-40 rounded bg-gray-200 dark:bg-gray-800" /></div>
+        <div className="flex motion-safe:animate-pulse items-center gap-4" aria-hidden="true"><span className="size-16 rounded-full bg-gray-200 dark:bg-gray-800" /><span className="h-5 w-40 rounded bg-gray-200 dark:bg-gray-800" /></div>
         <p className="sr-only">{t("loading")}</p>
       </section></>
     );
   }
 
-  if (currentUserQuery.isError || !currentUser) {
+  const invalidIdentity = currentUserQuery.error instanceof ApiError &&
+    [401, 403, 404].includes(currentUserQuery.error.status);
+  if (currentUserQuery.isError && (!currentUser || invalidIdentity) || !currentUser) {
     return (
       <>{profileHeader}<section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900" role="alert">
         <p className="mb-4 text-sm text-error-500">{t("loadError")}</p>
@@ -149,6 +155,18 @@ export default function UserMetaCard() {
   return (
     <>
       {profileHeader}
+      {currentUserQuery.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {currentUserQuery.isRefetchError && !invalidIdentity && (
+        <BackgroundRefreshError retryLabel={common("retry")} onRetry={() => void currentUserQuery.refetch()}>
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      {directoryQuery.data && !directoryAccessLost && directoryQuery.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
+      {directoryQuery.isRefetchError && !directoryAccessLost && (
+        <BackgroundRefreshError retryLabel={common("retry")} onRetry={() => void directoryQuery.refetch()}>
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900 sm:p-6" aria-labelledby="personal-information-heading">
         <h2 id="personal-information-heading" className="text-lg font-semibold text-gray-900 dark:text-white/90">{t("personalInformation")}</h2>
         <div className="mt-5 flex min-w-0 items-center gap-4 border-b border-gray-200 pb-5 dark:border-gray-800">

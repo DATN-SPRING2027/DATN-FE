@@ -17,7 +17,7 @@ import {
   TimeIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   notificationsApi,
   useMarkAllNotificationsReadMutation,
@@ -28,6 +28,7 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
   resolveDefaultTargetUrl,
@@ -90,16 +91,21 @@ function NotificationTypeBadge({ item }: { item: NotificationItem }) {
 
 export default function NotificationDropdown() {
   const t = useTranslations("header.notifications");
+  const common = useTranslations("common");
   const router = useRouter();
   const openChatMessage = useChatNavigation((state) => state.open);
   const currentUser = useCurrentUserQuery();
-  const userId = currentUser.data?.id ?? null;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
+  const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
   const organizationId =
-    currentUser.data && "organizationId" in currentUser.data
+    !currentUserAccessLost && currentUser.data && "organizationId" in currentUser.data
       ? (currentUser.data.organizationId ?? null)
       : null;
 
-  useNotificationRealtimeSubscription(userId, organizationId);
+  const realtimeConnected = useNotificationRealtimeSubscription(
+    userId,
+    organizationId,
+  );
 
   const [isOpen, setIsOpen] = useState(false);
   const [unavailableNotice, setUnavailableNotice] = useState<string | null>(
@@ -111,6 +117,7 @@ export default function NotificationDropdown() {
   const isAuthenticated = Boolean(userId);
   const unreadQuery = useUnreadNotificationCountQuery(
     isAuthenticated && !isOpen,
+    realtimeConnected,
   );
   const listQuery = useNotificationsQuery({
     limit: 12,
@@ -119,10 +126,14 @@ export default function NotificationDropdown() {
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
-  const items = listQuery.data?.items ?? [];
+  const listAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(listQuery.error);
+  const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
+  const visibleList = listAccessLost ? undefined : listQuery.data;
+  const visibleUnreadCount = unreadAccessLost ? undefined : unreadQuery.data?.count;
+  const items = visibleList?.items ?? [];
   const unreadCount = isOpen
-    ? (listQuery.data?.unreadCount ?? unreadQuery.data?.count ?? 0)
-    : (unreadQuery.data?.count ?? listQuery.data?.unreadCount ?? 0);
+    ? (visibleList?.unreadCount ?? visibleUnreadCount ?? 0)
+    : (visibleUnreadCount ?? visibleList?.unreadCount ?? 0);
 
   function toggleDropdown() {
     setIsOpen((prev) => !prev);
@@ -283,6 +294,21 @@ export default function NotificationDropdown() {
         )}
 
         <div className="custom-scrollbar flex-1 overflow-y-auto">
+          {!listAccessLost && listQuery.isFetching && items.length > 0 && (
+            <div className="px-3 py-2">
+              <UpdatingStatus>{common("updating")}</UpdatingStatus>
+            </div>
+          )}
+          {!listAccessLost && listQuery.isRefetchError && items.length > 0 && (
+            <div className="px-3 py-2">
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void listQuery.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            </div>
+          )}
           {listQuery.isLoading ? (
             <div
               role="status"
@@ -294,15 +320,15 @@ export default function NotificationDropdown() {
                   key={idx}
                   className="flex items-start gap-3 rounded-xl p-3"
                 >
-                  <div className="h-9 w-9 shrink-0 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-9 w-9 shrink-0 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3.5 w-2/3 animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-                    <div className="h-3 w-full animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                    <div className="h-3.5 w-2/3 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                    <div className="h-3 w-full motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
                   </div>
                 </div>
               ))}
             </div>
-          ) : listQuery.isError ? (
+          ) : listQuery.isError && items.length === 0 ? (
             <div
               role="alert"
               data-testid="notification-error-state"

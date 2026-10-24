@@ -57,14 +57,17 @@ export function useProjectMembersQuery(
   organizationId: string,
   projectId: string,
   filter: ProjectMemberFilter,
+  options: { enabled?: boolean; staleTime?: number } = {},
 ) {
   return useQuery({
     queryKey: projectMemberKeys.list(organizationId, projectId, filter),
-    enabled: Boolean(organizationId && isResourceId(projectId)),
+    enabled:
+      Boolean(organizationId && isResourceId(projectId)) &&
+      options.enabled !== false,
     retry: false,
     throwOnError: false,
-    staleTime: 0,
-    gcTime: 0,
+    staleTime: options.staleTime ?? 0,
+    gcTime: 120_000,
     refetchOnWindowFocus: true,
     networkMode: "always",
     queryFn: ({ signal }) => {

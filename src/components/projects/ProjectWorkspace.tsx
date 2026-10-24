@@ -20,13 +20,14 @@ import {
   SearchIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
   useProjectsQuery,
   type Project,
-  type ProjectList,
   type ProjectLeaderSummary,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "./ProjectState";
+import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import ProjectCard from "./ProjectCard";
 import {
   MemberAvatarWithHoverCard,
@@ -110,6 +111,7 @@ function TableMemberStack({
 
 function OrganizationProjects({ organizationId }: { organizationId: string }) {
   const t = useTranslations("projects");
+  const common = useTranslations("common");
   const format = useFormatter();
   const router = useRouter();
   const [page, setPage] = useState(1);
@@ -138,22 +140,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     { value: "ARCHIVED", label: t("archived") },
   ];
 
-  const [cachedList, setCachedList] = useState<ProjectList | null>(null);
-  if (
-    projects.isSuccess &&
-    !projects.isFetching &&
-    projects.data &&
-    cachedList !== projects.data
-  ) {
-    setCachedList(projects.data);
-  }
-
-  const activeList =
-    projects.isSuccess && !projects.isFetching
-      ? projects.data
-      : !projects.isError
-        ? cachedList
-        : null;
+  const listAccessLost = isAccessOrResourceUnavailableError(projects.error);
+  const activeList = listAccessLost ? null : (projects.data ?? null);
   const isRefreshingList = projects.isFetching && activeList !== null;
 
   const loadedProjects = activeList?.data ?? [];
@@ -291,19 +279,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
           </div>
 
           <div className="flex items-center gap-2.5">
-            {isRefreshingList && (
-              <span
-                role="status"
-                aria-live="polite"
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-100 bg-brand-50/70 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-300"
-              >
-                <span
-                  aria-hidden="true"
-                  className="inline-flex h-3 w-3 animate-spin rounded-full border-2 border-brand-500 border-t-transparent dark:border-brand-300 dark:border-t-transparent"
-                />
-                <span>{t("loading")}</span>
-              </span>
-            )}
+            {isRefreshingList && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
             {activeList && (
               <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                 {t("totalProjects", {
@@ -434,12 +410,12 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
         </div>
 
         {/* Loading & Error states */}
-        {(projects.isPending || projects.isFetching) && !activeList && (
+        {projects.isPending && !activeList && (
           <div className="mt-4">
-            <ProjectState />
+            <ProjectState variant={view === "grid" ? "grid" : "list"} />
           </div>
         )}
-        {projects.isError && (
+        {projects.isError && !activeList && (
           <div className="mt-4">
             <ProjectState
               error={projects.error}
@@ -449,9 +425,18 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             />
           </div>
         )}
+        {projects.isRefetchError && activeList && (
+          <BackgroundRefreshError
+            className="mt-4"
+            retryLabel={common("retry")}
+            onRetry={() => void projects.refetch()}
+          >
+            {common("updateFailed")}
+          </BackgroundRefreshError>
+        )}
 
         {/* Loaded Table or Grid (kept mounted with soft opacity during filter/page revalidation to prevent screen flicker) */}
-        {activeList && !projects.isError && (
+        {activeList && (
           <div
             aria-busy={isRefreshingList || undefined}
             className={`mt-4 space-y-4 transition-opacity duration-150 ${
@@ -795,7 +780,10 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
 
 export default function ProjectWorkspace() {
   const t = useTranslations("projects");
+  const common = useTranslations("common");
   const user = useCurrentUserQuery();
+  const userAccessLost = isAccessOrResourceUnavailableError(user.error);
+  const visibleUser = userAccessLost ? undefined : user.data;
   const [showLearnMore, setShowLearnMore] = useState(false);
 
   return (
@@ -875,9 +863,20 @@ export default function ProjectWorkspace() {
         </section>
       )}
 
-      {user.isPending ? (
+      {!userAccessLost && visibleUser && user.isFetching && (
+        <UpdatingStatus>{common("updating")}</UpdatingStatus>
+      )}
+      {!userAccessLost && visibleUser && user.isRefetchError && (
+        <BackgroundRefreshError
+          retryLabel={common("retry")}
+          onRetry={() => void user.refetch()}
+        >
+          {common("updateFailed")}
+        </BackgroundRefreshError>
+      )}
+      {user.isPending && !visibleUser ? (
         <ProjectState />
-      ) : user.isError ? (
+      ) : user.isError && !visibleUser ? (
         <ProjectState
           error={user.error}
           retry={() => {
