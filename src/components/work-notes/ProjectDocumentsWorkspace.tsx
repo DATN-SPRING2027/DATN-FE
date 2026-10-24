@@ -175,7 +175,7 @@ export default function ProjectDocumentsWorkspace({ projectId }: { projectId: st
           <div><h2 id="project-documents-heading" className="text-base font-semibold text-gray-900 dark:text-white/90">{t("title")}</h2><p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{t("description")}</p></div>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="grid gap-1 text-xs font-medium text-gray-700 dark:text-gray-300">{t("filterLabel")}<select value={filter} onChange={(event) => { setFilter(event.target.value as DocumentStatus | "ALL"); setPage(1); }} className="h-10 min-w-44 border border-gray-200 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-950">{STATUSES.map((status) => <option key={status} value={status}>{status === "ALL" ? t("allStatuses") : t(`status.${status}`)}</option>)}</select></label>
-            <Button size="sm" onClick={() => { create.reset(); update.reset(); action.reset(); setIsEditing(false); setIsCreating(true); setSelected(null); }}>{t("create")}</Button>
+            {list.isSuccess && <Button size="sm" onClick={() => { create.reset(); update.reset(); action.reset(); setIsEditing(false); setIsCreating(true); setSelected(null); }}>{t("create")}</Button>}
           </div>
         </div>
 

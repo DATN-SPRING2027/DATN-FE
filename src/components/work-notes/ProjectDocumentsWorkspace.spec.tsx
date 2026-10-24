@@ -76,3 +76,12 @@ it("loads a Project Document and submits the server-permitted draft for review",
   ));
   expect(await screen.findByText("Document workflow updated.")).toBeVisible();
 });
+
+it("hides the create action when project access is denied", async () => {
+  api.mockRejectedValue(new Error("Project not found."));
+
+  mount();
+
+  expect(await screen.findByRole("alert")).toHaveTextContent("Project not found.");
+  expect(screen.queryByRole("button", { name: "New document" })).not.toBeInTheDocument();
+});
