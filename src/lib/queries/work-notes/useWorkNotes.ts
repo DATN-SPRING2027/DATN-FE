@@ -316,7 +316,7 @@ export const workNotesApi = {
   },
   uploadDocumentFile(projectId: string, documentId: string, file: File) {
     const headers = new Headers(csrfHeaders());
-    headers.set("Content-Type", file.type);
+    headers.set("Content-Type", file.type || "application/octet-stream");
     headers.set("X-File-Name", encodeURIComponent(file.name));
     return apiClient<ProjectDocument>(
       `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/file`,

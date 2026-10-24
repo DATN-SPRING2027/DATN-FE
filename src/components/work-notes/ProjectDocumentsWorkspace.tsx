@@ -50,10 +50,70 @@ const EMPTY_DOCUMENT: ProjectDocumentInput = {
   type: "OTHER",
   content: "",
 };
+const SUPPORTED_EXTENSIONS = [
+  ".pdf",
+  ".docx",
+  ".doc",
+  ".xlsx",
+  ".xls",
+  ".pptx",
+  ".ppt",
+  ".odt",
+  ".ods",
+  ".odp",
+  ".rtf",
+  ".txt",
+  ".md",
+  ".markdown",
+  ".csv",
+  ".tsv",
+  ".json",
+  ".yaml",
+  ".yml",
+  ".xml",
+  ".drawio",
+  ".sql",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".webp",
+] as const;
+
 const ACCEPTED_FILE_TYPES = [
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.oasis.opendocument.text",
+  "application/vnd.oasis.opendocument.spreadsheet",
+  "application/vnd.oasis.opendocument.presentation",
+  "application/rtf",
+  "text/rtf",
+  "text/plain",
+  "text/markdown",
+  "text/x-markdown",
+  "text/csv",
+  "text/tab-separated-values",
+  "application/json",
+  "application/yaml",
+  "application/x-yaml",
+  "text/yaml",
+  "application/xml",
+  "text/xml",
+  "application/sql",
+  "text/x-sql",
+  "image/png",
+  "image/jpeg",
+  "image/webp",
 ];
+
+const FILE_INPUT_ACCEPT = [
+  ...SUPPORTED_EXTENSIONS,
+  ...ACCEPTED_FILE_TYPES,
+].join(",");
 
 function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -61,19 +121,32 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-function getFileTypeBadge(name: string, contentType?: string): "PDF" | "DOCX" {
+function getFileTypeBadge(name: string, contentType?: string): string {
   const lower = name.toLowerCase();
-  if (contentType === "application/pdf" || lower.endsWith(".pdf")) return "PDF";
-  return "DOCX";
+  if (lower.endsWith(".markdown") || lower.endsWith(".md")) return "MD";
+  if (lower.endsWith(".yml") || lower.endsWith(".yaml")) return "YAML";
+  if (lower.endsWith(".jpeg") || lower.endsWith(".jpg")) return "JPG";
+  const matchedExt = SUPPORTED_EXTENSIONS.find((ext) => lower.endsWith(ext));
+  if (matchedExt) return matchedExt.slice(1).toUpperCase();
+  if (contentType === "application/pdf") return "PDF";
+  if (contentType?.startsWith("text/")) return "TXT";
+  return "FILE";
 }
 
 function isSupportedDocumentFile(candidate: File): boolean {
   const lower = candidate.name.toLowerCase();
+  const baseType = candidate.type.split(";")[0]?.trim().toLowerCase() ?? "";
+  const validExt = SUPPORTED_EXTENSIONS.some((ext) => lower.endsWith(ext));
   const validType =
-    ACCEPTED_FILE_TYPES.includes(candidate.type) ||
-    lower.endsWith(".pdf") ||
-    lower.endsWith(".docx");
-  return validType && candidate.size > 0 && candidate.size <= 20 * 1024 * 1024;
+    baseType === "" ||
+    baseType === "application/octet-stream" ||
+    ACCEPTED_FILE_TYPES.includes(baseType);
+  return (
+    validExt &&
+    validType &&
+    candidate.size > 0 &&
+    candidate.size <= 20 * 1024 * 1024
+  );
 }
 
 function DocumentEditor({
@@ -395,7 +468,7 @@ function DocumentEditor({
               id="doc-file-input"
               type="file"
               aria-label={t("fileLabel")}
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+              accept={FILE_INPUT_ACCEPT}
               onChange={(event) =>
                 handleFileSelection(event.target.files?.[0] ?? null)
               }

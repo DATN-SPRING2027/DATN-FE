@@ -187,7 +187,7 @@ it("keeps the created draft editor open with the selected file when its upload f
     target: { value: "Saved text draft" },
   });
   fireEvent.change(
-    screen.getByLabelText("PDF or DOCX file (up to 20 MB)", { exact: false }),
+    screen.getByLabelText("Document file", { exact: false }),
     {
       target: {
         files: [
@@ -317,7 +317,7 @@ it("clears stale upload errors before retrying document updates and clears actio
     target: { value: "Saved text draft" },
   });
   fireEvent.change(
-    screen.getByLabelText("PDF or DOCX file (up to 20 MB)", { exact: false }),
+    screen.getByLabelText("Document file", { exact: false }),
     {
       target: {
         files: [
@@ -360,7 +360,7 @@ it("displays inline field validation errors, supports drag-and-drop file selecti
   expect(screen.getByText("Enter a document title.")).toBeVisible();
   expect(
     screen.getByText(
-      "Enter document content or attach a PDF/DOCX file before saving.",
+      "Enter document content or attach a document file before saving.",
     ),
   ).toBeVisible();
 
@@ -369,24 +369,25 @@ it("displays inline field validation errors, supports drag-and-drop file selecti
     target: { value: "Database Design v1" },
   });
 
-  // Drop a valid PDF file onto the dropzone
+  // Drop a valid Markdown (.md) file with empty browser MIME type onto the dropzone
   const dropzoneText = screen.getByText("Drag and drop your document here");
   const dropzone = dropzoneText.closest("div.border-dashed")!;
   fireEvent.drop(dropzone, {
     dataTransfer: {
       files: [
-        new File(["%PDF-1.4"], "schema-design.pdf", {
-          type: "application/pdf",
+        new File(["# Database Schema\n\nTables and indexes."], "schema-design.md", {
+          type: "",
         }),
       ],
     },
   });
-  expect(await screen.findByText("schema-design.pdf")).toBeVisible();
+  expect(await screen.findByText("schema-design.md")).toBeVisible();
+  expect(screen.getByText("MD")).toBeVisible();
   expect(screen.getByText("Ready to upload")).toBeVisible();
 
   // Remove selected file
   fireEvent.click(screen.getByRole("button", { name: "Remove file" }));
-  expect(screen.queryByText("schema-design.pdf")).not.toBeInTheDocument();
+  expect(screen.queryByText("schema-design.md")).not.toBeInTheDocument();
 
   // Click Cancel when dirty -> shows unsaved changes confirmation
   fireEvent.click(screen.getByRole("button", { name: "Cancel" }));

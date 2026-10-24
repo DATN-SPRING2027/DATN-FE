@@ -90,6 +90,7 @@ export async function forwardBackendRequest(
     "content-disposition",
     "location",
     "referrer-policy",
+    "x-content-type-options",
     "x-csrf-token",
     "etag",
     "idempotency-replayed",
