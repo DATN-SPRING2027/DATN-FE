@@ -14,8 +14,8 @@ import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import { Modal } from "@/components/ui/modal";
 import { ApiError } from "@/lib/api-client";
+import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import type {
-  InvitationAccessScope,
   InvitationExpiryDays,
   InviteMemberInput,
   OrganizationRoleCode,
@@ -142,6 +142,7 @@ export default function OrganizationInvitationCreateDialog({
   isPending,
   isSuccess = false,
   error,
+  organizationId,
   organizationName,
   allowedRoles = ["MEMBER", "ADMIN"],
   hideRoleSelector = false,
@@ -187,7 +188,8 @@ export default function OrganizationInvitationCreateDialog({
   );
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [roleTouched, setRoleTouched] = useState(false);
-  const [accessScope] = useState<InvitationAccessScope>("ORGANIZATION");
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
+  const [projectsTouched, setProjectsTouched] = useState(false);
   const [message, setMessage] = useState("");
   const [messageOpen, setMessageOpen] = useState(false);
   const [expiresInDays] = useState<InvitationExpiryDays>(7);
@@ -207,6 +209,10 @@ export default function OrganizationInvitationCreateDialog({
   const roleDropdownRef = useRef<HTMLDivElement>(null);
   const previousFocus = useRef<HTMLElement | null>(null);
   const hasError = error !== undefined && error !== null;
+  const projectsQuery = useActiveOrganizationProjects(
+    organizationId ?? "",
+    isOpen && visualRole === "LEADER",
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -275,7 +281,9 @@ export default function OrganizationInvitationCreateDialog({
     !serverIneligibleError &&
     isEmailValid &&
     isRoleValid &&
-    isReasonValid;
+    isReasonValid &&
+    (visualRole !== "LEADER" ||
+      (projectsQuery.isComplete && selectedProjectIds.length > 0));
 
   const serverConflictState = detectConflictKind(error);
   const activeConflictState = localConflictState ?? serverConflictState;
@@ -290,6 +298,8 @@ export default function OrganizationInvitationCreateDialog({
     setVisualRole(defaultRole === "ADMIN" ? "MANAGER" : "MEMBER");
     setRoleDropdownOpen(false);
     setRoleTouched(false);
+    setSelectedProjectIds([]);
+    setProjectsTouched(false);
     setMessage("");
     setMessageOpen(false);
     setReasonCode("ACCESS_REQUEST");
@@ -354,6 +364,7 @@ export default function OrganizationInvitationCreateDialog({
 
   function selectVisualRole(option: VisualRoleOption) {
     setVisualRole(option);
+    if (option !== "LEADER") setSelectedProjectIds([]);
     setRoleTouched(true);
     setRoleCode(option === "MANAGER" ? "ADMIN" : "MEMBER");
     setRoleDropdownOpen(false);
@@ -364,6 +375,7 @@ export default function OrganizationInvitationCreateDialog({
     setSubmitted(true);
     setEmailTouched(true);
     setRoleTouched(true);
+    setProjectsTouched(true);
     if (!canSubmitForm || !reasonCode) return;
     const resolvedRole: OrganizationRoleCode = effectiveRoleHidden
       ? "MEMBER"
@@ -400,7 +412,8 @@ export default function OrganizationInvitationCreateDialog({
       roleCode: resolvedRole,
       ...(allEmails.length > 1 ? { emails: allEmails } : {}),
       ...(visualRole === "LEADER" ? { projectRoleCode: "TEAM_LEADER" as const } : {}),
-      accessScope,
+      accessScope: visualRole === "LEADER" ? "SPECIFIC_PROJECTS" : "ORGANIZATION",
+      ...(visualRole === "LEADER" ? { projectIds: selectedProjectIds } : {}),
       ...(trimmedMessage ? { message: trimmedMessage } : {}),
       expiresInDays,
     });
@@ -1194,6 +1207,47 @@ export default function OrganizationInvitationCreateDialog({
                     </p>
                   )}
                 </div>
+              )}
+
+              {visualRole === "LEADER" && !effectiveRoleHidden && (
+                <fieldset className="space-y-2" aria-describedby={projectsTouched && selectedProjectIds.length === 0 ? "invite-project-error" : undefined}>
+                  <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    {t("inviteSelectProjects")} <span aria-hidden="true" className="text-error-500">*</span>
+                  </legend>
+                  {projectsQuery.isPending ? (
+                    <p role="status" className="text-xs text-gray-500 dark:text-gray-400">{t("inviteProjectsLoading")}</p>
+                  ) : projectsQuery.isError ? (
+                    <div role="alert" className="text-xs text-error-600 dark:text-error-400">
+                      {t("loadError")}{" "}
+                      <button type="button" className="font-medium underline" onClick={() => void projectsQuery.refetch()}>{t("retryLoad")}</button>
+                    </div>
+                  ) : projectsQuery.projects.length === 0 ? (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("inviteProjectsEmpty")}</p>
+                  ) : (
+                    <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-gray-300 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
+                      {projectsQuery.projects.map((project) => (
+                        <label key={project.id} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-800 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800">
+                          <input
+                            type="checkbox"
+                            checked={selectedProjectIds.includes(project.id)}
+                            disabled={isPending || (!selectedProjectIds.includes(project.id) && selectedProjectIds.length >= 50)}
+                            onChange={(event) => {
+                              setProjectsTouched(true);
+                              setSelectedProjectIds((ids) => event.target.checked
+                                ? [...ids, project.id]
+                                : ids.filter((id) => id !== project.id));
+                            }}
+                            className="accent-brand-500"
+                          />
+                          <span className="min-w-0 truncate">{project.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {projectsTouched && selectedProjectIds.length === 0 && (
+                    <p id="invite-project-error" role="alert" className="text-xs font-medium text-error-600 dark:text-error-400">{t("inviteProjectsRequired")}</p>
+                  )}
+                </fieldset>
               )}
 
               {/* Screen 6: Collapsible Message to recipient (optional) */}

@@ -60,6 +60,7 @@ function ProtectedActionBadge({
 
 export default function OrganizationMembershipList({
   page,
+  leaderUserIds,
   actorId,
   canManageActions,
   actionsDisabled,
@@ -71,6 +72,7 @@ export default function OrganizationMembershipList({
   onSetRole,
 }: {
   page: OrganizationMembershipPage;
+  leaderUserIds?: ReadonlySet<string>;
   actorId: string;
   canManageActions: boolean;
   actionsDisabled: boolean;
@@ -87,7 +89,10 @@ export default function OrganizationMembershipList({
   const query = searchTerm.trim().toLocaleLowerCase(locale);
   const visibleMembers = query
     ? page.data.filter((membership) => {
-        const role = membership.roleCode === "ADMIN" || membership.roleCode === "MEMBER" ? displayRoleLabel(membership.roleCode) : t("roleUnassigned");
+        const effectiveRole = membership.roleCode === "MEMBER" && membership.status === "ACTIVE" && leaderUserIds?.has(membership.userId)
+          ? "TEAM_LEADER"
+          : membership.roleCode;
+        const role = effectiveRole ? displayRoleLabel(effectiveRole) : t("roleUnassigned");
         const searchable = [membership.user?.fullName, membership.user?.email, membership.userId, role]
           .filter(Boolean)
           .join(" ")
@@ -134,10 +139,15 @@ export default function OrganizationMembershipList({
               const name = membership.user?.fullName || t("nameUnavailable");
               const email = membership.user?.email ?? membership.userId;
               const canChangeRole = canManageActions && membership.status === "ACTIVE" && membership.user !== null && membership.userId.toLowerCase() !== actorId.toLowerCase();
-              const roleLabel = membership.roleCode === "ADMIN" || membership.roleCode === "MEMBER" ? displayRoleLabel(membership.roleCode) : t("roleUnassigned");
+              const effectiveRole = membership.roleCode === "MEMBER" && membership.status === "ACTIVE" && leaderUserIds?.has(membership.userId)
+                ? "TEAM_LEADER"
+                : membership.roleCode;
+              const roleLabel = effectiveRole ? displayRoleLabel(effectiveRole) : t("roleUnassigned");
               const roleTone = membership.roleCode === "ADMIN"
                 ? "bg-brand-50 text-brand-700 ring-brand-100 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-500/20"
-                : membership.roleCode === "MEMBER"
+                : effectiveRole === "TEAM_LEADER"
+                  ? "bg-blue-light-50 text-blue-light-700 ring-blue-light-100 dark:bg-blue-light-500/10 dark:text-blue-light-300 dark:ring-blue-light-500/20"
+                : effectiveRole === "MEMBER"
                   ? "bg-gray-100 text-gray-700 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
                   : "bg-warning-50 text-warning-700 ring-warning-100 dark:bg-warning-500/10 dark:text-warning-300 dark:ring-warning-500/20";
               const unavailableText = isSelf

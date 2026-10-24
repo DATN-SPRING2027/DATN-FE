@@ -95,6 +95,14 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
 }));
 vi.mock("@/lib/queries/projects/useProjects", () => ({
   useProjectsQuery: () => projectsData,
+  useInfiniteProjectsQuery: () => ({
+    data: { pages: [projectsData.data] },
+    isSuccess: true,
+    hasNextPage: false,
+    isFetchingNextPage: false,
+    isFetchNextPageError: false,
+    fetchNextPage: vi.fn(),
+  }),
 }));
 vi.mock("@/icons/index", () => {
   const Icon = () => null;

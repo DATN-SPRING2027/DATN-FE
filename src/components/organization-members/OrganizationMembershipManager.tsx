@@ -43,6 +43,7 @@ import OrganizationMembershipStats from "./OrganizationMembershipStats";
 import OrganizationMembershipList from "./OrganizationMembershipList";
 import OrganizationInvitationList from "./OrganizationInvitationList";
 import OrganizationInvitationCreateDialog from "./OrganizationInvitationCreateDialog";
+import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import OrganizationMembershipActionDialog, {
   type MembershipActionReasonCode,
   type MembershipActionTarget,
@@ -175,6 +176,7 @@ function ScopedOrganizationMemberships({
     ...(status === "ALL" ? {} : { status }),
   };
   const memberships = useOrganizationMembershipsQuery(actorId, organizationId, filter);
+  const activeProjects = useActiveOrganizationProjects(organizationId, activeTab === "members");
   const invitations = useOrganizationInvitationsQuery(actorId, organizationId, invitationPage, pageSize);
   const invite = useInviteOrganizationMember(actorId, organizationId);
   const resend = useResendOrganizationInvitation(actorId, organizationId);
@@ -617,6 +619,7 @@ function ScopedOrganizationMemberships({
               {readyMembers && readyMembers.data.length > 0 && (
                 <OrganizationMembershipList
                   page={readyMembers}
+                  leaderUserIds={activeProjects.isComplete ? activeProjects.leaderUserIds : undefined}
                   actorId={actorId}
                   canManageActions={canManage}
                   actionsDisabled={hasUnresolvedMutation}

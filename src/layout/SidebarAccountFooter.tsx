@@ -10,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { cn } from "@/utils";
 import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
+import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 
 function getInitials(name?: string) {
   return (name || "?")
@@ -30,12 +31,20 @@ export default function SidebarAccountFooter({
   const roleLabel = useRoleDisplayLabel();
   const router = useRouter();
   const user = useCurrentUserQuery();
+  const activeProjects = useActiveOrganizationProjects(
+    user.data?.organizationId ?? "",
+    !user.data?.roles?.includes("ADMIN"),
+  );
   const logout = useLogoutMutation();
   const [hasLogoutError, setHasLogoutError] = useState(false);
   const name = user.data?.name || user.data?.email || t("defaultName");
-  const role = user.data?.roles?.[0]
-    ? roleLabel(user.data.roles[0])
-    : t("defaultRole");
+  const role = user.data?.roles?.includes("ADMIN")
+    ? roleLabel("ADMIN")
+    : activeProjects.isComplete && user.data && activeProjects.leaderUserIds.has(user.data.id)
+      ? roleLabel("TEAM_LEADER")
+      : user.data?.roles?.[0]
+        ? roleLabel(user.data.roles[0])
+        : t("defaultRole");
 
   const handleLogout = async () => {
     setHasLogoutError(false);

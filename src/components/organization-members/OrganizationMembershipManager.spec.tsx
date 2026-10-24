@@ -53,6 +53,7 @@ const organizationId = "0123456789abcdef01234567";
 const memberId = "1123456789abcdef01234567";
 const userId = "2123456789abcdef01234567";
 const invitationId = "3123456789abcdef01234567";
+const projectId = "4123456789abcdef01234567";
 const user = { id: "9123456789abcdef01234567", email: "admin@example.com", name: "Viewer", organizationId, roles: ["ADMIN"] };
 
 function membership(status: "PENDING_INVITE" | "ACTIVE" | "SUSPENDED" | "REMOVED", id = memberId) {
@@ -111,11 +112,16 @@ function respond(options: {
   memberships?: unknown;
   invitations?: unknown;
   currentUser?: unknown;
+  projects?: unknown;
 } = {}) {
   api.mockImplementation(async (endpoint) => {
     if (endpoint === "/auth/me") return options.currentUser ?? user;
     if (endpoint.includes("/memberships?")) return options.memberships ?? membershipPage();
     if (endpoint.includes("/invitations?")) return options.invitations ?? invitationPage();
+    if (endpoint.startsWith("/iam/projects?")) return options.projects ?? {
+      data: [],
+      pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+    };
     throw new Error(`Unexpected request ${endpoint}`);
   });
 }
@@ -140,6 +146,16 @@ afterEach(() => {
 });
 
 describe("Organization membership management page", () => {
+  it("shows an active project leader as Leader in the organization directory", async () => {
+    respond({
+      projects: {
+        data: [{ id: projectId, name: "Project Alpha", leaders: [{ userId, fullName: "Alex Member", email: "alex@example.com" }] }],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      },
+    });
+    mount();
+    expect(await screen.findByText("Leader")).toBeVisible();
+  });
   it("separates membership and invitation records into accessible tabs", async () => {
     respond({
       memberships: membershipPage(),
@@ -971,6 +987,10 @@ describe("Organization membership management page", () => {
 
     api.mockImplementation(async (endpoint, options) => {
       if (endpoint === "/auth/me") return user;
+      if (endpoint.startsWith("/iam/projects?")) return {
+        data: [{ id: projectId, name: "Project Alpha", leaders: [] }],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      };
       if (endpoint.includes("/memberships?")) return membershipPage([]);
       if (endpoint.includes("/invitations?") && options?.method !== "POST") {
         return invitationPage([{ ...invitation, invitedEmail: "first@example.com" }]);
@@ -1012,6 +1032,8 @@ describe("Organization membership management page", () => {
     fireEvent.keyDown(emailInput, { key: "," });
     fireEvent.change(emailInput, { target: { value: "chip2@example.com" } });
     fireEvent.change(within(dialog).getByLabelText(/Role/), { target: { value: "LEADER" } });
+    expect(within(dialog).getByRole("button", { name: /Send invitations?/i })).toBeDisabled();
+    fireEvent.click(await within(dialog).findByRole("checkbox", { name: "Project Alpha" }));
     fireEvent.click(within(dialog).getByRole("button", { name: /Send invitations?/i }));
 
     expect(await within(dialog).findByText("Invitation sent")).toBeVisible();
@@ -1020,11 +1042,15 @@ describe("Organization membership management page", () => {
       email: "chip1@example.com",
       roleCode: "MEMBER",
       projectRoleCode: "TEAM_LEADER",
+      accessScope: "SPECIFIC_PROJECTS",
+      projectIds: [projectId],
     });
     expect(invitedBodies[1]).toMatchObject({
       email: "chip2@example.com",
       roleCode: "MEMBER",
       projectRoleCode: "TEAM_LEADER",
+      accessScope: "SPECIFIC_PROJECTS",
+      projectIds: [projectId],
     });
     fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
 

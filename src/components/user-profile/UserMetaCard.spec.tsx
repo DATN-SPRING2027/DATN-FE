@@ -56,6 +56,7 @@ function renderProfile(queryClient = createQueryClient()) {
 
 function mockProfileApi() {
   let currentUser: CurrentUserResponse = userA;
+  let leaderUserIds: string[] = [];
   const profiles = new Map<string, DirectoryUser>([[userA.id, directoryUserA]]);
 
   mockedApiClient.mockImplementation(async (endpoint, options) => {
@@ -64,6 +65,10 @@ function mockProfileApi() {
     }
 
     if (endpoint === "/auth/me") return currentUser as never;
+    if (endpoint.startsWith("/iam/projects?")) return {
+      data: [{ id: "project-a", leaders: leaderUserIds.map((userId) => ({ userId })) }],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+    } as never;
 
     if (endpoint.startsWith("/iam/users/") && options?.method === "PATCH") {
       const userId = decodeURIComponent(endpoint.split("/").at(-1) ?? "");
@@ -86,6 +91,7 @@ function mockProfileApi() {
   });
 
   return {
+    setLeaderUserIds(ids: string[]) { leaderUserIds = ids; },
     setCurrentUser(next: CurrentUserResponse, profile: DirectoryUser) {
       currentUser = next;
       profiles.set(next.id, profile);
@@ -96,6 +102,14 @@ function mockProfileApi() {
 describe("UserMetaCard", () => {
   beforeEach(() => {
     mockedApiClient.mockReset();
+  });
+
+  it("shows Leader for a member who leads a project", async () => {
+    const api = mockProfileApi();
+    api.setCurrentUser({ ...userA, roles: ["MEMBER"] }, { ...directoryUserA, roleCodes: ["MEMBER"] });
+    api.setLeaderUserIds([userA.id]);
+    renderProfile();
+    expect((await screen.findAllByText("Leader")).length).toBeGreaterThan(0);
   });
 
   it("loads the authenticated profile and renders only supported, real fields", async () => {
