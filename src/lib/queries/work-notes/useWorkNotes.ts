@@ -105,6 +105,12 @@ export type ProjectDocument = ProjectDocumentSummary &
       status: DocumentStatus;
       createdAt: string;
       editedBy: string;
+      title?: string;
+      description?: string;
+      type?: DocumentType;
+      content?: string;
+      reviewComment?: string;
+      reviewHistory?: readonly ReviewEvent[];
       file?: Readonly<{ name: string; contentType: string; size: number }>;
     }>[];
     reviewHistory: readonly ReviewEvent[];
