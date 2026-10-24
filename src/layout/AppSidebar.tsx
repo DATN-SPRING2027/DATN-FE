@@ -74,12 +74,6 @@ const AppSidebar: React.FC = () => {
   const organizationName = organizations.data?.find(
     (organization) => organization.id === organizationId,
   )?.name;
-  const projectsQuery = useProjectsQuery(organizationId ?? "", {
-    page: 1,
-    pageSize: 100,
-    status: "ACTIVE",
-  });
-  const sidebarProjects = projectsQuery.data?.data ?? [];
   const projectRouteMatch = /^\/projects\/([^/]+)/.exec(pathname);
   const activeProjectIdFromPath = projectRouteMatch?.[1]
     ? decodeURIComponent(projectRouteMatch[1])
@@ -89,6 +83,18 @@ const AppSidebar: React.FC = () => {
   );
   const isProjectsOpen =
     manualProjectsOpen ?? Boolean(activeProjectIdFromPath);
+  const projectsQuery = useProjectsQuery(
+    organizationId ?? "",
+    {
+      page: 1,
+      pageSize: 20,
+      status: "ACTIVE",
+    },
+    { enabled: isProjectsOpen },
+  );
+  const sidebarProjects = projectsQuery.data?.data ?? [];
+  const totalProjects =
+    projectsQuery.data?.pagination?.totalItems ?? sidebarProjects.length;
   const [toggledProjectIds, setToggledProjectIds] = useState<
     Record<string, boolean>
   >({});
@@ -669,6 +675,17 @@ const AppSidebar: React.FC = () => {
                   );
                 })
               )}
+              {projectsQuery.data &&
+                totalProjects > sidebarProjects.length && (
+                  <li>
+                    <Link
+                      href="/projects"
+                      className="flex min-h-8 items-center rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+                    >
+                      {t("items.projects")}
+                    </Link>
+                  </li>
+                )}
             </ul>
           )}
         </li>

@@ -170,9 +170,21 @@ describe("AppHeader", () => {
     await waitFor(() =>
       expect(screen.getByText("Phuc Nguyen")).toBeInTheDocument(),
     );
+    expect(
+      vi.mocked(global.fetch).mock.calls.some(([url]) =>
+        String(url).includes("/projects?"),
+      ),
+    ).toBe(false);
 
     // Open Settings dropdown as Manager (ADMIN)
     fireEvent.click(screen.getByRole("button", { name: "settings" }));
+    await waitFor(() =>
+      expect(
+        vi.mocked(global.fetch).mock.calls.some(([url]) =>
+          String(url).includes("/projects?page=1&pageSize=20"),
+        ),
+      ).toBe(true),
+    );
     expect(
       screen.getByText("settingsMenu.systemTitle"),
     ).toBeInTheDocument();

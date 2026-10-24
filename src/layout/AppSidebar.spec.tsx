@@ -45,6 +45,7 @@ const {
           status: "ACTIVE",
         },
       ],
+      pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
     },
     isLoading: false,
   },

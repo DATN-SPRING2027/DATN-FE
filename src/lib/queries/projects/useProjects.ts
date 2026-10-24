@@ -43,6 +43,7 @@ export type ProjectListInput = Readonly<{
   page: number;
   pageSize: number;
   status?: Project["status"];
+  q?: string;
 }>;
 export type ProjectList = Readonly<{
   data: readonly Project[];
@@ -70,6 +71,7 @@ async function fetchProjectsPage(
     pageSize: String(input.pageSize),
   });
   if (input.status) params.set("status", input.status);
+  if (input.q?.trim()) params.set("q", input.q.trim());
   return apiClient<ProjectList>(`/iam/projects?${params}`, {
     signal,
     cache: "no-store",
@@ -79,39 +81,15 @@ async function fetchProjectsPage(
 export function useProjectsQuery(
   organizationId: string,
   input: ProjectListInput,
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: projectKeys.list(organizationId, input),
-    queryFn: async ({ signal }) => {
-      const firstPage = await fetchProjectsPage(input, signal);
-      const totalPages = firstPage.pagination?.totalPages ?? 1;
-      if (input.page !== 1 || totalPages <= 1 || input.pageSize < 100) {
-        return firstPage;
-      }
-      const seenIds = new Set<string>(firstPage.data.map((p) => p.id));
-      const merged: Project[] = [...firstPage.data];
-      for (let page = 2; page <= totalPages; page += 1) {
-        if (signal?.aborted) break;
-        const nextPage = await fetchProjectsPage(
-          { ...input, page },
-          signal,
-        );
-        for (const project of nextPage.data) {
-          if (!seenIds.has(project.id)) {
-            seenIds.add(project.id);
-            merged.push(project);
-          }
-        }
-      }
-      return {
-        data: merged,
-        pagination: firstPage.pagination,
-      };
-    },
-    enabled: Boolean(organizationId),
+    queryFn: ({ signal }) => fetchProjectsPage(input, signal),
+    enabled: Boolean(organizationId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   });
 }
 export function useProjectQuery(organizationId: string, id: string) {
