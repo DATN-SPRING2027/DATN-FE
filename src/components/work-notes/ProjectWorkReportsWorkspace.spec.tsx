@@ -35,11 +35,19 @@ const report = {
   blockers: "",
   nextSteps: "Add delivery metrics.",
   reviewHistory: [],
-  permissions: { canCreate: true, canEdit: true, canSubmit: true, canReview: false, canConfigure: false },
+  permissions: {
+    canCreate: true,
+    canEdit: true,
+    canSubmit: true,
+    canReview: false,
+    canConfigure: false,
+  },
 };
 
 function mount() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
   return render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -53,48 +61,227 @@ beforeEach(() => {
   api.mockReset();
 });
 
-it("shows and saves the current Periodic Work Report through the API", async () => {
+it("shows mandatory read-only schedule for a Member and saves the current Periodic Work Report through the API", async () => {
   api.mockImplementation(async (path, options) => {
     if (path.endsWith("/work-report-settings")) {
-      return { projectId, frequency: "WEEKLY", effectiveAt: report.periodStart, updatedBy: report.memberId, history: [], permissions: { canConfigure: false } } as never;
+      return {
+        projectId,
+        actorRole: "MEMBER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: false },
+      } as never;
+    }
+    if (path.includes("/documents?")) {
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+      } as never;
     }
     if (path.includes("/work-reports?")) {
-      return { data: [report], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } } as never;
+      return {
+        data: [report],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
     }
-    if (path === `/capture/projects/${projectId}/work-reports` && options?.method === "POST") return report as never;
-    throw new Error(`Unexpected API request: ${options?.method ?? "GET"} ${path}`);
+    if (
+      path === `/capture/projects/${projectId}/work-reports` &&
+      options?.method === "POST"
+    )
+      return report as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
   });
 
   mount();
-  expect(await screen.findByRole("heading", { name: "Your current period" })).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Your current period" }),
+  ).toBeVisible();
+  expect(
+    await screen.findByText("Mandatory reporting cadence"),
+  ).toBeVisible();
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
-  await waitFor(() => expect(api).toHaveBeenCalledWith(
-    `/capture/projects/${projectId}/work-reports`,
-    expect.objectContaining({ method: "POST" }),
-  ));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-reports`,
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
 });
 
-it("asks a Leader to confirm a supported schedule change before saving it", async () => {
+it("supports all 1-7 day reporting frequencies and asks a Leader to confirm a schedule change before saving it", async () => {
   api.mockImplementation(async (path, options) => {
-    if (path.endsWith("/work-report-settings") && options?.method === "PATCH") {
-      return { projectId, frequency: "EVERY_3_DAYS", effectiveAt: report.periodEnd, nextEffectiveAt: report.periodEnd, updatedBy: report.memberId, history: [], permissions: { canConfigure: true } } as never;
+    if (
+      path.endsWith("/work-report-settings") &&
+      options?.method === "PATCH"
+    ) {
+      return {
+        projectId,
+        actorRole: "LEADER",
+        frequency: "EVERY_3_DAYS",
+        effectiveAt: report.periodEnd,
+        nextEffectiveAt: report.periodEnd,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
     }
     if (path.endsWith("/work-report-settings")) {
-      return { projectId, frequency: "WEEKLY", effectiveAt: report.periodStart, updatedBy: report.memberId, history: [], permissions: { canConfigure: true } } as never;
+      return {
+        projectId,
+        actorRole: "LEADER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
     }
-    if (path.includes("/work-reports?")) return { data: [], pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 } } as never;
-    throw new Error(`Unexpected API request: ${options?.method ?? "GET"} ${path}`);
+    if (path.includes("/work-reports?"))
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+      } as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
   });
 
   mount();
-  fireEvent.change(await screen.findByLabelText("Reporting frequency"), { target: { value: "EVERY_3_DAYS" } });
-  fireEvent.click(screen.getByRole("button", { name: "Schedule frequency change" }));
-  expect(await screen.findByRole("group", { name: "Confirm reporting schedule change" })).toHaveTextContent("Existing reports and their history will remain unchanged.");
-  fireEvent.click(screen.getByRole("button", { name: "Apply schedule change" }));
+  const select = (await screen.findByLabelText(
+    "Reporting frequency",
+  )) as HTMLSelectElement;
+  expect(
+    Array.from(select.options).map((option) => option.value),
+  ).toEqual([
+    "DAILY",
+    "EVERY_2_DAYS",
+    "EVERY_3_DAYS",
+    "EVERY_4_DAYS",
+    "EVERY_5_DAYS",
+    "EVERY_6_DAYS",
+    "WEEKLY",
+  ]);
+  fireEvent.change(select, {
+    target: { value: "EVERY_3_DAYS" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Schedule frequency change" }),
+  );
+  expect(
+    await screen.findByRole("group", {
+      name: "Confirm reporting schedule change",
+    }),
+  ).toHaveTextContent(
+    "Existing reports and their history will remain unchanged.",
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Apply schedule change" }),
+  );
 
-  await waitFor(() => expect(api).toHaveBeenCalledWith(
-    `/capture/projects/${projectId}/work-report-settings`,
-    expect.objectContaining({ method: "PATCH", body: JSON.stringify({ frequency: "EVERY_3_DAYS" }) }),
-  ));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-report-settings`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ frequency: "EVERY_3_DAYS" }),
+      }),
+    ),
+  );
+});
+
+it("allows an Organization Manager to switch to the Leader Reports & Schedule tab and configure a separate Leader cadence", async () => {
+  api.mockImplementation(async (path, options) => {
+    if (
+      path === `/capture/projects/${projectId}/work-report-settings` &&
+      options?.method === "PATCH"
+    ) {
+      return {
+        projectId,
+        scope: "LEADER",
+        actorRole: "MANAGER",
+        frequency: "EVERY_4_DAYS",
+        effectiveAt: report.periodEnd,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+    if (path.includes("/work-report-settings?scope=LEADER")) {
+      return {
+        projectId,
+        scope: "LEADER",
+        actorRole: "MANAGER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        scope: "MEMBER",
+        actorRole: "MANAGER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+        leaderSettings: {
+          frequency: "WEEKLY",
+          effectiveAt: report.periodStart,
+          updatedBy: report.memberId,
+          history: [],
+          permissions: { canConfigure: true },
+        },
+      } as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [],
+        pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+      } as never;
+    }
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  const leaderTab = await screen.findByRole("button", {
+    name: /Leader Reports & Schedule/i,
+  });
+  fireEvent.click(leaderTab);
+
+  expect(
+    await screen.findByRole("heading", {
+      name: "Project Leader reporting schedule (Manager setting)",
+    }),
+  ).toBeVisible();
+
+  fireEvent.change(await screen.findByLabelText("Reporting frequency"), {
+    target: { value: "EVERY_4_DAYS" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Schedule frequency change" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Apply schedule change" }),
+  );
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-report-settings`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ frequency: "EVERY_4_DAYS", scope: "LEADER" }),
+      }),
+    ),
+  );
 });
