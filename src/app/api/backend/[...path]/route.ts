@@ -40,14 +40,17 @@ async function proxy(
     return new Response(null, { status: 404 });
   }
   const streamUpload =
-    request.method === "PUT" && (
-    (path.length === 6 && path[0] === "capture" && path[1] === "projects" && path[3] === "documents" && path[5] === "file") ||
-    (
-    path.length === 6 &&
-    path[0] === "chat" &&
-    path[1] === "conversations" &&
-    path[3] === "uploads" &&
-    path[5] === "content"));
+    request.method === "PUT" &&
+    ((path.length === 6 &&
+      path[0] === "capture" &&
+      path[1] === "projects" &&
+      (path[3] === "documents" || path[3] === "work-reports") &&
+      path[5] === "file") ||
+      (path.length === 6 &&
+        path[0] === "chat" &&
+        path[1] === "conversations" &&
+        path[3] === "uploads" &&
+        path[5] === "content"));
   return forwardBackendRequest(request, path, { streamBody: streamUpload });
 }
 
