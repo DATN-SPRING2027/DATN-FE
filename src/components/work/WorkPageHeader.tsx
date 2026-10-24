@@ -222,6 +222,9 @@ export default function WorkPageHeader({
   projectCode,
   projects,
   onProjectChange,
+  hasMoreProjects,
+  isLoadingMoreProjects,
+  onLoadMoreProjects,
   view,
   onViewChange,
   onCreate,
@@ -237,6 +240,9 @@ export default function WorkPageHeader({
   projectCode: string;
   projects?: readonly Project[];
   onProjectChange?: (projectId: string) => void;
+  hasMoreProjects?: boolean;
+  isLoadingMoreProjects?: boolean;
+  onLoadMoreProjects?: () => void;
   view: WorkView;
   onViewChange: (view: WorkView) => void;
   onCreate: () => void;
@@ -405,7 +411,13 @@ export default function WorkPageHeader({
                 <select
                   aria-label={t("selectProject")}
                   value={projectId}
-                  onChange={(event) => onProjectChange(event.target.value)}
+                  onChange={(event) => {
+                    if (event.target.value === "__load_more_projects__") {
+                      onLoadMoreProjects?.();
+                      return;
+                    }
+                    onProjectChange(event.target.value);
+                  }}
                   className="h-8 cursor-pointer rounded border border-gray-200 bg-white ps-2.5 pe-7 text-xs font-medium text-gray-700 outline-none focus-visible:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
                 >
                   {projects.map((item) => (
@@ -413,6 +425,16 @@ export default function WorkPageHeader({
                       {item.name} ({item.code})
                     </option>
                   ))}
+                  {hasMoreProjects && onLoadMoreProjects && (
+                    <option
+                      value="__load_more_projects__"
+                      disabled={isLoadingMoreProjects}
+                    >
+                      {isLoadingMoreProjects
+                        ? t("loadingMoreProjects")
+                        : t("loadMoreProjects")}
+                    </option>
+                  )}
                 </select>
               </label>
             )}

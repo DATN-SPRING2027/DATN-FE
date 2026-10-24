@@ -221,6 +221,9 @@ export default function WorkWorkspace({
   project: projectProp,
   projects,
   onProjectChange,
+  hasMoreProjects,
+  isLoadingMoreProjects,
+  onLoadMoreProjects,
   view: controlledView,
   onViewChange,
   embedded = false,
@@ -230,6 +233,9 @@ export default function WorkWorkspace({
   project?: Project;
   projects?: readonly Project[];
   onProjectChange?: (projectId: string) => void;
+  hasMoreProjects?: boolean;
+  isLoadingMoreProjects?: boolean;
+  onLoadMoreProjects?: () => void;
   view?: WorkView;
   onViewChange?: (view: WorkView) => void;
   embedded?: boolean;
@@ -2668,6 +2674,9 @@ export default function WorkWorkspace({
           projectCode={projectCode}
           projects={projects}
           onProjectChange={onProjectChange}
+          hasMoreProjects={hasMoreProjects}
+          isLoadingMoreProjects={isLoadingMoreProjects}
+          onLoadMoreProjects={onLoadMoreProjects}
           view={view}
           onViewChange={setView}
           onCreate={() => setCreateOpen(true)}

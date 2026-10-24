@@ -109,17 +109,20 @@ export default function NotificationDropdown() {
     useState<NotificationItem | null>(null);
 
   const isAuthenticated = Boolean(userId);
-  const unreadQuery = useUnreadNotificationCountQuery(isAuthenticated);
+  const unreadQuery = useUnreadNotificationCountQuery(
+    isAuthenticated && !isOpen,
+  );
   const listQuery = useNotificationsQuery({
     limit: 12,
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && isOpen,
   });
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
   const items = listQuery.data?.items ?? [];
-  const unreadCount =
-    unreadQuery.data?.count ?? listQuery.data?.unreadCount ?? 0;
+  const unreadCount = isOpen
+    ? (listQuery.data?.unreadCount ?? unreadQuery.data?.count ?? 0)
+    : (unreadQuery.data?.count ?? listQuery.data?.unreadCount ?? 0);
 
   function toggleDropdown() {
     setIsOpen((prev) => !prev);

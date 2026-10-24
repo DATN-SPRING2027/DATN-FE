@@ -234,6 +234,12 @@ describe("auth query hooks", () => {
       { id: "org-1", name: "DATN" },
       { id: "org-2", name: "DATN Test" },
     ]);
+    expect(queryClient.getQueryState(authKeys.currentUser())?.isInvalidated).toBe(
+      false,
+    );
+    expect(
+      queryClient.getQueryState(["auth", "organizations"])?.isInvalidated,
+    ).toBe(false);
     expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
   });
 });

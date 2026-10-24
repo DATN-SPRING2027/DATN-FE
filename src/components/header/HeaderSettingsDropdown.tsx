@@ -38,11 +38,19 @@ export default function HeaderSettingsDropdown({
 
   const isManager = canReadOrganizationMemberships(currentUser.data);
 
-  const projectsQuery = useProjectsQuery(organizationId, {
-    page: 1,
-    pageSize: 20,
-    status: "ACTIVE",
-  });
+  const projectsQuery = useProjectsQuery(
+    organizationId,
+    {
+      page: 1,
+      pageSize: 20,
+      status: "ACTIVE",
+    },
+    {
+      enabled: isOpen,
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    },
+  );
 
   const isProjectLeader =
     !isManager &&

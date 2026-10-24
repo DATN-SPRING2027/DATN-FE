@@ -307,7 +307,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             {activeList && (
               <span className="rounded-lg bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                 {t("totalProjects", {
-                  count: activeList.pagination.totalItems,
+                  count: activeList.pagination.totalItems ?? 0,
                 })}
               </span>
             )}
@@ -777,7 +777,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                   variant="outline"
                   size="sm"
                   disabled={
-                    page >= activeList.pagination.totalPages || isRefreshingList
+                    page >= (activeList.pagination.totalPages ?? totalPages) ||
+                    isRefreshingList
                   }
                   onClick={() => setPage(page + 1)}
                 >

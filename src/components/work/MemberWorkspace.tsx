@@ -5,8 +5,8 @@ import { useTranslations } from "next-intl";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
+  useInfiniteProjectsQuery,
   useProjectQuery,
-  useProjectsQuery,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "@/components/projects/ProjectState";
 import WorkWorkspace from "./WorkWorkspace";
@@ -24,9 +24,8 @@ export default function MemberWorkspace({
   const router = useRouter?.();
   const user = useCurrentUserQuery();
   const organizationId = user.data?.organizationId ?? "";
-  const projects = useProjectsQuery(organizationId, {
-    page: 1,
-    pageSize: 100,
+  const projects = useInfiniteProjectsQuery(organizationId, {
+    pageSize: 20,
     status: "ACTIVE",
   });
   const [selectedProjectId, setSelectedProjectId] = useState<
@@ -52,7 +51,7 @@ export default function MemberWorkspace({
     }
   }
 
-  const loadedProjects = projects.data?.data ?? [];
+  const loadedProjects = projects.data?.pages.flatMap((page) => page.data) ?? [];
   const matchedFromPage = selectedProjectId
     ? loadedProjects.find((project) => project.id === selectedProjectId)
     : undefined;
@@ -137,6 +136,9 @@ export default function MemberWorkspace({
       project={activeProject}
       projects={workspaceProjects}
       onProjectChange={handleProjectChange}
+      hasMoreProjects={projects.hasNextPage}
+      isLoadingMoreProjects={projects.isFetchingNextPage}
+      onLoadMoreProjects={() => void projects.fetchNextPage()}
       view={view}
       onViewChange={setView}
       hideProjectBanner

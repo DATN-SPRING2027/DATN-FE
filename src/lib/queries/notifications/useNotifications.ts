@@ -8,6 +8,8 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
+
+const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 import { chatApi } from "@/lib/queries/chat/useChat";
 
 export type NotificationMvpType =
@@ -170,7 +172,7 @@ export function useNotificationsQuery(
         signal,
       ),
     enabled: options.enabled ?? true,
-    refetchInterval: 15_000,
+    refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
     staleTime: 5_000,
   });
 }
@@ -201,7 +203,7 @@ export function useUnreadNotificationCountQuery(enabled = true) {
     queryKey: notificationKeys.unreadCount(),
     queryFn: ({ signal }) => notificationsApi.unreadCount(signal),
     enabled,
-    refetchInterval: 15_000,
+    refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
     staleTime: 5_000,
   });
 }

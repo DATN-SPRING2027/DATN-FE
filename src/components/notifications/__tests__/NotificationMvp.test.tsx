@@ -201,11 +201,27 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     renderWithProviders(<NotificationDropdown />);
 
+    await waitFor(() => {
+      expect(api).toHaveBeenCalledWith(
+        "/notifications/unread-count",
+        expect.objectContaining({ cache: "no-store" }),
+      );
+    });
+    expect(
+      api.mock.calls.some(([path]) => String(path).startsWith("/notifications?")),
+    ).toBe(false);
+
     fireEvent.click(screen.getByTestId("notification-bell-button"));
 
     expect(
       await screen.findByText("New task assigned"),
     ).toBeInTheDocument();
+    expect(
+      api.mock.calls.some(([path]) => String(path).startsWith("/notifications?")),
+    ).toBe(true);
+    expect(
+      api.mock.calls.filter(([path]) => path === "/notifications/unread-count"),
+    ).toHaveLength(1);
     expect(
       screen.getByText(
         "You were assigned to task ATL-101: Implement Notification MVP.",
