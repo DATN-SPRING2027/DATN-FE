@@ -9,6 +9,7 @@ const forwardedHeaders = [
   'content-type',
   'cookie',
   'x-csrf-token',
+  'x-file-name',
   'idempotency-key',
   'if-match',
   'x-request-id',

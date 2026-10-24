@@ -87,8 +87,10 @@ export async function forwardBackendRequest(
   for (const name of [
     "cache-control",
     "content-type",
+    "content-disposition",
     "location",
     "referrer-policy",
+    "x-content-type-options",
     "x-csrf-token",
     "etag",
     "idempotency-replayed",

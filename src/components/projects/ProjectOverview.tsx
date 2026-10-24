@@ -9,6 +9,7 @@ import type { Project } from "@/lib/queries/projects/useProjects";
 import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
+import { CalenderIcon, DocsIcon } from "@/icons";
 
 export type ProjectTab = "overview" | "members" | "settings" | "teams";
 
@@ -700,7 +701,7 @@ export default function ProjectOverview({
               desc={t("workspaceModulesHint")}
               className="min-w-0"
             >
-              <div className="grid grid-cols-1 gap-3.5 @2xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3.5 @md:grid-cols-2 @3xl:grid-cols-5">
                 <Link
                   href={`/projects/${encodeURIComponent(project.id)}/work`}
                   aria-label={t("openWorkModule")}
@@ -783,6 +784,36 @@ export default function ProjectOverview({
                     <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                       {t("workNotesModuleDesc")}
                     </p>
+                  </div>
+                </Link>
+
+                <Link
+                  href={`/projects/${encodeURIComponent(project.id)}/documents`}
+                  aria-label={t("openProjectDocumentsModule")}
+                  className="group flex flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"><DocsIcon aria-hidden="true" className="h-4 w-4" /></span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">→</span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">{t("projectDocumentsTitle")}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{t("projectDocumentsModuleDesc")}</p>
+                  </div>
+                </Link>
+
+                <Link
+                  href={`/projects/${encodeURIComponent(project.id)}/work-reports`}
+                  aria-label={t("openWorkReportsModule")}
+                  className="group flex flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-warning-50 text-warning-700 dark:bg-warning-500/15 dark:text-warning-300"><CalenderIcon aria-hidden="true" className="h-4 w-4" /></span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">→</span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">{t("workReportsTitle")}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{t("workReportsModuleDesc")}</p>
                   </div>
                 </Link>
 

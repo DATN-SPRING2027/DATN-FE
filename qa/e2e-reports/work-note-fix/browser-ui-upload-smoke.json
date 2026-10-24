@@ -1,0 +1,86 @@
+{
+  "loginStatus": 200,
+  "authMeStatus": 200,
+  "validationMessages": [
+    "Complete all required fields before saving.",
+    ""
+  ],
+  "createStatus": 201,
+  "createBody": "{\"id\":\"6adc50039b2efba6aedb3900\",\"projectId\":\"898f7d00f9f1e9e98da9075a\",\"title\":\"Work Note UI smoke 2026-10-24T06:28:19.171Z\",\"description\":\"\",\"type\":\"OTHER\",\"version\":1,\"status\":\"DRAFT\",\"createdBy\":\"d4bb2c495a7d81ff75481713\",\"createdAt\":\"2026-10-24T06:28:19.697Z\",\"updatedAt\":\"2026-10-24T06:28:19.697Z\",\"permissions\":{\"canCreate\":true,\"canEdit\":true,\"canSubmit\":true,\"canReview\":false,\"canConfigure\":false},\"content\":\"Browser smoke content for upload and download verification.\",\"versions\":[{\"version\":1,\"status\":\"DRAFT\",\"createdAt\":\"2026-10-24T06:28:19.697Z\",\"editedBy\":\"d4bb2c495a7d81ff75481713\"}],\"reviewHistory\":[]}",
+  "uploadStatus": 200,
+  "downloadStatus": 200,
+  "downloadContentType": "application/pdf",
+  "consoleErrors": [],
+  "apiResponses": [
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/auth/me"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/iam/users/d4bb2c495a7d81ff75481713"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/auth/organizations"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/chat/ws-ticket"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/notifications/unread-count"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/notifications?limit=12"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/chat/ws-ticket"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/iam/projects?page=1&pageSize=20&status=ACTIVE"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/iam/projects?page=1&pageSize=100&status=ACTIVE"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/iam/projects/898f7d00f9f1e9e98da9075a"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents?page=1&pageSize=50"
+    ],
+    [
+      201,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents?page=1&pageSize=50"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents/6adc50039b2efba6aedb3900"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents/6adc50039b2efba6aedb3900/file"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents?page=1&pageSize=50"
+    ],
+    [
+      200,
+      "http://127.0.0.1:3000/api/backend/capture/projects/898f7d00f9f1e9e98da9075a/documents/6adc50039b2efba6aedb3900"
+    ]
+  ],
+  "documentTitleRendered": true,
+  "downloadContentDisposition": "attachment; filename*=UTF-8''worknote-ui-smoke.pdf"
+}

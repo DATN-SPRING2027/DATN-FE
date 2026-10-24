@@ -1,172 +1,176 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
-import { beforeEach, expect, it, vi } from "vitest";
-import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { useProjectQuery } from "@/lib/queries/projects/useProjects";
-import WorkNoteCreateDialog from "./WorkNoteCreateDialog";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import messages from "@/messages/en.json";
+import { ApiError, apiClient } from "@/lib/api-client";
 import WorkNotesWorkspace from "./WorkNotesWorkspace";
 
-vi.mock("next-intl", () => ({
-  useTranslations: (namespace: string) => (key: string, values?: Record<string, string>) =>
-    key === "reports.memberName" && values?.member
-      ? `${values.member} · Member`
-      : `${namespace}.${key}`,
-}));
-vi.mock("@/i18n/navigation", () => ({ Link: "a" }));
-vi.mock("@/icons", () => ({
-  BookOpenIcon: () => null,
-  CalenderIcon: () => null,
-  CheckCircleIcon: () => null,
-  CloseLineIcon: () => null,
-  DocsIcon: () => null,
-  EyeIcon: () => null,
-  FileIcon: () => null,
-  PlusIcon: () => null,
-  SearchIcon: () => null,
-  SettingsIcon: () => null,
-  TaskIcon: () => null,
-  TimeIcon: () => null,
-  TrashBinIcon: () => null,
-}));
-vi.mock("@/lib/queries/auth/useAuth", () => ({
-  useCurrentUserQuery: vi.fn(),
-}));
-vi.mock("@/lib/queries/projects/useProjects", () => ({
-  useProjectQuery: vi.fn(),
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
-const project = {
-  id: "project-1",
-  organizationId: "organization-1",
-  name: "Project Atlas",
-  code: "ATL",
-  visibility: "PRIVATE" as const,
-  status: "ACTIVE" as const,
-  createdBy: "user-1",
-  createdAt: "2026-10-01T00:00:00Z",
-  updatedAt: "2026-10-01T00:00:00Z",
+vi.mock("@/lib/api-client", async (original) => ({
+  ...(await original<typeof import("@/lib/api-client")>()),
+  apiClient: vi.fn(),
+}));
+vi.mock("./WorkNotesPageHeader", () => ({
+  default: ({ active }: { active: string }) => (
+    <header data-testid="work-notes-header">{active}</header>
+  ),
+}));
+
+const api = vi.mocked(apiClient);
+const projectId = "651a2b3c4d5e6f7a8b9c0d21";
+const note = {
+  id: "751a2b3c4d5e6f7a8b9c0d21",
+  projectId,
+  taskId: "851a2b3c4d5e6f7a8b9c0d21",
+  authorId: "951a2b3c4d5e6f7a8b9c0d21",
+  authorName: "Jordan Lee",
+  type: "TASK_NOTE" as const,
+  status: "CONFIRMED" as const,
+  title: "Invitation endpoint",
+  accomplishments: "Added the API route.",
+  approach: "Used a transaction with an outbox.",
+  reason: "Avoid duplicate invitations.",
+  createdAt: "2026-10-24T09:00:00.000Z",
+  updatedAt: "2026-10-24T09:00:00.000Z",
+  permissions: {
+    canCreate: true,
+    canEdit: false,
+    canSubmit: false,
+    canReview: false,
+    canConfigure: false,
+  },
 };
 
-function renderWorkspace(roles: readonly string[], name = "Member User") {
-  vi.mocked(useCurrentUserQuery).mockReturnValue({
-    data: {
-      id: "user-1",
-      email: "member@datn-dev.example.test",
-      name,
-      context: "ORGANIZATION",
-      organizationId: "organization-1",
-      roles,
-    },
-    isPending: false,
-    isError: false,
-  } as never);
-  vi.mocked(useProjectQuery).mockReturnValue({
-    data: project,
-    isPending: false,
-    isError: false,
-  } as never);
-
-  return render(<WorkNotesWorkspace projectId={project.id} />);
+function mount() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <WorkNotesWorkspace projectId={projectId} />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
 }
 
-beforeEach(() => {
-  vi.clearAllMocks();
-});
-
-it("shows only the signed-in Member experience", () => {
-  renderWorkspace(["MEMBER"]);
-
-  expect(screen.getByText("roleLabels.member")).toBeVisible();
-  expect(screen.getByRole("button", { name: "workNotes.createNote" })).toBeVisible();
-  expect(screen.queryByRole("group", { name: "workNotes.rolePreviewLabel" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("region", { name: "workNotes.leaderSummaryLabel" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("tab", { name: "workNotes.tabs.CONFIG" })).not.toBeInTheDocument();
-  expect(screen.getByText("workNotes.activity.memberNotSubmitted")).toBeVisible();
-});
-
-it("attributes a member-created note to the signed-in user and lets them save it as knowledge", async () => {
-  renderWorkspace(["MEMBER"], "Taylor Example");
-
-  fireEvent.click(screen.getByRole("button", { name: "workNotes.createNote" }));
-  fireEvent.change(await screen.findByPlaceholderText("workNotes.form.titlePlaceholder"), {
-    target: { value: "User-authored update" },
+describe("Project task notes", () => {
+  beforeEach(() => {
+    api.mockReset();
   });
-  fireEvent.change(screen.getByPlaceholderText("workNotes.form.updateHint"), {
-    target: { value: "This update belongs to the signed-in user." },
+
+  it("loads persisted Task Notes from the project-scoped API", async () => {
+    api.mockResolvedValue({
+      data: [note],
+      pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+    });
+    mount();
+
+    expect(
+      await screen.findByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+    expect(screen.getByText("Added the API route.")).toBeVisible();
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-notes?page=1&pageSize=50`,
+      expect.objectContaining({ cache: "no-store" }),
+    );
   });
-  fireEvent.click(screen.getByRole("button", { name: "workNotes.form.savePreview" }));
 
-  const article = (await screen.findByRole("heading", { name: "User-authored update" })).closest("article");
-  expect(article).not.toBeNull();
-  expect(within(article as HTMLElement).getByText("Taylor Example")).toBeVisible();
-  expect(within(article as HTMLElement).getByText("TE")).toBeVisible();
-  expect(within(article as HTMLElement).getByRole("button", { name: "workNotes.activity.saveAsKnowledge" })).toBeVisible();
-});
+  it("shows a server failure and can retry the API request", async () => {
+    api.mockRejectedValueOnce(new Error("Capture service unavailable"));
+    api.mockResolvedValueOnce({
+      data: [],
+      pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+    });
+    mount();
 
-it("starts the signed-in member's own weekly report as missing and submits it under that member", async () => {
-  renderWorkspace(["MEMBER"], "Taylor Example");
-
-  fireEvent.click(screen.getByRole("tab", { name: "workNotes.tabs.REPORTS" }));
-
-  expect(screen.getByText("Taylor Example · Member")).toBeVisible();
-  expect(screen.getByText("workNotes.reports.notSubmitted")).toBeVisible();
-
-  fireEvent.change(screen.getByPlaceholderText("workNotes.reports.completedPlaceholder"), {
-    target: { value: "Completed the signed-in user's report." },
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Capture service unavailable",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() =>
+      expect(screen.getByText("No task notes in this project")).toBeVisible(),
+    );
+    expect(api).toHaveBeenCalledTimes(2);
   });
-  fireEvent.change(screen.getByPlaceholderText("workNotes.reports.blockersPlaceholder"), {
-    target: { value: "No blockers" },
+
+  it("loads a Task Note from a notification deep link", async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, search: `?noteId=${note.id}` },
+    });
+    const emptyPage = {
+      data: [],
+      pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+    };
+    api.mockImplementation((async (path: string) =>
+      path.endsWith(`/work-notes/${note.id}`) ? note : emptyPage) as never);
+
+    try {
+      const view = mount();
+
+      expect(
+        await screen.findByRole("heading", { name: "Invitation endpoint" }),
+      ).toBeVisible();
+      expect(
+        screen.getByText("Used a transaction with an outbox."),
+      ).toBeVisible();
+      expect(api).toHaveBeenCalledWith(
+        `/capture/projects/${projectId}/work-notes/${note.id}`,
+        expect.objectContaining({ cache: "no-store" }),
+      );
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: { ...originalLocation, search: "?noteId=invalid" },
+      });
+      // Next navigation updates search params without a popstate event.
+      view.rerender(
+        <QueryClientProvider client={new QueryClient()}>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            <WorkNotesWorkspace projectId={projectId} />
+          </NextIntlClientProvider>
+        </QueryClientProvider>,
+      );
+      expect(await screen.findByTestId("work-note-unavailable-banner")).toBeVisible();
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
-  fireEvent.change(screen.getByPlaceholderText("workNotes.reports.nextWeekPlaceholder"), {
-    target: { value: "Continue next week" },
+
+  it("shows the safe unavailable state when the linked Task Note was removed", async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...originalLocation, search: `?noteId=${note.id}` },
+    });
+    const emptyPage = {
+      data: [],
+      pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+    };
+    api.mockImplementation((async (path: string) =>
+      path.endsWith(`/work-notes/${note.id}`)
+        ? Promise.reject(new ApiError(404, "TASK_NOTE_NOT_FOUND", "not found"))
+        : emptyPage) as never);
+
+    try {
+      mount();
+
+      expect(
+        await screen.findByTestId("work-note-unavailable-banner"),
+      ).toHaveTextContent("Content is no longer available.");
+    } finally {
+      Object.defineProperty(window, "location", {
+        configurable: true,
+        value: originalLocation,
+      });
+    }
   });
-  fireEvent.click(screen.getByRole("button", { name: "workNotes.reports.submitPreview" }));
-
-  expect(screen.getByText("workNotes.reports.submitted")).toBeVisible();
-});
-
-it("uses the requested note type when a mounted create dialog opens", () => {
-  const props = {
-    currentUser: { id: "user-1", name: "Taylor Example", initials: "TE" },
-    onClose: vi.fn(),
-    onCreate: vi.fn(),
-  };
-  const { rerender } = render(
-    <WorkNoteCreateDialog {...props} isOpen={false} initialKind="WORK_UPDATE" />,
-  );
-
-  rerender(<WorkNoteCreateDialog {...props} isOpen initialKind="KNOWLEDGE" />);
-
-  expect(screen.getByLabelText("workNotes.form.noteType")).toHaveValue("KNOWLEDGE");
-
-  rerender(<WorkNoteCreateDialog {...props} isOpen={false} initialKind="WEEKLY_SUMMARY" />);
-  rerender(<WorkNoteCreateDialog {...props} isOpen initialKind="WEEKLY_SUMMARY" />);
-
-  expect(screen.getByLabelText("workNotes.form.noteType")).toHaveValue("WEEKLY_SUMMARY");
-  expect(screen.getByText("workNotes.form.unfinishedLabel")).toBeVisible();
-});
-
-it("shows only the signed-in Leader experience", () => {
-  renderWorkspace(["TEAM_LEADER"]);
-
-  expect(screen.getByText("roleLabels.teamLeader")).toBeVisible();
-  expect(screen.getByRole("region", { name: "workNotes.leaderSummaryLabel" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "workNotes.createNote" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("tab", { name: "workNotes.tabs.CONFIG" })).not.toBeInTheDocument();
-});
-
-it("shows only the signed-in Organization Admin experience", () => {
-  renderWorkspace(["ADMIN"]);
-
-  expect(screen.getByText("roleLabels.organizationAdmin")).toBeVisible();
-  expect(screen.getByRole("tab", { name: "workNotes.tabs.CONFIG" })).toBeVisible();
-  expect(screen.queryByRole("button", { name: "workNotes.createNote" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("region", { name: "workNotes.leaderSummaryLabel" })).not.toBeInTheDocument();
-});
-
-it("does not assume Member when /auth/me has no supported role", () => {
-  renderWorkspace(["UNRECOGNIZED"]);
-
-  expect(screen.getByRole("alert")).toBeVisible();
-  expect(screen.queryByRole("button", { name: "workNotes.createNote" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("tab", { name: "workNotes.tabs.CONFIG" })).not.toBeInTheDocument();
 });
