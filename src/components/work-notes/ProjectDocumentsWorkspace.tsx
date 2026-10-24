@@ -702,6 +702,10 @@ export default function ProjectDocumentsWorkspace({
     [workNoteKeys.project(projectId)],
   );
   const current = detail.data;
+  const reviewableDocuments = useMemo(
+    () => (list.data?.data ?? []).filter((doc) => doc.permissions.canReview),
+    [list.data?.data],
+  );
   const editingInitial = useMemo<ProjectDocumentInput>(
     () =>
       uploadRetryInput ??
@@ -947,66 +951,135 @@ export default function ProjectDocumentsWorkspace({
             </Button>
           </div>
         ) : list.data?.data.length ? (
-          <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
-            <table className="w-full min-w-[40rem] border-collapse text-start text-sm">
-              <thead className="bg-gray-50 text-xs tracking-wide text-gray-500 uppercase dark:bg-gray-900 dark:text-gray-400">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">{t("titleLabel")}</th>
-                  <th className="px-4 py-3 font-semibold">{t("typeLabel")}</th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("statusLabel")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("versionLabel")}
-                  </th>
-                  <th className="px-4 py-3 font-semibold">
-                    {t("updatedLabel")}
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
-                {list.data.data.map((document) => (
-                  <tr
-                    key={document.id}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-900"
+          <div className="space-y-4">
+            {reviewableDocuments.length > 0 && (
+              <div
+                role="region"
+                aria-label={t("reviewQueueBannerLabel")}
+                className="flex flex-col gap-3 rounded-xl border border-brand-200 bg-brand-50/75 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between dark:border-brand-500/30 dark:bg-brand-500/10"
+              >
+                <div className="space-y-0.5">
+                  <p className="text-sm font-semibold text-brand-900 dark:text-brand-200">
+                    {t("reviewQueueTitle", {
+                      count: reviewableDocuments.length,
+                    })}
+                  </p>
+                  <p className="text-xs text-brand-800 dark:text-brand-300">
+                    {t("reviewQueueDescription")}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {filter !== "PENDING_REVIEW" && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setFilter("PENDING_REVIEW");
+                        setPage(1);
+                      }}
+                    >
+                      {t("filterPendingReview")}
+                    </Button>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => openDocument(reviewableDocuments[0])}
                   >
-                    <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => openDocument(document)}
-                        className="max-w-md text-start font-medium break-words text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-300"
-                      >
-                        {document.title}
-                      </button>
-                      {document.description && (
-                        <p className="mt-1 max-w-lg text-xs break-words text-gray-500 dark:text-gray-400">
-                          {document.description}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
-                      {t(`type.${document.type}`)}
-                    </td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[document.status]}`}
-                      >
-                        {t(`status.${document.status}`)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 tabular-nums dark:text-gray-400">
-                      v{document.version}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-gray-600 tabular-nums dark:text-gray-400">
-                      {format.dateTime(new Date(document.updatedAt), {
-                        dateStyle: "medium",
-                        timeZone: "UTC",
-                      })}
-                    </td>
+                    {t("reviewNextDocument")}
+                  </Button>
+                </div>
+              </div>
+            )}
+            <div className="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-800">
+              <table className="w-full min-w-[44rem] border-collapse text-start text-sm">
+                <thead className="bg-gray-50 text-xs tracking-wide text-gray-500 uppercase dark:bg-gray-900 dark:text-gray-400">
+                  <tr>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("titleLabel")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("typeLabel")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("statusLabel")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("versionLabel")}
+                    </th>
+                    <th className="px-4 py-3 font-semibold">
+                      {t("updatedLabel")}
+                    </th>
+                    <th className="px-4 py-3 text-end font-semibold">
+                      {t("actionsLabel")}
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-950">
+                  {list.data.data.map((document) => (
+                    <tr
+                      key={document.id}
+                      className="hover:bg-gray-50 dark:hover:bg-gray-900"
+                    >
+                      <td className="px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() => openDocument(document)}
+                          className="max-w-md text-start font-medium break-words text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-300"
+                        >
+                          {document.title}
+                        </button>
+                        {document.description && (
+                          <p className="mt-1 max-w-lg text-xs break-words text-gray-500 dark:text-gray-400">
+                            {document.description}
+                          </p>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-gray-700 dark:text-gray-300">
+                        {t(`type.${document.type}`)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span
+                          className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[document.status]}`}
+                        >
+                          {t(`status.${document.status}`)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-gray-600 tabular-nums dark:text-gray-400">
+                        v{document.version}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-gray-600 tabular-nums dark:text-gray-400">
+                        {format.dateTime(new Date(document.updatedAt), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        })}
+                      </td>
+                      <td className="px-4 py-3 text-end">
+                        {document.permissions.canReview ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={() => openDocument(document)}
+                          >
+                            {t("reviewAction")}
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openDocument(document)}
+                          >
+                            {t("viewAction")}
+                          </Button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="rounded-lg border border-dashed border-gray-300 bg-white px-5 py-12 text-center dark:border-gray-700 dark:bg-gray-900">
@@ -1183,6 +1256,21 @@ export default function ProjectDocumentsWorkspace({
                       </p>
                     </div>
                   )}
+                {current.status === "PENDING_REVIEW" &&
+                  !current.permissions.canReview && (
+                    <div className="rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 text-xs text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200">
+                      <p className="font-semibold">
+                        {current.permissions.canConfigure
+                          ? t("selfReviewRestrictedTitle")
+                          : t("pendingLeaderReviewTitle")}
+                      </p>
+                      <p className="mt-0.5 text-brand-800 dark:text-brand-300">
+                        {current.permissions.canConfigure
+                          ? t("selfReviewRestrictedDescription")
+                          : t("pendingLeaderReviewDescription")}
+                      </p>
+                    </div>
+                  )}
                 {current.reviewComment && (
                   <div className="rounded-e-lg border-s-2 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-sm text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
                     <strong>{t("reviewComment")}:</strong>{" "}
@@ -1245,6 +1333,76 @@ export default function ProjectDocumentsWorkspace({
                       ))}
                   </div>
                 )}
+                {current.permissions.canReview && (
+                  <section
+                    aria-labelledby="leader-review-panel-heading"
+                    className="space-y-3 rounded-xl border border-brand-200 bg-brand-50/50 p-4 dark:border-brand-500/30 dark:bg-brand-500/10"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <h3
+                          id="leader-review-panel-heading"
+                          className="text-sm font-semibold text-gray-900 dark:text-white/90"
+                        >
+                          {t("leaderReviewPanelTitle")}
+                        </h3>
+                        <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                          {t("leaderReviewPanelDescription")}
+                        </p>
+                      </div>
+                      <span
+                        className={`inline-flex rounded-md border px-2 py-0.5 text-xs font-medium ${STATUS_BADGE_CLASSES[current.status]}`}
+                      >
+                        {t(`status.${current.status}`)}
+                      </span>
+                    </div>
+                    <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                      <span className="flex flex-wrap items-center justify-between gap-1">
+                        <span>{t("reviewComment")}</span>
+                        <span className="text-xs font-normal text-gray-500 dark:text-gray-400">
+                          {t("reviewCommentHint")}
+                        </span>
+                      </span>
+                      <textarea
+                        value={reviewComment}
+                        onChange={(event) => {
+                          setReviewComment(event.target.value);
+                          setValidationError("");
+                        }}
+                        placeholder={t("reviewCommentPlaceholder")}
+                        rows={3}
+                        maxLength={5000}
+                        className={`${FIELD_CLASS} resize-y bg-white dark:bg-gray-950`}
+                      />
+                    </label>
+                  </section>
+                )}
+                {validationError && (
+                  <p
+                    role="alert"
+                    className="text-sm text-error-600 dark:text-error-400"
+                  >
+                    {validationError}
+                  </p>
+                )}
+                {action.isError && (
+                  <p
+                    role="alert"
+                    className="text-sm text-error-600 dark:text-error-400"
+                  >
+                    {action.error instanceof Error
+                      ? action.error.message
+                      : t("permissionDenied")}
+                  </p>
+                )}
+                {action.isSuccess && (
+                  <p
+                    role="status"
+                    className="text-sm text-success-700 dark:text-success-400"
+                  >
+                    {t("actionSuccess")}
+                  </p>
+                )}
                 <div className="grid gap-5 border-t border-gray-100 pt-4 sm:grid-cols-2 dark:border-gray-800">
                   <section>
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
@@ -1306,48 +1464,6 @@ export default function ProjectDocumentsWorkspace({
                     )}
                   </section>
                 </div>
-                {validationError && (
-                  <p
-                    role="alert"
-                    className="text-sm text-error-600 dark:text-error-400"
-                  >
-                    {validationError}
-                  </p>
-                )}
-                {action.isError && (
-                  <p
-                    role="alert"
-                    className="text-sm text-error-600 dark:text-error-400"
-                  >
-                    {action.error instanceof Error
-                      ? action.error.message
-                      : t("permissionDenied")}
-                  </p>
-                )}
-                {action.isSuccess && (
-                  <p
-                    role="status"
-                    className="text-sm text-success-700 dark:text-success-400"
-                  >
-                    {t("actionSuccess")}
-                  </p>
-                )}
-                {current.permissions.canReview && (
-                  <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {t("reviewComment")}
-                    <textarea
-                      value={reviewComment}
-                      onChange={(event) => {
-                        setReviewComment(event.target.value);
-                        setValidationError("");
-                      }}
-                      placeholder={t("reviewCommentPlaceholder")}
-                      rows={3}
-                      maxLength={5000}
-                      className={`${FIELD_CLASS} resize-y`}
-                    />
-                  </label>
-                )}
               </div>
               <div className="shrink-0 flex flex-wrap justify-end gap-2 border-t border-gray-100 bg-gray-50/80 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900/90">
                 {current.permissions.canEdit && (

@@ -406,3 +406,62 @@ it("displays inline field validation errors, supports drag-and-drop file selecti
   fireEvent.click(screen.getByRole("button", { name: "Discard" }));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
+
+it("renders the Leader review queue banner, row Review button, and Leader review decision panel for pending documents", async () => {
+  let current: ProjectDocument = {
+    ...document,
+    status: "PENDING_REVIEW",
+    permissions: {
+      canCreate: true,
+      canEdit: false,
+      canSubmit: false,
+      canReview: true,
+      canConfigure: true,
+    },
+  };
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [current],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith(`/documents/${documentId}/approve`)) {
+      current = {
+        ...current,
+        status: "APPROVED",
+        permissions: { ...current.permissions, canReview: false },
+      };
+      return current as never;
+    }
+    if (path.endsWith(`/documents/${documentId}`)) return current as never;
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+  expect(
+    await screen.findByText("1 document awaiting your Leader review"),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Review" }));
+
+  expect(await screen.findByText("Leader review decision")).toBeVisible();
+  fireEvent.change(screen.getByLabelText("Review comment", { exact: false }), {
+    target: { value: "Looks solid and ready for team reference." },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/documents/${documentId}/approve`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          comment: "Looks solid and ready for team reference.",
+        }),
+      }),
+    ),
+  );
+  expect(await screen.findByText("Document workflow updated.")).toBeVisible();
+});
