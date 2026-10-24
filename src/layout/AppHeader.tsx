@@ -84,10 +84,10 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
     organizationId,
     {
       page: 1,
-      pageSize: 20,
+      pageSize: 8,
       status: "ACTIVE",
       ...(debouncedProjectSearch.length >= 2
-        ? { q: debouncedProjectSearch }
+        ? { q: debouncedProjectSearch, includeTotal: false }
         : {}),
     },
     {

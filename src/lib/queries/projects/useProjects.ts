@@ -44,14 +44,16 @@ export type ProjectListInput = Readonly<{
   pageSize: number;
   status?: Project["status"];
   q?: string;
+  includeTotal?: boolean;
 }>;
 export type ProjectList = Readonly<{
   data: readonly Project[];
   pagination: Readonly<{
     page: number;
     pageSize: number;
-    totalItems: number;
-    totalPages: number;
+    totalItems?: number;
+    totalPages?: number;
+    hasMore?: boolean;
   }>;
 }>;
 export const projectKeys = {
@@ -72,6 +74,7 @@ async function fetchProjectsPage(
   });
   if (input.status) params.set("status", input.status);
   if (input.q?.trim()) params.set("q", input.q.trim());
+  if (input.includeTotal === false) params.set("includeTotal", "false");
   return apiClient<ProjectList>(`/iam/projects?${params}`, {
     signal,
     cache: "no-store",
