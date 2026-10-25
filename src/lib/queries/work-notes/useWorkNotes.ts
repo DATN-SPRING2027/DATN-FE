@@ -34,6 +34,8 @@ export type TaskNote = TaskNoteInput &
     id: string;
     projectId: string;
     taskId: string;
+    taskKey?: string;
+    taskTitle?: string;
     authorId: string;
     authorName: string;
     type: "TASK_NOTE";

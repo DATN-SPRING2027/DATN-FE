@@ -28,92 +28,246 @@ const note = {
   reason: "Prevent duplicates.",
   createdAt: "2026-10-24T09:00:00.000Z",
   updatedAt: "2026-10-24T09:00:00.000Z",
-  permissions: { canCreate: true, canEdit: false, canSubmit: false, canReview: false, canConfigure: false },
+  permissions: {
+    canCreate: true,
+    canEdit: false,
+    canSubmit: false,
+    canReview: false,
+    canConfigure: false,
+  },
 };
 
-function mount() {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
-  return render(
-    <QueryClientProvider client={client}>
-      <NextIntlClientProvider locale="en" messages={messages}>
-        <TaskNotesPanel projectId={projectId} taskId={taskId} />
-      </NextIntlClientProvider>
-    </QueryClientProvider>,
-  );
+function mount(customClient?: QueryClient, customTaskId = taskId) {
+  const client =
+    customClient ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+  return {
+    client,
+    ...render(
+      <QueryClientProvider client={client}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <TaskNotesPanel projectId={projectId} taskId={customTaskId} />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    ),
+  };
 }
 
 beforeEach(() => {
   api.mockReset();
 });
 
-it("creates a persisted structured note for the current Task and refreshes the list", async () => {
+it("keeps composer collapsed initially, creates a persisted structured note, and expands details on demand", async () => {
   let saved = false;
-  api.mockImplementation(async (path, options) => {
+  api.mockImplementation(async (_path, options) => {
     if (options?.method === "POST") {
       saved = true;
       return note as never;
     }
-    return { data: saved ? [note] : [], pagination: { page: 1, pageSize: 100, totalItems: saved ? 1 : 0, totalPages: saved ? 1 : 0 } } as never;
+    return {
+      data: saved ? [note] : [],
+      pagination: {
+        page: 1,
+        pageSize: 100,
+        totalItems: saved ? 1 : 0,
+        totalPages: saved ? 1 : 0,
+      },
+    } as never;
   });
   mount();
 
-  fireEvent.change(await screen.findByLabelText("Title"), { target: { value: note.title } });
-  fireEvent.change(screen.getByLabelText("What was done"), { target: { value: note.accomplishments } });
-  fireEvent.change(screen.getByLabelText("How it was done"), { target: { value: note.approach } });
-  fireEvent.change(screen.getByLabelText("Why this approach"), { target: { value: note.reason } });
+  expect(await screen.findByText("No task notes yet")).toBeVisible();
+  expect(screen.getByText("0 notes")).toBeVisible();
+  expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Add first note" }));
+
+  fireEvent.change(await screen.findByLabelText("Title"), {
+    target: { value: note.title },
+  });
+  fireEvent.change(screen.getByLabelText("What was done"), {
+    target: { value: note.accomplishments },
+  });
+  fireEvent.change(screen.getByLabelText("How it was done"), {
+    target: { value: note.approach },
+  });
+  fireEvent.change(screen.getByLabelText("Why this approach"), {
+    target: { value: note.reason },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Save note" }));
 
   expect(await screen.findByText("Task note saved.")).toBeVisible();
-  await waitFor(() => expect(screen.getByRole("heading", { name: note.title })).toBeVisible());
+  await waitFor(() =>
+    expect(screen.getByRole("heading", { name: note.title })).toBeVisible(),
+  );
+  expect(screen.getByText("1 note")).toBeVisible();
+  expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+
+  // How / Why are collapsed until View details is clicked
+  expect(screen.queryByText(note.approach)).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "View details" }));
+  expect(screen.getByText(note.approach)).toBeVisible();
+  expect(screen.getByText(note.reason)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "Hide details" }));
+  expect(screen.queryByText(note.approach)).not.toBeInTheDocument();
+
   expect(api).toHaveBeenCalledWith(
     `/capture/projects/${projectId}/tasks/${taskId}/notes`,
     expect.objectContaining({ method: "POST" }),
   );
 });
 
-it("edits and deletes a permitted Task Note through the API", async () => {
-  let current = { ...note, permissions: { ...note.permissions, canEdit: true, canDelete: true } };
+it("edits and archives a permitted Task Note through the actions menu and API", async () => {
+  let current = {
+    ...note,
+    permissions: { ...note.permissions, canEdit: true, canDelete: true },
+  };
   let deleted = false;
   api.mockImplementation(async (_path, options) => {
     if (options?.method === "PATCH") {
       current = { ...current, title: "Corrected note" };
       return current as never;
     }
-    if (options?.method === "DELETE") { deleted = true; return undefined as never; }
-    return { data: deleted ? [] : [current], pagination: { page: 1, pageSize: 100, totalItems: deleted ? 0 : 1, totalPages: deleted ? 0 : 1 } } as never;
+    if (options?.method === "DELETE") {
+      deleted = true;
+      return undefined as never;
+    }
+    return {
+      data: deleted ? [] : [current],
+      pagination: {
+        page: 1,
+        pageSize: 100,
+        totalItems: deleted ? 0 : 1,
+        totalPages: deleted ? 0 : 1,
+      },
+    } as never;
   });
   vi.spyOn(window, "confirm").mockReturnValue(true);
   mount();
-  fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
-  fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Corrected note" } });
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: `More actions for ${note.title}`,
+    }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Corrected note" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Save note" }));
-  await waitFor(() => expect(screen.getByRole("heading", { name: "Corrected note" })).toBeVisible());
-  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-  await waitFor(() => expect(screen.queryByRole("heading", { name: "Corrected note" })).not.toBeInTheDocument());
-  expect(screen.getByLabelText("Title")).toHaveValue("");
+  await waitFor(() =>
+    expect(
+      screen.getByRole("heading", { name: "Corrected note" }),
+    ).toBeVisible(),
+  );
+
+  // Open edit again, then archive the same note and verify the composer closes cleanly
+  fireEvent.click(
+    screen.getByRole("button", { name: "More actions for Corrected note" }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+  expect(screen.getByLabelText("Title")).toHaveValue("Corrected note");
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "More actions for Corrected note" }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("heading", { name: "Corrected note" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Cancel" })).not.toBeInTheDocument();
-  expect(api).toHaveBeenCalledWith(`/capture/projects/${projectId}/tasks/${taskId}/notes/${note.id}`, expect.objectContaining({ method: "PATCH" }));
-  expect(api).toHaveBeenCalledWith(`/capture/projects/${projectId}/tasks/${taskId}/notes/${note.id}`, expect.objectContaining({ method: "DELETE" }));
+  expect(api).toHaveBeenCalledWith(
+    `/capture/projects/${projectId}/tasks/${taskId}/notes/${note.id}`,
+    expect.objectContaining({ method: "PATCH" }),
+  );
+  expect(api).toHaveBeenCalledWith(
+    `/capture/projects/${projectId}/tasks/${taskId}/notes/${note.id}`,
+    expect.objectContaining({ method: "DELETE" }),
+  );
   vi.restoreAllMocks();
 });
 
-it("shows a deletion error, clears stale success banners, and preserves the edited draft for retry", async () => {
+it("shows an archive error, clears stale success banners, and preserves the edited draft for retry", async () => {
   api.mockImplementation(async (_path, options) => {
-    if (options?.method === "PATCH") return { ...note, permissions: { ...note.permissions, canEdit: true, canDelete: true } } as never;
+    if (options?.method === "PATCH")
+      return {
+        ...note,
+        permissions: { ...note.permissions, canEdit: true, canDelete: true },
+      } as never;
     if (options?.method === "DELETE") throw new Error("Delete unavailable");
-    return { data: [{ ...note, permissions: { ...note.permissions, canEdit: true, canDelete: true } }], pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 } } as never;
+    return {
+      data: [
+        {
+          ...note,
+          permissions: { ...note.permissions, canEdit: true, canDelete: true },
+        },
+      ],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+    } as never;
   });
   vi.spyOn(window, "confirm").mockReturnValue(true);
   mount();
-  fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: `More actions for ${note.title}`,
+    }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
   fireEvent.click(screen.getByRole("button", { name: "Save note" }));
   expect(await screen.findByText("Task note saved.")).toBeVisible();
 
-  fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-  expect(await screen.findByRole("alert")).toHaveTextContent("Delete unavailable");
+  fireEvent.click(
+    screen.getByRole("button", { name: `More actions for ${note.title}` }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: `More actions for ${note.title}` }),
+  );
+  fireEvent.click(screen.getByRole("menuitem", { name: "Archive" }));
+
+  expect(await screen.findByRole("alert")).toHaveTextContent(
+    "Delete unavailable",
+  );
   expect(screen.queryByText("Task note saved.")).not.toBeInTheDocument();
   expect(screen.getByLabelText("Title")).toHaveValue(note.title);
   vi.restoreAllMocks();
+});
+
+it("preserves unsaved drafts across tab switches or modal close for the same taskId while isolating other tasks", async () => {
+  api.mockResolvedValue({
+    data: [],
+    pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+  } as never);
+
+  const { client, unmount } = mount();
+  fireEvent.click(await screen.findByRole("button", { name: "New note" }));
+  fireEvent.change(screen.getByLabelText("Title"), {
+    target: { value: "Draft auth note" },
+  });
+  fireEvent.change(screen.getByLabelText("What was done"), {
+    target: { value: "In-progress work" },
+  });
+
+  // Unmount (simulating switching Activity tabs or closing the modal)
+  unmount();
+
+  // Mounting a different taskId starts with a collapsed composer
+  const otherTaskView = mount(client, "111122223333444455556666");
+  expect(await screen.findByText("No task notes yet")).toBeVisible();
+  expect(screen.queryByLabelText("Title")).not.toBeInTheDocument();
+  otherTaskView.unmount();
+
+  // Remounting the original taskId restores the open composer and draft text
+  mount(client, taskId);
+  expect(await screen.findByLabelText("Title")).toHaveValue("Draft auth note");
+  expect(screen.getByLabelText("What was done")).toHaveValue("In-progress work");
+  expect(screen.getByText("Unsaved draft")).toBeVisible();
 });

@@ -10,10 +10,27 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(window.location.search),
 }));
 
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
 }));
+
 vi.mock("./WorkNotesPageHeader", () => ({
   default: ({ active }: { active: string }) => (
     <header data-testid="work-notes-header">{active}</header>
@@ -26,6 +43,8 @@ const note = {
   id: "751a2b3c4d5e6f7a8b9c0d21",
   projectId,
   taskId: "851a2b3c4d5e6f7a8b9c0d21",
+  taskKey: "FE-12",
+  taskTitle: "Authentication & session handling",
   authorId: "951a2b3c4d5e6f7a8b9c0d21",
   authorName: "Jordan Lee",
   type: "TASK_NOTE" as const,
@@ -36,6 +55,31 @@ const note = {
   reason: "Avoid duplicate invitations.",
   createdAt: "2026-10-24T09:00:00.000Z",
   updatedAt: "2026-10-24T09:00:00.000Z",
+  permissions: {
+    canCreate: true,
+    canEdit: false,
+    canSubmit: false,
+    canReview: false,
+    canConfigure: false,
+  },
+};
+
+const secondNote = {
+  id: "751a2b3c4d5e6f7a8b9c0d22",
+  projectId,
+  taskId: "851a2b3c4d5e6f7a8b9c0d22",
+  taskKey: "FE-08",
+  taskTitle: "Dashboard navigation",
+  authorId: "951a2b3c4d5e6f7a8b9c0d22",
+  authorName: "Alex Rivera",
+  type: "TASK_NOTE" as const,
+  status: "CONFIRMED" as const,
+  title: "Refactored sidebar navigation",
+  accomplishments: "Simplified navigation state and active menu highlighting.",
+  approach: "Consolidated route matching in sidebar navigation hook.",
+  reason: "Eliminate duplicate active state calculations.",
+  createdAt: "2026-10-23T16:20:00.000Z",
+  updatedAt: "2026-10-23T16:20:00.000Z",
   permissions: {
     canCreate: true,
     canEdit: false,
@@ -63,7 +107,7 @@ describe("Project task notes", () => {
     api.mockReset();
   });
 
-  it("loads persisted Task Notes from the project-scoped API", async () => {
+  it("loads persisted Task Notes in compact explorer mode and expands details on demand", async () => {
     api.mockResolvedValue({
       data: [note],
       pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
@@ -74,10 +118,72 @@ describe("Project task notes", () => {
       await screen.findByRole("heading", { name: "Invitation endpoint" }),
     ).toBeVisible();
     expect(screen.getByText("Added the API route.")).toBeVisible();
+    expect(screen.getByText("FE-12")).toBeVisible();
+    expect(
+      screen.getByText("Authentication & session handling"),
+    ).toBeVisible();
+    expect(screen.getByText("Linked to task FE-12")).toBeVisible();
+    expect(
+      screen.queryByText("Used a transaction with an outbox."),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(
+      screen.getByText("Used a transaction with an outbox."),
+    ).toBeVisible();
+    expect(screen.getByText("Avoid duplicate invitations.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+    expect(
+      screen.queryByText("Used a transaction with an outbox."),
+    ).not.toBeInTheDocument();
+
     expect(api).toHaveBeenCalledWith(
       `/capture/projects/${projectId}/work-notes?page=1&pageSize=50`,
       expect.objectContaining({ cache: "no-store" }),
     );
+  });
+
+  it("filters notes by search, task, and author and supports resetting filters", async () => {
+    api.mockResolvedValue({
+      data: [note, secondNote],
+      pagination: { page: 1, pageSize: 50, totalItems: 2, totalPages: 1 },
+    });
+    mount();
+
+    expect(
+      await screen.findByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("heading", { name: "Refactored sidebar navigation" }),
+    ).toBeVisible();
+    expect(screen.getByText("2 notes across 2 tasks")).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("Filter by task"), {
+      target: { value: secondNote.taskId },
+    });
+    expect(
+      screen.queryByRole("heading", { name: "Invitation endpoint" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Refactored sidebar navigation" }),
+    ).toBeVisible();
+    expect(screen.getByText("1 note across 1 task")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(
+      screen.getByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+
+    fireEvent.change(screen.getByLabelText("Filter by author"), {
+      target: { value: note.authorId },
+    });
+    expect(
+      screen.getByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Refactored sidebar navigation" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a server failure and can retry the API request", async () => {
@@ -136,7 +242,9 @@ describe("Project task notes", () => {
           </NextIntlClientProvider>
         </QueryClientProvider>,
       );
-      expect(await screen.findByTestId("work-note-unavailable-banner")).toBeVisible();
+      expect(
+        await screen.findByTestId("work-note-unavailable-banner"),
+      ).toBeVisible();
     } finally {
       Object.defineProperty(window, "location", {
         configurable: true,
