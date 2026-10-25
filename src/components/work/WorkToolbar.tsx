@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from"react";
+import { useEffect, useRef, useState, type ChangeEvent } from"react";
 import { useTranslations } from"next-intl";
 import { Modal } from"@/components/ui/modal";
 import {
@@ -11,6 +11,7 @@ import {
 } from"@/icons";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon } from"./WorkMonoIcons";
+import type { JiraImportProgress } from "./jira-import";
 import type {
   WorkFilterCondition,
   WorkFilterField,
@@ -101,7 +102,10 @@ export default function WorkToolbar({
   onToggleHighlightDoneRows?: (next: boolean) => void;
   onOpenAiCopilot?: () => void;
   onExportCsv?: (allFields?: boolean) => void;
-  onImportCsvItem?: (fileName: string) => void;
+  onImportCsvItem?: (
+    file: File,
+    onProgress: (progress: JiraImportProgress) => void,
+  ) => Promise<JiraImportProgress>;
   onBulkSelectAll?: () => void;
   onGoToReports?: () => void;
   onRefresh?: () => void;
@@ -159,9 +163,59 @@ export default function WorkToolbar({
   const [formatRulesModalOpen, setFormatRulesModalOpen] = useState(false);
   const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
   const [feedbackModalOpen, setFeedbackModalOpen] = useState(false);
-  const [csvFileName, setCsvFileName] = useState("");
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvImporting, setCsvImporting] = useState(false);
+  const [csvProgress, setCsvProgress] = useState<JiraImportProgress | null>(null);
+  const [csvMessage, setCsvMessage] = useState("");
   const [feedbackStars, setFeedbackStars] = useState(5);
   const [feedbackText, setFeedbackText] = useState("");
+  const viewOptionsButtonRef = useRef<HTMLButtonElement>(null);
+  const csvImportDialogRef = useRef<HTMLDivElement>(null);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!importCsvModalOpen) return;
+
+    csvFileInputRef.current?.focus();
+
+    function keepFocusInDialog(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+
+      const focusableElements = Array.from(
+        csvImportDialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((element) => element.getClientRects().length > 0);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        csvImportDialogRef.current?.focus();
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const currentIndex = focusableElements.indexOf(
+        document.activeElement as HTMLElement,
+      );
+
+      if (currentIndex === -1) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && currentIndex === 0) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && currentIndex === focusableElements.length - 1) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", keepFocusInDialog);
+    return () => {
+      document.removeEventListener("keydown", keepFocusInDialog);
+    };
+  }, [importCsvModalOpen]);
 
   const activeFilterCount =
     Number(status !=="ALL") +
@@ -188,8 +242,29 @@ export default function WorkToolbar({
 
   function handleCsvFileSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
-    if (file) {
-      setCsvFileName(file.name);
+    setCsvFile(file ?? null);
+    setCsvProgress(null);
+    setCsvMessage("");
+  }
+
+  function closeCsvImportModal() {
+    if (csvImporting) return;
+    setImportCsvModalOpen(false);
+    requestAnimationFrame(() => viewOptionsButtonRef.current?.focus());
+  }
+
+  async function handleCsvImport() {
+    if (!csvFile || !onImportCsvItem || csvImporting) return;
+    setCsvImporting(true);
+    setCsvMessage("");
+    try {
+      const result = await onImportCsvItem(csvFile, setCsvProgress);
+      setCsvMessage(t("jiraImportComplete", { created: result.created, existing: result.existing }));
+      setCsvFile(null);
+    } catch (error) {
+      setCsvMessage(error instanceof Error ? error.message : t("jiraImportFailed"));
+    } finally {
+      setCsvImporting(false);
     }
   }
 
@@ -613,6 +688,7 @@ export default function WorkToolbar({
           <div className="relative">
             <button
               type="button"
+              ref={viewOptionsButtonRef}
               onClick={() => setSettingsOpen((prev) => !prev)}
               aria-expanded={settingsOpen}
               aria-label="View options"
@@ -1137,76 +1213,73 @@ export default function WorkToolbar({
       {/* 3. Import CSV Modal */}
       <Modal
         isOpen={importCsvModalOpen}
-        onClose={() => setImportCsvModalOpen(false)}
+        onClose={closeCsvImportModal}
         backdropClassName="bg-gray-900/15 backdrop-blur-[1px]"
         showCloseButton={false}
         className="mx-4 max-w-md p-5 shadow-theme-lg"
       >
-        <div className="space-y-4">
+        <div
+          ref={csvImportDialogRef}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="jira-csv-import-title"
+          className="space-y-4"
+          tabIndex={-1}
+        >
           <div className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white/90">
+            <h3 id="jira-csv-import-title" className="text-base font-semibold text-gray-900 dark:text-white/90">
               Import work items from CSV
             </h3>
             <button
               type="button"
-              onClick={() => setImportCsvModalOpen(false)}
+              onClick={closeCsvImportModal}
+              disabled={csvImporting}
               className="cursor-pointer text-sm text-gray-400 hover:text-gray-700"
             >
               ✕
             </button>
           </div>
-          <label className="flex cursor-pointer flex-col items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900/50">
+          <label className="flex cursor-pointer flex-col items-center justify-center border-2 border-dashed border-gray-300 bg-gray-50 p-6 text-center hover:bg-gray-100 focus-within:ring-2 focus-within:ring-brand-500 focus-within:ring-offset-2 dark:border-gray-700 dark:bg-gray-900/50 dark:focus-within:ring-offset-gray-950">
             <MonoIcon name="document"size={24} className="text-gray-500"/>
             <span className="mt-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
-              {csvFileName
-                ? `Selected: ${csvFileName}`
-                :"Click to choose a CSV file or drag it here"}
+              {csvFile
+                ? t("jiraImportSelectedFile", { name: csvFile.name })
+                : t("jiraImportChooseFile")}
             </span>
-            <span className="mt-1 text-[11px] text-gray-500">
-              Max file size: 10MB (.csv)
-            </span>
+            <span className="mt-1 text-[11px] text-gray-500">{t("jiraImportFileLimit")}</span>
             <input
+              ref={csvFileInputRef}
               type="file"
               accept=".csv"
+              aria-label={t("jiraImportChooseFile")}
               onChange={handleCsvFileSelect}
-              className="hidden"
+              disabled={csvImporting}
+              className="sr-only"
             />
           </label>
-          <div className="flex items-center justify-between text-xs">
-            <button
-              type="button"
-              onClick={() => onExportCsv?.(false)}
-              className="cursor-pointer font-medium text-brand-600 hover:underline dark:text-brand-400"
-            >
-              Download sample CSV template
-            </button>
-            <button
-              type="button"
-              onClick={() => setCsvFileName("sprint-backlog-import.csv")}
-              className="cursor-pointer text-gray-500 hover:text-gray-800 dark:hover:text-gray-200"
-            >
-              Use demo CSV file
-            </button>
-          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">{t("jiraImportHint")}</p>
+          {(csvProgress || csvMessage) && (
+            <div role="status" aria-live="polite" className="border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200">
+              {csvProgress && <p>{t("jiraImportProgress", { completed: csvProgress.completed, total: csvProgress.total, key: csvProgress.currentKey })}</p>}
+              {csvMessage && <p>{csvMessage}</p>}
+            </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
             <button
               type="button"
-              onClick={() => setImportCsvModalOpen(false)}
+              onClick={closeCsvImportModal}
+              disabled={csvImporting}
               className="h-9 cursor-pointer border border-gray-200 px-3.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
             >
-              Cancel
+              {t("cancel")}
             </button>
             <button
               type="button"
-              disabled={!csvFileName}
-              onClick={() => {
-                onImportCsvItem?.(csvFileName);
-                setCsvFileName("");
-                setImportCsvModalOpen(false);
-              }}
+              disabled={!csvFile || csvImporting || !onImportCsvItem}
+              onClick={() => void handleCsvImport()}
               className="h-9 cursor-pointer bg-brand-500 px-4 text-xs font-semibold text-white hover:bg-brand-600 disabled:opacity-50"
             >
-              Import
+              {csvImporting ? t("jiraImportWorking") : t("jiraImportAction")}
             </button>
           </div>
         </div>
