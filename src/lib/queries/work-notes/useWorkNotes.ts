@@ -86,6 +86,7 @@ export type ProjectDocumentSummary = Readonly<{
   reviewedBy?: string;
   reviewedAt?: string;
   reviewComment?: string;
+  file?: Readonly<{ name: string; contentType: string; size: number }>;
   permissions: WorkNotePermissions;
 }>;
 

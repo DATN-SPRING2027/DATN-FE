@@ -16,6 +16,7 @@ import {
   CloseIcon,
   DocsIcon,
   DownloadIcon,
+  EyeIcon,
   FileIcon,
   GroupIcon,
   LockIcon,
@@ -26,6 +27,7 @@ import {
   UserCircleIcon,
 } from "@/icons";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import DocumentFilePreviewModal from "./DocumentFilePreviewModal";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   REPORT_FREQUENCIES,
@@ -100,6 +102,7 @@ function ReportEditor({
   onSave,
   onSubmit,
   onDownloadFile,
+  onPreviewFile,
   onClose,
 }: {
   report: WorkReport;
@@ -110,6 +113,7 @@ function ReportEditor({
   onSave: (input: WorkReportInput, file: File | null) => Promise<void>;
   onSubmit: (input: WorkReportInput, file: File | null) => Promise<void>;
   onDownloadFile: (report: WorkReport) => Promise<void>;
+  onPreviewFile?: (report: WorkReport) => void;
   onClose?: () => void;
 }) {
   const t = useTranslations("workNotes.reports");
@@ -124,6 +128,7 @@ function ReportEditor({
     documentIds: report.documentIds ?? [],
   });
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewingSelectedFile, setPreviewingSelectedFile] = useState(false);
   const [validationError, setValidationError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>, saveOnly: boolean) {
@@ -354,38 +359,69 @@ function ReportEditor({
               </Button>
 
               {selectedFile && (
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                  <FileIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-44 truncate">{selectedFile.name}</span>
-                  <span className="tabular-nums text-[11px] opacity-80">
-                    ({formatFileSize(selectedFile.size)})
+                <div className="inline-flex flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+                    <FileIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span className="max-w-44 truncate">{selectedFile.name}</span>
+                    <span className="tabular-nums text-[11px] opacity-80">
+                      ({formatFileSize(selectedFile.size)})
+                    </span>
+                    <button
+                      type="button"
+                      aria-label={t("removeSelectedFile")}
+                      onClick={() => {
+                        setSelectedFile(null);
+                        setPreviewingSelectedFile(false);
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                      }}
+                      className="ms-1 rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/20"
+                    >
+                      <CloseIcon className="h-3 w-3" />
+                    </button>
                   </span>
                   <button
                     type="button"
-                    aria-label={t("removeSelectedFile")}
-                    onClick={() => {
-                      setSelectedFile(null);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    className="ms-1 rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/20"
+                    onClick={() => setPreviewingSelectedFile(true)}
+                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
                   >
-                    <CloseIcon className="h-3 w-3" />
+                    <EyeIcon className="h-3.5 w-3.5 shrink-0" />
+                    <span>{t("previewAttachment")}</span>
                   </button>
-                </span>
+                  <DocumentFilePreviewModal
+                    isOpen={previewingSelectedFile}
+                    onClose={() => setPreviewingSelectedFile(false)}
+                    fileName={selectedFile.name}
+                    contentType={selectedFile.type}
+                    fileSize={selectedFile.size}
+                    fetchBlob={() => Promise.resolve(selectedFile)}
+                  />
+                </div>
               )}
 
               {!selectedFile && report.file && (
-                <button
-                  type="button"
-                  onClick={() => void onDownloadFile(report)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                >
-                  <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                  <span className="max-w-44 truncate">{report.file.name}</span>
-                  <span className="tabular-nums text-[11px] text-gray-400">
-                    ({formatFileSize(report.file.size)})
-                  </span>
-                </button>
+                <div className="inline-flex flex-wrap items-center gap-1.5">
+                  {onPreviewFile && (
+                    <button
+                      type="button"
+                      onClick={() => onPreviewFile(report)}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/80 px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+                    >
+                      <EyeIcon className="h-3.5 w-3.5 shrink-0" />
+                      <span>{t("previewAttachment")}</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => void onDownloadFile(report)}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                  >
+                    <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+                    <span className="max-w-44 truncate">{report.file.name}</span>
+                    <span className="tabular-nums text-[11px] text-gray-400">
+                      ({formatFileSize(report.file.size)})
+                    </span>
+                  </button>
+                </div>
               )}
             </div>
           </div>
@@ -640,6 +676,74 @@ export default function ProjectWorkReportsWorkspace({
   const docTitleMap = new Map(
     availableDocuments.map((doc) => [doc.id, doc.title]),
   );
+  const docMap = new Map(
+    availableDocuments.map((doc) => [doc.id, doc]),
+  );
+  const [previewTarget, setPreviewTarget] = useState<{
+    fileName: string;
+    contentType?: string;
+    fileSize?: number;
+    fetchBlob: () => Promise<Blob>;
+    downloadUrl?: string;
+    onDownload?: () => void;
+  } | null>(null);
+
+  function handlePreviewReportFile(report: WorkReport) {
+    if (!report.file) return;
+    setPreviewTarget({
+      fileName: report.file.name,
+      contentType: report.file.contentType,
+      fileSize: report.file.size,
+      fetchBlob: () => workNotesApi.downloadReportFile(projectId, report.id),
+      onDownload: () => void handleDownloadReportFile(report),
+    });
+  }
+
+  async function handlePreviewLinkedDocument(docId: string, fallbackTitle: string) {
+    const summary = docMap.get(docId);
+    if (summary?.file) {
+      setPreviewTarget({
+        fileName: summary.file.name,
+        contentType: summary.file.contentType,
+        fileSize: summary.file.size,
+        fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
+        downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
+      });
+      return;
+    }
+    try {
+      const fullDoc = await workNotesApi.getDocument(projectId, docId);
+      if (fullDoc.file) {
+        setPreviewTarget({
+          fileName: fullDoc.file.name,
+          contentType: fullDoc.file.contentType,
+          fileSize: fullDoc.file.size,
+          fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
+          downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
+        });
+      } else {
+        const textBlob = new Blob([fullDoc.content || ""], {
+          type: "text/markdown;charset=utf-8",
+        });
+        setPreviewTarget({
+          fileName: `${fullDoc.title || fallbackTitle}.md`,
+          contentType: "text/markdown",
+          fileSize: textBlob.size,
+          fetchBlob: () => Promise.resolve(textBlob),
+        });
+      }
+    } catch {
+      const textBlob = new Blob([summary?.description || fallbackTitle], {
+        type: "text/plain;charset=utf-8",
+      });
+      setPreviewTarget({
+        fileName: `${fallbackTitle}.txt`,
+        contentType: "text/plain",
+        fileSize: textBlob.size,
+        fetchBlob: () => Promise.resolve(textBlob),
+      });
+    }
+  }
 
   async function saveReportDraft(
     report: WorkReport,
@@ -1313,6 +1417,7 @@ export default function ProjectWorkReportsWorkspace({
                     submitReport(currentReport, input, file)
                   }
                   onDownloadFile={handleDownloadReportFile}
+                  onPreviewFile={handlePreviewReportFile}
                 />
               </section>
             )}
@@ -1568,6 +1673,7 @@ export default function ProjectWorkReportsWorkspace({
                                     submitReport(report, input, file)
                                   }
                                   onDownloadFile={handleDownloadReportFile}
+                                  onPreviewFile={handlePreviewReportFile}
                                   onClose={() => setEditingReportId("")}
                                 />
                               </div>
@@ -1589,35 +1695,69 @@ export default function ProjectWorkReportsWorkspace({
                                   report.documentIds.length > 0)) && (
                                 <div className="flex flex-wrap items-center gap-2 pt-1">
                                   {report.file && (
-                                    <button
-                                      type="button"
-                                      disabled={
-                                        downloadingReportId === report.id
-                                      }
-                                      onClick={() =>
-                                        void handleDownloadReportFile(report)
-                                      }
-                                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/70 px-3 py-1 text-xs font-medium tabular-nums text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
-                                    >
-                                      <DownloadIcon className="h-3.5 w-3.5 shrink-0" />
-                                      <span className="max-w-56 truncate">
-                                        {downloadingReportId === report.id
-                                          ? t("downloadingFile")
-                                          : `${report.file.name} (${formatFileSize(report.file.size)})`}
+                                    <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-brand-50/40 p-1 ps-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
+                                      <FileIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+                                      <span className="max-w-52 truncate text-xs font-medium tabular-nums text-gray-800 dark:text-gray-200">
+                                        {`${report.file.name} (${formatFileSize(report.file.size)})`}
                                       </span>
-                                    </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          handlePreviewReportFile(report)
+                                        }
+                                        className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-gray-800"
+                                      >
+                                        <EyeIcon className="h-3.5 w-3.5 shrink-0" />
+                                        <span>{t("previewAttachment")}</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={
+                                          downloadingReportId === report.id
+                                        }
+                                        onClick={() =>
+                                          void handleDownloadReportFile(report)
+                                        }
+                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                                      >
+                                        <DownloadIcon className="h-3.5 w-3.5 shrink-0" />
+                                        <span>
+                                          {downloadingReportId === report.id
+                                            ? t("downloadingFile")
+                                            : t("downloadAttachment")}
+                                        </span>
+                                      </button>
+                                    </div>
                                   )}
-                                  {report.documentIds?.map((docId) => (
-                                    <span
-                                      key={docId}
-                                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                    >
-                                      <DocsIcon className="h-3 w-3 shrink-0 text-brand-600 dark:text-brand-400" />
-                                      <span className="max-w-48 truncate">
-                                        {docTitleMap.get(docId) ?? docId}
+                                  {report.documentIds?.map((docId) => {
+                                    const docTitle =
+                                      docTitleMap.get(docId) ?? docId;
+                                    return (
+                                      <span
+                                        key={docId}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                      >
+                                        <DocsIcon className="h-3 w-3 shrink-0 text-brand-600 dark:text-brand-400" />
+                                        <span className="max-w-48 truncate">
+                                          {docTitle}
+                                        </span>
+                                        <button
+                                          type="button"
+                                          aria-label={`${t("previewDocument")}: ${docTitle}`}
+                                          onClick={() =>
+                                            void handlePreviewLinkedDocument(
+                                              docId,
+                                              docTitle,
+                                            )
+                                          }
+                                          className="ms-1 inline-flex items-center gap-1 rounded border border-brand-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
+                                        >
+                                          <EyeIcon className="h-3 w-3 shrink-0" />
+                                          <span>{t("previewAttachment")}</span>
+                                        </button>
                                       </span>
-                                    </span>
-                                  ))}
+                                    );
+                                  })}
                                 </div>
                               )}
 
@@ -1711,6 +1851,19 @@ export default function ProjectWorkReportsWorkspace({
           </>
         )}
       </div>
+
+      {previewTarget && (
+        <DocumentFilePreviewModal
+          isOpen={Boolean(previewTarget)}
+          onClose={() => setPreviewTarget(null)}
+          fileName={previewTarget.fileName}
+          contentType={previewTarget.contentType}
+          fileSize={previewTarget.fileSize}
+          fetchBlob={previewTarget.fetchBlob}
+          downloadUrl={previewTarget.downloadUrl}
+          onDownload={previewTarget.onDownload}
+        />
+      )}
     </main>
   );
 }
