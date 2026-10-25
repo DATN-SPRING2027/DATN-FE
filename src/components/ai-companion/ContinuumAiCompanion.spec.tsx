@@ -40,12 +40,19 @@ describe("ContinuumAiCompanion", () => {
     routeState.pathname = "/projects/6ad88b72ed7cd148fcd0e621/work-notes";
   });
 
-  it("renders the floating 3D robot dock, opens the companion panel, and allows switching between all 4 animation states (Chờ / Nghĩ / Nói / Vui)", () => {
+  it("renders the floating 3D robot dock, supports minimizing, and opens the clean companion panel without manual debug state buttons", () => {
     render(<ContinuumAiCompanion />);
 
     expect(
       screen.getByTestId("ai-companion-floating-dock"),
     ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Minimize AI Companion" }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Minimize AI Companion" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", { name: "Open Continuum AI Companion" }),
@@ -56,42 +63,17 @@ describe("ContinuumAiCompanion", () => {
     ).toBeVisible();
     expect(
       screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Chờ · Idle");
-
-    fireEvent.click(screen.getByRole("button", { name: "Nghĩ" }));
-    expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Đang xử lý · Thinking");
+    ).toHaveTextContent("Sẵn sàng");
     expect(screen.getByTestId("robot-3d-stage")).toHaveAttribute(
       "data-status",
-      "thinking",
+      "idle",
     );
-
-    fireEvent.click(screen.getByRole("button", { name: "Nói" }));
     expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Đang trả lời · Speaking");
-    expect(screen.getByTestId("robot-3d-stage")).toHaveAttribute(
-      "data-status",
-      "speaking",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Vui" }));
-    expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Hoàn thành · Happy");
-    expect(screen.getByTestId("robot-3d-stage")).toHaveAttribute(
-      "data-status",
-      "happy",
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Chờ" }));
-    expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Chờ · Idle");
+      screen.queryByRole("group", { name: "Robot animation states" }),
+    ).not.toBeInTheDocument();
   });
 
-  it("queries real project Task Notes, Documents, and Work Reports and transitions through thinking -> speaking -> happy -> idle", async () => {
+  it("queries real project Task Notes, Documents, and Work Reports and transitions automatically through thinking -> speaking -> happy", async () => {
     vi.mocked(workNotesApi.listProjectTaskNotes).mockResolvedValue({
       data: [
         {
@@ -151,7 +133,7 @@ describe("ContinuumAiCompanion", () => {
 
     expect(
       screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Đang xử lý · Thinking");
+    ).toHaveTextContent("Đang phân tích...");
 
     await waitFor(
       () => {

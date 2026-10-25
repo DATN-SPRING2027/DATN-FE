@@ -22,52 +22,40 @@ const STATUS_META: Record<
   RobotStatus,
   {
     label: string;
-    shortLabel: string;
-    bubble: string;
+    subtitle: string;
     badgeClass: string;
     dotClass: string;
   }
 > = {
   idle: {
-    label: "Chờ · Idle",
-    shortLabel: "Chờ",
-    bubble: "Xin chào! Mình có thể giúp gì cho bạn?",
+    label: "Sẵn sàng",
+    subtitle: "Trợ lý ngữ cảnh dự án · Tự động tổng hợp Task Notes & Báo cáo",
     badgeClass:
-      "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300",
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     dotClass: "bg-emerald-500",
   },
   thinking: {
-    label: "Đang xử lý · Thinking",
-    shortLabel: "Nghĩ",
-    bubble: "Đang truy vấn ngữ cảnh dự án và phân tích dữ liệu...",
+    label: "Đang phân tích...",
+    subtitle: "Đang truy vấn dữ liệu dự án theo quyền RBAC của bạn...",
     badgeClass:
       "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300",
     dotClass: "bg-amber-500 animate-ping",
   },
   speaking: {
-    label: "Đang trả lời · Speaking",
-    shortLabel: "Nói",
-    bubble: "Mình đã tổng hợp thông tin từ workspace cho bạn!",
+    label: "Đang trả lời...",
+    subtitle: "Đang tổng hợp thông tin từ Workspace cho bạn...",
     badgeClass:
       "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300",
     dotClass: "bg-brand-500 animate-pulse",
   },
   happy: {
-    label: "Hoàn thành · Happy",
-    shortLabel: "Vui",
-    bubble: "Hoàn tất! Bạn cần mình kiểm tra thêm mục nào không?",
+    label: "Hoàn tất",
+    subtitle: "Đã phân tích xong! Bạn cần kiểm tra thêm mục nào không?",
     badgeClass:
       "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     dotClass: "bg-emerald-500",
   },
 };
-
-const ALL_STATUSES: readonly RobotStatus[] = [
-  "idle",
-  "thinking",
-  "speaking",
-  "happy",
-];
 
 function extractProjectId(pathname: string): string | null {
   const source =
@@ -298,7 +286,7 @@ export default function ContinuumAiCompanion() {
       id: "welcome",
       role: "assistant",
       content:
-        "Xin chào! Mình là Continuum AI Companion. Bạn có thể bấm thử 4 trạng thái cử động (Chờ / Nghĩ / Nói / Vui) hoặc chọn một tác vụ bên dưới để mình phân tích dữ liệu dự án nhé!",
+        "Xin chào! Mình có thể tóm tắt tiến độ dự án, tổng hợp bản tin bàn giao (Handover) hoặc gợi ý báo cáo chuẩn What / How / Why cho bạn.",
     },
   ]);
 
@@ -495,138 +483,63 @@ export default function ContinuumAiCompanion() {
           role="dialog"
           aria-label="Continuum AI Companion"
           data-testid="ai-companion-panel"
-          className="fixed end-3 bottom-3 z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[420px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:end-6 sm:bottom-5"
+          className="fixed end-3 bottom-3 z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:end-6 sm:bottom-5"
         >
-          {/* Top Bar */}
-          <header className="flex items-center justify-between gap-2 border-b border-gray-100 bg-gray-50/80 px-4 py-3 dark:border-gray-800 dark:bg-gray-800/60">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="inline-flex h-2.5 w-2.5 shrink-0 rounded-full bg-brand-600 shadow-[0_0_8px_#3b82f6]" />
-              <h2 className="truncate text-sm font-bold text-gray-900 dark:text-white">
-                Continuum AI Companion
-              </h2>
-              <span
-                data-testid="ai-companion-status-badge"
-                className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${currentMeta.badgeClass}`}
-              >
-                <span
-                  className={`h-1.5 w-1.5 rounded-full ${currentMeta.dotClass}`}
-                />
-                {currentMeta.label}
-              </span>
+          {/* Unified Compact Hero Header with 3D Robot Stage */}
+          <header className="relative flex items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-50/60 via-white to-gray-50/40 px-3.5 py-2.5 dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-900">
+            <div className="relative h-20 w-20 shrink-0">
+              <div className="pointer-events-none absolute inset-2 rounded-full bg-brand-500/15 blur-lg" />
+              <Robot3D status={robotStatus} interactiveMouse />
             </div>
 
-            <div className="flex items-center gap-1">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="truncate text-sm font-bold text-gray-900 dark:text-white">
+                  Continuum AI
+                </h2>
+                <span
+                  data-testid="ai-companion-status-badge"
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold whitespace-nowrap ${currentMeta.badgeClass}`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 rounded-full ${currentMeta.dotClass}`}
+                  />
+                  {currentMeta.label}
+                </span>
+              </div>
+              <p className="mt-1 line-clamp-2 text-xs leading-snug text-gray-500 dark:text-gray-400">
+                {currentMeta.subtitle}
+              </p>
+            </div>
+
+            <div className="flex shrink-0 items-center gap-0.5 self-start pt-0.5">
+              <a
+                href="https://sketchfab.com/3d-models/futuristic-flying-animated-robot-low-poly-c5b92c281dc444448e64c0607719c7a2"
+                target="_blank"
+                rel="noreferrer"
+                title="3D Model: Shayan (CC BY 4.0) · Đồng bộ theo quyền RBAC"
+                aria-label="3D Model: Shayan (CC BY 4.0)"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+              >
+                ⓘ
+              </a>
               <button
                 type="button"
                 aria-label="Close AI Companion"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-200/70 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 ✕
               </button>
             </div>
           </header>
 
-          {/* 3D Robot Stage + Speech Bubble + 4 State Switcher Pills */}
-          <div className="relative border-b border-gray-100 bg-gradient-to-b from-brand-50/50 via-white to-gray-50/60 px-4 pt-3 pb-3 dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-950">
-            <div className="flex items-center gap-3">
-              <div className="relative h-36 w-36 shrink-0">
-                <div className="pointer-events-none absolute inset-3 rounded-full bg-brand-500/15 blur-xl" />
-                <Robot3D status={robotStatus} interactiveMouse />
-              </div>
-
-              <div className="min-w-0 flex-1 space-y-2">
-                <div className="rounded-2xl rounded-es-xs border border-brand-100 bg-white p-3 text-xs leading-relaxed text-gray-700 shadow-2xs dark:border-gray-800 dark:bg-gray-800/90 dark:text-gray-200">
-                  <p className="font-semibold text-brand-700 dark:text-brand-300">
-                    {activeProjectId
-                      ? "Trợ lý ngữ cảnh Dự án"
-                      : "Trợ lý ngữ cảnh Workspace"}
-                  </p>
-                  <p className="mt-1 text-gray-600 dark:text-gray-300">
-                    {currentMeta.bubble}
-                  </p>
-                </div>
-
-                {/* 4 State Switcher Pills (Chờ / Nghĩ / Nói / Vui) */}
-                <div>
-                  <span className="block text-[10px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                    Trạng thái Robot 3D
-                  </span>
-                  <div
-                    role="group"
-                    aria-label="Robot animation states"
-                    className="mt-1 grid grid-cols-4 gap-1"
-                  >
-                    {ALL_STATUSES.map((stateKey) => {
-                      const active = robotStatus === stateKey;
-                      return (
-                        <button
-                          key={stateKey}
-                          type="button"
-                          onClick={() => {
-                            clearTimers();
-                            setRobotStatus(stateKey);
-                          }}
-                          className={`rounded-lg border px-2 py-1 text-center text-[11px] font-semibold transition ${
-                            active
-                              ? "border-brand-600 bg-brand-600 text-white shadow-2xs dark:border-brand-500 dark:bg-brand-500"
-                              : "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                          }`}
-                        >
-                          {STATUS_META[stateKey].shortLabel}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Quick Context Prompts */}
-          <div className="flex flex-wrap gap-1.5 border-b border-gray-100 bg-gray-50/50 px-3.5 py-2 dark:border-gray-800 dark:bg-gray-900/60">
-            <button
-              type="button"
-              onClick={() =>
-                void runPrompt(
-                  activeProjectId
-                    ? "Tóm tắt tình hình dự án hiện tại"
-                    : "Tóm tắt các dự án trong Workspace",
-                )
-              }
-              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-            >
-              📊 Tóm tắt dự án
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                void runPrompt(
-                  "Tổng hợp bản tin Bàn giao (Handover Brief) và các quyết định kỹ thuật",
-                )
-              }
-              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-            >
-              🤝 Bản tin Handover
-            </button>
-            <button
-              type="button"
-              onClick={() =>
-                void runPrompt(
-                  "Gợi ý soạn nhanh Work Report theo chuẩn What / How / Why",
-                )
-              }
-              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-            >
-              ✍️ Soạn What / How / Why
-            </button>
-          </div>
-
-          {/* Conversation Feed */}
-          <div className="max-h-60 min-h-44 flex-1 space-y-3 overflow-y-auto px-4 py-3">
+          {/* Spacious Conversation Feed */}
+          <div className="max-h-80 min-h-56 flex-1 space-y-3 overflow-y-auto px-4 py-3.5">
             {messages.map((message) => (
               <div
                 key={message.id}
+                data-testid={`ai-companion-msg-${message.role}`}
                 className={`flex flex-col ${
                   message.role === "user" ? "items-end" : "items-start"
                 }`}
@@ -634,8 +547,8 @@ export default function ContinuumAiCompanion() {
                 <div
                   className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-line ${
                     message.role === "user"
-                      ? "rounded-ee-xs bg-brand-600 text-white"
-                      : "rounded-es-xs border border-gray-200 bg-gray-50 text-gray-800 dark:border-gray-800 dark:bg-gray-800/80 dark:text-gray-100"
+                      ? "rounded-ee-xs bg-brand-600 text-white shadow-2xs"
+                      : "rounded-es-xs border border-gray-200/80 bg-gray-50/90 text-gray-800 dark:border-gray-800 dark:bg-gray-800/80 dark:text-gray-100"
                   }`}
                 >
                   {message.content}
@@ -660,7 +573,49 @@ export default function ContinuumAiCompanion() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Chat Input Form */}
+          {/* Quick Context Prompts Docked Above Composer */}
+          <div className="flex flex-wrap gap-1.5 border-t border-gray-100 bg-gray-50/60 px-3.5 py-2 dark:border-gray-800 dark:bg-gray-900/60">
+            <button
+              type="button"
+              disabled={robotStatus === "thinking"}
+              onClick={() =>
+                void runPrompt(
+                  activeProjectId
+                    ? "Tóm tắt tình hình dự án hiện tại"
+                    : "Tóm tắt các dự án trong Workspace",
+                )
+              }
+              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+              📊 Tóm tắt dự án
+            </button>
+            <button
+              type="button"
+              disabled={robotStatus === "thinking"}
+              onClick={() =>
+                void runPrompt(
+                  "Tổng hợp bản tin Bàn giao (Handover Brief) và các quyết định kỹ thuật",
+                )
+              }
+              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+              🤝 Bản tin Handover
+            </button>
+            <button
+              type="button"
+              disabled={robotStatus === "thinking"}
+              onClick={() =>
+                void runPrompt(
+                  "Gợi ý soạn nhanh Work Report theo chuẩn What / How / Why",
+                )
+              }
+              className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+            >
+              ✍️ Soạn What / How / Why
+            </button>
+          </div>
+
+          {/* Clean Chat Composer */}
           <form
             onSubmit={handleFormSubmit}
             className="border-t border-gray-100 bg-white p-3 dark:border-gray-800 dark:bg-gray-900"
@@ -682,17 +637,6 @@ export default function ContinuumAiCompanion() {
                 Gửi
               </button>
             </div>
-            <p className="mt-1.5 flex items-center justify-between text-[10px] text-gray-400 dark:text-gray-500">
-              <span>Đồng bộ dữ liệu thật theo quyền RBAC của bạn</span>
-              <a
-                href="https://sketchfab.com/3d-models/futuristic-flying-animated-robot-low-poly-c5b92c281dc444448e64c0607719c7a2"
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                3D Model: Shayan (CC BY 4.0)
-              </a>
-            </p>
           </form>
         </section>
       )}
