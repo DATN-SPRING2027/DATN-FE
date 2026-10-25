@@ -38,6 +38,7 @@ import {
   type ProjectMemberPage,
 } from "@/lib/queries/projects/useProjectMembers";
 import type { ProjectList } from "@/lib/queries/projects/useProjects";
+import DocumentFilePreviewModal from "./DocumentFilePreviewModal";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import {
   DOCUMENT_TYPES,
@@ -152,50 +153,6 @@ function getFileTypeBadge(name: string, contentType?: string): string {
   return "FILE";
 }
 
-function getFilePreviewType(
-  name: string,
-  contentType?: string,
-): "text" | "pdf" | "image" | "binary" {
-  const lower = name.toLowerCase();
-  const mime = contentType?.split(";")[0]?.trim().toLowerCase() ?? "";
-  if (lower.endsWith(".pdf") || mime === "application/pdf") return "pdf";
-  if (
-    lower.endsWith(".png") ||
-    lower.endsWith(".jpg") ||
-    lower.endsWith(".jpeg") ||
-    lower.endsWith(".webp") ||
-    mime.startsWith("image/")
-  ) {
-    return "image";
-  }
-  if (
-    [
-      ".txt",
-      ".md",
-      ".markdown",
-      ".csv",
-      ".tsv",
-      ".json",
-      ".yaml",
-      ".yml",
-      ".xml",
-      ".drawio",
-      ".sql",
-    ].some((ext) => lower.endsWith(ext)) ||
-    mime.startsWith("text/") ||
-    [
-      "application/json",
-      "application/yaml",
-      "application/x-yaml",
-      "application/xml",
-      "application/sql",
-    ].includes(mime)
-  ) {
-    return "text";
-  }
-  return "binary";
-}
-
 function isSupportedDocumentFile(candidate: File): boolean {
   const lower = candidate.name.toLowerCase();
   const baseType = candidate.type.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -251,6 +208,7 @@ function DocumentEditor({
   const [fileError, setFileError] = useState("");
   const [validationError, setValidationError] = useState("");
   const [isDragging, setIsDragging] = useState(false);
+  const [previewingLocalFile, setPreviewingLocalFile] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -578,6 +536,15 @@ function DocumentEditor({
                     type="button"
                     variant="outline"
                     size="sm"
+                    onClick={() => setPreviewingLocalFile(true)}
+                  >
+                    <EyeIcon className="me-1 h-3.5 w-3.5" />
+                    {t("previewAction")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => fileInputRef.current?.click()}
                   >
                     {t("replaceFile")}
@@ -594,6 +561,16 @@ function DocumentEditor({
                     <TrashBinIcon className="h-4 w-4" />
                   </button>
                 </div>
+                {file && (
+                  <DocumentFilePreviewModal
+                    isOpen={previewingLocalFile}
+                    onClose={() => setPreviewingLocalFile(false)}
+                    fileName={file.name}
+                    contentType={file.type}
+                    fileSize={file.size}
+                    fetchBlob={() => Promise.resolve(file)}
+                  />
+                )}
               </div>
             ) : (
               <div
@@ -966,53 +943,13 @@ export default function ProjectDocumentsWorkspace({
     });
   }
 
-  async function toggleFilePreview() {
+  function toggleFilePreview() {
     if (!current || !activeFile) return;
     if (previewState.open) {
       resetPreview();
       return;
     }
-    const mode = getFilePreviewType(activeFile.name, activeFile.contentType);
-    if (mode === "binary") {
-      setPreviewState({ open: true, loading: false, mode: "binary" });
-      return;
-    }
-    setPreviewState({ open: true, loading: true, mode });
-    try {
-      const targetVersion =
-        viewedVersion && viewedVersion.version !== current.version
-          ? viewedVersion.version
-          : undefined;
-      const blob = await workNotesApi.downloadDocumentFile(
-        projectId,
-        current.id,
-        targetVersion,
-      );
-      if (mode === "text") {
-        const textContent = await blob.text();
-        setPreviewState({
-          open: true,
-          loading: false,
-          mode: "text",
-          text: textContent,
-        });
-      } else {
-        const objectUrl = URL.createObjectURL(blob);
-        setPreviewState({
-          open: true,
-          loading: false,
-          mode,
-          url: objectUrl,
-        });
-      }
-    } catch (err) {
-      setPreviewState({
-        open: true,
-        loading: false,
-        mode,
-        error: err instanceof Error ? err.message : common("saveFailed"),
-      });
-    }
+    setPreviewState({ open: true, loading: false, mode: "binary" });
   }
   const editingInitial = useMemo<ProjectDocumentInput>(
     () =>
@@ -1829,8 +1766,8 @@ export default function ProjectDocumentsWorkspace({
                             <div className="flex shrink-0 flex-wrap items-center gap-2">
                               <button
                                 type="button"
-                                onClick={() => void toggleFilePreview()}
-                                className="inline-flex h-8.5 items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 shadow-theme-xs transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                                onClick={toggleFilePreview}
+                                className="inline-flex h-8.5 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/80 px-3 text-xs font-semibold text-brand-700 shadow-theme-xs transition-colors hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
                               >
                                 <EyeIcon className="h-3.5 w-3.5" />
                                 {previewState.open
@@ -1850,42 +1787,23 @@ export default function ProjectDocumentsWorkspace({
                             </div>
                           </div>
 
-                          {previewState.open && (
-                            <div className="rounded-lg border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-950">
-                              {previewState.loading ? (
-                                <p className="text-xs text-gray-500 dark:text-gray-400">
-                                  {t("previewLoading")}
-                                </p>
-                              ) : previewState.error ? (
-                                <p className="text-xs text-error-600 dark:text-error-400">
-                                  {previewState.error}
-                                </p>
-                              ) : previewState.mode === "text" ? (
-                                <pre className="max-h-72 overflow-y-auto text-xs leading-6 break-words whitespace-pre-wrap font-mono text-gray-800 dark:text-gray-200">
-                                  {previewState.text || t("noTextContent")}
-                                </pre>
-                              ) : previewState.mode === "pdf" &&
-                                previewState.url ? (
-                                <iframe
-                                  title={activeFile.name}
-                                  src={previewState.url}
-                                  className="h-80 w-full rounded border border-gray-200 dark:border-gray-800"
-                                />
-                              ) : previewState.mode === "image" &&
-                                previewState.url ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={previewState.url}
-                                  alt={activeFile.name}
-                                  className="max-h-80 w-auto rounded border border-gray-200 object-contain dark:border-gray-800"
-                                />
-                              ) : (
-                                <p className="text-xs text-gray-600 dark:text-gray-300">
-                                  {t("previewBinaryNotice")}
-                                </p>
-                              )}
-                            </div>
-                          )}
+                          <DocumentFilePreviewModal
+                            isOpen={previewState.open}
+                            onClose={resetPreview}
+                            fileName={activeFile.name}
+                            contentType={activeFile.contentType}
+                            fileSize={activeFile.size}
+                            fetchBlob={() =>
+                              workNotesApi.downloadDocumentFile(
+                                projectId,
+                                current.id,
+                                isViewingHistoricalVersion && viewedVersion
+                                  ? viewedVersion.version
+                                  : undefined,
+                              )
+                            }
+                            downloadUrl={`/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(current.id)}/file${isViewingHistoricalVersion && viewedVersion ? `?version=${viewedVersion.version}` : ""}`}
+                          />
                         </div>
                       ) : (
                         <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/40 px-4 py-3 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-900/30 dark:text-gray-400">

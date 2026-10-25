@@ -3128,7 +3128,9 @@
       "emptyReportContent": "No report content submitted for this period yet.",
       "leaderReportBadge": "Leader Report",
       "memberReportBadge": "Member Report",
-      "coreRequired": "Please complete What was done, How it was done, and Why this approach before saving."
+      "coreRequired": "Please complete What was done, How it was done, and Why this approach before saving.",
+      "previewAttachment": "Preview",
+      "previewDocument": "Preview document"
     },
     "projectCode": "Project {code}",
     "breadcrumb": "Work Notes breadcrumb",
@@ -3326,7 +3328,31 @@
         "manageConfiguration": "Manage configuration"
       }
     },
-    "contentUnavailable": "Content is no longer available."
+    "contentUnavailable": "Content is no longer available.",
+    "previewModal": {
+      "dialogLabel": "Document preview: {name}",
+      "eyebrow": "Document Viewer · {format}",
+      "loading": "Loading document preview...",
+      "downloadAction": "Download",
+      "closeAction": "Close preview",
+      "fullscreenEnter": "Expand view",
+      "fullscreenExit": "Standard view",
+      "zoomOut": "Zoom out",
+      "zoomReset": "Reset zoom",
+      "zoomIn": "Zoom in",
+      "copyContent": "Copy text",
+      "copiedContent": "Copied",
+      "sheetTabLabel": "Sheets",
+      "rowsCount": "{rows} rows · {cols} columns",
+      "emptySheet": "This sheet has no data rows.",
+      "slidePosition": "Slide {current} of {total}",
+      "previousSlide": "Previous slide",
+      "nextSlide": "Next slide",
+      "emptySlide": "No text content on this slide.",
+      "emptyText": "This file is empty.",
+      "binaryNotice": "Direct browser preview is not available for this binary document format. Use Download to open the file in its native application.",
+      "retryAction": "Retry preview"
+    }
   },
   "projectVisibility": {
     "makePrivate": "Make private",
