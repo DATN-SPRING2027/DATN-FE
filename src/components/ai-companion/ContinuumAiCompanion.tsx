@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { workNotesApi } from "@/lib/queries/work-notes/useWorkNotes";
 import { apiClient } from "@/lib/api-client";
@@ -280,6 +288,10 @@ export default function ContinuumAiCompanion() {
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
+  const [isDragging, setIsDragging] = useState(false);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<CompanionMessage[]>([
     {
@@ -290,6 +302,9 @@ export default function ContinuumAiCompanion() {
     },
   ]);
 
+  const dockRef = useRef<HTMLDivElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const suppressNextClickRef = useRef(false);
   const streamTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -409,63 +424,234 @@ export default function ContinuumAiCompanion() {
     [activeProjectId, clearTimers, robotStatus],
   );
 
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => {
+        if (!prev || typeof window === "undefined") return prev;
+        const maxX = Math.max(12, window.innerWidth - 150);
+        const maxY = Math.max(12, window.innerHeight - 150);
+        return {
+          x: Math.min(Math.max(12, prev.x), maxX),
+          y: Math.min(Math.max(12, prev.y), maxY),
+        };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  const startDrag = useCallback(
+    (
+      event: ReactPointerEvent<HTMLElement>,
+      targetType: "dock" | "panel",
+    ) => {
+      if (event.button !== 0) return;
+      const targetEl = event.target as HTMLElement | null;
+      if (targetEl?.closest('[data-no-drag="true"]')) return;
+
+      const containerEl =
+        targetType === "dock" ? dockRef.current : panelRef.current;
+      const rect = containerEl?.getBoundingClientRect();
+      const fallbackW = targetType === "dock" ? 160 : 400;
+      const fallbackH = targetType === "dock" ? 160 : 480;
+      const width = rect && rect.width > 0 ? rect.width : fallbackW;
+      const height = rect && rect.height > 0 ? rect.height : fallbackH;
+
+      const viewportW =
+        typeof window !== "undefined" && window.innerWidth > 0
+          ? window.innerWidth
+          : 1440;
+      const viewportH =
+        typeof window !== "undefined" && window.innerHeight > 0
+          ? window.innerHeight
+          : 900;
+
+      const hasMeasuredRect = Boolean(rect && (rect.left > 0 || rect.top > 0));
+      const initialLeft =
+        position?.x ??
+        (hasMeasuredRect && rect
+          ? rect.left
+          : Math.max(12, viewportW - width - 24));
+      const initialTop =
+        position?.y ??
+        (hasMeasuredRect && rect
+          ? rect.top
+          : Math.max(12, viewportH - height - 20));
+
+      const startClientX = event.clientX;
+      const startClientY = event.clientY;
+      let moved = false;
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const dx = moveEvent.clientX - startClientX;
+        const dy = moveEvent.clientY - startClientY;
+
+        if (!moved && Math.hypot(dx, dy) >= 6) {
+          moved = true;
+          suppressNextClickRef.current = true;
+          setIsDragging(true);
+        }
+
+        if (!moved) return;
+
+        const curW =
+          typeof window !== "undefined" && window.innerWidth > 0
+            ? window.innerWidth
+            : 1440;
+        const curH =
+          typeof window !== "undefined" && window.innerHeight > 0
+            ? window.innerHeight
+            : 900;
+        const maxX = Math.max(12, curW - width - 12);
+        const maxY = Math.max(12, curH - height - 12);
+
+        const nextX = Math.min(Math.max(12, initialLeft + dx), maxX);
+        const nextY = Math.min(Math.max(12, initialTop + dy), maxY);
+
+        setPosition({
+          x: Math.round(nextX),
+          y: Math.round(nextY),
+        });
+      };
+
+      const handlePointerUp = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", handlePointerUp);
+        window.removeEventListener("pointercancel", handlePointerUp);
+        if (moved) {
+          setIsDragging(false);
+          setTimeout(() => {
+            suppressNextClickRef.current = false;
+          }, 120);
+        }
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", handlePointerUp);
+      window.addEventListener("pointercancel", handlePointerUp);
+    },
+    [position],
+  );
+
   function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     void runPrompt(input);
   }
 
-  const currentMeta = STATUS_META[robotStatus];
+  const displayRobotStatus: RobotStatus =
+    isDragging && robotStatus === "idle" ? "happy" : robotStatus;
+  const currentMeta = STATUS_META[displayRobotStatus];
+
+  const isOnLeftHalf =
+    position !== null &&
+    typeof window !== "undefined" &&
+    position.x < window.innerWidth / 2;
+
+  const panelStyle = useMemo(() => {
+    if (!position) return undefined;
+    const viewportW =
+      typeof window !== "undefined" && window.innerWidth > 0
+        ? window.innerWidth
+        : 1440;
+    const viewportH =
+      typeof window !== "undefined" && window.innerHeight > 0
+        ? window.innerHeight
+        : 900;
+    const left = Math.min(Math.max(12, position.x), Math.max(12, viewportW - 412));
+    const top = Math.min(Math.max(12, position.y), Math.max(12, viewportH - 510));
+    return { left: `${left}px`, top: `${top}px` };
+  }, [position]);
 
   return (
     <>
-      {/* Floating 3D Robot Widget in Bottom-Right Corner */}
+      {/* Free-Draggable Floating 3D Robot Widget */}
       {!isOpen && (
         <div
+          ref={dockRef}
           data-testid="ai-companion-floating-dock"
-          className="fixed end-4 bottom-4 z-40 flex flex-col items-end sm:end-6 sm:bottom-5"
+          data-dragging={isDragging ? "true" : "false"}
+          onPointerDown={(event) => startDrag(event, "dock")}
+          style={
+            position
+              ? { left: `${position.x}px`, top: `${position.y}px` }
+              : undefined
+          }
+          className={`fixed z-40 flex flex-col select-none touch-none ${
+            isDragging ? "cursor-grabbing" : "cursor-grab"
+          } ${isOnLeftHalf ? "items-start" : "items-end"} ${
+            position ? "" : "end-4 bottom-4 sm:end-6 sm:bottom-5"
+          }`}
         >
           {isMinimized ? (
             <button
               type="button"
-              onClick={() => {
+              onClick={(event) => {
+                if (suppressNextClickRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  suppressNextClickRef.current = false;
+                  return;
+                }
                 setIsMinimized(false);
                 setIsOpen(true);
               }}
               aria-label="Open Continuum AI Companion"
-              className="inline-flex items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
+              className="inline-flex cursor-grab items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 active:cursor-grabbing dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
             >
               <span className="h-2 w-2 rounded-full bg-brand-500" />
               <span>AI Companion</span>
             </button>
           ) : (
-            <div className="group relative flex flex-col items-end">
+            <div
+              className={`group relative flex flex-col ${
+                isOnLeftHalf ? "items-start" : "items-end"
+              }`}
+            >
               {/* Greeting bubble above the floating 3D robot */}
-              <div className="mb-1 flex items-center gap-1.5 rounded-2xl rounded-ee-xs border border-gray-200/90 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition group-hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200">
+              <div
+                className={`mb-1 flex items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition group-hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
+                  isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"
+                }`}
+              >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span>Xin chào! Cần mình tóm tắt dự án không?</span>
                 <button
                   type="button"
+                  data-no-drag="true"
                   aria-label="Minimize AI Companion"
                   onClick={(event) => {
                     event.stopPropagation();
                     setIsMinimized(true);
                   }}
-                  className="ms-1 rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                  className="ms-1 cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                 >
                   ×
                 </button>
               </div>
 
-              {/* 3D Robot Floating Trigger */}
+              {/* 3D Robot Floating Trigger (Click to open, Hold & Drag to move anywhere) */}
               <button
                 type="button"
-                onClick={() => setIsOpen(true)}
+                onClick={(event) => {
+                  if (suppressNextClickRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressNextClickRef.current = false;
+                    return;
+                  }
+                  setIsOpen(true);
+                }}
+                title="Bấm để mở trợ lý AI · Nhấn giữ chuột để kéo đi mọi nơi"
                 aria-label="Open Continuum AI Companion"
-                className="relative flex h-28 w-28 cursor-pointer flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 hover:scale-105 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-32 sm:w-32"
+                className={`relative flex h-28 w-28 flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-32 sm:w-32 ${
+                  isDragging
+                    ? "scale-105 cursor-grabbing"
+                    : "cursor-grab hover:scale-105"
+                }`}
               >
                 <div className="pointer-events-none absolute inset-0 rounded-full bg-brand-500/10 blur-xl transition group-hover:bg-brand-500/20" />
                 <div className="pointer-events-none h-24 w-24 sm:h-28 sm:w-28">
-                  <Robot3D status={robotStatus} interactiveMouse />
+                  <Robot3D status={displayRobotStatus} interactiveMouse />
                 </div>
                 <span className="relative z-10 -mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
@@ -480,16 +666,26 @@ export default function ContinuumAiCompanion() {
       {/* Expanded AI Companion Panel */}
       {isOpen && (
         <section
+          ref={panelRef}
           role="dialog"
           aria-label="Continuum AI Companion"
           data-testid="ai-companion-panel"
-          className="fixed end-3 bottom-3 z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 sm:end-6 sm:bottom-5"
+          style={panelStyle}
+          className={`fixed z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 ${
+            position ? "" : "end-3 bottom-3 sm:end-6 sm:bottom-5"
+          }`}
         >
-          {/* Unified Compact Hero Header with 3D Robot Stage */}
-          <header className="relative flex items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-50/60 via-white to-gray-50/40 px-3.5 py-2.5 dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-900">
-            <div className="relative h-20 w-20 shrink-0">
+          {/* Unified Compact Hero Header with 3D Robot Stage (Also Draggable) */}
+          <header
+            data-testid="ai-companion-drag-handle"
+            onPointerDown={(event) => startDrag(event, "panel")}
+            className={`relative flex items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-50/60 via-white to-gray-50/40 px-3.5 py-2.5 select-none touch-none dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-900 ${
+              isDragging ? "cursor-grabbing" : "cursor-grab"
+            }`}
+          >
+            <div className="pointer-events-none relative h-20 w-20 shrink-0">
               <div className="pointer-events-none absolute inset-2 rounded-full bg-brand-500/15 blur-lg" />
-              <Robot3D status={robotStatus} interactiveMouse />
+              <Robot3D status={displayRobotStatus} interactiveMouse />
             </div>
 
             <div className="min-w-0 flex-1">
@@ -512,14 +708,17 @@ export default function ContinuumAiCompanion() {
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-0.5 self-start pt-0.5">
+            <div
+              data-no-drag="true"
+              className="flex shrink-0 items-center gap-0.5 self-start pt-0.5"
+            >
               <a
                 href="https://sketchfab.com/3d-models/futuristic-flying-animated-robot-low-poly-c5b92c281dc444448e64c0607719c7a2"
                 target="_blank"
                 rel="noreferrer"
                 title="3D Model: Shayan (CC BY 4.0) · Đồng bộ theo quyền RBAC"
                 aria-label="3D Model: Shayan (CC BY 4.0)"
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-xs font-semibold text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
+                className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-xs font-semibold text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               >
                 ⓘ
               </a>
@@ -527,7 +726,7 @@ export default function ContinuumAiCompanion() {
                 type="button"
                 aria-label="Close AI Companion"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 ✕
               </button>

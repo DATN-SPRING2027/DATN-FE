@@ -73,6 +73,38 @@ describe("ContinuumAiCompanion", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("allows dragging the floating robot anywhere on screen without accidentally opening the chat panel on release", () => {
+    render(<ContinuumAiCompanion />);
+
+    const dock = screen.getByTestId("ai-companion-floating-dock");
+    const openBtn = screen.getByRole("button", {
+      name: "Open Continuum AI Companion",
+    });
+
+    fireEvent.pointerDown(dock, { button: 0, clientX: 800, clientY: 600 });
+    fireEvent.pointerMove(window, { clientX: 300, clientY: 200 });
+
+    expect(dock).toHaveAttribute("data-dragging", "true");
+    expect(screen.getByTestId("robot-3d-stage")).toHaveAttribute(
+      "data-status",
+      "happy",
+    );
+    expect(dock.style.left).not.toBe("");
+    expect(dock.style.top).not.toBe("");
+
+    fireEvent.pointerUp(window);
+    fireEvent.click(openBtn);
+
+    expect(
+      screen.queryByRole("dialog", { name: "Continuum AI Companion" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(openBtn);
+    expect(
+      screen.getByRole("dialog", { name: "Continuum AI Companion" }),
+    ).toBeVisible();
+  });
+
   it("queries real project Task Notes, Documents, and Work Reports and transitions automatically through thinking -> speaking -> happy", async () => {
     vi.mocked(workNotesApi.listProjectTaskNotes).mockResolvedValue({
       data: [
