@@ -6,6 +6,7 @@ import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
 import AdminSessionLoadingShell from "@/components/auth/AdminSessionLoadingShell";
+import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
@@ -178,6 +179,7 @@ export default function AdminLayout({
           </div>
         </div>
       </div>
+      <ContinuumAiCompanion />
     </div>
   );
 }

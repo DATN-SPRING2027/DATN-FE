@@ -21,7 +21,6 @@ import {
   GroupIcon,
   LockIcon,
   PencilIcon,
-  PlatformBellIcon,
   TimeIcon,
   UploadIcon,
   UserCircleIcon,
@@ -602,6 +601,7 @@ export default function ProjectWorkReportsWorkspace({
   >({});
   const [downloadingReportId, setDownloadingReportId] = useState("");
 
+  const memberSettings = useWorkReportSettingsQuery(projectId, "MEMBER");
   const settings = useWorkReportSettingsQuery(projectId, activeScope);
   const reports = useWorkReportsQuery(projectId, filter, page, activeScope);
   const currentReports = useWorkReportsQuery(projectId, "ALL", 1, activeScope);
@@ -612,17 +612,25 @@ export default function ProjectWorkReportsWorkspace({
   const currentReportsAccessLost = isAccessOrResourceUnavailableError(
     currentReports.error,
   );
+  const memberSettingsData = isAccessOrResourceUnavailableError(
+    memberSettings.error,
+  )
+    ? undefined
+    : memberSettings.data;
   const settingsData = settingsAccessLost ? undefined : settings.data;
   const reportsData = reportsAccessLost ? undefined : reports.data;
   const currentReportsData = currentReportsAccessLost
     ? undefined
     : currentReports.data;
 
-  const actorRole = settingsData?.actorRole;
+  const actorRole = settingsData?.actorRole ?? memberSettingsData?.actorRole;
   const canSwitchLeaderTier =
     actorRole === "LEADER" ||
     actorRole === "MANAGER" ||
-    Boolean(settingsData?.permissions.canConfigure);
+    Boolean(
+      settingsData?.permissions.canConfigure ??
+        memberSettingsData?.permissions.canConfigure,
+    );
 
   const currentTime = Date.now();
   const currentReport = currentReportsData?.data.find(
@@ -873,389 +881,324 @@ export default function ProjectWorkReportsWorkspace({
     <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <WorkNotesPageHeader projectId={projectId} active="reports" />
 
-      <div className="space-y-6">
-        {canSwitchLeaderTier && (
-          <nav
-            aria-label={t("title")}
-            className="grid gap-3 sm:grid-cols-2"
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setActiveScope("MEMBER");
-                setFrequency(null);
-                setIsConfirmingSchedule(false);
-                setPage(1);
-              }}
-              className={`flex items-start gap-3.5 rounded-xl border p-4 text-start transition ${
-                activeScope === "MEMBER"
-                  ? "border-brand-500 bg-brand-50/70 shadow-theme-xs dark:border-brand-400 dark:bg-brand-500/10"
-                  : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
-              }`}
-            >
-              <span
-                className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  activeScope === "MEMBER"
-                    ? "bg-brand-600 text-white"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                }`}
+      <div className="space-y-5">
+        <section
+          aria-labelledby="report-frequency-heading"
+          className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 shadow-2xs dark:border-gray-800 dark:bg-gray-900 sm:px-4"
+        >
+          <h2 id="report-frequency-heading" className="sr-only">
+            {activeScope === "LEADER" && actorRole === "MANAGER"
+              ? t("leaderScheduleSettingsTitle")
+              : t("settingsTitle")}
+          </h2>
+
+          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+            {settings.isPending && !settingsData && !memberSettingsData ? (
+              <div className="h-8 w-64 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+            ) : canSwitchLeaderTier ? (
+              <nav
+                aria-label={t("title")}
+                className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
               >
-                <GroupIcon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
-                    {t("tabs.memberReports")}
-                  </span>
-                  {settingsData && activeScope === "MEMBER" && (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium tabular-nums text-brand-700 shadow-2xs dark:bg-gray-800 dark:text-brand-300">
-                      {t(`daysShort.${settingsData.frequency}`)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("MEMBER");
+                    setFrequency(null);
+                    setIsConfirmingSchedule(false);
+                    setPage(1);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    activeScope === "MEMBER"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <GroupIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "MEMBER"
+                        ? "text-brand-600 dark:text-brand-400"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>{t("tabs.memberReports")}</span>
+                  {(memberSettingsData?.frequency ??
+                    (activeScope === "MEMBER"
+                      ? settingsData?.frequency
+                      : undefined)) && (
+                    <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                      {t(
+                        `daysShort.${
+                          (activeScope === "MEMBER"
+                            ? settingsData?.frequency
+                            : undefined) ?? memberSettingsData!.frequency
+                        }`,
+                      )}
                     </span>
                   )}
-                </span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                  {t("tabs.memberReportsDesc")}
-                </span>
-              </span>
-            </button>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => {
-                setActiveScope("LEADER");
-                setFrequency(null);
-                setIsConfirmingSchedule(false);
-                setPage(1);
-              }}
-              className={`flex items-start gap-3.5 rounded-xl border p-4 text-start transition ${
-                activeScope === "LEADER"
-                  ? "border-brand-500 bg-brand-50/70 shadow-theme-xs dark:border-brand-400 dark:bg-brand-500/10"
-                  : "border-gray-200 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
-              }`}
-            >
-              <span
-                className={`mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
-                  activeScope === "LEADER"
-                    ? "bg-brand-600 text-white"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                }`}
-              >
-                <UserCircleIcon className="h-4 w-4" />
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white/90">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("LEADER");
+                    setFrequency(null);
+                    setIsConfirmingSchedule(false);
+                    setPage(1);
+                  }}
+                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                    activeScope === "LEADER"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                  }`}
+                >
+                  <UserCircleIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "LEADER"
+                        ? "text-brand-600 dark:text-brand-400"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>
                     {actorRole === "MANAGER"
                       ? t("tabs.managerLeaderReports")
                       : t("tabs.leaderMyReport")}
                   </span>
-                  {settingsData?.leaderSettings && (
-                    <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium tabular-nums text-brand-700 shadow-2xs dark:bg-gray-800 dark:text-brand-300">
+                  {((activeScope === "LEADER"
+                    ? settingsData?.frequency
+                    : undefined) ??
+                    settingsData?.leaderSettings?.frequency ??
+                    memberSettingsData?.leaderSettings?.frequency) && (
+                    <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                       {t(
-                        `daysShort.${settingsData.leaderSettings.frequency}`,
+                        `daysShort.${
+                          (activeScope === "LEADER"
+                            ? settingsData?.frequency
+                            : undefined) ??
+                          settingsData?.leaderSettings?.frequency ??
+                          memberSettingsData!.leaderSettings!.frequency
+                        }`,
                       )}
                     </span>
                   )}
+                </button>
+              </nav>
+            ) : (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
+                  <LockIcon className="h-3.5 w-3.5" />
                 </span>
-                <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                  {actorRole === "MANAGER"
-                    ? t("tabs.managerLeaderReportsDesc")
-                    : t("tabs.leaderMyReportDesc")}
+                <span className="text-xs font-semibold text-gray-900 dark:text-white/90">
+                  {t("mandatoryScheduleLabel")}
                 </span>
-              </span>
-            </button>
-          </nav>
-        )}
-
-        <section
-          aria-labelledby="report-frequency-heading"
-          className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-        >
-          <div className="p-4 sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h2
-                    id="report-frequency-heading"
-                    className="text-base font-semibold text-gray-900 dark:text-white/90"
-                  >
-                    {activeScope === "LEADER" && actorRole === "MANAGER"
-                      ? t("leaderScheduleSettingsTitle")
-                      : t("settingsTitle")}
-                  </h2>
-                  {actorRole && (
-                    <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                      {t(`roleBadge.${actorRole}`)}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
-                    <PlatformBellIcon className="h-3 w-3" />
-                    {t("notificationLinkedBadge")}
-                  </span>
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  {activeScope === "LEADER" && actorRole === "MANAGER"
-                    ? t("leaderScheduleSettingsDesc")
-                    : t("description")}
-                </p>
               </div>
+            )}
 
-              {settingsData && (
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-3 py-1.5 text-xs font-semibold tabular-nums text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                    <CalenderIcon className="h-3.5 w-3.5" />
-                    {t(settingsData.frequency)}
-                  </span>
-                </div>
-              )}
-            </div>
-
-            {settingsData !== undefined &&
-              !settingsAccessLost &&
-              (settings.isFetching || settings.isRefetchError) && (
-                <div className="mt-4">
-                  {settings.isFetching && (
-                    <UpdatingStatus>{common("loading")}</UpdatingStatus>
-                  )}
-                  {settings.isRefetchError && (
-                    <BackgroundRefreshError
-                      retryLabel={common("retry")}
-                      onRetry={() => void settings.refetch()}
-                    >
-                      {common("updateFailed")}
-                    </BackgroundRefreshError>
-                  )}
-                </div>
-              )}
-
-            {settings.isPending && !settingsData ? (
-              <p
-                role="status"
-                className="mt-4 text-sm text-gray-500 dark:text-gray-400"
-              >
-                {common("loading")}
-              </p>
-            ) : settings.isError && !settingsData ? (
-              <div
-                role="alert"
-                className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-error-200 bg-error-50 px-3.5 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
-              >
-                <span>
-                  {settings.error instanceof Error
-                    ? settings.error.message
-                    : t("permissionDenied")}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void settings.refetch()}
+            <div className="flex flex-wrap items-center gap-2">
+              {settings.isPending && !settingsData ? (
+                <span
+                  role="status"
+                  className="text-xs text-gray-500 dark:text-gray-400"
                 >
-                  {common("retry")}
-                </Button>
-              </div>
-            ) : settingsData?.permissions.canConfigure ? (
-              <div className="mt-4 space-y-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-950/50 sm:p-4">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
-                    {t("flexibleScheduleHint")}
-                  </span>
-                </div>
-
+                  {common("loading")}
+                </span>
+              ) : settings.isError && !settingsData ? (
                 <div
-                  role="group"
-                  aria-label={t("flexibleScheduleHint")}
-                  className="grid grid-cols-7 gap-1.5 sm:gap-2"
+                  role="alert"
+                  className="flex flex-wrap items-center gap-2 text-xs text-error-700 dark:text-error-300"
                 >
-                  {FREQUENCIES.map((value) => {
-                    const isSelected = selectedFrequency === value;
-                    return (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => {
-                          setFrequency(value);
-                          setIsConfirmingSchedule(false);
-                        }}
-                        className={`flex flex-col items-center justify-center rounded-lg border px-2 py-2 text-center transition ${
-                          isSelected
-                            ? "border-brand-600 bg-brand-600 text-white shadow-2xs dark:border-brand-500 dark:bg-brand-500"
-                            : "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                        }`}
-                      >
-                        <span className="text-xs font-bold tabular-nums sm:text-sm">
-                          {t(`daysShort.${value}`)}
-                        </span>
-                        <span
-                          className={`mt-0.5 hidden truncate text-[11px] sm:block ${
-                            isSelected
-                              ? "text-white/90"
-                              : "text-gray-500 dark:text-gray-400"
-                          }`}
-                        >
-                          {t(value)}
-                        </span>
-                      </button>
-                    );
-                  })}
+                  <span>
+                    {settings.error instanceof Error
+                      ? settings.error.message
+                      : t("permissionDenied")}
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void settings.refetch()}
+                  >
+                    {common("retry")}
+                  </Button>
                 </div>
-
+              ) : settingsData?.permissions.canConfigure ? (
                 <form
                   onSubmit={prepareScheduleChange}
-                  className="flex flex-col gap-3 pt-1 sm:flex-row sm:items-end"
+                  className="flex flex-wrap items-center gap-2"
                 >
-                  <label className="grid min-w-0 flex-1 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    {t("frequency")}
+                  <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-400">
+                    <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <span>{t("frequency")}</span>
                     <select
+                      aria-label={t("frequency")}
                       value={selectedFrequency}
                       onChange={(event) => {
-                        setFrequency(event.target.value as ReportFrequency);
+                        const next = event.target.value as ReportFrequency;
+                        setFrequency(
+                          next === settingsData.frequency ? null : next,
+                        );
                         setIsConfirmingSchedule(false);
                       }}
-                      className="h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                      className="h-8 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-semibold text-gray-800 outline-none transition hover:border-gray-300 focus:border-brand-400 focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                     >
                       {FREQUENCIES.map((value) => (
                         <option key={value} value={value}>
-                          {t(value)} ({t(`daysFull.${value}`)})
+                          {t(value)} ({t(`daysShort.${value}`)})
                         </option>
                       ))}
                     </select>
                   </label>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={
-                      !frequency || frequency === settingsData.frequency
-                    }
-                    isLoading={settingsMutation.isPending}
-                  >
-                    {t("saveFrequency")}
-                  </Button>
+
+                  {frequency &&
+                    frequency !== settingsData.frequency &&
+                    !isConfirmingSchedule && (
+                      <>
+                        <Button
+                          type="submit"
+                          size="sm"
+                          isLoading={settingsMutation.isPending}
+                        >
+                          {t("saveFrequency")}
+                        </Button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFrequency(null);
+                            setIsConfirmingSchedule(false);
+                          }}
+                          className="rounded-lg px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                        >
+                          {common("cancel")}
+                        </button>
+                      </>
+                    )}
                 </form>
-              </div>
-            ) : settingsData ? (
-              <div className="mt-4 flex flex-col gap-3 rounded-xl border border-brand-200/80 bg-brand-50/50 p-4 dark:border-brand-500/25 dark:bg-brand-500/10 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-start gap-3">
-                  <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-600/10 text-brand-700 dark:bg-brand-400/15 dark:text-brand-300">
-                    <LockIcon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
+              ) : settingsData ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  {canSwitchLeaderTier && (
+                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+                      <LockIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
                       {activeScope === "LEADER"
                         ? t("mandatoryLeaderScheduleLabel")
                         : t("mandatoryScheduleLabel")}
-                    </h3>
-                    <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-                      {activeScope === "LEADER"
-                        ? t("mandatoryLeaderScheduleDesc")
-                        : t("mandatoryScheduleDesc")}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="inline-flex items-center rounded-lg border border-brand-300 bg-white px-3 py-1.5 text-xs font-bold tabular-nums text-brand-700 shadow-2xs dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300">
+                    </span>
+                  )}
+                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold tabular-nums text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+                    <CalenderIcon className="h-3.5 w-3.5" />
                     {t(`daysFull.${settingsData.frequency}`)}
                   </span>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {settingsData?.permissions.canConfigure &&
-              isConfirmingSchedule &&
-              frequency && (
-                <div
-                  role="group"
-                  aria-label={t("scheduleConfirmationTitle")}
-                  className="mt-4 flex flex-col gap-3 rounded-lg border-s-4 border-brand-500 bg-brand-50 px-4 py-3 dark:bg-brand-500/10 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
-                      {t("scheduleConfirmationTitle")}
-                    </h3>
-                    <p className="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                      {t("scheduleConfirmation", { frequency: t(frequency) })}
-                    </p>
+              {settingsData?.history.length ? (
+                <details className="relative">
+                  <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200">
+                    {t("scheduleHistory")} ({settingsData.history.length})
+                  </summary>
+                  <div className="mt-1.5 w-64 rounded-xl border border-gray-200 bg-white p-2.5 shadow-lg dark:border-gray-700 dark:bg-gray-900 sm:absolute sm:end-0 sm:z-20">
+                    <ol className="space-y-1.5">
+                      {settingsData.history.map((entry, idx) => (
+                        <li
+                          key={`${entry.effectiveAt}-${entry.frequency}-${idx}`}
+                          className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-600 dark:bg-gray-800/70 dark:text-gray-400"
+                        >
+                          <span className="font-semibold text-gray-800 dark:text-gray-200">
+                            {t(entry.frequency)} ({t(`daysShort.${entry.frequency}`)})
+                          </span>
+                          <time className="tabular-nums">
+                            {format.dateTime(new Date(entry.effectiveAt), {
+                              dateStyle: "short",
+                              timeZone: "UTC",
+                            })}
+                          </time>
+                        </li>
+                      ))}
+                    </ol>
                   </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setIsConfirmingSchedule(false)}
-                    >
-                      {common("cancel")}
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      isLoading={settingsMutation.isPending}
-                      onClick={() => void applyScheduleChange()}
-                    >
-                      {t("confirmScheduleChange")}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-            {settingsData?.nextEffectiveAt && (
-              <p className="mt-3 text-xs tabular-nums text-gray-600 dark:text-gray-300">
-                {t("scheduledChange", {
-                  date: format.dateTime(
-                    new Date(settingsData.nextEffectiveAt),
-                    {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                      timeZone: "UTC",
-                    },
-                  ),
-                })}
-              </p>
-            )}
-            {settingsMutation.isError && (
-              <p
-                role="alert"
-                className="mt-3 text-sm text-error-600 dark:text-error-400"
-              >
-                {settingsMutation.error instanceof Error
-                  ? settingsMutation.error.message
-                  : t("permissionDenied")}
-              </p>
-            )}
-            {settingsMutation.isSuccess && (
-              <p
-                role="status"
-                className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-400"
-              >
-                {t("frequencySaved")}
-              </p>
-            )}
-
-            {settingsData?.history.length ? (
-              <details className="mt-4 border-t border-gray-100 pt-3 dark:border-gray-800">
-                <summary className="cursor-pointer text-xs font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200">
-                  {t("scheduleHistory")} ({settingsData.history.length})
-                </summary>
-                <ol className="mt-2.5 space-y-1.5">
-                  {settingsData.history.map((entry, idx) => (
-                    <li
-                      key={`${entry.effectiveAt}-${entry.frequency}-${idx}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-gray-50 px-3 py-1.5 text-xs text-gray-600 dark:bg-gray-800/60 dark:text-gray-400"
-                    >
-                      <span className="font-medium text-gray-800 dark:text-gray-200">
-                        {t(entry.frequency)} ({t(`daysFull.${entry.frequency}`)})
-                      </span>
-                      <time className="tabular-nums">
-                        {format.dateTime(new Date(entry.effectiveAt), {
-                          dateStyle: "medium",
-                          timeStyle: "short",
-                          timeZone: "UTC",
-                        })}
-                      </time>
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            ) : null}
+                </details>
+              ) : null}
+            </div>
           </div>
+
+          {settingsData !== undefined &&
+            !settingsAccessLost &&
+            (settings.isFetching || settings.isRefetchError) && (
+              <div className="mt-2 border-t border-gray-100 pt-2 dark:border-gray-800">
+                {settings.isFetching && (
+                  <UpdatingStatus>{common("loading")}</UpdatingStatus>
+                )}
+                {settings.isRefetchError && (
+                  <BackgroundRefreshError
+                    retryLabel={common("retry")}
+                    onRetry={() => void settings.refetch()}
+                  >
+                    {common("updateFailed")}
+                  </BackgroundRefreshError>
+                )}
+              </div>
+            )}
+
+          {settingsData?.permissions.canConfigure &&
+            isConfirmingSchedule &&
+            frequency && (
+              <div
+                role="group"
+                aria-label={t("scheduleConfirmationTitle")}
+                className="mt-2.5 flex flex-col gap-2.5 rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 dark:border-brand-500/30 dark:bg-brand-500/10 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <h3 className="text-xs font-semibold text-gray-900 dark:text-white/90">
+                    {t("scheduleConfirmationTitle")}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
+                    {t("scheduleConfirmation", { frequency: t(frequency) })}
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setIsConfirmingSchedule(false);
+                      setFrequency(null);
+                    }}
+                  >
+                    {common("cancel")}
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    isLoading={settingsMutation.isPending}
+                    onClick={() => void applyScheduleChange()}
+                  >
+                    {t("confirmScheduleChange")}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+          {(settingsMutation.isError || settingsMutation.isSuccess) && (
+            <div className="mt-2 border-t border-gray-100 pt-2 dark:border-gray-800">
+              {settingsMutation.isError && (
+                <p
+                  role="alert"
+                  className="text-xs text-error-600 dark:text-error-400"
+                >
+                  {settingsMutation.error instanceof Error
+                    ? settingsMutation.error.message
+                    : t("permissionDenied")}
+                </p>
+              )}
+              {settingsMutation.isSuccess && (
+                <p
+                  role="status"
+                  className="text-xs font-medium text-emerald-700 dark:text-emerald-400"
+                >
+                  {t("frequencySaved")}
+                </p>
+              )}
+            </div>
+          )}
         </section>
 
         <section
