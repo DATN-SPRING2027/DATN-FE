@@ -2,14 +2,20 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/button/Button";
+import { Modal } from "@/components/ui/modal";
+import { useModal } from "@/hooks/useModal";
 import { ApiError } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
+import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 import {
   type Project,
+  useDeleteProjectMutation,
   useUpdateProjectMutation,
 } from "@/lib/queries/projects/useProjects";
 import { useProjectManagementAccess, useProjectSettingsAccess } from "@/lib/queries/projects/useProjectSettings";
-import { SettingsIcon } from "@/icons";
+import { AlertIcon, SettingsIcon, TrashBinIcon } from "@/icons";
 import ProjectVisibility from "./ProjectVisibility";
 
 const inputClassName =
@@ -311,12 +317,49 @@ function ProjectDetailsForm({ project, access }: { project: Project; access: Ret
   );
 }
 
-export default function ProjectSettings({ project }: { project: Project }) {
+export default function ProjectSettings({
+  project,
+  canDeleteProject,
+  onDeleted,
+}: {
+  project: Project;
+  canDeleteProject?: boolean;
+  onDeleted?: () => void;
+}) {
   const t = useTranslations("projects.settingsPanel");
   const projectText = useTranslations("projects");
   const id = useId();
   const isPrivate = project.visibility === "PRIVATE";
+  const queryClient = useQueryClient();
+  const cachedUser = queryClient.getQueryData<CurrentUserResponse>(
+    authKeys.currentUser(),
+  );
+  const isManager =
+    canDeleteProject ??
+    Boolean(
+      cachedUser &&
+        "organizationId" in cachedUser &&
+        cachedUser.organizationId === project.organizationId &&
+        cachedUser.roles?.includes("ADMIN"),
+    );
+  const canDelete = project.status === "ACTIVE" && isManager;
+  const deleteModal = useModal();
+  const deleteMutation = useDeleteProjectMutation(
+    project.organizationId,
+    project.id,
+  );
   const access = useProjectManagementAccess(project.organizationId, project.id, project.status === "ACTIVE");
+
+  const deleteErrorMessage =
+    deleteMutation.error instanceof ApiError &&
+    deleteMutation.error.status === 403
+      ? t("deleteErrorPermission")
+      : deleteMutation.error instanceof ApiError &&
+          deleteMutation.error.status === 404
+        ? t("errorNotFound")
+        : deleteMutation.error
+          ? t("deleteErrorGeneric")
+          : undefined;
 
   if (!access.canAccessSettings) {
     return (
@@ -468,20 +511,7 @@ export default function ProjectSettings({ project }: { project: Project }) {
         >
           <div className="flex items-start gap-3">
             <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-error-50 text-error-600 ring-1 ring-error-500/15 dark:bg-error-500/10 dark:text-error-400">
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 18 18"
-                fill="none"
-                className="size-4.5"
-              >
-                <path
-                  d="M9 6.25v3.25m0 2.5h.007M3.34 14.25h11.32c1.1 0 1.79-1.19 1.24-2.14L10.24 2.4c-.55-.95-1.93-.95-2.48 0L2.1 12.11c-.55.95.14 2.14 1.24 2.14Z"
-                  stroke="currentColor"
-                  strokeWidth="1.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <AlertIcon className="size-5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
@@ -492,32 +522,36 @@ export default function ProjectSettings({ project }: { project: Project }) {
                   {t("dangerZoneTitle")}
                 </h3>
                 <span className="rounded-full border border-error-200 bg-error-50 px-2.5 py-0.5 text-[11px] font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
-                  Protected
+                  {canDelete
+                    ? t("dangerZoneBadgeManager")
+                    : t("dangerZoneBadgeRestricted")}
                 </span>
               </div>
               <p className="mt-1.5 text-xs leading-5 text-gray-600 dark:text-gray-400">
-                {t("deleteUnavailable")}
+                {canDelete
+                  ? t("deleteDescription")
+                  : t("deleteRestrictedLeader")}
               </p>
               <div className="mt-4 flex items-center justify-end border-t border-gray-100 pt-4 dark:border-gray-800">
                 <Button
                   size="sm"
                   variant="outline"
-                  disabled
+                  disabled={!canDelete || deleteMutation.isPending}
+                  onClick={() => {
+                    if (!canDelete) return;
+                    deleteMutation.reset();
+                    deleteModal.openModal();
+                  }}
+                  className={
+                    canDelete
+                      ? "border-error-200! bg-error-50/70! text-error-700! hover:bg-error-100! dark:border-error-500/30! dark:bg-error-500/10! dark:text-error-300! dark:hover:bg-error-500/20!"
+                      : undefined
+                  }
                   startIcon={
-                    <svg
+                    <TrashBinIcon
                       aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      className="h-3.5 w-3.5 shrink-0"
-                    >
-                      <path
-                        d="M3 4.5h10M6.25 4.5V3.25a.75.75 0 0 1 .75-.75h2a.75.75 0 0 1 .75.75V4.5m-5 0v8a1 1 0 0 0 1 1h4.5a1 1 0 0 0 1-1v-8"
-                        stroke="currentColor"
-                        strokeWidth="1.4"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                      className="size-3.5 shrink-0"
+                    />
                   }
                 >
                   {t("deleteProject")}
@@ -525,6 +559,102 @@ export default function ProjectSettings({ project }: { project: Project }) {
               </div>
             </div>
           </div>
+
+          {canDelete && (
+            <div className="[&_.modal>div:first-child]:bg-gray-900/40 [&_.modal>div:first-child]:backdrop-blur-xs">
+              <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => {
+                  if (!deleteMutation.isPending) {
+                    deleteMutation.reset();
+                    deleteModal.closeModal();
+                  }
+                }}
+                showCloseButton={false}
+                className="m-4 max-w-lg p-6"
+              >
+                <div
+                  role="dialog"
+                  aria-modal="true"
+                  aria-labelledby={`${id}-delete-confirm-title`}
+                  aria-describedby={`${id}-delete-confirm-description`}
+                  className="space-y-4 text-sm text-gray-600 dark:text-gray-300"
+                >
+                  <div className="flex items-start gap-3.5">
+                    <span
+                      aria-hidden="true"
+                      className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-error-50 text-error-600 ring-1 ring-error-500/15 dark:bg-error-500/10 dark:text-error-400"
+                    >
+                      <TrashBinIcon className="size-5" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <h2
+                        id={`${id}-delete-confirm-title`}
+                        className="text-lg font-semibold text-gray-900 dark:text-white/90"
+                      >
+                        {t("deleteConfirmTitle")}
+                      </h2>
+                      <p
+                        id={`${id}-delete-confirm-description`}
+                        className="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-300"
+                      >
+                        {t("deleteConfirmBody", {
+                          name: project.name,
+                          code: project.code,
+                        })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {deleteErrorMessage && (
+                    <div
+                      role="alert"
+                      className="rounded-xl border border-error-200 bg-error-50/70 px-3.5 py-2.5 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+                    >
+                      {deleteErrorMessage}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => {
+                        deleteMutation.reset();
+                        deleteModal.closeModal();
+                      }}
+                    >
+                      {t("cancel")}
+                    </Button>
+                    <Button
+                      size="sm"
+                      disabled={deleteMutation.isPending}
+                      onClick={() => {
+                        deleteMutation.mutate(undefined, {
+                          onSuccess: () => {
+                            deleteModal.closeModal();
+                            onDeleted?.();
+                          },
+                        });
+                      }}
+                      className="bg-error-600! text-white! hover:bg-error-700! focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-error-500 disabled:bg-error-300!"
+                      startIcon={
+                        <TrashBinIcon
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0"
+                        />
+                      }
+                    >
+                      {deleteMutation.isPending
+                        ? t("deletingProject")
+                        : t("deleteConfirmButton")}
+                    </Button>
+                  </div>
+                </div>
+              </Modal>
+            </div>
+          )}
         </section>
       </div>
     </section>
