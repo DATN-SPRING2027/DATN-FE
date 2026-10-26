@@ -26,12 +26,13 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
     return <LegacyAuthLayout>{children}</LegacyAuthLayout>;
 
   return (
-    <div className={styles.page} data-auth-route={pathname}>
+    <div className={styles.page} data-auth-route={pathname} suppressHydrationWarning>
       <div
         className={`no-scrollbar ${styles.scrollPane}`}
         tabIndex={0}
         role="region"
         aria-label={t("contentRegion")}
+        suppressHydrationWarning
       >
         <header className={styles.header}>
           <Link href="/" aria-label={t("homeLabel")} className={styles.brand}>
@@ -50,7 +51,7 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
             )}
           </nav>
         </header>
-        <div key={pathname} className={styles.content}>
+        <div key={pathname} className={styles.content} suppressHydrationWarning>
           {children}
         </div>
         <footer className={styles.footer}>

@@ -41,13 +41,16 @@ export default function AccountOnboarding() {
   const create = useCreateOrganizationMutation();
   const select = useSelectOrganizationMutation();
   const logout = useLogoutMutation();
-  const [showCreateForm, setShowCreateForm] = useState(() => {
-    if (typeof window !== "undefined") {
-      return new URLSearchParams(window.location.search).get("mode") === "create";
-    }
-    return false;
-  });
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [selectingId, setSelectingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (new URLSearchParams(window.location.search).get("mode") === "create") {
+        setShowCreateForm(true);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     if (current.isError) router.replace("/signin");
@@ -80,18 +83,28 @@ export default function AccountOnboarding() {
         className={styles.pending}
         aria-busy="true"
         aria-label={t("checkingSession")}
+        suppressHydrationWarning
       >
-        <div className="w-full max-w-lg space-y-4">
-          <div className="h-8 w-40 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          <div className="h-10 w-3/4 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          <div className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+        <div className="w-full max-w-lg space-y-4" suppressHydrationWarning>
+          <div
+            className="h-8 w-40 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800"
+            suppressHydrationWarning
+          />
+          <div
+            className="h-10 w-3/4 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800"
+            suppressHydrationWarning
+          />
+          <div
+            className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+            suppressHydrationWarning
+          />
         </div>
       </main>
     );
 
   return (
-    <main className={styles.organization}>
-      <div className={styles.organizationContent}>
+    <main className={styles.organization} suppressHydrationWarning>
+      <div className={styles.organizationContent} suppressHydrationWarning>
         <header className={styles.formHeading}>
           <p className={styles.eyebrow}>{t("onboardingEyebrow")}</p>
           <h1>
@@ -110,11 +123,13 @@ export default function AccountOnboarding() {
             className="space-y-2.5"
             aria-busy="true"
             aria-label={t("onboardingChecking")}
+            suppressHydrationWarning
           >
             {[0, 1].map((item) => (
               <div
                 key={item}
                 className="h-18 motion-safe:animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
+                suppressHydrationWarning
               />
             ))}
           </div>
