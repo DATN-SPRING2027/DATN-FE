@@ -47,20 +47,50 @@ export default function ScotchNavigation() {
               {t(label)}
             </a>
           ))}
+          <div className={styles.mobileActions}>
+            {session.isPending ? (
+              <div className={styles.authLoadingSkeleton} aria-busy="true">
+                <span className={styles.authSkeletonButton} />
+              </div>
+            ) : isAuthenticated ? (
+              <div className={styles.mobileAuthRow}>
+                <span className={styles.primaryAction} onClick={() => setOpen(false)}>
+                  <WorkspaceLink compact hideIcon />
+                </span>
+                <UserDropdown user={session.data} />
+              </div>
+            ) : (
+              <div className={styles.mobileGuestRow}>
+                <Link
+                  href="/signin"
+                  className={styles.mobileSignInLink}
+                  onClick={() => setOpen(false)}
+                >
+                  {common("signin")}
+                </Link>
+                <span className={styles.primaryAction} onClick={() => setOpen(false)}>
+                  <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+                </span>
+              </div>
+            )}
+          </div>
         </nav>
         <div className={styles.headerActions}>
-          {isAuthenticated ? (
+          {session.isPending ? (
+            <div className={styles.authLoadingSkeleton} aria-busy="true">
+              <span className={styles.authSkeletonLink} />
+              <span className={styles.authSkeletonButton} />
+            </div>
+          ) : isAuthenticated ? (
             <>
               <span className={styles.primaryAction}>
-                <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+                <WorkspaceLink compact hideIcon />
               </span>
-              <UserDropdown />
+              <UserDropdown user={session.data} />
             </>
           ) : (
             <>
-              {!session.isPending && (
-                <Link href="/signin">{common("signin")}</Link>
-              )}
+              <Link href="/signin">{common("signin")}</Link>
               <span className={styles.primaryAction}>
                 <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
               </span>

@@ -7,10 +7,13 @@ import { useClickOutside } from "@/hooks/useClickOutside";
 import { getLanguage, languages } from "@/i18n/languages";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
+import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 import {
   useCurrentUserQuery,
   useLogoutMutation,
 } from "@/lib/queries/auth/useAuth";
+import type { SignInSession } from "@/lib/queries/auth/sign-in-session";
+import { usePlatformLogoutMutation } from "@/lib/queries/platform/usePlatformConsole";
 import { useUserQuery } from "@/lib/queries/users/useUsers";
 import { cn } from "@/utils";
 import { useLocale, useTranslations } from "next-intl";
@@ -19,6 +22,13 @@ import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 
 type ThemeOption = "light" | "dark" | "auto";
+
+export type UserDropdownUser = CurrentUserResponse | SignInSession;
+
+export interface UserDropdownProps {
+  user?: UserDropdownUser | null;
+  className?: string;
+}
 
 function useSafeTheme() {
   try {
@@ -33,7 +43,10 @@ function useSafeTheme() {
   }
 }
 
-export default function UserDropdown() {
+export default function UserDropdown({
+  user: initialUser,
+  className,
+}: UserDropdownProps = {}) {
   const t = useTranslations("userDropdown");
   const locale = useLocale() as Locale;
   const router = useRouter();
@@ -42,14 +55,28 @@ export default function UserDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
-  const user = useCurrentUserQuery();
+
+  const isPlatformUser = initialUser?.context === "PLATFORM";
+  const user = useCurrentUserQuery({
+    enabled: !isPlatformUser,
+  });
+  const effectiveUser = initialUser ?? user.data;
   const organizationId =
-    user.data?.context === "ACCOUNT" ? "" : (user.data?.organizationId ?? "");
-  const directory = useUserQuery(organizationId, user.data?.id ?? "");
+    effectiveUser?.context === "ACCOUNT" ||
+    effectiveUser?.context === "PLATFORM"
+      ? ""
+      : (effectiveUser?.organizationId ?? "");
+  const directory = useUserQuery(organizationId, effectiveUser?.id ?? "");
   const directoryUser =
-    directory.data?.id === user.data?.id ? directory.data : undefined;
-  const displayName = directoryUser?.fullName || user.data?.name || "";
+    directory.data?.id === effectiveUser?.id ? directory.data : undefined;
+  const displayName =
+    directoryUser?.fullName || effectiveUser?.name || "";
   const logout = useLogoutMutation();
+  const platformLogout = usePlatformLogoutMutation();
+  const isLogoutPending = logout.isPending || platformLogout.isPending;
+  const isLogoutError = logout.isError || platformLogout.isError;
+  const profileHref = isPlatformUser ? "/platform" : "/profile";
+
   const subDropdownRef = useRef<HTMLLIElement>(null);
   const themeDropdownRef = useRef<HTMLLIElement>(null);
 
@@ -95,7 +122,11 @@ export default function UserDropdown() {
 
   const handleLogout = async () => {
     try {
-      await logout.mutateAsync();
+      if (isPlatformUser) {
+        await platformLogout.mutateAsync();
+      } else {
+        await logout.mutateAsync();
+      }
       closeDropdown();
       router.replace("/signin");
     } catch {
@@ -110,7 +141,7 @@ export default function UserDropdown() {
   ];
 
   return (
-    <div className="relative">
+    <div className={cn("relative", className)}>
       <button
         type="button"
         onClick={toggleDropdown}
@@ -143,7 +174,7 @@ export default function UserDropdown() {
               {displayName}
             </span>
             <span className="mt-0.5 block truncate text-theme-xs text-gray-500 dark:text-gray-400">
-              {user.data?.email}
+              {effectiveUser?.email}
             </span>
           </div>
         </div>
@@ -154,7 +185,7 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
+              href={profileHref}
               className="group flex items-center gap-3 rounded-lg px-3! py-2.5 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
             >
               <svg
@@ -181,7 +212,7 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag="a"
-              href="/profile"
+              href={profileHref}
               className="group flex items-center gap-3 rounded-lg px-3! py-2.5 text-theme-sm font-medium text-gray-700 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
             >
               <svg
@@ -389,7 +420,7 @@ export default function UserDropdown() {
           </li>
         </ul>
 
-        {logout.isError && (
+        {isLogoutError && (
           <div role="alert" className="mt-2">
             <Alert
               variant="error"
@@ -430,11 +461,11 @@ export default function UserDropdown() {
           <button
             type="button"
             onClick={handleLogout}
-            disabled={logout.isPending}
-            aria-busy={logout.isPending}
+            disabled={isLogoutPending}
+            aria-busy={isLogoutPending}
             className="group flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-start text-theme-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-wait disabled:opacity-50 dark:text-gray-300 dark:hover:bg-white/5 dark:hover:text-white"
           >
-            {logout.isPending ? (
+            {isLogoutPending ? (
               <span
                 aria-hidden="true"
                 className="size-5 rounded-full border-2 border-gray-300 border-t-brand-500 motion-safe:animate-spin dark:border-gray-600 dark:border-t-brand-400"
@@ -458,7 +489,7 @@ export default function UserDropdown() {
               </svg>
             )}
             <span aria-live="polite">
-              {logout.isPending ? t("signingOut") : t("signOut")}
+              {isLogoutPending ? t("signingOut") : t("signOut")}
             </span>
           </button>
         </div>

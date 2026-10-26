@@ -30,7 +30,11 @@ vi.mock("../rylo/WorkspaceLink", () => ({
   ),
 }));
 vi.mock("@/components/header/UserDropdown", () => ({
-  default: () => <div data-testid="user-dropdown">UserDropdown</div>,
+  default: ({ user }: { user?: unknown }) => (
+    <div data-testid="user-dropdown" data-user-attached={Boolean(user)}>
+      UserDropdown
+    </div>
+  ),
 }));
 vi.mock("@/lib/queries/auth/useSharedSignIn", () => ({
   useSignInSessionQuery: vi.fn(() => ({ data: undefined, isPending: false })),
@@ -231,11 +235,12 @@ describe("Scotch landing interactions", () => {
 
     show(<ScotchNavigation />);
 
-    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: "Sign in" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "Get started" }).length).toBeGreaterThan(0);
     expect(screen.queryByTestId("user-dropdown")).not.toBeInTheDocument();
   });
 
-  it("hides Sign in link and renders UserDropdown when user is authenticated", () => {
+  it("hides Sign in link and renders UserDropdown with preloaded user when user is authenticated", () => {
     vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: {
         id: "user-1",
@@ -251,6 +256,22 @@ describe("Scotch landing interactions", () => {
     show(<ScotchNavigation />);
 
     expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
-    expect(screen.getByTestId("user-dropdown")).toBeInTheDocument();
+    const dropdowns = screen.getAllByTestId("user-dropdown");
+    expect(dropdowns.length).toBeGreaterThan(0);
+    expect(dropdowns[0]).toHaveAttribute("data-user-attached", "true");
+    expect(screen.getAllByRole("link", { name: "Workspace" }).length).toBeGreaterThan(0);
+  });
+
+  it("renders loading skeletons and avoids rendering premature sign-in link while session is pending", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: undefined,
+      isPending: true,
+    } as never);
+
+    show(<ScotchNavigation />);
+
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-dropdown")).not.toBeInTheDocument();
+    expect(document.querySelector('[aria-busy="true"]')).toBeInTheDocument();
   });
 });
