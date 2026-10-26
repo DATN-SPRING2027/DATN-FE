@@ -54,13 +54,14 @@ const integrationStatuses = new Set(["CONNECTED", "EXPIRED", "REVOKED"]);
 const incidentStatuses = new Set(["OPEN", "ACKNOWLEDGED", "RESOLVED"]);
 const incidentSeverities = new Set(["LOW", "MEDIUM", "HIGH", "CRITICAL"]);
 const incidentServices = serviceIds;
-const auditActions = new Set([
+export const platformAuditActions = [
   "organization.create",
   "platform.authority.granted",
   "platform.authority.revoked",
   "platform.user.status.changed",
   "platform.user.profile.updated",
   "platform.user.archived",
+  "platform.user.restored",
   "platform.session.revoked",
   "platform.sessions.revoked_all",
   "ORGANIZATION_MEMBERSHIP_SUSPENDED",
@@ -72,7 +73,8 @@ const auditActions = new Set([
   "platform.incident.note.added",
   "platform.job.retry",
   "platform.job.cancel",
-]);
+] as const;
+const auditActions = new Set<string>(platformAuditActions);
 const auditResources = new Set([
   "ORGANIZATION",
   "PLATFORM_AUTHORITY",

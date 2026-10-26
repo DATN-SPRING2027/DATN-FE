@@ -94,6 +94,9 @@ export async function forwardBackendRequest(
     "x-csrf-token",
     "etag",
     "idempotency-replayed",
+    "retry-after",
+    "x-ratelimit-limit",
+    "x-ratelimit-reset",
   ]) {
     const value = backendResponse.headers.get(name);
     if (value) responseHeaders.set(name, value);

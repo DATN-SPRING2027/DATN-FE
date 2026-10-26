@@ -4,6 +4,7 @@ import Button from "@/components/ui/button/Button";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import type { PlatformPermission } from "@/lib/queries/platform/usePlatformConsole";
 import {
+  platformAuditActions,
   usePlatformAuditEventQuery,
   usePlatformAuditEventsQuery,
   usePlatformAuditResourceHistoryQuery,
@@ -14,23 +15,6 @@ import EmptyState from "./ui/EmptyState";
 import { TableSkeleton } from "./ui/LoadingSkeleton";
 import { isReadAccessLost, QueryRefreshStatus } from "./PlatformOperationsUi";
 
-const auditActions = [
-  "organization.create",
-  "platform.authority.granted",
-  "platform.authority.revoked",
-  "platform.user.status.changed",
-  "platform.session.revoked",
-  "platform.sessions.revoked_all",
-  "ORGANIZATION_MEMBERSHIP_SUSPENDED",
-  "platform.organization.metadata.changed",
-  "platform.project.metadata.changed",
-  "platform.incident.created",
-  "platform.incident.acknowledged",
-  "platform.incident.resolved",
-  "platform.incident.note.added",
-  "platform.job.retry",
-  "platform.job.cancel",
-];
 const resourceTypes = [
   "ORGANIZATION",
   "PLATFORM_AUTHORITY",
@@ -176,7 +160,7 @@ export default function PlatformAuditProjection({
                   className="mt-1 h-9 w-full rounded-xl border border-gray-200 bg-white px-2.5 text-xs dark:border-gray-700 dark:bg-gray-900"
                 >
                   <option value="">All actions</option>
-                  {auditActions.map((item) => (
+                  {platformAuditActions.map((item) => (
                     <option key={item}>{item}</option>
                   ))}
                 </select>
