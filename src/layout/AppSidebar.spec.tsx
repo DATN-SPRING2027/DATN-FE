@@ -585,61 +585,19 @@ describe("AppSidebar navigation", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
   });
 
-  it("renders a portaled hover Flyout menu after 175ms intent delay, does not open a flyout on Projects, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
+  it("does not open hover flyout popovers when hovering over Dashboard, Projects, Chat, Members, or Settings", () => {
     vi.useFakeTimers();
     try {
       render(<AppSidebar />);
       const nav = screen.getByRole("navigation", { name: "Main navigation" });
-      const projectsItem = within(nav)
-        .getByRole("link", { name: "Projects" })
-        .closest("li")!;
-      const chatItem = within(nav)
-        .getByRole("link", { name: "Chat" })
-        .closest("li")!;
-      const overviewItem = within(nav)
-        .getByRole("link", { name: "Dashboard" })
-        .closest("li")!;
-
-      fireEvent.mouseEnter(projectsItem);
-      act(() => {
-        vi.advanceTimersByTime(220);
-      });
-      expect(
-        screen.queryByTestId("sidebar-flyout-projects"),
-      ).not.toBeInTheDocument();
-
-      fireEvent.mouseEnter(chatItem);
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
-      act(() => {
-        vi.advanceTimersByTime(200);
-      });
-      expect(
-        screen.queryByTestId("sidebar-flyout-chat"),
-      ).not.toBeInTheDocument();
-
-      fireEvent.mouseEnter(chatItem);
-      act(() => {
-        vi.advanceTimersByTime(180);
-      });
-      const chatFlyout = screen.getByTestId("sidebar-flyout-chat");
-      expect(chatFlyout).toBeInTheDocument();
-      expect(chatFlyout.parentElement).toBe(document.body);
-
-      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
-      fireEvent.mouseEnter(overviewItem);
-      act(() => {
-        vi.advanceTimersByTime(180);
-      });
-      expect(
-        screen.queryByTestId("sidebar-flyout-chat"),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.getByTestId("sidebar-flyout-overview"),
-      ).toBeInTheDocument();
-
+      for (const name of ["Dashboard", "Projects", "Chat", "Members", "Settings"]) {
+        const item = within(nav).getByRole("link", { name }).closest("li")!;
+        fireEvent.mouseEnter(item);
+        act(() => {
+          vi.advanceTimersByTime(300);
+        });
+      }
+      expect(screen.queryByTestId(/sidebar-flyout-/)).not.toBeInTheDocument();
       expect(
         isPointInSafeTriangle(
           { x: 240, y: 180 },
@@ -648,11 +606,6 @@ describe("AppSidebar navigation", () => {
           { x: 290, y: 320 },
         ),
       ).toBe(true);
-
-      fireEvent.keyDown(document, { key: "Escape" });
-      expect(
-        screen.queryByTestId("sidebar-flyout-overview"),
-      ).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

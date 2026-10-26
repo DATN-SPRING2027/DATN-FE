@@ -20,16 +20,16 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
   BookOpenIcon,
-  ChatIcon,
   BoxCubeIcon,
+  ChatIcon,
   FileIcon,
-  TaskIcon,
   FolderIcon,
   GridIcon,
   GroupIcon,
   PlugInIcon,
   SettingsIcon,
   ShootingStarIcon,
+  TaskIcon,
 } from "@/icons/index";
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
@@ -38,11 +38,6 @@ import { canReadOrganizationMemberships } from "@/lib/queries/organization-membe
 import SidebarAccountFooter from "./SidebarAccountFooter";
 import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
 import SidebarProjectSwitcher from "./SidebarProjectSwitcher";
-import {
-  SidebarFlyoutPortal,
-  useSidebarFlyoutController,
-  type FlyoutItemConfig,
-} from "./SidebarFlyoutMenu";
 
 const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
@@ -280,21 +275,6 @@ const AppSidebar: React.FC = () => {
     [setIsResizing],
   );
 
-  const {
-    activeKey,
-    anchorRect,
-    flyoutElRef,
-    registerTrigger,
-    handleTriggerMouseEnter,
-    handleTriggerMouseLeave,
-    handleFlyoutMouseEnter,
-    handleFlyoutMouseLeave,
-    closeFlyout,
-  } = useSidebarFlyoutController({
-    openDelayMs: 175,
-    closeDelayMs: 180,
-  });
-
   // Do NOT expand on mouse hover; only show text labels when expanded (dragged >= 140px) or on mobile drawer
   const isExpandedView = resolvedIsExpanded || isMobileOpen;
   const currentWidthPx = isExpandedView
@@ -324,7 +304,6 @@ const AppSidebar: React.FC = () => {
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      closeFlyout();
       setOpenSelector(null);
 
       cleanupResizeRef.current?.();
@@ -376,7 +355,6 @@ const AppSidebar: React.FC = () => {
       window.addEventListener("mouseup", handleMouseUp);
     },
     [
-      closeFlyout,
       resolvedIsExpanded,
       updateExpanded,
       updateResizing,
@@ -442,88 +420,6 @@ const AppSidebar: React.FC = () => {
     (item) =>
       (item.key !== "members" && item.key !== "settings") || canViewMembers,
   );
-
-  const flyoutConfigs = useMemo<Record<string, FlyoutItemConfig>>(
-    () => ({
-      overview: {
-        key: "overview",
-        title: t("items.dashboard"),
-        subtitle: organizationName ?? t("organizationLabel"),
-        primaryHref: "/dashboard",
-        primaryCtaLabel: "Open",
-        quickLinks: [
-          {
-            id: "org-dashboard",
-            label: "Organization Dashboard",
-            description: "Workspace summary, active projects, and recent activity",
-            href: "/dashboard",
-          },
-          {
-            id: "org-projects",
-            label: "Projects Directory",
-            description: "Browse and filter all organization projects",
-            href: "/projects",
-          },
-        ],
-      },
-      chat: {
-        key: "chat",
-        title: t("items.chat"),
-        subtitle: "Real-time team & project messaging",
-        primaryHref: "/chat",
-        primaryCtaLabel: "Open Chat",
-        quickLinks: [
-          {
-            id: "chat-channels",
-            label: "Channels & Direct Messages",
-            description: "Collaborate with organization and project members",
-            href: "/chat",
-            badge: "Live",
-          },
-        ],
-      },
-      members: {
-        key: "members",
-        title: t("items.members"),
-        subtitle: "Organization roster & invitations",
-        primaryHref: "/organization/members",
-        primaryCtaLabel: "Manage",
-        quickLinks: [
-          {
-            id: "members-directory",
-            label: "Active Members",
-            description: "Review roles, permissions, and membership status",
-            href: "/organization/members",
-          },
-          {
-            id: "members-invitations",
-            label: "Pending Invitations",
-            description: "Invite new members or resend pending invites",
-            href: "/organization/members?tab=invitations",
-          },
-        ],
-      },
-      settings: {
-        key: "settings",
-        title: t("items.settings"),
-        subtitle: "Governance, roles & workspace policies",
-        primaryHref: "/organization/settings",
-        primaryCtaLabel: "Configure",
-        quickLinks: [
-          {
-            id: "settings-general",
-            label: "Organization Profile & Policies",
-            description: "Manage organization details, roles, and project governance",
-            href: "/organization/settings",
-          },
-        ],
-      },
-    }),
-    [organizationName, t],
-  );
-
-  const activeFlyoutConfig =
-    activeKey && !activeIsResizing ? (flyoutConfigs[activeKey] ?? null) : null;
 
   const projectSubItems = useMemo(() => {
     if (!activeProject) return [];
@@ -605,7 +501,6 @@ const AppSidebar: React.FC = () => {
         isActive: isProjectWorkNotesActive,
         icon: FileIcon,
         viewBox: "1 0.5 23 23",
-
       },
       {
         key: "settings",
@@ -626,8 +521,6 @@ const AppSidebar: React.FC = () => {
       item.key === "overview" ? t("items.dashboard") : t(`items.${item.key}`);
     const Icon = item.icon;
     const iconViewBox = item.viewBox;
-    const hasFlyout = "path" in item && Boolean(flyoutConfigs[item.key]);
-    const isFlyoutOpen = activeKey === item.key && !activeIsResizing;
     const isItemActive =
       "path" in item
         ? item.key === "projects"
@@ -636,38 +529,17 @@ const AppSidebar: React.FC = () => {
         : false;
 
     return (
-      <li
-        key={item.key}
-        ref={(element) => {
-          if (hasFlyout) {
-            registerTrigger(item.key, element);
-          }
-        }}
-        onMouseEnter={() => {
-          if (hasFlyout && !activeIsResizing) {
-            handleTriggerMouseEnter(item.key);
-          }
-        }}
-        onMouseLeave={(event) => {
-          if (hasFlyout && !activeIsResizing) {
-            handleTriggerMouseLeave(item.key, event);
-          }
-        }}
-      >
+      <li key={item.key}>
         {"path" in item ? (
           <Link
             href={item.path}
             aria-label={label}
-            aria-expanded={hasFlyout ? isFlyoutOpen : undefined}
-            aria-haspopup={hasFlyout ? "dialog" : undefined}
             aria-current={isItemActive ? "page" : undefined}
             title={!isExpandedView ? label : undefined}
-            onClick={closeFlyout}
+            onClick={() => setOpenSelector(null)}
             className={cn(
               "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
-              isItemActive || isFlyoutOpen
-                ? "menu-item-active"
-                : "menu-item-inactive",
+              isItemActive ? "menu-item-active" : "menu-item-inactive",
               !isExpandedView && "justify-center px-1.5",
             )}
           >
@@ -675,7 +547,7 @@ const AppSidebar: React.FC = () => {
               aria-hidden="true"
               className={cn(
                 "menu-item-icon",
-                isItemActive || isFlyoutOpen
+                isItemActive
                   ? "menu-item-icon-active"
                   : "menu-item-icon-inactive",
               )}
@@ -687,30 +559,7 @@ const AppSidebar: React.FC = () => {
               />
             </span>
             {isExpandedView && (
-              <>
-                <span className="menu-item-text flex-1 truncate">{label}</span>
-                {hasFlyout && (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    className={cn(
-                      "ms-auto h-3.5 w-3.5 shrink-0 transition-transform duration-150",
-                      isFlyoutOpen
-                        ? "translate-x-0.5 text-brand-600 opacity-100 dark:text-brand-300"
-                        : "text-gray-400 opacity-0 group-hover:opacity-100",
-                    )}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m6 4 4 4-4 4"
-                    />
-                  </svg>
-                )}
-              </>
+              <span className="menu-item-text flex-1 truncate">{label}</span>
             )}
           </Link>
         ) : (
@@ -773,7 +622,6 @@ const AppSidebar: React.FC = () => {
           onRetry={() => void organizations.refetch()}
           isOpen={openSelector === "organization"}
           onOpenChange={(nextOpen) => {
-            if (nextOpen) closeFlyout();
             setOpenSelector((prev) =>
               nextOpen ? "organization" : prev === "organization" ? null : prev,
             );
@@ -790,7 +638,6 @@ const AppSidebar: React.FC = () => {
           onSelectProject={handleSelectProject}
           isOpen={openSelector === "project"}
           onOpenChange={(nextOpen) => {
-            if (nextOpen) closeFlyout();
             setOpenSelector((prev) =>
               nextOpen ? "project" : prev === "project" ? null : prev,
             );
@@ -831,7 +678,6 @@ const AppSidebar: React.FC = () => {
                       aria-current={subItem.isActive ? "page" : undefined}
                       title={!isExpandedView ? subItem.label : undefined}
                       onClick={() => {
-                        closeFlyout();
                         setOpenSelector(null);
                         if (subItem.tab) {
                           setSyncedProjectTab({
@@ -972,17 +818,6 @@ const AppSidebar: React.FC = () => {
           )}
         />
       </div>
-
-      {/* Portaled Jira-style Hover Flyout Menu (renders in document.body to prevent sidebar overflow clipping) */}
-      <SidebarFlyoutPortal
-        config={activeFlyoutConfig}
-        anchorRect={anchorRect}
-        flyoutElRef={flyoutElRef}
-        pathname={pathname}
-        onMouseEnter={handleFlyoutMouseEnter}
-        onMouseLeave={handleFlyoutMouseLeave}
-        onClose={closeFlyout}
-      />
     </aside>
   );
 };
