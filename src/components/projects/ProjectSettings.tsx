@@ -8,22 +8,17 @@ import {
   type Project,
   useUpdateProjectMutation,
 } from "@/lib/queries/projects/useProjects";
-import { useProjectSettingsAccess } from "@/lib/queries/projects/useProjectSettings";
+import { useProjectManagementAccess, useProjectSettingsAccess } from "@/lib/queries/projects/useProjectSettings";
 import { SettingsIcon } from "@/icons";
 import ProjectVisibility from "./ProjectVisibility";
 
 const inputClassName =
   "mt-1.5 block min-h-11 w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 shadow-theme-xs transition-colors outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500 dark:border-gray-700 dark:bg-gray-800/60 dark:text-gray-100 dark:disabled:bg-gray-800/30 dark:disabled:text-gray-500";
 
-function ProjectDetailsForm({ project }: { project: Project }) {
+function ProjectDetailsForm({ project, access }: { project: Project; access: ReturnType<typeof useProjectSettingsAccess> }) {
   const t = useTranslations("projects.settingsPanel");
   const projectText = useTranslations("projects");
   const id = useId();
-  const access = useProjectSettingsAccess(
-    project.organizationId,
-    project.id,
-    project.status === "ACTIVE",
-  );
   const mutation = useUpdateProjectMutation(project.organizationId, project.id);
   const [baseline, setBaseline] = useState({
     name: project.name,
@@ -321,6 +316,21 @@ export default function ProjectSettings({ project }: { project: Project }) {
   const projectText = useTranslations("projects");
   const id = useId();
   const isPrivate = project.visibility === "PRIVATE";
+  const access = useProjectManagementAccess(project.organizationId, project.id, project.status === "ACTIVE");
+
+  if (!access.canAccessSettings) {
+    return (
+      <div
+        role={access.isPending ? "status" : "alert"}
+        className="space-y-3 rounded-xl border border-gray-200 bg-white p-5 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300"
+      >
+        <p>{project.status !== "ACTIVE" ? t("archivedReadOnly") : access.isPending ? t("checkingAccess") : access.error ? t("accessUnavailable") : t("errorPermission")}</p>
+        {!access.isPending && access.error && (
+          <Button size="sm" variant="outline" onClick={() => void access.refetch()}>{t("refreshAccess")}</Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <section
@@ -352,6 +362,7 @@ export default function ProjectSettings({ project }: { project: Project }) {
         <ProjectDetailsForm
           key={`${project.organizationId}:${project.id}`}
           project={project}
+          access={access.settings}
         />
       </div>
 

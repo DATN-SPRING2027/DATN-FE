@@ -55,7 +55,16 @@ beforeEach(() => {
   });
 });
 
-it("keeps details disabled until the backend confirms settings access", async () => {
+it("does not render administrative forms for a Member opening the Settings route directly", async () => {
+  api.mockRejectedValue(new ApiError(403, "FORBIDDEN", "Not permitted"));
+  mount();
+  expect(await screen.findByRole("alert")).toHaveTextContent(/do not have permission/i);
+  expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
+  expect(screen.queryByLabelText("Description")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Delete project" })).not.toBeInTheDocument();
+});
+
+it("hides administrative forms until the backend confirms settings access", async () => {
   let finish!: (value: unknown) => void;
   api.mockImplementation((path) =>
     path.endsWith("/settings-access")
@@ -65,7 +74,7 @@ it("keeps details disabled until the backend confirms settings access", async ()
       : Promise.resolve({ canManageVisibility: true }),
   );
   mount();
-  expect(screen.getByLabelText("Name")).toBeDisabled();
+  expect(screen.queryByLabelText("Name")).not.toBeInTheDocument();
   finish({ canUpdateProject: true });
   await waitFor(() => expect(screen.getByLabelText("Name")).toBeEnabled());
 });

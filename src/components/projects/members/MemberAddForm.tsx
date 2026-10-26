@@ -21,6 +21,7 @@ export default function MemberAddForm({
   pending,
   defaultRole = "MEMBER",
   onRoleChange,
+  canAppointLeaders = false,
 }: {
   organizationId?: string;
   projectId?: string;
@@ -29,6 +30,7 @@ export default function MemberAddForm({
   pending: boolean;
   defaultRole?: ProjectMemberAddRole;
   onRoleChange?: (role: ProjectMemberAddRole) => void;
+  canAppointLeaders?: boolean;
 }) {
   const t = useTranslations("projectMembers");
   const [emailInput, setEmailInput] = useState("");
@@ -36,12 +38,14 @@ export default function MemberAddForm({
   const [selectedCandidate, setSelectedCandidate] =
     useState<ProjectMemberCandidate | null>(null);
   const [selectedRole, setSelectedRole] =
-    useState<ProjectMemberAddRole>(defaultRole);
+    useState<ProjectMemberAddRole>(canAppointLeaders ? defaultRole : "MEMBER");
   const [validationError, setValidationError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setSelectedRole(defaultRole);
-  }, [defaultRole]);
+  const [roleDefaults, setRoleDefaults] = useState({ defaultRole, canAppointLeaders });
+  if (roleDefaults.defaultRole !== defaultRole || roleDefaults.canAppointLeaders !== canAppointLeaders) {
+    setRoleDefaults({ defaultRole, canAppointLeaders });
+    setSelectedRole(canAppointLeaders ? defaultRole : "MEMBER");
+  }
 
   const trimmedEmail = emailInput.trim();
   const isValidEmailFormat =
@@ -86,6 +90,7 @@ export default function MemberAddForm({
   }
 
   function handleRoleChange(nextRole: ProjectMemberAddRole) {
+    if (nextRole === "TEAM_LEADER" && !canAppointLeaders) return;
     setSelectedRole(nextRole);
     onRoleChange?.(nextRole);
   }
@@ -111,7 +116,7 @@ export default function MemberAddForm({
       return;
     }
 
-    if (selectedRole === "TEAM_LEADER") {
+    if (canAppointLeaders && selectedRole === "TEAM_LEADER") {
       onAdd(target.userId, "TEAM_LEADER");
     } else {
       onAdd(target.userId);
@@ -171,7 +176,7 @@ export default function MemberAddForm({
           <select
             id="project-member-role-select"
             aria-label={t("role")}
-            value={selectedRole}
+            value={canAppointLeaders ? selectedRole : "MEMBER"}
             disabled={disabled || pending}
             onChange={(e) =>
               handleRoleChange(e.target.value as ProjectMemberAddRole)
@@ -179,7 +184,7 @@ export default function MemberAddForm({
             className="mt-1.5 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-3 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
           >
             <option value="MEMBER">{t("projectMember")}</option>
-            <option value="TEAM_LEADER">{t("projectLeaderBadge")}</option>
+            {canAppointLeaders && <option value="TEAM_LEADER">{t("projectLeaderBadge")}</option>}
           </select>
         </div>
         <Button

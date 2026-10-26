@@ -160,7 +160,7 @@ export default function WorkBoardView({
         </div>
 
         <div className="relative flex flex-wrap items-center gap-2">
-          <button
+          {onCompleteSprint && <button
             type="button"
             disabled={!activeSprintName || !onCompleteSprint || isCompletingSprint}
             onClick={() => {
@@ -170,7 +170,7 @@ export default function WorkBoardView({
             className="h-8 cursor-pointer border border-gray-200 bg-white px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
           >
             {t("completeSprint")}
-          </button>
+          </button>}
 
           <button
             type="button"
@@ -372,7 +372,8 @@ export default function WorkBoardView({
                 const draggedId = event.dataTransfer.getData("text/plain");
                 if (draggedId.startsWith("subtask:")) {
                   const [, parentId, subId] = draggedId.split(":");
-                  if (parentId && subId && onUpdateSubtask) {
+                  const subtask = items.find((item) => item.id === parentId)?.subtaskItems?.find((sub) => sub.id === subId);
+                  if (subtask && !subtask.readOnly && onUpdateSubtask) {
                     onUpdateSubtask(parentId, subId, {
                       status,
                       done: status === "DONE",
@@ -380,7 +381,8 @@ export default function WorkBoardView({
                   }
                   return;
                 }
-                if (draggedId && onStatusChange) {
+                const task = items.find((item) => item.id === draggedId);
+                if (task && !task.readOnly && onStatusChange) {
                   onStatusChange(draggedId, status);
                 }
               }}
@@ -445,9 +447,9 @@ export default function WorkBoardView({
                             showSubtasks={showSubtasks}
                             onOpenItem={onOpenItem}
                             onOpenSubtask={onOpenSubtask}
-                            onStatusChange={onStatusChange}
+                            onStatusChange={item.readOnly ? undefined : onStatusChange}
                             onToggleSubtask={onToggleSubtask}
-                            onAddSubtask={onAddSubtask}
+                            onAddSubtask={item.readOnly ? undefined : onAddSubtask}
                             onUpdateSubtask={onUpdateSubtask}
                             onDeleteSubtask={onDeleteSubtask}
                             onCloneSubtask={onCloneSubtask}
@@ -460,8 +462,12 @@ export default function WorkBoardView({
                           return (
                             <li
                               key={`subcard-${parent.id}-${sub.id}`}
-                              draggable={Boolean(onUpdateSubtask)}
+                              draggable={!sub.readOnly && Boolean(onUpdateSubtask)}
                               onDragStart={(event) => {
+                                if (sub.readOnly || !onUpdateSubtask) {
+                                  event.preventDefault();
+                                  return;
+                                }
                                 event.dataTransfer.setData(
                                   "text/plain",
                                   `subtask:${parent.id}:${sub.id}`,
@@ -813,6 +819,7 @@ function WorkCard({
                       <input
                         type="checkbox"
                         checked={sub.done}
+                        disabled={sub.readOnly}
                         onChange={() => onToggleSubtask?.(item.id, sub.id)}
                         className="h-3.5 w-3.5 shrink-0 cursor-pointer border-gray-300 text-brand-600"
                       />
@@ -841,7 +848,7 @@ function WorkCard({
                       </button>
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                      {onUpdateSubtask && (
+                      {!sub.readOnly && onUpdateSubtask && (
                         <select
                           aria-label={`Assignee for ${sub.key}`}
                           value={(sub.assignee ?? item.assignee).id}
@@ -875,7 +882,7 @@ function WorkCard({
                           ))}
                         </select>
                       )}
-                      {onUpdateSubtask ? (
+                      {!sub.readOnly && onUpdateSubtask ? (
                         <select
                           aria-label={`Status for ${sub.key}`}
                           value={sub.status}
@@ -908,7 +915,7 @@ function WorkCard({
                           <MonoIcon name="copy" size={10} />
                         </button>
                       )}
-                      {onConvertSubtaskToTask && (
+                      {!sub.readOnly && onConvertSubtaskToTask && (
                         <button
                           type="button"
                           onClick={() =>
@@ -921,7 +928,7 @@ function WorkCard({
                           <MonoIcon name="arrowUpRight" size={10} />
                         </button>
                       )}
-                      {onDeleteSubtask && (
+                      {!sub.readOnly && onDeleteSubtask && (
                         <button
                           type="button"
                           onClick={() => onDeleteSubtask(item.id, sub.id)}

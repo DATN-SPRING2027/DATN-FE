@@ -139,6 +139,27 @@ export function useProjectMemberCandidatesQuery(
   });
 }
 
+/** The read-only candidate endpoint enforces the command's project.members.add permission. */
+export function useProjectMemberAddAccess(organizationId: string, projectId: string, active = true) {
+  return useQuery({
+    queryKey: [...projectMemberKeys.scope(organizationId, projectId), "add-access"],
+    enabled: active && Boolean(organizationId && isResourceId(projectId)),
+    retry: false,
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnWindowFocus: true,
+    networkMode: "always",
+    queryFn: async ({ signal }) => {
+      const result = await apiClient<{ data: unknown[] }>(`/iam/projects/${encodeURIComponent(projectId)}/member-candidates`, {
+        cache: "no-store",
+        signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+      });
+      if (!result || !Array.isArray(result.data)) throw new Error("Invalid Project member access response");
+      return true;
+    },
+  });
+}
+
 export type AddProjectMemberInput =
   | string
   | {
@@ -167,6 +188,8 @@ export function useAddProjectMember(organizationId: string, projectId: string) {
     },
     onSuccess: () =>
       Promise.all([
+        client.invalidateQueries({ queryKey: ["project-settings-access", organizationId, projectId] }),
+        client.invalidateQueries({ queryKey: ["project-visibility-access", organizationId, projectId] }),
         client.invalidateQueries({
           queryKey: projectMemberKeys.scope(organizationId, projectId),
         }),
@@ -199,6 +222,8 @@ export function useRemoveProjectMember(
       ),
     onSuccess: () =>
       Promise.all([
+        client.invalidateQueries({ queryKey: ["project-settings-access", organizationId, projectId] }),
+        client.invalidateQueries({ queryKey: ["project-visibility-access", organizationId, projectId] }),
         client.invalidateQueries({
           queryKey: projectMemberKeys.scope(organizationId, projectId),
         }),

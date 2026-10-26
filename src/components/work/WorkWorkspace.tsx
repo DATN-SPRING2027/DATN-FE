@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useTranslations } from"next-intl";
+import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
 import {
   ApiError,
   isAccessOrResourceUnavailableError,
@@ -339,6 +340,7 @@ export default function WorkWorkspace({
     getCalendarMonthStart(new Date()),
   );
   const isRealProject = OBJECT_ID_PATTERN.test(projectId);
+  const canManageWork = canManageProjectWork(visibleUser, resolvedProject);
   const [items, setItems] = useState<WorkItem[]>(() =>
     isRealProject ? [] : [...INITIAL_PREVIEW_WORK_ITEMS],
   );
@@ -443,6 +445,7 @@ export default function WorkWorkspace({
   }
 
   async function completeActiveSprint(): Promise<void> {
+    if (isRealProject && !canManageWork) return;
     if (!activeSprint) throw new Error("There is no active sprint to complete.");
     await completeProjectSprintApi(
       projectId,
@@ -463,6 +466,11 @@ export default function WorkWorkspace({
     return (async () => {
       const realId = await resolveBackendTaskId(rawId);
       if (!realId) {
+        onRollback?.();
+        return false;
+      }
+      const task = visibleTasks?.items.find((candidate) => candidate.id === realId);
+      if (task && !canModifyProjectTask(visibleUser, resolvedProject, task)) {
         onRollback?.();
         return false;
       }
@@ -1079,9 +1087,15 @@ export default function WorkWorkspace({
   const projectName = resolvedProject?.name ??"";
   const projectCode = resolvedProject?.code ??"";
 
+  // Permission is a projection of current server context, not a state snapshot.
+  const itemsWithPermissions = useMemo(
+    () => isRealProject ? items.map((item) => applyTaskPermissions(visibleUser, resolvedProject, item)) : items,
+    [isRealProject, items, visibleUser, resolvedProject],
+  );
+
   const visibleItems = useMemo(() => {
     const normalizedQuery = normalizeSearch(query.trim());
-    return items
+    return itemsWithPermissions
       .filter((item) => {
         if (hideDone && item.status ==="DONE") return false;
         const subtaskHaystack = (item.subtaskItems ?? [])
@@ -1145,7 +1159,7 @@ export default function WorkWorkspace({
     assigneeId,
     filterConditions,
     hideDone,
-    items,
+    itemsWithPermissions,
     priority,
     projectName,
     query,
@@ -1155,21 +1169,21 @@ export default function WorkWorkspace({
   const activeWorkItem = useMemo(
     () =>
       activeWorkItemId
-        ? (items
+        ? (itemsWithPermissions
             .map((item) => ({ ...item, projectName }))
             .find((item) => item.id === activeWorkItemId) ?? null)
         : null,
-    [activeWorkItemId, items, projectName],
+    [activeWorkItemId, itemsWithPermissions, projectName],
   );
 
   const fullPageWorkItem = useMemo(
     () =>
       fullPageWorkItemId
-        ? (items
+        ? (itemsWithPermissions
             .map((item) => ({ ...item, projectName }))
             .find((item) => item.id === fullPageWorkItemId) ?? null)
         : null,
-    [fullPageWorkItemId, items, projectName],
+    [fullPageWorkItemId, itemsWithPermissions, projectName],
   );
 
   const groups = useMemo(
@@ -1177,8 +1191,8 @@ export default function WorkWorkspace({
     [groupBy, projectPeople, visibleItems],
   );
   const allVisibleSelected =
-    visibleItems.length > 0 &&
-    visibleItems.every((item) => selectedIds.has(item.id));
+    visibleItems.some((item) => !item.readOnly) &&
+    visibleItems.filter((item) => !item.readOnly).every((item) => selectedIds.has(item.id));
 
   useEffect(() => {
     if (dialogWasOpenRef.current && !createOpen) createButtonRef.current?.focus();
@@ -1191,6 +1205,7 @@ export default function WorkWorkspace({
   }, [activeWorkItem]);
 
   function toggleItem(id: string) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     setSelectedIds((current) => {
       const next = new Set(current);
       if (next.has(id)) next.delete(id);
@@ -1226,7 +1241,7 @@ export default function WorkWorkspace({
     setSelectedIds((current) => {
       const next = new Set(current);
       if (allVisibleSelected) visibleItems.forEach((item) => next.delete(item.id));
-      else visibleItems.forEach((item) => next.add(item.id));
+      else visibleItems.filter((item) => !item.readOnly).forEach((item) => next.add(item.id));
       return next;
     });
   }
@@ -1270,6 +1285,7 @@ export default function WorkWorkspace({
   }
 
   function deleteSingleItem(id: string) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const previousItems = items;
     const previousSelected = new Set(selectedIds);
     const existing = items.find((item) => item.id === id);
@@ -1404,6 +1420,7 @@ export default function WorkWorkspace({
   }
 
   function updateItemStatus(id: string, nextStatus: WorkStatus) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const existing = items.find((item) => item.id === id);
     const prevStatus = existing?.status ?? "TODO";
     if (prevStatus === nextStatus) return;
@@ -1447,6 +1464,7 @@ export default function WorkWorkspace({
   }
 
   function updateItemPriority(id: string, nextPriority: WorkPriority) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const existing = items.find((item) => item.id === id);
     const prevPriority = existing?.priority ?? "MEDIUM";
     if (prevPriority === nextPriority) return;
@@ -1486,6 +1504,7 @@ export default function WorkWorkspace({
     id: string,
     nextAssignee: WorkPerson,
   ): Promise<boolean> | undefined {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const existing = items.find((item) => item.id === id);
     const prevAssignee = existing?.assignee ?? defaultAssigneePerson;
     setMutationError(null);
@@ -1524,6 +1543,7 @@ export default function WorkWorkspace({
   }
 
   function updateItemDueDate(id: string, nextDueDate: string | null) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const existing = items.find((item) => item.id === id);
     const prevDueDate = existing?.dueDate ?? null;
     const prevStartDate = existing?.startDate;
@@ -1639,6 +1659,7 @@ export default function WorkWorkspace({
       estimate?: string;
     },
   ) {
+    if (isRealProject && !itemsWithPermissions.some((item) => item.id === itemId && !item.readOnly)) return;
     const tempSubId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const nextStatus = options?.status ?? ("TODO" as WorkStatus);
     setItems((current) =>
@@ -2383,11 +2404,11 @@ export default function WorkWorkspace({
     patch: Partial<Omit<WorkSubtaskItem, "id" | "key">>,
   ) {
     const previousItems = items;
-    const parentItem = items.find((item) => item.id === itemId);
+    const parentItem = itemsWithPermissions.find((item) => item.id === itemId);
     const affectedSubs = (parentItem?.subtaskItems ?? []).filter((sub) =>
-      subtaskIds.includes(sub.id),
+      subtaskIds.includes(sub.id) && !sub.readOnly,
     );
-    const idSet = new Set(subtaskIds);
+    const idSet = new Set(affectedSubs.map((sub) => sub.id));
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId || !item.subtaskItems) return item;
@@ -2597,12 +2618,13 @@ export default function WorkWorkspace({
   function bulkUpdateStatus(nextStatus: WorkStatus) {
     const previousItems = items;
     const previousSelected = new Set(selectedIds);
-    const affectedItems = items.filter(
-      (item) => selectedIds.has(item.id) && item.status !== nextStatus,
+    const affectedItems = itemsWithPermissions.filter(
+      (item) => !item.readOnly && selectedIds.has(item.id) && item.status !== nextStatus,
     );
+    const affectedIds = new Set(affectedItems.map((item) => item.id));
     setItems((current) =>
       current.map((item) =>
-        selectedIds.has(item.id)
+        affectedIds.has(item.id)
           ? {
               ...item,
               status: nextStatus,
@@ -2637,9 +2659,10 @@ export default function WorkWorkspace({
   function bulkDeleteSelected() {
     const previousItems = items;
     const previousSelected = new Set(selectedIds);
-    const affectedItems = items.filter((item) => selectedIds.has(item.id));
+    const affectedItems = itemsWithPermissions.filter((item) => !item.readOnly && selectedIds.has(item.id));
+    const affectedIds = new Set(affectedItems.map((item) => item.id));
     setItems((current) =>
-      current.filter((item) => !selectedIds.has(item.id)),
+      current.filter((item) => !affectedIds.has(item.id)),
     );
     setSelectedIds(new Set());
 
@@ -2907,7 +2930,7 @@ export default function WorkWorkspace({
           mode="page"
           projectId={projectId}
           item={fullPageWorkItem}
-          allItems={items}
+          allItems={itemsWithPermissions}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           activityError={activityError}
@@ -2972,7 +2995,7 @@ export default function WorkWorkspace({
               onExportCsv={exportCsv}
               onImportCsvItem={importCsvItem}
               onBulkSelectAll={() =>
-                setSelectedIds(new Set(visibleItems.map((i) => i.id)))
+                setSelectedIds(new Set(visibleItems.filter((item) => !item.readOnly).map((i) => i.id)))
               }
               onGoToReports={() => setView("reports")}
               onRefresh={() => {
@@ -3095,7 +3118,7 @@ export default function WorkWorkspace({
           ) : view ==="list"? (
             <WorkListView
               groups={groups}
-              allItems={items}
+              allItems={itemsWithPermissions}
               people={projectPeople}
               currentUserPerson={currentUserPerson}
               totalCount={items.length}
@@ -3159,7 +3182,7 @@ export default function WorkWorkspace({
               activeSprintCounts={activeSprint?.counts ?? null}
               isSprintLoading={sprintsQuery.isPending}
               isSprintError={sprintsQuery.isError}
-              onCompleteSprint={activeSprint ? completeActiveSprint : undefined}
+              onCompleteSprint={activeSprint && (!isRealProject || canManageWork) ? completeActiveSprint : undefined}
               onOpenItem={openWorkItem}
               onOpenSubtask={openSubtask}
               onStatusChange={updateItemStatus}
@@ -3205,7 +3228,7 @@ export default function WorkWorkspace({
           mode="modal"
           projectId={projectId}
           item={activeWorkItem}
-          allItems={items}
+          allItems={itemsWithPermissions}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           activityError={activityError}

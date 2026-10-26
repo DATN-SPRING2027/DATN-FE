@@ -2,6 +2,35 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { ApiError, apiClient } from "@/lib/api-client";
+import { useProjectVisibilityAccess } from "./useProjectVisibility";
+
+/** Navigation and route UX use the same scoped decisions as the settings forms. */
+export function useProjectManagementAccess(
+  organizationId: string,
+  projectId: string,
+  active: boolean,
+) {
+  const settings = useProjectSettingsAccess(organizationId, projectId, active);
+  const visibility = useProjectVisibilityAccess(
+    organizationId,
+    projectId,
+    active,
+  );
+  const canUpdateProject =
+    active && settings.isSuccess && settings.data === true;
+  const canManageVisibility =
+    active && visibility.isSuccess && visibility.data === true;
+
+  return {
+    settings,
+    canUpdateProject,
+    canManageVisibility,
+    canAccessSettings: canUpdateProject || canManageVisibility,
+    isPending: active && (settings.isPending || visibility.isPending),
+    error: settings.error ?? visibility.error,
+    refetch: () => Promise.all([settings.refetch(), visibility.refetch()]),
+  };
+}
 
 export function useProjectSettingsAccess(
   organizationId: string,

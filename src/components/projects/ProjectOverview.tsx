@@ -6,7 +6,8 @@ import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import type { Project } from "@/lib/queries/projects/useProjects";
-import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectMembersQuery, useProjectMemberAddAccess } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
 import { CalenderIcon, DocsIcon } from "@/icons";
@@ -83,6 +84,10 @@ export default function ProjectOverview({
   const t = useTranslations("projects");
   const format = useFormatter();
   const memberLabels = useTranslations("projectMembers");
+  const management = useProjectManagementAccess(project.organizationId, project.id, project.status === "ACTIVE");
+  // This existing endpoint uses the same project.members.add guard as the command.
+  const memberAddAccess = useProjectMemberAddAccess(project.organizationId, project.id, project.status === "ACTIVE");
+  const canAddMembers = project.status === "ACTIVE" && memberAddAccess.isSuccess;
   const hasProjectMemberCount =
     typeof project.activeMemberCount === "number";
   const memberSummary = useProjectMembersQuery(
@@ -179,9 +184,12 @@ export default function ProjectOverview({
   const isPrivate = project.visibility === "PRIVATE";
   const isActive = project.status === "ACTIVE";
 
-  const tabs: ProjectTab[] = showTeams
-    ? ["overview", "members", "settings", "teams"]
-    : ["overview", "members", "settings"];
+  const tabs: ProjectTab[] = [
+    "overview",
+    "members",
+    ...(management.canAccessSettings ? ["settings" as const] : []),
+    ...(showTeams ? ["teams" as const] : []),
+  ];
 
   const tabLabel = (value: ProjectTab) =>
     value === "overview"
@@ -209,7 +217,7 @@ export default function ProjectOverview({
         width: activeEl.offsetWidth,
       });
     }
-  }, [tab, showTeams]);
+  }, [tab, showTeams, management.canAccessSettings]);
 
   const tabPanelSlideClass =
     tabDirection === "right"
@@ -217,6 +225,10 @@ export default function ProjectOverview({
       : tabDirection === "left"
         ? "continuum-tab-slide-left"
         : "continuum-stagger-2";
+
+  if (tab === "settings" && !management.canAccessSettings) {
+    return <ProjectSettings project={project} />;
+  }
 
   return (
     <div className="@container min-w-0 space-y-5 sm:space-y-6">
@@ -337,7 +349,7 @@ export default function ProjectOverview({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
-            <Button
+            {canAddMembers && <Button
               variant="outline"
               size="sm"
               className="h-9 shrink-0 rounded-xl bg-white! px-3.5! py-2! text-xs font-semibold whitespace-nowrap shadow-theme-xs focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:bg-gray-800!"
@@ -363,7 +375,7 @@ export default function ProjectOverview({
               }}
             >
               {memberLabels("add")}
-            </Button>
+            </Button>}
           </div>
         </header>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type {
   CancelInvitationInput,
   InviteMemberInput,
@@ -122,7 +123,11 @@ function useMembershipMutation<TInput>(
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: organizationMembershipKeys.scope(actorId, organizationId) }),
+        queryClient.invalidateQueries({ queryKey: authKeys.currentUser() }),
+        queryClient.invalidateQueries({ queryKey: ["project-settings-access", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-visibility-access", organizationId] }),
         queryClient.invalidateQueries({ queryKey: ["projects", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-members", organizationId] }),
         queryClient.invalidateQueries({ queryKey: ["organization-handover-candidates", actorId, organizationId] }),
       ]);
     },
@@ -209,9 +214,13 @@ export function useSetOrganizationMembershipRole(actorId: string, organizationId
       return setOrganizationMembershipRole(organizationId, membershipId, body, idempotencyKey);
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: organizationMembershipKeys.scope(actorId, organizationId),
-      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: organizationMembershipKeys.scope(actorId, organizationId) }),
+        queryClient.invalidateQueries({ queryKey: authKeys.currentUser() }),
+        queryClient.invalidateQueries({ queryKey: ["projects", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-settings-access", organizationId] }),
+        queryClient.invalidateQueries({ queryKey: ["project-visibility-access", organizationId] }),
+      ]);
     },
   });
 }

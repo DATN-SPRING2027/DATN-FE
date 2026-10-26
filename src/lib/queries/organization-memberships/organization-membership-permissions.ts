@@ -1,7 +1,7 @@
 import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
 
 function isOrganizationAdmin(user: CurrentUserResponse | null | undefined): boolean {
-  if (!user || user.context === "ACCOUNT" || !user.organizationId) {
+  if (!user || (user.context !== undefined && user.context !== "ORGANIZATION") || !user.organizationId) {
     return false;
   }
   return Array.isArray(user.roles) && user.roles.includes("ADMIN");

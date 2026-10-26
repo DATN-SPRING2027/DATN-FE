@@ -9,9 +9,11 @@ type TeamRowAction = Extract<TeamDialogAction, { teamId: string }>;
 
 export default function TeamRowActions({
   team,
+  canManage,
   onAction,
 }: {
   team: Team;
+  canManage: boolean;
   onAction: (action: TeamDialogAction) => void;
 }) {
   const t = useTranslations("teamFoundation");
@@ -21,7 +23,7 @@ export default function TeamRowActions({
       label: t("view"),
       accessibleLabel: t("viewNamed", { name: team.name }),
     },
-    ...(team.status === "ACTIVE"
+    ...(canManage && team.status === "ACTIVE"
       ? [
           {
             kind: "archive",

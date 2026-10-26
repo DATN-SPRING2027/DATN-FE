@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { useModal } from "@/hooks/useModal";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useProjectQuery } from "@/lib/queries/projects/useProjects";
+import { isEffectiveProjectLeader } from "@/lib/queries/projects/project-permissions";
 import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { teamKeys, useTeam, useTeams } from "@/lib/queries/teams/useTeams";
 import type { TeamFilter, TeamScope } from "@/lib/queries/teams/team.contract";
@@ -19,6 +21,14 @@ import TeamManagementDialog, {
 import TeamRowActions from "./TeamRowActions";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 
+type TeamDirectoryState = {
+  query: ReturnType<typeof useTeams>;
+  page: number;
+  status: TeamFilter;
+  onPageChange: (page: number) => void;
+  onStatusChange: (status: TeamFilter) => void;
+};
+
 export default function TeamsWorkspace({
   projectId,
   teamId,
@@ -30,9 +40,23 @@ export default function TeamsWorkspace({
   mode?: "list" | "create" | "detail" | "edit";
   embedded?: boolean;
 }) {
+  const [selection, setSelection] = useState<{ scope: string; page: number; status: TeamFilter }>();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
   const visibleUser = userAccessLost ? undefined : user.data;
+  const project = useProjectQuery(visibleUser?.organizationId ?? "", projectId);
+  const isProjectLeader = !isAccessOrResourceUnavailableError(project.error) && project.data?.id === projectId && isEffectiveProjectLeader(visibleUser, project.data);
+  const scope = { organizationId: visibleUser?.organizationId ?? "", projectId };
+  const directoryScope = `${visibleUser?.id ?? ""}:${scope.organizationId}:${projectId}:${mode}`;
+  const { page, status } = selection?.scope === directoryScope ? selection : { page: 1, status: "ACTIVE" as const };
+  const listAccess = useTeams(scope, visibleUser?.id ?? "", page, status, mode === "list" || (isProjectLeader && mode === "create"));
+  const detailAccess = useTeam(scope, visibleUser?.id ?? "", teamId ?? "", isProjectLeader && (mode === "detail" || mode === "edit"), true);
+  // Current Team reads require both team.read and team:children.manage on BE.
+  // Project leadership alone does not establish this delegation.
+  const teamAccess = mode === "detail" || mode === "edit" ? detailAccess : listAccess;
+  // Retain a mounted draft after a transient read failure, but never allow a
+  // command until a current read succeeds. Access denials discard cached UI.
+  const canManage = isProjectLeader && Boolean(teamAccess.data) && !isAccessOrResourceUnavailableError(teamAccess.error);
   if (user.isPending && !visibleUser) return <TeamState loading />;
   if (user.isError && !visibleUser) return <TeamState error={user.error} />;
   if (!visibleUser?.organizationId)
@@ -47,12 +71,21 @@ export default function TeamsWorkspace({
         }
       />
     );
-  const scope = { organizationId: visibleUser.organizationId, projectId };
+  if ((mode === "create" || mode === "edit") && !canManage) {
+    return project.isPending || (isProjectLeader && teamAccess.isPending)
+      ? <TeamState loading />
+      : <TeamState error={project.error ?? teamAccess.error ?? new ApiError(403, "FORBIDDEN", "Project leadership and Team delegation are required.")} retry={isProjectLeader ? () => void teamAccess.refetch() : undefined} />;
+  }
   return (
     <ScopedTeams
       key={`${visibleUser.id}:${scope.organizationId}:${projectId}:${teamId ?? ""}:${mode}`}
       scope={scope}
       actor={visibleUser.id}
+      canManage={canManage}
+      accessChecking={teamAccess.fetchStatus !== "idle" || !teamAccess.isSuccess}
+      accessError={teamAccess.error}
+      retryAccess={() => void teamAccess.refetch()}
+      directory={{ query: listAccess, page, status, onPageChange: (next) => setSelection({ scope: directoryScope, page: next, status }), onStatusChange: (next) => setSelection({ scope: directoryScope, page: 1, status: next }) }}
       teamId={teamId}
       mode={mode}
       embedded={embedded}
@@ -62,25 +95,44 @@ export default function TeamsWorkspace({
 function ScopedTeams({
   scope,
   actor,
+  canManage,
+  accessChecking,
+  accessError,
+  retryAccess,
+  directory,
   teamId,
   mode,
   embedded,
 }: {
   scope: TeamScope;
   actor: string;
+  canManage: boolean;
+  accessChecking: boolean;
+  accessError: Error | null;
+  retryAccess: () => void;
+  directory: TeamDirectoryState;
   teamId?: string;
   mode: "list" | "create" | "detail" | "edit";
   embedded: boolean;
 }) {
   const t = useTranslations("teamFoundation");
+  const common = useTranslations("common");
   const router = useRouter();
   const queryClient = useQueryClient();
   const modal = useModal();
   const [dialogAction, setDialogAction] = useState<TeamDialogAction | null>(
     null,
   );
+  // A denied read dismisses management, rather than merely hiding it until
+  // the next successful refresh. Transient failures keep canManage stable.
+  if (!canManage && dialogAction && dialogAction.kind !== "view") {
+    setDialogAction(null);
+    modal.closeModal();
+  }
   const base = `/projects/${encodeURIComponent(scope.projectId)}/teams`;
+  const managementEnabled = canManage && !accessChecking;
   function openDialog(action: TeamDialogAction) {
+    if (action.kind !== "view" && !managementEnabled) return;
     setDialogAction(action);
     modal.openModal();
   }
@@ -143,23 +195,26 @@ function ScopedTeams({
       )}
       {mode === "list" ? (
         <>
-          <TeamDirectory scope={scope} actor={actor} onAction={openDialog} />
+          <TeamDirectory directory={directory} canManage={managementEnabled} onAction={openDialog} />
           <TeamManagementDialog
-            isOpen={modal.isOpen}
+            isOpen={modal.isOpen && (dialogAction?.kind === "view" || canManage)}
             action={dialogAction}
             scope={scope}
             actor={actor}
+            canManage={managementEnabled}
             onClose={closeDialog}
             onSuccess={completeDialog}
-            onAction={setDialogAction}
+            onAction={openDialog}
           />
         </>
       ) : mode === "create" ? (
         <ComponentCard title={t("information")} className="rounded-xl">
+          {accessError && <BackgroundRefreshError retryLabel={common("retry")} onRetry={retryAccess}>{common("updateFailed")}</BackgroundRefreshError>}
           <TeamForm
             scope={scope}
             actor={actor}
             operation="create"
+            disabled={!managementEnabled}
             onSuccess={(r) =>
               router.push(`${base}/${encodeURIComponent(r.team.id)}`)
             }
@@ -169,6 +224,8 @@ function ScopedTeams({
         <TeamDetails
           scope={scope}
           actor={actor}
+          canManage={canManage}
+          accessChecking={accessChecking}
           id={teamId!}
           edit={mode === "edit"}
           base={base}
@@ -178,40 +235,35 @@ function ScopedTeams({
   );
 }
 function TeamDirectory({
-  scope,
-  actor,
+  directory,
+  canManage,
   onAction,
 }: {
-  scope: TeamScope;
-  actor: string;
+  directory: TeamDirectoryState;
+  canManage: boolean;
   onAction: (action: TeamDialogAction) => void;
 }) {
   const t = useTranslations("teamFoundation");
   const common = useTranslations("common");
-  const [page, setPage] = useState(1);
-  const [status, setStatus] = useState<TeamFilter>("ACTIVE");
-  const query = useTeams(scope, actor, page, status);
+  const { query, page, status, onPageChange, onStatusChange } = directory;
   const accessLost = isAccessOrResourceUnavailableError(query.error);
   const visibleData = accessLost ? undefined : query.data;
   const list = visibleData?.data ?? [];
   return (
     <TeamDirectoryTable
       items={list}
-      createAction={{
+      createAction={canManage ? {
         label: t("create"),
         onClick: () => onAction({ kind: "create" }),
-      }}
+      } : undefined}
       status={status}
-      onStatusChange={(next) => {
-        setStatus(next);
-        setPage(1);
-      }}
+      onStatusChange={onStatusChange}
       totalItems={visibleData?.pagination.totalItems}
       page={page}
       totalPages={visibleData?.pagination.totalPages ?? 0}
       isPageChanging={query.isFetching}
       isBusy={query.isFetching && Boolean(visibleData)}
-      onPageChange={setPage}
+      onPageChange={onPageChange}
       copy={{
         statusFilter: t("status"),
         statuses: {
@@ -261,7 +313,7 @@ function TeamDirectory({
       }
       renderActions={(row) => {
         const team = list.find((item) => item.id === row.id)!;
-        return <TeamRowActions team={team} onAction={onAction} />;
+        return <TeamRowActions team={team} canManage={canManage} onAction={onAction} />;
       }}
     />
   );
@@ -269,12 +321,16 @@ function TeamDirectory({
 function TeamDetails({
   scope,
   actor,
+  canManage,
+  accessChecking,
   id,
   edit,
   base,
 }: {
   scope: TeamScope;
   actor: string;
+  canManage: boolean;
+  accessChecking: boolean;
   id: string;
   edit: boolean;
   base: string;
@@ -283,6 +339,7 @@ function TeamDetails({
   const common = useTranslations("common");
   const router = useRouter();
   const query = useTeam(scope, actor, id);
+  const managementEnabled = canManage && !accessChecking && query.isSuccess && query.fetchStatus === "idle";
   const accessLost = isAccessOrResourceUnavailableError(query.error);
   const resource = accessLost ? undefined : query.data;
   const [lifecycle, setLifecycle] = useState<"archive" | "restore">();
@@ -324,6 +381,7 @@ function TeamDetails({
             actor={actor}
             resource={resource}
             operation="update"
+            disabled={!managementEnabled}
             onSuccess={completed}
           />
         )
@@ -350,7 +408,7 @@ function TeamDetails({
               </div>
             ))}
           </dl>
-          <div className="flex flex-wrap items-center gap-4">
+          {managementEnabled && <div className="flex flex-wrap items-center gap-4">
             {team.status === "ACTIVE" && (
               <Link
                 href={`${base}/${encodeURIComponent(id)}/edit`}
@@ -367,8 +425,8 @@ function TeamDetails({
             >
               {t(team.status === "ACTIVE" ? "archive" : "restore")}
             </Button>
-          </div>
-          {lifecycle && (
+          </div>}
+          {canManage && lifecycle && (
             <section className="space-y-4 border-t border-gray-200 pt-5 dark:border-gray-800">
               <h3 className="font-medium">
                 {t(
@@ -381,6 +439,7 @@ function TeamDetails({
                 actor={actor}
                 resource={resource}
                 operation={lifecycle}
+                disabled={!managementEnabled}
                 onSuccess={completed}
               />
               <Button variant="outline" onClick={() => setLifecycle(undefined)}>

@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -13,6 +13,7 @@ import WorkWorkspace, {
   parseWorklogMinutes,
 } from "./WorkWorkspace";
 import type { WorkView } from "./WorkPageHeader";
+import { taskKeys } from "@/lib/queries/tasks/useTasks";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -85,6 +86,41 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
   beforeEach(() => {
     api.mockReset();
     routerReplaceMock.mockReset();
+  });
+
+  it.each(["MEMBER", "TEAM_LEADER"])("keeps other actors' Tasks read-only and hides Sprint management for an unassigned %s", async (role) => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const otherId = "69e923c77859fd1c702d4c11";
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") return { id: actorId, name: "Member", organizationId: "org-a", roles: [role] };
+      if (path === `/iam/projects/${projectId}`) return { id: projectId, organizationId: "org-a", name: "Apollo", code: "AP", status: "ACTIVE", visibility: "PRIVATE", leaders: [], createdBy: otherId, createdAt: "2026-10-01", updatedAt: "2026-10-01" };
+      if (path.includes("/memberships")) return { data: [], pagination: { totalItems: 0, totalPages: 0 } };
+      if (path.endsWith("/sprints")) return { items: [{ id: "sprint-a", name: "Sprint A", status: "ACTIVE", version: 1 }] };
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) return { items: [otherId, actorId].map((owner, index) => ({ id: `69e923c77859fd1c702d4c3${index}`, projectId, key: `AP-${index + 1}`, title: `Task ${index + 1}`, createdBy: owner, assigneeId: owner, status: "TODO", priority: "MEDIUM", type: "TASK", parentId: null, dueDate: null, startDate: null, labels: [], subtaskCounts: { total: 0, done: 0 }, version: 1, createdAt: "2026-10-01", updatedAt: "2026-10-01" })), nextCursor: null, nextAfterId: null };
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+    const view = mount(projectId);
+    const other = await screen.findByRole("checkbox", { name: /AP-1/ });
+    const own = await screen.findByRole("checkbox", { name: /AP-2/ });
+    await waitFor(() => expect(own).toBeEnabled());
+    expect(other).toBeDisabled();
+    expect(own).toBeEnabled();
+    expect(screen.queryByRole("button", { name: "Create subtask under AP-1" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create subtask under AP-2" })).toBeEnabled();
+    expect(within(other.closest("tr")!).getByTitle("Click to transition status")).toBeDisabled();
+    expect(within(own.closest("tr")!).getByTitle("Click to transition status")).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(screen.queryByRole("button", { name: "Complete sprint" })).not.toBeInTheDocument();
+    expect(api.mock.calls.some(([, init]) => init?.method === "PATCH" || init?.method === "POST")).toBe(false);
+    const grantedApi = api.getMockImplementation()!;
+    api.mockImplementation((path, init) => path.startsWith(`/tasks/projects/${projectId}/tasks`)
+      ? Promise.reject(new ApiError(403, "FORBIDDEN", "Project membership revoked"))
+      : grantedApi(path, init));
+    await act(async () => { await view.client.invalidateQueries({ queryKey: taskKeys.projectScope(projectId) }); });
+    expect(await screen.findByRole("alert")).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: /AP-2/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Create" })).not.toBeInTheDocument();
   });
 
   it("loads the project from the current organization, renders Jira space tabs, and links back to its detail", async () => {
@@ -1253,6 +1289,7 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       name: "Due date for FE-1",
     });
     expect(dueTrigger).toHaveTextContent("2026-11-15");
+    await waitFor(() => expect(dueTrigger).toBeEnabled());
 
     fireEvent.click(dueTrigger);
 
@@ -1717,7 +1754,7 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
           id: "69e923c77859fd1c702d4c10",
           name: "Minh Anh",
           organizationId: "69e923c77859fd1c702d4c01",
-          roles: ["TEAM_LEADER"],
+          roles: ["MEMBER"],
         };
       }
       if (path === `/iam/projects/${projectId}`) {
@@ -1728,6 +1765,7 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
           code: "AP",
           visibility: "PRIVATE",
           status: "ACTIVE",
+          leaders: [{ userId: "69e923c77859fd1c702d4c10", fullName: "Minh Anh", email: "leader@example.test" }],
           createdBy: "69e923c77859fd1c702d4c10",
           createdAt: "2026-10-05T00:00:00Z",
           updatedAt: "2026-10-05T00:00:00Z",
@@ -1781,7 +1819,7 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
         return {
           id: "69e923c77859fd1c702d4c10",
           organizationId: "69e923c77859fd1c702d4c01",
-          roles: ["TEAM_LEADER"],
+          roles: ["MEMBER"],
         };
       }
       if (path === `/iam/projects/${projectId}`) {
@@ -1792,6 +1830,7 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
           code: "AP",
           visibility: "PRIVATE",
           status: "ACTIVE",
+          leaders: [{ userId: "69e923c77859fd1c702d4c10", fullName: "Minh Anh", email: "leader@example.test" }],
           createdBy: "69e923c77859fd1c702d4c10",
           createdAt: "2026-10-05T00:00:00Z",
           updatedAt: "2026-10-05T00:00:00Z",

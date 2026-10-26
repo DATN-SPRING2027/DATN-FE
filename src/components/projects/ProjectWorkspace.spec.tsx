@@ -334,9 +334,11 @@ it("loads project detail by the accepted ID path", async () => {
   );
 });
 it("shows a text-only Setting tab in the Project section navigation", async () => {
-  api.mockImplementation(async (path) =>
-    path === "/auth/me" ? user : project,
-  );
+  api.mockImplementation(async (path) => {
+    if (path.endsWith("/settings-access")) return { canUpdateProject: true };
+    if (path.endsWith("/visibility")) return { canManageVisibility: true };
+    return path === "/auth/me" ? user : project;
+  });
   mount(<ProjectDetail projectId="p1" />);
 
   const settingTab = await screen.findByRole("tab", { name: "Setting" });
@@ -618,6 +620,7 @@ it("renders detail overview and context from backend metadata", async () => {
 it("switches member management inline without navigating away from Project details", async () => {
   api.mockImplementation(async (path) => {
     if (path === "/auth/me") return user;
+    if (path.endsWith("/member-candidates")) return { data: [] };
     if (path.includes("/memberships")) return list([]);
     return project;
   });
@@ -786,14 +789,14 @@ it("hides metadata if making private removes the actor's PUBLIC-only read access
 it("does not grant visibility management from ADMIN client roles", async () => {
   api.mockImplementation(async (path) => {
     if (path === "/auth/me") return { ...user, roles: ["ADMIN"] };
-    if (path.endsWith("/visibility"))
+    if (path.endsWith("/visibility") || path.endsWith("/settings-access"))
       throw new ApiError(403, undefined, "Denied");
     return project;
   });
   mount(<ProjectDetail projectId="p1" />);
-  await openSettingsTab();
-  expect(await screen.findByRole("alert")).toHaveTextContent("permission");
-  expect(screen.getByRole("button", { name: "Make public" })).toBeDisabled();
+  await screen.findByRole("tab", { name: "Overview" });
+  expect(screen.queryByRole("tab", { name: "Setting" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Make public" })).not.toBeInTheDocument();
   expect(
     api.mock.calls.some(([, options]) => options?.method === "PATCH"),
   ).toBe(false);

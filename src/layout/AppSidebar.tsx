@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useOrganizationOptionsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
+import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { Link, usePathname } from "@/i18n/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
@@ -55,6 +57,16 @@ function safeClampWidth(width: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
 }
 
+function ProjectSettingsNavigation({ organizationId, projectId, active, children }: {
+  organizationId: string;
+  projectId: string;
+  active: boolean;
+  children: ReactNode;
+}) {
+  const access = useProjectManagementAccess(organizationId, projectId, active);
+  return access.canAccessSettings ? children : null;
+}
+
 const AppSidebar: React.FC = () => {
   const {
     isExpanded,
@@ -69,7 +81,8 @@ const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const t = useTranslations("sidebar");
   const currentUser = useCurrentUserQuery();
-  const organizationId = currentUser.data?.organizationId;
+  const visibleUser = isAccessOrResourceUnavailableError(currentUser.error) ? undefined : currentUser.data;
+  const organizationId = visibleUser?.organizationId;
   const organizations = useOrganizationOptionsQuery(Boolean(currentUser.data));
   const organizationName = organizations.data?.find(
     (organization) => organization.id === organizationId,
@@ -321,7 +334,7 @@ const AppSidebar: React.FC = () => {
     };
   }, []);
 
-  const canViewMembers = canReadOrganizationMemberships(currentUser.data);
+  const canViewMembers = canReadOrganizationMemberships(visibleUser);
   const visiblePrimaryItems = primaryItems.filter(
     (item) => item.key !== "overview" || canViewMembers,
   );
@@ -631,7 +644,7 @@ const AppSidebar: React.FC = () => {
                         >
                           {projectSubItems.map((subItem) => {
                             const SubIcon = subItem.icon;
-                            return (
+                            const navigationItem = (
                               <li key={subItem.key}>
                                 <Link
                                   href={subItem.href}
@@ -672,6 +685,11 @@ const AppSidebar: React.FC = () => {
                                 </Link>
                               </li>
                             );
+                            return subItem.key === "settings" ? (
+                              <ProjectSettingsNavigation key={subItem.key} organizationId={organizationId ?? ""} projectId={project.id} active={project.status === "ACTIVE" && Boolean(visibleUser)}>
+                                {navigationItem}
+                              </ProjectSettingsNavigation>
+                            ) : navigationItem;
                           })}
                         </ul>
                       )}
