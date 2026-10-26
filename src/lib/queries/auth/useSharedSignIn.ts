@@ -8,8 +8,11 @@ export function useSignInSessionQuery() {
     queryKey: authKeys.session(),
     queryFn: loadSignInSession,
     retry: false,
+    retryOnMount: false,
     staleTime: 0,
+    refetchOnMount: (query) => query.getObserversCount() <= 1,
     refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 
