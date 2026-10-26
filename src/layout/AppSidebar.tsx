@@ -747,15 +747,15 @@ const AppSidebar: React.FC = () => {
         )}
 
         <nav aria-label={t("navigation")} className="flex flex-col gap-3 pb-3">
-          <section aria-labelledby="sidebar-workspace">
+          <section aria-labelledby="sidebar-organization">
             <h2
-              id="sidebar-workspace"
+              id="sidebar-organization"
               className={cn(
                 "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
                 !isExpandedView && "sr-only",
               )}
             >
-              {t("groups.workspace")}
+              {t("groups.organization")}
             </h2>
             <ul className="flex flex-col gap-0.5">
               {visiblePrimaryItems.map(renderItem)}

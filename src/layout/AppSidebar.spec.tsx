@@ -150,6 +150,7 @@ vi.mock("next-intl", () => ({
         "sidebar.projectNavigation": "Project navigation",
         "sidebar.brandLabel": "Continuum AI home",
         "sidebar.groups.project": "Project",
+        "sidebar.groups.organization": "Organization",
         "sidebar.groups.workspace": "Workspace",
         "sidebar.items.dashboard": "Dashboard",
         "sidebar.groups.administration": "Administration",
@@ -414,7 +415,7 @@ describe("AppSidebar navigation", () => {
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
     ).toEqual(["Dashboard", "Projects", "Chat", "Members", "Settings"]);
-    expect(within(nav).getByRole("region", { name: "Workspace" })).toBeInTheDocument();
+    expect(within(nav).getByRole("region", { name: "Organization" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
     ).not.toBeInTheDocument();
