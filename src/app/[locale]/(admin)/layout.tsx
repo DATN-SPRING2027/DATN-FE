@@ -24,7 +24,9 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const common = useTranslations("common");
-  const isChat = pathname === "/chat";
+  const isAiChat =
+    pathname === "/ai-chat" || pathname.startsWith("/ai-chat/");
+  const isChat = pathname === "/chat" || isAiChat;
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -179,7 +181,7 @@ export default function AdminLayout({
           </div>
         </div>
       </div>
-      <ContinuumAiCompanion />
+      {!isAiChat && <ContinuumAiCompanion />}
     </div>
   );
 }
