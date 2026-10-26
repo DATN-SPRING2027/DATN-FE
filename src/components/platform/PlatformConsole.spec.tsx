@@ -45,6 +45,8 @@ const {
     isFetching: false,
     isError: false,
     isSuccess: true,
+    isStale: false,
+    refetch: vi.fn(),
   },
   organizations: {
     data: {
@@ -337,6 +339,8 @@ vi.mock("next-intl", () => ({
         };
         return labels[key] ?? key;
       }
+      if (namespace === "platformUserActions" && key === "close")
+        return "Close";
       if (namespace === "platformUserActions" && key === "restore")
         return "Restore account";
       return values ? `${key} ${Object.values(values).join(" ")}` : key;
@@ -402,6 +406,8 @@ describe("PlatformConsole", () => {
   });
 
   beforeEach(() => {
+    session.isStale = false;
+    session.refetch.mockReset();
     routerReplace.mockReset();
     pathname.value = "/platform/memberships";
     Object.assign(session, { error: undefined });
@@ -548,9 +554,7 @@ describe("PlatformConsole", () => {
       screen.getByRole("button", { name: `Actions for ${user.fullName}` }),
     );
 
-    fireEvent.pointerDown(
-      screen.getByRole("combobox"),
-    );
+    fireEvent.pointerDown(screen.getByRole("combobox"));
 
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
@@ -1208,6 +1212,19 @@ describe("PlatformConsole", () => {
     ).toBeInTheDocument();
   });
 
+  it("rechecks stale sessions on route changes while keeping the Console mounted", () => {
+    const { rerender } = render(<PlatformConsole />);
+    pathname.value = "/platform/projects";
+    rerender(<PlatformConsole />);
+    expect(session.refetch).not.toHaveBeenCalled();
+    session.isStale = true;
+    pathname.value = "/platform/users";
+    rerender(<PlatformConsole />);
+    expect(session.refetch).toHaveBeenCalledTimes(1);
+    rerender(<PlatformConsole />);
+    expect(session.refetch).toHaveBeenCalledTimes(1);
+  });
+
   it("connects the Projects route only when its Platform read permission is present", () => {
     pathname.value = "/platform/projects";
     session.data.permissions = ["platform.projects.project.read"];
@@ -1216,9 +1233,9 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("heading", { name: "pages.projects.title" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("No projects")).toBeInTheDocument();
+    expect(screen.getByText("emptyTitle")).toBeInTheDocument();
     expect(operationHooks.usePlatformProjectsQuery).toHaveBeenCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 25 }),
+      expect.objectContaining({ page: 1, pageSize: 10 }),
       true,
     );
   });

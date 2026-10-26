@@ -247,19 +247,6 @@
   font-weight: 400;
   font-size: 0.85rem;
 }
-.field input:focus {
-  background: var(--auth-surface);
-  border-color: var(--color-brand-500);
-  outline: none;
-  box-shadow: 0 0 0 4px
-    color-mix(in srgb, var(--color-brand-400) 18%, transparent);
-}
-.field:focus-within > label {
-  color: var(--color-brand-600);
-}
-:global(.dark) .field:focus-within > label {
-  color: var(--color-brand-300);
-}
 .fieldIcon {
   pointer-events: none;
   position: absolute;
