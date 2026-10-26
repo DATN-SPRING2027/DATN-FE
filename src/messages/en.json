@@ -153,7 +153,7 @@
       },
       "projects": {
         "title": "Project management",
-        "description": "Platform-scoped Project metadata and access policy are not available in the current API."
+        "description": "Browse projects across organizations. Review visibility, status, members and project details."
       },
       "security": {
         "title": "Sessions & security",
@@ -3629,6 +3629,7 @@
     "sortCreated": "Created date"
   },
   "platformUserActions": {
+    "close": "Close",
     "restore": "Restore account",
     "restoreTitle": "Restore archived user?",
     "restoreDescription": "This clears the archive marker and returns the user to the directory as suspended. The account stays suspended and cannot sign in until a separate Reactivate action is used.",
@@ -4120,5 +4121,35 @@
     "auditEventVisibility": "Project visibility and archive lifecycle changes",
     "auditPrivacyNote": "Audit entries record actor identity, timestamp, and safe field diffs while redacting passwords, tokens, and confidential content."
   },
-  "accountOnboarding": {}
+  "accountOnboarding": {},
+  "platformProjectDirectory": {
+    "title": "Projects",
+    "denied": "Your Platform session does not grant access to projects.",
+    "visibilityFilter": "Project visibility",
+    "allProjects": "All projects",
+    "PRIVATE": "Private",
+    "PUBLIC": "Public",
+    "ACTIVE": "Active",
+    "ARCHIVED": "Archived",
+    "search": "Search projects",
+    "searchPlaceholder": "Search projects by name or code",
+    "sortBy": "Sort projects",
+    "sortName": "Name: A–Z",
+    "sortOrganization": "Organization: A–Z",
+    "sortCreated": "Newest first",
+    "sortNote": "Sorting applies to the current page.",
+    "project": "Project",
+    "organization": "Organization",
+    "visibility": "Visibility",
+    "status": "Status",
+    "members": "Members",
+    "created": "Created",
+    "actions": "Actions",
+    "details": "Details",
+    "detailsFor": "View details for {name}",
+    "close": "Close",
+    "emptyTitle": "No projects",
+    "noMatches": "No projects match your search and visibility filters. Try changing the filters.",
+    "emptyBody": "Projects will appear here when they are available."
+  }
 }

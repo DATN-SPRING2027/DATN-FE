@@ -1,0 +1,42 @@
+.detail.detail.detail {
+  --color-black: black;
+  max-width: 40rem;
+  border-radius: var(--radius-sm);
+  background: var(--color-white);
+  color: var(--color-black);
+}
+
+.detail.detail * {
+  color: var(--color-black);
+}
+
+.detail.detail select {
+  background: var(--color-white);
+}
+
+.detail.detail h2 {
+  font-size: 1.125rem;
+  line-height: 1.5;
+}
+
+.detail.detail .close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-block: -0.5rem;
+  margin-inline-end: -0.5rem;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  cursor: pointer;
+}
+
+.close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}

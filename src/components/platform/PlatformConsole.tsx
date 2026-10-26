@@ -1,5 +1,7 @@
 "use client";
 
+import { CloseIcon } from "@/icons";
+import dialogStyles from "./ui/platformDialog.module.css";
 import PlatformAuditProjection from "@/components/platform/PlatformAuditProjection";
 import PlatformDashboard from "@/components/platform/PlatformDashboard";
 import PlatformMembershipDirectory from "@/components/platform/PlatformMembershipDirectory";
@@ -29,7 +31,7 @@ import {
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 const sectionIds = [
   "dashboard",
@@ -83,6 +85,14 @@ export default function PlatformConsole() {
     routeOrganizationId,
   );
   const session = usePlatformSessionQuery();
+  const previousPath = useRef(pathname);
+  const { isStale: isSessionStale, refetch: refetchSession } = session;
+  useEffect(() => {
+    if (previousPath.current === pathname) return;
+    previousPath.current = pathname;
+    // Keep the existing freshness check without remounting the Console.
+    if (isSessionStale) void refetchSession();
+  }, [pathname, isSessionStale, refetchSession]);
   const logout = usePlatformLogoutMutation();
   const canReadOrganizations = has(
     session.data,
@@ -275,7 +285,7 @@ export default function PlatformConsole() {
       {session.data &&
         !isReadAccessLost(session.error) &&
         (session.isFetching || session.isRefetchError) && (
-          <div className="mb-4">
+          <div className={session.isRefetchError ? "mb-4" : "sr-only"}>
             <QueryRefreshStatus
               hasData
               isFetching={session.isFetching}
@@ -496,21 +506,24 @@ export default function PlatformConsole() {
                 </Button>
               </div>
 
-              {health.data !== undefined && !isReadAccessLost(health.error) && (health.isFetching || health.isRefetchError) && (
-                <div className="px-5 pt-4">
-                  <QueryRefreshStatus
-                    hasData
-                    isFetching={health.isFetching}
-                    isRefetchError={health.isRefetchError}
-                    onRetry={() => void health.refetch()}
-                  />
-                </div>
-              )}
+              {health.data !== undefined &&
+                !isReadAccessLost(health.error) &&
+                (health.isFetching || health.isRefetchError) && (
+                  <div className="px-5 pt-4">
+                    <QueryRefreshStatus
+                      hasData
+                      isFetching={health.isFetching}
+                      isRefetchError={health.isRefetchError}
+                      onRetry={() => void health.refetch()}
+                    />
+                  </div>
+                )}
               {health.isPending && !health.data ? (
                 <p role="status" className="px-5 py-8 text-xs text-gray-500">
                   {t("health.checking")}
                 </p>
-              ) : health.isError && (!health.data || isReadAccessLost(health.error)) ? (
+              ) : health.isError &&
+                (!health.data || isReadAccessLost(health.error)) ? (
                 <QueryError
                   message={t("errors.health")}
                   onRetry={() => void health.refetch()}
@@ -658,11 +671,20 @@ export default function PlatformConsole() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="suspend-title"
-            className="animate-in fade-in zoom-in-95 w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xl duration-150 dark:border-gray-800 dark:bg-gray-900"
+            className={`${dialogStyles.surface} ${dialogStyles.confirmation} relative`}
           >
+            <button
+              type="button"
+              aria-label={t("cancel")}
+              className={`${dialogStyles.close} absolute end-3 top-3`}
+              disabled={suspend.isPending}
+              onClick={() => setSuspendTarget(null)}
+            >
+              <CloseIcon aria-hidden="true" />
+            </button>
             <h2
               id="suspend-title"
-              className="text-base font-bold text-gray-900 dark:text-white"
+              className="pe-10 text-base font-bold text-gray-900 dark:text-white"
             >
               {t("memberships.confirmTitle")}
             </h2>

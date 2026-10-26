@@ -11,7 +11,7 @@ import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import UserDirectory from "./users/UserDirectory";
 import type { PlatformUserAction } from "@/components/platform/PlatformUserActionsMenu";
-import { UserCircleIcon } from "@/icons";
+import { CloseIcon, UserCircleIcon } from "@/icons";
 import {
   ErrorState,
   Loading,
@@ -400,9 +400,10 @@ export default function PlatformUsersDirectory({
                   ref={userDetailCloseButtonRef}
                   type="button"
                   onClick={closeUserDetails}
-                  className="shrink-0 cursor-pointer rounded-lg border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                  aria-label={t("close")}
+                  className={dialogStyles.close}
                 >
-                  Close
+                  <CloseIcon aria-hidden="true" />
                 </button>
               </header>
               <div
@@ -424,7 +425,8 @@ export default function PlatformUsersDirectory({
                 {selectedUser.isPending && !selectedUser.data ? (
                   <Loading columns={3} />
                 ) : selectedUser.isError &&
-                  (!selectedUser.data || isReadAccessLost(selectedUser.error)) ? (
+                  (!selectedUser.data ||
+                    isReadAccessLost(selectedUser.error)) ? (
                   <ErrorState retry={() => void selectedUser.refetch()} />
                 ) : (
                   <>
@@ -732,7 +734,9 @@ export default function PlatformUsersDirectory({
                                   <QueryRefreshStatus
                                     hasData
                                     isFetching={selectedSession.isFetching}
-                                    isRefetchError={selectedSession.isRefetchError}
+                                    isRefetchError={
+                                      selectedSession.isRefetchError
+                                    }
                                     onRetry={() =>
                                       void selectedSession.refetch()
                                     }
@@ -818,6 +822,15 @@ export default function PlatformUsersDirectory({
                         and organization roles are not changed.
                       </p>
                     </div>
+                    <button
+                      type="button"
+                      aria-label={t("close")}
+                      className={dialogStyles.close}
+                      disabled={updateUserProfile.isPending}
+                      onClick={closeEditProfile}
+                    >
+                      <CloseIcon aria-hidden="true" />
+                    </button>
                   </header>
                   <form
                     className="space-y-5 p-5 sm:p-7"
@@ -903,7 +916,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeStatusConfirmation}
                 showCloseButton={false}
-                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
               >
                 <section
                   role="dialog"
@@ -911,7 +924,16 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-user-status-title"
                   className="space-y-5"
                 >
-                  <header className="space-y-1 pe-10">
+                  <header className="relative space-y-1 pe-10">
+                    <button
+                      type="button"
+                      aria-label={t("close")}
+                      className={`${dialogStyles.close} absolute end-0 top-0`}
+                      disabled={changeUserStatus.isPending}
+                      onClick={closeStatusConfirmation}
+                    >
+                      <CloseIcon aria-hidden="true" />
+                    </button>
                     <h2
                       id="platform-user-status-title"
                       className="text-lg font-semibold text-gray-900 dark:text-white"
@@ -966,7 +988,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeArchiveConfirmation}
                 showCloseButton={false}
-                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
               >
                 <section
                   role="dialog"
@@ -974,7 +996,16 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-user-archive-title"
                   className="space-y-5"
                 >
-                  <header className="space-y-1 pe-10">
+                  <header className="relative space-y-1 pe-10">
+                    <button
+                      type="button"
+                      aria-label={t("close")}
+                      className={`${dialogStyles.close} absolute end-0 top-0`}
+                      disabled={archiveUser.isPending}
+                      onClick={closeArchiveConfirmation}
+                    >
+                      <CloseIcon aria-hidden="true" />
+                    </button>
                     <h2
                       id="platform-user-archive-title"
                       className="text-lg font-semibold text-gray-900 dark:text-white"
@@ -1041,7 +1072,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeRestoreConfirmation}
                 showCloseButton={false}
-                className="mx-3 max-w-lg border border-gray-200 p-6 shadow-theme-lg dark:border-gray-800"
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
               >
                 <section
                   role="dialog"
@@ -1049,7 +1080,16 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-user-restore-title"
                   className="space-y-5"
                 >
-                  <header className="space-y-1 pe-10">
+                  <header className="relative space-y-1 pe-10">
+                    <button
+                      type="button"
+                      aria-label={t("close")}
+                      className={`${dialogStyles.close} absolute end-0 top-0`}
+                      disabled={restoreUser.isPending}
+                      onClick={closeRestoreConfirmation}
+                    >
+                      <CloseIcon aria-hidden="true" />
+                    </button>
                     <h2
                       id="platform-user-restore-title"
                       className="text-lg font-semibold text-gray-900 dark:text-white"

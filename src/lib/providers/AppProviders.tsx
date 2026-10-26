@@ -1,6 +1,7 @@
 "use client";
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import InputFocusPolicy from "@/components/form/InputFocusPolicy";
 import { useState } from "react";
 import { ApiError } from "@/lib/api-client";
 import { currentSessionIdentityKey, handleSessionError } from "@/lib/queries/auth/session-errors";
@@ -42,6 +43,6 @@ export function AppProviders({ children }: AppProvidersProps) {
   });
 
   return (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}><InputFocusPolicy />{children}</QueryClientProvider>
   );
 }
