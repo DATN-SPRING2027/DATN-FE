@@ -238,3 +238,35 @@ export function useUpdateProjectMutation(
     },
   });
 }
+
+export function useDeleteProjectMutation(
+  organizationId: string,
+  projectId: string,
+) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationKey: ["project-delete", organizationId, projectId],
+    retry: false,
+    networkMode: "always",
+    mutationFn: async () => {
+      await apiClient<void>(
+        `/iam/projects/${encodeURIComponent(projectId)}`,
+        {
+          method: "DELETE",
+          signal: AbortSignal.timeout(15_000),
+        },
+      );
+    },
+    onSuccess: async () => {
+      await client.cancelQueries({
+        queryKey: projectKeys.detail(organizationId, projectId),
+      });
+      client.removeQueries({
+        queryKey: projectKeys.detail(organizationId, projectId),
+      });
+      await client.invalidateQueries({
+        queryKey: projectKeys.scope(organizationId),
+      });
+    },
+  });
+}

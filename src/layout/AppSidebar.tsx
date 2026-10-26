@@ -1,24 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { useOrganizationOptionsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
+import {
+  useProjectsQuery,
+  type Project,
+} from "@/lib/queries/projects/useProjects";
 import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { useSidebar } from "@/context/SidebarContext";
 import {
   BookOpenIcon,
+  BoxCubeIcon,
   ChatIcon,
-  ChevronDownIcon,
-  DocsIcon,
+  FileIcon,
   FolderIcon,
   GridIcon,
   GroupIcon,
   PlugInIcon,
   SettingsIcon,
   ShootingStarIcon,
+  TaskIcon,
 } from "@/icons/index";
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
@@ -26,11 +37,7 @@ import { isSidebarPathActive } from "@/utils/sidebar-active";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
 import SidebarAccountFooter from "./SidebarAccountFooter";
 import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
-import {
-  SidebarFlyoutPortal,
-  useSidebarFlyoutController,
-  type FlyoutItemConfig,
-} from "./SidebarFlyoutMenu";
+import SidebarProjectSwitcher from "./SidebarProjectSwitcher";
 
 const primaryItems = [
   { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
@@ -57,7 +64,36 @@ function safeClampWidth(width: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
 }
 
-function ProjectSettingsNavigation({ organizationId, projectId, active, children }: {
+function resolveProjectSwitchDestination(
+  pathname: string,
+  nextProjectId: string,
+): string {
+  const encodedId = encodeURIComponent(nextProjectId);
+  const match = /^\/projects\/([^/]+)(?:\/([^/?#]+))?/.exec(pathname);
+  const currentProjectId = match?.[1];
+  const subSection = match?.[2];
+
+  if (
+    currentProjectId &&
+    currentProjectId !== "new" &&
+    (subSection === "overview" ||
+      subSection === "members" ||
+      subSection === "work" ||
+      subSection === "work-notes" ||
+      subSection === "settings")
+  ) {
+    return `/projects/${encodedId}/${subSection}`;
+  }
+
+  return `/projects/${encodedId}/overview`;
+}
+
+function ProjectSettingsNavigation({
+  organizationId,
+  projectId,
+  active,
+  children,
+}: {
   organizationId: string;
   projectId: string;
   active: boolean;
@@ -79,23 +115,32 @@ const AppSidebar: React.FC = () => {
     resetSidebarWidth,
   } = useSidebar();
   const pathname = usePathname();
+  const router = useRouter();
   const t = useTranslations("sidebar");
   const currentUser = useCurrentUserQuery();
-  const visibleUser = isAccessOrResourceUnavailableError(currentUser.error) ? undefined : currentUser.data;
+  const visibleUser = isAccessOrResourceUnavailableError(currentUser.error)
+    ? undefined
+    : currentUser.data;
   const organizationId = visibleUser?.organizationId;
   const organizations = useOrganizationOptionsQuery(Boolean(currentUser.data));
   const organizationName = organizations.data?.find(
     (organization) => organization.id === organizationId,
   )?.name;
+
+  // Mutual exclusion between Organization selector and Project selector (Rule 11)
+  const [openSelector, setOpenSelector] = useState<
+    "organization" | "project" | null
+  >(null);
+
   const projectRouteMatch = /^\/projects\/([^/]+)/.exec(pathname);
-  const activeProjectIdFromPath = projectRouteMatch?.[1]
+  const rawProjectSegment = projectRouteMatch?.[1]
     ? decodeURIComponent(projectRouteMatch[1])
     : null;
-  const [manualProjectsOpen, setManualProjectsOpen] = useState<boolean | null>(
-    null,
-  );
-  const isProjectsOpen =
-    manualProjectsOpen ?? Boolean(activeProjectIdFromPath);
+  const activeProjectIdFromPath =
+    rawProjectSegment && rawProjectSegment !== "new"
+      ? rawProjectSegment
+      : null;
+
   const projectsQuery = useProjectsQuery(
     organizationId ?? "",
     {
@@ -104,17 +149,48 @@ const AppSidebar: React.FC = () => {
       status: "ACTIVE",
     },
     {
-      enabled: isProjectsOpen,
+      enabled: Boolean(organizationId),
       staleTime: 30_000,
       refetchOnWindowFocus: false,
     },
   );
-  const sidebarProjects = projectsQuery.data?.data ?? [];
-  const totalProjects =
-    projectsQuery.data?.pagination?.totalItems ?? sidebarProjects.length;
-  const [toggledProjectIds, setToggledProjectIds] = useState<
-    Record<string, boolean>
+
+  const sidebarProjects = useMemo(() => {
+    if (!organizationId) return [];
+    const list = projectsQuery.data?.data ?? [];
+    return list.filter(
+      (project) =>
+        !project.organizationId || project.organizationId === organizationId,
+    );
+  }, [organizationId, projectsQuery.data?.data]);
+
+  const [selectedProjectByOrg, setSelectedProjectByOrg] = useState<
+    Record<string, string>
   >({});
+
+  const activeProject = useMemo<Project | null>(() => {
+    if (!organizationId || sidebarProjects.length === 0) return null;
+    if (activeProjectIdFromPath) {
+      const fromPath = sidebarProjects.find(
+        (project) => project.id === activeProjectIdFromPath,
+      );
+      if (fromPath) return fromPath;
+    }
+    const rememberedId = selectedProjectByOrg[organizationId];
+    if (rememberedId) {
+      const remembered = sidebarProjects.find(
+        (project) => project.id === rememberedId,
+      );
+      if (remembered) return remembered;
+    }
+    return sidebarProjects[0] ?? null;
+  }, [
+    activeProjectIdFromPath,
+    organizationId,
+    selectedProjectByOrg,
+    sidebarProjects,
+  ]);
+
   const [syncedProjectTab, setSyncedProjectTab] = useState<{
     pathnameAtSync: string;
     projectId: string;
@@ -199,33 +275,36 @@ const AppSidebar: React.FC = () => {
     [setIsResizing],
   );
 
-  const {
-    activeKey,
-    anchorRect,
-    flyoutElRef,
-    registerTrigger,
-    handleTriggerMouseEnter,
-    handleTriggerMouseLeave,
-    handleFlyoutMouseEnter,
-    handleFlyoutMouseLeave,
-    closeFlyout,
-  } = useSidebarFlyoutController({
-    openDelayMs: 175,
-    closeDelayMs: 180,
-  });
-
   // Do NOT expand on mouse hover; only show text labels when expanded (dragged >= 140px) or on mobile drawer
   const isExpandedView = resolvedIsExpanded || isMobileOpen;
   const currentWidthPx = isExpandedView
     ? resolvedExpandedWidth
     : COLLAPSED_WIDTH;
 
+  const handleSelectProject = useCallback(
+    (project: Project) => {
+      if (organizationId) {
+        setSelectedProjectByOrg((prev) => ({
+          ...prev,
+          [organizationId]: project.id,
+        }));
+      }
+      const destination = resolveProjectSwitchDestination(pathname, project.id);
+      if (typeof router.push === "function") {
+        router.push(destination);
+      } else {
+        router.replace(destination);
+      }
+    },
+    [organizationId, pathname, router],
+  );
+
   const handleResizeMouseDown = useCallback(
     (event: React.MouseEvent<HTMLDivElement>) => {
       if (event.button !== 0) return;
       event.preventDefault();
       event.stopPropagation();
-      closeFlyout();
+      setOpenSelector(null);
 
       cleanupResizeRef.current?.();
       updateResizing(true);
@@ -276,7 +355,6 @@ const AppSidebar: React.FC = () => {
       window.addEventListener("mouseup", handleMouseUp);
     },
     [
-      closeFlyout,
       resolvedIsExpanded,
       updateExpanded,
       updateResizing,
@@ -343,412 +421,125 @@ const AppSidebar: React.FC = () => {
       (item.key !== "members" && item.key !== "settings") || canViewMembers,
   );
 
-  const flyoutConfigs = useMemo<Record<string, FlyoutItemConfig>>(
-    () => ({
-      overview: {
-        key: "overview",
-        title: t("items.overview"),
-        subtitle: organizationName ?? t("organizationLabel"),
-        primaryHref: "/dashboard",
-        primaryCtaLabel: "Open",
-        quickLinks: [
-          {
-            id: "org-dashboard",
-            label: "Organization Dashboard",
-            description: "Workspace summary, active projects, and recent activity",
-            href: "/dashboard",
-          },
-          {
-            id: "org-projects",
-            label: "Projects Directory",
-            description: "Browse and filter all organization projects",
-            href: "/projects",
-          },
-        ],
-      },
-      chat: {
-        key: "chat",
-        title: t("items.chat"),
-        subtitle: "Real-time team & project messaging",
-        primaryHref: "/chat",
-        primaryCtaLabel: "Open Chat",
-        quickLinks: [
-          {
-            id: "chat-channels",
-            label: "Channels & Direct Messages",
-            description: "Collaborate with organization and project members",
-            href: "/chat",
-            badge: "Live",
-          },
-        ],
-      },
-      members: {
-        key: "members",
-        title: t("items.members"),
-        subtitle: "Organization roster & invitations",
-        primaryHref: "/organization/members",
-        primaryCtaLabel: "Manage",
-        quickLinks: [
-          {
-            id: "members-directory",
-            label: "Active Members",
-            description: "Review roles, permissions, and membership status",
-            href: "/organization/members",
-          },
-          {
-            id: "members-invitations",
-            label: "Pending Invitations",
-            description: "Invite new members or resend pending invites",
-            href: "/organization/members?tab=invitations",
-          },
-        ],
-      },
-      settings: {
-        key: "settings",
-        title: t("items.settings"),
-        subtitle: "Governance, roles & workspace policies",
-        primaryHref: "/organization/settings",
-        primaryCtaLabel: "Configure",
-        quickLinks: [
-          {
-            id: "settings-general",
-            label: "Organization Profile & Policies",
-            description: "Manage organization details, roles, and project governance",
-            href: "/organization/settings",
-          },
-        ],
-      },
-    }),
-    [organizationName, t],
-  );
+  const projectSubItems = useMemo(() => {
+    if (!activeProject) return [];
+    const projectBasePath = `/projects/${activeProject.id}`;
+    const projectOverviewPath = `${projectBasePath}/overview`;
+    const projectMembersPath = `${projectBasePath}/members`;
+    const projectWorkPath = `${projectBasePath}/work`;
+    const projectWorkNotesPath = `${projectBasePath}/work-notes`;
+    const projectSettingsPath = `${projectBasePath}/settings`;
 
-  const activeFlyoutConfig =
-    activeKey && !activeIsResizing ? (flyoutConfigs[activeKey] ?? null) : null;
+    const isThisProjectInPath = activeProjectIdFromPath === activeProject.id;
+    const isProjectWorkActive =
+      isThisProjectInPath &&
+      (pathname === projectWorkPath ||
+        pathname.startsWith(`${projectWorkPath}/`));
+    const isProjectWorkNotesActive =
+      isThisProjectInPath &&
+      (pathname === projectWorkNotesPath ||
+        pathname.startsWith(`${projectWorkNotesPath}/`));
+    const activeSyncedTab =
+      isThisProjectInPath &&
+      syncedProjectTab?.pathnameAtSync === pathname &&
+      syncedProjectTab.projectId === activeProject.id &&
+      !isProjectWorkActive &&
+      !isProjectWorkNotesActive
+        ? syncedProjectTab.tab
+        : null;
+    const isProjectMembersActive = isThisProjectInPath
+      ? activeSyncedTab
+        ? activeSyncedTab === "members"
+        : pathname === projectMembersPath ||
+          pathname.startsWith(`${projectMembersPath}/`)
+      : false;
+    const isProjectSettingsActive = isThisProjectInPath
+      ? activeSyncedTab
+        ? activeSyncedTab === "settings"
+        : pathname === projectSettingsPath ||
+          pathname.startsWith(`${projectSettingsPath}/`)
+      : false;
+    const isProjectOverviewActive = isThisProjectInPath
+      ? activeSyncedTab
+        ? activeSyncedTab === "overview"
+        : pathname === projectBasePath ||
+          pathname === projectOverviewPath ||
+          pathname.startsWith(`${projectOverviewPath}/`)
+      : false;
+
+    return [
+      {
+        key: "overview",
+        label: t("items.projectOverview"),
+        href: projectOverviewPath,
+        isActive: isProjectOverviewActive,
+        icon: BoxCubeIcon,
+        viewBox: "1.5 1.5 21 21",
+        tab: "overview" as const,
+      },
+      {
+        key: "members",
+        label: t("items.projectMembers"),
+        href: projectMembersPath,
+        isActive: isProjectMembersActive,
+        icon: GroupIcon,
+        viewBox: "0.5 0.5 23 23",
+        tab: "members" as const,
+      },
+      {
+        key: "workspace",
+        label: t("items.workspace"),
+        href: projectWorkPath,
+        isActive: isProjectWorkActive,
+        icon: TaskIcon,
+        viewBox: "0.5 0.5 23 23",
+      },
+      {
+        key: "workNotes",
+        label: t("items.projectWorkNotes"),
+        href: projectWorkNotesPath,
+        isActive: isProjectWorkNotesActive,
+        icon: FileIcon,
+        viewBox: "1 0.5 23 23",
+      },
+      {
+        key: "settings",
+        label: t("items.projectSettings"),
+        href: projectSettingsPath,
+        isActive: isProjectSettingsActive,
+        icon: SettingsIcon,
+        viewBox: "0 0 24 24",
+        tab: "settings" as const,
+      },
+    ];
+  }, [activeProject, activeProjectIdFromPath, pathname, syncedProjectTab, t]);
 
   const renderItem = (
     item: (typeof primaryItems)[number] | (typeof administrationItems)[number],
   ) => {
-    const label = t(`items.${item.key}`);
+    const label =
+      item.key === "overview" ? t("items.dashboard") : t(`items.${item.key}`);
     const Icon = item.icon;
     const iconViewBox = item.viewBox;
-    const hasFlyout = "path" in item && Boolean(flyoutConfigs[item.key]);
-    const isFlyoutOpen = activeKey === item.key && !activeIsResizing;
-
-    if (item.key === "projects") {
-      const isActive = isSidebarPathActive(item.path, pathname);
-      return (
-        <li key={item.key}>
-          <div className="relative flex items-center">
-            <Link
-              href={item.path}
-              aria-label={label}
-              aria-current={isActive ? "page" : undefined}
-              title={!isExpandedView ? label : undefined}
-              onClick={() =>
-                setManualProjectsOpen(
-                  (prev) => !(prev ?? Boolean(activeProjectIdFromPath)),
-                )
-              }
-              className={cn(
-                "group menu-item h-8 min-h-8 w-full focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
-                isActive
-                  ? "menu-item-active"
-                  : "menu-item-inactive",
-                isExpandedView ? "pe-8" : "justify-center px-1.5",
-              )}
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "menu-item-icon",
-                  isActive
-                    ? "menu-item-icon-active"
-                    : "menu-item-icon-inactive",
-                )}
-              >
-                <Icon
-                  viewBox={iconViewBox}
-                  preserveAspectRatio="xMidYMid meet"
-                  className="size-[18px] shrink-0"
-                />
-              </span>
-              {isExpandedView && (
-                <span className="menu-item-text">{label}</span>
-              )}
-            </Link>
-            {isExpandedView && (
-              <button
-                type="button"
-                aria-label={t("projectsDropdownToggle")}
-                aria-expanded={isProjectsOpen}
-                onClick={() =>
-                  setManualProjectsOpen(
-                    (prev) => !(prev ?? Boolean(activeProjectIdFromPath)),
-                  )
-                }
-                className={cn(
-                  "absolute end-1.5 inline-flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                  isActive
-                    ? "text-brand-600 hover:bg-brand-100/70 dark:text-brand-300 dark:hover:bg-brand-500/20"
-                    : "text-gray-400 hover:bg-gray-200/70 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-200",
-                )}
-              >
-                <ChevronDownIcon
-                  viewBox="0 0 20 20"
-                  className={cn(
-                    "h-4 w-4 transition-transform duration-200",
-                    isProjectsOpen && "rotate-180",
-                  )}
-                />
-              </button>
-            )}
-          </div>
-
-          {isExpandedView && isProjectsOpen && (
-            <ul
-              role="group"
-              aria-label={t("projectsSubmenuLabel")}
-              className="continuum-accordion-open mt-1.5 ms-4 flex flex-col gap-1 border-s border-gray-200 ps-2.5 dark:border-gray-800"
-            >
-              {projectsQuery.isLoading ? (
-                <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {t("projectsLoading")}
-                </li>
-              ) : sidebarProjects.length === 0 ? (
-                <li className="px-2.5 py-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {t("projectsEmpty")}
-                </li>
-              ) : (
-                sidebarProjects.map((project) => {
-                  const isProjectExpanded =
-                    toggledProjectIds[project.id] ??
-                    activeProjectIdFromPath === project.id;
-                  const projectBasePath = `/projects/${project.id}`;
-                  const projectOverviewPath = `${projectBasePath}/overview`;
-                  const projectMembersPath = `${projectBasePath}/members`;
-                  const projectWorkPath = `${projectBasePath}/work`;
-                  const projectWorkNotesPath = `${projectBasePath}/work-notes`;
-                  const projectSettingsPath = `${projectBasePath}/settings`;
-                  const isProjectWorkActive =
-                    pathname === projectWorkPath ||
-                    pathname.startsWith(`${projectWorkPath}/`);
-                  const isProjectWorkNotesActive =
-                    pathname === projectWorkNotesPath ||
-                    pathname.startsWith(`${projectWorkNotesPath}/`);
-                  const activeSyncedTab =
-                    syncedProjectTab?.pathnameAtSync === pathname &&
-                    syncedProjectTab.projectId === project.id &&
-                    !isProjectWorkActive &&
-                    !isProjectWorkNotesActive
-                      ? syncedProjectTab.tab
-                      : null;
-                  const isProjectMembersActive = activeSyncedTab
-                    ? activeSyncedTab === "members"
-                    : pathname === projectMembersPath ||
-                      pathname.startsWith(`${projectMembersPath}/`);
-                  const isProjectSettingsActive = activeSyncedTab
-                    ? activeSyncedTab === "settings"
-                    : pathname === projectSettingsPath ||
-                      pathname.startsWith(`${projectSettingsPath}/`);
-                  const isProjectOverviewActive = activeSyncedTab
-                    ? activeSyncedTab === "overview"
-                    : pathname === projectBasePath ||
-                      pathname === projectOverviewPath ||
-                      pathname.startsWith(`${projectOverviewPath}/`);
-                  const isThisProjectActive =
-                    activeProjectIdFromPath === project.id;
-                  const projectSubItems = [
-                    {
-                      key: "overview",
-                      label: t("items.projectOverview"),
-                      href: projectOverviewPath,
-                      isActive: isProjectOverviewActive,
-                      icon: GridIcon, viewBox: "1.5 1.5 21 21",
-                      tab: "overview" as const,
-                    },
-                    {
-                      key: "members",
-                      label: t("items.projectMembers"),
-                      href: projectMembersPath,
-                      isActive: isProjectMembersActive,
-                      icon: GroupIcon, viewBox: "0.5 0.5 23 23",
-                      tab: "members" as const,
-                    },
-                    {
-                      key: "workspace",
-                      label: t("items.workspace"),
-                      href: projectWorkPath,
-                      isActive: isProjectWorkActive,
-                      icon: DocsIcon, viewBox: "0.5 0.5 23 23",
-                    },
-                    {
-                      key: "workNotes",
-                      label: t("items.projectWorkNotes"),
-                      href: projectWorkNotesPath,
-                      isActive: isProjectWorkNotesActive,
-                      icon: BookOpenIcon, viewBox: "0.5 1.5 23 23",
-                    },
-                    {
-                      key: "settings",
-                      label: t("items.projectSettings"),
-                      href: projectSettingsPath,
-                      isActive: isProjectSettingsActive,
-                      icon: SettingsIcon, viewBox: "0 0 24 24",
-                      tab: "settings" as const,
-                    },
-                  ];
-
-                  return (
-                    <li key={project.id} className="flex flex-col gap-1">
-                      <button
-                        type="button"
-                        aria-expanded={isProjectExpanded}
-                        aria-label={t("projectDropdownToggle", {
-                          name: project.name,
-                        })}
-                        onClick={() =>
-                          setToggledProjectIds((prev) => ({
-                            ...prev,
-                            [project.id]: !isProjectExpanded,
-                          }))
-                        }
-                        className={cn(
-                          "flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                          isThisProjectActive
-                            ? "bg-brand-50/70 text-brand-700 dark:bg-brand-500/10 dark:text-brand-300"
-                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5",
-                        )}
-                      >
-                        <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-[10px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                          {project.code.slice(0, 2).toUpperCase()}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">
-                          {project.name}
-                        </span>
-                        <ChevronDownIcon
-                          viewBox="0 0 20 20"
-                          className={cn(
-                            "h-3.5 w-3.5 shrink-0 text-gray-400 transition-transform duration-200 dark:text-gray-500",
-                            isProjectExpanded && "rotate-180",
-                          )}
-                        />
-                      </button>
-
-                      {isProjectExpanded && (
-                        <ul
-                          role="group"
-                          aria-label={t("projectActionsLabel", {
-                            name: project.name,
-                          })}
-                          className="continuum-accordion-open ms-3.5 flex flex-col gap-0.5 border-s border-gray-200 ps-2 dark:border-gray-800"
-                        >
-                          {projectSubItems.map((subItem) => {
-                            const SubIcon = subItem.icon;
-                            const navigationItem = (
-                              <li key={subItem.key}>
-                                <Link
-                                  href={subItem.href}
-                                  aria-current={
-                                    subItem.isActive ? "page" : undefined
-                                  }
-                                  onClick={() => {
-                                    if (subItem.tab) {
-                                      setSyncedProjectTab({
-                                        pathnameAtSync: pathname,
-                                        projectId: project.id,
-                                        tab: subItem.tab,
-                                      });
-                                      window.dispatchEvent(
-                                        new CustomEvent(
-                                          "continuum:project-tab-change",
-                                          {
-                                            detail: {
-                                              projectId: project.id,
-                                              tab: subItem.tab,
-                                            },
-                                          },
-                                        ),
-                                      );
-                                    }
-                                  }}
-                                  className={cn(
-                                    "flex min-h-8 items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                                    subItem.isActive
-                                      ? "bg-brand-50 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/5 dark:hover:text-gray-200",
-                                  )}
-                                >
-                                  <SubIcon viewBox={subItem.viewBox} className="h-3.5 w-3.5 shrink-0" />
-                                  <span className="truncate">
-                                    {subItem.label}
-                                  </span>
-                                </Link>
-                              </li>
-                            );
-                            return subItem.key === "settings" ? (
-                              <ProjectSettingsNavigation key={subItem.key} organizationId={organizationId ?? ""} projectId={project.id} active={project.status === "ACTIVE" && Boolean(visibleUser)}>
-                                {navigationItem}
-                              </ProjectSettingsNavigation>
-                            ) : navigationItem;
-                          })}
-                        </ul>
-                      )}
-                    </li>
-                  );
-                })
-              )}
-              {projectsQuery.data &&
-                totalProjects > sidebarProjects.length && (
-                  <li>
-                    <Link
-                      href="/projects"
-                      className="flex min-h-8 items-center rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
-                    >
-                      {t("items.projects")}
-                    </Link>
-                  </li>
-                )}
-            </ul>
-          )}
-        </li>
-      );
-    }
+    const isItemActive =
+      "path" in item
+        ? item.key === "projects"
+          ? pathname === "/projects" || pathname === "/projects/new"
+          : isSidebarPathActive(item.path, pathname)
+        : false;
 
     return (
-      <li
-        key={item.key}
-        ref={(element) => {
-          if (hasFlyout) {
-            registerTrigger(item.key, element);
-          }
-        }}
-        onMouseEnter={() => {
-          if (hasFlyout && !activeIsResizing) {
-            handleTriggerMouseEnter(item.key);
-          }
-        }}
-        onMouseLeave={(event) => {
-          if (hasFlyout && !activeIsResizing) {
-            handleTriggerMouseLeave(item.key, event);
-          }
-        }}
-      >
+      <li key={item.key}>
         {"path" in item ? (
           <Link
             href={item.path}
             aria-label={label}
-            aria-expanded={hasFlyout ? isFlyoutOpen : undefined}
-            aria-haspopup={hasFlyout ? "dialog" : undefined}
-            aria-current={
-              isSidebarPathActive(item.path, pathname) ? "page" : undefined
-            }
+            aria-current={isItemActive ? "page" : undefined}
             title={!isExpandedView ? label : undefined}
-            onClick={closeFlyout}
+            onClick={() => setOpenSelector(null)}
             className={cn(
               "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
-              isSidebarPathActive(item.path, pathname) || isFlyoutOpen
-                ? "menu-item-active"
-                : "menu-item-inactive",
+              isItemActive ? "menu-item-active" : "menu-item-inactive",
               !isExpandedView && "justify-center px-1.5",
             )}
           >
@@ -756,7 +547,7 @@ const AppSidebar: React.FC = () => {
               aria-hidden="true"
               className={cn(
                 "menu-item-icon",
-                isSidebarPathActive(item.path, pathname) || isFlyoutOpen
+                isItemActive
                   ? "menu-item-icon-active"
                   : "menu-item-icon-inactive",
               )}
@@ -768,30 +559,7 @@ const AppSidebar: React.FC = () => {
               />
             </span>
             {isExpandedView && (
-              <>
-                <span className="menu-item-text flex-1 truncate">{label}</span>
-                {hasFlyout && (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.75"
-                    className={cn(
-                      "ms-auto h-3.5 w-3.5 shrink-0 transition-transform duration-150",
-                      isFlyoutOpen
-                        ? "translate-x-0.5 text-brand-600 opacity-100 dark:text-brand-300"
-                        : "text-gray-400 opacity-0 group-hover:opacity-100",
-                    )}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="m6 4 4 4-4 4"
-                    />
-                  </svg>
-                )}
-              </>
+              <span className="menu-item-text flex-1 truncate">{label}</span>
             )}
           </Link>
         ) : (
@@ -842,7 +610,8 @@ const AppSidebar: React.FC = () => {
         "xl:translate-x-0 xl:rtl:translate-x-0",
       )}
     >
-      <div className="shrink-0 pb-2.5">
+      {/* Context Selectors: Organization Selector -> Project Selector */}
+      <div className="shrink-0 space-y-1.5 pb-2.5">
         <SidebarOrganizationSwitcher
           isExpandedView={isExpandedView}
           organizationId={organizationId}
@@ -851,14 +620,147 @@ const AppSidebar: React.FC = () => {
           isLoading={organizations.isLoading}
           isError={organizations.isError}
           onRetry={() => void organizations.refetch()}
+          isOpen={openSelector === "organization"}
+          onOpenChange={(nextOpen) => {
+            setOpenSelector((prev) =>
+              nextOpen ? "organization" : prev === "organization" ? null : prev,
+            );
+          }}
+        />
+        <SidebarProjectSwitcher
+          isExpandedView={isExpandedView}
+          organizationName={organizationName}
+          projects={sidebarProjects}
+          activeProject={activeProject}
+          isLoading={projectsQuery.isLoading}
+          isError={projectsQuery.isError}
+          onRetry={() => void projectsQuery.refetch()}
+          onSelectProject={handleSelectProject}
+          isOpen={openSelector === "project"}
+          onOpenChange={(nextOpen) => {
+            setOpenSelector((prev) =>
+              nextOpen ? "project" : prev === "project" ? null : prev,
+            );
+          }}
         />
       </div>
 
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
+        {/* Current Project Navigation (Only renders for the currently selected project) */}
+        {activeProject && (
+          <nav
+            aria-label={t("projectNavigation")}
+            className="mb-2.5 border-b border-gray-200/80 pb-2.5 dark:border-gray-800/80"
+          >
+            <h2
+              id="sidebar-project-group"
+              className={cn(
+                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                !isExpandedView && "sr-only",
+              )}
+            >
+              {t("groups.project")}
+            </h2>
+            <ul
+              role="group"
+              aria-label={t("projectActionsLabel", {
+                name: activeProject.name,
+              })}
+              className="flex flex-col gap-0.5"
+            >
+              {projectSubItems.map((subItem) => {
+                const SubIcon = subItem.icon;
+                const navigationItem = (
+                  <li key={subItem.key}>
+                    <Link
+                      href={subItem.href}
+                      aria-label={subItem.label}
+                      aria-current={subItem.isActive ? "page" : undefined}
+                      title={!isExpandedView ? subItem.label : undefined}
+                      onClick={() => {
+                        setOpenSelector(null);
+                        if (subItem.tab) {
+                          setSyncedProjectTab({
+                            pathnameAtSync: pathname,
+                            projectId: activeProject.id,
+                            tab: subItem.tab,
+                          });
+                          window.dispatchEvent(
+                            new CustomEvent("continuum:project-tab-change", {
+                              detail: {
+                                projectId: activeProject.id,
+                                tab: subItem.tab,
+                              },
+                            }),
+                          );
+                        }
+                      }}
+                      className={cn(
+                        "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
+                        subItem.isActive
+                          ? "menu-item-active"
+                          : "menu-item-inactive",
+                        !isExpandedView && "justify-center px-1.5",
+                      )}
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "menu-item-icon",
+                          subItem.isActive
+                            ? "menu-item-icon-active"
+                            : "menu-item-icon-inactive",
+                        )}
+                      >
+                        <SubIcon
+                          viewBox={subItem.viewBox}
+                          preserveAspectRatio="xMidYMid meet"
+                          className="size-[18px] shrink-0"
+                        />
+                      </span>
+                      {isExpandedView && (
+                        <span className="menu-item-text flex-1 truncate">
+                          {subItem.label}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+
+                return subItem.key === "settings" ? (
+                  <ProjectSettingsNavigation
+                    key={subItem.key}
+                    organizationId={organizationId ?? ""}
+                    projectId={activeProject.id}
+                    active={
+                      activeProject.status === "ACTIVE" && Boolean(visibleUser)
+                    }
+                  >
+                    {navigationItem}
+                  </ProjectSettingsNavigation>
+                ) : (
+                  navigationItem
+                );
+              })}
+            </ul>
+          </nav>
+        )}
+
         <nav aria-label={t("navigation")} className="flex flex-col gap-3 pb-3">
-          <ul className="flex flex-col gap-0.5">
-            {visiblePrimaryItems.map(renderItem)}
-          </ul>
+          <section aria-labelledby="sidebar-organization">
+            <h2
+              id="sidebar-organization"
+              className={cn(
+                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                !isExpandedView && "sr-only",
+              )}
+            >
+              {t("groups.organization")}
+            </h2>
+            <ul className="flex flex-col gap-0.5">
+              {visiblePrimaryItems.map(renderItem)}
+            </ul>
+          </section>
           <section
             aria-labelledby="sidebar-administration"
             className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"
@@ -916,17 +818,6 @@ const AppSidebar: React.FC = () => {
           )}
         />
       </div>
-
-      {/* Portaled Jira-style Hover Flyout Menu (renders in document.body to prevent sidebar overflow clipping) */}
-      <SidebarFlyoutPortal
-        config={activeFlyoutConfig}
-        anchorRect={anchorRect}
-        flyoutElRef={flyoutElRef}
-        pathname={pathname}
-        onMouseEnter={handleFlyoutMouseEnter}
-        onMouseLeave={handleFlyoutMouseLeave}
-        onClose={closeFlyout}
-      />
     </aside>
   );
 };

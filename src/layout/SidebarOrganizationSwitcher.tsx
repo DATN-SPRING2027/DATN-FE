@@ -8,7 +8,7 @@ import { useSelectOrganizationMutation } from "@/lib/queries/auth/useAccountOnbo
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { CheckCircleIcon, ChevronDownIcon } from "@/icons/index";
 import { useTranslations } from "next-intl";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/utils";
 
 function resolveSwitchDestination(
@@ -52,6 +52,8 @@ type SidebarOrganizationSwitcherProps = {
   isLoading?: boolean;
   isError?: boolean;
   onRetry?: () => void;
+  isOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 export default function SidebarOrganizationSwitcher({
@@ -62,12 +64,27 @@ export default function SidebarOrganizationSwitcher({
   isLoading = false,
   isError = false,
   onRetry,
+  isOpen: controlledOpen,
+  onOpenChange,
 }: SidebarOrganizationSwitcherProps) {
   const t = useTranslations("sidebar");
   const pathname = usePathname();
   const router = useRouter();
   const select = useSelectOrganizationMutation();
-  const [isOpen, setIsOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isOpen = controlledOpen ?? internalOpen;
+  const setIsOpen = useCallback(
+    (nextOpen: boolean | ((prev: boolean) => boolean)) => {
+      const resolved =
+        typeof nextOpen === "function" ? nextOpen(isOpen) : nextOpen;
+      if (onOpenChange) {
+        onOpenChange(resolved);
+      } else {
+        setInternalOpen(resolved);
+      }
+    },
+    [isOpen, onOpenChange],
+  );
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -93,7 +110,7 @@ export default function SidebarOrganizationSwitcher({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen]);
+  }, [isOpen, setIsOpen]);
 
   const handleSelect = async (nextOrganizationId: string) => {
     if (nextOrganizationId === organizationId || select.isPending) {
@@ -125,7 +142,7 @@ export default function SidebarOrganizationSwitcher({
         title={!isExpandedView ? label : undefined}
         onClick={() => setIsOpen((open) => !open)}
         className={cn(
-          "group flex min-h-9 w-full items-center gap-2 rounded-md border border-gray-200/80 bg-gray-50/60 px-2 py-1 text-start transition-colors hover:border-gray-300 hover:bg-gray-100/80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-gray-700 dark:hover:bg-white/[0.06]",
+          "group flex min-h-9 w-full cursor-pointer items-center gap-2 rounded-md border border-gray-200/80 bg-gray-50/60 px-2 py-1 text-start transition-colors hover:border-gray-300 hover:bg-gray-100/80 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-gray-700 dark:hover:bg-white/[0.06]",
           !isExpandedView && "justify-center px-1.5",
         )}
       >
@@ -185,68 +202,68 @@ export default function SidebarOrganizationSwitcher({
             </div>
           ) : organizations.length > 0 ? (
             <>
-            <ul className="space-y-0.5">
-              {organizations.map((organization) => {
-                const isCurrent = organization.id === organizationId;
-                const isSwitchingTarget =
-                  select.isPending && switchingId === organization.id;
-                return (
-                  <li key={organization.id}>
-                    <button
-                      type="button"
-                      aria-pressed={isCurrent}
-                      aria-busy={isSwitchingTarget}
-                      disabled={select.isPending || isCurrent}
-                      onClick={() => void handleSelect(organization.id)}
-                      className={cn(
-                        "flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
-                        isCurrent
-                          ? "bg-brand-50/90 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                          : isSwitchingTarget
-                            ? "bg-brand-50/70 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"
-                            : "text-gray-700 hover:bg-gray-100/80 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-white/[0.06]",
-                      )}
-                    >
-                      <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                        {getInitials(organization.name)}
-                      </span>
-                      <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                        {organization.name}
-                      </span>
-                      {isCurrent && (
-                        <CheckCircleIcon
-                          viewBox="0 0 24 24"
-                          aria-label={t("currentOrganization")}
-                          className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-                        />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="mt-1.5 flex flex-col gap-0.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
-              <Link
-                href="/select-organization?mode=create"
-                onClick={() => setIsOpen(false)}
-                className="flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
-              >
-                <span
-                  aria-hidden="true"
-                  className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-brand-50 text-sm font-bold leading-none text-brand-600 dark:bg-brand-500/20 dark:text-brand-300"
+              <ul className="space-y-0.5">
+                {organizations.map((organization) => {
+                  const isCurrent = organization.id === organizationId;
+                  const isSwitchingTarget =
+                    select.isPending && switchingId === organization.id;
+                  return (
+                    <li key={organization.id}>
+                      <button
+                        type="button"
+                        aria-pressed={isCurrent}
+                        aria-busy={isSwitchingTarget}
+                        disabled={select.isPending || isCurrent}
+                        onClick={() => void handleSelect(organization.id)}
+                        className={cn(
+                          "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
+                          isCurrent
+                            ? "bg-brand-50/90 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
+                            : isSwitchingTarget
+                              ? "bg-brand-50/70 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300"
+                              : "text-gray-700 hover:bg-gray-100/80 disabled:opacity-60 dark:text-gray-200 dark:hover:bg-white/[0.06]",
+                        )}
+                      >
+                        <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                          {getInitials(organization.name)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
+                          {organization.name}
+                        </span>
+                        {isCurrent && (
+                          <CheckCircleIcon
+                            viewBox="0 0 24 24"
+                            aria-label={t("currentOrganization")}
+                            className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
+                          />
+                        )}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-1.5 flex flex-col gap-0.5 border-t border-gray-100 pt-1.5 dark:border-gray-800">
+                <Link
+                  href="/select-organization?mode=create"
+                  onClick={() => setIsOpen(false)}
+                  className="flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
                 >
-                  +
-                </span>
-                <span className="truncate">{t("createOrganization")}</span>
-              </Link>
-              <Link
-                href="/select-organization"
-                onClick={() => setIsOpen(false)}
-                className="flex min-h-7 w-full items-center rounded-[5px] px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100/80 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
-              >
-                <span className="truncate">{t("manageOrganizations")}</span>
-              </Link>
-            </div>
+                  <span
+                    aria-hidden="true"
+                    className="flex size-5 shrink-0 items-center justify-center rounded-[4px] bg-brand-50 text-sm font-bold leading-none text-brand-600 dark:bg-brand-500/20 dark:text-brand-300"
+                  >
+                    +
+                  </span>
+                  <span className="truncate">{t("createOrganization")}</span>
+                </Link>
+                <Link
+                  href="/select-organization"
+                  onClick={() => setIsOpen(false)}
+                  className="flex min-h-7 w-full items-center rounded-[5px] px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100/80 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
+                >
+                  <span className="truncate">{t("manageOrganizations")}</span>
+                </Link>
+              </div>
             </>
           ) : (
             <div className="px-2.5 py-2.5">
