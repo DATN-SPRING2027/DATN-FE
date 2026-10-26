@@ -11,6 +11,7 @@ import ClosingArt from "./ClosingArt";
 import ScotchNavigation from "./ScotchNavigation";
 import TeamStories from "./TeamStories";
 import SmoothScrollHandler from "./SmoothScrollHandler";
+import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 
 vi.mock("next/image", () => ({
   default: ({ priority, ...props }: { priority?: boolean }) => {
@@ -23,8 +24,16 @@ vi.mock("@/components/common/BrandLogo", () => ({
   default: () => <span>Continuum AI</span>,
 }));
 vi.mock("../rylo/WorkspaceLink", () => ({
-  // eslint-disable-next-line @next/next/no-html-link-for-pages
-  default: () => <a href="/signin">Sign in</a>,
+  default: ({ guestLabel }: { guestLabel?: string }) => (
+    // eslint-disable-next-line @next/next/no-html-link-for-pages
+    <a href="/workspace">{guestLabel ?? "Workspace"}</a>
+  ),
+}));
+vi.mock("@/components/header/UserDropdown", () => ({
+  default: () => <div data-testid="user-dropdown">UserDropdown</div>,
+}));
+vi.mock("@/lib/queries/auth/useSharedSignIn", () => ({
+  useSignInSessionQuery: vi.fn(() => ({ data: undefined, isPending: false })),
 }));
 vi.mock("@/i18n/navigation", () => ({
   Link: (props: React.AnchorHTMLAttributes<HTMLAnchorElement>) => (
@@ -212,5 +221,36 @@ describe("Scotch landing interactions", () => {
       "data-leaving-to-auth",
       "true",
     );
+  });
+
+  it("renders Sign in link and no UserDropdown when user is unauthenticated", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: undefined,
+      isPending: false,
+    } as never);
+
+    show(<ScotchNavigation />);
+
+    expect(screen.getByRole("link", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.queryByTestId("user-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("hides Sign in link and renders UserDropdown when user is authenticated", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: {
+        id: "user-1",
+        name: "Test User",
+        email: "test@example.com",
+        context: "ORGANIZATION",
+        organizationId: "org-1",
+        roles: ["ADMIN"],
+      },
+      isPending: false,
+    } as never);
+
+    show(<ScotchNavigation />);
+
+    expect(screen.queryByRole("link", { name: "Sign in" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("user-dropdown")).toBeInTheDocument();
   });
 });

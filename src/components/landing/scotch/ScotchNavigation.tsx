@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import BrandLogo from "@/components/common/BrandLogo";
 import WorkspaceLink from "../rylo/WorkspaceLink";
+import UserDropdown from "@/components/header/UserDropdown";
+import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import styles from "./scotch.module.css";
 
 export default function ScotchNavigation() {
@@ -12,6 +14,8 @@ export default function ScotchNavigation() {
   const common = useTranslations("landingRylo");
   const [open, setOpen] = useState(false);
   const toggle = useRef<HTMLButtonElement>(null);
+  const session = useSignInSessionQuery();
+  const isAuthenticated = Boolean(session.data);
   const links = [
     ["products", "giai-phap"],
     ["integrations", "workflow"],
@@ -45,10 +49,23 @@ export default function ScotchNavigation() {
           ))}
         </nav>
         <div className={styles.headerActions}>
-          <Link href="/signin">{common("signin")}</Link>
-          <span className={styles.primaryAction}>
-            <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
-          </span>
+          {isAuthenticated ? (
+            <>
+              <span className={styles.primaryAction}>
+                <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+              </span>
+              <UserDropdown />
+            </>
+          ) : (
+            <>
+              {!session.isPending && (
+                <Link href="/signin">{common("signin")}</Link>
+              )}
+              <span className={styles.primaryAction}>
+                <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />
+              </span>
+            </>
+          )}
         </div>
         <button
           ref={toggle}
