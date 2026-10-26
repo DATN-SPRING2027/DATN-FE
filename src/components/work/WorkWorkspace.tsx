@@ -24,6 +24,7 @@ import WorkPageHeader, { type WorkView } from"./WorkPageHeader";
 import WorkReportsView from"./WorkReportsView";
 import WorkTimelineView from"./WorkTimelineView";
 import WorkToolbar from"./WorkToolbar";
+import { importJiraRows, parseJiraImportCsv, type JiraImportProgress } from "./jira-import";
 import {
   INITIAL_PREVIEW_WORK_ITEMS,
   PREVIEW_PEOPLE,
@@ -2735,15 +2736,28 @@ export default function WorkWorkspace({
     setAnnouncement("Exported work items to CSV.");
   }
 
-  function importCsvItem(fileName: string) {
-    addPreviewItem({
-      title: `[IMPORTED] Work item imported from ${fileName}`,
-      type:"TASK",
-      priority:"MEDIUM",
-      assignee: defaultAssigneePerson,
-      dueDate: null,
-      status:"TODO",
-    });
+  async function importCsvItem(
+    file: File,
+    onProgress: (progress: JiraImportProgress) => void,
+  ): Promise<JiraImportProgress> {
+    if (!isRealProject) throw new Error("Choose a saved Project before importing.");
+    if (!resolvedProject || resolvedProject.id !== projectId) {
+      throw new Error(
+        "Project visibility could not be verified. Wait for Project details to load, then retry.",
+      );
+    }
+    if (file.size > 10 * 1024 * 1024) throw new Error("CSV file exceeds 10 MB.");
+    const rows = parseJiraImportCsv(await file.text(), projectId);
+    try {
+      return await importJiraRows(
+        projectId,
+        rows,
+        resolvedProject.visibility,
+        onProgress,
+      );
+    } finally {
+      void tasksQuery.refetch();
+    }
   }
 
   const showFilterToolbar =
