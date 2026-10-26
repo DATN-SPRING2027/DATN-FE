@@ -21,7 +21,9 @@ import { useSidebar } from "@/context/SidebarContext";
 import {
   BookOpenIcon,
   ChatIcon,
-  DocsIcon,
+  BoxCubeIcon,
+  FileIcon,
+  TaskIcon,
   FolderIcon,
   GridIcon,
   GroupIcon,
@@ -445,7 +447,7 @@ const AppSidebar: React.FC = () => {
     () => ({
       overview: {
         key: "overview",
-        title: t("items.overview"),
+        title: t("items.dashboard"),
         subtitle: organizationName ?? t("organizationLabel"),
         primaryHref: "/dashboard",
         primaryCtaLabel: "Open",
@@ -575,7 +577,7 @@ const AppSidebar: React.FC = () => {
         label: t("items.projectOverview"),
         href: projectOverviewPath,
         isActive: isProjectOverviewActive,
-        icon: GridIcon,
+        icon: BoxCubeIcon,
         viewBox: "1.5 1.5 21 21",
         tab: "overview" as const,
       },
@@ -593,7 +595,7 @@ const AppSidebar: React.FC = () => {
         label: t("items.workspace"),
         href: projectWorkPath,
         isActive: isProjectWorkActive,
-        icon: DocsIcon,
+        icon: TaskIcon,
         viewBox: "0.5 0.5 23 23",
       },
       {
@@ -601,8 +603,9 @@ const AppSidebar: React.FC = () => {
         label: t("items.projectWorkNotes"),
         href: projectWorkNotesPath,
         isActive: isProjectWorkNotesActive,
-        icon: BookOpenIcon,
-        viewBox: "0.5 1.5 23 23",
+        icon: FileIcon,
+        viewBox: "1 0.5 23 23",
+
       },
       {
         key: "settings",
@@ -619,7 +622,8 @@ const AppSidebar: React.FC = () => {
   const renderItem = (
     item: (typeof primaryItems)[number] | (typeof administrationItems)[number],
   ) => {
-    const label = t(`items.${item.key}`);
+    const label =
+      item.key === "overview" ? t("items.dashboard") : t(`items.${item.key}`);
     const Icon = item.icon;
     const iconViewBox = item.viewBox;
     const hasFlyout = "path" in item && Boolean(flyoutConfigs[item.key]);
@@ -897,9 +901,20 @@ const AppSidebar: React.FC = () => {
         )}
 
         <nav aria-label={t("navigation")} className="flex flex-col gap-3 pb-3">
-          <ul className="flex flex-col gap-0.5">
-            {visiblePrimaryItems.map(renderItem)}
-          </ul>
+          <section aria-labelledby="sidebar-workspace">
+            <h2
+              id="sidebar-workspace"
+              className={cn(
+                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                !isExpandedView && "sr-only",
+              )}
+            >
+              {t("groups.workspace")}
+            </h2>
+            <ul className="flex flex-col gap-0.5">
+              {visiblePrimaryItems.map(renderItem)}
+            </ul>
+          </section>
           <section
             aria-labelledby="sidebar-administration"
             className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"

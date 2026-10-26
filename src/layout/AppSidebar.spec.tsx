@@ -136,7 +136,10 @@ vi.mock("@/icons/index", () => {
     SearchIcon: Icon,
     SettingsIcon: Icon,
     ShootingStarIcon: Icon,
+    BoxCubeIcon: Icon,
     DocsIcon: Icon,
+    FileIcon: Icon,
+    TaskIcon: Icon,
   };
 });
 vi.mock("next-intl", () => ({
@@ -147,6 +150,8 @@ vi.mock("next-intl", () => ({
         "sidebar.projectNavigation": "Project navigation",
         "sidebar.brandLabel": "Continuum AI home",
         "sidebar.groups.project": "Project",
+        "sidebar.groups.workspace": "Workspace",
+        "sidebar.items.dashboard": "Dashboard",
         "sidebar.groups.administration": "Administration",
         "sidebar.items.overview": "Overview",
         "sidebar.items.projects": "Projects",
@@ -408,7 +413,8 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
+    ).toEqual(["Dashboard", "Projects", "Chat", "Members", "Settings"]);
+    expect(within(nav).getByRole("region", { name: "Workspace" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
     ).not.toBeInTheDocument();
@@ -591,7 +597,7 @@ describe("AppSidebar navigation", () => {
         .getByRole("link", { name: "Chat" })
         .closest("li")!;
       const overviewItem = within(nav)
-        .getByRole("link", { name: "Overview" })
+        .getByRole("link", { name: "Dashboard" })
         .closest("li")!;
 
       fireEvent.mouseEnter(projectsItem);
