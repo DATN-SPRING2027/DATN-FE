@@ -1266,3 +1266,45 @@ pre[class*="language-"].line-numbers {
     rgba(255, 255, 255, 0.04) 100%
   );
 }
+
+/* Text controls retain their neutral border on pointer focus across all pages. */
+:where(input, select, textarea) {
+  --field-border: var(--auth-line, var(--color-gray-300));
+}
+:where(input, select, textarea)[class~="border-gray-200"] {
+  --field-border: var(--color-gray-200);
+}
+.dark :where(input, select, textarea) {
+  --field-border: var(--auth-line, var(--color-gray-700));
+}
+:where(input, select, textarea):is([aria-invalid="true"], [class~="border-error-500"]) {
+  --field-border: var(--color-error-500);
+}
+:where(input, select, textarea)[class~="border-success-500"] {
+  --field-border: var(--color-success-500);
+}
+:is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="hidden"], [type="image"]), textarea, select):focus {
+  border-color: var(--field-border) !important;
+  --tw-ring-shadow: 0 0 #0000 !important;
+  --tw-ring-offset-shadow: 0 0 #0000 !important;
+  outline: none !important;
+}
+html[data-keyboard-navigation="true"] :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"], [type="submit"], [type="reset"], [type="hidden"], [type="image"]), textarea, select):focus-visible {
+  outline: 2px solid var(--color-gray-600) !important;
+  outline-offset: 2px !important;
+}
+html.dark[data-keyboard-navigation="true"] :is(input, textarea, select):focus-visible {
+  outline-color: var(--color-gray-300) !important;
+}
+
+/* Hide modal scrollbars without changing scrolling or overflow behavior. */
+:is(.modal, dialog, [role="dialog"], [role="alertdialog"]),
+:is(.modal, dialog, [role="dialog"], [role="alertdialog"]) * {
+  scrollbar-width: none !important;
+}
+:is(.modal, dialog, [role="dialog"], [role="alertdialog"])::-webkit-scrollbar,
+:is(.modal, dialog, [role="dialog"], [role="alertdialog"]) *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}

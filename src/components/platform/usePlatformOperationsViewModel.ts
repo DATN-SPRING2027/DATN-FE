@@ -195,7 +195,7 @@ export function usePlatformOperationsViewModel({
   const projects = usePlatformProjectsQuery(
     {
       page,
-      pageSize: 25,
+      pageSize: 10,
       search: search.trim() || undefined,
       visibility: status ? (status as "PUBLIC" | "PRIVATE") : undefined,
     },

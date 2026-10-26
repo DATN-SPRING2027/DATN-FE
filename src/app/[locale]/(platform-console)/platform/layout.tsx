@@ -1,3 +1,4 @@
+import PlatformConsole from "@/components/platform/PlatformConsole";
 import type { Metadata } from "next";
 import { platformFont } from "@/components/platform/ui/platformFont";
 import PlatformCopyProvider from "@/components/platform/ui/PlatformCopyProvider";
@@ -13,7 +14,10 @@ export default function PlatformConsoleLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <div className={platformFont.variable}>
-      <PlatformCopyProvider>{children}</PlatformCopyProvider>
+      <PlatformCopyProvider>
+        <PlatformConsole />
+        {children}
+      </PlatformCopyProvider>
     </div>
   );
 }
