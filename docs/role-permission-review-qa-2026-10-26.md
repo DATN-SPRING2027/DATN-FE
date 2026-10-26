@@ -2,7 +2,9 @@
 
 Execution dates: 2026-10-25–26 (Asia/Bangkok). This follows
 [the initial audit](role-permission-audit-2026-10-25.md), on the same three local
-FE, BE and documentation branches. No reset, commit, push, PR or merge occurred.
+FE, BE and documentation branches. The implementation and QA phase below
+preceded commits and PR preparation; the later delivery status is recorded at
+the end of this document.
 The scope is the permission changes and their consumers, not a new redesign or
 proof that every pre-existing application defect has been eliminated.
 
@@ -203,6 +205,54 @@ migration was executed. Original priorities are restored.
 - `THREE.Clock` deprecation warnings were observed from the existing AI companion.
   Transient network failures during BE restart and the earlier incorrect IAM
   target are distinguished from permission denials.
-- Changes remain local and uncommitted. Public `/`, `/signin` and
+- At the end of implementation QA, changes were local and uncommitted. Public `/`, `/signin` and
   `/platform/signin` sources, dependencies, governance files, schemas and
   migration history are outside these corrections.
+
+## PR preparation and latest-main integration (2026-10-26)
+
+The user explicitly requested PR creation, then required fetching and merging
+the latest `main` into the existing task branches first. The original changes
+were committed before integration, without stashing, resetting or discarding
+any working-tree files.
+
+| Repository | Current branch | Fetched main | Local integration |
+| --- | --- | --- | --- |
+| DATN-FE | `feat/Danh-role-permission-audit-fe-ui` | `87392d1522739f0deba6fee3bc96340c260bc789` | Permission commit `0eaa98b`, then merge `c192106`; incoming Jira CSV import preserved; no textual conflicts. |
+| DATN-BE | `feat/Danh-role-permission-audit-be-api` | `026fca536f625430d66d07ed6b11ca27830b6e7a` | Permission commit `dc24a66`; already contains fetched main. |
+| Document | `feat/Danh-role-permission-audit-docs` | `b08110f88f48599484e400e3bdb3386466ebfadb` | Documentation commit `d97d7c0`; already contains fetched main. |
+
+The fresh full FE `npm run check` **passed, exit 0**: lint, typecheck,
+**881 tests / 123 suites**, and production build. This run covers the final
+merged source, including incoming Jira import tests and the final Team
+pagination regression. These counts supersede the historical FE counts above.
+Process-local Vitest limits were maximum two workers, minimum one, with no
+excluded tests or raised timeouts. Log:
+`%TEMP%/continuum-role-fe-pr-main-sync-check.log`.
+
+The post-merge Codex CLI integration review completed with **no actionable
+integration regression**, exit 0. It checked that incoming Jira CSV import and
+Task refresh behavior coexist with permission projection, denied-access gates,
+read-only Task/Subtask controls and scoped Sprint completion. Log:
+`%TEMP%/continuum-role-fe-pr-main-sync-review.log`.
+
+BE source and fetched main were unchanged since the earlier complete passing
+check. Its four affected authorization suites were rerun before PR preparation:
+**92 tests / 4 suites passed**, exit 0. Log:
+`%TEMP%/continuum-role-be-pr-regressions.log`. Expected negative OAuth mock
+events in this log are unit-test scenarios, not a new live sign-in failure.
+All three branches passed diff checks against their fetched main. A subsequent
+Document commit only aligns indentation in the already-reviewed role hierarchy.
+
+PRs will target `main` as **drafts**: the named `code-review-and-quality` skill
+required by product_docs/AGENTS.md is still not installed. The completed Codex
+CLI reviews are evidence, not a claim that this separate formal gate passed.
+No PR approval, auto-merge or merge into main is authorized or performed.
+There is no schema, migration or dependency change. No Jira ticket was supplied;
+PR links can be added to the appropriate ticket by the user.
+
+Portable screenshots from the previously recorded live sessions:
+
+![Member Board with real Project Task data](role-permission-qa-assets/member-board.jpg)
+
+![Member denied Project Settings on mobile](role-permission-qa-assets/member-project-settings-denied-mobile.jpg)
