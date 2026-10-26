@@ -73,6 +73,8 @@ export default function ProjectOverview({
   initialTab = "overview",
   activeTab,
   onTabChange,
+  canDeleteProject,
+  onProjectDeleted,
 }: {
   project: Project;
   showTeams?: boolean;
@@ -80,6 +82,8 @@ export default function ProjectOverview({
   initialTab?: ProjectTab;
   activeTab?: ProjectTab;
   onTabChange?: (tab: ProjectTab) => void;
+  canDeleteProject?: boolean;
+  onProjectDeleted?: () => void;
 }) {
   const t = useTranslations("projects");
   const format = useFormatter();
@@ -227,7 +231,13 @@ export default function ProjectOverview({
         : "continuum-stagger-2";
 
   if (tab === "settings" && !management.canAccessSettings) {
-    return <ProjectSettings project={project} />;
+    return (
+      <ProjectSettings
+        project={project}
+        canDeleteProject={canDeleteProject}
+        onDeleted={onProjectDeleted}
+      />
+    );
   }
 
   return (
@@ -909,7 +919,11 @@ export default function ProjectOverview({
           tabIndex={0}
           className="space-y-5"
         >
-          <ProjectSettings project={project} />
+          <ProjectSettings
+            project={project}
+            canDeleteProject={canDeleteProject}
+            onDeleted={onProjectDeleted}
+          />
         </div>
       )}
       {showTeams && tab === "teams" && (

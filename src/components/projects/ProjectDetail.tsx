@@ -3,6 +3,7 @@
 import { useMutationState } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { lazy, Suspense, useState } from "react";
+import { useRouter } from "@/i18n/navigation";
 import ProjectVisibilityNotification from "./ProjectVisibilityNotification";
 import ProjectOverview, {
   type ProjectTab,
@@ -25,12 +26,14 @@ function OrganizationProject({
   showTeams,
   teamMode,
   initialTab,
+  canDeleteProject,
 }: {
   organizationId: string;
   projectId: string;
   showTeams: boolean;
   teamMode: "fixture" | "api";
   initialTab?: ProjectTab;
+  canDeleteProject: boolean;
 }) {
   const [activeTab, setActiveTab] = useState<ProjectTab>(() => {
     if (initialTab) return initialTab;
@@ -43,6 +46,7 @@ function OrganizationProject({
     }
     return showTeams && teamMode === "fixture" ? "teams" : "overview";
   });
+  const router = useRouter();
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
   const common = useTranslations("common");
@@ -100,6 +104,8 @@ function OrganizationProject({
         initialTab={activeTab}
         activeTab={activeTab}
         onTabChange={setActiveTab}
+        canDeleteProject={canDeleteProject}
+        onProjectDeleted={() => router.push("/projects")}
         teamPanel={
           !showTeams ? undefined : teamMode === "fixture" ? (
             <Suspense fallback={null}>
@@ -142,6 +148,7 @@ export default function ProjectDetail({
           showTeams={showTeams}
           teamMode={teamMode}
           initialTab={initialTab}
+          canDeleteProject={Boolean(visibleUser.roles?.includes("ADMIN"))}
         />
       ) : (
         <ProjectState error={new Error("No trusted organization")} />

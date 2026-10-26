@@ -26,7 +26,10 @@ const project: Project = {
   updatedAt: "2026-10-01T00:00:00Z",
 };
 
-function mount(value = project) {
+function mount(
+  value = project,
+  options: { canDeleteProject?: boolean; onDeleted?: () => void } = {},
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
@@ -37,7 +40,11 @@ function mount(value = project) {
   render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
-        <ProjectSettings project={value} />
+        <ProjectSettings
+          project={value}
+          canDeleteProject={options.canDeleteProject}
+          onDeleted={options.onDeleted}
+        />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -182,4 +189,59 @@ it("sends null when clearing the description and reports a denied mutation", asy
     ([, options]) => options?.method === "PATCH",
   );
   expect(JSON.parse(patch?.[1]?.body as string)).toEqual({ description: null });
+});
+
+it("keeps project deletion disabled for Project Leaders and allows only Organization Managers to delete", async () => {
+  api.mockImplementation(async (path, options) => {
+    if (options?.method === "DELETE") return undefined;
+    if (path.endsWith("/settings-access")) return { canUpdateProject: true };
+    if (path.endsWith("/visibility")) return { canManageVisibility: true };
+    throw new Error(`Unexpected API request: ${path}`);
+  });
+
+  // 1. Project Leader (canDeleteProject = false) cannot delete
+  const { unmount } = render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+        })
+      }
+    >
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ProjectSettings project={project} canDeleteProject={false} />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+  await screen.findByLabelText("Name");
+  const leaderDeleteBtn = screen.getByRole("button", { name: "Delete project" });
+  expect(leaderDeleteBtn).toBeDisabled();
+  expect(
+    screen.getByText(/Only Organization Managers can delete a project/i),
+  ).toBeVisible();
+  unmount();
+
+  // 2. Organization Manager (canDeleteProject = true) can open dialog and delete
+  const onDeleted = vi.fn();
+  const client = mount(project, { canDeleteProject: true, onDeleted });
+  await screen.findByLabelText("Name");
+  const managerDeleteBtn = screen.getByRole("button", { name: "Delete project" });
+  expect(managerDeleteBtn).toBeEnabled();
+
+  fireEvent.click(managerDeleteBtn);
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog).toHaveTextContent(/permanently delete "Continuum Core"/i);
+
+  const confirmButtons = screen.getAllByRole("button", { name: "Delete project" });
+  const confirmBtn = confirmButtons[confirmButtons.length - 1];
+  fireEvent.click(confirmBtn);
+
+  await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1));
+  const deleteCall = api.mock.calls.find(
+    ([, options]) => options?.method === "DELETE",
+  );
+  expect(deleteCall?.[0]).toBe("/iam/projects/project-1");
+  expect(
+    client.getQueryData(projectKeys.detail("org-1", "project-1")),
+  ).toBeUndefined();
 });
