@@ -28,24 +28,25 @@ const candidate = {
   isProjectMember: false,
 };
 
-function mount(onAdd = vi.fn()) {
+function mount(onAdd = vi.fn(), canAppointLeaders = false) {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <NextIntlClientProvider locale="en" messages={messages} timeZone="UTC">
       {children}
     </NextIntlClientProvider>
   );
 
-  render(
+  const view = render(
     <MemberAddForm
       organizationId={organizationId}
       projectId={projectId}
       onAdd={onAdd}
       disabled={false}
       pending={false}
+      canAppointLeaders={canAppointLeaders}
     />,
     { wrapper: Wrapper },
   );
-  return { onAdd };
+  return { onAdd, ...view };
 }
 
 function search(email: string) {
@@ -69,7 +70,7 @@ it("lists active organization members immediately on open and allows selecting r
     isFetching: false,
     isError: false,
   } as never);
-  const { onAdd } = mount();
+  const { onAdd } = mount(vi.fn(), true);
 
   expect(await screen.findByText(candidate.fullName)).toBeVisible();
   expect(screen.getByText(candidate.email)).toBeVisible();
@@ -81,6 +82,26 @@ it("lists active organization members immediately on open and allows selecting r
   fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
 
   expect(onAdd).toHaveBeenCalledWith(candidate.userId, "TEAM_LEADER");
+});
+
+it("does not offer or submit Leader appointment without that authority", () => {
+  candidateQuery.mockReturnValue({ data: [candidate], isFetching: false, isError: false } as never);
+  const { onAdd } = mount();
+  expect(screen.queryByRole("option", { name: "Leader" })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByText(candidate.fullName));
+  fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
+  expect(onAdd).toHaveBeenCalledWith(candidate.userId);
+});
+
+it("drops a previously selected Leader role when appointment authority is revoked", () => {
+  candidateQuery.mockReturnValue({ data: [candidate], isFetching: false, isError: false } as never);
+  const view = mount(vi.fn(), true);
+  fireEvent.change(screen.getByRole("combobox", { name: "Role" }), { target: { value: "TEAM_LEADER" } });
+  fireEvent.click(screen.getByText(candidate.fullName));
+  view.rerender(<MemberAddForm organizationId={organizationId} projectId={projectId} onAdd={view.onAdd} disabled={false} pending={false} canAppointLeaders={false} />);
+  expect(screen.queryByRole("option", { name: "Leader" })).not.toBeInTheDocument();
+  fireEvent.submit(screen.getByRole("form", { name: "Add member" }));
+  expect(view.onAdd).toHaveBeenCalledWith(candidate.userId);
 });
 
 it("requires explicit candidate selection even when the search returns one match", async () => {

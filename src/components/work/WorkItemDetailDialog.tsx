@@ -172,6 +172,14 @@ export default function WorkItemDetailDialog({
     note: string,
   ) => Promise<boolean> | boolean | void;
 }) {
+  if (item?.readOnly) {
+    onAddSubtask = undefined;
+    onAddExistingTaskAsSubtask = undefined;
+    onStatusChange = undefined;
+    onPriorityChange = undefined;
+    onAssigneeChange = undefined;
+    onDueDateChange = undefined;
+  }
   const t = useTranslations("work");
   const workNotesT = useTranslations("workNotes.taskNotes");
   const locale = useLocale();
@@ -599,6 +607,14 @@ export default function WorkItemDetailDialog({
     : -1;
   const activeSubtask =
     activeSubtaskIndex >= 0 ? subtaskList[activeSubtaskIndex] : null;
+  if (activeSubtask?.readOnly) {
+    onToggleSubtask = undefined;
+    onUpdateSubtask = undefined;
+    onDeleteSubtask = undefined;
+    onConvertSubtaskToTask = undefined;
+    onMoveSubtaskToParent = undefined;
+    onReorderSubtask = undefined;
+  }
   const allSubtasksInlineExpanded =
     subtaskList.length > 0 &&
     subtaskList.every((s) => expandedSubtaskIds.has(s.id));
@@ -1037,6 +1053,7 @@ export default function WorkItemDetailDialog({
                   <button
                     type="button"
                     onClick={() => onToggleSubtask?.(item.id, activeSubtask.id)}
+                    disabled={!onToggleSubtask}
                     className={`inline-flex h-8 cursor-pointer items-center gap-1.5 border px-3 text-xs font-semibold transition ${
                       activeSubtask.done
                         ? "border-gray-900 bg-gray-900 text-white dark:border-gray-100 dark:bg-gray-100 dark:text-gray-900"
@@ -2361,6 +2378,7 @@ export default function WorkItemDetailDialog({
                                     <input
                                       type="checkbox"
                                       checked={sub.done}
+                                      disabled={sub.readOnly}
                                       onChange={() =>
                                         onToggleSubtask?.(item.id, sub.id)
                                       }
@@ -2477,7 +2495,7 @@ export default function WorkItemDetailDialog({
                                       <WorkPriorityLabel
                                         priority={subPriority}
                                       />
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <select
                                           aria-label={`Priority for ${sub.key}`}
                                           value={subPriority}
@@ -2525,7 +2543,7 @@ export default function WorkItemDetailDialog({
                                       <span className="truncate font-medium text-gray-700 dark:text-gray-200">
                                         {subAssignee.name}
                                       </span>
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <select
                                           aria-label={`Assignee for ${sub.key}`}
                                           value={subAssignee.id}
@@ -2560,7 +2578,7 @@ export default function WorkItemDetailDialog({
                                     <WorkDatePickerCell
                                       value={sub.dueDate ?? item.dueDate ?? null}
                                       itemKey={sub.key}
-                                      disabled={!onUpdateSubtask}
+                                      disabled={sub.readOnly || !onUpdateSubtask}
                                       onChange={
                                         onUpdateSubtask
                                           ? (nextDate) =>
@@ -2587,7 +2605,7 @@ export default function WorkItemDetailDialog({
                                         status={sub.status}
                                         showChevron={Boolean(onUpdateSubtask)}
                                       />
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <select
                                           aria-label={`Status for ${sub.key}`}
                                           value={sub.status}
@@ -2634,7 +2652,7 @@ export default function WorkItemDetailDialog({
                                     >
                                       ···
                                     </button>
-                                    {onDeleteSubtask && (
+                                    {!sub.readOnly && onDeleteSubtask && (
                                       <button
                                         type="button"
                                         onClick={() =>
@@ -2667,7 +2685,7 @@ export default function WorkItemDetailDialog({
                                         <MonoIcon name="eye" size={12} />
                                         <span>Open subtask detail</span>
                                       </button>
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2683,7 +2701,7 @@ export default function WorkItemDetailDialog({
                                           <span>Edit summary</span>
                                         </button>
                                       )}
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2701,7 +2719,7 @@ export default function WorkItemDetailDialog({
                                           <span>Assign to me</span>
                                         </button>
                                       )}
-                                      {onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2720,7 +2738,7 @@ export default function WorkItemDetailDialog({
                                           </span>
                                         </button>
                                       )}
-                                      {onReorderSubtask && (
+                                      {!sub.readOnly && onReorderSubtask && (
                                         <div className="flex items-center border-t border-gray-100 px-3 py-1 dark:border-gray-800">
                                           <span className="flex-1 text-[11px] text-gray-500">
                                             Reorder
@@ -2776,7 +2794,7 @@ export default function WorkItemDetailDialog({
                                           <span>Clone subtask</span>
                                         </button>
                                       )}
-                                      {onConvertSubtaskToTask && (
+                                      {!sub.readOnly && onConvertSubtaskToTask && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -2798,7 +2816,7 @@ export default function WorkItemDetailDialog({
                                           <span>Convert to Task</span>
                                         </button>
                                       )}
-                                      {onMoveSubtaskToParent &&
+                                      {!sub.readOnly && onMoveSubtaskToParent &&
                                         allItems.length > 1 && (
                                           <div className="border-t border-gray-100 px-2.5 py-1.5 dark:border-gray-800">
                                             <label className="block text-[10px] font-semibold text-gray-400">
@@ -2889,7 +2907,7 @@ export default function WorkItemDetailDialog({
                                         </div>
 
                                         <div className="flex items-center gap-2">
-                                          {onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -2962,7 +2980,7 @@ export default function WorkItemDetailDialog({
                                                     {st.text}
                                                   </span>
                                                 </label>
-                                                {onUpdateSubtask && (
+                                                {!sub.readOnly && onUpdateSubtask && (
                                                   <button
                                                     type="button"
                                                     onClick={() =>
@@ -2985,7 +3003,7 @@ export default function WorkItemDetailDialog({
                                           </ul>
                                         )}
 
-                                        {onUpdateSubtask && (
+                                        {!sub.readOnly && onUpdateSubtask && (
                                           <form
                                             onSubmit={(e) =>
                                               handleAddSubtaskStep(e, sub)

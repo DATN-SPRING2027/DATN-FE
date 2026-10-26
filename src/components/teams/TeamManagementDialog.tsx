@@ -19,6 +19,7 @@ export default function TeamManagementDialog({
   action,
   scope,
   actor,
+  canManage,
   onClose,
   onSuccess,
   onAction,
@@ -27,6 +28,7 @@ export default function TeamManagementDialog({
   action: TeamDialogAction | null;
   scope: TeamScope;
   actor: string;
+  canManage: boolean;
   onClose: () => void;
   onSuccess: (resource: TeamResource) => void;
   onAction: (action: TeamDialogAction) => void;
@@ -82,6 +84,7 @@ export default function TeamManagementDialog({
           scope={scope}
           actor={actor}
           operation="create"
+          disabled={!canManage}
           onSuccess={onSuccess}
           onCancel={onClose}
         />
@@ -111,6 +114,7 @@ export default function TeamManagementDialog({
             resource={visibleResource}
             scope={scope}
             actor={actor}
+            canManage={canManage && query.isSuccess && query.fetchStatus === "idle"}
             onClose={onClose}
             onSuccess={onSuccess}
             onAction={onAction}
@@ -126,6 +130,7 @@ function DialogContent({
   resource,
   scope,
   actor,
+  canManage,
   onClose,
   onSuccess,
   onAction,
@@ -134,6 +139,7 @@ function DialogContent({
   resource: TeamResource;
   scope: TeamScope;
   actor: string;
+  canManage: boolean;
   onClose: () => void;
   onSuccess: (resource: TeamResource) => void;
   onAction: (action: TeamDialogAction) => void;
@@ -148,6 +154,7 @@ function DialogContent({
         actor={actor}
         resource={resource}
         operation="update"
+        disabled={!canManage}
         onSuccess={onSuccess}
         onCancel={onClose}
       />
@@ -162,6 +169,7 @@ function DialogContent({
           actor={actor}
           resource={resource}
           operation={operation}
+          disabled={!canManage}
           onSuccess={onSuccess}
           onCancel={onClose}
         />
@@ -219,6 +227,7 @@ function DialogContent({
             <Button
               type="button"
               variant="outline"
+              disabled={!canManage}
               onClick={() => onAction({ kind: "edit", teamId: team.id })}
             >
               {t("edit")}
@@ -226,6 +235,7 @@ function DialogContent({
             <Button
               type="button"
               variant="danger"
+              disabled={!canManage}
               onClick={() => onAction({ kind: "archive", teamId: team.id })}
             >
               {t("archive")}
@@ -234,6 +244,7 @@ function DialogContent({
         ) : (
           <Button
             type="button"
+            disabled={!canManage}
             onClick={() => onAction({ kind: "restore", teamId: team.id })}
           >
             {t("restore")}

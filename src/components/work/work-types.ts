@@ -38,6 +38,7 @@ export type WorkSubtaskHistoryItem = Readonly<{
 }>;
 
 export type WorkSubtaskItem = Readonly<{
+  readOnly?: boolean;
   id: string;
   key: string;
   summary: string;
@@ -70,6 +71,8 @@ export type WorkCommentItem = Readonly<{
 }>;
 
 export type WorkItem = Readonly<{
+  /** Task-field edits only. Comments/worklogs have separate Project authorization on BE. */
+  readOnly?: boolean;
   id: string;
   key: string;
   title: string;

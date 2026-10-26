@@ -11,10 +11,12 @@ export function useTeams(
   actor: string,
   page: number,
   status: TeamFilter,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: [...teamKeys(scope, actor), "list", page, status],
     queryFn: ({ signal }) => listTeams(scope, page, status, signal),
+    enabled: enabled && Boolean(actor && scope.organizationId && scope.projectId),
     retry: false,
     staleTime: 0,
     refetchOnMount: "always",
@@ -26,6 +28,7 @@ export function useTeam(
   actor: string,
   id: string,
   enabled = true,
+  refetchOnWindowFocus = false,
 ) {
   return useQuery({
     queryKey: [...teamKeys(scope, actor), "detail", id],
@@ -34,7 +37,7 @@ export function useTeam(
     retry: false,
     staleTime: 0,
     refetchOnMount: "always",
-    refetchOnWindowFocus: false,
+    refetchOnWindowFocus,
     refetchOnReconnect: false,
   });
 }

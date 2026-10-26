@@ -234,6 +234,7 @@ it("requires confirmation, removes by membership ID and handles 204", async () =
 it("denied listing is not empty and does not infer denial of add", async () => {
   api.mockImplementation(async (endpoint) => {
     if (endpoint === "/auth/me") return { ...user, roles: ["ADMIN"] };
+    if (endpoint.endsWith("/member-candidates")) return { data: [] };
     throw new ApiError(403, "FORBIDDEN", "Denied");
   });
   mount();
@@ -249,6 +250,19 @@ it("denied listing is not empty and does not infer denial of add", async () => {
   expect(
     screen.getByRole("button", { name: "Open Add member form" }),
   ).toBeEnabled();
+});
+it("keeps a forced Add member modal closed when the member-add probe is denied", async () => {
+  api.mockImplementation(async (endpoint) => {
+    if (endpoint === "/auth/me") return user;
+    if (endpoint.endsWith("/member-candidates")) throw new ApiError(403, "FORBIDDEN", "Denied");
+    return page();
+  });
+  const view = mount();
+  await findMember("user-1");
+  view.rerender(<ProjectMembers projectId="project-1" addModalOpen />);
+  await waitFor(() => expect(api).toHaveBeenCalledWith("/iam/projects/project-1/member-candidates", expect.any(Object)));
+  expect(screen.queryByRole("button", { name: "Open Add member form" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Add member" })).not.toBeInTheDocument();
 });
 it("denied add disables only add until access is checked again", async () => {
   api.mockImplementation(async (endpoint, options) => {
@@ -571,6 +585,7 @@ it("does not send any unsupported operations", async () => {
     requests.every(
       ([endpoint, options]) =>
         (endpoint.startsWith("/iam/projects/project-1/memberships") ||
+            endpoint === "/iam/projects/project-1/member-candidates" ||
           endpoint ===
             "/iam/projects/project-1/member-candidates?email=user-2%40example.test" ||
           endpoint === "/iam/projects/project-1/leaders") &&
@@ -663,13 +678,8 @@ it("handles archived Project access denial without exposing a member list", asyn
   await screen.findByText(
     "You do not have permission to view Project members.",
   );
-  await submitAdd();
-  expect(
-    await screen.findByText(
-      "You do not have permission to add Project members.",
-    ),
-  ).toBeVisible();
-  expect(addFormSubmitButton()).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Open Add member form" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("form", { name: "Add member" })).not.toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
 });
 it("selects a member from the table without requesting new backend operations", async () => {

@@ -56,6 +56,41 @@ const sampleItemWithSubtasks: WorkItem = {
 };
 
 describe("WorkItemDetailDialog", () => {
+  it("keeps separately authorized comments and worklogs available when Task fields are read-only", () => {
+    const comment = vi.fn();
+    const worklog = vi.fn();
+    render(<WorkItemDetailDialog item={{ ...sampleItemWithSubtasks, readOnly: true }} onClose={vi.fn()} onAddComment={comment} onAddWorklog={worklog} />);
+    fireEvent.change(screen.getByPlaceholderText("Add a comment…"), { target: { value: "A scoped collaboration comment" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(comment).toHaveBeenCalledWith("work-1", "A scoped collaboration comment");
+    fireEvent.click(screen.getByRole("button", { name: "Work log" }));
+    fireEvent.change(screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"), { target: { value: "30m" } });
+    fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
+    expect(worklog).toHaveBeenCalledWith("work-1", "30m", "");
+  });
+
+  it("hides subtask creation on a read-only Task", () => {
+    render(<WorkItemDetailDialog item={{ ...sampleItemWithSubtasks, readOnly: true }} onClose={vi.fn()} onAddSubtask={vi.fn()} />);
+    expect(screen.queryAllByRole("button", { name: /Add subtask/i })).toHaveLength(0);
+  });
+
+  it("disables metadata edits for a read-only Task while keeping its details readable", () => {
+    render(<WorkItemDetailDialog item={{ ...sampleItemWithSubtasks, readOnly: true }} onClose={vi.fn()} onDueDateChange={vi.fn()} onStatusChange={vi.fn()} />);
+    expect(screen.getByRole("button", { name: "Due date for KNW-142" })).toBeDisabled();
+    expect(screen.getByText(sampleItemWithSubtasks.title)).toBeVisible();
+  });
+
+  it("does not allow a Member to complete or edit another actor's Subtask", () => {
+    const change = vi.fn();
+    render(<WorkItemDetailDialog item={{ ...sampleItemWithSubtasks, subtaskItems: sampleItemWithSubtasks.subtaskItems?.map((sub) => ({ ...sub, readOnly: true })) }} initialSubtaskId="sub-2" onClose={vi.fn()} onToggleSubtask={change} onUpdateSubtask={change} />);
+    const complete = screen.getByRole("button", { name: "Mark subtask done" });
+    expect(complete).toBeDisabled();
+    fireEvent.click(complete);
+    expect(change).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Priority for KNW-142.2")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Assignee for KNW-142.2")).not.toBeInTheDocument();
+  });
+
   it("formats the created date with the active locale", () => {
     const expectedDate = new Intl.DateTimeFormat("de-DE", {
       dateStyle: "medium",

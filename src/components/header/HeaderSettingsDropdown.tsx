@@ -1,11 +1,11 @@
 "use client";
 
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
-import { Link } from "@/i18n/navigation";
+import { Link, usePathname } from "@/i18n/navigation";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
-import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
+import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 import type React from "react";
@@ -34,40 +34,11 @@ export default function HeaderSettingsDropdown({
     visibleCurrentUser && "organizationId" in visibleCurrentUser
       ? (visibleCurrentUser.organizationId ?? "")
       : "";
-  const roles =
-    visibleCurrentUser && "roles" in visibleCurrentUser
-      ? (visibleCurrentUser.roles ?? [])
-      : [];
-
   const isManager = canReadOrganizationMemberships(visibleCurrentUser);
-
-  const projectsQuery = useProjectsQuery(
-    organizationId,
-    {
-      page: 1,
-      pageSize: 20,
-      status: "ACTIVE",
-    },
-    {
-      enabled: isOpen,
-      staleTime: 30_000,
-      refetchOnWindowFocus: false,
-    },
-  );
-
-  const isProjectLeader =
-    !isManager &&
-    (roles.includes("TEAM_LEADER") ||
-      roles.includes("LEADER") ||
-      Boolean(
-        !currentUserAccessLost &&
-          !isAccessOrResourceUnavailableError(projectsQuery.error) &&
-          projectsQuery.data?.data?.some((project) =>
-          project.leaders?.some(
-            (leader) => leader.userId === visibleCurrentUser?.id,
-          ),
-        ),
-      ));
+  const pathname = usePathname();
+  const projectId = /^\/projects\/([^/]+)/.exec(pathname)?.[1] ?? "";
+  const projectAccess = useProjectManagementAccess(organizationId, projectId, isOpen && Boolean(organizationId && projectId));
+  const isProjectLeader = !isManager && projectAccess.canUpdateProject;
 
   const closeDropdown = () => setIsOpen(false);
 
@@ -212,14 +183,14 @@ export default function HeaderSettingsDropdown({
             id: "spaces",
             title: t("settingsMenu.spacesTitle"),
             description: t("settingsMenu.spacesDesc"),
-            href: "/projects",
+            href: `/projects/${encodeURIComponent(projectId)}/settings`,
             icon: spacesIcon,
           },
           {
             id: "team-management",
             title: t("settingsMenu.teamManagementTitle"),
             description: t("settingsMenu.teamManagementDesc"),
-            href: "/projects",
+            href: `/projects/${encodeURIComponent(projectId)}/members`,
             icon: usersIcon,
           },
         ]

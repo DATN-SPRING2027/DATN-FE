@@ -12,6 +12,7 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   useAddProjectMember,
   useProjectMembersQuery,
+  useProjectMemberAddAccess,
   useRemoveProjectMember,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
@@ -65,7 +66,9 @@ function ScopedProjectMembers({
   const [addFormVersion, setAddFormVersion] = useState(0);
   const [localAddModalOpen, setLocalAddModalOpen] = useState(false);
   const [appointLeaderOnAdd, setAppointLeaderOnAdd] = useState(false);
-  const addModalOpen = Boolean(controlledAddModalOpen || localAddModalOpen);
+  const memberAddAccess = useProjectMemberAddAccess(organizationId, projectId);
+  const canAddMembers = memberAddAccess.isSuccess;
+  const addModalOpen = canAddMembers && Boolean(controlledAddModalOpen || localAddModalOpen);
   const mutationInFlight = useRef(false);
   const addDialog = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState<
@@ -158,6 +161,7 @@ function ScopedProjectMembers({
     setNotice(undefined);
     setSoleLeaderBlocked(false);
     void members.refetch();
+    void memberAddAccess.refetch();
     void leaders.refetch();
   }
 
@@ -246,6 +250,7 @@ function ScopedProjectMembers({
     confirmation.openModal();
   }
   function openAddModal(shouldAppointLeader = false) {
+    if (!canAddMembers) return;
     setAppointLeaderOnAdd(shouldAppointLeader);
     setLocalAddModalOpen(true);
     onOpenAdd?.();
@@ -434,7 +439,7 @@ function ScopedProjectMembers({
                 confirmation.closeModal();
               }}
             />
-            {showAddButton && (
+            {showAddButton && canAddMembers && (
               <Button
                 ariaLabel={t("openAdd")}
                 onClick={() => openAddModal(false)}
@@ -602,21 +607,23 @@ function ScopedProjectMembers({
                 pending={add.isPending || leaderActions.assign.isPending}
                 disabled={busy || isMemberActionDenied(add.error)}
                 defaultRole={appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER"}
+                canAppointLeaders={canManageLeaders}
                 onRoleChange={(role) =>
                   setAppointLeaderOnAdd(role === "TEAM_LEADER")
                 }
                 onAdd={(userId, role) => {
+                  const effectiveRole = role ?? (appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER");
+                  const shouldAppoint = effectiveRole === "TEAM_LEADER";
                   if (
                     mutationInFlight.current ||
                     busy ||
+                    !canAddMembers ||
+                    (shouldAppoint && !canManageLeaders) ||
                     isMemberActionDenied(add.error)
                   )
                     return;
                   mutationInFlight.current = true;
                   setNotice(undefined);
-                  const effectiveRole =
-                    role ?? (appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER");
-                  const shouldAppoint = effectiveRole === "TEAM_LEADER";
                   add.mutate(
                     shouldAppoint ? { userId, role: "TEAM_LEADER" } : userId,
                     {

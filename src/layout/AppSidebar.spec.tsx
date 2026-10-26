@@ -2,6 +2,16 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar from "./AppSidebar";
 import { isPointInSafeTriangle } from "./SidebarFlyoutMenu";
+import { ApiError } from "@/lib/api-client";
+
+const managementAccess = vi.hoisted(() => ({
+  allowed: {} as Record<string, boolean>,
+}));
+vi.mock("@/lib/queries/projects/useProjectSettings", () => ({
+  useProjectManagementAccess: (_organizationId: string, projectId: string) => ({
+    canAccessSettings: managementAccess.allowed[projectId] ?? true,
+  }),
+}));
 
 const {
   replace,
@@ -16,6 +26,7 @@ const {
   logoutAsync: vi.fn(),
   selectAsync: vi.fn(),
   currentUser: {
+    error: undefined as Error | undefined,
     data: {
       id: "user-1",
       name: "Minh Anh",
@@ -175,6 +186,8 @@ vi.mock("next-intl", () => ({
 
 describe("AppSidebar navigation", () => {
   beforeEach(() => {
+    managementAccess.allowed = {};
+    currentUser.error = undefined;
     replace.mockReset();
     logoutAsync.mockReset().mockResolvedValue(undefined);
     selectAsync.mockReset().mockResolvedValue(undefined);
@@ -187,6 +200,29 @@ describe("AppSidebar navigation", () => {
       roles: ["ADMIN"],
     };
     organizations.data = [{ id: "org-1", name: "North Star Company" }];
+  });
+
+  it("does not expose cached Manager navigation after identity access is rejected", () => {
+    currentUser.error = new ApiError(403, "FORBIDDEN", "Membership revoked");
+    render(<AppSidebar />);
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Members" })).not.toBeInTheDocument();
+  });
+
+  it("hides Project Settings from a Member and limits a Leader to the authorized Project", () => {
+    currentUser.data.roles = ["MEMBER"];
+    managementAccess.allowed = {
+      "69e923c77859fd1c702d4c21": true,
+      "69e923c77859fd1c702d4c99": false,
+    };
+    render(<AppSidebar />);
+    fireEvent.click(screen.getByRole("button", { name: "Toggle projects list" }));
+    for (const name of ["Continuum Workspace Core", "AI Knowledge Engine"]) {
+      fireEvent.click(screen.getByRole("button", { name: `Toggle ${name} options` }));
+    }
+    expect(within(screen.getByRole("group", { name: "Continuum Workspace Core actions" })).getByRole("link", { name: "Setting" })).toBeInTheDocument();
+    expect(within(screen.getByRole("group", { name: "AI Knowledge Engine actions" })).queryByRole("link", { name: "Setting" })).not.toBeInTheDocument();
   });
 
   it("opens a dropdown containing exactly the organizations available to the account", () => {

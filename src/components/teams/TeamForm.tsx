@@ -24,6 +24,7 @@ export default function TeamForm({
   operation,
   onSuccess,
   onCancel,
+  disabled = false,
 }: {
   scope: TeamScope;
   actor: string;
@@ -31,6 +32,7 @@ export default function TeamForm({
   operation: "create" | "update" | "archive" | "restore";
   onSuccess: (resource: TeamResource) => void;
   onCancel?: () => void;
+  disabled?: boolean;
 }) {
   const t = useTranslations("teamFoundation");
   const id = useId();
@@ -112,10 +114,10 @@ export default function TeamForm({
     latest?.error instanceof TeamRecoveryRequiredError;
   const lifecycle = operation === "archive" || operation === "restore";
   const frozen =
-    mutation.isPending || elsewherePending || uncertain || blocked || recovered;
+    disabled || mutation.isPending || elsewherePending || uncertain || blocked || recovered;
   async function send(event: FormEvent) {
     event.preventDefault();
-    if (inFlight.current || blocked || elsewherePending || recovered) return;
+    if (disabled || inFlight.current || blocked || elsewherePending || recovered) return;
     setFieldError(undefined);
     try {
       if (!command.current) {
@@ -271,7 +273,7 @@ export default function TeamForm({
           <Button
             type="submit"
             variant={operation === "archive" ? "danger" : "primary"}
-            disabled={mutation.isPending || elsewherePending || blocked}
+            disabled={disabled || mutation.isPending || elsewherePending || blocked}
           >
             {t(
               mutation.isPending || elsewherePending

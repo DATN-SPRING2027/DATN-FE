@@ -283,7 +283,7 @@ export default function WorkListView({
   ) {
     event.preventDefault();
     const trimmed = newSubtaskSummary.trim();
-    if (!trimmed || !onAddSubtask) return;
+    if (!trimmed || !onAddSubtask || parentItem.readOnly) return;
     const assignee =
       allAssigneeChoices.find((p) => p.id === newSubtaskAssigneeId) ??
       parentItem.assignee;
@@ -751,6 +751,7 @@ export default function WorkListView({
                                   key: item.key,
                                 })}
                                 checked={isSelected}
+                                disabled={item.readOnly}
                                 onChange={() => onToggleItem(item.id)}
                                 className="h-4 w-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-950"
                               />
@@ -788,7 +789,7 @@ export default function WorkListView({
                                   setActiveSubtaskPopoverId,
                                   closeAllCellPopovers,
                                   toggleExpandRow,
-                                  onStartAddSubtask: onAddSubtask
+                                  onStartAddSubtask: onAddSubtask && !item.readOnly
                                     ? () => startAddSubtaskForItem(item)
                                     : undefined,
                                   onOpenItem,
@@ -844,7 +845,7 @@ export default function WorkListView({
                                     <MonoIcon name="eye"size={13} className="text-gray-500"/>
                                     <span>Open details</span>
                                   </button>
-                                  {onAddSubtask && (
+                                  {onAddSubtask && !item.readOnly && (
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -929,7 +930,7 @@ export default function WorkListView({
                                     <MonoIcon name="clock"size={13} className="text-gray-500"/>
                                     <span>Log work</span>
                                   </button>
-                                  {onDeleteItem && (
+                                  {onDeleteItem && !item.readOnly && (
                                     <>
                                       <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
                                       <button
@@ -981,6 +982,7 @@ export default function WorkListView({
                                       <input
                                         type="checkbox"
                                         checked={sub.done}
+                                        disabled={sub.readOnly}
                                         onChange={() =>
                                           onToggleSubtask?.(item.id, sub.id)
                                         }
@@ -1189,6 +1191,7 @@ export default function WorkListView({
                                               </button>
                                             )}
                                             {!isEditingThisSub &&
+                                              !sub.readOnly &&
                                               onUpdateSubtask && (
                                                 <button
                                                   type="button"
@@ -1212,7 +1215,7 @@ export default function WorkListView({
                                         ) : col.key === "assignee" ? (
                                           <label className="relative flex max-w-full cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 transition hover:bg-gray-200/60 dark:hover:bg-gray-800">
                                             <PersonLabel person={subAssignee} />
-                                            {onUpdateSubtask && (
+                                            {!sub.readOnly && onUpdateSubtask && (
                                               <select
                                                 aria-label={`Assignee for ${sub.key}`}
                                                 value={subAssignee.id}
@@ -1249,7 +1252,7 @@ export default function WorkListView({
                                               status={sub.status}
                                               showChevron={Boolean(onUpdateSubtask)}
                                             />
-                                            {onUpdateSubtask && (
+                                            {!sub.readOnly && onUpdateSubtask && (
                                               <select
                                                 aria-label={`Status for ${sub.key}`}
                                                 value={sub.status}
@@ -1282,7 +1285,7 @@ export default function WorkListView({
                                             <WorkPriorityLabel
                                               priority={subPriority}
                                             />
-                                            {onUpdateSubtask && (
+                                            {!sub.readOnly && onUpdateSubtask && (
                                               <select
                                                 aria-label={`Priority for ${sub.key}`}
                                                 value={subPriority}
@@ -1318,7 +1321,7 @@ export default function WorkListView({
                                           <WorkDatePickerCell
                                             value={subDueDate}
                                             itemKey={sub.key}
-                                            disabled={!onUpdateSubtask}
+                                            disabled={sub.readOnly || !onUpdateSubtask}
                                             onChange={
                                               onUpdateSubtask
                                                 ? (nextDate) => {
@@ -1439,7 +1442,7 @@ export default function WorkListView({
                                             />
                                             <span>Open subtask detail</span>
                                           </button>
-                                          {onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1459,7 +1462,7 @@ export default function WorkListView({
                                               <span>Edit summary</span>
                                             </button>
                                           )}
-                                          {onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1534,7 +1537,7 @@ export default function WorkListView({
                                             <span>Copy subtask key</span>
                                           </button>
                                           <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
-                                          {onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1566,7 +1569,7 @@ export default function WorkListView({
                                               </span>
                                             </button>
                                           )}
-                                          {onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1592,7 +1595,7 @@ export default function WorkListView({
                                               <span>Log work (2h)</span>
                                             </button>
                                           )}
-                                          {onReorderSubtask && (
+                                          {!sub.readOnly && onReorderSubtask && (
                                             <div className="flex items-center justify-between px-3 py-1">
                                               <span className="text-[11px] text-gray-500">
                                                 Reorder
@@ -1657,7 +1660,7 @@ export default function WorkListView({
                                               <span>Clone subtask</span>
                                             </button>
                                           )}
-                                          {onConvertSubtaskToTask && (
+                                          {!sub.readOnly && onConvertSubtaskToTask && (
                                             <button
                                               type="button"
                                               onClick={() => {
@@ -1680,7 +1683,7 @@ export default function WorkListView({
                                               <span>Convert to Task</span>
                                             </button>
                                           )}
-                                          {onMoveSubtaskToParent &&
+                                          {!sub.readOnly && onMoveSubtaskToParent &&
                                             parentCandidates.length > 1 && (
                                               <div className="border-t border-gray-100 px-3 py-1.5 dark:border-gray-800">
                                                 <label className="block text-[10px] font-semibold text-gray-400">
@@ -1725,7 +1728,7 @@ export default function WorkListView({
                                                 </select>
                                               </div>
                                             )}
-                                          {onDeleteSubtask && (
+                                          {!sub.readOnly && onDeleteSubtask && (
                                             <>
                                               <div className="my-1 border-t border-gray-100 dark:border-gray-800" />
                                               <button
@@ -1845,7 +1848,7 @@ export default function WorkListView({
                                                     type="checkbox"
                                                     checked={st.done}
                                                     onChange={() => {
-                                                      if (!onUpdateSubtask)
+                                                      if (sub.readOnly || !onUpdateSubtask)
                                                         return;
                                                       const nextSteps =
                                                         subSteps.map((s) =>
@@ -1890,6 +1893,7 @@ export default function WorkListView({
 
                           {/* Inline Subtask Quick-Create Row under Parent (`addingSubtaskParentId === item.id`) */}
                           {addingSubtaskParentId === item.id &&
+                            !item.readOnly &&
                             onAddSubtask && (
                               <tr className="bg-white ring-2 ring-inset ring-brand-500 dark:bg-gray-900">
                                 <td className="border-b border-e border-gray-200 px-3 py-2 dark:border-gray-700" />
@@ -2189,6 +2193,12 @@ function renderCellContent({
   showNotice: (msg: string) => void;
   t: ReturnType<typeof useTranslations<"work">>;
 }) {
+  if (item.readOnly) {
+    onStatusChange = undefined;
+    onPriorityChange = undefined;
+    onAssigneeChange = undefined;
+    onDueDateChange = undefined;
+  }
   if (colKey === "work") {
     const isSubtaskPopoverOpen = activeSubtaskPopoverId === item.id;
     return (
@@ -2318,6 +2328,7 @@ function renderCellContent({
                           <input
                             type="checkbox"
                             checked={sub.done}
+                            disabled={sub.readOnly}
                             onChange={() => onToggleSubtask?.(item.id, sub.id)}
                             aria-label={`Complete subtask ${sub.key}`}
                             className="h-3.5 w-3.5 shrink-0 cursor-pointer rounded border-gray-300 text-brand-600"
@@ -2401,6 +2412,7 @@ function renderCellContent({
       <div className="relative">
         <button
           type="button"
+          disabled={!onAssigneeChange}
           onClick={() => {
             const next = isEditing ? null : item.id;
             closeAllCellPopovers();
@@ -2490,6 +2502,7 @@ function renderCellContent({
             setActivePriorityRowId(next);
           }}
           title="Click to change priority"
+          disabled={!onPriorityChange}
           className="cursor-pointer px-1.5 py-1 hover:bg-gray-100 dark:hover:bg-gray-800"
         >
           <WorkPriorityLabel priority={item.priority} />
@@ -2539,9 +2552,10 @@ function renderCellContent({
             setActiveStatusRowId(next);
           }}
           title="Click to transition status"
+          disabled={!onStatusChange}
           className="cursor-pointer"
         >
-          <WorkStatusBadge status={item.status} showChevron />
+          <WorkStatusBadge status={item.status} showChevron={Boolean(onStatusChange)} />
         </button>
 
         {isEditing && onStatusChange && (

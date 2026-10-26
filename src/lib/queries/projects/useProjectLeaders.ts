@@ -163,6 +163,8 @@ export function useProjectLeaderActions(
   const path = projectPath(projectId);
   const onSuccess = async () => {
     await Promise.all([
+      client.invalidateQueries({ queryKey: ["project-settings-access", organizationId, projectId] }),
+      client.invalidateQueries({ queryKey: ["project-visibility-access", organizationId, projectId] }),
       client.invalidateQueries({
         queryKey: projectLeaderKeys.scope(organizationId, projectId),
       }),

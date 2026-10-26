@@ -6,8 +6,15 @@ import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers
 import type { Project } from "@/lib/queries/projects/useProjects";
 import ProjectOverview from "./ProjectOverview";
 
+const management = vi.hoisted(() => ({ canAccessSettings: true }));
+const memberAddAccess = vi.hoisted(() => ({ isSuccess: false }));
+vi.mock("@/lib/queries/projects/useProjectSettings", () => ({
+  useProjectManagementAccess: () => management,
+}));
+
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
+  useProjectMemberAddAccess: () => memberAddAccess,
 }));
 vi.mock("./members/ProjectMembers", () => ({ default: () => null }));
 vi.mock("./ProjectSettings", () => ({ default: () => null }));
@@ -39,6 +46,27 @@ function renderOverview() {
 
 beforeEach(() => {
   membersQuery.mockReset();
+  management.canAccessSettings = true;
+  memberAddAccess.isSuccess = false;
+});
+
+it("hides Add member until the server grants member-add authority", () => {
+  membersQuery.mockReturnValue({ data: undefined, isPending: false, isError: true } as ReturnType<typeof useProjectMembersQuery>);
+  const view = renderOverview();
+  expect(screen.queryByRole("button", { name: "Open Add member form" })).not.toBeInTheDocument();
+  memberAddAccess.isSuccess = true;
+  view.rerender(<NextIntlClientProvider locale="en" messages={messages}><ProjectOverview project={project} /></NextIntlClientProvider>);
+  expect(screen.getByRole("button", { name: "Open Add member form" })).toBeVisible();
+  memberAddAccess.isSuccess = false;
+  view.rerender(<NextIntlClientProvider locale="en" messages={messages}><ProjectOverview project={project} /></NextIntlClientProvider>);
+  expect(screen.queryByRole("button", { name: "Open Add member form" })).not.toBeInTheDocument();
+});
+
+it("hides the Settings tab when the current Project grants no management access", () => {
+  management.canAccessSettings = false;
+  membersQuery.mockReturnValue({ data: undefined, isPending: false, isError: true } as ReturnType<typeof useProjectMembersQuery>);
+  renderOverview();
+  expect(screen.queryByRole("tab", { name: "Settings" })).not.toBeInTheDocument();
 });
 
 it("shows the live active Project member total on Overview", () => {
