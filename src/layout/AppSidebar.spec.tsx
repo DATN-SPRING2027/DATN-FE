@@ -59,6 +59,8 @@ const {
       pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
     },
     isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
   },
   routeState: { pathname: "/projects" },
 }));
@@ -131,9 +133,13 @@ vi.mock("@/icons/index", () => {
     LogOutIcon: Icon,
     PlugInIcon: Icon,
     PlusIcon: Icon,
+    SearchIcon: Icon,
     SettingsIcon: Icon,
     ShootingStarIcon: Icon,
+    BoxCubeIcon: Icon,
     DocsIcon: Icon,
+    FileIcon: Icon,
+    TaskIcon: Icon,
   };
 });
 vi.mock("next-intl", () => ({
@@ -141,15 +147,20 @@ vi.mock("next-intl", () => ({
     (namespace: string) => (key: string, values?: Record<string, string>) => {
       const translations: Record<string, string> = {
         "sidebar.navigation": "Main navigation",
+        "sidebar.projectNavigation": "Project navigation",
         "sidebar.brandLabel": "Continuum AI home",
+        "sidebar.groups.project": "Project",
+        "sidebar.groups.organization": "Organization",
+        "sidebar.groups.workspace": "Workspace",
+        "sidebar.items.dashboard": "Dashboard",
         "sidebar.groups.administration": "Administration",
         "sidebar.items.overview": "Overview",
         "sidebar.items.projects": "Projects",
         "sidebar.items.projectOverview": "Overview",
-        "sidebar.items.projectMembers": "Project members",
+        "sidebar.items.projectMembers": "Members",
         "sidebar.items.workspace": "Workspace",
         "sidebar.items.projectWorkNotes": "Work Notes",
-        "sidebar.items.projectSettings": "Setting",
+        "sidebar.items.projectSettings": "Settings",
         "sidebar.items.chat": "Chat",
         "sidebar.items.workNotes": "Work Notes",
         "sidebar.items.knowledge": "Knowledge",
@@ -159,12 +170,26 @@ vi.mock("next-intl", () => ({
         "sidebar.items.members": "Members",
         "sidebar.items.integrations": "Integrations",
         "sidebar.items.settings": "Settings",
+        "sidebar.projectLabel": "Project",
+        "sidebar.projectSwitcherLabel": "Choose project",
+        "sidebar.projectListLabel": "Projects",
+        "sidebar.projectUnavailable": "No active projects",
+        "sidebar.projectSelectPlaceholder": "Select a project",
         "sidebar.projectsDropdownToggle": "Toggle projects list",
         "sidebar.projectsSubmenuLabel": "Organization projects",
         "sidebar.projectDropdownToggle": `Toggle ${values?.name ?? ""} options`,
         "sidebar.projectActionsLabel": `${values?.name ?? ""} actions`,
         "sidebar.projectsLoading": "Loading projects…",
+        "sidebar.projectsLoadError": "Could not load projects.",
+        "sidebar.projectsRetry": "Try again",
         "sidebar.projectsEmpty": "No active projects",
+        "sidebar.searchProjectsPlaceholder": "Search projects...",
+        "sidebar.recentProjectsHeading": "Recent",
+        "sidebar.activeProjectStatus": "Active",
+        "sidebar.currentProject": "Current project",
+        "sidebar.noProjectsMatchSearch": "No matching projects",
+        "sidebar.createProject": "Create project",
+        "sidebar.viewAllProjects": "View all projects",
         "sidebar.organizationLabel": "Organization",
         "sidebar.organizationUnavailable": "Organization unavailable",
         "sidebar.organizationSwitcherLabel": "Choose organization",
@@ -175,6 +200,7 @@ vi.mock("next-intl", () => ({
         "sidebar.organizationSelectError": "Could not switch organizations.",
         "sidebar.organizationSwitching": "Switching…",
         "sidebar.manageOrganizations": "Manage organizations",
+        "sidebar.createOrganization": "Create organization",
         "sidebar.account.signOut": "Sign out",
         "sidebar.account.signingOut": "Signing out…",
         "sidebar.account.signOutError": "Could not sign out. Try again.",
@@ -208,6 +234,9 @@ describe("AppSidebar navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Members" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("navigation", { name: "Project navigation" }),
+    ).not.toBeInTheDocument();
   });
 
   it("hides Project Settings from a Member and limits a Leader to the authorized Project", () => {
@@ -217,12 +246,36 @@ describe("AppSidebar navigation", () => {
       "69e923c77859fd1c702d4c99": false,
     };
     render(<AppSidebar />);
-    fireEvent.click(screen.getByRole("button", { name: "Toggle projects list" }));
-    for (const name of ["Continuum Workspace Core", "AI Knowledge Engine"]) {
-      fireEvent.click(screen.getByRole("button", { name: `Toggle ${name} options` }));
-    }
-    expect(within(screen.getByRole("group", { name: "Continuum Workspace Core actions" })).getByRole("link", { name: "Setting" })).toBeInTheDocument();
-    expect(within(screen.getByRole("group", { name: "AI Knowledge Engine actions" })).queryByRole("link", { name: "Setting" })).not.toBeInTheDocument();
+
+    const projectNav = screen.getByRole("navigation", {
+      name: "Project navigation",
+    });
+    expect(
+      within(projectNav).getByRole("group", {
+        name: "Continuum Workspace Core actions",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(projectNav).getByRole("link", { name: "Settings" }),
+    ).toBeInTheDocument();
+
+    // Switch to AI Knowledge Engine via the Project Selector
+    fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
+    const projectOptions = screen.getByRole("region", { name: "Projects" });
+    fireEvent.click(
+      within(projectOptions).getByRole("button", {
+        name: /AI Knowledge Engine/,
+      }),
+    );
+
+    expect(
+      within(projectNav).getByRole("group", {
+        name: "AI Knowledge Engine actions",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(projectNav).queryByRole("link", { name: "Settings" }),
+    ).not.toBeInTheDocument();
   });
 
   it("opens a dropdown containing exactly the organizations available to the account", () => {
@@ -245,6 +298,43 @@ describe("AppSidebar navigation", () => {
         "North Star Company",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("enforces mutual exclusion so Organization selector and Project selector are never open simultaneously", () => {
+    render(<AppSidebar />);
+
+    const orgTrigger = screen.getByRole("button", {
+      name: "Choose organization",
+    });
+    const projectTrigger = screen.getByRole("button", {
+      name: "Choose project",
+    });
+
+    fireEvent.click(orgTrigger);
+    expect(
+      screen.getByRole("region", { name: "Organizations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Projects" }),
+    ).not.toBeInTheDocument();
+
+    // Opening Project selector must automatically close Organization selector
+    fireEvent.click(projectTrigger);
+    expect(
+      screen.queryByRole("region", { name: "Organizations" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Projects" }),
+    ).toBeInTheDocument();
+
+    // Opening Organization selector again must automatically close Project selector
+    fireEvent.click(orgTrigger);
+    expect(
+      screen.getByRole("region", { name: "Organizations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Projects" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows both organization choices and switches workspace when one is selected", async () => {
@@ -324,7 +414,8 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Projects", "Chat", "Members", "Settings"]);
+    ).toEqual(["Dashboard", "Projects", "Chat", "Members", "Settings"]);
+    expect(within(nav).getByRole("region", { name: "Organization" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
     ).not.toBeInTheDocument();
@@ -337,61 +428,78 @@ describe("AppSidebar navigation", () => {
     );
   });
 
-  it("expands Projects dropdown to list organization projects, and expands each project to show its Workspace link", () => {
+  it("renders only the active project's navigation (Overview, Members, Workspace, Work Notes, Settings) and switches project context via the Project Selector", () => {
+    routeState.pathname = "/projects/69e923c77859fd1c702d4c21/work-notes";
     render(<AppSidebar />);
-    const nav = screen.getByRole("navigation", { name: "Main navigation" });
-    const projectsLink = within(nav).getByRole("link", { name: "Projects" });
 
-    fireEvent.click(projectsLink);
-    expect(
-      within(nav).getByRole("group", { name: "Organization projects" }),
-    ).toBeInTheDocument();
-
-    fireEvent.click(projectsLink);
-    expect(
-      within(nav).queryByRole("group", { name: "Organization projects" }),
-    ).not.toBeInTheDocument();
-
-    fireEvent.click(
-      within(nav).getByRole("button", { name: "Toggle projects list" }),
-    );
-    const projectsGroup = within(nav).getByRole("group", {
-      name: "Organization projects",
+    const projectNav = screen.getByRole("navigation", {
+      name: "Project navigation",
     });
-    expect(
-      within(projectsGroup).getByText("Continuum Workspace Core"),
-    ).toBeInTheDocument();
-    expect(
-      within(projectsGroup).getByText("AI Knowledge Engine"),
-    ).toBeInTheDocument();
-
-    fireEvent.click(
-      within(projectsGroup).getByRole("button", {
-        name: "Toggle Continuum Workspace Core options",
-      }),
-    );
-    const projectActions = within(projectsGroup).getByRole("group", {
+    const projectActions = within(projectNav).getByRole("group", {
       name: "Continuum Workspace Core actions",
     });
+
+    expect(
+      within(projectActions)
+        .getAllByRole("link")
+        .map((link) => link.textContent?.trim()),
+    ).toEqual(["Overview", "Members", "Workspace", "Work Notes", "Settings"]);
+
     expect(
       within(projectActions).getByRole("link", { name: "Overview" }),
     ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/overview");
     expect(
-      within(projectActions).getByRole("link", { name: "Project members" }),
+      within(projectActions).getByRole("link", { name: "Members" }),
     ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/members");
-    const workspaceLink = within(projectActions).getByRole("link", {
-      name: "Workspace",
-    });
-    expect(workspaceLink).toHaveAttribute(
-      "href",
-      "/projects/69e923c77859fd1c702d4c21/work",
-    );
+    expect(
+      within(projectActions).getByRole("link", { name: "Workspace" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/work");
     expect(
       within(projectActions).getByRole("link", { name: "Work Notes" }),
     ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/work-notes");
     expect(
-      within(projectActions).getByRole("link", { name: "Setting" }),
+      within(projectActions).getByRole("link", { name: "Work Notes" }),
+    ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(projectActions).getByRole("link", { name: "Settings" }),
     ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/settings");
+
+    // Ensure non-selected projects do NOT duplicate navigation groups in the sidebar
+    expect(
+      within(projectNav).queryByRole("group", {
+        name: "AI Knowledge Engine actions",
+      }),
+    ).not.toBeInTheDocument();
+
+    // Open Project Selector, filter projects by search, and switch to AI Knowledge Engine
+    fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
+    const projectDropdown = screen.getByRole("region", { name: "Projects" });
+    const searchInput = within(projectDropdown).getByRole("searchbox", {
+      name: "Search projects...",
+    });
+
+    fireEvent.change(searchInput, { target: { value: "AIKE" } });
+    expect(
+      within(projectDropdown).queryByRole("button", {
+        name: /Continuum Workspace Core/,
+      }),
+    ).not.toBeInTheDocument();
+    const targetProjectBtn = within(projectDropdown).getByRole("button", {
+      name: /AI Knowledge Engine/,
+    });
+    expect(targetProjectBtn).toBeInTheDocument();
+
+    expect(
+      within(projectDropdown).getByRole("link", { name: "Create project" }),
+    ).toHaveAttribute("href", "/projects/new");
+    expect(
+      within(projectDropdown).getByRole("link", { name: "View all projects" }),
+    ).toHaveAttribute("href", "/projects");
+
+    fireEvent.click(targetProjectBtn);
+    expect(replace).toHaveBeenCalledWith(
+      "/projects/69e923c77859fd1c702d4c99/work-notes",
+    );
   });
 
   it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
@@ -460,11 +568,7 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
-    for (const label of [
-      "Knowledge",
-      "AI Search",
-      "Integrations",
-    ]) {
+    for (const label of ["Knowledge", "AI Search", "Integrations"]) {
       const button = screen.getByRole("button", { name: label });
       expect(button).toBeDisabled();
       expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
@@ -482,47 +586,19 @@ describe("AppSidebar navigation", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/signin"));
   });
 
-  it("renders a portaled hover Flyout menu after 175ms intent delay, does not open a flyout on Projects, enforces a single active flyout, supports safe triangle geometry, and closes on Escape", () => {
+  it("does not open hover flyout popovers when hovering over Dashboard, Projects, Chat, Members, or Settings", () => {
     vi.useFakeTimers();
     try {
       render(<AppSidebar />);
       const nav = screen.getByRole("navigation", { name: "Main navigation" });
-      const projectsItem = within(nav).getByRole("link", { name: "Projects" }).closest("li")!;
-      const chatItem = within(nav).getByRole("link", { name: "Chat" }).closest("li")!;
-      const overviewItem = within(nav).getByRole("link", { name: "Overview" }).closest("li")!;
-
-      fireEvent.mouseEnter(projectsItem);
-      act(() => {
-        vi.advanceTimersByTime(220);
-      });
-      expect(screen.queryByTestId("sidebar-flyout-projects")).not.toBeInTheDocument();
-
-      fireEvent.mouseEnter(chatItem);
-      act(() => {
-        vi.advanceTimersByTime(100);
-      });
-      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
-      act(() => {
-        vi.advanceTimersByTime(200);
-      });
-      expect(screen.queryByTestId("sidebar-flyout-chat")).not.toBeInTheDocument();
-
-      fireEvent.mouseEnter(chatItem);
-      act(() => {
-        vi.advanceTimersByTime(180);
-      });
-      const chatFlyout = screen.getByTestId("sidebar-flyout-chat");
-      expect(chatFlyout).toBeInTheDocument();
-      expect(chatFlyout.parentElement).toBe(document.body);
-
-      fireEvent.mouseLeave(chatItem, { clientX: 200, clientY: 160 });
-      fireEvent.mouseEnter(overviewItem);
-      act(() => {
-        vi.advanceTimersByTime(180);
-      });
-      expect(screen.queryByTestId("sidebar-flyout-chat")).not.toBeInTheDocument();
-      expect(screen.getByTestId("sidebar-flyout-overview")).toBeInTheDocument();
-
+      for (const name of ["Dashboard", "Projects", "Chat", "Members", "Settings"]) {
+        const item = within(nav).getByRole("link", { name }).closest("li")!;
+        fireEvent.mouseEnter(item);
+        act(() => {
+          vi.advanceTimersByTime(300);
+        });
+      }
+      expect(screen.queryByTestId(/sidebar-flyout-/)).not.toBeInTheDocument();
       expect(
         isPointInSafeTriangle(
           { x: 240, y: 180 },
@@ -531,9 +607,6 @@ describe("AppSidebar navigation", () => {
           { x: 290, y: 320 },
         ),
       ).toBe(true);
-
-      fireEvent.keyDown(document, { key: "Escape" });
-      expect(screen.queryByTestId("sidebar-flyout-overview")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }

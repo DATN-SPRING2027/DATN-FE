@@ -746,6 +746,7 @@
   },
   "sidebar": {
     "navigation": "Main navigation",
+    "projectNavigation": "Project navigation",
     "brandLabel": "Continuum AI home",
     "groups": {
       "workspace": "Workspace",
@@ -754,7 +755,8 @@
       "administration": "Administration",
       "menu": "Workspace",
       "support": "Support",
-      "others": "Account"
+      "others": "Account",
+      "project": "Project"
     },
     "badges": {
       "new": "new",
@@ -874,9 +876,9 @@
       "settings": "Settings",
       "workspace": "Workspace",
       "projectOverview": "Overview",
-      "projectMembers": "Project members",
+      "projectMembers": "Members",
       "projectWorkNotes": "Work Notes",
-      "projectSettings": "Setting"
+      "projectSettings": "Settings"
     },
     "organizationLabel": "Organization",
     "organizationSwitcherLabel": "Choose organization",
@@ -889,6 +891,20 @@
     "currentOrganization": "Current organization",
     "noOrganizations": "No organizations are available for this account.",
     "manageOrganizations": "Manage organizations",
+    "projectLabel": "Project",
+    "projectSwitcherLabel": "Choose project",
+    "projectListLabel": "Projects",
+    "projectUnavailable": "No active projects",
+    "projectSelectPlaceholder": "Select a project",
+    "projectsLoadError": "Could not load projects.",
+    "projectsRetry": "Try again",
+    "searchProjectsPlaceholder": "Search projects...",
+    "recentProjectsHeading": "Recent",
+    "activeProjectStatus": "Active",
+    "currentProject": "Current project",
+    "noProjectsMatchSearch": "No matching projects",
+    "createProject": "Create project",
+    "viewAllProjects": "View all projects",
     "projectsDropdownToggle": "Toggle projects list",
     "projectsSubmenuLabel": "Organization projects",
     "projectsLoading": "Loading projects…",

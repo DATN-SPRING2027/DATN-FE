@@ -445,7 +445,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <GroupIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
-                        <span>Project members</span>
+                        <span>Members</span>
                       </Link>
                       <Link
                         href={workNotesHref}
@@ -461,7 +461,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <SettingsIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
-                        <span>Setting</span>
+                        <span>Settings</span>
                       </Link>
                     </div>
                   </li>
