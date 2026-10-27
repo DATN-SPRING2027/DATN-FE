@@ -96,23 +96,24 @@ describe("AiChatWorkspace (ChatGPT-style SAG interface)", () => {
     });
   });
 
-  it("renders the ChatGPT-style hero screen ('Ready when you are.'), Chat | Work mode switch, High depth selector, and conversation sidebar", () => {
+  it("renders the ChatGPT-style hero screen ('Ready when you are.'), model selector, High depth selector, and clean conversation sidebar without duplicate profile card", () => {
     render(<AiChatWorkspace />);
 
     expect(
       screen.getByRole("heading", { name: "Ready when you are." }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Chat" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
-    expect(screen.getByRole("tab", { name: "Work" })).toHaveAttribute(
-      "aria-selected",
-      "false",
-    );
+    expect(
+      screen.getByRole("button", { name: "Select SAG model" }),
+    ).toHaveTextContent("SAG 2.5 Pro");
+    expect(
+      screen.getByRole("button", { name: "Select project scope for SAG" }),
+    ).toHaveTextContent("All Projects");
     expect(
       screen.getByRole("button", { name: "Retrieval depth" }),
     ).toHaveTextContent("High");
+    expect(
+      screen.getByPlaceholderText("Ask Continuum AI..."),
+    ).toBeInTheDocument();
 
     const historySidebar = screen.getByRole("complementary", {
       name: "AI Chat conversation history",
@@ -121,6 +122,12 @@ describe("AiChatWorkspace (ChatGPT-style SAG interface)", () => {
       within(historySidebar).getByRole("button", { name: "New chat" }),
     ).toBeInTheDocument();
     expect(within(historySidebar).getByText("Pinned")).toBeInTheDocument();
+    expect(
+      within(historySidebar).queryByText("Knowledge Library"),
+    ).not.toBeInTheDocument();
+    expect(
+      within(historySidebar).queryByText("SAG Plus · ACL Verified"),
+    ).not.toBeInTheDocument();
   });
 
   it("submits a SAG query, retrieves Task Notes & Project Documents, and renders verified citations with source links", async () => {

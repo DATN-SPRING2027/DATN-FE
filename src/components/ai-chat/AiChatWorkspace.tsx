@@ -588,14 +588,8 @@ export default function AiChatWorkspace() {
   const [threadSearchQuery, setThreadSearchQuery] = useState("");
   const [threads, setThreads] = useState<SagThread[]>(INITIAL_THREADS);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const [expandedFolders, setExpandedFolders] = useState<
-    Record<string, boolean>
-  >({
-    DATN_SP27: true,
-  });
 
-  // Top bar & Composer controls (Chat | Work pill, Model selector, Depth selector, Project scope)
-  const [workspaceMode, setWorkspaceMode] = useState<"chat" | "work">("chat");
+  // Top bar & Composer controls (Model selector, Depth selector, Project scope)
   const [selectedModel, setSelectedModel] = useState<
     "SAG 2.5 Pro" | "SAG 2.5 Flash" | "SAG Handover"
   >("SAG 2.5 Pro");
@@ -716,7 +710,7 @@ export default function AiChatWorkspace() {
         role: "user",
         content: trimmed,
         createdAt: nowTime,
-        mode: workspaceMode,
+        mode: "work",
         depth: retrievalDepth,
       };
 
@@ -755,7 +749,7 @@ export default function AiChatWorkspace() {
       try {
         const result = await synthesizeSagResponse({
           query: trimmed,
-          mode: workspaceMode,
+          mode: "work",
           depth: retrievalDepth,
           sourceFilter,
           selectedProject,
@@ -770,7 +764,7 @@ export default function AiChatWorkspace() {
             hour: "2-digit",
             minute: "2-digit",
           }),
-          mode: workspaceMode,
+          mode: "work",
           depth: retrievalDepth,
           citations: result.citations,
           retrievalSteps: result.retrievalSteps,
@@ -799,7 +793,6 @@ export default function AiChatWorkspace() {
       retrievalDepth,
       selectedProject,
       sourceFilter,
-      workspaceMode,
     ],
   );
 
@@ -946,11 +939,7 @@ export default function AiChatWorkspace() {
           value={promptInput}
           onChange={(e) => setPromptInput(e.target.value)}
           onKeyDown={handleComposerKeyDown}
-          placeholder={
-            workspaceMode === "work"
-              ? "Ask SAG to synthesize Task Notes, Work Reports, or Handover Briefs..."
-              : "Ask ChatGPT / Continuum SAG..."
-          }
+          placeholder="Ask Continuum AI..."
           aria-label="Ask Continuum SAG"
           className="max-h-32 min-h-[24px] flex-1 resize-none bg-transparent py-1 text-sm leading-5 text-gray-900 placeholder:text-gray-500 focus:outline-none dark:text-gray-100 dark:placeholder:text-gray-400"
         />
@@ -1118,20 +1107,273 @@ export default function AiChatWorkspace() {
       data-testid="ai-chat-workspace"
       className="flex h-full min-h-0 flex-1 overflow-hidden bg-white text-gray-900 dark:bg-[#0d0d0d] dark:text-gray-100"
     >
-      {/* Left ChatGPT Conversation History Sidebar */}
+      {/* Left Conversation History Sidebar (Focused solely on Chat Threads) */}
       {(isHistoryOpen || isMobileHistoryOpen) && (
         <aside
           aria-label="AI Chat conversation history"
           className={cn(
-            "h-full w-[260px] shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none dark:border-white/10 dark:bg-[#171717]",
+            "h-full w-[240px] shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none dark:border-white/10 dark:bg-[#171717]",
             isMobileHistoryOpen
               ? "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-30 max-md:flex max-md:shadow-theme-xl"
               : "hidden",
             isHistoryOpen ? "md:flex" : "md:hidden",
           )}
         >
-          {/* Sidebar Top Row: "ChatGPT / Continuum SAG v" + Search + Collapse */}
-          <div className="flex h-13 shrink-0 items-center justify-between px-3">
+          {/* Sidebar Top Row: Primary "New chat" action + Search + Collapse */}
+          <div className="flex h-13 shrink-0 items-center justify-between gap-1 px-2.5">
+            <button
+              type="button"
+              onClick={handleStartNewChat}
+              className={cn(
+                "inline-flex flex-1 items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-[13px] font-medium transition-colors",
+                activeThreadId === null
+                  ? "bg-gray-200/80 text-gray-900 dark:bg-white/10 dark:text-white"
+                  : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/[0.06]",
+              )}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="size-4 shrink-0"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M11.5 4.5H5.75A1.75 1.75 0 0 0 4 6.25v8A1.75 1.75 0 0 0 5.75 16h8A1.75 1.75 0 0 0 15.5 14.25V8.5"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="m14.25 3.25 2.5 2.5L10.5 12H8V9.5l6.25-6.25Z"
+                />
+              </svg>
+              <span className="truncate">New chat</span>
+            </button>
+
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button
+                type="button"
+                aria-label="Search chat history"
+                onClick={() => setIsSearchOpen((prev) => !prev)}
+                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.7"
+                  className="size-4"
+                >
+                  <circle cx="9" cy="9" r="5.25" />
+                  <path strokeLinecap="round" d="m13 13 3.5 3.5" />
+                </svg>
+              </button>
+              <button
+                type="button"
+                aria-label="Collapse chat history sidebar"
+                onClick={() => {
+                  setIsHistoryOpen(false);
+                  setIsMobileHistoryOpen(false);
+                }}
+                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  className="size-4"
+                >
+                  <rect x="3" y="4" width="14" height="12" rx="2" />
+                  <path d="M8 4v12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+
+          {/* Optional Search Input */}
+          {isSearchOpen && (
+            <div className="px-2.5 pb-2">
+              <input
+                type="search"
+                value={threadSearchQuery}
+                onChange={(e) => setThreadSearchQuery(e.target.value)}
+                placeholder="Search chats..."
+                aria-label="Search SAG threads"
+                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-[#212121] dark:text-gray-100"
+              />
+            </div>
+          )}
+
+          {/* Scrollable Pinned & Recent Threads List */}
+          <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 py-2">
+            {/* Pinned Section */}
+            {pinnedThreads.length > 0 && (
+              <div>
+                <div className="mb-1 px-2.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                  Pinned
+                </div>
+                <ul className="space-y-0.5">
+                  {pinnedThreads.map((thread) => {
+                    const isActive = thread.id === activeThreadId;
+                    return (
+                      <li key={thread.id} className="group relative">
+                        <button
+                          type="button"
+                          onClick={() => setActiveThreadId(thread.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 pe-12 text-start text-[13px] transition-colors",
+                            isActive
+                              ? "bg-gray-200/90 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
+                              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-300 dark:hover:bg-white/[0.06]",
+                          )}
+                        >
+                          <span className="truncate">{thread.title}</span>
+                        </button>
+                        <div className="absolute end-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
+                          <button
+                            type="button"
+                            aria-label={`Unpin ${thread.title}`}
+                            onClick={() => handleTogglePinThread(thread.id)}
+                            className="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            title="Unpin"
+                          >
+                            ★
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${thread.title}`}
+                            onClick={() => handleDeleteThread(thread.id)}
+                            className="rounded p-1 text-gray-400 hover:text-error-500"
+                            title="Delete"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {/* Recent Conversations */}
+            {recentThreads.length > 0 && (
+              <div>
+                <div className="mb-1 px-2.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">
+                  Recent
+                </div>
+                <ul className="space-y-0.5">
+                  {recentThreads.map((thread) => {
+                    const isActive = thread.id === activeThreadId;
+                    return (
+                      <li key={thread.id} className="group relative">
+                        <button
+                          type="button"
+                          onClick={() => setActiveThreadId(thread.id)}
+                          className={cn(
+                            "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 pe-12 text-start text-[13px] transition-colors",
+                            isActive
+                              ? "bg-gray-200/90 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
+                              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-300 dark:hover:bg-white/[0.06]",
+                          )}
+                        >
+                          <span className="truncate">{thread.title}</span>
+                        </button>
+                        <div className="absolute end-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
+                          <button
+                            type="button"
+                            aria-label={`Pin ${thread.title}`}
+                            onClick={() => handleTogglePinThread(thread.id)}
+                            className="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                            title="Pin"
+                          >
+                            ☆
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={`Delete ${thread.title}`}
+                            onClick={() => handleDeleteThread(thread.id)}
+                            className="rounded p-1 text-gray-400 hover:text-error-500"
+                            title="Delete"
+                          >
+                            ×
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            )}
+
+            {pinnedThreads.length === 0 && recentThreads.length === 0 && (
+              <p className="px-2.5 py-4 text-center text-xs text-gray-400 dark:text-gray-500">
+                No conversations found.
+              </p>
+            )}
+          </div>
+        </aside>
+      )}
+
+      {/* Right Main ChatGPT Canvas */}
+      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        {/* Top Bar: Left Model Selector ("SAG 2.5 Pro v") + Right Project Scope Selector */}
+        <header className="flex h-13 shrink-0 items-center justify-between px-4">
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              aria-label="Open chat history sidebar"
+              onClick={() => {
+                setIsHistoryOpen(true);
+                setIsMobileHistoryOpen((prev) => !prev);
+              }}
+              className={cn(
+                "flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
+                isHistoryOpen && "md:hidden",
+              )}
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 20 20"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                className="size-4"
+              >
+                <rect x="3" y="4" width="14" height="12" rx="2" />
+                <path d="M8 4v12" />
+              </svg>
+            </button>
+            {!isHistoryOpen && (
+              <button
+                type="button"
+                aria-label="Start new chat"
+                onClick={handleStartNewChat}
+                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+              >
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 20 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  className="size-4"
+                >
+                  <path
+                    strokeLinecap="round"
+                    d="M10 4.25v11.5M4.25 10h11.5"
+                  />
+                </svg>
+              </button>
+            )}
+
+            {/* Model Selector (Standard ChatGPT top-left placement) */}
             <div className="relative">
               <button
                 type="button"
@@ -1143,7 +1385,7 @@ export default function AiChatWorkspace() {
                   setIsProjectMenuOpen(false);
                   setIsModelMenuOpen((prev) => !prev);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-200/70 dark:text-gray-100 dark:hover:bg-white/10"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-white/10"
               >
                 <span>{selectedModel}</span>
                 <svg
@@ -1211,528 +1453,6 @@ export default function AiChatWorkspace() {
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                aria-label="Search chat history"
-                onClick={() => setIsSearchOpen((prev) => !prev)}
-                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
-              >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
-                  className="size-4"
-                >
-                  <circle cx="9" cy="9" r="5.25" />
-                  <path strokeLinecap="round" d="m13 13 3.5 3.5" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                aria-label="Collapse chat history sidebar"
-                onClick={() => {
-                  setIsHistoryOpen(false);
-                  setIsMobileHistoryOpen(false);
-                }}
-                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-gray-100"
-              >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  className="size-4"
-                >
-                  <rect x="3" y="4" width="14" height="12" rx="2" />
-                  <path d="M8 4v12" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Optional Search Input */}
-          {isSearchOpen && (
-            <div className="px-2.5 pb-2">
-              <input
-                type="search"
-                value={threadSearchQuery}
-                onChange={(e) => setThreadSearchQuery(e.target.value)}
-                placeholder="Search SAG threads..."
-                aria-label="Search SAG threads"
-                className="w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-[#212121] dark:text-gray-100"
-              />
-            </div>
-          )}
-
-          {/* Top Navigation Items (New chat, Knowledge Index, Citations, HandoverTemplates) */}
-          <div className="space-y-0.5 px-2 pb-2">
-            <button
-              type="button"
-              onClick={handleStartNewChat}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-[13px] font-medium transition-colors",
-                activeThreadId === null
-                  ? "bg-gray-200/80 text-gray-900 dark:bg-white/10 dark:text-white"
-                  : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/[0.06]",
-              )}
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="size-4 shrink-0"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M11.5 4.5H5.75A1.75 1.75 0 0 0 4 6.25v8A1.75 1.75 0 0 0 5.75 16h8A1.75 1.75 0 0 0 15.5 14.25V8.5"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m14.25 3.25 2.5 2.5L10.5 12H8V9.5l6.25-6.25Z"
-                />
-              </svg>
-              <span>New chat</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setWorkspaceMode("work");
-                void submitQuery(
-                  "Tóm tắt tiến độ Sprint, các Task Notes mới nhất và báo cáo chờ duyệt",
-                );
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-[13px] text-gray-600 transition-colors hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="size-4 shrink-0 opacity-80"
-              >
-                <circle cx="10" cy="10" r="6.5" />
-                <path strokeLinecap="round" d="M10 6.5v3.75l2.5 1.5" />
-              </svg>
-              <span className="truncate">Scheduled Digests</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSourceFilter("DOCUMENTS");
-                void submitQuery(
-                  "Liệt kê các Project Documents và quyết định kiến trúc đã được lập chỉ mục SAG",
-                );
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-[13px] text-gray-600 transition-colors hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="size-4 shrink-0 opacity-80"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 4.5h3v11h-3zM8.5 4.5h3v11h-3zM13 5l2.5 10.5"
-                />
-              </svg>
-              <span className="truncate">Knowledge Library</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setSourceFilter("TASK_NOTES");
-                void submitQuery(
-                  "Trích xuất các Task Notes theo chuẩn What / How / Why kèm trích dẫn nguồn",
-                );
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-[13px] text-gray-600 transition-colors hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="size-4 shrink-0 opacity-80"
-              >
-                <circle cx="10" cy="10" r="6.5" />
-                <circle cx="10" cy="10" r="2.5" />
-              </svg>
-              <span className="truncate">Verified Citations</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setWorkspaceMode("work");
-                void submitQuery(
-                  "Tổng hợp bản tin Bàn giao (Handover Brief) đầy đủ cho dự án hiện tại",
-                );
-              }}
-              className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-[13px] text-gray-600 transition-colors hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-                className="size-4 shrink-0 opacity-80"
-              >
-                <circle cx="5" cy="10" r="1.3" />
-                <circle cx="10" cy="10" r="1.3" />
-                <circle cx="15" cy="10" r="1.3" />
-              </svg>
-              <span className="truncate">Explore SAG Prompts</span>
-            </button>
-          </div>
-
-          {/* Scrollable Pinned, Recent & Project Folders List */}
-          <div className="no-scrollbar flex-1 space-y-4 overflow-y-auto px-2 py-2">
-            {/* Pinned Section */}
-            {pinnedThreads.length > 0 && (
-              <div>
-                <div className="mb-1 px-2.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                  Pinned
-                </div>
-                <ul className="space-y-0.5">
-                  {pinnedThreads.map((thread) => {
-                    const isActive = thread.id === activeThreadId;
-                    return (
-                      <li key={thread.id} className="group relative">
-                        <button
-                          type="button"
-                          onClick={() => setActiveThreadId(thread.id)}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 pe-12 text-start text-[13px] transition-colors",
-                            isActive
-                              ? "bg-gray-200/90 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
-                              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-300 dark:hover:bg-white/[0.06]",
-                          )}
-                        >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            className="size-3.5 shrink-0 opacity-70"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M4 10a6 6 0 0 1 12 0c0 1.4-.5 2.7-1.3 3.7L15.5 16l-2.6-.7A6 6 0 0 1 4 10Z"
-                            />
-                          </svg>
-                          <span className="truncate">{thread.title}</span>
-                        </button>
-                        <div className=" absolute end-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
-                          <button
-                            type="button"
-                            aria-label={`Unpin ${thread.title}`}
-                            onClick={() => handleTogglePinThread(thread.id)}
-                            className="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                            title="Unpin"
-                          >
-                            ★
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Delete ${thread.title}`}
-                            onClick={() => handleDeleteThread(thread.id)}
-                            className="rounded p-1 text-gray-400 hover:text-error-500"
-                            title="Delete"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {/* Recent Conversations */}
-            {recentThreads.length > 0 && (
-              <div>
-                <div className="mb-1 px-2.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                  Recent
-                </div>
-                <ul className="space-y-0.5">
-                  {recentThreads.map((thread) => {
-                    const isActive = thread.id === activeThreadId;
-                    return (
-                      <li key={thread.id} className="group relative">
-                        <button
-                          type="button"
-                          onClick={() => setActiveThreadId(thread.id)}
-                          className={cn(
-                            "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 pe-12 text-start text-[13px] transition-colors",
-                            isActive
-                              ? "bg-gray-200/90 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
-                              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-300 dark:hover:bg-white/[0.06]",
-                          )}
-                        >
-                          <svg
-                            aria-hidden="true"
-                            viewBox="0 0 20 20"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="1.5"
-                            className="size-3.5 shrink-0 opacity-70"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              d="M4 10a6 6 0 0 1 12 0c0 1.4-.5 2.7-1.3 3.7L15.5 16l-2.6-.7A6 6 0 0 1 4 10Z"
-                            />
-                          </svg>
-                          <span className="truncate">{thread.title}</span>
-                        </button>
-                        <div className="absolute end-1.5 top-1/2 hidden -translate-y-1/2 items-center gap-0.5 group-hover:flex">
-                          <button
-                            type="button"
-                            aria-label={`Pin ${thread.title}`}
-                            onClick={() => handleTogglePinThread(thread.id)}
-                            className="rounded p-1 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
-                            title="Pin"
-                          >
-                            ☆
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={`Delete ${thread.title}`}
-                            onClick={() => handleDeleteThread(thread.id)}
-                            className="rounded p-1 text-gray-400 hover:text-error-500"
-                            title="Delete"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            )}
-
-            {/* Project Folders Section (matches "📁 DATN_SP27" tree at bottom of screenshot) */}
-            <div>
-              <div className="mb-1 px-2.5 text-[11px] font-medium text-gray-400 dark:text-gray-500">
-                Project Workspaces
-              </div>
-              <div className="space-y-1">
-                <div>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      setExpandedFolders((prev) => ({
-                        ...prev,
-                        DATN_SP27: !prev.DATN_SP27,
-                      }))
-                    }
-                    className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-[13px] font-medium text-gray-700 transition-colors hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/[0.06]"
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      className="size-4 shrink-0 opacity-80"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.3l1.7 1.8h6A1.5 1.5 0 0 1 17 8.3v6.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5v-8Z"
-                      />
-                    </svg>
-                    <span className="truncate">
-                      {selectedProject?.code ?? "DATN_SP27"}
-                    </span>
-                  </button>
-                  {expandedFolders.DATN_SP27 && (
-                    <ul className="ms-4 mt-0.5 space-y-0.5 border-s border-gray-200/80 ps-2 dark:border-white/10">
-                      {threads.slice(0, 3).map((thread) => (
-                        <li key={`folder-${thread.id}`}>
-                          <button
-                            type="button"
-                            onClick={() => setActiveThreadId(thread.id)}
-                            className={cn(
-                              "block w-full truncate rounded-md px-2 py-1 text-start text-xs transition-colors",
-                              activeThreadId === thread.id
-                                ? "bg-gray-200/80 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
-                                : "text-gray-600 hover:bg-gray-200/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.05] dark:hover:text-gray-200",
-                            )}
-                          >
-                            {thread.title}
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-
-                {projects.slice(0, 3).map((proj) => (
-                  <button
-                    key={proj.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedProjectId(proj.id);
-                      void submitQuery(
-                        `Tóm tắt tri thức dự án ${proj.name} (${proj.code}) từ kho SAG`,
-                      );
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-start text-[13px] transition-colors",
-                      selectedProjectId === proj.id
-                        ? "bg-brand-50/90 font-medium text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                        : "text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/[0.06]",
-                    )}
-                  >
-                    <svg
-                      aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.6"
-                      className="size-4 shrink-0 opacity-75"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M3 6.5A1.5 1.5 0 0 1 4.5 5h3.3l1.7 1.8h6A1.5 1.5 0 0 1 17 8.3v6.2a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 3 14.5v-8Z"
-                      />
-                    </svg>
-                    <span className="truncate">{proj.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Sidebar Footer User / SAG Engine Status */}
-          <div className="border-t border-gray-200/80 p-2.5 dark:border-white/10">
-            <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-rose-500 text-xs font-semibold text-white">
-                {(currentUser.data?.name ?? "U").slice(0, 2).toUpperCase()}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-medium text-gray-900 dark:text-gray-100">
-                  {currentUser.data?.name ?? "Continuum Member"}
-                </p>
-                <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
-                  SAG Plus · ACL Verified
-                </p>
-              </div>
-            </div>
-          </div>
-        </aside>
-      )}
-
-      {/* Right Main ChatGPT Canvas */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        {/* Top Bar with "Chat | Work" Segmented Toggle in Center */}
-        <header className="flex h-13 shrink-0 items-center justify-between px-4">
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              aria-label="Open chat history sidebar"
-              onClick={() => {
-                setIsHistoryOpen(true);
-                setIsMobileHistoryOpen((prev) => !prev);
-              }}
-              className={cn(
-                "flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
-                isHistoryOpen && "md:hidden",
-              )}
-            >
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 20 20"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                className="size-4"
-              >
-                <rect x="3" y="4" width="14" height="12" rx="2" />
-                <path d="M8 4v12" />
-              </svg>
-            </button>
-            {!isHistoryOpen && (
-              <button
-                type="button"
-                aria-label="Start new chat"
-                onClick={handleStartNewChat}
-                className="flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-              >
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.6"
-                  className="size-4"
-                >
-                  <path
-                    strokeLinecap="round"
-                    d="M10 4.25v11.5M4.25 10h11.5"
-                  />
-                </svg>
-              </button>
-            )}
-          </div>
-
-          {/* Center "Chat | Work" Segmented Pill (Exact match to ChatGPT screenshot) */}
-          <div
-            role="tablist"
-            aria-label="AI Chat mode"
-            className="inline-flex items-center rounded-full border border-gray-200/80 bg-gray-100 p-0.5 dark:border-white/10 dark:bg-[#1e1e1e]"
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={workspaceMode === "chat"}
-              onClick={() => setWorkspaceMode("chat")}
-              className={cn(
-                "rounded-full px-4 py-1 text-xs font-medium transition-all",
-                workspaceMode === "chat"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-[#2f2f2f] dark:text-white"
-                  : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              Chat
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={workspaceMode === "work"}
-              onClick={() => setWorkspaceMode("work")}
-              className={cn(
-                "rounded-full px-4 py-1 text-xs font-medium transition-all",
-                workspaceMode === "work"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-[#2f2f2f] dark:text-white"
-                  : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              Work
-            </button>
           </div>
 
           {/* Right Project Scope Selector */}
@@ -1750,7 +1470,7 @@ export default function AiChatWorkspace() {
               className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50 px-3 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-white/10 dark:bg-[#1e1e1e] dark:text-gray-200 dark:hover:bg-white/10"
             >
               <span className="size-1.5 rounded-full bg-emerald-500" />
-              <span className="max-w-[140px] truncate">
+              <span className="max-w-[160px] truncate">
                 {selectedProject ? selectedProject.name : "All Projects"}
               </span>
               <svg
@@ -1835,50 +1555,22 @@ export default function AiChatWorkspace() {
             {/* Centered ChatGPT Pill Composer */}
             {renderComposerPill(true)}
 
-            {/* Context Suggestion Line Underneath Input (Exact match to "DATN FE PR #77 > is open..." in screenshot) */}
-            <div className="mt-4 flex flex-col items-center gap-3">
-              <button
-                type="button"
-                onClick={() =>
-                  void submitQuery(
-                    selectedProject
-                      ? `Map ${selectedProject.name} (${selectedProject.code}) Task Notes, architecture decisions, and handover gaps`
-                      : "DATN FE PR #94 is merged. Map its SAG API, Task Notes, and integration gaps",
-                  )
-                }
-                className="group inline-flex items-center gap-2 text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-              >
-                <span className="flex size-5 items-center justify-center rounded-full bg-gray-900 text-[10px] font-bold text-white dark:bg-white dark:text-gray-900">
-                  ✦
-                </span>
-                <span>
-                  <span className="underline decoration-dotted underline-offset-4">
-                    {selectedProject
-                      ? `${selectedProject.code} Knowledge Index`
-                      : "DATN FE PR #94"}
-                  </span>{" "}
-                  <span aria-hidden="true">›</span> is synced. Map its Task
-                  Notes, SAG citations and handover gaps
-                </span>
-              </button>
-
-              {/* Quick SAG Prompt Chips */}
-              <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-                {[
-                  "Tóm tắt Task Notes theo chuẩn What / How / Why",
-                  "Tổng hợp bản tin Bàn giao (Handover Brief)",
-                  "Kiểm tra tài liệu kiến trúc & Work Reports",
-                ].map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void submitQuery(suggestion)}
-                    className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3 py-1.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
-                  >
-                    {suggestion}
-                  </button>
-                ))}
-              </div>
+            {/* Single Clean Row of Quick SAG Prompt Chips */}
+            <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+              {[
+                "Tóm tắt Task Notes theo chuẩn What / How / Why",
+                "Tổng hợp bản tin Bàn giao (Handover Brief)",
+                "Kiểm tra tài liệu kiến trúc & Work Reports",
+              ].map((suggestion) => (
+                <button
+                  key={suggestion}
+                  type="button"
+                  onClick={() => void submitQuery(suggestion)}
+                  className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3.5 py-1.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.04] dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                >
+                  {suggestion}
+                </button>
+              ))}
             </div>
           </div>
         ) : (
