@@ -164,7 +164,7 @@ vi.mock("next-intl", () => ({
         "sidebar.items.chat": "Chat",
         "sidebar.items.workNotes": "Work Notes",
         "sidebar.items.knowledge": "Knowledge",
-        "sidebar.items.aiSearch": "AI Search",
+        "sidebar.items.aiSearch": "AI Chat",
         "sidebar.items.handover": "Handover",
         "sidebar.items.calendar": "Calendar",
         "sidebar.items.members": "Members",
@@ -414,7 +414,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Dashboard", "Projects", "Chat", "Members", "Settings"]);
+    ).toEqual(["Dashboard", "Projects", "Chat", "AI Chat", "Members", "Settings"]);
     expect(within(nav).getByRole("region", { name: "Organization" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
@@ -514,7 +514,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Projects", "Chat"]);
+    ).toEqual(["Projects", "Chat", "AI Chat"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -568,7 +568,7 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
-    for (const label of ["Knowledge", "AI Search", "Integrations"]) {
+    for (const label of ["Knowledge", "Integrations"]) {
       const button = screen.getByRole("button", { name: label });
       expect(button).toBeDisabled();
       expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");

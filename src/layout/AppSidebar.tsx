@@ -44,7 +44,7 @@ const primaryItems = [
   { key: "projects", path: "/projects", icon: FolderIcon, viewBox: "-2 -3 24 24" },
   { key: "chat", path: "/chat", icon: ChatIcon, viewBox: "1 1.1 22 22" },
   { key: "knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23" },
-  { key: "aiSearch", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
+  { key: "aiSearch", path: "/ai-chat", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
 ] as const;
 
 const administrationItems = [
