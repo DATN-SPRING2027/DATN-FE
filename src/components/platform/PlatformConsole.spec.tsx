@@ -324,7 +324,13 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
   usePlatformHealthQuery: () => health,
   usePlatformAuditQuery: () => audit,
 }));
-vi.mock("@/lib/queries/platform/usePlatformOperations", () => operationHooks);
+vi.mock("@/lib/queries/platform/usePlatformOperations", async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import("@/lib/queries/platform/usePlatformOperations")
+    >();
+  return { ...operationHooks, platformAuditActions: actual.platformAuditActions };
+});
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations:
@@ -1308,6 +1314,11 @@ describe("PlatformConsole", () => {
     };
     render(<PlatformConsole />);
 
+    expect(
+      within(screen.getByLabelText("audit.filterAction")).getByRole("option", {
+        name: "platform.user.restored",
+      }),
+    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("audit.filterAction"), {
       target: { value: "platform.project.metadata.changed" },
     });
