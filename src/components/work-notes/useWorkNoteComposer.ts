@@ -1,6 +1,16 @@
 "use client";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { ApiError } from "@/lib/api-client";
+import {
+  assessmentApi,
+  type AssessmentFeedbackCategory,
+} from "@/lib/queries/work-notes/work-note-assessment.api";
+import type {
+  AssessmentPurpose,
+  AssessmentView,
+} from "@/lib/queries/work-notes/work-note-assessment.types";
 import {
   agentApi,
   editorAgentApi,
@@ -12,6 +22,17 @@ import {
 } from "@/lib/queries/work-notes/work-note-agent.api";
 
 type Fields = { title: string; contentMarkdown: string };
+type AssessmentAction =
+  | { kind: "assess"; purpose: AssessmentPurpose }
+  | {
+      kind: "reply";
+      disposition: "answered" | "unknown" | "skipped";
+      answer?: string;
+    }
+  | { kind: "correct"; targetClaimOrGapId: string; correctionText: string }
+  | { kind: "reset"; newPurpose: AssessmentPurpose; carryAnswerIds: string[] }
+  | { kind: "feedback"; category: AssessmentFeedbackCategory }
+  | { kind: "rewrite" | "validateAuthor" };
 export function useWorkNoteComposer(
   projectId: string,
   taskId: string,
@@ -19,6 +40,7 @@ export function useWorkNoteComposer(
   onSaved: (result?: unknown) => void,
   source?: EditorSourceIdentity,
 ) {
+  const ta = useTranslations("workNotes.assessment");
   const client = useQueryClient();
   const api = source ? editorAgentApi(source) : agentApi;
   const key = [
@@ -66,6 +88,12 @@ export function useWorkNoteComposer(
     operationId: string;
   } | null>(null);
   const alive = useRef(true);
+  const editEpoch = useRef(0);
+  const assessmentPending = useRef(false);
+  const assessmentOperation = useRef<{
+    signature: string;
+    operationId: string;
+  } | null>(null);
   const lastRequest = useRef<Omit<
     AgentMessageInput,
     "operationId" | "expectedRevision"
@@ -92,6 +120,7 @@ export function useWorkNoteComposer(
     (fields.title !== query.data.title ||
       fields.contentMarkdown !== query.data.contentMarkdown);
   function setFields(value: Fields, remember = true) {
+    editEpoch.current++;
     if (remember) {
       const current = localRef.current ?? server();
       undoRef.current.push({
@@ -193,6 +222,15 @@ export function useWorkNoteComposer(
       setResponse(result);
       cache({
         ...current,
+        ...(current.assessment
+          ? {
+              assessment: {
+                ...current.assessment,
+                state: "stale",
+                allowedActions: ["reset", "manual", "feedback"],
+              },
+            }
+          : {}),
         suggestion: result.suggestion,
         pendingQuestion: result.questions[0] ?? null,
         conversation: [
@@ -231,6 +269,171 @@ export function useWorkNoteComposer(
     cache(next);
     setResponse(null);
     return next;
+  }
+  async function assessmentAction(
+    input: AssessmentAction,
+  ): Promise<AssessmentView | AgentResponse> {
+    if (source || assessmentPending.current) throw Error(ta("unavailable"));
+    assessmentPending.current = true;
+    setAgentBusy(true);
+    setError("");
+    try {
+      const d = await flush();
+      const a = d.assessment;
+      if (input.kind !== "assess" && !a) throw Error(ta("missingAssessment"));
+      const signature = JSON.stringify([
+        d.id,
+        d.revision,
+        a?.id,
+        a?.revision,
+        input,
+      ]);
+      if (assessmentOperation.current?.signature !== signature)
+        assessmentOperation.current = {
+          signature,
+          operationId: crypto.randomUUID(),
+        };
+      const base = {
+        operationId: assessmentOperation.current.operationId,
+        expectedRevision: d.revision,
+      };
+      const mutation = {
+        ...base,
+        expectedAssessmentRevision: a?.revision ?? 0,
+      };
+      const epoch = editEpoch.current;
+      let result: AssessmentView | AgentResponse;
+      switch (input.kind) {
+        case "assess":
+          result = await assessmentApi.assess(projectId, d.id, {
+            ...base,
+            purpose: input.purpose,
+          });
+          break;
+        case "reply": {
+          if (!a?.nextQuestion) throw Error(ta("missingQuestion"));
+          result = await assessmentApi.reply(projectId, d.id, a.id, {
+            ...mutation,
+            gapId: a.nextQuestion.gapId,
+            questionId: a.nextQuestion.id,
+            disposition: input.disposition,
+            ...(input.disposition === "answered"
+              ? { answer: input.answer }
+              : {}),
+          });
+          break;
+        }
+        case "correct":
+          result = await assessmentApi.correct(projectId, d.id, a!.id, {
+            ...mutation,
+            targetClaimOrGapId: input.targetClaimOrGapId,
+            correctionText: input.correctionText,
+          });
+          break;
+        case "reset":
+          result = await assessmentApi.reset(projectId, d.id, a!.id, {
+            ...mutation,
+            newPurpose: input.newPurpose,
+            carryAnswerIds: input.carryAnswerIds,
+          });
+          break;
+        case "feedback":
+          result = await assessmentApi.feedback(projectId, d.id, a!.id, {
+            ...mutation,
+            category: input.category,
+          });
+          break;
+        case "validateAuthor":
+          result = await assessmentApi.validateAuthor(
+            projectId,
+            d.id,
+            a!.id,
+            mutation,
+          );
+          break;
+        case "rewrite":
+          result = await assessmentApi.rewrite(
+            projectId,
+            d.id,
+            a!.id,
+            mutation,
+          );
+          break;
+      }
+      if (!alive.current) return result;
+      const refreshed =
+        input.kind === "rewrite"
+          ? await agentApi.resume(projectId, taskId, noteId)
+          : null;
+      if (!alive.current) return result;
+      if (input.kind === "rewrite" && !refreshed)
+        throw Error(ta("missingAssessment"));
+      const current = server();
+      const changed =
+        current.revision !== result.sourceRevision ||
+        (refreshed !== null && refreshed.revision !== result.sourceRevision) ||
+        !!localRef.current ||
+        epoch !== editEpoch.current;
+      const nextAssessment =
+        "schemaVersion" in result ? result : refreshed?.assessment;
+      if (changed && input.kind !== "feedback") {
+        if (nextAssessment)
+          cache({
+            ...current,
+            assessment: {
+              ...nextAssessment,
+              state: "stale",
+              allowedActions: ["reset", "manual", "feedback"],
+            },
+          });
+        throw Error(ta("draftChanged"));
+      }
+      if ("schemaVersion" in result) {
+        const clearsProposal =
+          input.kind !== "feedback" && input.kind !== "validateAuthor";
+        cache({
+          ...current,
+          assessment: result,
+          ...(clearsProposal
+            ? { pendingQuestion: null, suggestion: null }
+            : {}),
+        });
+        if (clearsProposal) setResponse(null);
+      } else {
+        cache({
+          ...current,
+          assessment: nextAssessment ?? a,
+          suggestion: result.suggestion,
+          pendingQuestion: null,
+        });
+        setResponse(result);
+      }
+      assessmentOperation.current = null;
+      return result;
+    } catch (e) {
+      if (alive.current && e instanceof ApiError && e.status === 409) {
+        const current = client.getQueryData<AgentDraft>(key);
+        if (current?.assessment)
+          cache({
+            ...current,
+            assessment: {
+              ...current.assessment,
+              state: "stale",
+              allowedActions: ["reset", "manual", "feedback"],
+              authorValidated: false,
+              signals: {
+                ...current.assessment.signals,
+                authorValidated: false,
+              },
+            },
+          });
+      }
+      setError(e instanceof Error ? e.message : ta("requestFailed"));
+      throw e;
+    } finally {
+      assessmentPending.current = false;
+      setAgentBusy(false);
+    }
   }
   async function save(confirmed: boolean) {
     setError("");
@@ -342,6 +545,7 @@ export function useWorkNoteComposer(
     dirty,
     saving,
     agentBusy,
+    assessmentBusy: assessmentPending.current,
     error,
     setError,
     response,
@@ -355,6 +559,22 @@ export function useWorkNoteComposer(
     reset,
     regenerate,
     restore,
+    assess: (purpose: AssessmentPurpose) =>
+      assessmentAction({ kind: "assess", purpose }),
+    replyAssessment: (
+      disposition: "answered" | "unknown" | "skipped",
+      answer?: string,
+    ) => assessmentAction({ kind: "reply", disposition, answer }),
+    rewriteAssessment: () => assessmentAction({ kind: "rewrite" }),
+    correctAssessment: (targetClaimOrGapId: string, correctionText: string) =>
+      assessmentAction({ kind: "correct", targetClaimOrGapId, correctionText }),
+    resetAssessment: (
+      newPurpose: AssessmentPurpose,
+      carryAnswerIds: string[],
+    ) => assessmentAction({ kind: "reset", newPurpose, carryAnswerIds }),
+    validateAssessment: () => assessmentAction({ kind: "validateAuthor" }),
+    feedbackAssessment: (category: AssessmentFeedbackCategory) =>
+      assessmentAction({ kind: "feedback", category }),
     undo,
     canUndo: historyCount >= 0 && undoRef.current.length > 0,
     canRedo: historyCount >= 0 && redoRef.current.length > 0,

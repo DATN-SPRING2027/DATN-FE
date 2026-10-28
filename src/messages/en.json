@@ -3507,7 +3507,7 @@
       "saving": "Saving draft…",
       "unsaved": "Unsaved changes",
       "savedDraft": "Draft saved.",
-      "retention": "Abandoned drafts and chat expire after 24 hours of inactivity.",
+      "retention": "Drafts and conversations are retained for at most 24 hours.",
       "requestFailed": "Request failed. Your draft is preserved.",
       "loadFailed": "Could not load this draft.",
       "retry": "Retry",
@@ -3579,7 +3579,143 @@
       "reportContext": "Your assigned reporting period. Save keeps the current workflow state; Submit remains separate.",
       "openEditor": "Edit text with Agent",
       "newDocument": "Create text document with Agent",
-      "saveDraft": "Save draft"
+      "saveDraft": "Save draft",
+      "checkingInformation": "Task assessment request in progress…"
+    },
+    "assessment": {
+      "title": "Task information check",
+      "intro": "Compare the whole note with the linked Task. A proposal or a saved note is not independent proof of completed work.",
+      "purpose": "Purpose of this note",
+      "check": "Check information",
+      "viewSources": "View sources ({count})",
+      "sourceUnavailable": "Source unavailable",
+      "manifest": "Sources used for this assessment",
+      "acquisition": "Context acquisition: {status}",
+      "included": "Included in this request",
+      "excluded": "Not included in this request",
+      "readSource": "Read source text",
+      "emptySource": "No source text was provided.",
+      "understanding": "How the Agent understands this Task",
+      "taskContext": "Task requirements: {status}",
+      "adequacy": "Note information: {status}",
+      "coverage": "Requirement coverage",
+      "claims": "Source-backed statements",
+      "gaps": "Information gaps",
+      "correctClaim": "Correct statement: {text}",
+      "correctGap": "Correct gap: {text}",
+      "correctionText": "Explain what the Agent understood incorrectly",
+      "correctionHint": "Your correction is an author supplement. It does not change the official Task requirements.",
+      "submitCorrection": "Reassess with this correction",
+      "cancel": "Cancel",
+      "questionTitle": "Assessment clarification",
+      "answer": "Your answer",
+      "sendAnswer": "Send answer",
+      "unknown": "I do not know",
+      "skip": "Skip this question",
+      "stopNotice": "Automatic questions have paused after {questions} questions or repeated turns without new information. Keep uncertainties, edit manually, or explicitly start a new assessment.",
+      "manual": "Keep uncertainties and edit manually",
+      "manualNotice": "You can continue editing and save this note. Unanswered information remains unknown; this assessment is not a completion certificate.",
+      "rewrite": "Prepare a proposal from this assessment",
+      "reset": "Start a new assessment",
+      "resetHint": "The note is preserved. No old answer is carried forward unless you select it below. The server rechecks every selected answer for relevance.",
+      "carryAnswer": "Carry answer: {text}",
+      "confirmReset": "Start with selected answers",
+      "signals": "Proposal applied: {applied}. Author validation: {validated}. Note saved: {saved}.",
+      "yes": "Yes",
+      "no": "No",
+      "reviewNotEstablished": "Independent semantic review: not established. Your validation and Save do not establish independently verified completion.",
+      "validateAuthor": "I confirm this reflects my note",
+      "feedback": "Report an assessment quality issue",
+      "feedbackHint": "Quality feedback is separate from correcting facts. It stays with this private draft and does not train the Agent or change the Project rules.",
+      "feedbackCategory": "Issue category",
+      "sendFeedback": "Record quality feedback",
+      "feedbackRecorded": "Quality feedback recorded for this draft.",
+      "purposeChanged": "The purpose changed. Start a new assessment and explicitly choose any answers to carry over.",
+      "unavailable": "Task assessment is unavailable or another request is running. You can still save your note.",
+      "missingAssessment": "Check the note information first.",
+      "missingQuestion": "There is no current assessment question to answer.",
+      "draftChanged": "The note changed during assessment. Run a new check before using this result.",
+      "requestFailed": "Assessment failed. Your note is preserved and Save remains available.",
+      "purposes": {
+        "AUTO": "Detect the purpose",
+        "PROGRESS": "Progress update",
+        "INCIDENT": "Incident or bug",
+        "DECISION": "Decision",
+        "HANDOVER": "Handover",
+        "COMPLETION": "Completion report",
+        "QA": "QA or editor test",
+        "OTHER": "Other"
+      },
+      "stateHelp": {
+        "analyzing": "The Agent is comparing the permitted sources. You can keep writing; changes make this result stale.",
+        "waiting_for_answer": "One important detail needs clarification before proceeding.",
+        "missing_context": "The available Task requirements or source information are limited. This is not proof of failure or completion.",
+        "contradiction": "The sources conflict. Confirm the relevant facts before preparing a proposal.",
+        "ready_to_edit": "There is enough information to prepare an honest proposal for this purpose. You still review and apply it.",
+        "stale": "The note or context changed. This result cannot validate or rewrite the current note until reassessed.",
+        "paused": "Automatic clarification has stopped. The unresolved details remain unknown.",
+        "error": "The assessment could not be completed. Ordinary editing and Save still work."
+      },
+      "load": {
+        "LOADED": "Loaded",
+        "INVALID": "Invalid source data",
+        "UNAVAILABLE": "Unavailable",
+        "PARTIAL": "Partially available"
+      },
+      "taskStatus": {
+        "CLEAR": "Clear",
+        "PARTIAL": "Partially specified",
+        "INSUFFICIENT": "Insufficiently specified"
+      },
+      "adequacyStatus": {
+        "ENOUGH_FOR_PURPOSE": "Enough for this purpose",
+        "NEEDS_AUTHOR_INPUT": "Needs author input",
+        "UNDETERMINED": "Not determined",
+        "CONTRADICTORY": "Conflicting information"
+      },
+      "coverageStatus": {
+        "SUPPORTED": "Source description supports this requirement",
+        "PARTIAL": "Partially described",
+        "NOT_REPORTED": "Not reported in this note",
+        "CONTRADICTORY": "Conflicting statements",
+        "UNKNOWN": "Not determined"
+      },
+      "origin": {
+        "TASK_REQUIREMENT": "Task requirement",
+        "AUTHOR_REPORT": "Author-reported statement"
+      },
+      "support": {
+        "FULL": "Fully supported by the cited text",
+        "PARTIAL": "Partially supported",
+        "CONTRADICTED": "Contradicted by the cited text",
+        "RELATED_ONLY": "Related source only",
+        "INSUFFICIENT": "Insufficient support"
+      },
+      "verification": {
+        "AUTHOR_REPORTED": "Reported by the author",
+        "NOT_INDEPENDENTLY_VERIFIED": "Not independently verified"
+      },
+      "gapStatus": {
+        "open": "Open",
+        "answered": "Answered",
+        "unknown": "Unknown",
+        "skipped": "Skipped"
+      },
+      "owner": {
+        "NOTE_AUTHOR": "For the note author to clarify",
+        "TASK_REQUIREMENT_OWNER": "Requires clarification of the official Task requirements"
+      },
+      "impact": {
+        "BLOCKING": "Important for this purpose",
+        "OPTIONAL": "Optional detail"
+      },
+      "feedbackCategories": {
+        "UNNECESSARY_QUESTION": "Unnecessary question",
+        "MISSING_QUESTION": "A necessary question was missing",
+        "WRONG_SOURCE": "Wrong or unsupported source",
+        "FALSE_SUFFICIENT": "Incorrectly judged sufficient"
+      },
+      "sourceVersion": "Source version: {version}"
     }
   },
   "projectVisibility": {

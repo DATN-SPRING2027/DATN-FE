@@ -1,5 +1,6 @@
 import { apiClient } from "@/lib/api-client";
 import { csrfHeaders, type TaskNote, type WorkNotesPage } from "./useWorkNotes";
+import type { AssessmentView } from "./work-note-assessment.types";
 export type AgentOperation =
   | "grammar"
   | "clarify"
@@ -43,6 +44,7 @@ export type AgentDraft = {
   conversation: readonly { role: "user" | "assistant"; content: string }[];
   pendingQuestion: AgentQuestion | null;
   suggestion: AgentSuggestion | null;
+  assessment?: AssessmentView | null;
 };
 export type AgentResponse = {
   status: "ANSWER" | "CLARIFICATION_REQUIRED" | "SUGGESTION_READY";

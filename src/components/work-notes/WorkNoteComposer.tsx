@@ -15,6 +15,7 @@ import WorkNoteProposal from "./WorkNoteProposal";
 import WorkNoteAgentChat from "./WorkNoteAgentChat";
 import WorkNoteHistory from "./WorkNoteHistory";
 import WorkNoteContext from "./WorkNoteContext";
+import WorkNoteAssessment from "./WorkNoteAssessment";
 import { sourceSelection, reconcileTextareaEdit } from "./textarea-source";
 
 export default function WorkNoteComposer({
@@ -73,6 +74,25 @@ export default function WorkNoteComposer({
     if (!editor.error) retryAction.current = null;
   }, [editor.error]);
   const showSuggestion = suggestion && dismissed !== suggestion.id;
+  const assessmentEnabled =
+    !source &&
+    (!d || d.workflow === "TASK_NOTE") &&
+    process.env.NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED === "true";
+  async function requestAssessment(
+    action: () => Promise<unknown>,
+    revealProposal = false,
+  ) {
+    retryAction.current = null;
+    try {
+      await action();
+      if (revealProposal) setDismissed(null);
+    } catch (error) {
+      retryAction.current = () => requestAssessment(action, revealProposal);
+      editor.setError(
+        error instanceof Error ? error.message : t("requestFailed"),
+      );
+    }
+  }
   useEffect(() => {
     const previous = document.activeElement as HTMLElement | null;
     closeButton.current?.focus();
@@ -247,7 +267,12 @@ export default function WorkNoteComposer({
                   : editor.dirty
                     ? t("unsaved")
                     : t("savedDraft")}{" "}
-            {t("retention")} {editor.agentBusy && <span>{t("thinking")}</span>}
+            {t("retention")}{" "}
+            {editor.agentBusy && (
+              <span>
+                {t(editor.assessmentBusy ? "checkingInformation" : "thinking")}
+              </span>
+            )}
           </div>
           {(editor.error || editor.query.isError) && (
             <div
@@ -388,6 +413,53 @@ export default function WorkNoteComposer({
                     className="min-h-72 w-full resize-y rounded-lg border border-gray-200 bg-transparent p-4 leading-7 outline-none focus:border-brand-500 dark:border-gray-700"
                   />
                 </label>
+                {assessmentEnabled && (
+                  <WorkNoteAssessment
+                    key={d?.assessment?.id ?? "new-assessment"}
+                    value={d?.assessment}
+                    stale={
+                      editor.dirty ||
+                      (!!d?.assessment &&
+                        d.assessment.sourceRevision !== d.revision)
+                    }
+                    busy={
+                      busy ||
+                      editor.agentBusy ||
+                      editor.saving ||
+                      !!confirmation ||
+                      !d
+                    }
+                    onAssess={(purpose) =>
+                      void requestAssessment(() => editor.assess(purpose))
+                    }
+                    onReply={(disposition, answer) =>
+                      void requestAssessment(() =>
+                        editor.replyAssessment(disposition, answer),
+                      )
+                    }
+                    onRewrite={() =>
+                      void requestAssessment(editor.rewriteAssessment, true)
+                    }
+                    onCorrect={(target, text) =>
+                      void requestAssessment(() =>
+                        editor.correctAssessment(target, text),
+                      )
+                    }
+                    onReset={(purpose, carry) =>
+                      void requestAssessment(() =>
+                        editor.resetAssessment(purpose, carry),
+                      )
+                    }
+                    onValidate={() =>
+                      void requestAssessment(editor.validateAssessment)
+                    }
+                    onFeedback={(category) =>
+                      void requestAssessment(() =>
+                        editor.feedbackAssessment(category),
+                      )
+                    }
+                  />
+                )}
                 {selection && (
                   <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 p-3 text-sm text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
                     <span className="min-w-0 flex-1 truncate">
