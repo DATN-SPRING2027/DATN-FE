@@ -151,11 +151,15 @@ export async function streamAiChatAsk({
   const reader = response.body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let streamDone = false;
 
   try {
     while (true) {
       const { value, done } = await reader.read();
-      if (done) break;
+      if (done) {
+        streamDone = true;
+        break;
+      }
       buffer += decoder.decode(value, { stream: true });
 
       let match = /\r?\n\r?\n/.exec(buffer);
@@ -178,6 +182,9 @@ export async function streamAiChatAsk({
       }
     }
   } finally {
+    if (!streamDone) {
+      await reader.cancel().catch(() => undefined);
+    }
     reader.releaseLock();
   }
 }

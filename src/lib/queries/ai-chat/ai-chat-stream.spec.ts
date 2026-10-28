@@ -107,4 +107,40 @@ describe("streamAiChatAsk", () => {
       code: "PROJECT_NOT_FOUND",
     } satisfies Partial<ApiError>);
   });
+
+  it("cancels the ReadableStream reader when consumption terminates before EOF", async () => {
+    const cancelSpy = vi.fn();
+    const encoder = new TextEncoder();
+    const infiniteStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode('event: delta\ndata: {"text":"chunk-1"}\n\n'),
+        );
+      },
+      cancel: cancelSpy,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(infiniteStream, {
+          status: 200,
+          headers: { "content-type": "text/event-stream; charset=utf-8" },
+        }),
+      ),
+    );
+
+    await expect(
+      streamAiChatAsk({
+        projectId: "proj-1",
+        threadId: "t1",
+        query: "Stop test",
+        onEvent: () => {
+          throw new DOMException("The operation was aborted", "AbortError");
+        },
+      }),
+    ).rejects.toThrow("The operation was aborted");
+
+    expect(cancelSpy).toHaveBeenCalledTimes(1);
+  });
 });

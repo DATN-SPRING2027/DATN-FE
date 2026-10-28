@@ -50,6 +50,7 @@ export async function forwardBackendRequest(
     );
   }
 
+  const isAiChatRequest = path[0] === "ai-chat";
   const streamBody = options.streamBody && !["GET", "HEAD"].includes(request.method);
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
@@ -65,11 +66,34 @@ export async function forwardBackendRequest(
         headers,
         body,
         ...(streamBody ? { duplex: "half" } : {}),
+        ...(isAiChatRequest ? { signal: request.signal } : {}),
         cache: "no-store",
         redirect: options.redirect ?? "manual",
       },
     );
   } catch (error) {
+    if (isAiChatRequest) {
+      if (request.signal.aborted) {
+        return Response.json(
+          {
+            code: "REQUEST_ABORTED",
+            message: "AI Chat request was cancelled.",
+            details: {},
+            requestId: headers.get("x-request-id"),
+          },
+          { status: 499, headers: { "cache-control": "no-store" } },
+        );
+      }
+      return Response.json(
+        {
+          code: "BACKEND_UNAVAILABLE",
+          message: "AI Chat service is temporarily unavailable.",
+          details: {},
+          requestId: headers.get("x-request-id"),
+        },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
     if (!isTeamPath(path)) throw error;
     return Response.json(
       {

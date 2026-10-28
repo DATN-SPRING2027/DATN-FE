@@ -6,12 +6,12 @@ export type CitationSegmentToken =
   | Readonly<{ kind: "text"; text: string }>
   | Readonly<{ kind: "citations"; items: readonly CitationItemToken[] }>;
 
-const BRACKET_GROUP_REGEX = /\[([0-9S,\s;]+)\]/gi;
+const BRACKET_GROUP_REGEX = /\[([0-9S,\s;、]+)\](?!\()/gi;
 const SINGLE_CITATION_TOKEN_REGEX = /^(?:([1-9]\d{0,2})|([sS][1-9]\d{0,2}))$/;
 
 function parseBracketGroup(inner: string): CitationItemToken[] | null {
   const parts = inner
-    .split(/[,;]/)
+    .split(/[,;、]/)
     .map((part) => part.trim())
     .filter(Boolean);
   if (parts.length === 0) return null;
@@ -131,4 +131,35 @@ const MONGO_OBJECT_ID_REGEX = /^[a-f0-9]{24}$/i;
 
 export function isContinuumDocumentId(documentId: string | undefined): boolean {
   return Boolean(documentId && MONGO_OBJECT_ID_REGEX.test(documentId));
+}
+
+export function isSyntheticSessionExcerpt(excerpt: string): boolean {
+  const trimmed = excerpt.trim();
+  return (
+    !trimmed ||
+    trimmed === "Session conversation memory" ||
+    /^Turns?\s+#\d+/.test(trimmed)
+  );
+}
+
+export function resolveSessionCitationPreview(
+  sessionCitation: Readonly<{
+    turnIds: readonly string[];
+    summaryExcerpt: string;
+  }>,
+  messagesById: ReadonlyMap<string, Readonly<{ content: string }>>,
+): string {
+  if (!isSyntheticSessionExcerpt(sessionCitation.summaryExcerpt)) {
+    return sessionCitation.summaryExcerpt;
+  }
+  for (const turnId of sessionCitation.turnIds) {
+    const matched = messagesById.get(turnId)?.content?.trim();
+    if (matched) {
+      return sessionCitation.summaryExcerpt &&
+        sessionCitation.summaryExcerpt !== "Session conversation memory"
+        ? `${sessionCitation.summaryExcerpt} — ${matched}`
+        : matched;
+    }
+  }
+  return sessionCitation.summaryExcerpt;
 }

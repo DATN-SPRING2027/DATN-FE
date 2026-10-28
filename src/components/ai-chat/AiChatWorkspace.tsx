@@ -32,6 +32,7 @@ import {
 } from "@/lib/api-client";
 import { streamAiChatAsk } from "@/lib/queries/ai-chat/ai-chat-stream";
 import type {
+  AiChatMessagePage,
   AiChatRetrievalStep,
   AiChatSessionCitation,
 } from "@/lib/queries/ai-chat/ai-chat.types";
@@ -53,7 +54,18 @@ import AiChatMessageList, {
   type InspectedEvidence,
 } from "./AiChatMessageList";
 import AiChatSidebar from "./AiChatSidebar";
-import { isContinuumDocumentId } from "./citation-utils";
+import {
+  isContinuumDocumentId,
+  resolveSessionCitationPreview,
+} from "./citation-utils";
+
+function isProjectOrAuthAccessError(error: unknown): error is ApiError {
+  if (!isAccessOrResourceUnavailableError(error)) return false;
+  if (error.status === 404 && error.code === "AI_CHAT_RESOURCE_NOT_FOUND") {
+    return false;
+  }
+  return true;
+}
 
 function deriveThreadTitle(query: string): string {
   const collapsed = query.replace(/\s+/g, " ").trim();
@@ -172,6 +184,9 @@ function AiChatWorkspaceContent() {
 
   const [localTurnsByThread, setLocalTurnsByThread] = useState<
     Record<string, readonly DisplayAiChatMessage[]>
+  >({});
+  const [answerStatusByMessageId, setAnswerStatusByMessageId] = useState<
+    Record<string, "answered" | "no_answer">
   >({});
   const [highlightedTurnId, setHighlightedTurnId] = useState<string | null>(
     null,
@@ -296,27 +311,48 @@ function AiChatWorkspaceContent() {
       for (const item of page.items) {
         if (!seen.has(item.id)) {
           seen.add(item.id);
-          ordered.push(item);
+          const rememberedAnswerStatus = answerStatusByMessageId[item.id];
+          ordered.push(
+            rememberedAnswerStatus
+              ? { ...item, answerStatus: rememberedAnswerStatus }
+              : item,
+          );
         }
       }
     }
     return ordered;
-  }, [messagesQuery.data]);
+  }, [answerStatusByMessageId, messagesQuery.data]);
 
   const displayedMessages: readonly DisplayAiChatMessage[] = useMemo(() => {
     if (!activeThreadId) return [];
     const localTurns = localTurnsByThread[activeThreadId] ?? [];
     if (localTurns.length === 0) return serverMessages;
+    const localById = new Map(localTurns.map((msg) => [msg.id, msg]));
     const serverIds = new Set(serverMessages.map((msg) => msg.id));
+    const enrichedServer = serverMessages.map((msg) => {
+      const localMatch = localById.get(msg.id);
+      if (!localMatch) return msg;
+      return {
+        ...msg,
+        answerStatus: msg.answerStatus ?? localMatch.answerStatus,
+        errorMessage: localMatch.errorMessage ?? msg.errorMessage,
+        retryQuery: localMatch.retryQuery ?? msg.retryQuery,
+      };
+    });
     const unsyncedLocal = localTurns.filter((msg) => !serverIds.has(msg.id));
-    return [...serverMessages, ...unsyncedLocal];
+    return [...enrichedServer, ...unsyncedLocal];
   }, [activeThreadId, localTurnsByThread, serverMessages]);
 
+  const displayedMessagesById = useMemo(
+    () => new Map(displayedMessages.map((msg) => [msg.id, msg])),
+    [displayedMessages],
+  );
+
   const queryAccessError = useMemo(() => {
-    if (isAccessOrResourceUnavailableError(threadsQuery.error)) {
+    if (isProjectOrAuthAccessError(threadsQuery.error)) {
       return threadsQuery.error;
     }
-    if (isAccessOrResourceUnavailableError(messagesQuery.error)) {
+    if (isProjectOrAuthAccessError(messagesQuery.error)) {
       return messagesQuery.error;
     }
     return null;
@@ -380,6 +416,17 @@ function AiChatWorkspaceContent() {
         delete next[threadId];
         return next;
       });
+      if (organizationId && projectId) {
+        setPinnedIdsByScope((prev) => {
+          const current =
+            prev[pinnedStorageKey] ??
+            readPinnedThreadsFromStorage(pinnedStorageKey);
+          if (!current.includes(threadId)) return prev;
+          const next = current.filter((id) => id !== threadId);
+          writePinnedThreadsToStorage(pinnedStorageKey, next);
+          return { ...prev, [pinnedStorageKey]: next };
+        });
+      }
       if (activeThreadId === threadId) {
         abortControllerRef.current?.abort();
         abortControllerRef.current = null;
@@ -387,7 +434,13 @@ function AiChatWorkspaceContent() {
         setActiveThreadId(null);
       }
     },
-    [activeThreadId, deleteThreadMutation],
+    [
+      activeThreadId,
+      deleteThreadMutation,
+      organizationId,
+      pinnedStorageKey,
+      projectId,
+    ],
   );
 
   const handleStopStreaming = useCallback(() => {
@@ -417,7 +470,9 @@ function AiChatWorkspaceContent() {
 
   const sendQuestion = useCallback(
     async (rawQuery: string) => {
-      if (!selectedProject || isStreaming) return;
+      if (!selectedProject || isStreaming || createThreadMutation.isPending) {
+        return;
+      }
       const trimmed = rawQuery.trim();
       if (!trimmed) {
         setValidationError(t("queryEmptyError"));
@@ -430,208 +485,273 @@ function AiChatWorkspaceContent() {
         return;
       }
 
+      const requestProjectId = selectedProject.id;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      setIsStreaming(true);
       setValidationError(null);
       setPermissionBanner(null);
       setComposerValue("");
 
-      let targetThreadId = activeThreadId;
-      if (!targetThreadId) {
+      try {
+        let targetThreadId = activeThreadId;
+        if (!targetThreadId) {
+          try {
+            const created = await createThreadMutation.mutateAsync({
+              title: deriveThreadTitle(trimmed),
+            });
+            if (
+              controller.signal.aborted ||
+              abortControllerRef.current !== controller
+            ) {
+              return;
+            }
+            targetThreadId = created.id;
+            setActiveThreadId(created.id);
+          } catch (error) {
+            if (
+              controller.signal.aborted ||
+              abortControllerRef.current !== controller ||
+              isAbortError(error)
+            ) {
+              return;
+            }
+            setComposerValue(rawQuery);
+            if (isProjectOrAuthAccessError(error)) {
+              setPermissionBanner(
+                error.status === 401
+                  ? t("sessionExpiredBody")
+                  : t("permissionDeniedBody"),
+              );
+            } else {
+              setValidationError(
+                error instanceof Error
+                  ? error.message
+                  : t("streamFailedDefault"),
+              );
+            }
+            return;
+          }
+        }
+
+        const nowIso = new Date().toISOString();
+        const tempUserTurnId = `local-user-${Date.now()}`;
+        const tempAssistantTurnId = `local-assistant-${Date.now()}`;
+
+        const optimisticUserTurn: DisplayAiChatMessage = {
+          id: tempUserTurnId,
+          role: "user",
+          content: trimmed,
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: nowIso,
+        };
+        const optimisticAssistantTurn: DisplayAiChatMessage = {
+          id: tempAssistantTurnId,
+          role: "assistant",
+          content: "",
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: nowIso,
+          isStreaming: true,
+          retryQuery: trimmed,
+        };
+
+        const currentServerIds = new Set(serverMessages.map((msg) => msg.id));
+        setLocalTurnsByThread((prev) => {
+          const retained = (prev[targetThreadId] ?? []).filter(
+            (turn) =>
+              turn.isStreaming ||
+              turn.status !== "ok" ||
+              !currentServerIds.has(turn.id),
+          );
+          return {
+            ...prev,
+            [targetThreadId]: [
+              ...retained,
+              optimisticUserTurn,
+              optimisticAssistantTurn,
+            ],
+          };
+        });
+
+        let activeUserTurnId = tempUserTurnId;
+        let activeAssistantTurnId = tempAssistantTurnId;
+        const collectedSteps: AiChatRetrievalStep[] = [];
+
         try {
-          const created = await createThreadMutation.mutateAsync({
-            title: deriveThreadTitle(trimmed),
+          await streamAiChatAsk({
+            projectId: requestProjectId,
+            threadId: targetThreadId,
+            query: trimmed,
+            signal: controller.signal,
+            onEvent: (event) => {
+              if (event.event === "started") {
+                const realUserMessageId = event.data.userMessageId;
+                if (realUserMessageId) {
+                  updateLocalTurn(targetThreadId, activeUserTurnId, (turn) => ({
+                    ...turn,
+                    id: realUserMessageId,
+                  }));
+                  activeUserTurnId = realUserMessageId;
+                }
+                return;
+              }
+
+              if (event.event === "step") {
+                collectedSteps.push(event.data);
+                updateLocalTurn(
+                  targetThreadId,
+                  activeAssistantTurnId,
+                  (turn) => ({
+                    ...turn,
+                    retrievalSteps: [...collectedSteps],
+                  }),
+                );
+                return;
+              }
+
+              if (event.event === "delta") {
+                updateLocalTurn(
+                  targetThreadId,
+                  activeAssistantTurnId,
+                  (turn) => ({
+                    ...turn,
+                    content: `${turn.content}${event.data.text}`,
+                  }),
+                );
+                return;
+              }
+
+              if (event.event === "completed") {
+                const finalId = event.data.messageId || activeAssistantTurnId;
+                setAnswerStatusByMessageId((prev) => ({
+                  ...prev,
+                  [finalId]: event.data.answerStatus,
+                }));
+                updateLocalTurn(
+                  targetThreadId,
+                  activeAssistantTurnId,
+                  (turn) => ({
+                    ...turn,
+                    id: finalId,
+                    content: event.data.content || turn.content,
+                    status: "ok",
+                    isStreaming: false,
+                    answerStatus: event.data.answerStatus,
+                    citations: event.data.citations,
+                    sessionCitations: event.data.sessionCitations,
+                    retrievalSteps:
+                      event.data.retrievalSteps.length > 0
+                        ? event.data.retrievalSteps
+                        : turn.retrievalSteps,
+                  }),
+                );
+                activeAssistantTurnId = finalId;
+                return;
+              }
+
+              if (event.event === "failed") {
+                const failedId = event.data.messageId || activeAssistantTurnId;
+                updateLocalTurn(
+                  targetThreadId,
+                  activeAssistantTurnId,
+                  (turn) => ({
+                    ...turn,
+                    id: failedId,
+                    status: "failed",
+                    isStreaming: false,
+                    errorMessage:
+                      event.data.message || t("streamFailedDefault"),
+                  }),
+                );
+                activeAssistantTurnId = failedId;
+              }
+            },
           });
-          targetThreadId = created.id;
-          setActiveThreadId(created.id);
+
+          const messagesKey = aiChatKeys.messages(
+            organizationId,
+            requestProjectId,
+            targetThreadId,
+          );
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: aiChatKeys.threads(organizationId, requestProjectId),
+            }),
+            queryClient.invalidateQueries({
+              queryKey: messagesKey,
+            }),
+          ]);
+
+          if (typeof queryClient.getQueryData === "function") {
+            const refreshed = queryClient.getQueryData<{
+              pages?: readonly AiChatMessagePage[];
+            }>(messagesKey);
+            const refreshedIds = new Set<string>();
+            for (const page of refreshed?.pages ?? []) {
+              for (const item of page.items) {
+                refreshedIds.add(item.id);
+              }
+            }
+            if (refreshedIds.size > 0) {
+              setLocalTurnsByThread((prev) => {
+                const existing = prev[targetThreadId];
+                if (!existing || existing.length === 0) return prev;
+                const filtered = existing.filter(
+                  (turn) =>
+                    turn.isStreaming ||
+                    turn.status !== "ok" ||
+                    !refreshedIds.has(turn.id),
+                );
+                if (filtered.length === existing.length) return prev;
+                return { ...prev, [targetThreadId]: filtered };
+              });
+            }
+          }
         } catch (error) {
-          setComposerValue(rawQuery);
-          if (isAccessOrResourceUnavailableError(error)) {
+          if (isAbortError(error) || controller.signal.aborted) {
+            updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
+              ...turn,
+              status: "cancelled",
+              isStreaming: false,
+            }));
+          } else if (isProjectOrAuthAccessError(error)) {
             setPermissionBanner(
               error.status === 401
                 ? t("sessionExpiredBody")
                 : t("permissionDeniedBody"),
             );
+            updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
+              ...turn,
+              status: "failed",
+              isStreaming: false,
+              errorMessage:
+                error instanceof ApiError
+                  ? error.message
+                  : t("permissionDeniedBody"),
+            }));
           } else {
-            setValidationError(
-              error instanceof Error ? error.message : t("streamFailedDefault"),
-            );
+            updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
+              ...turn,
+              status: "failed",
+              isStreaming: false,
+              errorMessage:
+                error instanceof Error
+                  ? error.message
+                  : t("streamFailedDefault"),
+            }));
           }
-          return;
-        }
-      }
-
-      const nowIso = new Date().toISOString();
-      const tempUserTurnId = `local-user-${Date.now()}`;
-      const tempAssistantTurnId = `local-assistant-${Date.now()}`;
-
-      const optimisticUserTurn: DisplayAiChatMessage = {
-        id: tempUserTurnId,
-        role: "user",
-        content: trimmed,
-        status: "ok",
-        citations: [],
-        sessionCitations: [],
-        retrievalSteps: [],
-        createdAt: nowIso,
-      };
-      const optimisticAssistantTurn: DisplayAiChatMessage = {
-        id: tempAssistantTurnId,
-        role: "assistant",
-        content: "",
-        status: "ok",
-        citations: [],
-        sessionCitations: [],
-        retrievalSteps: [],
-        createdAt: nowIso,
-        isStreaming: true,
-        retryQuery: trimmed,
-      };
-
-      setLocalTurnsByThread((prev) => ({
-        ...prev,
-        [targetThreadId]: [
-          ...(prev[targetThreadId] ?? []),
-          optimisticUserTurn,
-          optimisticAssistantTurn,
-        ],
-      }));
-
-      const controller = new AbortController();
-      abortControllerRef.current = controller;
-      setIsStreaming(true);
-
-      let activeAssistantTurnId = tempAssistantTurnId;
-      const collectedSteps: AiChatRetrievalStep[] = [];
-
-      try {
-        await streamAiChatAsk({
-          projectId: selectedProject.id,
-          threadId: targetThreadId,
-          query: trimmed,
-          signal: controller.signal,
-          onEvent: (event) => {
-            if (event.event === "started") {
-              const realUserMessageId = event.data.userMessageId;
-              if (realUserMessageId) {
-                updateLocalTurn(targetThreadId, tempUserTurnId, (turn) => ({
-                  ...turn,
-                  id: realUserMessageId,
-                }));
-              }
-              return;
-            }
-
-            if (event.event === "step") {
-              collectedSteps.push(event.data);
-              updateLocalTurn(
-                targetThreadId,
-                activeAssistantTurnId,
-                (turn) => ({
-                  ...turn,
-                  retrievalSteps: [...collectedSteps],
-                }),
-              );
-              return;
-            }
-
-            if (event.event === "delta") {
-              updateLocalTurn(
-                targetThreadId,
-                activeAssistantTurnId,
-                (turn) => ({
-                  ...turn,
-                  content: `${turn.content}${event.data.text}`,
-                }),
-              );
-              return;
-            }
-
-            if (event.event === "completed") {
-              const finalId = event.data.messageId || activeAssistantTurnId;
-              updateLocalTurn(
-                targetThreadId,
-                activeAssistantTurnId,
-                (turn) => ({
-                  ...turn,
-                  id: finalId,
-                  content: event.data.content || turn.content,
-                  status: "ok",
-                  isStreaming: false,
-                  answerStatus: event.data.answerStatus,
-                  citations: event.data.citations,
-                  sessionCitations: event.data.sessionCitations,
-                  retrievalSteps:
-                    event.data.retrievalSteps.length > 0
-                      ? event.data.retrievalSteps
-                      : turn.retrievalSteps,
-                }),
-              );
-              activeAssistantTurnId = finalId;
-              return;
-            }
-
-            if (event.event === "failed") {
-              updateLocalTurn(
-                targetThreadId,
-                activeAssistantTurnId,
-                (turn) => ({
-                  ...turn,
-                  status: "failed",
-                  isStreaming: false,
-                  errorMessage: event.data.message || t("streamFailedDefault"),
-                }),
-              );
-            }
-          },
-        });
-
-        await Promise.all([
-          queryClient.invalidateQueries({
-            queryKey: aiChatKeys.threads(organizationId, selectedProject.id),
-          }),
-          queryClient.invalidateQueries({
-            queryKey: aiChatKeys.messages(
-              organizationId,
-              selectedProject.id,
-              targetThreadId,
-            ),
-          }),
-        ]);
-      } catch (error) {
-        if (isAbortError(error)) {
-          updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
-            ...turn,
-            status: "cancelled",
-            isStreaming: false,
-          }));
-        } else if (isAccessOrResourceUnavailableError(error)) {
-          setPermissionBanner(
-            error.status === 401
-              ? t("sessionExpiredBody")
-              : t("permissionDeniedBody"),
-          );
-          updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
-            ...turn,
-            status: "failed",
-            isStreaming: false,
-            errorMessage:
-              error instanceof ApiError
-                ? error.message
-                : t("permissionDeniedBody"),
-          }));
-        } else {
-          updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
-            ...turn,
-            status: "failed",
-            isStreaming: false,
-            errorMessage:
-              error instanceof Error ? error.message : t("streamFailedDefault"),
-          }));
         }
       } finally {
         if (abortControllerRef.current === controller) {
           abortControllerRef.current = null;
+          setIsStreaming(false);
         }
-        setIsStreaming(false);
       }
     },
     [
@@ -641,6 +761,7 @@ function AiChatWorkspaceContent() {
       organizationId,
       queryClient,
       selectedProject,
+      serverMessages,
       t,
       updateLocalTurn,
     ],
@@ -1159,8 +1280,9 @@ function AiChatWorkspaceContent() {
                 <button
                   key={chip.label}
                   type="button"
+                  disabled={isStreaming || Boolean(queryAccessError)}
                   onClick={() => void sendQuestion(chip.prompt)}
-                  className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3.5 py-1.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 dark:border-white/10 dark:bg-white/4 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3.5 py-1.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/4 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   {chip.label}
                 </button>
@@ -1343,7 +1465,10 @@ function AiChatWorkspaceContent() {
                     {t("excerptContentLabel")}
                   </p>
                   <div className="mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-warning-500/25 bg-warning-50/40 p-3.5 text-xs leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:bg-gpt-sidebar dark:text-gray-200">
-                    {inspectedEvidence.sessionCitation.summaryExcerpt}
+                    {resolveSessionCitationPreview(
+                      inspectedEvidence.sessionCitation,
+                      displayedMessagesById,
+                    )}
                   </div>
                 </div>
 

@@ -181,4 +181,28 @@ describe("BFF AI Chat SSE streaming", () => {
     expect(response.headers.has("x-sag-internal")).toBe(false);
     expect(await response.text()).toContain('event: delta\ndata: {"text":"Hello"}');
   });
+
+  it("forwards request AbortSignal on ai-chat routes and returns structured 503 BACKEND_UNAVAILABLE on network failure", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const path = ["ai-chat", "projects", "proj-1", "threads"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/ai-chat/projects/proj-1/threads"),
+      expect.objectContaining({ signal: req.signal }),
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "BACKEND_UNAVAILABLE",
+      message: "AI Chat service is temporarily unavailable.",
+    });
+  });
 });

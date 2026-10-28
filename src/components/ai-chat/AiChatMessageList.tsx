@@ -23,6 +23,7 @@ import type {
 import { cn } from "@/utils";
 import {
   isContinuumDocumentId,
+  resolveSessionCitationPreview,
   tokenizeTextWithCitations,
   type CitationItemToken,
 } from "./citation-utils";
@@ -251,6 +252,7 @@ export default function AiChatMessageList({
     {},
   );
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const messagesById = new Map(messages.map((item) => [item.id, item]));
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -731,7 +733,7 @@ export default function AiChatMessageList({
                               </span>
                             </div>
                             <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-                              {sc.summaryExcerpt}
+                              {resolveSessionCitationPreview(sc, messagesById)}
                             </p>
                           </div>
 

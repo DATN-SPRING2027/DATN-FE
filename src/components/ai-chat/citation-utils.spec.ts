@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { tokenizeTextWithCitations } from "./citation-utils";
+import {
+  resolveSessionCitationPreview,
+  tokenizeTextWithCitations,
+} from "./citation-utils";
 
 describe("tokenizeTextWithCitations", () => {
   it("parses single and compound document & session citations [1], [1, 2], [S1, S2], [1, S1]", () => {
@@ -44,5 +47,34 @@ describe("tokenizeTextWithCitations", () => {
         items: [{ type: "document", number: 1, label: "1" }],
       },
     ]);
+  });
+
+  it("preserves Markdown links [1](url) and [S1](url) as text while enriching synthetic session excerpts from transcript", () => {
+    const tokens = tokenizeTextWithCitations(
+      "Xem tài liệu [1](https://continuum.ai/spec) và [S1](https://continuum.ai/session), đối chiếu [2、S2].",
+    );
+    const citationGroups = tokens.filter((t) => t.kind === "citations");
+    expect(citationGroups).toEqual([
+      {
+        kind: "citations",
+        items: [
+          { type: "document", number: 2, label: "2" },
+          { type: "session", ref: "S2", label: "S2" },
+        ],
+      },
+    ]);
+
+    const messagesById = new Map([
+      ["m-u2", { content: "Chốt dùng PostgreSQL + Qdrant cho SAG." }],
+    ]);
+    expect(
+      resolveSessionCitationPreview(
+        {
+          turnIds: ["m-u2", "m-u1"],
+          summaryExcerpt: "Turns #1–#2 · CONFIRMED",
+        },
+        messagesById,
+      ),
+    ).toBe("Turns #1–#2 · CONFIRMED — Chốt dùng PostgreSQL + Qdrant cho SAG.");
   });
 });

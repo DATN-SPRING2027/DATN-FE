@@ -499,4 +499,70 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       screen.queryByRole("dialog", { name: "Source evidence details" }),
     ).not.toBeInTheDocument();
   });
+
+  it("cancels in-flight thread creation on project switch and cleans up pinned IDs on thread deletion", async () => {
+    let resolveCreateThread!: (thread: AiChatThread) => void;
+    createThreadMutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<AiChatThread>((resolve) => {
+          resolveCreateThread = resolve;
+        }),
+    );
+
+    renderWorkspace();
+
+    const sidebar = screen.getByRole("complementary", {
+      name: "AI Chat conversation history",
+    });
+
+    // Pin thread-1 then delete it -> localStorage pinned array is cleaned up
+    fireEvent.click(
+      within(sidebar).getByRole("button", {
+        name: "Pin SAG BFF Security Review",
+      }),
+    );
+    expect(
+      window.localStorage.getItem("continuum.aiChat.pinned.org-1.proj-core"),
+    ).toBe(JSON.stringify(["thread-1"]));
+
+    deleteThreadMutateAsync.mockResolvedValueOnce(undefined);
+    await act(async () => {
+      fireEvent.click(
+        within(sidebar).getByRole("button", {
+          name: "Delete SAG BFF Security Review",
+        }),
+      );
+    });
+    expect(
+      window.localStorage.getItem("continuum.aiChat.pinned.org-1.proj-core"),
+    ).toBe(JSON.stringify([]));
+
+    // Start sending a question on proj-core (createThread is pending)
+    const composer = screen.getByRole("textbox", {
+      name: "Ask Continuum SAG",
+    });
+    fireEvent.change(composer, {
+      target: { value: "Pending thread race test" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    expect(createThreadMutateAsync).toHaveBeenCalledTimes(1);
+
+    // Switch project while createThread is still in-flight
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select project scope" }),
+    );
+    fireEvent.click(screen.getByText("Architecture Docs"));
+
+    // Resolve stale proj-core thread creation -> must NOT open stream or hijack active thread!
+    await act(async () => {
+      resolveCreateThread({
+        id: "stale-thread-core",
+        title: "Pending thread race test",
+        createdAt: "2026-10-28T12:00:00Z",
+        updatedAt: "2026-10-28T12:00:00Z",
+      });
+    });
+
+    expect(streamAiChatAskMock).not.toHaveBeenCalled();
+  });
 });
