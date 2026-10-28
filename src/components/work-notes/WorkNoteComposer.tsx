@@ -46,9 +46,10 @@ export default function WorkNoteComposer({
     [selection, setSelection] = useState<SelectionAnchor | null>(null),
     [fullContext, setFullContext] = useState(false),
     [busy, setBusy] = useState(false);
-  const [confirmation, setConfirmation] = useState<"save" | "discard" | null>(
-    null,
-  );
+  const [confirmation, setConfirmation] = useState<
+    "save" | "discard" | "restore" | null
+  >(null);
+  const [restoreVersion, setRestoreVersion] = useState<number | null>(null);
   const section = useRef<HTMLElement>(null),
     body = useRef<HTMLTextAreaElement>(null),
     chatInput = useRef<HTMLTextAreaElement>(null),
@@ -461,9 +462,10 @@ export default function WorkNoteComposer({
                       d.hasAppliedRewrite ||
                       d.baseNoteVersion < 1
                     }
-                    onRestore={(version) =>
-                      void run(() => editor.restore(version))
-                    }
+                    onRestore={(version) => {
+                      setRestoreVersion(version);
+                      setConfirmation("restore");
+                    }}
                   />
                 )}
                 {!!editor.response?.uncertainties.length && (
@@ -529,7 +531,7 @@ export default function WorkNoteComposer({
                   : void run(() => editor.save(false))
               }
             >
-              {t(source?'saveDraft':"save")}
+              {t(source ? "saveDraft" : "save")}
             </Button>
           </footer>
         </div>
@@ -546,14 +548,18 @@ export default function WorkNoteComposer({
                 {t(
                   confirmation === "save"
                     ? "confirmOriginal"
-                    : "confirmDiscard",
+                    : confirmation === "restore"
+                      ? "confirmRestoreTitle"
+                      : "confirmDiscard",
                 )}
               </h3>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t(
                   confirmation === "save"
                     ? "confirmOriginalBody"
-                    : "confirmDiscardBody",
+                    : confirmation === "restore"
+                      ? "confirmRestore"
+                      : "confirmDiscardBody",
                 )}
               </p>
               <div className="flex flex-wrap justify-end gap-2">
@@ -570,7 +576,12 @@ export default function WorkNoteComposer({
                   onClick={() =>
                     void run(async () => {
                       if (confirmation === "save") await editor.save(true);
-                      else {
+                      else if (
+                        confirmation === "restore" &&
+                        restoreVersion !== null
+                      ) {
+                        await editor.restore(restoreVersion);
+                      } else {
                         await editor.discard();
                         onClose();
                       }
@@ -578,7 +589,13 @@ export default function WorkNoteComposer({
                     })
                   }
                 >
-                  {t(confirmation === "save" ? "confirmSave" : "discard")}
+                  {t(
+                    confirmation === "save"
+                      ? "confirmSave"
+                      : confirmation === "restore"
+                        ? "confirmRestoreAction"
+                        : "discard",
+                  )}
                 </Button>
               </div>
             </div>

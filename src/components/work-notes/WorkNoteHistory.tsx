@@ -58,10 +58,7 @@ export default function WorkNoteHistory({
             size="sm"
             variant="outline"
             disabled={disabled}
-            onClick={() => {
-              if (window.confirm(t("confirmRestore")))
-                onRestore(version.versionNumber);
-            }}
+            onClick={() => onRestore(version.versionNumber)}
           >
             {t("restore")}
           </Button>

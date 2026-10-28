@@ -21,6 +21,7 @@ vi.mock("@/lib/queries/work-notes/work-note-agent.api", () => {
     discard: vi.fn(),
     reset: vi.fn(),
     versions: vi.fn(),
+    restore: vi.fn(),
   };
   return {
     agentApi: api,
@@ -85,6 +86,54 @@ it("uses two fields and saves ordinary text without an Agent call", async () => 
   await waitFor(() => expect(agentApi.save).toHaveBeenCalled());
   expect(agentApi.message).not.toHaveBeenCalled();
   expect(screen.queryByLabelText("Approach")).not.toBeInTheDocument();
+});
+it("requires an in-app confirmation before restoring a version and supports cancellation", async () => {
+  const noteId = "751a2b3c4d5e6f7a8b9c0d21";
+  vi.mocked(agentApi.resume).mockResolvedValue({
+    ...base,
+    noteId,
+    baseNoteVersion: 2,
+  });
+  vi.mocked(agentApi.versions).mockResolvedValue({
+    data: [
+      {
+        versionNumber: 1,
+        title: "Queue",
+        contentMarkdown: base.contentMarkdown,
+        createdAt: "2026-10-28T00:00:00.000Z",
+      },
+    ],
+    pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+  });
+  vi.mocked(agentApi.restore).mockResolvedValue({ id: noteId } as Awaited<
+    ReturnType<typeof agentApi.restore>
+  >);
+  mount();
+  await screen.findByDisplayValue(base.contentMarkdown);
+  fireEvent.click(screen.getByRole("button", { name: "Version history" }));
+  fireEvent.click(await screen.findByText("Version 1: Queue"));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Restore as a new version" }),
+  );
+  await screen.findByRole("alertdialog");
+  expect(agentApi.restore).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+  expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+  expect(agentApi.restore).not.toHaveBeenCalled();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Restore as a new version" }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Confirm restore" }),
+  );
+  await waitFor(() => expect(agentApi.discard).toHaveBeenCalled());
+  expect(agentApi.restore).toHaveBeenCalledTimes(1);
+  expect(agentApi.restore).toHaveBeenCalledWith(
+    expect.any(String),
+    base.taskId,
+    noteId,
+    expect.objectContaining({ expectedVersion: 2, versionNumber: 1 }),
+  );
 });
 it("shows a proposal without changing the editor and requires confirmation before discarding the original", async () => {
   const suggestion = {

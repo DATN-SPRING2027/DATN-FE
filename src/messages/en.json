@@ -3569,6 +3569,8 @@
       "version": "Version {version}",
       "restore": "Restore as a new version",
       "confirmRestore": "Restore this saved version as a new canonical version and discard the current draft and chat, including autosaved edits?",
+      "confirmRestoreTitle": "Restore this version?",
+      "confirmRestoreAction": "Confirm restore",
       "previous": "Previous",
       "next": "Next",
       "documentEditorTitle": "Edit project document",
