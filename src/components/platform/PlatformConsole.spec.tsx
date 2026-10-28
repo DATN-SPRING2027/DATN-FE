@@ -280,6 +280,9 @@ const { operationHooks, operationState } = vi.hoisted(() => {
   };
 });
 
+vi.mock("@/components/platform/ui/platformFont", () => ({
+  platformFont: { variable: "platform-font" },
+}));
 vi.mock("./overview/OperatorReferenceChart", () => ({
   default: ({ title }: { title?: string }) => <div>{title}</div>,
 }));
@@ -580,6 +583,7 @@ describe("PlatformConsole", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit user profile" });
+    expect(dialog.closest(".platform-font")).not.toBeNull();
     expect(within(dialog).getByLabelText("Full name")).toHaveValue(
       user.fullName,
     );
@@ -793,6 +797,9 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("link", { name: "navigation.memberships" }),
     ).toHaveAttribute("href", "/platform/memberships");
+    expect(
+      screen.queryByRole("link", { name: "navigation.security" }),
+    ).not.toBeInTheDocument();
     for (const label of [
       "navigation.dashboard",
       "navigation.organizations",
@@ -835,7 +842,6 @@ describe("PlatformConsole", () => {
       "navigation.users",
       "navigation.memberships",
       "navigation.projects",
-      "navigation.security",
       "navigation.services",
       "navigation.jobs",
       "navigation.ai",
@@ -1147,8 +1153,9 @@ describe("PlatformConsole", () => {
     expect(
       screen.queryByRole("button", { name: "Refresh" }),
     ).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "sessionsDenied",
+    expect(within(dialog).getByText(/sessionsDenied/)).toHaveAttribute(
+      "role",
+      "status",
     );
     expect(
       within(dialog).queryByRole("heading", { name: "Sessions" }),
@@ -1284,7 +1291,7 @@ describe("PlatformConsole", () => {
     }
   });
 
-  it("shows only the current validated identity and permission projection on Account", () => {
+  it("shows account identity without backend permission codes", () => {
     pathname.value = "/platform/account";
     render(<PlatformConsole />);
 
@@ -1295,8 +1302,8 @@ describe("PlatformConsole", () => {
       within(screen.getByRole("main")).getByText("operator@example.test"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("platform.organizations.organization.read"),
-    ).toBeInTheDocument();
+      screen.queryByText("platform.organizations.organization.read"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/eyJ[A-Za-z0-9_-]+\./)).not.toBeInTheDocument();
   });
 

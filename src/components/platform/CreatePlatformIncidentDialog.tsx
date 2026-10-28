@@ -2,6 +2,7 @@
 
 import { useRef, type RefObject } from "react";
 import { useTranslations } from "next-intl";
+import { AlertIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
 import PlatformRecordModal from "./ui/PlatformRecordModal";
 import type { PlatformOperationsViewModel } from "./usePlatformOperationsViewModel";
@@ -22,7 +23,8 @@ export default function CreatePlatformIncidentDialog({
   return (
     <PlatformRecordModal
       title={t("heading")}
-      closeLabel={t("cancel")}
+      icon={<AlertIcon />}
+      closeLabel={t("close")}
       triggerRef={triggerRef}
       initialFocusRef={titleRef}
       pending={pending}
@@ -55,6 +57,7 @@ export default function CreatePlatformIncidentDialog({
             <input
               ref={titleRef}
               name="title"
+              placeholder={t("titlePlaceholder")}
               required
               maxLength={160}
               pattern={".*\\S.*"}
@@ -65,7 +68,9 @@ export default function CreatePlatformIncidentDialog({
               {t("severity")}
               <select name="severity" defaultValue="HIGH">
                 {["LOW", "MEDIUM", "HIGH", "CRITICAL"].map((value) => (
-                  <option key={value}>{value}</option>
+                  <option key={value} value={value}>
+                    {value[0] + value.slice(1).toLowerCase()}
+                  </option>
                 ))}
               </select>
             </label>
@@ -82,7 +87,9 @@ export default function CreatePlatformIncidentDialog({
                   "ingestion",
                   "notification",
                 ].map((value) => (
-                  <option key={value}>{value}</option>
+                  <option key={value} value={value}>
+                    {t(`serviceNames.${value}`)}
+                  </option>
                 ))}
               </select>
             </label>

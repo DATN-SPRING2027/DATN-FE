@@ -12,6 +12,7 @@ import styles from "./recordModal.module.css";
 
 export default function PlatformRecordModal({
   title,
+  icon,
   closeLabel,
   triggerRef,
   initialFocusRef,
@@ -21,6 +22,7 @@ export default function PlatformRecordModal({
   children,
 }: {
   title: string;
+  icon?: ReactNode;
   closeLabel: string;
   triggerRef: RefObject<HTMLButtonElement | null>;
   initialFocusRef?: RefObject<HTMLInputElement | null>;
@@ -78,7 +80,14 @@ export default function PlatformRecordModal({
       }}
     >
       <header className={styles.header}>
-        <h2 id={titleId}>{title}</h2>
+        <h2 id={titleId}>
+          {icon && (
+            <span className={styles.icon} aria-hidden="true">
+              {icon}
+            </span>
+          )}
+          {title}
+        </h2>
         <button
           ref={closeRef}
           type="button"

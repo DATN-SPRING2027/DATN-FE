@@ -86,7 +86,7 @@ function setup(manage = true) {
 }
 function openAndFill() {
   fireEvent.click(screen.getByRole("button", { name: "Create" }));
-  const dialog = screen.getByRole("dialog", { name: "Create incident" });
+  const dialog = screen.getByRole("dialog", { name: "New incident" });
   expect(within(dialog).getByLabelText("Title")).toHaveFocus();
   fireEvent.change(within(dialog).getByLabelText("Title"), {
     target: { value: "Queue incident" },
@@ -94,7 +94,7 @@ function openAndFill() {
   fireEvent.change(within(dialog).getByLabelText("Severity"), {
     target: { value: "CRITICAL" },
   });
-  fireEvent.change(within(dialog).getByLabelText("Affected service"), {
+  fireEvent.change(within(dialog).getByLabelText("Service"), {
     target: { value: "jira" },
   });
   return dialog;
@@ -112,7 +112,7 @@ it("creates through the existing contract and closes only after server confirmat
   const dialog = openAndFill();
   fireEvent.click(
     within(dialog).getByRole("button", {
-      name: "Create incident",
+      name: "Create",
     }),
   );
   await waitFor(() =>
@@ -152,7 +152,7 @@ it("keeps entered values in the modal when creation fails", async () => {
   const dialog = openAndFill();
   fireEvent.click(
     within(dialog).getByRole("button", {
-      name: "Create incident",
+      name: "Create",
     }),
   );
   await waitFor(() =>

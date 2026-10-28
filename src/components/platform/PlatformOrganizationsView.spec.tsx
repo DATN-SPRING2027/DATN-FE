@@ -9,6 +9,9 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import PlatformOrganizationsView from "./PlatformOrganizationsView";
 import type { PlatformOrganizationsViewProps } from "./organizations/types";
+vi.mock("@/components/platform/ui/platformFont", () => ({
+  platformFont: { variable: "platform-font" },
+}));
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
   useLocale: () => "en",

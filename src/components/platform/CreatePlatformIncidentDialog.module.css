@@ -3,12 +3,12 @@
 }
 .form {
   display: grid;
-  gap: 16px;
-  padding: 16px;
+  gap: 20px;
+  padding: 24px;
 }
 .fields {
   display: grid;
-  gap: 16px;
+  gap: 20px;
   min-width: 0;
 }
 .fields label {
@@ -18,22 +18,40 @@
 }
 .fields :is(input, select) {
   width: 100%;
-  padding: 6px 10px;
+  min-height: 44px;
+  padding: 10px 12px;
 }
 .row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
 }
 .footer {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
   border-top: 1px solid var(--op-line);
-  padding-top: 16px;
+  margin: 4px -24px -24px;
+  padding: 16px 24px;
 }
 @media (max-width: 480px) {
   .row {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+
+.dialog .footer button[type="button"] {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--op-accent);
+}
+.dialog .footer button[type="submit"] {
+  background: var(--op-accent);
+  border-color: var(--op-accent);
+  color: var(--color-white);
+}
+.dialog .footer button[type="submit"]:hover:not(:disabled) {
+  background: var(--color-blue-700);
 }

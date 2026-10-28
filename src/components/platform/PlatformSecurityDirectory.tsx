@@ -1,5 +1,8 @@
 "use client";
 
+import { UserCircleIcon } from "@/icons";
+import CopyIdentifier from "./ui/CopyIdentifier";
+import details from "./ui/modalDetails.module.css";
 import { useRef } from "react";
 import PlatformRecordModal from "./ui/PlatformRecordModal";
 import Button from "@/components/ui/button/Button";
@@ -14,7 +17,6 @@ import {
   ErrorState,
   Loading,
   QueryRefreshStatus,
-  TextField,
   box,
   cell,
   isReadAccessLost,
@@ -157,11 +159,12 @@ export default function PlatformSecurityDirectory({
           {selectedSessionId && !isReadAccessLost(userSessions.error) && (
             <PlatformRecordModal
               title={t("detailTitle")}
+              icon={<UserCircleIcon />}
               closeLabel={t("closeDetails")}
               triggerRef={triggerRef}
               onClose={() => setSelectedSessionId("")}
             >
-              <div className="p-4">
+              <div className={details.body}>
                 {selectedSession.data !== undefined &&
                   !isReadAccessLost(selectedSession.error) &&
                   (selectedSession.isFetching ||
@@ -182,24 +185,43 @@ export default function PlatformSecurityDirectory({
                     isReadAccessLost(selectedSession.error)) ? (
                   <ErrorState retry={() => void selectedSession.refetch()} />
                 ) : (
-                  <dl className="grid gap-3 sm:grid-cols-2">
-                    <TextField
-                      label="Session ID"
-                      value={selectedSession.data.id}
-                    />
-                    <TextField
-                      label="Status / context"
-                      value={`${selectedSession.data.status} · ${selectedSession.data.context}`}
-                    />
-                    <TextField
-                      label="Created / updated"
-                      value={`${formatPlatformDate(selectedSession.data.createdAt)} · ${formatPlatformDate(selectedSession.data.updatedAt)}`}
-                    />
-                    <TextField
-                      label="Expires"
-                      value={formatPlatformDate(selectedSession.data.expiresAt)}
-                    />
-                  </dl>
+                  <>
+                    <div className={details.status}>
+                      <StatusBadge status={selectedSession.data.status} />
+                      <span className={details.context}>
+                        {selectedSession.data.context}
+                      </span>
+                    </div>
+                    <dl className={details.sessionId}>
+                      <dt>{t("sessionId")}</dt>
+                      <dd>
+                        <CopyIdentifier
+                          label={t("sessionId")}
+                          value={selectedSession.data.id}
+                        />
+                      </dd>
+                    </dl>
+                    <dl className={details.rows}>
+                      <div>
+                        <dt>{t("created")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.createdAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{t("updated")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.updatedAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{t("expires")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.expiresAt)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
                 )}
               </div>
             </PlatformRecordModal>

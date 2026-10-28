@@ -480,7 +480,7 @@
       "emptyTitle": "No operational activity",
       "emptyBody": "There are no events in the bounded audit projection.",
       "detail": {
-        "title": "Audit activity details",
+        "title": "Audit detail",
         "close": "Close audit details",
         "eventId": "Event ID",
         "resource": "Resource",
@@ -490,7 +490,7 @@
         "reason": "Reason",
         "result": "Result",
         "changes": "Changes",
-        "history": "Resource history",
+        "history": "History",
         "unavailable": "Audit event details are unavailable.",
         "historyUnavailable": "Resource history is unavailable.",
         "loadingHistory": "Loading history…",
@@ -498,12 +498,16 @@
       }
     },
     "security": {
-      "detailTitle": "Session detail",
+      "detailTitle": "Session",
       "closeDetails": "Close session details",
       "currentSession": "Current Platform session",
       "currentSessionNote": "Identity and permissions returned for this signed-in Platform subject. No token or credential is shown.",
       "adminSessions": "Admin sessions",
-      "currentAdminSessionGuard": "Sessions for the signed-in admin are protected from revocation here."
+      "currentAdminSessionGuard": "Sessions for the signed-in admin are protected from revocation here.",
+      "sessionId": "Session ID",
+      "created": "Created",
+      "updated": "Updated",
+      "expires": "Expires"
     },
     "account": {
       "identityTitle": "Admin identity",
@@ -641,15 +645,27 @@
       "noServicesBody": "No services match the current view."
     },
     "incidentForm": {
-      "heading": "Create incident",
+      "heading": "New incident",
       "create": "Create",
       "title": "Title",
       "severity": "Severity",
-      "service": "Affected service",
-      "submit": "Create incident",
+      "service": "Service",
+      "submit": "Create",
       "creating": "Creating…",
       "cancel": "Cancel",
-      "created": "Incident created."
+      "created": "Incident created.",
+      "titlePlaceholder": "Incident title",
+      "serviceNames": {
+        "iam": "Identity & access",
+        "capture": "Capture",
+        "jira": "Jira Integration",
+        "lifecycle": "Lifecycle",
+        "chat": "Chat",
+        "handover": "Handover",
+        "ingestion": "Ingestion",
+        "notification": "Notification"
+      },
+      "close": "Close incident form"
     },
     "profile": {
       "viewSessions": "View sessions",
@@ -657,6 +673,11 @@
       "permissions": "Permissions",
       "activity": "Activity",
       "noActivity": "No activity yet"
+    },
+    "modal": {
+      "copy": "Copy {label}",
+      "copied": "Copied",
+      "copyFailed": "Copy failed. Try again."
     }
   },
   "chat": {

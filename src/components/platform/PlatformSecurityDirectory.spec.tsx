@@ -84,7 +84,7 @@ it("opens session details in the shared modal and restores focus after Escape", 
   setup();
   const trigger = await screen.findByRole("button", { name: "Details" });
   fireEvent.click(trigger);
-  const dialog = screen.getByRole("dialog", { name: "Session detail" });
+  const dialog = screen.getByRole("dialog", { name: "Session" });
   expect(dialog).toHaveAttribute("open");
   await waitFor(() =>
     expect(within(dialog).getByText(session.id)).toBeInTheDocument(),
@@ -98,7 +98,8 @@ it("opens session details in the shared modal and restores focus after Escape", 
 });
 it("keeps a failed detail request inside the modal with retry", async () => {
   mockApi.mockImplementation(async (path) => {
-    if (path.endsWith(session.id)) throw new ApiError(403, "FORBIDDEN", "Denied");
+    if (path.endsWith(session.id))
+      throw new ApiError(403, "FORBIDDEN", "Denied");
     return {
       data: [session],
       pagination: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
@@ -106,7 +107,7 @@ it("keeps a failed detail request inside the modal with retry", async () => {
   });
   setup();
   fireEvent.click(await screen.findByRole("button", { name: "Details" }));
-  const dialog = screen.getByRole("dialog", { name: "Session detail" });
+  const dialog = screen.getByRole("dialog", { name: "Session" });
   await waitFor(() =>
     expect(
       within(dialog).getByRole("button", { name: "Retry" }),

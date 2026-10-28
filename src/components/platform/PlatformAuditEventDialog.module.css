@@ -1,50 +1,91 @@
 .body {
-  padding: 16px;
+  padding: 24px;
   overflow-wrap: anywhere;
 }
 .action {
-  margin-bottom: 12px;
-  font-size: 14px;
+  margin-bottom: 20px;
+  font-size: 15px;
   font-weight: 600;
 }
 .fields {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 16px 24px;
+}
+.fields > div {
+  min-width: 0;
 }
 .fields dt {
   margin-bottom: 4px;
   color: var(--op-muted);
+  font-size: 12px;
 }
 .section {
-  margin-top: 16px;
-  padding-top: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
   border-top: 1px solid var(--op-line);
 }
 .section h3 {
   margin-bottom: 12px;
   font-weight: 600;
 }
-.history {
+.changes {
   display: grid;
   gap: 8px;
 }
-.history li {
-  padding: 8px 10px;
-  border: 1px solid var(--op-line-subtle);
-  border-radius: 4px;
+.changes li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 6px;
   background: var(--op-panel);
+}
+.changes strong {
+  font-weight: 500;
+  margin-inline-end: auto;
+  color: var(--op-muted);
+}
+.after {
+  color: var(--op-status-success);
+  font-weight: 500;
+}
+.history {
+  display: grid;
+  gap: 16px;
+  padding-inline-start: 16px;
+  border-inline-start: 1px solid var(--op-line);
+  margin-inline-start: 6px;
+}
+.history li {
+  position: relative;
+  padding: 0 0 0 4px;
+}
+.history li::before {
+  content: "";
+  position: absolute;
+  inset-inline-start: -21px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--op-accent);
+  box-shadow: 0 0 0 3px var(--op-surface);
+}
+.history strong {
+  font-weight: 500;
 }
 .history p {
   margin-top: 4px;
+  font-size: 12px;
   color: var(--op-muted);
 }
 @media (max-width: 640px) {
   .fields {
     grid-template-columns: minmax(0, 1fr);
-    gap: 16px;
   }
   .body {
-    padding: 16px;
+    padding: 20px;
   }
 }

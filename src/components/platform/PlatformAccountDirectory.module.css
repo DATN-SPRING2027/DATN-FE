@@ -42,23 +42,11 @@
   margin-top: 4px;
   color: var(--op-muted);
 }
-.sessionsLink {
-  padding: 7px 12px;
-  border: 1px solid var(--op-line);
-  border-radius: 4px;
-  color: var(--op-text);
-}
-.sessionsLink:hover {
-  background: var(--op-panel);
-}
 .columns {
-  display: grid;
-  grid-template-columns: minmax(240px, 0.85fr) minmax(0, 1.6fr);
-  gap: 48px;
+  max-width: 720px;
   padding-top: 24px;
 }
-.details,
-.workspace {
+.details {
   min-width: 0;
 }
 .profile .details h2 {
@@ -69,6 +57,7 @@
 }
 .detailList {
   display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
   margin-top: 20px;
 }
@@ -88,55 +77,13 @@
   margin-inline-start: 28px;
   overflow-wrap: anywhere;
 }
-.tabs {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--op-line);
-}
-.profile .tabs button {
-  min-height: 36px;
-  padding: 0 4px 10px;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
-  color: var(--op-muted);
-  font-size: 13px;
-}
-.profile .tabs button[aria-selected="true"] {
-  color: var(--op-accent);
-  border-bottom-color: var(--op-accent);
-  font-weight: 500;
-}
-.search {
-  margin-bottom: 12px;
-}
-.permissions {
-  display: grid;
-  gap: 8px;
-}
-.permissions li {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 12px 14px;
-  border: 1px solid var(--op-line);
-  border-radius: 4px;
-  overflow-wrap: anywhere;
-}
-.permissions li svg {
-  width: 18px;
-  height: 18px;
-  flex-shrink: 0;
-  color: var(--op-muted);
-}
 :global(.dark) .avatar {
   background: var(--color-brand-950);
   color: var(--color-brand-200);
 }
 @media (max-width: 900px) {
-  .columns {
+  .detailList {
     grid-template-columns: minmax(0, 1fr);
-    gap: 28px;
   }
 }
 @media (max-width: 640px) {
@@ -153,9 +100,5 @@
   }
   .identity {
     gap: 12px;
-  }
-  .profile .tabs button,
-  .sessionsLink {
-    min-height: 44px;
   }
 }

@@ -1,4 +1,5 @@
-.console.console {
+.console.console,
+.modalTheme {
   --op-bg: #fff;
   --op-surface: #fff;
   --op-panel: #f8fafc;
@@ -17,6 +18,8 @@
   --op-chart-light: #9ac4ff;
   --op-chart-muted: #a9b6c7;
   --op-chart-deep: #64758b;
+}
+.console.console {
   min-height: 100dvh;
   background: var(--op-bg);
   color: var(--op-text);
@@ -32,7 +35,8 @@
   outline: 2px solid var(--op-accent);
   outline-offset: 3px;
 }
-:global(.dark) .console.console {
+:global(.dark) .console.console,
+:global(.dark) .modalTheme {
   --op-bg: #101827;
   --op-surface: #182337;
   --op-panel: #142034;

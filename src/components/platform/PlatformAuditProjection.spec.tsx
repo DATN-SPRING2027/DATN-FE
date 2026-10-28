@@ -119,12 +119,11 @@ it("opens the selected audit event in a modal and returns focus when closed with
   ).not.toBeInTheDocument();
   const trigger = screen.getByRole("button", { name: event.action });
   fireEvent.click(trigger);
-  const dialog = screen.getByRole("dialog", { name: "Audit activity details" });
+  const dialog = screen.getByRole("dialog", { name: "Audit detail" });
   expect(dialog).toHaveAttribute("open");
   expect(within(dialog).getByText("request-one")).toBeInTheDocument();
-  expect(
-    within(dialog).getByText(/Previous organization.*Updated organization/),
-  ).toBeInTheDocument();
+  expect(within(dialog).getByText("Previous organization")).toBeInTheDocument();
+  expect(within(dialog).getByText("Updated organization")).toBeInTheDocument();
   expect(state.detailQuery).toHaveBeenCalledWith(event.eventId, true);
   expect(state.historyQuery).toHaveBeenCalledWith(
     event.resourceType,
