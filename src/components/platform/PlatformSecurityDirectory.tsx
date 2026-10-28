@@ -148,13 +148,6 @@ export default function PlatformSecurityDirectory({
                 onPageChange={setSessionPage}
               />
             )}
-          {userSessions.data?.data.some(
-            (session) => session.userId === operatorId,
-          ) && (
-            <p className="border-t border-gray-100 px-5 py-3 text-[11px] text-amber-700 dark:border-gray-800 dark:text-amber-400">
-              {t("currentAdminSessionGuard")}
-            </p>
-          )}
           {selectedSessionId && (
             <div className="border-t border-gray-100 p-5 dark:border-gray-800">
               <div className="mb-3 flex items-center justify-between">

@@ -6,6 +6,7 @@ import { apiClient } from "@/lib/api-client";
 import {
   useCreatePlatformOrganizationMutation,
   usePlatformMembershipsQuery,
+  usePlatformHealthQuery,
   usePlatformOrganizationQuery,
   usePlatformOrganizationsQuery,
 } from "./usePlatformConsole";
@@ -165,5 +166,50 @@ describe("Organization projections after creation", () => {
     expect(
       client.getQueryState(["platform-console", "dashboard"])?.isInvalidated,
     ).toBe(true);
+  });
+});
+
+describe("Platform health monitoring", () => {
+  it("polls an open monitor, reports failure and recovery, and stops when disabled", async () => {
+    vi.useFakeTimers();
+    mockedApiClient.mockReset();
+    mockedApiClient.mockResolvedValue({ status: "ok" });
+    const hook = renderHook(({ enabled }) => usePlatformHealthQuery(enabled), {
+      initialProps: { enabled: true },
+      wrapper: createWrapper(),
+    });
+    try {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(hook.result.current.isSuccess).toBe(true);
+      expect(mockedApiClient).toHaveBeenCalledTimes(1);
+      mockedApiClient.mockRejectedValue(new Error("IAM unavailable"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(hook.result.current.isRefetchError).toBe(true);
+      expect(mockedApiClient).toHaveBeenCalledTimes(2);
+      mockedApiClient.mockResolvedValue({ status: "ok" });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15_000);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(50);
+      });
+      expect(hook.result.current.isSuccess).toBe(true);
+      expect(mockedApiClient).toHaveBeenCalledTimes(3);
+      hook.rerender({ enabled: false });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(mockedApiClient).toHaveBeenCalledTimes(3);
+    } finally {
+      hook.unmount();
+      vi.useRealTimers();
+    }
   });
 });

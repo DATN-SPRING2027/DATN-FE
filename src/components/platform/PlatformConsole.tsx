@@ -486,8 +486,7 @@ export default function PlatformConsole() {
                 <p role="status" className="px-5 py-8 text-xs text-gray-500">
                   {t("health.checking")}
                 </p>
-              ) : health.isError &&
-                (!health.data || isReadAccessLost(health.error)) ? (
+              ) : health.isError ? (
                 <QueryError
                   message={t("errors.health")}
                   onRetry={() => void health.refetch()}

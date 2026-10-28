@@ -1300,7 +1300,7 @@ describe("PlatformConsole", () => {
     expect(screen.queryByText(/eyJ[A-Za-z0-9_-]+\./)).not.toBeInTheDocument();
   });
 
-  it("loads the paginated Audit list without filter controls", () => {
+  it("sends Audit filters to the server and resets pagination", () => {
     pathname.value = "/platform/audit";
     session.data.permissions = ["platform.audit.read"];
     operationState.auditEvents.data = {
@@ -1316,27 +1316,44 @@ describe("PlatformConsole", () => {
           result: "SUCCESS",
         },
       ],
-      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+      pagination: { page: 1, pageSize: 10, totalItems: 20, totalPages: 2 },
     };
     render(<PlatformConsole />);
-
-    expect(
-      screen.queryByLabelText("audit.filterAction"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("audit.filterActor"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByLabelText("audit.filterResource"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Resource ID")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("audit.from")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("audit.to")).not.toBeInTheDocument();
-    expect(
-      screen.getByText("platform.project.metadata.changed"),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
     expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
-      { page: 1, pageSize: 10 },
+      expect.objectContaining({ page: 2 }),
+      true,
+    );
+
+    fireEvent.change(screen.getByLabelText("audit.filterAction"), {
+      target: { value: "platform.project.metadata.changed" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.filterActor"), {
+      target: { value: "651a2b3c4d5e6f7a8b9c0d1e" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.filterResource"), {
+      target: { value: "PROJECT" },
+    });
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "751a2b3c4d5e6f7a8b9c0d21" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.from"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.to"), {
+      target: { value: "2026-10-28" },
+    });
+    expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
+      {
+        page: 1,
+        pageSize: 10,
+        action: "platform.project.metadata.changed",
+        actorUserId: "651a2b3c4d5e6f7a8b9c0d1e",
+        resourceType: "PROJECT",
+        resourceId: "751a2b3c4d5e6f7a8b9c0d21",
+        from: "2026-10-01T00:00:00.000Z",
+        to: "2026-10-28T23:59:59.999Z",
+      },
       true,
     );
   });
@@ -1430,6 +1447,14 @@ describe("PlatformConsole", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "retry" }));
     expect(operationState.auditEvents.refetch).toHaveBeenCalledOnce();
+  });
+  it("replaces the healthy banner when a health poll fails with cached data", () => {
+    pathname.value = "/platform/services";
+    session.data.permissions = ["platform.health.read"];
+    health.isError = true;
+    render(<PlatformConsole />);
+    expect(screen.queryByText("health.healthy")).not.toBeInTheDocument();
+    expect(screen.getByText("errors.health")).toBeInTheDocument();
   });
   it("does not offer manual Refresh buttons on Services", () => {
     pathname.value = "/platform/services";

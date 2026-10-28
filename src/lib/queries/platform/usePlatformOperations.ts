@@ -14,10 +14,7 @@ const timestampPattern =
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 const safeRequestIdPattern = /^[A-Za-z0-9._:-]{1,128}$/;
 const userStatuses = new Set(["ACTIVE", "SUSPENDED", "PENDING_INVITE"]);
-const userListStatuses = new Set([
-  ...userStatuses,
-  "ARCHIVED",
-]);
+const userListStatuses = new Set([...userStatuses, "ARCHIVED"]);
 const roles = new Set(["ADMIN", "MEMBER"]);
 const sessionStatuses = new Set(["ACTIVE", "REVOKED", "EXPIRED"]);
 const sessionContexts = new Set(["ACCOUNT", "ORGANIZATION", "PLATFORM"]);
@@ -622,7 +619,9 @@ function parseAuditEvent(value: unknown): PlatformAuditEvent {
     )
       throw invalidResponse();
     Object.assign(optional, {
-      changedFields: [...new Set(row.changedFields as ("fullName" | "avatarUrl")[])],
+      changedFields: [
+        ...new Set(row.changedFields as ("fullName" | "avatarUrl")[]),
+      ],
     });
   }
   if (row.changes !== undefined) {
@@ -854,16 +853,43 @@ export function usePlatformOrganizationInvitationsQuery(
           if (invitation.status !== "PENDING") throw invalidResponse();
           return {
             id: requireId(invitation.id),
-            ...(invitation.membershipId === undefined ? {} : { membershipId: invitation.membershipId === null ? null : requireId(invitation.membershipId) }),
+            ...(invitation.membershipId === undefined
+              ? {}
+              : {
+                  membershipId:
+                    invitation.membershipId === null
+                      ? null
+                      : requireId(invitation.membershipId),
+                }),
             organizationId: requireId(invitation.organizationId),
             status: "PENDING" as const,
             version: requireInteger(invitation.version, 1),
             expiresAt: requireTimestamp(invitation.expiresAt),
             createdAt: requireTimestamp(invitation.createdAt),
-            ...(invitation.membershipVersion === undefined ? {} : { membershipVersion: requireInteger(invitation.membershipVersion, 0) }),
-            ...(invitation.targetUserId === undefined ? {} : { targetUserId: invitation.targetUserId === null ? null : requireId(invitation.targetUserId) }),
-            invitedEmail: requireText(invitation.invitedEmail ?? invitation.email, 254),
-            email: requireText(invitation.invitedEmail ?? invitation.email, 254),
+            ...(invitation.membershipVersion === undefined
+              ? {}
+              : {
+                  membershipVersion: requireInteger(
+                    invitation.membershipVersion,
+                    0,
+                  ),
+                }),
+            ...(invitation.targetUserId === undefined
+              ? {}
+              : {
+                  targetUserId:
+                    invitation.targetUserId === null
+                      ? null
+                      : requireId(invitation.targetUserId),
+                }),
+            invitedEmail: requireText(
+              invitation.invitedEmail ?? invitation.email,
+              254,
+            ),
+            email: requireText(
+              invitation.invitedEmail ?? invitation.email,
+              254,
+            ),
           } satisfies PlatformOrganizationInvitation;
         },
       ),
@@ -946,7 +972,9 @@ export function usePlatformUpdateUserProfileMutation() {
         ...(input.fullName === undefined
           ? {}
           : { fullName: input.fullName.trim() }),
-        ...(input.avatarUrl === undefined ? {} : { avatarUrl: input.avatarUrl }),
+        ...(input.avatarUrl === undefined
+          ? {}
+          : { avatarUrl: input.avatarUrl }),
         expectedUpdatedAt: input.expectedUpdatedAt,
       };
       const updated = parseUser(
@@ -1336,7 +1364,7 @@ export function usePlatformServicesQuery(enabled: boolean) {
         if (
           !serviceIds.has(String(service.id)) ||
           !availabilityStates.has(String(service.availability)) ||
-          !availabilityStates.has(String(service.liveness)) ||
+          !["ALIVE", "UNAVAILABLE"].includes(String(service.liveness)) ||
           !readinessStates.has(String(service.status)) ||
           !readinessStates.has(String(service.readiness))
         )
@@ -1366,7 +1394,9 @@ export function usePlatformQueuesQuery(enabled: boolean) {
     queryKey: [...platformKeys.all, "queues"],
     queryFn: async () => {
       const row = requireRecord(
-        await platformApiClient<unknown>("/iam/platform/queues", { cache: "no-store" }),
+        await platformApiClient<unknown>("/iam/platform/queues", {
+          cache: "no-store",
+        }),
       );
       if (!Array.isArray(row.data) || row.data.length > 100)
         throw invalidResponse();
@@ -1551,9 +1581,12 @@ export function usePlatformIntegrationsQuery(
     queryKey: [...platformKeys.all, "integrations", query],
     queryFn: async () =>
       parsePage(
-        await platformApiClient<unknown>(`/iam/platform/integrations?${query}`, {
-          cache: "no-store",
-        }),
+        await platformApiClient<unknown>(
+          `/iam/platform/integrations?${query}`,
+          {
+            cache: "no-store",
+          },
+        ),
         (item) => {
           const integration = requireRecord(item);
           if (
@@ -1796,9 +1829,12 @@ export function usePlatformAuditEventsQuery(
     queryKey: [...platformKeys.all, "audit-events", query],
     queryFn: async () =>
       parsePage(
-        await platformApiClient<unknown>(`/iam/platform/audit/events?${query}`, {
-          cache: "no-store",
-        }),
+        await platformApiClient<unknown>(
+          `/iam/platform/audit/events?${query}`,
+          {
+            cache: "no-store",
+          },
+        ),
         parseAuditEvent,
       ),
     enabled,
