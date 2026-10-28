@@ -7,6 +7,12 @@
   --color-landing-panel: #1a1a1a;
   --color-landing-soft: #111111;
   --color-landing-border: #292929;
+  --color-gpt-canvas: #0d0d0d;
+  --color-gpt-sidebar: #171717;
+  --color-gpt-popover: #1e1e1e;
+  --color-gpt-composer: #212121;
+  --color-gpt-composer-focus: #262626;
+  --color-gpt-bubble: #2f2f2f;
   --font-*: initial;
   --font-outfit: var(--font-sans), "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   --font-sans: var(--font-sans), "Be Vietnam Pro", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
