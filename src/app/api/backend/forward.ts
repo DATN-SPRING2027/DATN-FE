@@ -90,6 +90,7 @@ export async function forwardBackendRequest(
     "content-disposition",
     "location",
     "referrer-policy",
+    "x-accel-buffering",
     "x-content-type-options",
     "x-csrf-token",
     "etag",
@@ -104,7 +105,9 @@ export async function forwardBackendRequest(
   for (const cookie of backendResponse.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
-  if (isTeamPath(path)) responseHeaders.set("cache-control", "no-store");
+  if (isTeamPath(path) || path[0] === "ai-chat") {
+    responseHeaders.set("cache-control", "no-store");
+  }
   return new Response(backendResponse.body, {
     status: backendResponse.status,
     headers: responseHeaders,
