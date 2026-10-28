@@ -1,4 +1,5 @@
-.console.console {
+.console.console,
+.modalTheme {
   --op-bg: #fff;
   --op-surface: #fff;
   --op-panel: #f8fafc;
@@ -7,6 +8,9 @@
   --op-line: #dce4ee;
   --op-line-subtle: #e9eef5;
   --op-accent: #0065ff;
+  --op-status-success: #00824b;
+  --op-status-warning: #946200;
+  --op-status-danger: #df1738;
   --op-chart-primary: #0065ff;
   --op-chart-teal: #00b7b5;
   --op-chart-violet: #7954ff;
@@ -14,6 +18,8 @@
   --op-chart-light: #9ac4ff;
   --op-chart-muted: #a9b6c7;
   --op-chart-deep: #64758b;
+}
+.console.console {
   min-height: 100dvh;
   background: var(--op-bg);
   color: var(--op-text);
@@ -29,7 +35,8 @@
   outline: 2px solid var(--op-accent);
   outline-offset: 3px;
 }
-:global(.dark) .console.console {
+:global(.dark) .console.console,
+:global(.dark) .modalTheme {
   --op-bg: #101827;
   --op-surface: #182337;
   --op-panel: #142034;
@@ -38,6 +45,9 @@
   --op-line: #34435a;
   --op-line-subtle: #28374d;
   --op-accent: #72abff;
+  --op-status-success: #65d6a4;
+  --op-status-warning: var(--color-warning-400);
+  --op-status-danger: #ff8396;
   --op-chart-primary: #72abff;
   --op-chart-teal: #27d4cc;
   --op-chart-violet: #b79dff;

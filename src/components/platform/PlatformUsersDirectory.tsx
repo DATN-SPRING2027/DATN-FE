@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useRoleDisplayLabel } from "@/components/common/RoleLabel";
 import Button from "@/components/ui/button/Button";
+import { platformFont } from "./ui/platformFont";
+import jiraTheme from "./ui/jira.module.css";
+import userModal from "./users/UserModals.module.css";
+import CopyIdentifier from "./ui/CopyIdentifier";
 import dialogStyles from "./ui/platformDialog.module.css";
 import { Modal } from "@/components/ui/modal";
 import PlatformPagination from "@/components/platform/PlatformPagination";
@@ -11,8 +15,14 @@ import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import UserDirectory from "./users/UserDirectory";
 import type { PlatformUserAction } from "@/components/platform/PlatformUserActionsMenu";
-import { CloseIcon, UserCircleIcon } from "@/icons";
 import {
+  CloseIcon,
+  UserCircleIcon,
+  PlatformBuildingIcon,
+  LockIcon,
+} from "@/icons";
+import {
+  formatPlatformDate,
   ErrorState,
   Loading,
   QueryRefreshStatus,
@@ -51,15 +61,12 @@ export default function PlatformUsersDirectory({
     setSelectedId,
     setOrganizationPage,
     setSessionPage,
-    setSelectedSessionId,
-    selectedSessionId,
     selectedId,
     userDetailDialogRef,
     closeUserDetails,
     userDetailCloseButtonRef,
     selectedUser,
     userOrganizations,
-    operatorId,
     handleSubmit,
     changeUserStatus,
     updateUserProfile,
@@ -67,10 +74,6 @@ export default function PlatformUsersDirectory({
     restoreUser,
     canReadSessions,
     userSessions,
-    canManageSessions,
-    revokeSession,
-    runOperation,
-    selectedSession,
     formMessage,
     setFormMessage,
   } = model;
@@ -226,7 +229,6 @@ export default function PlatformUsersDirectory({
       setSelectedId(user.id);
       setOrganizationPage(1);
       setSessionPage(1);
-      setSelectedSessionId("");
       return;
     }
 
@@ -377,24 +379,32 @@ export default function PlatformUsersDirectory({
                   closeUserDetails();
                 }
               }}
-              className={`${dialogStyles.surface} ${dialogStyles.native} ${dialogStyles.detailSurface}`}
+              className={`${dialogStyles.surface} ${dialogStyles.native} ${dialogStyles.detailSurface} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.detail}`}
             >
               <header className="sticky top-0 z-10 flex shrink-0 items-center justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
-                <div className="min-w-0">
-                  <p className={dialogStyles.detailBreadcrumb}>
-                    Users / {selectedId}
-                  </p>
-                  <h2
-                    id="platform-user-detail-title"
-                    className={dialogStyles.recordTitle}
-                  >
-                    {selectedUser.data?.fullName ?? "User detail"}
-                  </h2>
-                  {selectedUser.data?.email && (
-                    <p className={dialogStyles.recordSubtitle}>
-                      {selectedUser.data.email}
-                    </p>
-                  )}
+                <div className={userModal.heroIdentity}>
+                  <span className={userModal.avatar} aria-hidden="true">
+                    {selectedUser.data?.fullName
+                      ?.trim()
+                      .split(/\s+/)
+                      .slice(0, 2)
+                      .map((part) => part[0])
+                      .join("")
+                      .toUpperCase() || <UserCircleIcon />}
+                  </span>
+                  <div className="min-w-0">
+                    <h2
+                      id="platform-user-detail-title"
+                      className={dialogStyles.recordTitle}
+                    >
+                      {selectedUser.data?.fullName ?? "User detail"}
+                    </h2>
+                    {selectedUser.data?.email && (
+                      <p className={dialogStyles.recordSubtitle}>
+                        {selectedUser.data.email}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <button
                   ref={userDetailCloseButtonRef}
@@ -433,6 +443,15 @@ export default function PlatformUsersDirectory({
                     <aside className={dialogStyles.detailAside}>
                       <h3>Details</h3>
                       <dl className={dialogStyles.detailList}>
+                        <div>
+                          <dt>User ID</dt>
+                          <dd>
+                            <CopyIdentifier
+                              label="User ID"
+                              value={selectedId}
+                            />
+                          </dd>
+                        </div>
                         <div className="rounded-xl border border-gray-200 bg-gray-50/60 p-4 dark:border-gray-800 dark:bg-gray-800/40">
                           <dt className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
                             Status
@@ -497,6 +516,7 @@ export default function PlatformUsersDirectory({
                           id="platform-user-organizations-title"
                           className="text-sm font-semibold text-gray-900 dark:text-white"
                         >
+                          <PlatformBuildingIcon aria-hidden="true" />{" "}
                           Organizations
                         </h3>
                         {userOrganizations.data?.pagination && (
@@ -536,8 +556,9 @@ export default function PlatformUsersDirectory({
                                 className="rounded-lg border border-gray-100 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/50"
                               >
                                 <strong>{membership.organizationName}</strong>
-                                <span className="ms-2 text-gray-500">
-                                  {membership.status} ·{" "}
+                                <span className={userModal.membershipMeta}>
+                                  <StatusBadge status={membership.status} />{" "}
+                                  <span aria-hidden="true">·</span>{" "}
                                   {membership.organizationRoles
                                     .map(roleLabel)
                                     .join(", ") || "No role"}
@@ -587,7 +608,7 @@ export default function PlatformUsersDirectory({
                             id="platform-user-sessions-title"
                             className="text-sm font-semibold text-gray-900 dark:text-white"
                           >
-                            Sessions
+                            <LockIcon aria-hidden="true" /> Sessions
                           </h3>
                           {userSessions.data?.pagination && (
                             <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -621,79 +642,33 @@ export default function PlatformUsersDirectory({
                             {userSessions.data.data.map((session) => (
                               <li
                                 key={session.id}
-                                className="flex flex-col gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-3 text-xs sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-800/50"
+                                className={userModal.sessionRow}
                               >
-                                <div className="min-w-0">
-                                  <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-                                    <span
-                                      className="font-mono max-w-full truncate text-gray-800 dark:text-gray-200"
-                                      title={session.id}
-                                    >
-                                      {session.id}
-                                    </span>
-                                    <span className="text-gray-500 dark:text-gray-400">
-                                      {session.context} · {session.status}
-                                    </span>
+                                <span
+                                  className={userModal.sessionIcon}
+                                  aria-hidden="true"
+                                >
+                                  <LockIcon />
+                                </span>
+                                <div className={userModal.sessionInfo}>
+                                  <div className={userModal.sessionTitle}>
+                                    <strong>
+                                      {session.context.charAt(0) +
+                                        session.context.slice(1).toLowerCase()}
+                                    </strong>
+                                    <StatusBadge status={session.status} />
                                   </div>
-                                  <p className="mt-1 text-gray-500 dark:text-gray-400">
-                                    expires{" "}
-                                    {new Date(
-                                      session.expiresAt,
-                                    ).toLocaleString()}
+                                  <span
+                                    className={userModal.sessionCode}
+                                    title={session.id}
+                                  >
+                                    {session.id}
+                                  </span>
+                                  <p className={userModal.sessionExpiry}>
+                                    Expires{" "}
+                                    {formatPlatformDate(session.expiresAt)}
                                   </p>
                                 </div>
-                                {canManageSessions &&
-                                  session.status === "ACTIVE" &&
-                                  selectedUser.data.id !== operatorId && (
-                                    <div className="flex shrink-0 gap-2">
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                          setSelectedSessionId(session.id)
-                                        }
-                                      >
-                                        Details
-                                      </Button>
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={revokeSession.isPending}
-                                        onClick={() => {
-                                          if (
-                                            !window.confirm(
-                                              "Revoke this session?",
-                                            )
-                                          )
-                                            return;
-                                          void runOperation(() =>
-                                            revokeSession.mutateAsync({
-                                              userId: selectedUser.data!.id,
-                                              sessionId: session.id,
-                                              expectedUpdatedAt:
-                                                session.updatedAt,
-                                              reasonCode: "ACCESS_REVIEW",
-                                            }),
-                                          );
-                                        }}
-                                      >
-                                        Revoke
-                                      </Button>
-                                    </div>
-                                  )}
-                                {(!canManageSessions ||
-                                  session.status !== "ACTIVE" ||
-                                  selectedUser.data.id === operatorId) && (
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      setSelectedSessionId(session.id)
-                                    }
-                                  >
-                                    Details
-                                  </Button>
-                                )}
                               </li>
                             ))}
                           </ul>
@@ -711,70 +686,6 @@ export default function PlatformUsersDirectory({
                             totalItems={userSessions.data.pagination.totalItems}
                             onPageChange={setSessionPage}
                           />
-                        )}
-                        {selectedSessionId && (
-                          <div className="mt-4 rounded-xl border border-gray-200 p-4 dark:border-gray-800">
-                            <div className="mb-3 flex items-center justify-between">
-                              <h4 className="text-xs font-bold">
-                                Session detail
-                              </h4>
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => setSelectedSessionId("")}
-                              >
-                                Close
-                              </Button>
-                            </div>
-                            {selectedSession.data !== undefined &&
-                              !isReadAccessLost(selectedSession.error) &&
-                              (selectedSession.isFetching ||
-                                selectedSession.isRefetchError) && (
-                                <div className="mb-3">
-                                  <QueryRefreshStatus
-                                    hasData
-                                    isFetching={selectedSession.isFetching}
-                                    isRefetchError={
-                                      selectedSession.isRefetchError
-                                    }
-                                    onRetry={() =>
-                                      void selectedSession.refetch()
-                                    }
-                                  />
-                                </div>
-                              )}
-                            {selectedSession.isPending &&
-                            !selectedSession.data ? (
-                              <Loading columns={3} />
-                            ) : !selectedSession.data ||
-                              (selectedSession.isError &&
-                                isReadAccessLost(selectedSession.error)) ? (
-                              <ErrorState
-                                retry={() => void selectedSession.refetch()}
-                              />
-                            ) : (
-                              <dl className="grid gap-3 sm:grid-cols-2">
-                                <TextField
-                                  label="Session ID"
-                                  value={selectedSession.data.id}
-                                />
-                                <TextField
-                                  label="Status / context"
-                                  value={`${selectedSession.data.status} · ${selectedSession.data.context}`}
-                                />
-                                <TextField
-                                  label="Created / updated"
-                                  value={`${new Date(selectedSession.data.createdAt).toLocaleString()} · ${new Date(selectedSession.data.updatedAt).toLocaleString()}`}
-                                />
-                                <TextField
-                                  label="Expires"
-                                  value={new Date(
-                                    selectedSession.data.expiresAt,
-                                  ).toLocaleString()}
-                                />
-                              </dl>
-                            )}
-                          </div>
                         )}
                       </section>
                     )}
@@ -798,7 +709,7 @@ export default function PlatformUsersDirectory({
                 onClose={closeEditProfile}
                 backdropClassName="bg-gray-950/45"
                 showCloseButton={false}
-                className={`${dialogStyles.surface} ${dialogStyles.userSurface}`}
+                className={`${dialogStyles.surface} ${dialogStyles.userSurface} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.edit}`}
               >
                 <section
                   role="dialog"
@@ -806,7 +717,7 @@ export default function PlatformUsersDirectory({
                   aria-labelledby="platform-edit-user-title"
                   className="overflow-hidden rounded-3xl"
                 >
-                  <header className="flex items-start gap-4 border-b border-gray-100 bg-gray-50/80 px-5 py-5 pe-12 sm:px-7 sm:py-6 dark:border-gray-800 dark:bg-gray-800/40">
+                  <header className={userModal.editHeader}>
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-300">
                       <UserCircleIcon className="h-6 w-6" aria-hidden="true" />
                     </span>
@@ -817,10 +728,6 @@ export default function PlatformUsersDirectory({
                       >
                         Edit user profile
                       </h2>
-                      <p className="max-w-xl text-sm leading-6 text-gray-600 dark:text-gray-400">
-                        Change the user’s display name or avatar. Account access
-                        and organization roles are not changed.
-                      </p>
                     </div>
                     <button
                       type="button"
@@ -916,7 +823,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeStatusConfirmation}
                 showCloseButton={false}
-                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}
               >
                 <section
                   role="dialog"
@@ -988,7 +895,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeArchiveConfirmation}
                 showCloseButton={false}
-                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}
               >
                 <section
                   role="dialog"
@@ -1072,7 +979,7 @@ export default function PlatformUsersDirectory({
                 backdropClassName="bg-gray-950/45"
                 onClose={closeRestoreConfirmation}
                 showCloseButton={false}
-                className={`${dialogStyles.surface} ${dialogStyles.confirmation}`}
+                className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}
               >
                 <section
                   role="dialog"

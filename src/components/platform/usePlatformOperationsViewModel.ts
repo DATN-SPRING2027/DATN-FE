@@ -179,6 +179,7 @@ export function usePlatformOperationsViewModel({
     (section === "security" && canReadSessions) ||
       (section === "users" && canReadSessions && Boolean(selectedId)),
     sessionPage,
+    section === "security" ? 10 : 25,
   );
   const selectedSession = usePlatformUserSessionQuery(
     section === "security" ? operatorId : selectedId,
@@ -211,17 +212,17 @@ export function usePlatformOperationsViewModel({
   );
   const queues = usePlatformQueuesQuery(section === "jobs" && canReadJobs);
   const jobs = usePlatformJobsQuery(
-    { page, pageSize: 25, status: status || undefined },
+    { page, pageSize: 10, status: status || undefined },
     section === "jobs" && canReadJobs,
   );
   const jobCommand = usePlatformJobCommandMutation();
   const ai = usePlatformAiOperationsQuery(section === "ai" && canReadAi);
   const integrations = usePlatformIntegrationsQuery(
-    { page, pageSize: 25, status: status || undefined },
+    { page, pageSize: 10, status: status || undefined },
     section === "integrations" && canReadIntegrations,
   );
   const incidents = usePlatformIncidentsQuery(
-    { page, pageSize: 25, status: status || undefined },
+    { page, pageSize: 10, status: status || undefined },
     section === "incidents" && canReadIncidents,
   );
   const incidentHistory = usePlatformIncidentHistoryQuery(

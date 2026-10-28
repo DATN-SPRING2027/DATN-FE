@@ -1,0 +1,162 @@
+/* Reuse Memberships' directory classes; keep only operations-specific layout here. */
+.workspace.workspace {
+  color: var(--op-text);
+  font-size: 13px;
+  font-family: inherit;
+}
+.activeTab {
+  display: flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 4px 10px;
+  border-bottom: 2px solid var(--op-accent);
+  color: var(--op-accent);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+.workspace :global(section):not([role="dialog"]) {
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--op-surface);
+  box-shadow: none;
+  padding: 0;
+}
+.workspace.workspace :is(th, td) {
+  padding: 5px 14px;
+  color: var(--op-text);
+  font-family: inherit;
+  line-height: 1.45;
+}
+.workspace.workspace th {
+  height: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  text-transform: none;
+  background: var(--op-panel);
+}
+.workspace.workspace td {
+  height: 34px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.workspace td strong {
+  font-weight: 500;
+}
+.workspace.workspace :global(.font-mono) {
+  font-family: inherit;
+  font-size: 12px;
+}
+.workspace :global(.overflow-x-auto) {
+  max-width: 100%;
+  overscroll-behavior-inline: contain;
+}
+.workspace :is(input, select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
+  border: 1px solid var(--op-line);
+  border-radius: 4px;
+  background: var(--op-surface);
+  color: var(--op-text);
+  font-family: inherit;
+  font-size: 12px;
+  box-shadow: none;
+}
+.workspace :is(input, select, textarea):focus-visible {
+  outline: 2px solid var(--op-accent);
+  outline-offset: 2px;
+}
+.workspace input::placeholder {
+  color: var(--op-muted);
+  opacity: 1;
+}
+.workspace button {
+  border-radius: 4px;
+  font-family: inherit;
+  font-size: 12px;
+  box-shadow: none;
+  cursor: pointer;
+}
+.workspace :global(button.ring-gray-300) {
+  min-height: 30px;
+  padding: 4px 12px;
+  border: 1px solid var(--op-line);
+  background: var(--op-surface);
+  color: var(--op-text);
+}
+.workspace :global(button.ring-gray-300):hover:not(:disabled) {
+  background: var(--op-panel);
+}
+.workspace button:disabled {
+  cursor: not-allowed;
+}
+.workspace :is(dt, label) {
+  color: var(--op-muted);
+  font-size: 12px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.workspace :is(dd, p) {
+  font-family: inherit;
+  overflow-wrap: anywhere;
+}
+.workspace dd {
+  color: var(--op-text);
+  font-size: 13px;
+}
+.workspace :is(h2, h3) {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--op-text);
+}
+.workspace :global(section) > dl,
+.workspace :global(details) dl {
+  padding: 12px 14px;
+  margin-top: 0;
+}
+.workspace :global(section) > ul {
+  margin-top: 8px;
+}
+.workspace :global(section) > ul li {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  border-radius: 4px;
+  background: var(--op-panel);
+  color: var(--op-text);
+}
+.workspace :global(section) > :global(div.border-b) {
+  border: 0;
+  padding: 0;
+  margin-bottom: 8px;
+}
+@media (max-width: 700px) {
+  .activeTab,
+  .workspace :is(button, input, select, summary) {
+    min-height: 44px;
+  }
+  .workspace form > input {
+    flex-basis: 100%;
+  }
+  .workspace nav {
+    flex-wrap: wrap;
+  }
+}
+
+.workspace.workspace td button {
+  padding: 4px 8px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  box-shadow: none;
+}
+.workspace.workspace td button:hover:not(:disabled) {
+  color: var(--op-accent);
+  background: var(--op-panel);
+}
+
+.workspace [role="region"]:focus-visible {
+  outline: 2px solid var(--op-accent);
+  outline-offset: 2px;
+}

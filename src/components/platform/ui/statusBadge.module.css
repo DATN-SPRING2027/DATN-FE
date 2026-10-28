@@ -1,0 +1,42 @@
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  white-space: nowrap;
+}
+.dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
+}
+.success {
+  color: var(--op-status-success, var(--color-success-700));
+}
+.warning {
+  color: var(--op-status-warning, var(--color-warning-700));
+}
+.danger {
+  color: var(--op-status-danger, var(--color-error-700));
+}
+.neutral {
+  color: var(--op-muted, var(--color-gray-600));
+}
+:global(.dark) .success {
+  color: var(--op-status-success, var(--color-success-400));
+}
+:global(.dark) .warning {
+  color: var(--op-status-warning, var(--color-warning-400));
+}
+:global(.dark) .danger {
+  color: var(--op-status-danger, var(--color-error-400));
+}

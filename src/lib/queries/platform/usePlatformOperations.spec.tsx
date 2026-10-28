@@ -13,6 +13,7 @@ import {
   usePlatformUserOrganizationsQuery,
   usePlatformUserSessionQuery,
   usePlatformUsersQuery,
+  usePlatformServicesQuery,
 } from "./usePlatformOperations";
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
@@ -110,11 +111,7 @@ describe("Platform user operations", () => {
   it("rejects a user list filter outside the Platform user contract", () => {
     expect(() =>
       renderHook(
-        () =>
-          usePlatformUsersQuery(
-            { status: "PUBLIC" as "ACTIVE" },
-            false,
-          ),
+        () => usePlatformUsersQuery({ status: "PUBLIC" as "ACTIVE" }, false),
         { wrapper: createWrapper() },
       ),
     ).toThrow("Invalid user filter");
@@ -415,4 +412,38 @@ describe("Platform user operations", () => {
       email: "invitee@example.test",
     });
   });
+});
+
+describe("Platform service liveness contract", () => {
+  it.each(["ALIVE", "UNAVAILABLE", "AVAILABLE"])(
+    "validates service liveness %s independently from availability",
+    async (liveness) => {
+      mockedApiClient.mockReset();
+      mockedApiClient.mockResolvedValue({
+        data: [
+          {
+            id: "jira",
+            name: "Jira Integration",
+            status: "READY",
+            availability: "AVAILABLE",
+            liveness,
+            readiness: "READY",
+            dependencies: { mongodb: "AVAILABLE", redis: "AVAILABLE" },
+            lastCheckedAt: "2026-10-28T00:00:00.000Z",
+            diagnosticsSummary:
+              "Service and configured dependencies are ready.",
+          },
+        ],
+      });
+      const { result } = renderHook(() => usePlatformServicesQuery(true), {
+        wrapper: createWrapper(),
+      });
+      if (liveness === "AVAILABLE") {
+        await waitFor(() => expect(result.current.isError).toBe(true));
+      } else {
+        await waitFor(() => expect(result.current.isSuccess).toBe(true));
+        expect(result.current.data?.[0]?.liveness).toBe(liveness);
+      }
+    },
+  );
 });

@@ -280,6 +280,9 @@ const { operationHooks, operationState } = vi.hoisted(() => {
   };
 });
 
+vi.mock("@/components/platform/ui/platformFont", () => ({
+  platformFont: { variable: "platform-font" },
+}));
 vi.mock("./overview/OperatorReferenceChart", () => ({
   default: ({ title }: { title?: string }) => <div>{title}</div>,
 }));
@@ -324,13 +327,19 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
   usePlatformHealthQuery: () => health,
   usePlatformAuditQuery: () => audit,
 }));
-vi.mock("@/lib/queries/platform/usePlatformOperations", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@/lib/queries/platform/usePlatformOperations")
-    >();
-  return { ...operationHooks, platformAuditActions: actual.platformAuditActions };
-});
+vi.mock(
+  "@/lib/queries/platform/usePlatformOperations",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@/lib/queries/platform/usePlatformOperations")
+      >();
+    return {
+      ...operationHooks,
+      platformAuditActions: actual.platformAuditActions,
+    };
+  },
+);
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations:
@@ -574,6 +583,7 @@ describe("PlatformConsole", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Edit profile" }));
 
     const dialog = screen.getByRole("dialog", { name: "Edit user profile" });
+    expect(dialog.closest(".platform-font")).not.toBeNull();
     expect(within(dialog).getByLabelText("Full name")).toHaveValue(
       user.fullName,
     );
@@ -787,6 +797,9 @@ describe("PlatformConsole", () => {
     expect(
       screen.getByRole("link", { name: "navigation.memberships" }),
     ).toHaveAttribute("href", "/platform/memberships");
+    expect(
+      screen.queryByRole("link", { name: "navigation.security" }),
+    ).not.toBeInTheDocument();
     for (const label of [
       "navigation.dashboard",
       "navigation.organizations",
@@ -829,7 +842,6 @@ describe("PlatformConsole", () => {
       "navigation.users",
       "navigation.memberships",
       "navigation.projects",
-      "navigation.security",
       "navigation.services",
       "navigation.jobs",
       "navigation.ai",
@@ -1141,8 +1153,9 @@ describe("PlatformConsole", () => {
     expect(
       screen.queryByRole("button", { name: "Refresh" }),
     ).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("status")).toHaveTextContent(
-      "sessionsDenied",
+    expect(within(dialog).getByText(/sessionsDenied/)).toHaveAttribute(
+      "role",
+      "status",
     );
     expect(
       within(dialog).queryByRole("heading", { name: "Sessions" }),
@@ -1278,7 +1291,7 @@ describe("PlatformConsole", () => {
     }
   });
 
-  it("shows only the current validated identity and permission projection on Account", () => {
+  it("shows account identity without backend permission codes", () => {
     pathname.value = "/platform/account";
     render(<PlatformConsole />);
 
@@ -1289,12 +1302,12 @@ describe("PlatformConsole", () => {
       within(screen.getByRole("main")).getByText("operator@example.test"),
     ).toBeInTheDocument();
     expect(
-      screen.getByText("platform.organizations.organization.read"),
-    ).toBeInTheDocument();
+      screen.queryByText("platform.organizations.organization.read"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/eyJ[A-Za-z0-9_-]+\./)).not.toBeInTheDocument();
   });
 
-  it("sends exact Audit filters to the paginated BE projection", () => {
+  it("sends Audit filters to the server and resets pagination", () => {
     pathname.value = "/platform/audit";
     session.data.permissions = ["platform.audit.read"];
     operationState.auditEvents.data = {
@@ -1310,27 +1323,44 @@ describe("PlatformConsole", () => {
           result: "SUCCESS",
         },
       ],
-      pagination: { page: 1, pageSize: 25, totalItems: 1, totalPages: 1 },
+      pagination: { page: 1, pageSize: 10, totalItems: 20, totalPages: 2 },
     };
     render(<PlatformConsole />);
+    fireEvent.click(screen.getByRole("button", { name: "2" }));
+    expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 2 }),
+      true,
+    );
 
-    expect(
-      within(screen.getByLabelText("audit.filterAction")).getByRole("option", {
-        name: "platform.user.restored",
-      }),
-    ).toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("audit.filterAction"), {
       target: { value: "platform.project.metadata.changed" },
     });
-    expect(
-      screen.getAllByText("platform.project.metadata.changed").length,
-    ).toBeGreaterThan(0);
+    fireEvent.change(screen.getByLabelText("audit.filterActor"), {
+      target: { value: "651a2b3c4d5e6f7a8b9c0d1e" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.filterResource"), {
+      target: { value: "PROJECT" },
+    });
+    fireEvent.change(screen.getByLabelText("Resource ID"), {
+      target: { value: "751a2b3c4d5e6f7a8b9c0d21" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.from"), {
+      target: { value: "2026-10-01" },
+    });
+    fireEvent.change(screen.getByLabelText("audit.to"), {
+      target: { value: "2026-10-28" },
+    });
     expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
-      expect.objectContaining({
+      {
         page: 1,
-        pageSize: 25,
+        pageSize: 10,
         action: "platform.project.metadata.changed",
-      }),
+        actorUserId: "651a2b3c4d5e6f7a8b9c0d1e",
+        resourceType: "PROJECT",
+        resourceId: "751a2b3c4d5e6f7a8b9c0d21",
+        from: "2026-10-01T00:00:00.000Z",
+        to: "2026-10-28T23:59:59.999Z",
+      },
       true,
     );
   });
@@ -1424,5 +1454,24 @@ describe("PlatformConsole", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "retry" }));
     expect(operationState.auditEvents.refetch).toHaveBeenCalledOnce();
+  });
+  it("replaces the healthy banner when a health poll fails with cached data", () => {
+    pathname.value = "/platform/services";
+    session.data.permissions = ["platform.health.read"];
+    health.isError = true;
+    render(<PlatformConsole />);
+    expect(screen.queryByText("health.healthy")).not.toBeInTheDocument();
+    expect(screen.getByText("errors.health")).toBeInTheDocument();
+  });
+  it("does not offer manual Refresh buttons on Services", () => {
+    pathname.value = "/platform/services";
+    session.data.permissions = [
+      "platform.health.read",
+      "platform.services.service.read",
+    ];
+    render(<PlatformConsole />);
+    expect(
+      screen.queryByRole("button", { name: "refresh" }),
+    ).not.toBeInTheDocument();
   });
 });

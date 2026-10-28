@@ -10,7 +10,6 @@ import {
   PlatformServerIcon,
   GridIcon,
   GroupIcon,
-  LockIcon,
   BoltIcon,
   PlugInIcon,
   AlertIcon,
@@ -48,7 +47,6 @@ const groups = [
   {
     label: "Administration",
     items: [
-      { id: "security", icon: LockIcon },
       { id: "incidents", icon: AlertIcon },
       { id: "diagnostics", icon: GridIcon },
       { id: "audit", icon: ListIcon },
@@ -67,7 +65,6 @@ const permissionBySection: Record<NavigationSection, PlatformPermission> = {
   jobs: "platform.jobs.job.read",
   ai: "platform.ai.operations.read",
   integrations: "platform.integrations.integration.read",
-  security: "platform.sessions.session.read",
   incidents: "platform.incidents.incident.read",
   diagnostics: "platform.diagnostics.trace.read",
   audit: "platform.audit.read",

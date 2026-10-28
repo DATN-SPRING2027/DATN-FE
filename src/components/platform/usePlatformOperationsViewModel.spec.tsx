@@ -122,4 +122,21 @@ describe("Platform operations view model filters", () => {
     );
     expect(result.current.status).toBe("");
   });
+  it("requests ten sessions per page for the security directory", async () => {
+    renderHook(
+      () =>
+        usePlatformOperationsViewModel({
+          section: "security",
+          permissions: ["platform.sessions.session.read"],
+          operatorId: "651a2b3c4d5e6f7a8b9c0d1e",
+        }),
+      { wrapper: createWrapper() },
+    );
+    await waitFor(() =>
+      expect(mockedApiClient).toHaveBeenCalledWith(
+        "/iam/platform/users/651a2b3c4d5e6f7a8b9c0d1e/sessions?page=1&pageSize=10",
+        expect.objectContaining({ cache: "no-store" }),
+      ),
+    );
+  });
 });

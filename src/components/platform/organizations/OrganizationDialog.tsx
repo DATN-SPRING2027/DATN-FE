@@ -9,6 +9,7 @@ import {
 import { useTranslations } from "next-intl";
 import { Modal } from "@/components/ui/modal";
 import { CloseLineIcon } from "@/icons";
+import { platformFont } from "../ui/platformFont";
 import dialog from "../ui/platformDialog.module.css";
 
 export default function OrganizationDialog({
@@ -74,7 +75,7 @@ export default function OrganizationDialog({
       }}
       showCloseButton={false}
       backdropClassName="bg-gray-950/45"
-      className={`${dialog.surface} ${detail ? dialog.detailSurface : ""}`}
+      className={`${dialog.surface} ${platformFont.variable} ${detail ? dialog.detailSurface : ""}`}
     >
       <div
         ref={ref}

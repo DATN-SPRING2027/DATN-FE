@@ -3,7 +3,42 @@ import { useTranslations } from "next-intl";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import Button from "@/components/ui/button/Button";
 import { TableSkeleton } from "@/components/platform/ui/LoadingSkeleton";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
+import jira from "./ui/jira.module.css";
+
+// Platform copy is English, matching the Memberships directory's locale and date scale.
+export function formatPlatformDate(value: string) {
+  return new Intl.DateTimeFormat("en", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+export function DirectoryToolbar({
+  title,
+  description,
+  children,
+}: {
+  title: string;
+  description?: string;
+  children?: ReactNode;
+}) {
+  return (
+    <div className={children ? jira.toolbar : "sr-only"}>
+      <div className="sr-only">
+        <h2>{title}</h2>
+        {description && <p>{description}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
 
 export const box =
   "rounded-2xl border border-gray-200/80 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900";
@@ -15,15 +50,21 @@ export function isReadAccessLost(error: unknown) {
   return isAccessOrResourceUnavailableError(error);
 }
 
-export function ErrorState({ retry }: { retry: () => void }) {
+export function ErrorState({
+  retry,
+  message,
+}: {
+  retry: () => void;
+  message?: string;
+}) {
   return (
     <div
       className="flex items-center justify-between gap-3 px-5 py-6 text-xs text-rose-600"
       role="alert"
     >
       <span>
-        Could not load this Platform data. Check access or connection, then
-        retry.
+        {message ??
+          "Could not load this Platform data. Check access or connection, then retry."}
       </span>
       <Button variant="outline" size="sm" onClick={retry}>
         Retry
@@ -87,13 +128,19 @@ export function DirectoryTable({
   children: ReactNode;
   headers: readonly string[];
 }) {
+  const t = useTranslations("platformConsole.operations");
   return (
-    <div className="overflow-x-auto">
+    <div
+      className={`${jira.tableFrame} overflow-x-auto`}
+      role="region"
+      tabIndex={0}
+      aria-label={t("listLabel")}
+    >
       <table className="min-w-full text-xs">
         <thead className="border-b border-gray-100 bg-gray-50/75 text-[11px] font-semibold text-gray-500 uppercase dark:border-gray-800 dark:bg-gray-800/40">
           <tr>
             {headers.map((header) => (
-              <th key={header} className="px-5 py-3 text-start">
+              <th key={header} scope="col" className="px-5 py-3 text-start">
                 {header}
               </th>
             ))}

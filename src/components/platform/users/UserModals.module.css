@@ -1,0 +1,374 @@
+/* Scoped to Users: keep the established behavior and permission boundaries. */
+.frame.frame.frame {
+  align-self: center;
+  max-width: 30rem;
+  max-height: calc(100dvh - 48px);
+  margin: auto 16px;
+  border: 1px solid var(--op-line);
+  border-radius: 8px;
+  background: var(--op-surface);
+  color: var(--op-text);
+  box-shadow: var(--shadow-theme-lg);
+  font-size: 13px;
+}
+.frame.frame :is(h2, h3) {
+  color: var(--op-text);
+}
+.frame.frame h2 {
+  font-size: 18px;
+  line-height: 26px;
+  letter-spacing: 0;
+}
+.frame.frame :is(input:not([type="checkbox"]), select) {
+  min-height: 44px;
+  border-radius: 6px;
+  box-shadow: none;
+}
+.frame.frame button {
+  border-radius: 6px;
+  font-size: 13px;
+}
+.frame.frame button:focus-visible {
+  outline: 2px solid var(--op-accent);
+  outline-offset: 2px;
+}
+.detail.detail.detail {
+  max-width: 48rem;
+  min-height: 0;
+}
+.detail.detail > header {
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--op-line);
+  background: var(--op-surface);
+}
+.detail.detail > header h2 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+}
+.detail.detail > header h2 svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+.detail.detail > header p {
+  margin: 4px 0 0;
+  padding-inline-start: 36px;
+  color: var(--op-muted);
+  font-size: 13px;
+}
+.detail.detail > div {
+  padding: 20px;
+  gap: 20px;
+}
+.detail.detail aside {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+}
+.detail.detail aside h3 {
+  display: none;
+}
+.detail.detail aside dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--op-line);
+}
+.detail.detail aside dl > div {
+  display: block;
+  min-width: 0;
+}
+.detail.detail aside dl dt {
+  margin: 0 0 4px;
+  color: var(--op-muted);
+  font-size: 12px;
+  font-weight: 400;
+}
+.detail.detail aside dl dd {
+  font-size: 13px;
+}
+.detail.detail section {
+  border-radius: 6px;
+  border-color: var(--op-line);
+}
+.edit.edit > div > section {
+  border-radius: 0;
+}
+.edit.edit > div > section > .editHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--op-line);
+  background: var(--op-surface);
+}
+.edit.edit > div > section > .editHeader > span {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 0;
+  background: transparent;
+  color: var(--op-text);
+}
+.editHeader > div {
+  flex: 1;
+}
+.edit.edit > div > section > form {
+  padding: 20px;
+}
+.edit.edit label {
+  color: var(--op-text);
+  font-size: 13px;
+}
+.edit.edit form > div:last-child {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+  margin: 20px -20px -20px;
+  padding: 14px 20px;
+  border-color: var(--op-line);
+}
+.edit.edit form > div:last-child button {
+  width: auto;
+  min-height: 40px;
+  padding: 8px 16px;
+}
+.edit.edit form button[type="submit"] {
+  background: var(--op-accent);
+  border-color: var(--op-accent);
+  color: var(--color-white);
+}
+.edit.edit form button[type="button"] {
+  background: transparent;
+  color: var(--op-accent);
+  border-color: transparent;
+  box-shadow: none;
+}
+.confirm.confirm.confirm {
+  padding: 20px;
+}
+.confirm.confirm header {
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--op-line);
+}
+.confirm.confirm header p {
+  color: var(--op-muted);
+  font-size: 13px;
+}
+.confirm.confirm section > p {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--op-muted);
+}
+@media (max-width: 640px) {
+  .frame.frame.frame {
+    max-height: calc(100dvh - 32px);
+  }
+  .detail.detail > header,
+  .edit.edit > div > section > .editHeader {
+    padding: 16px 20px;
+  }
+  .detail.detail > div,
+  .edit.edit > div > section > form {
+    padding: 20px;
+  }
+  .detail.detail aside dl {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .edit.edit form > div:last-child {
+    margin: 20px -20px -20px;
+    padding: 16px 20px;
+  }
+}
+.detail.detail.detail {
+  inset: 0;
+  margin: auto;
+  max-height: calc(100dvh - 64px);
+}
+.detail.detail.detail aside dd button {
+  border: 0;
+  background: transparent;
+  color: var(--op-muted);
+}
+.frame.frame.frame {
+  border-radius: 4px;
+}
+.detail.detail section,
+.detail.detail li {
+  border-radius: 4px;
+}
+/* A restrained profile treatment; blue is reserved for the identity accent. */
+.detail.detail.detail {
+  max-width: 42rem;
+}
+.detail.detail > header {
+  padding: 20px;
+}
+.heroIdentity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+.avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--op-accent) 20%, var(--op-line));
+  background: color-mix(in srgb, var(--op-accent) 8%, var(--op-surface));
+  color: var(--op-accent);
+  font-size: 20px;
+  font-weight: 600;
+}
+.avatar svg {
+  width: 28px;
+  height: 28px;
+}
+.detail.detail > header h2 {
+  font-size: 20px;
+}
+.detail.detail > header p {
+  padding-inline-start: 0;
+}
+.detail.detail aside dl {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding-bottom: 24px;
+}
+.detail.detail aside dl > div {
+  padding: 10px 12px;
+  border: 1px solid var(--op-line-subtle);
+  border-radius: 4px;
+  background: var(--op-panel);
+}
+.detail.detail aside dl > div:first-child {
+  grid-column: span 2;
+}
+.detail.detail aside dl > div > div {
+  display: block;
+}
+.detail.detail aside dl > div dd {
+  margin-top: 6px;
+}
+.detail.detail section {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+}
+.detail.detail section + section {
+  border-top: 1px solid var(--op-line);
+  padding-top: 24px;
+}
+.detail.detail section > div:first-child h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+}
+.detail.detail section > div:first-child h3 svg {
+  width: 18px;
+  height: 18px;
+  color: var(--op-muted);
+}
+.detail.detail section > div:first-child > span {
+  background: var(--op-panel);
+  color: var(--op-muted);
+  border: 1px solid var(--op-line-subtle);
+  border-radius: 4px;
+}
+.detail.detail section ul > li {
+  background: var(--op-surface);
+  border-color: var(--op-line-subtle);
+  padding: 12px;
+}
+.membershipMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline-start: 12px;
+  color: var(--op-muted);
+}
+.sessionRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.sessionIcon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid var(--op-line-subtle);
+  border-radius: 4px;
+  background: var(--op-panel);
+  color: var(--op-muted);
+}
+.sessionIcon svg {
+  width: 18px;
+  height: 18px;
+}
+.sessionInfo {
+  min-width: 0;
+  flex: 1;
+}
+.sessionTitle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.sessionTitle strong {
+  font-size: 13px;
+  font-weight: 500;
+}
+.sessionCode {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--op-muted);
+}
+.sessionExpiry {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--op-muted);
+}
+@media (max-width: 640px) {
+  .detail.detail aside dl {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .detail.detail aside dl > div:first-child {
+    grid-column: span 2;
+  }
+  .heroIdentity {
+    gap: 12px;
+  }
+  .avatar {
+    width: 44px;
+    height: 44px;
+    font-size: 17px;
+  }
+  .detail.detail > header h2 {
+    font-size: 18px;
+  }
+  .membershipMeta {
+    display: flex;
+    margin: 6px 0 0;
+  }
+}
+.frame.frame.frame.frame > header,
+.frame.frame.frame.frame .editHeader {
+  background: var(--op-surface);
+}
