@@ -1,0 +1,57 @@
+.dialog.dialog {
+  max-width: 32rem;
+}
+.form {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+.fields {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.fields :is(input, select) {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+}
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 20px;
+}
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--op-line);
+  margin: 4px -24px -24px;
+  padding: 16px 24px;
+}
+@media (max-width: 480px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+.dialog .footer button[type="button"] {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  color: var(--op-accent);
+}
+.dialog .footer button[type="submit"] {
+  background: var(--op-accent);
+  border-color: var(--op-accent);
+  color: var(--color-white);
+}
+.dialog .footer button[type="submit"]:hover:not(:disabled) {
+  background: var(--color-blue-700);
+}

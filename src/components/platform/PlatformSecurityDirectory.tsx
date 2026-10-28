@@ -1,5 +1,10 @@
 "use client";
 
+import { UserCircleIcon } from "@/icons";
+import CopyIdentifier from "./ui/CopyIdentifier";
+import details from "./ui/modalDetails.module.css";
+import { useRef } from "react";
+import PlatformRecordModal from "./ui/PlatformRecordModal";
 import Button from "@/components/ui/button/Button";
 import { useTranslations } from "next-intl";
 import PlatformPagination from "@/components/platform/PlatformPagination";
@@ -7,10 +12,11 @@ import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import {
   DirectoryTable,
+  formatPlatformDate,
+  DirectoryToolbar,
   ErrorState,
   Loading,
   QueryRefreshStatus,
-  TextField,
   box,
   cell,
   isReadAccessLost,
@@ -22,6 +28,7 @@ export default function PlatformSecurityDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const t = useTranslations("platformConsole.security");
   const {
     canReadSessions,
@@ -44,25 +51,23 @@ export default function PlatformSecurityDirectory({
         </p>
       ) : (
         <section className={`${box} overflow-hidden`}>
-          <div className="border-b border-gray-100 p-5 dark:border-gray-800">
-            <h2 className="text-sm font-bold">{t("adminSessions")}</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Session metadata for the authenticated Platform account.
-            </p>
-          </div>
-          {userSessions.data !== undefined && !isReadAccessLost(userSessions.error) && (userSessions.isFetching || userSessions.isRefetchError) && (
-            <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
-              <QueryRefreshStatus
-                hasData
-                isFetching={userSessions.isFetching}
-                isRefetchError={userSessions.isRefetchError}
-                onRetry={() => void userSessions.refetch()}
-              />
-            </div>
-          )}
+          <DirectoryToolbar title={t("adminSessions")} />
+          {userSessions.data !== undefined &&
+            !isReadAccessLost(userSessions.error) &&
+            (userSessions.isFetching || userSessions.isRefetchError) && (
+              <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+                <QueryRefreshStatus
+                  hasData
+                  isFetching={userSessions.isFetching}
+                  isRefetchError={userSessions.isRefetchError}
+                  onRetry={() => void userSessions.refetch()}
+                />
+              </div>
+            )}
           {userSessions.isPending && !userSessions.data ? (
             <Loading columns={5} />
-          ) : userSessions.isError && (!userSessions.data || isReadAccessLost(userSessions.error)) ? (
+          ) : userSessions.isError &&
+            (!userSessions.data || isReadAccessLost(userSessions.error)) ? (
             <ErrorState retry={() => void userSessions.refetch()} />
           ) : userSessions.data?.data.length ? (
             <DirectoryTable
@@ -86,14 +91,17 @@ export default function PlatformSecurityDirectory({
                     />
                   </td>
                   <td className={cell}>
-                    {new Date(session.expiresAt).toLocaleString()}
+                    {formatPlatformDate(session.expiresAt)}
                   </td>
                   <td className={cell}>
                     <div className="flex flex-wrap gap-2">
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedSessionId(session.id)}
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setSelectedSessionId(session.id);
+                        }}
                       >
                         Details
                       </Button>
@@ -134,71 +142,89 @@ export default function PlatformSecurityDirectory({
               body="The Platform API returned no session records."
             />
           )}
-          {userSessions.data?.pagination && (
-            <PlatformPagination
-              ariaLabel={t("adminSessions")}
-              page={userSessions.data.pagination.page}
-              totalPages={userSessions.data.pagination.totalPages}
-              totalItems={userSessions.data.pagination.totalItems}
-              onPageChange={setSessionPage}
-            />
-          )}
-          {userSessions.data?.data.some(
-            (session) => session.userId === operatorId,
-          ) && (
-            <p className="border-t border-gray-100 px-5 py-3 text-[11px] text-amber-700 dark:border-gray-800 dark:text-amber-400">
-              {t("currentAdminSessionGuard")}
-            </p>
-          )}
-          {selectedSessionId && (
-            <div className="border-t border-gray-100 p-5 dark:border-gray-800">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-xs font-bold">Session detail</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedSessionId("")}
-                >
-                  Close
-                </Button>
+          {userSessions.data?.pagination &&
+            !isReadAccessLost(userSessions.error) && (
+              <PlatformPagination
+                ariaLabel={t("adminSessions")}
+                page={userSessions.data.pagination.page}
+                totalPages={userSessions.data.pagination.totalPages}
+                totalItems={userSessions.data.pagination.totalItems}
+                alwaysShow
+                pageSize={userSessions.data.pagination.pageSize}
+                returnedItems={userSessions.data.data.length}
+                disabled={userSessions.isFetching}
+                onPageChange={setSessionPage}
+              />
+            )}
+          {selectedSessionId && !isReadAccessLost(userSessions.error) && (
+            <PlatformRecordModal
+              title={t("detailTitle")}
+              icon={<UserCircleIcon />}
+              closeLabel={t("closeDetails")}
+              triggerRef={triggerRef}
+              onClose={() => setSelectedSessionId("")}
+            >
+              <div className={details.body}>
+                {selectedSession.data !== undefined &&
+                  !isReadAccessLost(selectedSession.error) &&
+                  (selectedSession.isFetching ||
+                    selectedSession.isRefetchError) && (
+                    <div className="mb-3">
+                      <QueryRefreshStatus
+                        hasData
+                        isFetching={selectedSession.isFetching}
+                        isRefetchError={selectedSession.isRefetchError}
+                        onRetry={() => void selectedSession.refetch()}
+                      />
+                    </div>
+                  )}
+                {selectedSession.isPending && !selectedSession.data ? (
+                  <Loading columns={3} />
+                ) : !selectedSession.data ||
+                  (selectedSession.isError &&
+                    isReadAccessLost(selectedSession.error)) ? (
+                  <ErrorState retry={() => void selectedSession.refetch()} />
+                ) : (
+                  <>
+                    <div className={details.status}>
+                      <StatusBadge status={selectedSession.data.status} />
+                      <span className={details.context}>
+                        {selectedSession.data.context}
+                      </span>
+                    </div>
+                    <dl className={details.sessionId}>
+                      <dt>{t("sessionId")}</dt>
+                      <dd>
+                        <CopyIdentifier
+                          label={t("sessionId")}
+                          value={selectedSession.data.id}
+                        />
+                      </dd>
+                    </dl>
+                    <dl className={details.rows}>
+                      <div>
+                        <dt>{t("created")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.createdAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{t("updated")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.updatedAt)}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt>{t("expires")}</dt>
+                        <dd>
+                          {formatPlatformDate(selectedSession.data.expiresAt)}
+                        </dd>
+                      </div>
+                    </dl>
+                  </>
+                )}
               </div>
-              {selectedSession.data !== undefined && !isReadAccessLost(selectedSession.error) && (selectedSession.isFetching || selectedSession.isRefetchError) && (
-                <div className="mb-3">
-                  <QueryRefreshStatus
-                    hasData
-                    isFetching={selectedSession.isFetching}
-                    isRefetchError={selectedSession.isRefetchError}
-                    onRetry={() => void selectedSession.refetch()}
-                  />
-                </div>
-              )}
-              {selectedSession.isPending && !selectedSession.data ? (
-                <Loading columns={3} />
-              ) : !selectedSession.data || (selectedSession.isError && isReadAccessLost(selectedSession.error)) ? (
-                <ErrorState retry={() => void selectedSession.refetch()} />
-              ) : (
-                <dl className="grid gap-3 sm:grid-cols-2">
-                  <TextField
-                    label="Session ID"
-                    value={selectedSession.data.id}
-                  />
-                  <TextField
-                    label="Status / context"
-                    value={`${selectedSession.data.status} · ${selectedSession.data.context}`}
-                  />
-                  <TextField
-                    label="Created / updated"
-                    value={`${new Date(selectedSession.data.createdAt).toLocaleString()} · ${new Date(selectedSession.data.updatedAt).toLocaleString()}`}
-                  />
-                  <TextField
-                    label="Expires"
-                    value={new Date(
-                      selectedSession.data.expiresAt,
-                    ).toLocaleString()}
-                  />
-                </dl>
-              )}
-            </div>
+            </PlatformRecordModal>
           )}
         </section>
       )}

@@ -62,16 +62,18 @@ export default function OrganizationDetail({
       >
         {t("organizations.back")}
       </Link>
-      {record && !accessLost && (organization.isFetching || organization.isRefetchError) && (
-        <div className="my-3">
-          <QueryRefreshStatus
-            hasData
-            isFetching={organization.isFetching}
-            isRefetchError={organization.isRefetchError ?? false}
-            onRetry={() => void organization.refetch()}
-          />
-        </div>
-      )}
+      {record &&
+        !accessLost &&
+        (organization.isFetching || organization.isRefetchError) && (
+          <div className="my-3">
+            <QueryRefreshStatus
+              hasData
+              isFetching={organization.isFetching}
+              isRefetchError={organization.isRefetchError ?? false}
+              onRetry={() => void organization.refetch()}
+            />
+          </div>
+        )}
       {organization.isPending && !record ? (
         <TableSkeleton rows={3} columns={2} />
       ) : (organization.isError && (!record || accessLost)) || !record ? (
@@ -122,13 +124,6 @@ export default function OrganizationDetail({
           </aside>
         </div>
       )}
-      <Button
-        variant="outline"
-        disabled={organization.isFetching}
-        onClick={() => void organization.refetch()}
-      >
-        {t(organization.isFetching ? "refreshing" : "refresh")}
-      </Button>
     </section>
   );
 }

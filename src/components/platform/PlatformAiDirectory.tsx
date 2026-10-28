@@ -1,10 +1,15 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import StatusBadge from "./ui/StatusBadge";
+
 import {
+  DirectoryToolbar,
+  DirectoryTable,
+  formatPlatformDate,
   ErrorState,
   Loading,
   QueryRefreshStatus,
-  TextField,
   box,
   isReadAccessLost,
 } from "./PlatformOperationsUi";
@@ -15,6 +20,7 @@ export default function PlatformAiDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const t = useTranslations("platformConsole");
   const { canReadAi, ai } = model;
   return !canReadAi ? (
     <p role="status" className={`${box} p-6 text-xs text-amber-700`}>
@@ -22,36 +28,44 @@ export default function PlatformAiDirectory({
     </p>
   ) : (
     <section className={`${box} p-5`}>
-      <h2 className="text-sm font-bold">SAG / RAG operations</h2>
-      <p className="mt-1 text-xs text-gray-500">
-        Operational metadata only; model/provider health and processing job
-        details are not exposed by the current BE contract.
-      </p>
-      {ai.data !== undefined && !isReadAccessLost(ai.error) && (ai.isFetching || ai.isRefetchError) && (
-        <div className="mt-4">
-          <QueryRefreshStatus
-            hasData
-            isFetching={ai.isFetching}
-            isRefetchError={ai.isRefetchError}
-            onRetry={() => void ai.refetch()}
-          />
-        </div>
-      )}
+      <DirectoryToolbar title="SAG / RAG operations" />
+      {ai.data !== undefined &&
+        !isReadAccessLost(ai.error) &&
+        (ai.isFetching || ai.isRefetchError) && (
+          <div className="mt-4">
+            <QueryRefreshStatus
+              hasData
+              isFetching={ai.isFetching}
+              isRefetchError={ai.isRefetchError}
+              onRetry={() => void ai.refetch()}
+            />
+          </div>
+        )}
       {ai.isPending && !ai.data ? (
         <Loading columns={3} />
       ) : ai.isError && (!ai.data || isReadAccessLost(ai.error)) ? (
         <ErrorState retry={() => void ai.refetch()} />
       ) : (
         <>
-          <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <TextField label="Service" value={ai.data.name} />
-            <TextField label="Readiness" value={ai.data.readiness} />
-            <TextField label="Availability" value={ai.data.availability} />
-            <TextField
-              label="Last checked"
-              value={new Date(ai.data.lastCheckedAt).toLocaleString()}
-            />
-          </dl>
+          <DirectoryTable
+            headers={[
+              t("operations.service"),
+              t("operations.readiness"),
+              t("operations.availability"),
+              t("operations.checked"),
+            ]}
+          >
+            <tr>
+              <td>{ai.data.name}</td>
+              <td>
+                <StatusBadge status={ai.data.readiness} />
+              </td>
+              <td>
+                <StatusBadge status={ai.data.availability} />
+              </td>
+              <td>{formatPlatformDate(ai.data.lastCheckedAt)}</td>
+            </tr>
+          </DirectoryTable>
           <p className="mt-4 rounded-xl bg-gray-50 p-4 text-xs dark:bg-gray-800">
             {ai.data.diagnosticsSummary}
           </p>

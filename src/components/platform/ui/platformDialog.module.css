@@ -6,7 +6,7 @@
   margin: 7vh 16px 24px;
   overflow-y: auto;
   border: 1px solid var(--op-line, #dce4ee);
-  border-radius: 14px;
+  border-radius: 8px;
   padding: 0;
   background: #fff;
   color: #292a2e;
@@ -25,8 +25,8 @@
   letter-spacing: 0;
 }
 .surface h2 {
-  font-size: 20px;
-  line-height: 28px;
+  font-size: 18px;
+  line-height: 26px;
 }
 .surface label {
   font-size: 14px;
@@ -47,7 +47,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px 28px 0;
+  padding: 18px 24px;
 }
 .close {
   display: flex;
@@ -69,7 +69,7 @@
   height: 20px;
 }
 .body {
-  padding: 20px 28px 24px;
+  padding: 24px;
 }
 .body > section {
   border: 0;
@@ -81,8 +81,8 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
-  margin: 24px -28px -24px;
-  padding: 16px 28px;
+  margin: 24px -24px -24px;
+  padding: 16px 24px;
   border-top: 1px solid #dce4ee;
 }
 .userSurface > div > section {
@@ -163,8 +163,8 @@
 
 /* Wide issue-style details, shared by user and organization views. */
 .surface.detailSurface {
-  min-height: min(680px, 80dvh);
-  max-width: 1340px;
+  min-height: 0;
+  max-width: 1060px;
   width: calc(100% - 64px);
   max-height: 86dvh;
   margin-top: 7vh;
@@ -348,9 +348,6 @@
   background: var(--color-white);
   color: var(--color-black);
 }
-.surface.surface.surface * {
-  color: var(--color-black);
-}
 .surface.surface.surface
   :is(input:not([type="checkbox"]), select, textarea, header, aside) {
   background: var(--color-white);
@@ -445,3 +442,5 @@
   :is(div, section, span, p, dl, dt, dd, ul, li) {
   background-color: transparent;
 }
+
+.surface .heading { border-bottom: 1px solid var(--op-line, #dce4ee); }

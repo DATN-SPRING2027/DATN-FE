@@ -628,6 +628,7 @@ export function usePlatformHealthQuery(enabled: boolean) {
     enabled,
     retry: false,
     staleTime: 15_000,
+    refetchInterval: 15_000,
   });
 }
 

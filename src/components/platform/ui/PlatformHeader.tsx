@@ -23,7 +23,6 @@ const primary = [
 const additional = [
   "organizations",
   "memberships",
-  "security",
   "jobs",
   "ai",
   "integrations",
