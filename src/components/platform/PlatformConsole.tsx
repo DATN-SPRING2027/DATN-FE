@@ -2,6 +2,7 @@
 
 import { CloseIcon } from "@/icons";
 import dialogStyles from "./ui/platformDialog.module.css";
+import PlatformAccountDirectory from "./PlatformAccountDirectory";
 import PlatformAuditProjection from "@/components/platform/PlatformAuditProjection";
 import PlatformDashboard from "@/components/platform/PlatformDashboard";
 import PlatformMembershipDirectory from "@/components/platform/PlatformMembershipDirectory";
@@ -149,9 +150,6 @@ export default function PlatformConsole() {
       activeSection === "organizations" &&
       hasValidRouteOrganizationId,
   );
-  const organizationRequest = routeOrganizationId
-    ? organization
-    : organizations;
   const changeOrganizationMetadata =
     usePlatformChangeOrganizationMetadataMutation();
   const lookup = usePlatformUserLookupMutation();
@@ -295,7 +293,20 @@ export default function PlatformConsole() {
           </div>
         )}
       {/* Top Page Header */}
-      {["users", "dashboard", "memberships"].includes(activeSection) ||
+      {[
+        "users",
+        "dashboard",
+        "memberships",
+        "services",
+        "jobs",
+        "ai",
+        "integrations",
+        "security",
+        "incidents",
+        "diagnostics",
+        "audit",
+        "account",
+      ].includes(activeSection) ||
       (activeSection === "organizations" &&
         !routeOrganizationId &&
         canReadOrganizations) ? null : (
@@ -303,36 +314,6 @@ export default function PlatformConsole() {
           hideTitle={activeSection === "organizations" && !routeOrganizationId}
           title={pageTitle}
           description={pageDescription}
-          actions={
-            <div className="flex items-center gap-2">
-              {activeSection === "organizations" &&
-                canReadOrganizations &&
-                (!routeOrganizationId || hasValidRouteOrganizationId) && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={organizationRequest.isFetching}
-                    onClick={() => void organizationRequest.refetch()}
-                    className="sr-only focus:not-sr-only"
-                  >
-                    {organizationRequest.isFetching
-                      ? t("refreshing")
-                      : t("refresh")}
-                  </Button>
-                )}
-              {activeSection === "services" && canReadHealth && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={health.isFetching}
-                  onClick={() => void health.refetch()}
-                  className="h-8 text-xs"
-                >
-                  {health.isFetching ? t("refreshing") : t("refresh")}
-                </Button>
-              )}
-            </div>
-          }
         />
       )}
 
@@ -440,18 +421,15 @@ export default function PlatformConsole() {
       {/* SECURITY ROUTE */}
       {activeSection === "security" && (
         <div className="space-y-6">
-          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
-              <div>
-                <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                  {t("security.currentSession")}
-                </h3>
-                <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                  {t("security.currentSessionNote")}
-                </p>
-              </div>
-              <StatusBadge status="ACTIVE" label={t("sessionActive")} />
-            </div>
+          <PlatformOperationsDirectory
+            section="security"
+            permissions={session.data.permissions}
+            operatorId={session.data.id}
+          />
+          <details className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-800">
+            <summary className="cursor-pointer text-xs font-medium">
+              {t("security.currentSession")}
+            </summary>
 
             <dl className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <DetailField
@@ -466,46 +444,32 @@ export default function PlatformConsole() {
                 label={t("account.context")}
                 value={session.data.context}
               />
-              <DetailField
-                label={t("account.permissionCount")}
-                value={String(session.data.permissions.length)}
-              />
+              <div>
+                <dt className="text-xs text-gray-500">
+                  {t("account.sessionStatus")}
+                </dt>
+                <dd>
+                  <StatusBadge status="ACTIVE" label={t("sessionActive")} />
+                </dd>
+              </div>
             </dl>
-          </section>
-
-          <PlatformOperationsDirectory
-            section="security"
-            permissions={session.data.permissions}
-            operatorId={session.data.id}
-          />
+          </details>
         </div>
       )}
 
       {/* SERVICES ROUTE */}
       {activeSection === "services" && (
         <div className="space-y-6">
+          <PlatformOperationsDirectory
+            section="services"
+            permissions={session.data.permissions}
+            operatorId={session.data.id}
+          />
           {canReadHealth ? (
-            <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-              <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
-                <div>
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                    {t("health.title")}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    {t("health.description")}
-                  </p>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={health.isFetching}
-                  onClick={() => void health.refetch()}
-                  className="h-8 text-xs"
-                >
-                  {t("refresh")}
-                </Button>
-              </div>
-
+            <details className="mt-4 border-t border-gray-200 pt-3 dark:border-gray-800">
+              <summary className="cursor-pointer text-xs font-medium">
+                {t("health.title")}
+              </summary>
               {health.data !== undefined &&
                 !isReadAccessLost(health.error) &&
                 (health.isFetching || health.isRefetchError) && (
@@ -544,16 +508,10 @@ export default function PlatformConsole() {
                   </div>
                 </div>
               )}
-            </section>
+            </details>
           ) : (
             <PermissionNotice message={t("pages.services.permissionNeeded")} />
           )}
-
-          <PlatformOperationsDirectory
-            section="services"
-            permissions={session.data.permissions}
-            operatorId={session.data.id}
-          />
         </div>
       )}
 
@@ -609,53 +567,7 @@ export default function PlatformConsole() {
 
       {/* ACCOUNT ROUTE */}
       {activeSection === "account" && (
-        <div className="space-y-6">
-          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-              {t("account.identityTitle")}
-            </h3>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {t("account.identityNote")}
-            </p>
-            <dl className="mt-4 grid gap-4 border-t border-gray-100 pt-4 sm:grid-cols-2 lg:grid-cols-4 dark:border-gray-800">
-              <DetailField
-                label={t("account.operator")}
-                value={session.data.name}
-              />
-              <DetailField
-                label={t("account.email")}
-                value={session.data.email}
-              />
-              <DetailField
-                label={t("account.context")}
-                value={session.data.context}
-              />
-              <DetailField
-                label={t("account.sessionStatus")}
-                value={t("sessionActive")}
-              />
-            </dl>
-          </section>
-
-          <section className="rounded-2xl border border-gray-200/80 bg-white p-6 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-              {t("account.permissionTitle")}
-            </h3>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {t("account.permissionNote")}
-            </p>
-            <ul className="mt-4 flex flex-wrap gap-2">
-              {session.data.permissions.map((permission) => (
-                <li
-                  key={permission}
-                  className="font-mono rounded-lg bg-gray-100 px-2.5 py-1 text-[11px] font-semibold text-gray-700 ring-1 ring-gray-200/60 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700/60"
-                >
-                  {permission}
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+        <PlatformAccountDirectory account={session.data} />
       )}
 
       {/* Suspend Membership Confirmation Dialog Modal */}

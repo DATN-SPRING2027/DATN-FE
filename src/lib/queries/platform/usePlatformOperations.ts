@@ -793,13 +793,14 @@ export function usePlatformUserSessionsQuery(
   userId: string,
   enabled: boolean,
   page = 1,
+  pageSize = 25,
 ) {
   return useQuery({
-    queryKey: [...platformKeys.all, "user", userId, "sessions", page],
+    queryKey: [...platformKeys.all, "user", userId, "sessions", page, pageSize],
     queryFn: async () =>
       parsePage(
         await platformApiClient<unknown>(
-          `/iam/platform/users/${encodeURIComponent(userId)}/sessions?page=${page}&pageSize=25`,
+          `/iam/platform/users/${encodeURIComponent(userId)}/sessions?page=${page}&pageSize=${pageSize}`,
           { cache: "no-store" },
         ),
         parseSession,

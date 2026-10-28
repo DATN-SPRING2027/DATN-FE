@@ -7,6 +7,9 @@
   --op-line: #dce4ee;
   --op-line-subtle: #e9eef5;
   --op-accent: #0065ff;
+  --op-status-success: #00824b;
+  --op-status-warning: #946200;
+  --op-status-danger: #df1738;
   --op-chart-primary: #0065ff;
   --op-chart-teal: #00b7b5;
   --op-chart-violet: #7954ff;
@@ -38,6 +41,9 @@
   --op-line: #34435a;
   --op-line-subtle: #28374d;
   --op-accent: #72abff;
+  --op-status-success: #65d6a4;
+  --op-status-warning: var(--color-warning-400);
+  --op-status-danger: #ff8396;
   --op-chart-primary: #72abff;
   --op-chart-teal: #27d4cc;
   --op-chart-violet: #b79dff;

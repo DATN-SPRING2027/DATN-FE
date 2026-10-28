@@ -324,13 +324,19 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
   usePlatformHealthQuery: () => health,
   usePlatformAuditQuery: () => audit,
 }));
-vi.mock("@/lib/queries/platform/usePlatformOperations", async (importOriginal) => {
-  const actual =
-    await importOriginal<
-      typeof import("@/lib/queries/platform/usePlatformOperations")
-    >();
-  return { ...operationHooks, platformAuditActions: actual.platformAuditActions };
-});
+vi.mock(
+  "@/lib/queries/platform/usePlatformOperations",
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import("@/lib/queries/platform/usePlatformOperations")
+      >();
+    return {
+      ...operationHooks,
+      platformAuditActions: actual.platformAuditActions,
+    };
+  },
+);
 vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations:
@@ -1294,7 +1300,7 @@ describe("PlatformConsole", () => {
     expect(screen.queryByText(/eyJ[A-Za-z0-9_-]+\./)).not.toBeInTheDocument();
   });
 
-  it("sends exact Audit filters to the paginated BE projection", () => {
+  it("loads the paginated Audit list without filter controls", () => {
     pathname.value = "/platform/audit";
     session.data.permissions = ["platform.audit.read"];
     operationState.auditEvents.data = {
@@ -1315,22 +1321,22 @@ describe("PlatformConsole", () => {
     render(<PlatformConsole />);
 
     expect(
-      within(screen.getByLabelText("audit.filterAction")).getByRole("option", {
-        name: "platform.user.restored",
-      }),
-    ).toBeInTheDocument();
-    fireEvent.change(screen.getByLabelText("audit.filterAction"), {
-      target: { value: "platform.project.metadata.changed" },
-    });
+      screen.queryByLabelText("audit.filterAction"),
+    ).not.toBeInTheDocument();
     expect(
-      screen.getAllByText("platform.project.metadata.changed").length,
-    ).toBeGreaterThan(0);
+      screen.queryByLabelText("audit.filterActor"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("audit.filterResource"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Resource ID")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("audit.from")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("audit.to")).not.toBeInTheDocument();
+    expect(
+      screen.getByText("platform.project.metadata.changed"),
+    ).toBeInTheDocument();
     expect(operationState.auditEventsQuery).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        page: 1,
-        pageSize: 25,
-        action: "platform.project.metadata.changed",
-      }),
+      { page: 1, pageSize: 10 },
       true,
     );
   });
@@ -1424,5 +1430,16 @@ describe("PlatformConsole", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "retry" }));
     expect(operationState.auditEvents.refetch).toHaveBeenCalledOnce();
+  });
+  it("does not offer manual Refresh buttons on Services", () => {
+    pathname.value = "/platform/services";
+    session.data.permissions = [
+      "platform.health.read",
+      "platform.services.service.read",
+    ];
+    render(<PlatformConsole />);
+    expect(
+      screen.queryByRole("button", { name: "refresh" }),
+    ).not.toBeInTheDocument();
   });
 });

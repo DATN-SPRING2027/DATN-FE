@@ -478,11 +478,30 @@
       "noFilterMatches": "No matching events",
       "noFilterMatchesHelp": "Adjust or clear the local filters. No additional records are requested from the backend.",
       "emptyTitle": "No operational activity",
-      "emptyBody": "There are no events in the bounded audit projection."
+      "emptyBody": "There are no events in the bounded audit projection.",
+      "detail": {
+        "title": "Audit activity details",
+        "close": "Close audit details",
+        "eventId": "Event ID",
+        "resource": "Resource",
+        "actor": "Actor",
+        "time": "Time",
+        "requestId": "Request ID",
+        "reason": "Reason",
+        "result": "Result",
+        "changes": "Changes",
+        "history": "Resource history",
+        "unavailable": "Audit event details are unavailable.",
+        "historyUnavailable": "Resource history is unavailable.",
+        "loadingHistory": "Loading history…",
+        "emptyHistory": "No resource history was returned."
+      }
     },
     "security": {
       "currentSession": "Current Platform session",
-      "currentSessionNote": "Identity and permissions returned for this signed-in Platform subject. No token or credential is shown."
+      "currentSessionNote": "Identity and permissions returned for this signed-in Platform subject. No token or credential is shown.",
+      "adminSessions": "Admin sessions",
+      "currentAdminSessionGuard": "Sessions for the signed-in admin are protected from revocation here."
     },
     "account": {
       "identityTitle": "Admin identity",
@@ -585,6 +604,57 @@
       "projectTotal": "Total projects",
       "organizationFilter": "Organization",
       "servicesError": "Unable to load services."
+    },
+    "operations": {
+      "tabs": {
+        "services": "All services",
+        "jobs": "Jobs & queues",
+        "ai": "RAG & AI",
+        "integrations": "All integrations",
+        "security": "Admin sessions",
+        "incidents": "All incidents",
+        "diagnostics": "Request traces",
+        "audit": "All activity",
+        "account": "Platform account"
+      },
+      "searchServices": "Search services",
+      "sortServices": "Sort services",
+      "sortName": "Name (A–Z)",
+      "sortChecked": "Last checked",
+      "allStatuses": "All statuses",
+      "listLabel": "Platform records",
+      "queues": "Queues",
+      "createIncident": "Create incident",
+      "requestId": "Request ID",
+      "searchPermissions": "Search permissions",
+      "permission": "Permission",
+      "noPermissions": "No matching permissions",
+      "service": "Service",
+      "readiness": "Readiness",
+      "availability": "Availability",
+      "checked": "Last checked",
+      "integrationStatus": "Integration status",
+      "integrationUnavailable": "Connection testing and reconnection are unavailable while the integration provider is not ready.",
+      "noServices": "No services found",
+      "noServicesBody": "No services match the current view."
+    },
+    "incidentForm": {
+      "heading": "Create incident",
+      "create": "Create",
+      "title": "Title",
+      "severity": "Severity",
+      "service": "Affected service",
+      "submit": "Create incident",
+      "creating": "Creating…",
+      "cancel": "Cancel",
+      "created": "Incident created."
+    },
+    "profile": {
+      "viewSessions": "View sessions",
+      "sections": "Account sections",
+      "permissions": "Permissions",
+      "activity": "Activity",
+      "noActivity": "No activity yet"
     }
   },
   "chat": {

@@ -1,0 +1,39 @@
+.dialog.dialog {
+  max-width: 32rem;
+}
+.form {
+  display: grid;
+  gap: 16px;
+  padding: 16px;
+}
+.fields {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.fields label {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+}
+.fields :is(input, select) {
+  width: 100%;
+  padding: 6px 10px;
+}
+.row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid var(--op-line);
+  padding-top: 16px;
+}
+@media (max-width: 480px) {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

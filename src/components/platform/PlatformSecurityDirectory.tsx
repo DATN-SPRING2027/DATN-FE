@@ -7,6 +7,8 @@ import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import {
   DirectoryTable,
+  formatPlatformDate,
+  DirectoryToolbar,
   ErrorState,
   Loading,
   QueryRefreshStatus,
@@ -44,25 +46,23 @@ export default function PlatformSecurityDirectory({
         </p>
       ) : (
         <section className={`${box} overflow-hidden`}>
-          <div className="border-b border-gray-100 p-5 dark:border-gray-800">
-            <h2 className="text-sm font-bold">{t("adminSessions")}</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Session metadata for the authenticated Platform account.
-            </p>
-          </div>
-          {userSessions.data !== undefined && !isReadAccessLost(userSessions.error) && (userSessions.isFetching || userSessions.isRefetchError) && (
-            <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
-              <QueryRefreshStatus
-                hasData
-                isFetching={userSessions.isFetching}
-                isRefetchError={userSessions.isRefetchError}
-                onRetry={() => void userSessions.refetch()}
-              />
-            </div>
-          )}
+          <DirectoryToolbar title={t("adminSessions")} />
+          {userSessions.data !== undefined &&
+            !isReadAccessLost(userSessions.error) &&
+            (userSessions.isFetching || userSessions.isRefetchError) && (
+              <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+                <QueryRefreshStatus
+                  hasData
+                  isFetching={userSessions.isFetching}
+                  isRefetchError={userSessions.isRefetchError}
+                  onRetry={() => void userSessions.refetch()}
+                />
+              </div>
+            )}
           {userSessions.isPending && !userSessions.data ? (
             <Loading columns={5} />
-          ) : userSessions.isError && (!userSessions.data || isReadAccessLost(userSessions.error)) ? (
+          ) : userSessions.isError &&
+            (!userSessions.data || isReadAccessLost(userSessions.error)) ? (
             <ErrorState retry={() => void userSessions.refetch()} />
           ) : userSessions.data?.data.length ? (
             <DirectoryTable
@@ -86,7 +86,7 @@ export default function PlatformSecurityDirectory({
                     />
                   </td>
                   <td className={cell}>
-                    {new Date(session.expiresAt).toLocaleString()}
+                    {formatPlatformDate(session.expiresAt)}
                   </td>
                   <td className={cell}>
                     <div className="flex flex-wrap gap-2">
@@ -134,15 +134,20 @@ export default function PlatformSecurityDirectory({
               body="The Platform API returned no session records."
             />
           )}
-          {userSessions.data?.pagination && (
-            <PlatformPagination
-              ariaLabel={t("adminSessions")}
-              page={userSessions.data.pagination.page}
-              totalPages={userSessions.data.pagination.totalPages}
-              totalItems={userSessions.data.pagination.totalItems}
-              onPageChange={setSessionPage}
-            />
-          )}
+          {userSessions.data?.pagination &&
+            !isReadAccessLost(userSessions.error) && (
+              <PlatformPagination
+                ariaLabel={t("adminSessions")}
+                page={userSessions.data.pagination.page}
+                totalPages={userSessions.data.pagination.totalPages}
+                totalItems={userSessions.data.pagination.totalItems}
+                alwaysShow
+                pageSize={userSessions.data.pagination.pageSize}
+                returnedItems={userSessions.data.data.length}
+                disabled={userSessions.isFetching}
+                onPageChange={setSessionPage}
+              />
+            )}
           {userSessions.data?.data.some(
             (session) => session.userId === operatorId,
           ) && (
@@ -162,19 +167,24 @@ export default function PlatformSecurityDirectory({
                   Close
                 </Button>
               </div>
-              {selectedSession.data !== undefined && !isReadAccessLost(selectedSession.error) && (selectedSession.isFetching || selectedSession.isRefetchError) && (
-                <div className="mb-3">
-                  <QueryRefreshStatus
-                    hasData
-                    isFetching={selectedSession.isFetching}
-                    isRefetchError={selectedSession.isRefetchError}
-                    onRetry={() => void selectedSession.refetch()}
-                  />
-                </div>
-              )}
+              {selectedSession.data !== undefined &&
+                !isReadAccessLost(selectedSession.error) &&
+                (selectedSession.isFetching ||
+                  selectedSession.isRefetchError) && (
+                  <div className="mb-3">
+                    <QueryRefreshStatus
+                      hasData
+                      isFetching={selectedSession.isFetching}
+                      isRefetchError={selectedSession.isRefetchError}
+                      onRetry={() => void selectedSession.refetch()}
+                    />
+                  </div>
+                )}
               {selectedSession.isPending && !selectedSession.data ? (
                 <Loading columns={3} />
-              ) : !selectedSession.data || (selectedSession.isError && isReadAccessLost(selectedSession.error)) ? (
+              ) : !selectedSession.data ||
+                (selectedSession.isError &&
+                  isReadAccessLost(selectedSession.error)) ? (
                 <ErrorState retry={() => void selectedSession.refetch()} />
               ) : (
                 <dl className="grid gap-3 sm:grid-cols-2">
@@ -188,7 +198,7 @@ export default function PlatformSecurityDirectory({
                   />
                   <TextField
                     label="Created / updated"
-                    value={`${new Date(selectedSession.data.createdAt).toLocaleString()} · ${new Date(selectedSession.data.updatedAt).toLocaleString()}`}
+                    value={`${formatPlatformDate(selectedSession.data.createdAt)} · ${formatPlatformDate(selectedSession.data.updatedAt)}`}
                   />
                   <TextField
                     label="Expires"

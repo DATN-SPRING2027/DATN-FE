@@ -1,10 +1,14 @@
 "use client";
 
+import { useTranslations } from "next-intl";
+import DirectorySelect from "./ui/DirectorySelect";
 import PlatformPagination from "@/components/platform/PlatformPagination";
 import EmptyState from "@/components/platform/ui/EmptyState";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
 import {
   DirectoryTable,
+  formatPlatformDate,
+  DirectoryToolbar,
   ErrorState,
   Loading,
   QueryRefreshStatus,
@@ -19,7 +23,9 @@ export default function PlatformIntegrationsDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
-  const { canReadIntegrations, integrations, setPage } = model;
+  const t = useTranslations("platformConsole.operations");
+  const { canReadIntegrations, integrations, setPage, status, setStatus } =
+    model;
   return !canReadIntegrations ? (
     <p role="status" className={`${box} p-6 text-xs text-amber-700`}>
       Your Platform session does not grant
@@ -27,28 +33,39 @@ export default function PlatformIntegrationsDirectory({
     </p>
   ) : (
     <section className={`${box} overflow-hidden`}>
-      <div className="border-b border-gray-100 p-5 dark:border-gray-800">
-        <h2 className="text-sm font-bold">Integrations</h2>
-        <p className="mt-1 text-xs text-gray-500">
-          Safe Jira metadata only. Site URLs, credentials, and raw errors are
-          withheld.
-        </p>
-      </div>
+      <DirectoryToolbar title="Integrations">
+        <DirectorySelect
+          aria-label={t("integrationStatus")}
+          value={status}
+          onChange={(event) => {
+            setStatus(event.target.value);
+            setPage(1);
+          }}
+        >
+          <option value="">{t("allStatuses")}</option>
+          {["CONNECTED", "EXPIRED", "REVOKED"].map((value) => (
+            <option key={value} value={value}>
+              {value}
+            </option>
+          ))}
+        </DirectorySelect>
+      </DirectoryToolbar>
       {integrations.data !== undefined &&
         !isReadAccessLost(integrations.error) &&
         (integrations.isFetching || integrations.isRefetchError) && (
-        <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
-        <QueryRefreshStatus
-          hasData
-          isFetching={integrations.isFetching}
-          isRefetchError={integrations.isRefetchError}
-          onRetry={() => void integrations.refetch()}
-        />
-        </div>
-      )}
+          <div className="border-b border-gray-100 px-5 py-3 dark:border-gray-800">
+            <QueryRefreshStatus
+              hasData
+              isFetching={integrations.isFetching}
+              isRefetchError={integrations.isRefetchError}
+              onRetry={() => void integrations.refetch()}
+            />
+          </div>
+        )}
       {integrations.isPending && !integrations.data ? (
         <Loading columns={4} />
-      ) : integrations.isError && (!integrations.data || isReadAccessLost(integrations.error)) ? (
+      ) : integrations.isError &&
+        (!integrations.data || isReadAccessLost(integrations.error)) ? (
         <ErrorState retry={() => void integrations.refetch()} />
       ) : integrations.data?.data.length ? (
         <DirectoryTable
@@ -80,7 +97,7 @@ export default function PlatformIntegrationsDirectory({
               </td>
               <td className={cell}>
                 {integration.lastSyncAt
-                  ? new Date(integration.lastSyncAt).toLocaleString()
+                  ? formatPlatformDate(integration.lastSyncAt)
                   : "—"}
               </td>
               <td className={cell}>{integration.lastFailureSummary ?? "—"}</td>
@@ -93,18 +110,22 @@ export default function PlatformIntegrationsDirectory({
           body="The Platform API returned no integration projections."
         />
       )}
-      {integrations.data?.pagination && (
-        <PlatformPagination
-          ariaLabel="Integrations"
-          page={integrations.data.pagination.page}
-          totalPages={integrations.data.pagination.totalPages}
-          totalItems={integrations.data.pagination.totalItems}
-          onPageChange={setPage}
-        />
-      )}
-      <p className="border-t border-gray-100 px-5 py-4 text-xs text-amber-700 dark:border-gray-800 dark:text-amber-400">
-        Test and reconnect commands are currently blocked by the BE provider
-        readiness gate; no action has been sent.
+      {integrations.data?.pagination &&
+        !isReadAccessLost(integrations.error) && (
+          <PlatformPagination
+            ariaLabel="Integrations"
+            page={integrations.data.pagination.page}
+            totalPages={integrations.data.pagination.totalPages}
+            totalItems={integrations.data.pagination.totalItems}
+            alwaysShow
+            pageSize={integrations.data.pagination.pageSize}
+            returnedItems={integrations.data.data.length}
+            disabled={integrations.isFetching}
+            onPageChange={setPage}
+          />
+        )}
+      <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">
+        {t("integrationUnavailable")}
       </p>
     </section>
   );

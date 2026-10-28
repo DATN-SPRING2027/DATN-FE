@@ -104,4 +104,25 @@ describe("PlatformPagination", () => {
     expect(screen.getByText("1–3 of 186")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "8" })).toBeInTheDocument();
   });
+  it("disables every navigation button while server data refreshes", () => {
+    const onPageChange = vi.fn();
+    render(
+      <PlatformPagination
+        alwaysShow
+        disabled
+        page={2}
+        pageSize={10}
+        returnedItems={10}
+        totalItems={35}
+        totalPages={4}
+        ariaLabel="jobs"
+        onPageChange={onPageChange}
+      />,
+    );
+    for (const button of screen.getAllByRole("button"))
+      expect(button).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "pagination.next" }));
+    expect(onPageChange).not.toHaveBeenCalled();
+    expect(screen.getByText("11–20 of 35")).toBeInTheDocument();
+  });
 });

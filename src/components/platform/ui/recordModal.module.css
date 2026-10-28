@@ -1,0 +1,68 @@
+.dialog {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  width: calc(100% - 32px);
+  max-width: 40rem;
+  max-height: min(80dvh, 40rem);
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--op-line);
+  border-radius: 4px;
+  background: var(--op-surface);
+  color: var(--op-text);
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  box-shadow: var(--shadow-theme-lg);
+}
+.dialog:not([open]) {
+  display: none;
+}
+.dialog::backdrop {
+  background: color-mix(in srgb, var(--color-gray-950) 45%, transparent);
+}
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--op-line);
+}
+.dialog .header h2 {
+  font-size: 16px;
+  font-weight: 600;
+}
+.close {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  color: var(--op-muted);
+  cursor: pointer;
+}
+.close svg {
+  width: 20px;
+  height: 20px;
+}
+.close:hover:not(:disabled) {
+  background: var(--op-panel);
+}
+.close:focus-visible {
+  outline: 2px solid var(--op-accent);
+  outline-offset: 2px;
+}
+.content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 640px) {
+  .dialog {
+    max-height: calc(100dvh - 40px);
+  }
+}

@@ -4,6 +4,7 @@ import PlatformPageControls from "./ui/PlatformPageControls";
 import styles from "./ui/jira.module.css";
 type PlatformPaginationProps = Readonly<{
   alwaysShow?: boolean;
+  disabled?: boolean;
   pageSize?: number;
   returnedItems?: number;
   onPageSizeChange?: (size: number) => void;
@@ -15,6 +16,7 @@ type PlatformPaginationProps = Readonly<{
 }>;
 export default function PlatformPagination({
   alwaysShow = false,
+  disabled = false,
   pageSize,
   returnedItems,
   page,
@@ -50,6 +52,7 @@ export default function PlatformPagination({
         )}
       </div>
       <PlatformPageControls
+        disabled={disabled}
         page={page}
         totalPages={totalPages}
         onPageChange={onPageChange}
