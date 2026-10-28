@@ -37,7 +37,10 @@ function resolveTaskMetadata(
   const rawTitle = note.taskTitle?.trim();
   const fallbackSuffix = note.taskId.slice(-4).toUpperCase() || "TASK";
   return {
-    taskKey: rawKey && rawKey.length > 0 ? rawKey : fallbackKeyFormatter(fallbackSuffix),
+    taskKey:
+      rawKey && rawKey.length > 0
+        ? rawKey
+        : fallbackKeyFormatter(fallbackSuffix),
     taskTitle: rawTitle && rawTitle.length > 0 ? rawTitle : untitledTaskLabel,
   };
 }
@@ -62,7 +65,11 @@ function formatNoteTimestamp(
   });
 
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
   const startOfTarget = new Date(
     parsed.getFullYear(),
     parsed.getMonth(),
@@ -135,7 +142,10 @@ function TaskNoteExplorerCard({
           >
             <TaskIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span className="shrink-0 tabular-nums">{taskKey}</span>
-            <span aria-hidden="true" className="text-brand-400 dark:text-brand-500">
+            <span
+              aria-hidden="true"
+              className="text-brand-400 dark:text-brand-500"
+            >
               ·
             </span>
             <span className="truncate font-medium text-gray-700 dark:text-gray-200">
@@ -167,11 +177,19 @@ function TaskNoteExplorerCard({
 
       {!isExpanded && (
         <p className="mt-1.5 line-clamp-2 text-sm leading-6 break-words text-gray-600 dark:text-gray-300">
-          {note.accomplishments}
+          {note.contentMarkdown ?? note.accomplishments}
         </p>
       )}
 
-      {isExpanded && (
+      {isExpanded && note.contentMarkdown !== undefined && (
+        <div
+          id={detailId}
+          className="mt-4 text-sm leading-6 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300"
+        >
+          {note.contentMarkdown}
+        </div>
+      )}
+      {isExpanded && note.contentMarkdown === undefined && (
         <dl
           id={detailId}
           className="mt-4 grid gap-4 rounded-lg border border-gray-100 bg-gray-50/80 p-4 md:grid-cols-3 dark:border-gray-800/80 dark:bg-gray-950/60"
@@ -243,7 +261,7 @@ export default function WorkNotesWorkspace({
   const visibleDeepLink = deepLinkAccessLost ? undefined : deepLinkQuery.data;
   const invalidDeepLink = Boolean(
     deepLinkNoteId &&
-      (!isWorkNoteId(projectId) || !isWorkNoteId(deepLinkNoteId)),
+    (!isWorkNoteId(projectId) || !isWorkNoteId(deepLinkNoteId)),
   );
   const unavailableDeepLink = Boolean(
     deepLinkNoteId && (invalidDeepLink || deepLinkAccessLost),
@@ -253,9 +271,9 @@ export default function WorkNotesWorkspace({
   const [selectedTaskId, setSelectedTaskId] = useState("ALL");
   const [selectedAuthorId, setSelectedAuthorId] = useState("ALL");
   const [sortOrder, setSortOrder] = useState<SortOrder>("recent");
-  const [expandedNoteIds, setExpandedNoteIds] = useState<Record<string, boolean>>(
-    {},
-  );
+  const [expandedNoteIds, setExpandedNoteIds] = useState<
+    Record<string, boolean>
+  >({});
 
   const allLoadedNotes = useMemo(() => {
     const raw = visibleList?.data ?? [];
@@ -320,6 +338,7 @@ export default function WorkNotesWorkspace({
         note.title,
         note.authorName,
         note.accomplishments,
+        note.contentMarkdown ?? "",
         note.approach,
         note.reason,
         note.taskId,
@@ -374,7 +393,7 @@ export default function WorkNotesWorkspace({
 
   const showSeparateDeepLinkCard = Boolean(
     visibleDeepLink &&
-      !(visibleList?.data ?? []).some((item) => item.id === visibleDeepLink.id),
+    !(visibleList?.data ?? []).some((item) => item.id === visibleDeepLink.id),
   );
 
   return (
@@ -492,7 +511,7 @@ export default function WorkNotesWorkspace({
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("taskNotes.searchPlaceholder")}
-              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50/60 ps-9 pe-8 text-sm text-gray-800 outline-none transition-colors placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
+              className="h-9 w-full rounded-lg border border-gray-200 bg-gray-50/60 ps-9 pe-8 text-sm text-gray-800 transition-colors outline-none placeholder:text-gray-400 focus:border-brand-400 focus:bg-white focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500 dark:focus:border-brand-500"
             />
             {search.length > 0 && (
               <button
@@ -511,7 +530,7 @@ export default function WorkNotesWorkspace({
               aria-label={t("taskNotes.filterByTask")}
               value={selectedTaskId}
               onChange={(event) => setSelectedTaskId(event.target.value)}
-              className="col-span-2 h-9 w-full truncate rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-colors focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto sm:max-w-[220px] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="col-span-2 h-9 w-full truncate rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors outline-none focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto sm:max-w-[220px] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               <option value="ALL">{t("taskNotes.allTasks")}</option>
               {taskOptions.map((option) => (
@@ -525,7 +544,7 @@ export default function WorkNotesWorkspace({
               aria-label={t("taskNotes.filterByAuthor")}
               value={selectedAuthorId}
               onChange={(event) => setSelectedAuthorId(event.target.value)}
-              className="h-9 w-full truncate rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-colors focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto sm:max-w-[180px] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="h-9 w-full truncate rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors outline-none focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto sm:max-w-[180px] dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               <option value="ALL">{t("taskNotes.allAuthors")}</option>
               {authorOptions.map((option) => (
@@ -541,7 +560,7 @@ export default function WorkNotesWorkspace({
               onChange={(event) =>
                 setSortOrder(event.target.value as SortOrder)
               }
-              className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 outline-none transition-colors focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors outline-none focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 sm:w-auto dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               <option value="recent">{t("taskNotes.sortRecent")}</option>
               <option value="oldest">{t("taskNotes.sortOldest")}</option>
@@ -646,8 +665,7 @@ export default function WorkNotesWorkspace({
                 const isDeepLinked = Boolean(
                   deepLinkNoteId && note.id === deepLinkNoteId,
                 );
-                const isExpanded =
-                  expandedNoteIds[note.id] ?? isDeepLinked;
+                const isExpanded = expandedNoteIds[note.id] ?? isDeepLinked;
                 return (
                   <li key={note.id} className="min-w-0">
                     <TaskNoteExplorerCard
