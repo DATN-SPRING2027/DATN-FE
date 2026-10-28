@@ -498,6 +498,8 @@
       }
     },
     "security": {
+      "detailTitle": "Session detail",
+      "closeDetails": "Close session details",
       "currentSession": "Current Platform session",
       "currentSessionNote": "Identity and permissions returned for this signed-in Platform subject. No token or credential is shown.",
       "adminSessions": "Admin sessions",

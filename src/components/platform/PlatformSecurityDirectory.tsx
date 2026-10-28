@@ -1,5 +1,7 @@
 "use client";
 
+import { useRef } from "react";
+import PlatformRecordModal from "./ui/PlatformRecordModal";
 import Button from "@/components/ui/button/Button";
 import { useTranslations } from "next-intl";
 import PlatformPagination from "@/components/platform/PlatformPagination";
@@ -24,6 +26,7 @@ export default function PlatformSecurityDirectory({
 }: {
   model: PlatformOperationsViewModel;
 }) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
   const t = useTranslations("platformConsole.security");
   const {
     canReadSessions,
@@ -93,7 +96,10 @@ export default function PlatformSecurityDirectory({
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => setSelectedSessionId(session.id)}
+                        onClick={(event) => {
+                          triggerRef.current = event.currentTarget;
+                          setSelectedSessionId(session.id);
+                        }}
                       >
                         Details
                       </Button>
@@ -148,60 +154,55 @@ export default function PlatformSecurityDirectory({
                 onPageChange={setSessionPage}
               />
             )}
-          {selectedSessionId && (
-            <div className="border-t border-gray-100 p-5 dark:border-gray-800">
-              <div className="mb-3 flex items-center justify-between">
-                <h3 className="text-xs font-bold">Session detail</h3>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setSelectedSessionId("")}
-                >
-                  Close
-                </Button>
-              </div>
-              {selectedSession.data !== undefined &&
-                !isReadAccessLost(selectedSession.error) &&
-                (selectedSession.isFetching ||
-                  selectedSession.isRefetchError) && (
-                  <div className="mb-3">
-                    <QueryRefreshStatus
-                      hasData
-                      isFetching={selectedSession.isFetching}
-                      isRefetchError={selectedSession.isRefetchError}
-                      onRetry={() => void selectedSession.refetch()}
+          {selectedSessionId && !isReadAccessLost(userSessions.error) && (
+            <PlatformRecordModal
+              title={t("detailTitle")}
+              closeLabel={t("closeDetails")}
+              triggerRef={triggerRef}
+              onClose={() => setSelectedSessionId("")}
+            >
+              <div className="p-4">
+                {selectedSession.data !== undefined &&
+                  !isReadAccessLost(selectedSession.error) &&
+                  (selectedSession.isFetching ||
+                    selectedSession.isRefetchError) && (
+                    <div className="mb-3">
+                      <QueryRefreshStatus
+                        hasData
+                        isFetching={selectedSession.isFetching}
+                        isRefetchError={selectedSession.isRefetchError}
+                        onRetry={() => void selectedSession.refetch()}
+                      />
+                    </div>
+                  )}
+                {selectedSession.isPending && !selectedSession.data ? (
+                  <Loading columns={3} />
+                ) : !selectedSession.data ||
+                  (selectedSession.isError &&
+                    isReadAccessLost(selectedSession.error)) ? (
+                  <ErrorState retry={() => void selectedSession.refetch()} />
+                ) : (
+                  <dl className="grid gap-3 sm:grid-cols-2">
+                    <TextField
+                      label="Session ID"
+                      value={selectedSession.data.id}
                     />
-                  </div>
+                    <TextField
+                      label="Status / context"
+                      value={`${selectedSession.data.status} · ${selectedSession.data.context}`}
+                    />
+                    <TextField
+                      label="Created / updated"
+                      value={`${formatPlatformDate(selectedSession.data.createdAt)} · ${formatPlatformDate(selectedSession.data.updatedAt)}`}
+                    />
+                    <TextField
+                      label="Expires"
+                      value={formatPlatformDate(selectedSession.data.expiresAt)}
+                    />
+                  </dl>
                 )}
-              {selectedSession.isPending && !selectedSession.data ? (
-                <Loading columns={3} />
-              ) : !selectedSession.data ||
-                (selectedSession.isError &&
-                  isReadAccessLost(selectedSession.error)) ? (
-                <ErrorState retry={() => void selectedSession.refetch()} />
-              ) : (
-                <dl className="grid gap-3 sm:grid-cols-2">
-                  <TextField
-                    label="Session ID"
-                    value={selectedSession.data.id}
-                  />
-                  <TextField
-                    label="Status / context"
-                    value={`${selectedSession.data.status} · ${selectedSession.data.context}`}
-                  />
-                  <TextField
-                    label="Created / updated"
-                    value={`${formatPlatformDate(selectedSession.data.createdAt)} · ${formatPlatformDate(selectedSession.data.updatedAt)}`}
-                  />
-                  <TextField
-                    label="Expires"
-                    value={new Date(
-                      selectedSession.data.expiresAt,
-                    ).toLocaleString()}
-                  />
-                </dl>
-              )}
-            </div>
+              </div>
+            </PlatformRecordModal>
           )}
         </section>
       )}
