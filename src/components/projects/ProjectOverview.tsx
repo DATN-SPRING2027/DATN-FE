@@ -10,7 +10,7 @@ import { useProjectMembersQuery, useProjectMemberAddAccess } from "@/lib/queries
 import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import ComponentCard from "@/components/common/ComponentCard";
 import Button from "@/components/ui/button/Button";
-import { CalenderIcon, DocsIcon } from "@/icons";
+import { CalenderIcon, DocsIcon, HandShakeIcon } from "@/icons";
 
 export type ProjectTab = "overview" | "members" | "settings" | "teams";
 
@@ -489,6 +489,26 @@ export default function ProjectOverview({
                   />
                 </svg>
               </Link>
+              <Link
+                href={`/projects/${encodeURIComponent(project.id)}/handover`}
+                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
+              >
+                {t("handover")}
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  className="h-3 w-3 shrink-0 opacity-60"
+                >
+                  <path
+                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </Link>
               <button
                 type="button"
                 disabled
@@ -727,7 +747,7 @@ export default function ProjectOverview({
               desc={t("workspaceModulesHint")}
               className="min-w-0"
             >
-              <div className="grid grid-cols-1 gap-3.5 @md:grid-cols-2 @3xl:grid-cols-5">
+              <div className="grid grid-cols-1 gap-3.5 @md:grid-cols-2 @3xl:grid-cols-3">
                 <Link
                   href={`/projects/${encodeURIComponent(project.id)}/work`}
                   aria-label={t("openWorkModule")}
@@ -840,6 +860,21 @@ export default function ProjectOverview({
                     </div>
                     <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">{t("workReportsTitle")}</h4>
                     <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{t("workReportsModuleDesc")}</p>
+                  </div>
+                </Link>
+
+                <Link
+                  href={`/projects/${encodeURIComponent(project.id)}/handover`}
+                  aria-label={t("openHandoverModule")}
+                  className="group flex flex-col justify-between rounded-xl border border-gray-200/90 bg-gray-50/50 p-4 transition-all hover:border-brand-300 hover:bg-white hover:shadow-theme-xs dark:border-gray-800 dark:bg-gray-800/40 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"><HandShakeIcon aria-hidden="true" className="h-4 w-4" /></span>
+                      <span className="text-xs font-semibold text-brand-600 transition-transform group-hover:translate-x-0.5 dark:text-brand-400">→</span>
+                    </div>
+                    <h4 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">{t("handoverTitle")}</h4>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{t("handoverModuleDesc")}</p>
                   </div>
                 </Link>
 
