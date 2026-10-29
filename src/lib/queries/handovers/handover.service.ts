@@ -80,7 +80,8 @@ export function readCsrfTokenFromDocument(): string | undefined {
   return undefined;
 }
 
-function generateIdempotencyKey(): string {
+export function canonicalizeCommandIntent(value: unknown): string { if (value === null || typeof value !== "object") return JSON.stringify(value); if (Array.isArray(value)) return `[${value.map(canonicalizeCommandIntent).join(",")}]`; const record = value as Record<string, unknown>; return `{${Object.keys(record).sort().map((k) => `${JSON.stringify(k)}:${canonicalizeCommandIntent(record[k])}`).join(",")}}`; }
+export function generateIdempotencyKey(): string {
   if (
     typeof crypto !== "undefined" &&
     typeof crypto.randomUUID === "function"

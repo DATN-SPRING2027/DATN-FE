@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
@@ -13,7 +13,9 @@ import {
 import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import { useHandoversQuery } from "@/lib/queries/handovers/useHandovers";
 import {
+  canonicalizeCommandIntent,
   formatHandoverEtag,
+  generateIdempotencyKey,
   setHandoverCoordinator,
 } from "@/lib/queries/handovers/handover.service";
 import type { HandoverStatus } from "@/lib/queries/handovers/handover.types";
@@ -80,6 +82,9 @@ export default function HandoverListWorkspace({
   const [coordPending, setCoordPending] = useState(false);
   const [coordError, setCoordError] = useState<string | null>(null);
   const [coordSuccess, setCoordSuccess] = useState<string | null>(null);
+  const coordIdemRef = useRef<{ fingerprint: string; key: string } | null>(
+    null,
+  );
 
   const handoversQuery = useHandoversQuery(projectId, {});
 
@@ -172,9 +177,27 @@ export default function HandoverListWorkspace({
       return;
     }
     if (!coordLeaderId.trim() || !coordReason.trim()) {
-      setCoordError("Select a Project Leader and enter an appointment reason.");
+      setCoordError(
+        "Select a Project Leader and enter an appointment reason.",
+      );
       return;
     }
+    const coordFp = canonicalizeCommandIntent({
+      projectId,
+      trimmedId,
+      parsedVersion,
+      assignedLeaderId: coordLeaderId.trim(),
+      reason: coordReason.trim(),
+    });
+    const coordIdemKey =
+      coordIdemRef.current?.fingerprint === coordFp
+        ? coordIdemRef.current.key
+        : ((coordIdemRef.current = {
+            fingerprint: coordFp,
+            key: generateIdempotencyKey(),
+          }),
+          coordIdemRef.current.key);
+
     setCoordPending(true);
     try {
       const res = await setHandoverCoordinator(
@@ -185,7 +208,9 @@ export default function HandoverListWorkspace({
           assignedLeaderId: coordLeaderId.trim(),
           reason: coordReason.trim(),
         },
+        coordIdemKey,
       );
+      coordIdemRef.current = null;
       setCoordSuccess(
         t("detail.coordinatorSafeReceiptSuccess", {
           version: String(res.data.version),
@@ -312,11 +337,7 @@ export default function HandoverListWorkspace({
 
       {/* Initial Loading Skeleton */}
       {handoversQuery.isPending && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="space-y-5"
-        >
+        <div role="status" aria-live="polite" className="space-y-5">
           <span className="sr-only">{t("loadingList")}</span>
           <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
             {[1, 2, 3, 4].map((idx) => (
@@ -424,7 +445,7 @@ export default function HandoverListWorkspace({
                   <HandShakeIcon className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              <dd className="mt-2 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+              <dd className="mt-2 text-2xl font-semibold text-gray-900 tabular-nums dark:text-white">
                 {metrics.total}
               </dd>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -441,7 +462,7 @@ export default function HandoverListWorkspace({
                   <UserCircleIcon className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              <dd className="mt-2 text-2xl font-semibold tabular-nums text-gray-900 dark:text-white">
+              <dd className="mt-2 text-2xl font-semibold text-gray-900 tabular-nums dark:text-white">
                 {metrics.open}
               </dd>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -489,7 +510,7 @@ export default function HandoverListWorkspace({
                   <CheckCircleIcon className="h-4 w-4" aria-hidden="true" />
                 </span>
               </div>
-              <dd className="mt-2 text-2xl font-semibold tabular-nums text-success-700 dark:text-success-400">
+              <dd className="mt-2 text-2xl font-semibold text-success-700 tabular-nums dark:text-success-400">
                 {metrics.completed}
               </dd>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -526,8 +547,12 @@ export default function HandoverListWorkspace({
               >
                 <option value="ALL">{t("filters.statusAll")}</option>
                 <option value="OPEN">{t("filters.statusOpen")}</option>
-                <option value="COMPLETED">{t("filters.statusCompleted")}</option>
-                <option value="CANCELLED">{t("filters.statusCancelled")}</option>
+                <option value="COMPLETED">
+                  {t("filters.statusCompleted")}
+                </option>
+                <option value="CANCELLED">
+                  {t("filters.statusCancelled")}
+                </option>
               </select>
 
               {members.length > 0 && (
@@ -611,16 +636,16 @@ export default function HandoverListWorkspace({
                       <th className="px-4 py-3.5 text-start">
                         {t("list.colParticipants")}
                       </th>
-                      <th className="whitespace-nowrap px-4 py-3.5 text-start">
+                      <th className="px-4 py-3.5 text-start whitespace-nowrap">
                         {t("list.colRevision")}
                       </th>
-                      <th className="whitespace-nowrap px-4 py-3.5 text-start">
+                      <th className="px-4 py-3.5 text-start whitespace-nowrap">
                         {t("list.colTargetDate")}
                       </th>
-                      <th className="whitespace-nowrap px-4 py-3.5 text-start">
+                      <th className="px-4 py-3.5 text-start whitespace-nowrap">
                         {t("list.colStatus")}
                       </th>
-                      <th className="whitespace-nowrap px-5 py-3.5 text-end">
+                      <th className="px-5 py-3.5 text-end whitespace-nowrap">
                         {t("list.colAction")}
                       </th>
                     </tr>
@@ -636,11 +661,11 @@ export default function HandoverListWorkspace({
                           <td className="max-w-sm px-5 py-4 align-top">
                             <Link
                               href={detailHref}
-                              className="font-semibold text-gray-900 break-words transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
+                              className="font-semibold break-words text-gray-900 transition-colors hover:text-brand-600 dark:text-white dark:hover:text-brand-400"
                             >
                               {item.title}
                             </Link>
-                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                               <span>v{item.version}</span>
                               <span aria-hidden="true">·</span>
                               <span>
@@ -684,7 +709,7 @@ export default function HandoverListWorkspace({
                                 className={
                                   item.successorUserId
                                     ? "font-medium text-gray-900 dark:text-white"
-                                    : "italic text-warning-700 dark:text-warning-300"
+                                    : "text-warning-700 italic dark:text-warning-300"
                                 }
                               >
                                 {resolveMemberName(
@@ -696,7 +721,7 @@ export default function HandoverListWorkspace({
                             </div>
                           </td>
 
-                          <td className="whitespace-nowrap px-4 py-4 align-top text-xs tabular-nums">
+                          <td className="px-4 py-4 align-top text-xs whitespace-nowrap tabular-nums">
                             {item.publishedRevisionId ? (
                               <Badge color="info" size="sm">
                                 Published · Draft v{item.draftVersion}
@@ -710,7 +735,7 @@ export default function HandoverListWorkspace({
                             )}
                           </td>
 
-                          <td className="whitespace-nowrap px-4 py-4 align-top text-xs tabular-nums text-gray-700 dark:text-gray-300">
+                          <td className="px-4 py-4 align-top text-xs whitespace-nowrap text-gray-700 tabular-nums dark:text-gray-300">
                             <div>{formatUtcDate(item.targetCompletionDate)}</div>
                             {item.overdue && item.status === "OPEN" && (
                               <div className="mt-1">
@@ -721,7 +746,7 @@ export default function HandoverListWorkspace({
                             )}
                           </td>
 
-                          <td className="whitespace-nowrap px-4 py-4 align-top">
+                          <td className="px-4 py-4 align-top whitespace-nowrap">
                             <Badge
                               color={statusBadgeColor(item.status)}
                               size="sm"
@@ -730,10 +755,10 @@ export default function HandoverListWorkspace({
                             </Badge>
                           </td>
 
-                          <td className="whitespace-nowrap px-5 py-4 text-end align-top">
+                          <td className="px-5 py-4 text-end align-top whitespace-nowrap">
                             <Link
                               href={detailHref}
-                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500 dark:hover:text-brand-300"
+                              className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold whitespace-nowrap text-gray-700 transition-colors hover:border-brand-400 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500 dark:hover:text-brand-300"
                             >
                               <span>{t("list.openAction")}</span>
                               <ArrowRightIcon
@@ -761,7 +786,10 @@ export default function HandoverListWorkspace({
                       <div>
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div className="flex flex-wrap items-center gap-1.5">
-                            <Badge color={statusBadgeColor(item.status)} size="sm">
+                            <Badge
+                              color={statusBadgeColor(item.status)}
+                              size="sm"
+                            >
                               {t(`status.${item.status}`)}
                             </Badge>
                             {item.overdue && item.status === "OPEN" && (
@@ -770,43 +798,46 @@ export default function HandoverListWorkspace({
                               </Badge>
                             )}
                           </div>
-                          <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                          <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
                             {formatUtcDate(item.targetCompletionDate)}
                           </span>
                         </div>
 
-                      <h3 className="mt-2.5 text-base font-semibold text-gray-900 [overflow-wrap:anywhere] dark:text-white">
-                        <Link href={detailHref} className="hover:text-brand-600">
-                          {item.title}
-                        </Link>
-                      </h3>
+                        <h3 className="mt-2.5 text-base font-semibold text-gray-900 [overflow-wrap:anywhere] dark:text-white">
+                          <Link
+                            href={detailHref}
+                            className="hover:text-brand-600"
+                          >
+                            {item.title}
+                          </Link>
+                        </h3>
 
-                      <div className="mt-3 space-y-1 text-xs text-gray-600 dark:text-gray-300">
-                        <p className="[overflow-wrap:anywhere]">
-                          <span className="font-medium text-gray-500 dark:text-gray-400">
-                            {t("list.departingPrefix")}{" "}
-                          </span>
-                          {resolveMemberName(
-                            item.departingUserId,
-                            membersById,
-                            "—",
-                          )}
-                        </p>
-                        <p className="[overflow-wrap:anywhere]">
-                          <span className="font-medium text-gray-500 dark:text-gray-400">
-                            {t("list.successorPrefix")}{" "}
-                          </span>
-                          {resolveMemberName(
-                            item.successorUserId,
-                            membersById,
-                            t("status.unassignedSuccessor"),
-                          )}
-                        </p>
-                      </div>
+                        <div className="mt-3 space-y-1 text-xs text-gray-600 dark:text-gray-300">
+                          <p className="[overflow-wrap:anywhere]">
+                            <span className="font-medium text-gray-500 dark:text-gray-400">
+                              {t("list.departingPrefix")}{" "}
+                            </span>
+                            {resolveMemberName(
+                              item.departingUserId,
+                              membersById,
+                              "—",
+                            )}
+                          </p>
+                          <p className="[overflow-wrap:anywhere]">
+                            <span className="font-medium text-gray-500 dark:text-gray-400">
+                              {t("list.successorPrefix")}{" "}
+                            </span>
+                            {resolveMemberName(
+                              item.successorUserId,
+                              membersById,
+                              t("status.unassignedSuccessor"),
+                            )}
+                          </p>
+                        </div>
                       </div>
 
                       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-                        <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                        <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
                           v{item.version} · Draft v{item.draftVersion}
                         </span>
                         <Link
@@ -899,7 +930,7 @@ export default function HandoverListWorkspace({
                 htmlFor="coord-handover-ver"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300"
               >
-                Version
+                {t("detail.expectedVersionLabel")}
               </label>
               <input
                 id="coord-handover-ver"
@@ -907,7 +938,7 @@ export default function HandoverListWorkspace({
                 min={1}
                 value={coordVersion}
                 onChange={(e) => setCoordVersion(e.target.value)}
-                className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm tabular-nums text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
             </div>
           </div>
@@ -987,4 +1018,3 @@ export default function HandoverListWorkspace({
     </div>
   );
 }
-

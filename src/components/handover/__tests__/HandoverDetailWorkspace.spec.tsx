@@ -35,6 +35,12 @@ vi.mock("@/lib/queries/projects/useProjects", () => ({
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
 }));
+vi.mock("@/lib/queries/work-notes/useWorkNotes", () => ({
+  workNotesApi: {
+    listDocuments: vi.fn().mockResolvedValue({ data: [] }),
+    listProjectTaskNotes: vi.fn().mockResolvedValue({ data: [] }),
+  },
+}));
 vi.mock("@/lib/queries/tasks/useTasks", () => ({
   taskKeys: {
     projectList: (projectId: string) => ["tasks", projectId],
@@ -42,6 +48,9 @@ vi.mock("@/lib/queries/tasks/useTasks", () => ({
   fetchProjectTasks: vi.fn().mockResolvedValue({ items: [] }),
 }));
 vi.mock("@/lib/queries/handovers/useHandovers", () => ({
+  handoverKeys: {
+    project: (projectId: string) => ["handovers", projectId],
+  },
   useHandoverDetailQuery: vi.fn(),
   useUpdateHandoverMetadataMutation: vi.fn(),
   useSetHandoverSuccessorMutation: vi.fn(),
@@ -131,12 +140,16 @@ describe("HandoverDetailWorkspace", () => {
   const ackMutate = vi.fn();
   const reconcileMutate = vi.fn();
   const resolveFollowUpMutate = vi.fn();
+  const saveDraftMutate = vi.fn();
+  const publishMutate = vi.fn();
 
   beforeEach(() => {
     acceptMutate.mockReset();
     ackMutate.mockReset();
     reconcileMutate.mockReset();
     resolveFollowUpMutate.mockReset();
+    saveDraftMutate.mockReset();
+    publishMutate.mockReset();
 
     mockedCurrentUser.mockReturnValue({
       data: {
@@ -208,28 +221,32 @@ describe("HandoverDetailWorkspace", () => {
       isError: false,
     } as unknown as ReturnType<typeof useProjectMembersQuery>);
 
-    vi.mocked(useHandoversModule.useUpdateHandoverMetadataMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useSetHandoverSuccessorMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useSetHandoverCoordinatorMutation).mockReturnValue(
-      idleMutation() as never,
-    );
+    vi.mocked(
+      useHandoversModule.useUpdateHandoverMetadataMutation,
+    ).mockReturnValue(idleMutation() as never);
+    vi.mocked(
+      useHandoversModule.useSetHandoverSuccessorMutation,
+    ).mockReturnValue(idleMutation() as never);
+    vi.mocked(
+      useHandoversModule.useSetHandoverCoordinatorMutation,
+    ).mockReturnValue(idleMutation() as never);
     vi.mocked(useHandoversModule.useCompleteHandoverMutation).mockReturnValue(
       idleMutation() as never,
     );
     vi.mocked(useHandoversModule.useCancelHandoverMutation).mockReturnValue(
       idleMutation() as never,
     );
-    vi.mocked(useHandoversModule.useAcceptHandoverPackageMutation).mockReturnValue({
+    vi.mocked(
+      useHandoversModule.useAcceptHandoverPackageMutation,
+    ).mockReturnValue({
       mutateAsync: acceptMutate,
       isPending: false,
       isError: false,
       error: null,
     } as never);
-    vi.mocked(useHandoversModule.useAcknowledgeHandoverItemMutation).mockReturnValue({
+    vi.mocked(
+      useHandoversModule.useAcknowledgeHandoverItemMutation,
+    ).mockReturnValue({
       mutateAsync: ackMutate,
       isPending: false,
       isError: false,
@@ -240,23 +257,23 @@ describe("HandoverDetailWorkspace", () => {
       isPending: false,
       isError: false,
     } as never);
-    vi.mocked(useHandoversModule.useSubmitHandoverEvidenceMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useReviewHandoverEvidenceMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useAcceptOptionalHandoverGapMutation).mockReturnValue(
-      idleMutation() as never,
-    );
+    vi.mocked(
+      useHandoversModule.useSubmitHandoverEvidenceMutation,
+    ).mockReturnValue(idleMutation() as never);
+    vi.mocked(
+      useHandoversModule.useReviewHandoverEvidenceMutation,
+    ).mockReturnValue(idleMutation() as never);
+    vi.mocked(
+      useHandoversModule.useAcceptOptionalHandoverGapMutation,
+    ).mockReturnValue(idleMutation() as never);
     vi.mocked(useHandoversModule.useHandoverTransfersQuery).mockReturnValue({
       data: { data: [] },
       isPending: false,
       isError: false,
     } as never);
-    vi.mocked(useHandoversModule.useStartHandoverTaskTransferMutation).mockReturnValue(
-      idleMutation() as never,
-    );
+    vi.mocked(
+      useHandoversModule.useStartHandoverTaskTransferMutation,
+    ).mockReturnValue(idleMutation() as never);
     vi.mocked(
       useHandoversModule.useReconcileHandoverTaskTransferMutation,
     ).mockReturnValue({
@@ -270,7 +287,9 @@ describe("HandoverDetailWorkspace", () => {
       isPending: false,
       isError: false,
     } as never);
-    vi.mocked(useHandoversModule.useResolveHandoverFollowUpMutation).mockReturnValue({
+    vi.mocked(
+      useHandoversModule.useResolveHandoverFollowUpMutation,
+    ).mockReturnValue({
       mutateAsync: resolveFollowUpMutate,
       isPending: false,
       isError: false,
@@ -290,15 +309,20 @@ describe("HandoverDetailWorkspace", () => {
       isPending: false,
       isError: false,
     } as never);
-    vi.mocked(useHandoversModule.useReplaceHandoverDraftMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useProposeHandoverSourcesMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useGenerateHandoverDraftMutation).mockReturnValue(
-      idleMutation() as never,
-    );
+    vi.mocked(
+      useHandoversModule.useReplaceHandoverDraftMutation,
+    ).mockReturnValue({
+      mutateAsync: saveDraftMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+    vi.mocked(
+      useHandoversModule.useProposeHandoverSourcesMutation,
+    ).mockReturnValue(idleMutation() as never);
+    vi.mocked(
+      useHandoversModule.useGenerateHandoverDraftMutation,
+    ).mockReturnValue(idleMutation() as never);
     vi.mocked(useHandoversModule.useHandoverJobQuery).mockReturnValue({
       data: undefined,
       isPending: false,
@@ -312,12 +336,17 @@ describe("HandoverDetailWorkspace", () => {
     vi.mocked(useHandoversModule.useRetryHandoverJobMutation).mockReturnValue(
       idleMutation() as never,
     );
-    vi.mocked(useHandoversModule.usePublishHandoverRevisionMutation).mockReturnValue(
-      idleMutation() as never,
-    );
-    vi.mocked(useHandoversModule.useAskHandoverQuestionMutation).mockReturnValue(
-      idleMutation() as never,
-    );
+    vi.mocked(
+      useHandoversModule.usePublishHandoverRevisionMutation,
+    ).mockReturnValue({
+      mutateAsync: publishMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+    vi.mocked(
+      useHandoversModule.useAskHandoverQuestionMutation,
+    ).mockReturnValue(idleMutation() as never);
   });
 
   it("enforces fail-closed UNAVAILABLE item placeholder while allowing RECEIVE actions on AVAILABLE items", async () => {
@@ -389,7 +418,6 @@ describe("HandoverDetailWorkspace", () => {
 
     renderDetail();
 
-    // Available item renders content + source drift indicator
     expect(
       screen.getByText("JWT Signing Key Rotation Procedure"),
     ).toBeVisible();
@@ -397,14 +425,12 @@ describe("HandoverDetailWorkspace", () => {
       screen.getByText(/source updated since snapshot/i),
     ).toBeInTheDocument();
 
-    // Unavailable item renders strictly fail-closed neutral card with zero secret fields
     const unavailableCard = screen.getByTestId(
       "unavailable-item-item-secret-99",
     );
     expect(unavailableCard).toBeVisible();
     expect(unavailableCard).toHaveTextContent(/restricted handover item/i);
 
-    // Successor accepts revision package
     const acceptButton = screen.getByRole("button", {
       name: /accept revision #1/i,
     });
@@ -417,7 +443,6 @@ describe("HandoverDetailWorkspace", () => {
       });
     });
 
-    // Successor confirms item understanding bound to epoch + contentVersion
     const confirmButton = screen.getByRole("button", {
       name: /confirm understood/i,
     });
@@ -586,9 +611,7 @@ describe("HandoverDetailWorkspace", () => {
         },
       },
     );
-    fireEvent.click(
-      screen.getByRole("button", { name: /mark resolved/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /mark resolved/i }));
 
     await waitFor(() => {
       expect(resolveFollowUpMutate).toHaveBeenCalledWith({
@@ -600,6 +623,293 @@ describe("HandoverDetailWorkspace", () => {
           references: [],
         },
       });
+    });
+  });
+
+  it("uses server draft contentVersion when publishing after multiple draft saves instead of published + 1 (F07)", async () => {
+    const srcDoc = {
+      kind: "PROJECT_DOCUMENT" as const,
+      id: "69e923c77859fd1c702d4f01",
+      version: "2",
+    };
+
+    const resource: HandoverResource = {
+      detail: {
+        handover: makeSummary({ draftVersion: 4 }),
+        capabilities: ["READ", "MANAGE"],
+        requiredPendingCount: 1,
+        canComplete: false,
+        publishedRevision: {
+          id: "rev-001",
+          handoverId: HANDOVER_ID,
+          number: 1,
+          publishedAt: "2026-10-28T03:00:00.000Z",
+          publishedBy: "user-d",
+          isCurrent: true,
+          items: [
+            {
+              itemId: "item-edited-twice",
+              access: "AVAILABLE",
+              contentVersion: 1,
+              title: "Canary Rollout Gate",
+              body: "Old v1 body.",
+              isRequired: true,
+              evidenceRequired: false,
+              requirement: "Confirm v1 gate.",
+              sources: [srcDoc],
+              citations: [
+                {
+                  source: srcDoc,
+                  locator: { kind: "SECTION", value: "Rollout" },
+                },
+              ],
+              contentReview: "CONTENT_APPROVED",
+              acknowledgement: "UNDERSTOOD",
+              evidenceReview: "NOT_REQUIRED",
+              optionalExceptionAccepted: false,
+              sourceState: "CURRENT",
+            },
+          ],
+        },
+      },
+      etag: `"handover:${HANDOVER_ID}:7"`,
+    };
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: resource,
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    vi.mocked(useHandoversModule.useHandoverDraftQuery).mockReturnValue({
+      data: {
+        draft: {
+          handoverId: HANDOVER_ID,
+          draftVersion: 4,
+          selectedSources: [srcDoc],
+          taskIds: [],
+          items: [
+            {
+              itemId: "item-edited-twice",
+              contentVersion: 3,
+              title: "Canary Rollout Gate (v3)",
+              body: "Edited twice in draft -> server contentVersion is 3.",
+              isRequired: true,
+              evidenceRequired: false,
+              requirement: "Confirm updated v3 canary rollback drill.",
+              sources: [srcDoc],
+              citations: [
+                {
+                  source: srcDoc,
+                  locator: { kind: "CHUNK", value: "chunk-99a" },
+                },
+              ],
+            },
+          ],
+        },
+        etag: `"handover:${HANDOVER_ID}:7"`,
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    publishMutate.mockResolvedValueOnce({
+      data: { revisionId: "rev-002" },
+    });
+
+    renderDetail();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /draft & ai assist/i }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /review & publish revision/i }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /publish snapshot/i }));
+
+    await waitFor(() => {
+      expect(publishMutate).toHaveBeenCalledWith({
+        etag: `"handover:${HANDOVER_ID}:7"`,
+        input: expect.objectContaining({
+          expectedDraftVersion: 4,
+          itemReviews: [
+            expect.objectContaining({
+              itemId: "item-edited-twice",
+              contentVersion: 3,
+              impact: "CHANGED",
+              decision: "CONTENT_APPROVED",
+            }),
+          ],
+        }),
+      });
+    });
+  });
+
+  it("preserves CHUNK/PAGE/LINE multi-locator citations when saving draft and blocks empty locator on newly linked sources (F08)", async () => {
+    const srcDoc = {
+      kind: "PROJECT_DOCUMENT" as const,
+      id: "69e923c77859fd1c702d4f11",
+      version: "3",
+    };
+    const srcKo = {
+      kind: "KNOWLEDGE_OBJECT" as const,
+      id: "69e923c77859fd1c702d4f22",
+      version: "1",
+    };
+    const srcReport = {
+      kind: "WORK_REPORT" as const,
+      id: "69e923c77859fd1c702d4f33",
+      version: "2",
+    };
+
+    const originalCitations = [
+      {
+        source: srcDoc,
+        locator: { kind: "CHUNK" as const, value: "chunk-uuid-42" },
+      },
+      {
+        source: srcDoc,
+        locator: { kind: "PAGE" as const, value: "14" },
+      },
+      {
+        source: srcKo,
+        locator: { kind: "LINE" as const, value: "88-104" },
+      },
+    ];
+
+    const resource: HandoverResource = {
+      detail: {
+        handover: makeSummary({ publishedRevisionId: null, draftVersion: 2 }),
+        capabilities: ["READ", "MANAGE"],
+        requiredPendingCount: 0,
+        canComplete: false,
+        publishedRevision: null,
+      },
+      etag: `"handover:${HANDOVER_ID}:8"`,
+    };
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: resource,
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    vi.mocked(useHandoversModule.useHandoverDraftQuery).mockReturnValue({
+      data: {
+        draft: {
+          handoverId: HANDOVER_ID,
+          draftVersion: 2,
+          selectedSources: [srcDoc, srcKo, srcReport],
+          taskIds: [],
+          items: [
+            {
+              itemId: "item-ai-provenance",
+              contentVersion: 2,
+              title: "Outbox Idempotency Fence",
+              body: "Ensure outbox deduplication keys match task operation IDs.",
+              isRequired: true,
+              evidenceRequired: true,
+              requirement: "Demonstrate duplicate delivery handling.",
+              sources: [srcDoc, srcKo],
+              citations: originalCitations,
+            },
+          ],
+        },
+        etag: `"handover:${HANDOVER_ID}:8"`,
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    saveDraftMutate.mockResolvedValue({
+      data: { version: 9 },
+    });
+
+    renderDetail();
+
+    // publishedRevision is null + MANAGE capability -> opens Draft tab automatically (or click tab)
+    fireEvent.click(
+      screen.getByRole("button", { name: /draft & ai assist/i }),
+    );
+
+    // Toggle ONLY the Required checkbox without touching citations
+    const requiredCheckbox = screen.getByLabelText(
+      /required \/ critical \(blocks completion\)/i,
+    );
+    fireEvent.click(requiredCheckbox);
+
+    fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(saveDraftMutate).toHaveBeenCalledTimes(1);
+    });
+
+    expect(saveDraftMutate).toHaveBeenCalledWith({
+      etag: `"handover:${HANDOVER_ID}:8"`,
+      input: {
+        expectedDraftVersion: 2,
+        selectedSources: [srcDoc, srcKo, srcReport],
+        taskIds: [],
+        items: [
+          {
+            itemId: "item-ai-provenance",
+            title: "Outbox Idempotency Fence",
+            body: "Ensure outbox deduplication keys match task operation IDs.",
+            requirement: "Demonstrate duplicate delivery handling.",
+            isRequired: false,
+            evidenceRequired: true,
+            sources: [srcDoc, srcKo],
+            citations: originalCitations,
+          },
+        ],
+      },
+    });
+
+    // Now link the 3rd source (srcReport) -> must NOT fabricate a fake locator; saving without locator fails validation
+    const reportCheckbox = screen.getByLabelText(/WORK_REPORT:69e923…4f33/i);
+    fireEvent.click(reportCheckbox);
+    fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /provide a non-empty citation locator for every linked official source/i,
+    );
+    expect(saveDraftMutate).toHaveBeenCalledTimes(1);
+
+    // Fill concrete locator for citation #4 and save -> all 4 citations preserved accurately
+    fireEvent.change(screen.getByLabelText("Citation 4 locator kind"), {
+      target: { value: "SECTION" },
+    });
+    fireEvent.change(screen.getByLabelText("Citation 4 locator value"), {
+      target: { value: "Weekly Incident Summary" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /save draft/i }));
+
+    await waitFor(() => {
+      expect(saveDraftMutate).toHaveBeenCalledTimes(2);
+    });
+    expect(saveDraftMutate).toHaveBeenNthCalledWith(2, {
+      etag: `"handover:${HANDOVER_ID}:8"`,
+      input: expect.objectContaining({
+        items: [
+          expect.objectContaining({
+            sources: [srcDoc, srcKo, srcReport],
+            citations: [
+              ...originalCitations,
+              {
+                source: srcReport,
+                locator: { kind: "SECTION", value: "Weekly Incident Summary" },
+              },
+            ],
+          }),
+        ],
+      }),
     });
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   acceptHandoverPackage,
@@ -7,9 +8,11 @@ import {
   acknowledgeHandoverItem,
   askHandoverQuestion,
   cancelHandover,
+  canonicalizeCommandIntent,
   completeHandover,
   createHandover,
   generateHandoverDraft,
+  generateIdempotencyKey,
   getHandover,
   getHandoverCandidates,
   getHandoverDraft,
@@ -83,6 +86,25 @@ export const handoverKeys = {
     ["handovers", projectId, "followUps", handoverId] as const,
 };
 
+export { canonicalizeCommandIntent };
+
+function useCommandIdempotencyKey() {
+  const pendingRef = useRef<{ fingerprint: string; key: string } | null>(null);
+  const getOrCreateKey = (intent: unknown): string => {
+    const fingerprint = canonicalizeCommandIntent(intent);
+    if (pendingRef.current && pendingRef.current.fingerprint === fingerprint) {
+      return pendingRef.current.key;
+    }
+    const nextKey = generateIdempotencyKey();
+    pendingRef.current = { fingerprint, key: nextKey };
+    return nextKey;
+  };
+  const clearKey = () => {
+    pendingRef.current = null;
+  };
+  return { getOrCreateKey, clearKey };
+}
+
 export function useHandoversQuery(
   projectId: string,
   filter: HandoverListFilter = {},
@@ -94,7 +116,11 @@ export function useHandoversQuery(
     retry: false,
     staleTime: 5_000,
     queryFn: ({ signal }) =>
-      listHandovers(projectId, { ...filter, limit: filter.limit ?? 50 }, signal),
+      listHandovers(
+        projectId,
+        { ...filter, limit: filter.limit ?? 50 },
+        signal,
+      ),
   });
 }
 
@@ -261,9 +287,18 @@ function useInvalidateHandoverScope(projectId: string) {
 
 export function useCreateHandoverMutation(projectId: string) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
-    mutationFn: (input: CreateHandoverDto) => createHandover(projectId, input),
-    onSuccess: invalidate,
+    mutationFn: (input: CreateHandoverDto) =>
+      createHandover(
+        projectId,
+        input,
+        getOrCreateKey({ op: "createHandover", projectId, input }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -272,10 +307,20 @@ export function useUpdateHandoverMetadataMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: UpdateMetadataDto }) =>
-      updateHandoverMetadata(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      updateHandoverMetadata(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "updateMetadata", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -284,10 +329,20 @@ export function useSetHandoverSuccessorMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: SetSuccessorDto }) =>
-      setHandoverSuccessor(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      setHandoverSuccessor(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "setSuccessor", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -296,10 +351,20 @@ export function useSetHandoverCoordinatorMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: SetCoordinatorDto }) =>
-      setHandoverCoordinator(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      setHandoverCoordinator(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "setCoordinator", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -308,10 +373,20 @@ export function useReplaceHandoverDraftMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: DraftRequestDto }) =>
-      replaceHandoverDraft(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      replaceHandoverDraft(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "replaceDraft", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -320,10 +395,20 @@ export function useProposeHandoverSourcesMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: SourceJobRequestDto }) =>
-      proposeHandoverSources(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      proposeHandoverSources(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "proposeSources", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -332,10 +417,20 @@ export function useGenerateHandoverDraftMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: GenerateRequestDto }) =>
-      generateHandoverDraft(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      generateHandoverDraft(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "generateDraft", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -344,6 +439,7 @@ export function useRetryHandoverJobMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       jobId: string;
@@ -356,8 +452,12 @@ export function useRetryHandoverJobMutation(
         vars.jobId,
         vars.etag,
         vars.input,
+        getOrCreateKey({ op: "retryJob", projectId, handoverId, vars }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -366,10 +466,20 @@ export function usePublishHandoverRevisionMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: PublishRequestDto }) =>
-      publishHandoverRevision(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      publishHandoverRevision(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "publishRevision", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -378,10 +488,20 @@ export function useAcceptHandoverPackageMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: AcceptRequestDto }) =>
-      acceptHandoverPackage(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      acceptHandoverPackage(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "acceptPackage", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -400,6 +520,7 @@ export function useAcknowledgeHandoverItemMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       itemId: string;
@@ -412,8 +533,12 @@ export function useAcknowledgeHandoverItemMutation(
         vars.itemId,
         vars.etag,
         vars.input,
+        getOrCreateKey({ op: "acknowledgeItem", projectId, handoverId, vars }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -422,6 +547,7 @@ export function useSubmitHandoverEvidenceMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       itemId: string;
@@ -434,8 +560,12 @@ export function useSubmitHandoverEvidenceMutation(
         vars.itemId,
         vars.etag,
         vars.input,
+        getOrCreateKey({ op: "submitEvidence", projectId, handoverId, vars }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -444,6 +574,7 @@ export function useReviewHandoverEvidenceMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       itemId: string;
@@ -458,8 +589,12 @@ export function useReviewHandoverEvidenceMutation(
         vars.evidenceId,
         vars.etag,
         vars.input,
+        getOrCreateKey({ op: "reviewEvidence", projectId, handoverId, vars }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -468,6 +603,7 @@ export function useAcceptOptionalHandoverGapMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       itemId: string;
@@ -480,8 +616,17 @@ export function useAcceptOptionalHandoverGapMutation(
         vars.itemId,
         vars.etag,
         vars.input,
+        getOrCreateKey({
+          op: "acceptOptionalGap",
+          projectId,
+          handoverId,
+          vars,
+        }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -491,10 +636,18 @@ export function useStartHandoverTaskTransferMutation(
 ) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: StartTransferDto }) =>
-      startHandoverTaskTransfer(projectId, handoverId, vars.etag, vars.input),
+      startHandoverTaskTransfer(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "startTransfer", projectId, handoverId, vars }),
+      ),
     onSuccess: async () => {
+      clearKey();
       await invalidate();
       await queryClient.invalidateQueries({
         queryKey: ["tasks", "project", projectId],
@@ -509,6 +662,7 @@ export function useReconcileHandoverTaskTransferMutation(
 ) {
   const queryClient = useQueryClient();
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       transferId: string;
@@ -521,8 +675,15 @@ export function useReconcileHandoverTaskTransferMutation(
         vars.transferId,
         vars.etag,
         vars.input,
+        getOrCreateKey({
+          op: "reconcileTransfer",
+          projectId,
+          handoverId,
+          vars,
+        }),
       ),
     onSuccess: async () => {
+      clearKey();
       await invalidate();
       await queryClient.invalidateQueries({
         queryKey: ["tasks", "project", projectId],
@@ -536,10 +697,20 @@ export function useCompleteHandoverMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: CompleteRequestDto }) =>
-      completeHandover(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      completeHandover(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "completeHandover", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -548,10 +719,20 @@ export function useCancelHandoverMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: { etag: string; input: CancelRequestDto }) =>
-      cancelHandover(projectId, handoverId, vars.etag, vars.input),
-    onSuccess: invalidate,
+      cancelHandover(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input,
+        getOrCreateKey({ op: "cancelHandover", projectId, handoverId, vars }),
+      ),
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }
 
@@ -560,6 +741,7 @@ export function useResolveHandoverFollowUpMutation(
   handoverId: string,
 ) {
   const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
   return useMutation({
     mutationFn: (vars: {
       followupId: string;
@@ -572,7 +754,11 @@ export function useResolveHandoverFollowUpMutation(
         vars.followupId,
         vars.followupEtag,
         vars.input,
+        getOrCreateKey({ op: "resolveFollowUp", projectId, handoverId, vars }),
       ),
-    onSuccess: invalidate,
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
   });
 }

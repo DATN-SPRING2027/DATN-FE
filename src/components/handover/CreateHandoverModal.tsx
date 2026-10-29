@@ -26,6 +26,13 @@ function defaultTargetDateInput(): string {
   return d.toISOString().slice(0, 10);
 }
 
+function getMembershipRole(member: ProjectMembership): string | undefined {
+  const maybeRole = (member as { role?: unknown }).role;
+  return typeof maybeRole === "string" && maybeRole.trim().length > 0
+    ? maybeRole.trim()
+    : undefined;
+}
+
 export default function CreateHandoverModal({
   isOpen,
   onClose,
@@ -42,7 +49,13 @@ export default function CreateHandoverModal({
     [members],
   );
 
-  const leaderOptions = activeMembers;
+  const leaderOptions = useMemo(() => {
+    const explicitLeaders = activeMembers.filter((m) => {
+      const role = getMembershipRole(m);
+      return role === "TEAM_LEADER" || role === "LEADER";
+    });
+    return explicitLeaders.length > 0 ? explicitLeaders : activeMembers;
+  }, [activeMembers]);
 
   const defaultCoordinator = useMemo(() => {
     if (
@@ -62,6 +75,12 @@ export default function CreateHandoverModal({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   const effectiveCoordinator = assignedLeaderId || defaultCoordinator;
+  const selectedCoordinatorRole = useMemo(() => {
+    const selected = activeMembers.find(
+      (m) => m.userId === effectiveCoordinator,
+    );
+    return selected ? getMembershipRole(selected) : undefined;
+  }, [activeMembers, effectiveCoordinator]);
 
   const handleClose = () => {
     if (createMutation.isPending) return;
@@ -237,7 +256,11 @@ export default function CreateHandoverModal({
             )}
             {effectiveCoordinator && activeMembers.length > 0 && (
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                <RoleLabel roleCode="TEAM_LEADER" />
+                {selectedCoordinatorRole ? (
+                  <RoleLabel roleCode={selectedCoordinatorRole} />
+                ) : (
+                  t("coordinatorRoleHint")
+                )}
               </p>
             )}
           </div>
@@ -295,7 +318,7 @@ export default function CreateHandoverModal({
               type="date"
               value={targetDate}
               onChange={(e) => setTargetDate(e.target.value)}
-              className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm tabular-nums text-gray-900 shadow-theme-xs focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 tabular-nums shadow-theme-xs focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
         </div>
@@ -323,4 +346,3 @@ export default function CreateHandoverModal({
     </Modal>
   );
 }
-

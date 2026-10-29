@@ -152,7 +152,7 @@ describe("HandoverListWorkspace", () => {
             role: "TEAM_LEADER",
             status: "ACTIVE",
             user: {
-              id: "69e923c77859fd1c702d4a02",
+              id: "mem-2",
               fullName: "Leader Minh",
               email: "leader@continuum.local",
             },
@@ -268,7 +268,11 @@ describe("HandoverListWorkspace", () => {
       isPending: false,
       isFetching: false,
       isError: true,
-      error: new ApiError(500, "INTERNAL_ERROR", "Database temporarily unavailable"),
+      error: new ApiError(
+        500,
+        "INTERNAL_ERROR",
+        "Database temporarily unavailable",
+      ),
       refetch: refetchMock,
     } as unknown as ReturnType<typeof useHandoversQuery>);
 
@@ -278,7 +282,7 @@ describe("HandoverListWorkspace", () => {
     );
   });
 
-  it("renders permission denied state and supports Org Manager safe coordinator recovery", async () => {
+  it("renders permission denied state and supports Org Manager safe coordinator recovery with stable retry idempotency key", async () => {
     const refetchMock = vi.fn();
     mockedHandovers.mockReturnValue({
       data: undefined,
@@ -289,18 +293,20 @@ describe("HandoverListWorkspace", () => {
       refetch: refetchMock,
     } as unknown as ReturnType<typeof useHandoversQuery>);
 
-    mockedSetCoordinator.mockResolvedValueOnce({
-      data: {
-        operationId: "op-coord-1",
-        handoverId: "69e923c77859fd1c702d4d99",
-        version: 4,
-        status: "OPEN",
-        revisionId: null,
-        replayed: false,
-      },
-      etag: '"handover:69e923c77859fd1c702d4d99:4"',
-      replayed: false,
-    });
+    mockedSetCoordinator
+      .mockRejectedValueOnce(new Error("Temporary gateway timeout"))
+      .mockResolvedValueOnce({
+        data: {
+          operationId: "op-coord-1",
+          handoverId: "69e923c77859fd1c702d4d99",
+          version: 4,
+          status: "OPEN",
+          revisionId: null,
+          replayed: true,
+        },
+        etag: '"handover:69e923c77859fd1c702d4d99:4"',
+        replayed: true,
+      });
 
     renderWorkspace();
 
@@ -312,7 +318,7 @@ describe("HandoverListWorkspace", () => {
     fireEvent.change(screen.getByLabelText(/handover id/i), {
       target: { value: "69e923c77859fd1c702d4d99" },
     });
-    fireEvent.change(screen.getByLabelText(/^version$/i), {
+    fireEvent.change(screen.getByLabelText(/expected version/i), {
       target: { value: "3" },
     });
     fireEvent.change(screen.getByLabelText(/coordinator leader \(d\)/i), {
@@ -327,15 +333,31 @@ describe("HandoverListWorkspace", () => {
     );
 
     await waitFor(() => {
-      expect(mockedSetCoordinator).toHaveBeenCalledWith(
-        PROJECT_ID,
-        "69e923c77859fd1c702d4d99",
-        '"handover:69e923c77859fd1c702d4d99:3"',
-        {
-          assignedLeaderId: "69e923c77859fd1c702d4a02",
-          reason: "Departing leader stepped down; appointing Minh.",
-        },
-      );
+      expect(mockedSetCoordinator).toHaveBeenCalledTimes(1);
     });
+
+    const firstIdemKey = mockedSetCoordinator.mock.calls[0]?.[4];
+    expect(typeof firstIdemKey).toBe("string");
+
+    // Retry same submission after timeout -> reuses exact same Idempotency-Key
+    fireEvent.click(
+      screen.getByRole("button", { name: /confirm coordinator/i }),
+    );
+
+    await waitFor(() => {
+      expect(mockedSetCoordinator).toHaveBeenCalledTimes(2);
+    });
+
+    expect(mockedSetCoordinator).toHaveBeenNthCalledWith(
+      2,
+      PROJECT_ID,
+      "69e923c77859fd1c702d4d99",
+      '"handover:69e923c77859fd1c702d4d99:3"',
+      {
+        assignedLeaderId: "69e923c77859fd1c702d4a02",
+        reason: "Departing leader stepped down; appointing Minh.",
+      },
+      firstIdemKey,
+    );
   });
 });

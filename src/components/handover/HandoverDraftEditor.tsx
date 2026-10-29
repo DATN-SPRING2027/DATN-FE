@@ -28,6 +28,7 @@ import {
   useRetryHandoverJobMutation,
 } from "@/lib/queries/handovers/useHandovers";
 import type {
+  CitationLocatorKind,
   DraftItemInputDto,
   RevisionProjectionDto,
   SourceRefDto,
@@ -42,8 +43,14 @@ import {
 
 interface EditableDraftItem extends DraftItemInputDto {
   localKey: string;
-  citationSection: string;
 }
+
+const LOCATOR_KINDS: readonly CitationLocatorKind[] = [
+  "SECTION",
+  "PAGE",
+  "LINE",
+  "CHUNK",
+];
 
 function sourceKey(ref: SourceRefDto): string {
   return `${ref.kind}:${ref.id}:${ref.version}`;
@@ -132,8 +139,13 @@ export default function HandoverDraftEditor({
         isRequired: item.isRequired,
         evidenceRequired: item.evidenceRequired,
         sources: item.sources,
-        citations: item.citations,
-        citationSection: item.citations[0]?.locator.value ?? "Overview",
+        citations: item.citations.map((c) => ({
+          source: c.source,
+          locator: {
+            kind: c.locator.kind,
+            value: c.locator.value,
+          },
+        })),
       })),
     };
   }, [draftQuery.data]);
@@ -223,7 +235,9 @@ export default function HandoverDraftEditor({
   const candidatesQuery = useHandoverCandidatesQuery(
     projectId,
     handoverId,
-    activeJobId && jobQuery.data?.kind === "SOURCE_PROPOSAL" && jobQuery.data.state === "SUCCEEDED"
+    activeJobId &&
+      jobQuery.data?.kind === "SOURCE_PROPOSAL" &&
+      jobQuery.data.state === "SUCCEEDED"
       ? activeJobId
       : null,
   );
@@ -299,9 +313,8 @@ export default function HandoverDraftEditor({
         evidenceRequired: false,
         sources: defaultSrc ? [defaultSrc] : [],
         citations: defaultSrc
-          ? [{ source: defaultSrc, locator: { kind: "SECTION", value: "Overview" } }]
+          ? [{ source: defaultSrc, locator: { kind: "SECTION", value: "" } }]
           : [],
-        citationSection: "Overview",
       },
     ]);
     setDirty(true);
@@ -318,10 +331,43 @@ export default function HandoverDraftEditor({
         );
         return;
       }
+      const linkedKeys = new Set(item.sources.map(sourceKey));
+      for (const cit of item.citations) {
+        if (!cit.locator.value.trim() || !linkedKeys.has(sourceKey(cit.source))) {
+          setLocalError(t("validationCitationLocator"));
+          return;
+        }
+      }
+      if (item.sources.length > 0) {
+        const citedKeys = new Set(
+          item.citations.map((cit) => sourceKey(cit.source)),
+        );
+        for (const srcKey of linkedKeys) {
+          if (!citedKeys.has(srcKey)) {
+            setLocalError(t("validationCitationLocator"));
+            return;
+          }
+        }
+      }
     }
 
     const payloadItems: DraftItemInputDto[] = items.map((item) => {
-      const locatorVal = item.citationSection.trim() || "Overview";
+      const seenCitations = new Set<string>();
+      const normalizedCitations = [];
+      for (const cit of item.citations) {
+        const cleanVal = cit.locator.value.trim();
+        const dedupKey = `${sourceKey(cit.source)}:${cit.locator.kind}:${cleanVal}`;
+        if (!seenCitations.has(dedupKey)) {
+          seenCitations.add(dedupKey);
+          normalizedCitations.push({
+            source: cit.source,
+            locator: {
+              kind: cit.locator.kind,
+              value: cleanVal,
+            },
+          });
+        }
+      }
       return {
         itemId: item.itemId,
         title: item.title.trim(),
@@ -330,10 +376,7 @@ export default function HandoverDraftEditor({
         isRequired: item.isRequired,
         evidenceRequired: item.evidenceRequired,
         sources: item.sources,
-        citations: item.sources.map((src) => ({
-          source: src,
-          locator: { kind: "SECTION" as const, value: locatorVal },
-        })),
+        citations: normalizedCitations,
       };
     });
 
@@ -413,7 +456,9 @@ export default function HandoverDraftEditor({
       });
       setActiveJobId(res.data.id);
     } catch (err) {
-      setLocalError(extractHandoverErrorMessage(err, "Could not retry AI job."));
+      setLocalError(
+        extractHandoverErrorMessage(err, "Could not retry AI job."),
+      );
     }
   };
 
@@ -443,7 +488,9 @@ export default function HandoverDraftEditor({
     !dirty &&
     currentDraftVersion >= 1 &&
     savedDraftItems.length > 0 &&
-    savedDraftItems.every((i) => i.sources.length > 0);
+    savedDraftItems.every(
+      (i) => i.sources.length > 0 && i.citations.length > 0,
+    );
 
   return (
     <div className="space-y-6">
@@ -567,7 +614,7 @@ export default function HandoverDraftEditor({
                       value={newSourceVer}
                       onChange={(e) => setNewSourceVer(e.target.value)}
                       placeholder="1"
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs tabular-nums text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 tabular-nums dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
                 </>
@@ -821,7 +868,7 @@ export default function HandoverDraftEditor({
                         <span>·</span>
                         <span className="truncate">{task.title}</span>
                       </div>
-                      <p className="mt-0.5 tabular-nums text-gray-500 dark:text-gray-400">
+                      <p className="mt-0.5 text-gray-500 tabular-nums dark:text-gray-400">
                         {task.status} · v{task.version}
                       </p>
                     </div>
@@ -864,7 +911,7 @@ export default function HandoverDraftEditor({
                 className="rounded-2xl border border-gray-200 bg-gray-50/40 p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-800/30"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold tabular-nums text-brand-600 dark:text-brand-400">
+                  <span className="text-xs font-semibold text-brand-600 tabular-nums dark:text-brand-400">
                     Item #{idx + 1}
                   </span>
                   {isOpenStatus && (
@@ -1001,7 +1048,7 @@ export default function HandoverDraftEditor({
                     </label>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-3 pt-1 sm:grid-cols-2">
+                  <div className="space-y-3 pt-1">
                     <div>
                       <span className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                         {t("itemSourcesLabel")}
@@ -1022,17 +1069,44 @@ export default function HandoverDraftEditor({
                                 disabled={!isOpenStatus}
                                 checked={linked}
                                 onChange={(e) => {
-                                  const nextSources = e.target.checked
-                                    ? [...item.sources, src]
-                                    : item.sources.filter(
-                                        (s) => sourceKey(s) !== k,
-                                      );
+                                  const checked = e.target.checked;
                                   setItems((prev) =>
-                                    prev.map((i) =>
-                                      i.localKey === item.localKey
-                                        ? { ...i, sources: nextSources }
-                                        : i,
-                                    ),
+                                    prev.map((i) => {
+                                      if (i.localKey !== item.localKey) {
+                                        return i;
+                                      }
+                                      if (checked) {
+                                        const hasCitForSource =
+                                          i.citations.some(
+                                            (c) => sourceKey(c.source) === k,
+                                          );
+                                        return {
+                                          ...i,
+                                          sources: [...i.sources, src],
+                                          citations: hasCitForSource
+                                            ? i.citations
+                                            : [
+                                                ...i.citations,
+                                                {
+                                                  source: src,
+                                                  locator: {
+                                                    kind: "SECTION",
+                                                    value: "",
+                                                  },
+                                                },
+                                              ],
+                                        };
+                                      }
+                                      return {
+                                        ...i,
+                                        sources: i.sources.filter(
+                                          (s) => sourceKey(s) !== k,
+                                        ),
+                                        citations: i.citations.filter(
+                                          (c) => sourceKey(c.source) !== k,
+                                        ),
+                                      };
+                                    }),
                                   );
                                   setDirty(true);
                                 }}
@@ -1047,28 +1121,214 @@ export default function HandoverDraftEditor({
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                        {t("citationSectionLabel")}
-                      </label>
-                      <input
-                        type="text"
-                        disabled={!isOpenStatus}
-                        value={item.citationSection}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setItems((prev) =>
-                            prev.map((i) =>
-                              i.localKey === item.localKey
-                                ? { ...i, citationSection: val }
-                                : i,
-                            ),
-                          );
-                          setDirty(true);
-                        }}
-                        placeholder={t("citationSectionPlaceholder")}
-                        className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                      />
+                    <div className="rounded-xl border border-gray-200/80 bg-white/80 p-3 dark:border-gray-700/70 dark:bg-gray-900/50">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+                          {t("citationsLabel")}
+                        </span>
+                        {isOpenStatus && item.sources.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const fallbackSrc = item.sources[0];
+                              if (!fallbackSrc) return;
+                              setItems((prev) =>
+                                prev.map((i) =>
+                                  i.localKey === item.localKey
+                                    ? {
+                                        ...i,
+                                        citations: [
+                                          ...i.citations,
+                                          {
+                                            source: fallbackSrc,
+                                            locator: {
+                                              kind: "SECTION",
+                                              value: "",
+                                            },
+                                          },
+                                        ],
+                                      }
+                                    : i,
+                                ),
+                              );
+                              setDirty(true);
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                          >
+                            <PlusIcon className="h-3 w-3" />
+                            <span>{t("addCitationCta")}</span>
+                          </button>
+                        )}
+                      </div>
+
+                      {item.citations.length === 0 ? (
+                        <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                          {t("noCitationsHint")}
+                        </p>
+                      ) : (
+                        <div className="mt-2 space-y-2">
+                          {item.citations.map((cit, citIdx) => (
+                            <div
+                              key={`${sourceKey(cit.source)}-${citIdx}`}
+                              className="grid grid-cols-1 gap-2 sm:grid-cols-12"
+                            >
+                              <div className="sm:col-span-5">
+                                <select
+                                  aria-label={t("citationSourceAria", {
+                                    index: String(citIdx + 1),
+                                  })}
+                                  disabled={!isOpenStatus}
+                                  value={sourceKey(cit.source)}
+                                  onChange={(e) => {
+                                    const chosen = item.sources.find(
+                                      (s) => sourceKey(s) === e.target.value,
+                                    );
+                                    if (!chosen) return;
+                                    setItems((prev) =>
+                                      prev.map((i) =>
+                                        i.localKey === item.localKey
+                                          ? {
+                                              ...i,
+                                              citations: i.citations.map(
+                                                (entry, entryIdx) =>
+                                                  entryIdx === citIdx
+                                                    ? {
+                                                        ...entry,
+                                                        source: chosen,
+                                                      }
+                                                    : entry,
+                                              ),
+                                            }
+                                          : i,
+                                      ),
+                                    );
+                                    setDirty(true);
+                                  }}
+                                  className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                >
+                                  {item.sources.map((src) => (
+                                    <option
+                                      key={sourceKey(src)}
+                                      value={sourceKey(src)}
+                                    >
+                                      {src.kind}:{formatShortId(src.id)} · v
+                                      {src.version}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="sm:col-span-3">
+                                <select
+                                  aria-label={t("citationKindAria", {
+                                    index: String(citIdx + 1),
+                                  })}
+                                  disabled={!isOpenStatus}
+                                  value={cit.locator.kind}
+                                  onChange={(e) => {
+                                    const nextKind = e.target
+                                      .value as CitationLocatorKind;
+                                    setItems((prev) =>
+                                      prev.map((i) =>
+                                        i.localKey === item.localKey
+                                          ? {
+                                              ...i,
+                                              citations: i.citations.map(
+                                                (entry, entryIdx) =>
+                                                  entryIdx === citIdx
+                                                    ? {
+                                                        ...entry,
+                                                        locator: {
+                                                          ...entry.locator,
+                                                          kind: nextKind,
+                                                        },
+                                                      }
+                                                    : entry,
+                                              ),
+                                            }
+                                          : i,
+                                      ),
+                                    );
+                                    setDirty(true);
+                                  }}
+                                  className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                >
+                                  {LOCATOR_KINDS.map((kind) => (
+                                    <option key={kind} value={kind}>
+                                      {kind}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              <div className="flex items-center gap-1.5 sm:col-span-4">
+                                <input
+                                  type="text"
+                                  aria-label={t("citationValueAria", {
+                                    index: String(citIdx + 1),
+                                  })}
+                                  disabled={!isOpenStatus}
+                                  value={cit.locator.value}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    setItems((prev) =>
+                                      prev.map((i) =>
+                                        i.localKey === item.localKey
+                                          ? {
+                                              ...i,
+                                              citations: i.citations.map(
+                                                (entry, entryIdx) =>
+                                                  entryIdx === citIdx
+                                                    ? {
+                                                        ...entry,
+                                                        locator: {
+                                                          ...entry.locator,
+                                                          value: val,
+                                                        },
+                                                      }
+                                                    : entry,
+                                              ),
+                                            }
+                                          : i,
+                                      ),
+                                    );
+                                    setDirty(true);
+                                  }}
+                                  placeholder={t("citationSectionPlaceholder")}
+                                  className="min-w-0 flex-1 rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                />
+                                {isOpenStatus && (
+                                  <button
+                                    type="button"
+                                    aria-label={t("removeCitationAria", {
+                                      index: String(citIdx + 1),
+                                    })}
+                                    onClick={() => {
+                                      setItems((prev) =>
+                                        prev.map((i) =>
+                                          i.localKey === item.localKey
+                                            ? {
+                                                ...i,
+                                                citations: i.citations.filter(
+                                                  (_, entryIdx) =>
+                                                    entryIdx !== citIdx,
+                                                ),
+                                              }
+                                            : i,
+                                        ),
+                                      );
+                                      setDirty(true);
+                                    }}
+                                    className="rounded-lg p-1 text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
+                                  >
+                                    <TrashBinIcon className="h-3.5 w-3.5" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1127,4 +1387,3 @@ export default function HandoverDraftEditor({
     </div>
   );
 }
-

@@ -65,20 +65,23 @@ function buildInitialReviews(
   const initial: Record<string, ItemReviewState> = {};
   for (const d of draftItems) {
     const prev = pubMap.get(d.itemId);
-    const unchanged = prev ? isSameDraftAsPublished(d, prev) : false;
+    const serverContentVersion =
+      typeof d.contentVersion === "number" && d.contentVersion >= 1
+        ? d.contentVersion
+        : 1;
+    const unchanged = Boolean(
+      prev &&
+        prev.contentVersion === serverContentVersion &&
+        isSameDraftAsPublished(d, prev),
+    );
     initial[d.itemId] = {
       itemId: d.itemId,
-      contentVersion: prev
-        ? unchanged
-          ? prev.contentVersion
-          : prev.contentVersion + 1
-        : 1,
+      contentVersion: serverContentVersion,
       decision: "CONTENT_APPROVED",
-      impact: prev && unchanged ? "UNCHANGED" : "CHANGED",
-      reason:
-        prev && unchanged
-          ? "Unchanged from previous snapshot."
-          : "Verified source citations and readiness requirement.",
+      impact: unchanged ? "UNCHANGED" : "CHANGED",
+      reason: unchanged
+        ? "Unchanged from previous snapshot."
+        : "Verified source citations and readiness requirement.",
       gapOwnerUserId: defaultOwnerUserId,
       gapDueDate: defaultGapDate(),
       gapReason: "",
@@ -159,9 +162,13 @@ function PublishModalForm({
         setValidationError(t("validationMissingReviewNote"));
         return;
       }
+      const serverContentVersion =
+        typeof d.contentVersion === "number" && d.contentVersion >= 1
+          ? d.contentVersion
+          : Math.max(1, Math.floor(state.contentVersion));
       itemReviews.push({
         itemId: d.itemId,
-        contentVersion: Math.max(1, Math.floor(state.contentVersion)),
+        contentVersion: serverContentVersion,
         decision: state.decision,
         impact: state.impact,
         reason: state.reason.trim(),
@@ -259,7 +266,7 @@ function PublishModalForm({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-semibold text-gray-900 [overflow-wrap:anywhere] dark:text-white">
-                    <span className="tabular-nums text-gray-500 me-1.5">
+                    <span className="me-1.5 text-gray-500 tabular-nums">
                       #{idx + 1}
                     </span>
                     {item.title}
@@ -313,18 +320,14 @@ function PublishModalForm({
 
                   <div>
                     <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
-                      Content Version
+                      {t("contentVersionLabel")}
                     </label>
                     <input
                       type="number"
                       min={1}
+                      readOnly
                       value={state.contentVersion}
-                      onChange={(e) =>
-                        updateItemReview(item.itemId, {
-                          contentVersion: Number(e.target.value) || 1,
-                        })
-                      }
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs tabular-nums text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 w-full rounded-xl border border-gray-200 bg-gray-100 px-3 py-2 text-xs text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
                     />
                   </div>
                 </div>
@@ -395,7 +398,7 @@ function PublishModalForm({
                               gapDueDate: e.target.value,
                             })
                           }
-                          className="mt-1 w-full rounded-xl border border-warning-300 bg-white px-3 py-2 text-xs tabular-nums text-gray-900 dark:border-warning-500/40 dark:bg-gray-900 dark:text-white"
+                          className="mt-1 w-full rounded-xl border border-warning-300 bg-white px-3 py-2 text-xs text-gray-900 tabular-nums dark:border-warning-500/40 dark:bg-gray-900 dark:text-white"
                         />
                       </div>
                     </div>
@@ -496,4 +499,3 @@ export default function HandoverPublishModal({
     </Modal>
   );
 }
-

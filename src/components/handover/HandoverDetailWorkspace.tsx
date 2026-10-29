@@ -845,7 +845,7 @@ export default function HandoverDetailWorkspace({
             {!etag && (
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                  Expected Version
+                  {t("detail.expectedVersionLabel")}
                 </label>
                 <input
                   type="number"

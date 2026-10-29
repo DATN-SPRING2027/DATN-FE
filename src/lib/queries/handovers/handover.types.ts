@@ -164,6 +164,7 @@ export interface HandoverListDto {
 
 export interface DraftItemDto {
   itemId: string;
+  contentVersion: number;
   title: string;
   body: string;
   isRequired: boolean;
