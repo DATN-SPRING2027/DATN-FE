@@ -19,3 +19,8 @@ export * from "./verification/useVerification";
 // Capture / Daily notes service
 export * from "./capture/capture.keys";
 export * from "./capture/useCapture";
+
+// Knowledge Handover service
+export * from "./handovers/handover.types";
+export * from "./handovers/handover.service";
+export * from "./handovers/useHandovers";
