@@ -47,6 +47,7 @@ vi.mock("@/icons", () => ({
   BoxIconLine: () => null,
   CalenderIcon: () => null,
   DocsIcon: () => null,
+  HandShakeIcon: () => null,
   ChevronDownIcon: () => null,
   FolderIcon: () => null,
   GridIcon: () => null,

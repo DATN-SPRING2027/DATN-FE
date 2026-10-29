@@ -26,6 +26,7 @@ import {
   FolderIcon,
   GridIcon,
   GroupIcon,
+  HandShakeIcon,
   PlugInIcon,
   SettingsIcon,
   ShootingStarIcon,
@@ -80,6 +81,7 @@ function resolveProjectSwitchDestination(
       subSection === "members" ||
       subSection === "work" ||
       subSection === "work-notes" ||
+      subSection === "handover" ||
       subSection === "settings")
   ) {
     return `/projects/${encodedId}/${subSection}`;
@@ -428,6 +430,7 @@ const AppSidebar: React.FC = () => {
     const projectMembersPath = `${projectBasePath}/members`;
     const projectWorkPath = `${projectBasePath}/work`;
     const projectWorkNotesPath = `${projectBasePath}/work-notes`;
+    const projectHandoverPath = `${projectBasePath}/handover`;
     const projectSettingsPath = `${projectBasePath}/settings`;
 
     const isThisProjectInPath = activeProjectIdFromPath === activeProject.id;
@@ -439,12 +442,17 @@ const AppSidebar: React.FC = () => {
       isThisProjectInPath &&
       (pathname === projectWorkNotesPath ||
         pathname.startsWith(`${projectWorkNotesPath}/`));
+    const isProjectHandoverActive =
+      isThisProjectInPath &&
+      (pathname === projectHandoverPath ||
+        pathname.startsWith(`${projectHandoverPath}/`));
     const activeSyncedTab =
       isThisProjectInPath &&
       syncedProjectTab?.pathnameAtSync === pathname &&
       syncedProjectTab.projectId === activeProject.id &&
       !isProjectWorkActive &&
-      !isProjectWorkNotesActive
+      !isProjectWorkNotesActive &&
+      !isProjectHandoverActive
         ? syncedProjectTab.tab
         : null;
     const isProjectMembersActive = isThisProjectInPath
@@ -501,6 +509,14 @@ const AppSidebar: React.FC = () => {
         isActive: isProjectWorkNotesActive,
         icon: FileIcon,
         viewBox: "1 0.5 23 23",
+      },
+      {
+        key: "handover",
+        label: t("items.projectHandover"),
+        href: projectHandoverPath,
+        isActive: isProjectHandoverActive,
+        icon: HandShakeIcon,
+        viewBox: "0 0 24 24",
       },
       {
         key: "settings",
