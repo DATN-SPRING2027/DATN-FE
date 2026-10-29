@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -6,6 +12,7 @@ import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import {
   useCreateHandoverMutation,
   useHandoversQuery,
@@ -38,6 +45,9 @@ vi.mock("@/lib/queries/projects/useProjects", () => ({
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
 }));
+vi.mock("@/lib/queries/projects/useProjectLeaders", () => ({
+  useProjectLeadersQuery: vi.fn(),
+}));
 vi.mock("@/lib/queries/projects/useProjectSettings", () => ({
   useProjectManagementAccess: () => ({
     canAccessSettings: true,
@@ -62,6 +72,7 @@ vi.mock("@/lib/queries/handovers/handover.service", async (importOriginal) => {
 const mockedCurrentUser = vi.mocked(useCurrentUserQuery);
 const mockedProject = vi.mocked(useProjectQuery);
 const mockedMembers = vi.mocked(useProjectMembersQuery);
+const mockedLeaders = vi.mocked(useProjectLeadersQuery);
 const mockedHandovers = vi.mocked(useHandoversQuery);
 const mockedCreateMutation = vi.mocked(useCreateHandoverMutation);
 const mockedSetCoordinator = vi.mocked(setHandoverCoordinator);
@@ -178,9 +189,26 @@ describe("HandoverListWorkspace", () => {
 
     mockedCreateMutation.mockReturnValue({
       mutateAsync: vi.fn(),
+      reset: vi.fn(),
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useCreateHandoverMutation>);
+
+    mockedLeaders.mockReturnValue({
+      data: [
+        {
+          userId: "69e923c77859fd1c702d4a02",
+          fullName: "Leader Minh",
+          email: "leader@continuum.local",
+          avatarUrl: null,
+          role: "TEAM_LEADER",
+          status: "ACTIVE",
+        },
+      ],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectLeadersQuery>);
   });
 
   it("renders accessible loading skeleton while fetching initial handovers", () => {
@@ -358,6 +386,156 @@ describe("HandoverListWorkspace", () => {
         reason: "Departing leader stepped down; appointing Minh.",
       },
       firstIdemKey,
+    );
+  });
+
+  it("supports creating a handover for an INACTIVE departed member (A01) with verified Project Leader (D), accessible comboboxes, and UTC date presets", async () => {
+    const createMutateAsync = vi.fn().mockResolvedValue({
+      data: { handoverId: "69e923c77859fd1c702d4d77" },
+    });
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: createMutateAsync,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useCreateHandoverMutation>);
+
+    mockedMembers.mockReturnValue({
+      data: {
+        data: [
+          {
+            id: "mem-departed",
+            userId: "69e923c77859fd1c702d4a99",
+            organizationId: "org-1",
+            projectId: PROJECT_ID,
+            status: "INACTIVE",
+            joinedAt: "2026-09-01T00:00:00.000Z",
+            user: {
+              id: "69e923c77859fd1c702d4a99",
+              fullName: "Lan Pham",
+              email: "lan.departed@continuum.local",
+            },
+          },
+          {
+            id: "mem-leader",
+            userId: "69e923c77859fd1c702d4a02",
+            organizationId: "org-1",
+            projectId: PROJECT_ID,
+            status: "ACTIVE",
+            joinedAt: "2026-09-01T00:00:00.000Z",
+            user: {
+              id: "69e923c77859fd1c702d4a02",
+              fullName: "Leader Minh",
+              email: "leader@continuum.local",
+            },
+          },
+          {
+            id: "mem-successor",
+            userId: "69e923c77859fd1c702d4a03",
+            organizationId: "org-1",
+            projectId: PROJECT_ID,
+            status: "ACTIVE",
+            joinedAt: "2026-09-01T00:00:00.000Z",
+            user: {
+              id: "69e923c77859fd1c702d4a03",
+              fullName: "Binh Tran",
+              email: "binh@continuum.local",
+            },
+          },
+        ],
+      },
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectMembersQuery>);
+
+    mockedHandovers.mockReturnValue({
+      data: { data: [], nextCursor: null },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useHandoversQuery>);
+
+    renderWorkspace();
+
+    // Verify all memberships (ACTIVE + INACTIVE) are requested without status="ACTIVE" lock
+    expect(mockedMembers).toHaveBeenCalledWith("org-1", PROJECT_ID, {
+      page: 1,
+      pageSize: 100,
+    });
+
+    const newButtons = screen.getAllByRole("button", {
+      name: /new handover/i,
+    });
+    fireEvent.click(newButtons[0]!);
+
+    const dialog = screen.getByRole("dialog", {
+      name: /create knowledge handover/i,
+    });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(
+      screen.getByRole("button", { name: /close dialog/i }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/verified project leader/i)).toBeVisible();
+
+    // Validation marks title aria-invalid when submitting prematurely
+    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    const titleInput = screen.getByLabelText(/handover title/i);
+    expect(titleInput).toHaveAttribute("aria-invalid", "true");
+
+    fireEvent.change(titleInput, {
+      target: { value: "Billing Outbox & Retry Worker Transition" },
+    });
+    expect(screen.getByText("40 / 200")).toBeVisible();
+
+    // Open Departing member (A) combobox -> INACTIVE member Lan Pham is selectable with Departed badge
+    const departingTrigger = screen.getByRole("combobox", {
+      name: /departing member \(a\)/i,
+    });
+    fireEvent.click(departingTrigger);
+
+    const departingListbox = screen.getByRole("listbox");
+    const departedOption = within(departingListbox).getByRole("option", {
+      name: /lan pham/i,
+    });
+    expect(departedOption).toHaveTextContent(/departed/i);
+    fireEvent.click(departedOption);
+
+    // Open Successor (B) combobox -> INACTIVE member Lan Pham is excluded, ACTIVE Binh Tran is available
+    const successorTrigger = screen.getByRole("combobox", {
+      name: /successor recipient \(b\)/i,
+    });
+    fireEvent.click(successorTrigger);
+    const successorListbox = screen.getByRole("listbox");
+    expect(
+      within(successorListbox).queryByRole("option", { name: /lan pham/i }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(successorListbox).getByRole("option", { name: /binh tran/i }),
+    );
+
+    // Quick preset +30d updates target completion date and renders UTC preview
+    fireEvent.click(screen.getByRole("button", { name: "+30d" }));
+    expect(screen.getByText(/\(UTC\) · in 30d/i)).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+
+    await waitFor(() => {
+      expect(createMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Billing Outbox & Retry Worker Transition",
+          departingUserId: "69e923c77859fd1c702d4a99",
+          assignedLeaderId: "69e923c77859fd1c702d4a02",
+          successorUserId: "69e923c77859fd1c702d4a03",
+          teamId: null,
+        }),
+      );
+    });
+
+    expect(pushMock).toHaveBeenCalledWith(
+      `/projects/${PROJECT_ID}/handover/69e923c77859fd1c702d4d77`,
     );
   });
 });

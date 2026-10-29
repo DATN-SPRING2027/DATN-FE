@@ -479,7 +479,8 @@ export default function HandoverPublishModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      className="max-h-[90vh] max-w-3xl overflow-y-auto p-6 sm:p-8"
+      backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
+      className="max-h-[90vh] max-w-3xl overflow-y-auto border border-gray-200/90 p-6 shadow-theme-xl ring-1 ring-gray-950/5 sm:p-8 dark:border-gray-800 dark:ring-white/10"
     >
       {isOpen && (
         <PublishModalForm

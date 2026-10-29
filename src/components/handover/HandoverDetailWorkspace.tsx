@@ -68,7 +68,6 @@ export default function HandoverDetailWorkspace({
   const membersQuery = useProjectMembersQuery(organizationId, projectId, {
     page: 1,
     pageSize: 100,
-    status: "ACTIVE",
   });
   const detailQuery = useHandoverDetailQuery(projectId, handoverId);
 
@@ -110,6 +109,10 @@ export default function HandoverDetailWorkspace({
   const members = useMemo(
     () => membersQuery.data?.data ?? [],
     [membersQuery.data],
+  );
+  const activeMembers = useMemo(
+    () => members.filter((m) => m.status === "ACTIVE"),
+    [members],
   );
   const membersById = useMemo(() => {
     const map = new Map<string, ProjectMembership>();
@@ -594,7 +597,8 @@ export default function HandoverDetailWorkspace({
       <Modal
         isOpen={modalMode !== null}
         onClose={() => setModalMode(null)}
-        className="max-w-lg p-6 sm:p-8"
+        backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
+        className="max-w-lg border border-gray-200/90 p-6 shadow-theme-xl ring-1 ring-gray-950/5 sm:p-8 dark:border-gray-800 dark:ring-white/10"
       >
         {modalMode === "metadata" && handover && (
           <form
@@ -724,14 +728,14 @@ export default function HandoverDetailWorkspace({
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                 {t("createModal.successorLabel")}
               </label>
-              {members.length > 0 ? (
+              {activeMembers.length > 0 ? (
                 <select
                   value={nextSuccessorId}
                   onChange={(e) => setNextSuccessorId(e.target.value)}
                   className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 >
                   <option value="">{t("createModal.noSuccessorYet")}</option>
-                  {members
+                  {activeMembers
                     .filter(
                       (m) =>
                         m.userId !== handover.departingUserId &&
@@ -860,7 +864,7 @@ export default function HandoverDetailWorkspace({
               <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
                 {t("createModal.coordinatorLabel")} *
               </label>
-              {members.length > 0 ? (
+              {activeMembers.length > 0 ? (
                 <select
                   value={nextCoordinatorId}
                   onChange={(e) => setNextCoordinatorId(e.target.value)}
@@ -869,7 +873,7 @@ export default function HandoverDetailWorkspace({
                   <option value="">
                     {t("createModal.selectCoordinatorPlaceholder")}
                   </option>
-                  {members.map((m) => (
+                  {activeMembers.map((m) => (
                     <option key={m.userId} value={m.userId}>
                       {formatMemberOptionLabel(m)}
                     </option>

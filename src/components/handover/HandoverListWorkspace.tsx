@@ -63,7 +63,6 @@ export default function HandoverListWorkspace({
   const membersQuery = useProjectMembersQuery(organizationId, projectId, {
     page: 1,
     pageSize: 100,
-    status: "ACTIVE",
   });
 
   const [search, setSearch] = useState("");
@@ -91,6 +90,10 @@ export default function HandoverListWorkspace({
   const members = useMemo(
     () => membersQuery.data?.data ?? [],
     [membersQuery.data],
+  );
+  const activeMembers = useMemo(
+    () => members.filter((m) => m.status === "ACTIVE"),
+    [members],
   );
   const membersById = useMemo(() => {
     const map = new Map<string, ProjectMembership>();
@@ -864,9 +867,11 @@ export default function HandoverListWorkspace({
       <CreateHandoverModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
+        organizationId={organizationId}
         projectId={projectId}
         currentUserId={currentUser.data?.id}
         members={members}
+        isMembersLoading={membersQuery.isPending}
         onCreated={(handoverId) => {
           setIsCreateOpen(false);
           router.push(
@@ -879,7 +884,8 @@ export default function HandoverListWorkspace({
       <Modal
         isOpen={isCoordModalOpen}
         onClose={() => setIsCoordModalOpen(false)}
-        className="max-w-lg p-6 sm:p-8"
+        backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
+        className="max-w-lg border border-gray-200/90 p-6 shadow-theme-xl ring-1 ring-gray-950/5 sm:p-8 dark:border-gray-800 dark:ring-white/10"
       >
         <div className="pe-8">
           <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -950,7 +956,7 @@ export default function HandoverListWorkspace({
             >
               {t("createModal.coordinatorLabel")}
             </label>
-            {members.length > 0 ? (
+            {activeMembers.length > 0 ? (
               <select
                 id="coord-leader-select"
                 value={coordLeaderId}
@@ -960,7 +966,7 @@ export default function HandoverListWorkspace({
                 <option value="">
                   {t("createModal.selectCoordinatorPlaceholder")}
                 </option>
-                {members.map((m) => (
+                {activeMembers.map((m) => (
                   <option key={m.userId} value={m.userId}>
                     {formatMemberOptionLabel(m)}
                   </option>

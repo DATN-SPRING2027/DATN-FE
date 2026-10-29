@@ -9,14 +9,14 @@ Implements the complete **Knowledge Handover** frontend workspace (`F01`, `F02`)
 - **Navigation & Localization**:
   - Added project-level `Handover` sidebar link (`AppSidebar.tsx`) and overview quick-access card (`ProjectOverview.tsx`), backed by `next-intl` keys in `src/messages/en.json` (including localized `Expected Version` fallback and citation editor labels).
 - **Workspace UI (`src/components/handover/*` & App Router pages)**:
-  - `/projects/[projectId]/handover`: KPI summary strip (`tabular-nums`), search/status/member filters, nullable-`B` handover creation modal with Leader-filtered coordinator options and accurate `<RoleLabel />` display, desktop data table (`>= 1024px`), and responsive mobile/tablet cards (`375px` / `768px`).
+  - `/projects/[projectId]/handover`: KPI summary strip (`tabular-nums`), search/status/member filters, Pro-Max accessible `CreateHandoverModal` (`HandoverDialogShell` with `role="dialog"`, focus trap, `CloseLineIcon`, `backdrop-blur-xs`; portaled `HandoverMemberSelect` combobox with circular avatars, emails, `Active`/`Departed`/`Leader` badges; `INACTIVE` departed member support for `A` per `A01`/`A02`; `useProjectLeadersQuery` verification for `D`; `A → D → B` transition indicator; `+7d/+14d/+30d` presets with unambiguous UTC date preview), desktop data table (`>= 1024px`), and responsive mobile/tablet cards (`375px` / `768px`).
   - `/projects/[projectId]/handover/[handoverId]`:
     - Coordinator `D` draft curation & AI source proposal/draft synthesis with manual fallback, preserving `CHUNK | PAGE | LINE | SECTION` citation locators verbatim across non-citation edits and exposing explicit per-citation provenance editing without fabricating default locators (`F08`).
     - Immutable revision publishing driven directly by server `DraftItemDto.contentVersion` (`F07`) with item review (`UNCHANGED | CHANGED`) & gap owner/due assignments.
     - Fail-closed `UNAVAILABLE` item rendering, Successor `B` package receipt + item understanding + HTTPS-only evidence submission, Leader evidence review & optional gap exceptions, explicit Task Transfer + `PENDING | UNKNOWN` fence reconciliation, grounded Cited Q&A, post-completion Follow-ups, and Org Manager safe coordinator recovery (`403` flow).
 
 ### Tests & Visual QA Run
-- `npm run check`: `eslint .` (`0` errors/warnings), `tsc --noEmit` (`0` errors), `vitest run` (`142/142` suites, `961/961` tests passed — including `handover.service.spec.ts`, `useHandovers.spec.tsx`, `HandoverListWorkspace.spec.tsx`, and `HandoverDetailWorkspace.spec.tsx`), and `next build` succeeded.
+- `npm run check`: `eslint .` (`0` errors/warnings), `tsc --noEmit` (`0` errors), `vitest run` (`142/142` suites, `962/962` tests passed — including `handover.service.spec.ts`, `useHandovers.spec.tsx`, `HandoverListWorkspace.spec.tsx`, and `HandoverDetailWorkspace.spec.tsx`), and `next build` succeeded.
 - **6-Phase Live Browser Visual QA**: Verified across `375px`, `768px`, `1280px`, and `1440px` in Light & Dark modes against live local `FE + BE + SAG` (`0` console errors, `0` hydration warnings, `0` uncaught exceptions, `0` unexpected failed network requests, `0` horizontal overflow).
 
 ### Database, Configuration & Rollback Impact
