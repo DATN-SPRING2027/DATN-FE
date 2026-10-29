@@ -31,6 +31,9 @@ export type TaskNoteInput = Readonly<{
 
 export type TaskNote = TaskNoteInput &
   Readonly<{
+    contentMarkdown?: string;
+    contentSchemaVersion?: 2;
+    currentVersionNumber?: number;
     id: string;
     projectId: string;
     taskId: string;
@@ -147,6 +150,10 @@ export type WorkReportInput = Readonly<{
 }>;
 export type WorkReport = WorkReportInput &
   Readonly<{
+    title?: string;
+    contentMarkdown?: string;
+    contentSchemaVersion?: 2;
+    currentVersionNumber?: number;
     id: string;
     projectId: string;
     memberId: string;
@@ -199,15 +206,10 @@ export type WorkReportSettings = Readonly<{
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
 type DocumentAction =
-  | "submit"
-  | "comment"
-  | "approve"
-  | "request-changes"
-  | "reject"
-  | "archive";
+  "submit" | "comment" | "approve" | "request-changes" | "reject" | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
-function csrfHeaders(): HeadersInit {
+export function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
   const parts = document.cookie.split(";").map((part) => part.trim());
   for (const prefix of [

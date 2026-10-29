@@ -13,7 +13,10 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
 import { Modal } from "@/components/ui/modal";
 import {
   AlertIcon,
@@ -40,6 +43,8 @@ import {
 import type { ProjectList } from "@/lib/queries/projects/useProjects";
 import DocumentFilePreviewModal from "./DocumentFilePreviewModal";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
+import WorkNoteComposer from "./WorkNoteComposer";
+import type { EditorSourceIdentity } from "@/lib/queries/work-notes/work-note-agent.api";
 import {
   DOCUMENT_TYPES,
   useDocumentQuery,
@@ -289,10 +294,7 @@ function DocumentEditor({
           </div>
         )}
 
-        <section
-          aria-labelledby="doc-basic-info-heading"
-          className="space-y-3"
-        >
+        <section aria-labelledby="doc-basic-info-heading" className="space-y-3">
           <h3
             id="doc-basic-info-heading"
             className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
@@ -437,7 +439,9 @@ function DocumentEditor({
               <span>
                 {t("contentLabel")}{" "}
                 <span className="ms-1 text-xs font-normal text-gray-400 dark:text-gray-500">
-                  ({file || existingFile ? t("optional") : t("requiredIfNoFile")})
+                  (
+                  {file || existingFile ? t("optional") : t("requiredIfNoFile")}
+                  )
                 </span>
               </span>
               <span className="text-xs font-normal text-gray-400 tabular-nums dark:text-gray-500">
@@ -458,7 +462,7 @@ function DocumentEditor({
                 if (contentError && nextContent.trim()) setContentError("");
                 if (validationError) setValidationError("");
               }}
-              className={`${FIELD_CLASS} min-h-24 max-h-56 resize-y text-sm leading-6 ${
+              className={`${FIELD_CLASS} max-h-56 min-h-24 resize-y text-sm leading-6 ${
                 contentError
                   ? "border-error-400 focus:border-error-500 dark:border-error-500"
                   : ""
@@ -707,6 +711,9 @@ export default function ProjectDocumentsWorkspace({
   const [filter, setFilter] = useState<DocumentStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ProjectDocumentSummary | null>(null);
+  const [agentSource, setAgentSource] = useState<EditorSourceIdentity | null>(
+    null,
+  );
   const [isCreating, setIsCreating] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [pendingFile, setPendingFile] = useState<File | null>(null);
@@ -914,10 +921,10 @@ export default function ProjectDocumentsWorkspace({
   }, [current, viewedVersion]);
   const canArchiveDocument = Boolean(
     current &&
-      current.permissions.canConfigure &&
-      current.status !== "ARCHIVED" &&
-      (current.status === "APPROVED" ||
-        current.versions.some((v) => v.status === "APPROVED")),
+    current.permissions.canConfigure &&
+    current.status !== "ARCHIVED" &&
+    (current.status === "APPROVED" ||
+      current.versions.some((v) => v.status === "APPROVED")),
   );
 
   useEffect(() => {
@@ -1189,22 +1196,42 @@ export default function ProjectDocumentsWorkspace({
                 {t("create")}
               </Button>
             )}
+            {visibleList !== undefined &&
+              process.env.NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                "true" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setAgentSource({
+                      workflow: "PROJECT_DOCUMENT",
+                      documentType: "OTHER",
+                    })
+                  }
+                >
+                  {common("agent.newDocument")}
+                </Button>
+              )}
           </div>
         </div>
 
-        {visibleList !== undefined && !listAccessLost && (list.isFetching || list.isRefetchError) && (
-          <div>
-            {list.isFetching && <UpdatingStatus>{common("loading")}</UpdatingStatus>}
-            {list.isRefetchError && (
-              <BackgroundRefreshError
-                retryLabel={common("retry")}
-                onRetry={() => void list.refetch()}
-              >
-                {common("updateFailed")}
-              </BackgroundRefreshError>
-            )}
-          </div>
-        )}
+        {visibleList !== undefined &&
+          !listAccessLost &&
+          (list.isFetching || list.isRefetchError) && (
+            <div>
+              {list.isFetching && (
+                <UpdatingStatus>{common("loading")}</UpdatingStatus>
+              )}
+              {list.isRefetchError && (
+                <BackgroundRefreshError
+                  retryLabel={common("retry")}
+                  onRetry={() => void list.refetch()}
+                >
+                  {common("updateFailed")}
+                </BackgroundRefreshError>
+              )}
+            </div>
+          )}
         {list.isPending && !visibleList ? (
           <div
             role="status"
@@ -1214,7 +1241,7 @@ export default function ProjectDocumentsWorkspace({
             {[0, 1, 2].map((item) => (
               <div
                 key={item}
-                className="h-16 motion-safe:animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                className="h-16 rounded-lg border border-gray-200 bg-gray-50 motion-safe:animate-pulse dark:border-gray-800 dark:bg-gray-900"
               />
             ))}
           </div>
@@ -1431,24 +1458,28 @@ export default function ProjectDocumentsWorkspace({
               : "max-md:h-dvh md:max-h-[min(90vh,54rem)]"
           }`}
         >
-          <div className="shrink-0 flex items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
+          <div className="flex shrink-0 items-start justify-between gap-4 border-b border-gray-100 bg-white px-5 py-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
             <div className="min-w-0 flex-1">
-              {!isCreating && !isEditing && (current || (!detailAccessLost && selected)) && (
-                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                  {t("documentEyebrow", {
-                    type: t(`type.${(current ?? selected)!.type}`),
-                  })}
-                </p>
-              )}
+              {!isCreating &&
+                !isEditing &&
+                (current || (!detailAccessLost && selected)) && (
+                  <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                    {t("documentEyebrow", {
+                      type: t(`type.${(current ?? selected)!.type}`),
+                    })}
+                  </p>
+                )}
               <h2
                 id="document-dialog-title"
-                className="text-lg sm:text-xl font-semibold tracking-tight break-words text-gray-900 dark:text-white/95"
+                className="text-lg font-semibold tracking-tight break-words text-gray-900 sm:text-xl dark:text-white/95"
               >
                 {isCreating
                   ? t("formTitleNew")
                   : isEditing
                     ? t("formTitleEdit")
-                    : (current?.title ?? (detailAccessLost ? undefined : selected?.title) ?? t("open"))}
+                    : (current?.title ??
+                      (detailAccessLost ? undefined : selected?.title) ??
+                      t("open"))}
               </h2>
               {isCreating ? (
                 <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -1550,7 +1581,9 @@ export default function ProjectDocumentsWorkspace({
             </div>
           ) : current ? (
             <>
-              {!detailAccessLost && detail.isFetching && <UpdatingStatus>{common("loading")}</UpdatingStatus>}
+              {!detailAccessLost && detail.isFetching && (
+                <UpdatingStatus>{common("loading")}</UpdatingStatus>
+              )}
               {!detailAccessLost && detail.isRefetchError && (
                 <BackgroundRefreshError
                   retryLabel={common("retry")}
@@ -1716,13 +1749,13 @@ export default function ProjectDocumentsWorkspace({
                           v{viewedVersion?.version ?? current.version}
                         </span>
                       </div>
-                      <div className="rounded-xl border border-gray-200/90 bg-white p-4 sm:p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900/70">
+                      <div className="rounded-xl border border-gray-200/90 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900/70">
                         {activeContent ? (
                           <div className="text-sm leading-7 break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                             {activeContent}
                           </div>
                         ) : (
-                          <p className="text-xs italic text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 italic dark:text-gray-400">
                             {t("noTextContent")}
                           </p>
                         )}
@@ -1829,7 +1862,7 @@ export default function ProjectDocumentsWorkspace({
                             {current.description}
                           </p>
                         ) : (
-                          <p className="text-xs italic text-gray-500 dark:text-gray-400">
+                          <p className="text-xs text-gray-500 italic dark:text-gray-400">
                             {t("noDescription")}
                           </p>
                         )}
@@ -2132,7 +2165,9 @@ export default function ProjectDocumentsWorkspace({
                                   <span className="inline-flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white/90">
                                     <span>{t("timelineSubmitted")}</span>
                                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
-                                      v{viewedVersion?.version ?? current.version}
+                                      v
+                                      {viewedVersion?.version ??
+                                        current.version}
                                     </span>
                                   </span>
                                   <time className="text-gray-500 tabular-nums dark:text-gray-400">
@@ -2190,7 +2225,9 @@ export default function ProjectDocumentsWorkspace({
                                         : t(`status.${event.action}`)}
                                     </span>
                                     <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
-                                      v{viewedVersion?.version ?? current.version}
+                                      v
+                                      {viewedVersion?.version ??
+                                        current.version}
                                     </span>
                                   </span>
                                   <time className="text-gray-500 tabular-nums dark:text-gray-400">
@@ -2280,16 +2317,14 @@ export default function ProjectDocumentsWorkspace({
                           <button
                             type="button"
                             aria-expanded={moreActionsOpen}
-                            onClick={() =>
-                              setMoreActionsOpen((prev) => !prev)
-                            }
+                            onClick={() => setMoreActionsOpen((prev) => !prev)}
                             className="inline-flex h-9 items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-600 shadow-theme-xs transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                           >
                             <MoreDotIcon className="h-4 w-4 text-gray-400" />
                             {t("moreActions")}
                           </button>
                           {moreActionsOpen && (
-                            <div className="absolute bottom-full start-0 z-20 mb-2 min-w-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
+                            <div className="absolute start-0 bottom-full z-20 mb-2 min-w-40 rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2308,6 +2343,24 @@ export default function ProjectDocumentsWorkspace({
                     </div>
 
                     <div className="flex flex-wrap justify-end gap-2">
+                      {current.permissions.canEdit &&
+                        process.env
+                          .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                          "true" && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAgentSource({
+                                workflow: "PROJECT_DOCUMENT",
+                                resourceId: current.id,
+                              });
+                              closeModal();
+                            }}
+                          >
+                            {common("agent.openEditor")}
+                          </Button>
+                        )}
                       {current.permissions.canEdit && (
                         <Button
                           variant="outline"
@@ -2383,6 +2436,14 @@ export default function ProjectDocumentsWorkspace({
           ) : null}
         </div>
       </Modal>
+      {agentSource && (
+        <WorkNoteComposer
+          projectId={projectId}
+          source={agentSource}
+          onClose={() => setAgentSource(null)}
+          onSaved={() => setAgentSource(null)}
+        />
+      )}
     </main>
   );
 }

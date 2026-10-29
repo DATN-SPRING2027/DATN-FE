@@ -38,6 +38,8 @@
   ],
   "exclude": [
     "node_modules",
-    "_worktrees"
+    "_worktrees",
+    ".worknote-agent-preview",
+    ".worknote-agent-preview-evidence"
   ]
 }

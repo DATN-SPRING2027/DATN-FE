@@ -61,6 +61,27 @@ beforeEach(() => {
   api.mockReset();
 });
 
+it('keeps freeform Report content while saving links and submitting through separate operations',async()=>{
+  const canonical={...report,title:'Investigation',contentSchemaVersion:2,contentMarkdown:'Chưa xác định nguyên nhân.',currentVersionNumber:2,accomplishments:'',approach:'',reason:''};
+  api.mockImplementation(async(path,options)=>{
+    if(path.endsWith('/work-report-settings'))return {projectId,actorRole:'MEMBER',frequency:'WEEKLY',effectiveAt:report.periodStart,updatedBy:report.memberId,history:[],permissions:{canConfigure:false}} as never;
+    if(path.includes('/documents?'))return {data:[],pagination:{page:1,pageSize:50,totalItems:0,totalPages:0}} as never;
+    if(path.includes('/work-reports?'))return {data:[canonical],pagination:{page:1,pageSize:100,totalItems:1,totalPages:1}} as never;
+    if(path.endsWith('/document-links')&&options?.method==='PUT')return canonical as never;
+    if(path.endsWith('/submit')&&options?.method==='POST')return {...canonical,status:'PENDING_REVIEW'} as never;
+    throw Error('Unexpected request');
+  });
+  mount();
+  await screen.findByRole('heading',{name:'Your current period'});
+  expect(screen.getAllByText(canonical.contentMarkdown).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('textbox',{name:/What was done/})).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'Save draft'}));
+  await waitFor(()=>expect(api).toHaveBeenCalledWith(expect.stringContaining('/editor-drafts/sources/WORK_REPORT/'),expect.objectContaining({method:'PUT',body:JSON.stringify({documentIds:[]})})));
+  fireEvent.click(screen.getByRole('button',{name:'Submit report'}));
+  await waitFor(()=>expect(api).toHaveBeenCalledWith(expect.stringContaining('/submit'),expect.objectContaining({method:'POST'})));
+  expect(api.mock.calls.some(([path,options])=>path===`/capture/projects/${projectId}/work-reports`&&options?.method==='POST')).toBe(false);
+});
+
 it("shows mandatory read-only schedule for a Member and saves the current Periodic Work Report through the API", async () => {
   api.mockImplementation(async (path, options) => {
     if (path.endsWith("/work-report-settings")) {
