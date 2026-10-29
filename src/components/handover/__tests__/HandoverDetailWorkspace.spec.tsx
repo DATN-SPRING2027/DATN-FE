@@ -349,6 +349,81 @@ describe("HandoverDetailWorkspace", () => {
     ).mockReturnValue(idleMutation() as never);
   });
 
+  it("shows partial source coverage on successful AI jobs", () => {
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary({ publishedRevisionId: null }),
+          capabilities: ["READ", "MANAGE"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: null,
+        },
+        etag: '"handover:test:1"',
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(useHandoversModule.useHandoverJobQuery).mockReturnValue({
+      data: {
+        id: "job-partial",
+        handoverId: HANDOVER_ID,
+        kind: "GENERATION",
+        state: "SUCCEEDED",
+        warnings: ["AI_EVIDENCE_INCOMPLETE"],
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    renderDetail();
+    expect(screen.getByText("Partial source coverage.")).toBeVisible();
+    expect(
+      screen.getByText(/Some source content was skipped or shortened/),
+    ).toBeVisible();
+  });
+
+  it("shows coverage warnings beside a Q&A answer", async () => {
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary(),
+          capabilities: ["READ"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: { id: "rev-001", items: [] },
+        },
+        etag: '"handover:test:1"',
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(
+      useHandoversModule.useAskHandoverQuestionMutation,
+    ).mockReturnValue({
+      isPending: false,
+      mutateAsync: vi.fn().mockResolvedValue({
+        data: {
+          answerStatus: "ANSWERED",
+          message: "Grounded answer",
+          revisionId: "rev-001",
+          sections: [],
+          warnings: ["AI_EVIDENCE_INCOMPLETE"],
+        },
+      }),
+    } as never);
+    renderDetail();
+    fireEvent.click(screen.getByRole("button", { name: /cited q&a/i }));
+    fireEvent.change(screen.getByRole("textbox"), {
+      target: { value: "What should I know?" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: /^ask grounded question$/i }),
+    );
+    await waitFor(() =>
+      expect(screen.getByText("Partial source coverage.")).toBeVisible(),
+    );
+  });
+
   it("enforces fail-closed UNAVAILABLE item placeholder while allowing RECEIVE actions on AVAILABLE items", async () => {
     const detail: HandoverDetailDto = {
       handover: makeSummary(),
@@ -722,9 +797,7 @@ describe("HandoverDetailWorkspace", () => {
 
     renderDetail();
 
-    fireEvent.click(
-      screen.getByRole("button", { name: /draft & ai assist/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /draft & ai assist/i }));
     fireEvent.click(
       screen.getByRole("button", { name: /review & publish revision/i }),
     );
@@ -834,9 +907,7 @@ describe("HandoverDetailWorkspace", () => {
     renderDetail();
 
     // publishedRevision is null + MANAGE capability -> opens Draft tab automatically (or click tab)
-    fireEvent.click(
-      screen.getByRole("button", { name: /draft & ai assist/i }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /draft & ai assist/i }));
 
     // Toggle ONLY the Required checkbox without touching citations
     const requiredCheckbox = screen.getByLabelText(

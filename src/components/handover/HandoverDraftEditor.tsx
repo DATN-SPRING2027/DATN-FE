@@ -1,5 +1,7 @@
 "use client";
 
+import HandoverAiCoverageWarning from "./HandoverAiCoverageWarning";
+
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -747,6 +749,10 @@ export default function HandoverDraftEditor({
                   {jobQuery.data.state}
                 </Badge>
               </div>
+
+              {jobQuery.data.state === "SUCCEEDED" && (
+                <HandoverAiCoverageWarning warnings={jobQuery.data.warnings} />
+              )}
 
               {jobQuery.data.state === "SUPERSEDED" && (
                 <p className="mt-2 text-xs text-warning-700 dark:text-warning-300">

@@ -1,5 +1,13 @@
 # Knowledge Handover Workflow — Frontend Todo
 
+## Review round 2 (2026-10-29)
+
+- [x] R2-FE01: load every membership page, preserving inactive departing members and active recipient/owner filtering.
+- [x] R2-FE02: allow successor B to also coordinate as D; preserve the separate evidence reviewer rule.
+- [x] R2-FE03: keep forward/reverse Tab focus inside the dialog when closing the member picker portal.
+- [x] R2-X01: show coverage warnings for successful AI jobs and Q&A.
+- [x] Regression tests, full quality gates and responsive modal/keyboard browser QA; the live coverage-banner limitation is recorded in the handoff for PR #102.
+
 - [x] Fast-forward `main` (`ec95852eae163cf1723aa1f8c52387cb4442798a`), create isolated worktree `DATN_FE-handover-workflow` on `feat/Thang-knowledge-handover-workflow-fe-ui`, preserve active AI Chat checkout (`DATN_FE`), and install dependencies (`npm ci`).
 - [x] Implement `src/lib/queries/handovers/` (`handover.types.ts`, `handover.service.ts`, `useHandovers.ts`) + unit tests (`handover.service.spec.ts`, `useHandovers.spec.tsx`) for ETag, `If-Match`, stable `Idempotency-Key` retention across retries (`F09`), `Idempotency-Replayed`, CSRF token forwarding, and error envelopes.
 - [x] Add `handover` namespace in `src/messages/en.json` and wire project navigation (`AppSidebar.tsx`, `AppSidebar.spec.tsx`, `ProjectOverview.tsx`, `ProjectWorkspace.spec.tsx`).

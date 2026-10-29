@@ -191,12 +191,13 @@ export default function CreateHandoverModal({
 
   const effectiveCoordinator = assignedLeaderId || defaultCoordinator;
 
-  // Successor (B) must be ACTIVE and distinct from (A) and (D)
+  // B must be active and distinct from A. B may also coordinate as D;
+  // evidence approval still requires an independent eligible reviewer.
   const successorOptions = useMemo<readonly HandoverMemberOption[]>(() => {
     return activeMembers
       .filter(
         (m) =>
-          m.userId !== departingUserId && m.userId !== effectiveCoordinator,
+          m.userId !== departingUserId,
       )
       .map((m) =>
         toMemberOption(
@@ -210,7 +211,6 @@ export default function CreateHandoverModal({
     activeMembers,
     currentUserId,
     departingUserId,
-    effectiveCoordinator,
     verifiedLeadersMap,
   ]);
 
@@ -269,9 +269,6 @@ export default function CreateHandoverModal({
 
   const handleCoordinatorChange = (nextId: string) => {
     setAssignedLeaderId(nextId);
-    if (nextId && successorUserId === nextId) {
-      setSuccessorUserId("");
-    }
     if (invalidField === "coordinator" || invalidField === "successor") {
       setInvalidField(null);
       setValidationError(null);
@@ -310,8 +307,7 @@ export default function CreateHandoverModal({
     const cleanSuccessor = successorUserId.trim() || null;
     if (
       cleanSuccessor &&
-      (cleanSuccessor === departingUserId.trim() ||
-        cleanSuccessor === effectiveCoordinator.trim())
+      cleanSuccessor === departingUserId.trim()
     ) {
       setInvalidField("successor");
       setValidationError(t("validationSamePerson"));

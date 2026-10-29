@@ -4390,6 +4390,10 @@
     "turnReferenceIdsLabel": "Referenced turn IDs"
   },
   "handover": {
+    "aiCoverage": {
+      "title": "Partial source coverage.",
+      "description": "Some source content was skipped or shortened to fit the AI evidence limit. Review the original sources and add any missing knowledge before publishing or completing the handover."
+    },
     "breadcrumb": "Breadcrumb",
     "projectsBreadcrumb": "Projects",
     "projectFallback": "Project {id}",
@@ -4499,7 +4503,7 @@
       "validationTitle": "Enter a handover title between 3 and 200 characters.",
       "validationDeparting": "Select the departing project member (A).",
       "validationCoordinator": "Select the coordinating Project Leader (D).",
-      "validationSamePerson": "Successor (B) cannot be the same user as Departing member (A) or Coordinator (D).",
+      "validationSamePerson": "Successor (B) cannot be the same user as Departing member (A).",
       "validationTargetDate": "Choose a valid target completion date.",
       "cancel": "Cancel",
       "submit": "Create Handover",

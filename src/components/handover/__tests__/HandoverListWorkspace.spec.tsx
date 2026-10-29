@@ -211,6 +211,71 @@ describe("HandoverListWorkspace", () => {
     } as unknown as ReturnType<typeof useProjectLeadersQuery>);
   });
 
+  it("allows B to be coordinator D and preserves B when the same coordinator is selected again", async () => {
+    const create = vi
+      .fn()
+      .mockResolvedValue({ data: { handoverId: "created-handover" } });
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: create,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+    } as never);
+    mockedHandovers.mockReturnValue({
+      data: { data: [], nextCursor: null },
+      isPending: false,
+      isError: false,
+    } as never);
+    renderWorkspace();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /new handover/i })[0]!,
+    );
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "Leader takes over specialist knowledge" },
+    });
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /departing member \(a\)/i }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /an nguyen/i,
+      }),
+    );
+    const recipient = screen.getByRole("combobox", {
+      name: /successor recipient \(b\)/i,
+    });
+    fireEvent.click(recipient);
+    expect(
+      within(screen.getByRole("listbox")).queryByRole("option", {
+        name: /an nguyen/i,
+      }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /leader minh/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /coordinator leader \(d\)/i }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /leader minh/i,
+      }),
+    );
+    expect(recipient).toHaveTextContent("Leader Minh");
+    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          departingUserId: "69e923c77859fd1c702d4a01",
+          assignedLeaderId: "69e923c77859fd1c702d4a02",
+          successorUserId: "69e923c77859fd1c702d4a02",
+        }),
+      ),
+    );
+  });
+
   it("renders accessible loading skeleton while fetching initial handovers", () => {
     mockedHandovers.mockReturnValue({
       data: undefined,
@@ -461,10 +526,15 @@ describe("HandoverListWorkspace", () => {
     renderWorkspace();
 
     // Verify all memberships (ACTIVE + INACTIVE) are requested without status="ACTIVE" lock
-    expect(mockedMembers).toHaveBeenCalledWith("org-1", PROJECT_ID, {
-      page: 1,
-      pageSize: 100,
-    });
+    expect(mockedMembers).toHaveBeenCalledWith(
+      "org-1",
+      PROJECT_ID,
+      {
+        page: 1,
+        pageSize: 100,
+      },
+      { allPages: true },
+    );
 
     const newButtons = screen.getAllByRole("button", {
       name: /new handover/i,

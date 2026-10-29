@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import HandoverAiCoverageWarning from "./HandoverAiCoverageWarning";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
@@ -142,6 +143,8 @@ export default function HandoverQaPanel({
           <p className="mt-2 text-sm leading-6 text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
             {entry.a.message}
           </p>
+
+          <HandoverAiCoverageWarning warnings={entry.a.warnings} />
 
           {entry.a.sections.length > 0 && (
             <div className="mt-3 space-y-2.5 border-t border-gray-100 pt-3 dark:border-gray-800">

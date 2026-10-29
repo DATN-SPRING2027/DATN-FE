@@ -1,24 +1,21 @@
-## Summary
+## Problem and behavior
 
-Implements the complete **Knowledge Handover** frontend workspace (`F01`, `F02`) in `DATN_FE`, integrated end-to-end with the Continuum BFF proxy, Backend Handover V2 API, Task Transfer reconciliation, and bounded SAG AI assistance.
+Adds the Knowledge Handover workspace through the Continuum BFF: list/create, draft curation and AI assistance, immutable publishing, recipient acknowledgements and evidence, explicit task transfer, cited Q&A and independent follow-ups.
 
-### Scope
-- **Typed Query & Mutation Layer (`src/lib/queries/handovers/`)**:
-  - Full client coverage for all 28 Handover operations with `ETag` (`If-Match`), `Idempotency-Key`, `Idempotency-Replayed`, and `X-CSRF-Token` forwarding.
-  - Stable `Idempotency-Key` retention across command retries for identical canonical command intent (`useCommandIdempotencyKey`), rotating cleanly when intent changes or after mutation success, while keeping read-only `askHandoverQuestion` free of mutation idempotency headers (`F09`).
-- **Navigation & Localization**:
-  - Added project-level `Handover` sidebar link (`AppSidebar.tsx`) and overview quick-access card (`ProjectOverview.tsx`), backed by `next-intl` keys in `src/messages/en.json` (including localized `Expected Version` fallback and citation editor labels).
-- **Workspace UI (`src/components/handover/*` & App Router pages)**:
-  - `/projects/[projectId]/handover`: KPI summary strip (`tabular-nums`), search/status/member filters, Pro-Max accessible `CreateHandoverModal` (`HandoverDialogShell` with `role="dialog"`, focus trap, `CloseLineIcon`, `backdrop-blur-xs`; portaled `HandoverMemberSelect` combobox with circular avatars, emails, `Active`/`Departed`/`Leader` badges; `INACTIVE` departed member support for `A` per `A01`/`A02`; `useProjectLeadersQuery` verification for `D`; `A → D → B` transition indicator; `+7d/+14d/+30d` presets with unambiguous UTC date preview), desktop data table (`>= 1024px`), and responsive mobile/tablet cards (`375px` / `768px`).
-  - `/projects/[projectId]/handover/[handoverId]`:
-    - Coordinator `D` draft curation & AI source proposal/draft synthesis with manual fallback, preserving `CHUNK | PAGE | LINE | SECTION` citation locators verbatim across non-citation edits and exposing explicit per-citation provenance editing without fabricating default locators (`F08`).
-    - Immutable revision publishing driven directly by server `DraftItemDto.contentVersion` (`F07`) with item review (`UNCHANGED | CHANGED`) & gap owner/due assignments.
-    - Fail-closed `UNAVAILABLE` item rendering, Successor `B` package receipt + item understanding + HTTPS-only evidence submission, Leader evidence review & optional gap exceptions, explicit Task Transfer + `PENDING | UNKNOWN` fence reconciliation, grounded Cited Q&A, post-completion Follow-ups, and Org Manager safe coordinator recovery (`403` flow).
+Review round 2 fixes the member picker stopping at 100 by loading all membership pages, retaining inactive departing members and existing active-recipient/owner rules. Successor B may also coordinate as D. Tab and Shift+Tab now leave the portaled picker in the correct direction while staying inside its dialog. Successful AI jobs and Q&A show a localized partial-source-coverage warning returned by BE.
 
-### Tests & Visual QA Run
-- `npm run check`: `eslint .` (`0` errors/warnings), `tsc --noEmit` (`0` errors), `vitest run` (`142/142` suites, `962/962` tests passed — including `handover.service.spec.ts`, `useHandovers.spec.tsx`, `HandoverListWorkspace.spec.tsx`, and `HandoverDetailWorkspace.spec.tsx`), and `next build` succeeded.
-- **6-Phase Live Browser Visual QA**: Verified across `375px`, `768px`, `1280px`, and `1440px` in Light & Dark modes against live local `FE + BE + SAG` (`0` console errors, `0` hydration warnings, `0` uncaught exceptions, `0` unexpected failed network requests, `0` horizontal overflow).
+## Validation
 
-### Database, Configuration & Rollback Impact
-- **Database / Config**: Frontend-only PR; zero database or environment variable changes (reuses existing `CONTINUUM_API_BASE_URL` BFF proxy).
-- **Deployment Order & Rollback**: Merge/deploy after Backend PR ([`DATN-BE#110`](https://github.com/DATN-SPRING2027/DATN-BE/pull/110)) and SAG PR ([`sag-laya-integration#47`](https://github.com/DATN-SPRING2027/sag-laya-integration/pull/47)). Safe to revert independently without data side effects.
+- `npm run check`: PASS — ESLint, TypeScript, 143 Vitest suites / 969 tests, Next.js production build.
+- New regressions cover 120 members, later-page failure, B=D without clearing the recipient, native-event portal Tab directions, successful-job warnings and Q&A warnings.
+- Live Chrome on existing `localhost:3000` against existing BE: 15 screenshots across 375, 768, 1280 and 1440 px, Light/Dark, validation and picker states; 0 console/hydration/JS errors, 0 failed/unexpected HTTP requests, 0 horizontal overflow.
+- Native Chrome Tab moves A picker → D; Shift+Tab moves A picker → title. Both close the portal and retain focus in the dialog. B=D was selected successfully in the real UI without persisting a test handover.
+- CodeRabbit: 0 issues in the tracked diff.
+
+## Database and configuration
+
+No database or environment change. Uses existing `CONTINUUM_API_BASE_URL` through BFF. Optional `warnings` matches the BE [contract addendum](https://github.com/DATN-SPRING2027/DATN-BE/pull/110); no client-side authorization replaces BE checks.
+
+## Risks, limitations and rollback
+
+Deploy after BE #110 and SAG #47. Source-coverage banners are covered by component tests; the existing running BE process was not restarted. A separate FE process with a dedicated proxy was blocked by automatic approval review (`blocked by policy`), so no isolated live banner integration is claimed. Error/permission/loading states retain existing component coverage; the browser run above covers the changed modal/keyboard flows. Safe to revert this frontend commit without data rollback.

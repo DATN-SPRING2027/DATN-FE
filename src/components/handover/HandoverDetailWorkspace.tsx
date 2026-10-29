@@ -68,7 +68,7 @@ export default function HandoverDetailWorkspace({
   const membersQuery = useProjectMembersQuery(organizationId, projectId, {
     page: 1,
     pageSize: 100,
-  });
+  }, { allPages: true });
   const detailQuery = useHandoverDetailQuery(projectId, handoverId);
 
   const updateMetaMutation = useUpdateHandoverMetadataMutation(

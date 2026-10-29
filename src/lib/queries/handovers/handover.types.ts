@@ -205,6 +205,7 @@ export interface JobDto {
   state: HandoverJobState;
   inputDraftVersion: number;
   safeErrorCode: string | null;
+  warnings?: HandoverAiWarning[];
   createdAt: string;
 }
 
@@ -288,11 +289,14 @@ export interface AnswerSectionDto {
   citations: CitationDto[];
 }
 
+export type HandoverAiWarning = "AI_EVIDENCE_INCOMPLETE";
+
 export interface HandoverAnswerDto {
   revisionId: string;
   answerStatus: "ANSWERED" | "INSUFFICIENT_EVIDENCE";
   message: string;
   sections: AnswerSectionDto[];
+  warnings?: HandoverAiWarning[];
 }
 
 // Command Input Payloads

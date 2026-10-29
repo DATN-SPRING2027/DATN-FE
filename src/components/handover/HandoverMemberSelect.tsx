@@ -341,6 +341,28 @@ export default function HandoverMemberSelect({
     }
 
     if (event.key === "Tab") {
+      const trigger = triggerRef.current;
+      const dialog = trigger?.closest('[role="dialog"]');
+      if (trigger && dialog) {
+        event.preventDefault();
+        event.stopPropagation();
+        const fields = Array.from(
+          dialog.querySelectorAll<HTMLElement>(
+            'button:not(:disabled), input:not(:disabled):not([type="hidden"]), select:not(:disabled), textarea:not(:disabled), a[href], [tabindex="0"]',
+          ),
+        ).filter(
+          (node) => !node.closest('[hidden], [aria-hidden="true"], [inert]'),
+        );
+        const index = fields.indexOf(trigger);
+        const next =
+          fields[
+            (index + (event.shiftKey ? -1 : 1) + fields.length) % fields.length
+          ];
+        (next ?? trigger).focus();
+      } else {
+        // Native Tab navigation resumes from the trigger that survives closing.
+        trigger?.focus();
+      }
       closeDropdown(false);
     }
   };

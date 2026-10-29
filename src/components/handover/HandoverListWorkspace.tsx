@@ -63,7 +63,7 @@ export default function HandoverListWorkspace({
   const membersQuery = useProjectMembersQuery(organizationId, projectId, {
     page: 1,
     pageSize: 100,
-  });
+  }, { allPages: true });
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<HandoverStatus | "ALL">(
