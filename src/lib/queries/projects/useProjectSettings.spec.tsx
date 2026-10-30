@@ -80,3 +80,34 @@ it("does not reuse permission from another Project or an inactive Project", asyn
   await waitFor(() => expect(other.result.current.isPending).toBe(false));
   expect(other.result.current.canAccessSettings).toBe(false);
 });
+
+it("reuses fresh cached Project permission probes across route remounts instead of refetching on every mount", async () => {
+  vi.mocked(apiClient).mockClear();
+  const sharedClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={sharedClient}>{children}</QueryClientProvider>
+  );
+
+  vi.mocked(apiClient).mockImplementation(async (path) => {
+    if (path.endsWith("/settings-access")) return { canUpdateProject: true };
+    return { canManageVisibility: true };
+  });
+
+  const firstMount = renderHook(
+    () => useProjectManagementAccess("org-a", "project-a", true),
+    { wrapper },
+  );
+  await waitFor(() => expect(firstMount.result.current.canAccessSettings).toBe(true));
+  expect(vi.mocked(apiClient)).toHaveBeenCalledTimes(2);
+
+  firstMount.unmount();
+
+  const secondMount = renderHook(
+    () => useProjectManagementAccess("org-a", "project-a", true),
+    { wrapper },
+  );
+  await waitFor(() => expect(secondMount.result.current.canAccessSettings).toBe(true));
+  expect(vi.mocked(apiClient)).toHaveBeenCalledTimes(2);
+});
