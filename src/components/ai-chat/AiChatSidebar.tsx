@@ -1,6 +1,15 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -17,6 +26,34 @@ import {
 } from "@/icons";
 import type { AiChatThread } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
+
+export const AI_CHAT_SIDEBAR_DEFAULT_WIDTH = 260;
+export const AI_CHAT_SIDEBAR_MIN_WIDTH = 200;
+export const AI_CHAT_SIDEBAR_MAX_WIDTH = 480;
+export const AI_CHAT_SIDEBAR_WIDTH_STORAGE_KEY =
+  "continuum.aiChat.sidebarWidth";
+const SIDEBAR_KEYBOARD_STEP = 16;
+
+function clampSidebarWidth(
+  rawWidth: number,
+  containerWidth?: number | null,
+): number {
+  let maxAllowed = AI_CHAT_SIDEBAR_MAX_WIDTH;
+  if (typeof containerWidth === "number" && containerWidth > 0) {
+    maxAllowed = Math.max(
+      AI_CHAT_SIDEBAR_MIN_WIDTH,
+      Math.min(AI_CHAT_SIDEBAR_MAX_WIDTH, containerWidth - 340),
+    );
+  } else if (typeof window !== "undefined" && window.innerWidth >= 768) {
+    maxAllowed = Math.max(
+      AI_CHAT_SIDEBAR_MIN_WIDTH,
+      Math.min(AI_CHAT_SIDEBAR_MAX_WIDTH, Math.floor(window.innerWidth * 0.55)),
+    );
+  }
+  return Math.round(
+    Math.min(maxAllowed, Math.max(AI_CHAT_SIDEBAR_MIN_WIDTH, rawWidth)),
+  );
+}
 
 export interface AiChatSidebarProps {
   projectId: string;
@@ -69,6 +106,131 @@ export default function AiChatSidebar({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [savingRenameId, setSavingRenameId] = useState<string | null>(null);
   const [deletingThreadId, setDeletingThreadId] = useState<string | null>(null);
+
+  const [sidebarWidth, setSidebarWidth] = useState<number>(
+    AI_CHAT_SIDEBAR_DEFAULT_WIDTH,
+  );
+  const [isResizing, setIsResizing] = useState(false);
+  const asideRef = useRef<HTMLElement | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const commitSidebarWidth = useCallback((nextWidth: number) => {
+    const parentWidth = asideRef.current?.parentElement?.clientWidth ?? null;
+    const clamped = clampSidebarWidth(nextWidth, parentWidth);
+    setSidebarWidth(clamped);
+    try {
+      window.localStorage.setItem(
+        AI_CHAT_SIDEBAR_WIDTH_STORAGE_KEY,
+        String(clamped),
+      );
+    } catch {
+      // Ignore storage quota / private mode failures
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(
+        AI_CHAT_SIDEBAR_WIDTH_STORAGE_KEY,
+      );
+      if (saved !== null) {
+        const parsed = Number(saved);
+        if (Number.isFinite(parsed)) {
+          const parentWidth =
+            asideRef.current?.parentElement?.clientWidth ?? null;
+          setSidebarWidth(clampSidebarWidth(parsed, parentWidth));
+        }
+      }
+    } catch {
+      // Ignore storage access errors
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      dragCleanupRef.current?.();
+    };
+  }, []);
+
+  const startResizeAt = (startX: number) => {
+    dragCleanupRef.current?.();
+
+    const startWidth = sidebarWidth;
+    const isRtl =
+      typeof document !== "undefined" && document.documentElement.dir === "rtl";
+
+    isDraggingRef.current = true;
+    setIsResizing(true);
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    const updateFromClientX = (clientX: number) => {
+      const delta = isRtl ? startX - clientX : clientX - startX;
+      commitSidebarWidth(startWidth + delta);
+    };
+
+    const handlePointerMove = (moveEvent: PointerEvent) => {
+      updateFromClientX(moveEvent.clientX);
+    };
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      updateFromClientX(moveEvent.clientX);
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", cleanup);
+      window.removeEventListener("pointercancel", cleanup);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", cleanup);
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      isDraggingRef.current = false;
+      setIsResizing(false);
+      dragCleanupRef.current = null;
+    };
+
+    dragCleanupRef.current = cleanup;
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", cleanup);
+    window.addEventListener("pointercancel", cleanup);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", cleanup);
+  };
+
+  const handleResizePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === "mouse" && event.button !== 0) return;
+    event.preventDefault();
+    startResizeAt(event.clientX);
+  };
+
+  const handleResizeMouseDown = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (event.button !== 0 || isDraggingRef.current) return;
+    event.preventDefault();
+    startResizeAt(event.clientX);
+  };
+
+  const handleResizeKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    const isRtl =
+      typeof document !== "undefined" && document.documentElement.dir === "rtl";
+    const growKey = isRtl ? "ArrowLeft" : "ArrowRight";
+    const shrinkKey = isRtl ? "ArrowRight" : "ArrowLeft";
+
+    if (event.key === growKey) {
+      event.preventDefault();
+      commitSidebarWidth(sidebarWidth + SIDEBAR_KEYBOARD_STEP);
+    } else if (event.key === shrinkKey) {
+      event.preventDefault();
+      commitSidebarWidth(sidebarWidth - SIDEBAR_KEYBOARD_STEP);
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      commitSidebarWidth(AI_CHAT_SIDEBAR_MIN_WIDTH);
+    } else if (event.key === "End") {
+      event.preventDefault();
+      commitSidebarWidth(AI_CHAT_SIDEBAR_MAX_WIDTH);
+    }
+  };
 
   if (!isDesktopOpen && !isMobileOpen) {
     return null;
@@ -199,10 +361,10 @@ export default function AiChatSidebar({
       <li key={thread.id}>
         <div
           className={cn(
-            "group flex items-center gap-1 rounded-lg px-2.5 py-1.5 transition-colors",
+            "group relative flex items-center rounded-lg transition-colors",
             isActive
-              ? "bg-gray-200/90 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
-              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-300 dark:hover:bg-white/6",
+              ? "bg-gray-200/85 font-medium text-gray-900 dark:bg-white/10 dark:text-white"
+              : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/6",
           )}
         >
           <button
@@ -212,17 +374,32 @@ export default function AiChatSidebar({
               onCloseMobile();
             }}
             title={thread.title}
-            className="min-w-0 flex-1 truncate py-0.5 text-start text-xs leading-5 sm:text-theme-sm"
+            className={cn(
+              "chat-sidebar-fade-mask min-w-0 overflow-hidden rounded-lg px-2.5 py-2 text-start text-xs leading-5 whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:text-theme-sm",
+              isPinned ? "w-[calc(100%-1.5rem)]" : "w-full",
+              "group-hover:w-[calc(100%-4.75rem)] group-focus-within:w-[calc(100%-4.75rem)]",
+              isActive && "max-md:w-[calc(100%-4.75rem)]",
+            )}
           >
             {thread.title}
           </button>
 
+          {isPinned && (
+            <span
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute inset-y-0 end-2 flex items-center text-warning-500 transition-opacity group-hover:opacity-0 group-focus-within:opacity-0 dark:text-warning-400",
+                isActive && "max-md:opacity-0",
+              )}
+            >
+              <PinStarIcon className="size-3.5" />
+            </span>
+          )}
+
           <div
             className={cn(
-              "flex shrink-0 items-center gap-0.5 transition-opacity",
-              isActive
-                ? "opacity-90"
-                : "opacity-0 group-hover:opacity-100 focus-within:opacity-100 max-md:opacity-80",
+              "pointer-events-none absolute inset-y-0 end-1 flex items-center gap-0.5 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+              isActive && "max-md:pointer-events-auto max-md:opacity-100",
             )}
           >
             <button
@@ -233,11 +410,16 @@ export default function AiChatSidebar({
                   ? t("unpinThreadNamed", { title: thread.title })
                   : t("pinThreadNamed", { title: thread.title })
               }
+              title={
+                isPinned
+                  ? t("unpinThreadNamed", { title: thread.title })
+                  : t("pinThreadNamed", { title: thread.title })
+              }
               className={cn(
                 "inline-flex size-6 items-center justify-center rounded transition-colors",
                 isPinned
                   ? "text-warning-500 hover:bg-gray-300/60 dark:text-warning-400 dark:hover:bg-white/10"
-                  : "text-gray-400 hover:bg-gray-300/60 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
+                  : "text-gray-500 hover:bg-gray-300/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
               )}
             >
               <PinStarIcon aria-hidden="true" className="size-3.5" />
@@ -246,7 +428,8 @@ export default function AiChatSidebar({
               type="button"
               onClick={() => beginRename(thread)}
               aria-label={t("renameThreadNamed", { title: thread.title })}
-              className="inline-flex size-6 items-center justify-center rounded text-gray-400 hover:bg-gray-300/60 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+              title={t("renameThreadNamed", { title: thread.title })}
+              className="inline-flex size-6 items-center justify-center rounded text-gray-500 hover:bg-gray-300/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
               <PencilIcon aria-hidden="true" className="size-3.5" />
             </button>
@@ -256,7 +439,8 @@ export default function AiChatSidebar({
               disabled={isDeleting}
               aria-busy={isDeleting}
               aria-label={t("deleteThreadNamed", { title: thread.title })}
-              className="inline-flex size-6 items-center justify-center rounded text-gray-400 hover:bg-error-50 hover:text-error-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
+              title={t("deleteThreadNamed", { title: thread.title })}
+              className="inline-flex size-6 items-center justify-center rounded text-gray-500 hover:bg-error-50 hover:text-error-600 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-error-500/15 dark:hover:text-error-400"
             >
               <TrashBinIcon aria-hidden="true" className="size-3.5" />
             </button>
@@ -278,17 +462,19 @@ export default function AiChatSidebar({
       )}
 
       <aside
+        ref={asideRef}
         aria-label={t("sidebarAriaLabel")}
+        style={{ width: `${sidebarWidth}px` }}
         className={cn(
-          "h-full w-64 shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none dark:border-white/10 dark:bg-gpt-sidebar",
+          "relative h-full shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none max-md:w-72! md:z-20 dark:border-white/10 dark:bg-gpt-sidebar",
           isMobileOpen
             ? "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-40 max-md:flex max-md:shadow-theme-xl"
             : "max-md:hidden",
           isDesktopOpen ? "md:flex" : "md:hidden",
         )}
       >
-        {/* ChatGPT Top Row: Flat "New chat" + Search Icon + Sidebar Collapse */}
-        <div className="flex h-13 shrink-0 items-center justify-between gap-1 px-2.5">
+        {/* ChatGPT Top Row: Flat Ghost "New chat" + Search Icon + Sidebar Collapse */}
+        <div className="flex h-13 shrink-0 items-center justify-between gap-1 px-2">
           <button
             type="button"
             onClick={() => {
@@ -297,12 +483,7 @@ export default function AiChatSidebar({
             }}
             disabled={isCreatingThread}
             aria-busy={isCreatingThread}
-            className={cn(
-              "inline-flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs font-medium transition-colors sm:text-theme-sm",
-              activeThreadId === null
-                ? "bg-gray-200/80 text-gray-900 dark:bg-white/10 dark:text-white"
-                : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/6",
-            )}
+            className="inline-flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-200/65 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 sm:text-theme-sm dark:text-gray-200 dark:hover:bg-white/8 dark:hover:text-white"
           >
             <ComposeChatIcon aria-hidden="true" className="size-4 shrink-0" />
             <span className="truncate">
@@ -353,7 +534,7 @@ export default function AiChatSidebar({
 
         {/* Collapsible Search Input */}
         {(isSearchOpen || Boolean(normalizedQuery)) && (
-          <div className="shrink-0 px-2.5 pb-2">
+          <div className="shrink-0 px-2 pb-2">
             <div className="relative flex items-center">
               <input
                 type="search"
@@ -378,8 +559,8 @@ export default function AiChatSidebar({
           </div>
         )}
 
-        {/* Scrollable Pinned & Recent Threads */}
-        <div className="no-scrollbar min-h-0 flex-1 space-y-4 overflow-y-auto px-2 py-2">
+        {/* Scrollable Pinned & Recent Threads (with thin custom scrollbar) */}
+        <div className="custom-scrollbar me-0.5 min-h-0 flex-1 space-y-4 overflow-y-auto ps-2 pe-1.5 py-1.5">
           {isLoading ? (
             <div
               role="status"
@@ -446,7 +627,7 @@ export default function AiChatSidebar({
           )}
         </div>
 
-        {/* ChatGPT Bottom Project Folder Row (like "DATN_SP27" in ChatGPT sidebar) */}
+        {/* ChatGPT Bottom Project Folder Row */}
         <div className="shrink-0 border-t border-gray-200/70 p-2 dark:border-white/8">
           <Link
             href={`/projects/${encodeURIComponent(projectId)}/documents`}
@@ -463,6 +644,31 @@ export default function AiChatSidebar({
               · {projectName}
             </span>
           </Link>
+        </div>
+
+        {/* Desktop Interactive Resize Handle (Drag wider / narrower + Blue Line Indicator) */}
+        <div
+          role="separator"
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label={t("resizeSidebarAriaLabel")}
+          aria-valuemin={AI_CHAT_SIDEBAR_MIN_WIDTH}
+          aria-valuemax={AI_CHAT_SIDEBAR_MAX_WIDTH}
+          aria-valuenow={sidebarWidth}
+          onPointerDown={handleResizePointerDown}
+          onMouseDown={handleResizeMouseDown}
+          onDoubleClick={() => commitSidebarWidth(AI_CHAT_SIDEBAR_DEFAULT_WIDTH)}
+          onKeyDown={handleResizeKeyDown}
+          className="group/resizer absolute inset-y-0 -end-2 z-20 hidden w-2.5 cursor-col-resize touch-none select-none focus:outline-none md:block"
+        >
+          <div
+            className={cn(
+              "pointer-events-none absolute inset-y-0 start-0.5 w-0.5 transition-colors duration-150",
+              isResizing
+                ? "bg-brand-500"
+                : "bg-transparent group-hover/resizer:bg-brand-500/85 group-focus-visible/resizer:bg-brand-500",
+            )}
+          />
         </div>
       </aside>
     </>

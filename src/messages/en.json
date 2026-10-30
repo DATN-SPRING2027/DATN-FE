@@ -4698,6 +4698,7 @@
     "openSidebar": "Open chat history sidebar",
     "closeSidebar": "Close chat history sidebar",
     "collapseSidebar": "Collapse chat history sidebar",
+    "resizeSidebarAriaLabel": "Resize chat history sidebar",
     "newChat": "New chat",
     "newChatCreating": "Starting…",
     "searchThreadsLabel": "Search chat history",
