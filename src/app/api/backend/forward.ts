@@ -66,7 +66,7 @@ export async function forwardBackendRequest(
         headers,
         body,
         ...(streamBody ? { duplex: "half" } : {}),
-        ...(isAiChatRequest ? { signal: request.signal } : {}),
+        ...(request.signal ? { signal: request.signal } : {}),
         cache: "no-store",
         redirect: options.redirect ?? "manual",
       },

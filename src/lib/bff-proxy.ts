@@ -6,8 +6,11 @@ export const BFF_API_BASE_PATH = '/api/backend';
 const forwardedHeaders = [
   'accept',
   'authorization',
+  'content-length',
   'content-type',
   'cookie',
+  'x-auto-sync-sag',
+  'x-content-sha256',
   'x-csrf-token',
   'x-file-name',
   'idempotency-key',
