@@ -27,6 +27,10 @@ import {
 
 import AiChatActivityProgress from "./AiChatActivityProgress";
 
+// Canonical SAG abstention marker used by history responses predating answerStatus.
+const SAG_NO_ANSWER_TEXT =
+  "The available knowledge base does not contain enough traceable evidence to answer this question.";
+
 export type DisplayAiChatMessage = AiChatMessage & {
   activityStartedAt?: number;
   activityFinishedAt?: number;
@@ -137,6 +141,53 @@ function renderInlineWithCitations(
   });
 }
 
+function isGfmTableSeparator(line: string): boolean {
+  return /^\s*\|?\s*:?-{2,}:?(?:\s*\|\s*:?-{2,}:?)+\s*\|?\s*$/.test(line);
+}
+
+function splitGfmTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  return trimmed
+    .split(/(?<!\\)\|/)
+    .map((cell) => cell.replace(/\\\|/g, "|").trim());
+}
+
+function parseGfmColumnAlignments(
+  separatorLine: string,
+): Array<"text-start" | "text-center" | "text-end"> {
+  return splitGfmTableRow(separatorLine).map((col) => {
+    const marker = col.trim();
+    if (marker.startsWith(":") && marker.endsWith(":")) return "text-center";
+    if (marker.endsWith(":")) return "text-end";
+    return "text-start";
+  });
+}
+
+function resolveLocalizedErrorMessage(
+  errorCode: string | undefined,
+  errorMessage: string | undefined,
+  translate: (key: string) => string,
+): string {
+  switch (errorCode) {
+    case "SEARCH_UNAVAILABLE":
+      return translate("errorSearchUnavailable");
+    case "LLM_TIMEOUT":
+      return translate("errorLlmTimeout");
+    case "LLM_RATE_LIMIT":
+      return translate("errorLlmRateLimit");
+    case "LLM_UNAVAILABLE":
+      return translate("errorLlmUnavailable");
+    case "CONFIGURATION_ERROR":
+      return translate("errorConfiguration");
+    case "STREAM_INTERRUPTED":
+      return translate("errorStreamInterrupted");
+    case "STREAM_ERROR":
+      return translate("streamFailedDefault");
+    default:
+      return errorMessage ?? translate("streamFailedDefault");
+  }
+}
+
 function FormattedAnswerProse({
   content,
   citations,
@@ -151,6 +202,83 @@ function FormattedAnswerProse({
   onClickToken: (item: CitationItemToken) => void;
 }) {
   const blocks = content.split(/(```[\s\S]*?```)/g).filter(Boolean);
+
+  const renderNonTableLines = (lines: string[], keyPrefix: string) => {
+    const joined = lines.join("\n").trim();
+    if (!joined) return null;
+
+    if (lines.every((line) => /^[-*•]\s+/.test(line.trim()))) {
+      return (
+        <ul key={`ul-${keyPrefix}`} className="list-disc space-y-1.5 ps-5">
+          {lines.map((line, lineIdx) => (
+            <li key={lineIdx}>
+              {renderInlineWithCitations(
+                line.trim().replace(/^[-*•]\s+/, ""),
+                citations,
+                sessionCitations,
+                citationJumpAria,
+                onClickToken,
+              )}
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    if (lines.every((line) => /^\d+[.)]\s+/.test(line.trim()))) {
+      const startMatch = lines[0]?.trim().match(/^(\d+)[.)]\s+/);
+      const startNum = startMatch ? Number.parseInt(startMatch[1], 10) : 1;
+      return (
+        <ol
+          key={`ol-${keyPrefix}`}
+          start={startNum > 1 ? startNum : undefined}
+          className="list-decimal space-y-1.5 ps-5"
+        >
+          {lines.map((line, lineIdx) => (
+            <li key={lineIdx}>
+              {renderInlineWithCitations(
+                line.trim().replace(/^\d+[.)]\s+/, ""),
+                citations,
+                sessionCitations,
+                citationJumpAria,
+                onClickToken,
+              )}
+            </li>
+          ))}
+        </ol>
+      );
+    }
+
+    if (lines.length === 1 && /^#{1,3}\s+/.test(joined)) {
+      const headingText = joined.replace(/^#{1,3}\s+/, "");
+      return (
+        <h4
+          key={`h-${keyPrefix}`}
+          className="pt-1 text-base font-semibold text-gray-900 dark:text-white"
+        >
+          {renderInlineWithCitations(
+            headingText,
+            citations,
+            sessionCitations,
+            citationJumpAria,
+            onClickToken,
+          )}
+        </h4>
+      );
+    }
+
+    return (
+      <p key={`p-${keyPrefix}`} className="whitespace-pre-wrap">
+        {renderInlineWithCitations(
+          joined,
+          citations,
+          sessionCitations,
+          citationJumpAria,
+          onClickToken,
+        )}
+      </p>
+    );
+  };
 
   return (
     <div className="space-y-3 text-sm leading-7 break-words text-gray-800 dark:text-gray-100">
@@ -175,56 +303,94 @@ function FormattedAnswerProse({
           if (!trimmed) return null;
           const lines = trimmed.split(/\r?\n/);
 
-          if (lines.every((line) => /^[-*•]\s+/.test(line.trim()))) {
-            return (
-              <ul
-                key={`ul-${blockIdx}-${paraIdx}`}
-                className="list-disc space-y-1.5 ps-5"
-              >
-                {lines.map((line, lineIdx) => (
-                  <li key={lineIdx}>
-                    {renderInlineWithCitations(
-                      line.trim().replace(/^[-*•]\s+/, ""),
-                      citations,
-                      sessionCitations,
-                      citationJumpAria,
-                      onClickToken,
-                    )}
-                  </li>
-                ))}
-              </ul>
-            );
-          }
-
-          if (lines.length === 1 && /^#{1,3}\s+/.test(trimmed)) {
-            const headingText = trimmed.replace(/^#{1,3}\s+/, "");
-            return (
-              <h4
-                key={`h-${blockIdx}-${paraIdx}`}
-                className="pt-1 text-base font-semibold text-gray-900 dark:text-white"
-              >
-                {renderInlineWithCitations(
-                  headingText,
-                  citations,
-                  sessionCitations,
-                  citationJumpAria,
-                  onClickToken,
-                )}
-              </h4>
-            );
-          }
-
-          return (
-            <p key={`p-${blockIdx}-${paraIdx}`} className="whitespace-pre-wrap">
-              {renderInlineWithCitations(
-                trimmed,
-                citations,
-                sessionCitations,
-                citationJumpAria,
-                onClickToken,
-              )}
-            </p>
+          const sepIdx = lines.findIndex(
+            (line, idx) =>
+              idx >= 1 &&
+              isGfmTableSeparator(line) &&
+              lines[idx - 1]?.includes("|"),
           );
+
+          if (sepIdx >= 1) {
+            const headerIdx = sepIdx - 1;
+            const beforeLines = lines.slice(0, headerIdx);
+            const alignments = parseGfmColumnAlignments(lines[sepIdx] ?? "");
+            const headers = splitGfmTableRow(lines[headerIdx] ?? "");
+            let tableEnd = sepIdx + 1;
+            while (
+              tableEnd < lines.length &&
+              lines[tableEnd]?.trim().includes("|")
+            ) {
+              tableEnd += 1;
+            }
+            const bodyRows = lines
+              .slice(sepIdx + 1, tableEnd)
+              .map(splitGfmTableRow);
+            const afterLines = lines.slice(tableEnd);
+            const keyBase = `${blockIdx}-${paraIdx}`;
+
+            return (
+              <Fragment key={`tbl-wrap-${keyBase}`}>
+                {beforeLines.length > 0 &&
+                  renderNonTableLines(beforeLines, `${keyBase}-pre`)}
+                <div className="overflow-x-auto rounded-xl border border-gray-200/80 dark:border-white/10">
+                  <table className="w-full border-collapse text-xs leading-5 tabular-nums">
+                    <thead className="border-b border-gray-200/80 bg-gray-50/90 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
+                      <tr>
+                        {headers.map((headerCell, colIdx) => (
+                          <th
+                            key={`th-${colIdx}`}
+                            scope="col"
+                            className={cn(
+                              "px-3 py-2 font-semibold",
+                              alignments[colIdx] ?? "text-start",
+                            )}
+                          >
+                            {renderInlineWithCitations(
+                              headerCell,
+                              citations,
+                              sessionCitations,
+                              citationJumpAria,
+                              onClickToken,
+                            )}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200/70 dark:divide-white/10">
+                      {bodyRows.map((rowCells, rowIdx) => (
+                        <tr
+                          key={`tr-${rowIdx}`}
+                          className="bg-white/60 transition-colors hover:bg-gray-50/70 dark:bg-transparent dark:hover:bg-white/5"
+                        >
+                          {headers.map((_h, colIdx) => (
+                            <td
+                              key={`td-${rowIdx}-${colIdx}`}
+                              className={cn(
+                                "px-3 py-2 align-top text-gray-700 dark:text-gray-200",
+                                alignments[colIdx] ?? "text-start",
+                              )}
+                            >
+                              {renderInlineWithCitations(
+                                rowCells[colIdx] ?? "",
+                                citations,
+                                sessionCitations,
+                                citationJumpAria,
+                                onClickToken,
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                {afterLines.length > 0 &&
+                  renderNonTableLines(afterLines, `${keyBase}-post`)}
+              </Fragment>
+            );
+          }
+
+          return renderNonTableLines(lines, `${blockIdx}-${paraIdx}`);
         });
       })}
     </div>
@@ -247,7 +413,7 @@ export default function AiChatMessageList({
   onJumpToTurn,
 }: AiChatMessageListProps) {
   const t = useTranslations("AiChat");
-  const bottomEndRef = useRef<HTMLDivElement | null>(null);
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const prevCountRef = useRef<number>(0);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesById = new Map(messages.map((item) => [item.id, item]));
@@ -255,7 +421,11 @@ export default function AiChatMessageList({
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
     if (messages.length > prevCountRef.current || lastMessage?.isStreaming) {
-      bottomEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
+      const container = scrollContainerRef.current;
+      container?.scrollTo?.({
+        top: container.scrollHeight,
+        behavior: "smooth",
+      });
     }
     prevCountRef.current = messages.length;
   }, [messages]);
@@ -277,7 +447,7 @@ export default function AiChatMessageList({
       <div
         role="status"
         aria-label={t("messagesLoading")}
-        className="flex-1 overflow-y-auto px-4 py-8"
+        className="min-h-0 flex-1 overflow-y-auto px-4 py-8"
       >
         <div className="mx-auto max-w-3xl space-y-6">
           {[0, 1, 2].map((item) => (
@@ -293,7 +463,7 @@ export default function AiChatMessageList({
 
   if (isMessagesError && messages.length === 0) {
     return (
-      <div className="flex flex-1 items-center justify-center px-4 py-10">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto px-4 py-10">
         <div
           role="alert"
           className="w-full max-w-md rounded-2xl border border-error-200 bg-error-50 p-5 text-center dark:border-error-800/60 dark:bg-error-500/10"
@@ -317,7 +487,11 @@ export default function AiChatMessageList({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-6">
+    <div
+      ref={scrollContainerRef}
+      data-ai-chat-scroll-region
+      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6"
+    >
       <div className="mx-auto max-w-3xl space-y-7">
         {hasOlderMessages && (
           <div className="flex justify-center">
@@ -338,7 +512,7 @@ export default function AiChatMessageList({
           </div>
         )}
 
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const isHighlighted = highlightedTurnId === message.id;
 
           if (message.role === "user") {
@@ -393,6 +567,27 @@ export default function AiChatMessageList({
           const isEmptyEvidenceScope =
             message.content.trim() ===
             "[Answer hidden because its evidence is unavailable in the current source scope.]";
+          const isNoAnswer =
+            message.status === "ok" &&
+            !message.isStreaming &&
+            (message.answerStatus === "no_answer" ||
+              (message.answerStatus === undefined &&
+                message.citations.length === 0 &&
+                message.sessionCitations.length === 0 &&
+                message.content.trim() === SAG_NO_ANSWER_TEXT));
+          const effectiveRetryQuery = (() => {
+            if (message.retryQuery?.trim()) return message.retryQuery.trim();
+            if (message.status !== "failed" && message.status !== "cancelled") {
+              return undefined;
+            }
+            for (let prevIdx = index - 1; prevIdx >= 0; prevIdx -= 1) {
+              const prevMsg = messages[prevIdx];
+              if (prevMsg?.role === "user" && prevMsg.content.trim()) {
+                return prevMsg.content.trim();
+              }
+            }
+            return undefined;
+          })();
 
           return (
             <article
@@ -472,6 +667,10 @@ export default function AiChatMessageList({
                     </div>
                   </div>
                 </div>
+              ) : isNoAnswer ? (
+                <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  {t("noAnswerNotice")}
+                </p>
               ) : (
                 message.content && (
                   <FormattedAnswerProse
@@ -486,13 +685,6 @@ export default function AiChatMessageList({
                 )
               )}
 
-              {message.answerStatus === "no_answer" &&
-                !isEmptyEvidenceScope && (
-                  <p className="rounded-xl bg-gray-50 px-3.5 py-2 text-xs text-gray-600 dark:bg-gpt-sidebar dark:text-gray-300">
-                    {t("noAnswerNotice")}
-                  </p>
-                )}
-
               {/* Failed Error Banner with Retry */}
               {message.status === "failed" && (
                 <div
@@ -502,13 +694,17 @@ export default function AiChatMessageList({
                   <div className="flex items-center gap-2">
                     <AlertIcon aria-hidden="true" className="size-4 shrink-0" />
                     <span>
-                      {message.errorMessage ?? t("streamFailedDefault")}
+                      {resolveLocalizedErrorMessage(
+                        message.errorCode,
+                        message.errorMessage,
+                        (key) => t(key as Parameters<typeof t>[0]),
+                      )}
                     </span>
                   </div>
-                  {message.retryQuery && (
+                  {effectiveRetryQuery && (
                     <button
                       type="button"
-                      onClick={() => onRetryTurn(message.retryQuery!)}
+                      onClick={() => onRetryTurn(effectiveRetryQuery)}
                       className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 dark:bg-gpt-composer dark:text-error-300 dark:ring-error-700"
                     >
                       {t("retryTurn")}
@@ -684,36 +880,53 @@ export default function AiChatMessageList({
               )}
 
               {/* Minimal ChatGPT Message Action Bar */}
-              {message.content && !message.isStreaming && (
-                <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <button
-                    type="button"
-                    onClick={() => void handleCopy(message.id, message.content)}
-                    aria-label={t("copyAnswer")}
-                    className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-                  >
-                    {copiedId === message.id ? (
-                      <>
-                        <CheckLineIcon
-                          aria-hidden="true"
-                          className="size-3.5 text-success-500"
-                        />
-                        <span>{t("copiedAnswer")}</span>
-                      </>
-                    ) : (
-                      <>
-                        <CopyIcon aria-hidden="true" className="size-3.5" />
-                        <span>{t("copyAnswer")}</span>
-                      </>
+              {!message.isStreaming &&
+                (Boolean(message.content) ||
+                  (message.status === "cancelled" &&
+                    Boolean(effectiveRetryQuery))) && (
+                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                    {message.content && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void handleCopy(
+                            message.id,
+                            isNoAnswer ? t("noAnswerNotice") : message.content,
+                          )
+                        }
+                        aria-label={t("copyAnswer")}
+                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                      >
+                        {copiedId === message.id ? (
+                          <>
+                            <CheckLineIcon
+                              aria-hidden="true"
+                              className="size-3.5 text-success-500"
+                            />
+                            <span>{t("copiedAnswer")}</span>
+                          </>
+                        ) : (
+                          <>
+                            <CopyIcon aria-hidden="true" className="size-3.5" />
+                            <span>{t("copyAnswer")}</span>
+                          </>
+                        )}
+                      </button>
                     )}
-                  </button>
-                </div>
-              )}
+                    {message.status === "cancelled" && effectiveRetryQuery && (
+                      <button
+                        type="button"
+                        onClick={() => onRetryTurn(effectiveRetryQuery)}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-white/10 dark:bg-gpt-composer dark:text-gray-200 dark:hover:bg-white/10"
+                      >
+                        <span>{t("retryTurn")}</span>
+                      </button>
+                    )}
+                  </div>
+                )}
             </article>
           );
         })}
-
-        <div ref={bottomEndRef} />
       </div>
     </div>
   );
