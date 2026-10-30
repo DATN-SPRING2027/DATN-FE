@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from"react";
 import { useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { PlusIcon } from"@/icons";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import {
@@ -183,7 +184,7 @@ export default function WorkBoardView({
             }`}
           >
             <MonoIcon name="chart"size={13} />
-            <span>Insights</span>
+            <span>{tr(t, "quickUi.insights", "Insights")}</span>
           </button>
 
           <button
@@ -197,7 +198,7 @@ export default function WorkBoardView({
             }`}
           >
             <MonoIcon name="sliders"size={13} />
-            <span>View settings</span>
+            <span>{tr(t, "quickUi.viewSettings", "View settings")}</span>
           </button>
 
           {viewSettingsOpen && (
@@ -944,7 +945,7 @@ function WorkCard({
                 ))}
               </ul>
             ) : (
-              <p className="text-[11px] text-gray-400">No subtasks yet.</p>
+              <p className="text-[11px] text-gray-400">{tr(t, "quickUi.noSubtasksYet", "No subtasks yet.")}</p>
             )}
 
             {onAddSubtask &&
@@ -963,7 +964,7 @@ function WorkCard({
                   <input
                     value={cardSubtaskSummary}
                     onChange={(e) => setCardSubtaskSummary(e.target.value)}
-                    placeholder="Subtask summary…"
+                    placeholder={tr(t, "quickUi.subtaskSummaryPlaceholder", "Subtask summary…")}
                     className="h-6 min-w-0 flex-1 border border-gray-300 bg-white px-2 text-[11px] text-gray-900 outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                   />
                   <button
@@ -990,7 +991,7 @@ function WorkCard({
                   className="inline-flex cursor-pointer items-center gap-1 text-[11px] font-semibold text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                 >
                   <span>+</span>
-                  <span>Add subtask</span>
+                  <span>{tr(t, "quickUi.addSubtask", "Add subtask")}</span>
                 </button>
               ))}
           </div>

@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from"react";
 import { useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { CloseLineIcon } from"@/icons";
 import Button from"@/components/ui/button/Button";
 import { Modal } from"@/components/ui/modal";
@@ -28,11 +29,13 @@ const UNASSIGNED_PERSON: WorkPerson = {
 
 export default function WorkItemCreateDialog({
   isOpen,
+  isPreview = true,
   people,
   onClose,
   onCreate,
 }: {
   isOpen: boolean;
+  isPreview?: boolean;
   people?: readonly WorkPerson[];
   onClose: () => void;
   onCreate: (item: CreatePreviewWorkItem) => void;
@@ -46,7 +49,10 @@ export default function WorkItemCreateDialog({
           ...availablePeople.filter((p) => p.id !== UNASSIGNED_PERSON.id),
         ]
       : availablePeople;
-  const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
+  const defaultAssignee =
+    people !== undefined
+      ? UNASSIGNED_PERSON
+      : (availablePeople[0] ?? UNASSIGNED_PERSON);
   const titleRef = useRef<HTMLInputElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const [title, setTitle] = useState("");
@@ -150,7 +156,13 @@ export default function WorkItemCreateDialog({
               id="work-create-description"
               className="mt-1 text-sm text-gray-500 dark:text-gray-400"
             >
-              {t("createDialogHint")}
+              {isPreview
+                ? t("createDialogHint")
+                : tr(
+                    t,
+                    "quickUi.createDialogRealHint",
+                    "Create a new work item in this project workspace.",
+                  )}
             </p>
           </div>
           <div className="absolute end-4 top-4 flex items-center gap-1.5">
@@ -180,12 +192,16 @@ export default function WorkItemCreateDialog({
         </div>
 
         <form onSubmit={submit} className="space-y-4 px-5 py-5 sm:px-6">
-          <div className="border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
-            {t("createPreviewNotice")}
-          </div>
+          {isPreview && (
+            <div className="border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
+              {t("createPreviewNotice")}
+            </div>
+          )}
 
           <label className="grid gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
-            {t("summaryLabel")} <span className="text-error-600">*</span>
+            <span>
+              {t("summaryLabel")} <span className="text-error-600">*</span>
+            </span>
             <input
               ref={titleRef}
               value={title}
@@ -193,7 +209,7 @@ export default function WorkItemCreateDialog({
                 setTitle(event.target.value);
                 if (event.target.value.trim()) setValidationError("");
               }}
-              maxLength={160}
+              maxLength={isPreview ? 160 : 255}
               aria-invalid={Boolean(validationError)}
               aria-describedby={
                 validationError ?"work-title-error": undefined
@@ -250,7 +266,7 @@ export default function WorkItemCreateDialog({
                 rows={2}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add acceptance criteria or engineering context…"
+                placeholder={tr(t, "quickUi.descriptionPlaceholder", "Add acceptance criteria or engineering context…")}
                 className="border border-gray-200 bg-white px-3.5 py-2 text-sm font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
               />
             </label>
@@ -325,7 +341,7 @@ export default function WorkItemCreateDialog({
                 onChange={(e) => setCreateAnother(e.target.checked)}
                 className="h-4 w-4 border-gray-300 text-brand-600"
               />
-              <span>Create another</span>
+              <span>{tr(t, "quickUi.createAnother", "Create another")}</span>
             </label>
 
             <div className="flex items-center justify-end gap-2">
@@ -341,7 +357,7 @@ export default function WorkItemCreateDialog({
                 type="submit"
                 className="focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
               >
-                {t("addToPreview")}
+                {isPreview ? t("addToPreview") : t("create")}
               </Button>
             </div>
           </div>

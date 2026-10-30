@@ -6,18 +6,57 @@ import UserDropdown from "./UserDropdown";
 
 const replace = vi.fn();
 vi.mock("@/i18n/navigation", () => ({
-  useRouter: () => ({ replace }), usePathname: () => "/",
+  useRouter: () => ({ replace }),
+  usePathname: () => "/dashboard",
   Link: ({ children }: { children: React.ReactNode }) => <span>{children}</span>,
 }));
-vi.mock("next-intl", () => ({ useLocale: () => "en", useTranslations: () => (key: string) => key }));
+vi.mock("next-intl", () => ({
+  useLocale: () => "en",
+  useTranslations: () => (key: string) => key,
+}));
 vi.mock("@/icons", () => ({ ChevronDownIcon: () => null }));
 vi.mock("@/i18n/languages", () => ({
-  getLanguage: () => ({ FlagIcon: () => null, name: "English" }), languages: [],
+  getLanguage: (id: string) =>
+    id === "vi"
+      ? { id: "vi", FlagIcon: () => null, name: "Tiếng Việt" }
+      : { id: "en", FlagIcon: () => null, name: "English" },
+  languages: [
+    { id: "en", FlagIcon: () => null, name: "English" },
+    { id: "vi", FlagIcon: () => null, name: "Tiếng Việt" },
+  ],
 }));
 
-describe("logout feedback", () => {
-  beforeEach(() => { vi.restoreAllMocks(); replace.mockReset(); });
-  afterEach(() => { onlineManager.setOnline(true); vi.useRealTimers(); });
+describe("logout feedback & language switcher", () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    replace.mockReset();
+  });
+  afterEach(() => {
+    onlineManager.setOnline(true);
+    vi.useRealTimers();
+  });
+
+  it("lists English and Tiếng Việt in the language submenu and switches locale on selection", async () => {
+    vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+      if (String(url).endsWith("/auth/me")) {
+        return new Response('{"id":"user","name":"User","email":"user@example.test"}');
+      }
+      throw new Error(`Unexpected request: ${String(url)}`);
+    });
+    render(
+      <AppProviders>
+        <UserDropdown />
+      </AppProviders>,
+    );
+    await waitFor(() => expect(screen.getByText("User")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("button", { name: /User/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: /language/i }));
+    expect(screen.getByRole("button", { name: "Tiếng Việt" })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Tiếng Việt" }));
+    expect(replace).toHaveBeenCalledWith("/dashboard", { locale: "vi" });
+  });
 
   it("uses the authenticated directory avatar instead of a template image", async () => {
     vi.spyOn(global, "fetch").mockImplementation(async (url) => {

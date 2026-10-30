@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { MonoIcon } from "./WorkMonoIcons";
 
 const MONTH_NAMES = [
@@ -119,7 +121,7 @@ function buildCalendarGrid(year: number, monthIndex: number): CalendarCell[] {
 export function WorkDatePickerCell({
   value,
   itemKey,
-  placeholder = "None",
+  placeholder,
   disabled = false,
   align = "start",
   onChange,
@@ -131,6 +133,16 @@ export function WorkDatePickerCell({
   align?: "start" | "end";
   onChange?: (nextDate: string | null) => void;
 }) {
+  const t = useTranslations("work");
+  const localeCode = tr(useTranslations("common"), "localeCode", "en");
+  const isVi = localeCode === "vi";
+  const resolvedPlaceholder = placeholder ?? tr(t, "datePicker.none", "None");
+  const monthNames = useMemo(() => {
+    if (!isVi) return MONTH_NAMES;
+    const fmt = new Intl.DateTimeFormat("vi-VN", { month: "long" });
+    return Array.from({ length: 12 }, (_, idx) => fmt.format(new Date(2026, idx, 1)));
+  }, [isVi]);
+  const weekdayLabels = isVi ? (["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const) : WEEKDAY_LABELS;
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -297,7 +309,7 @@ export function WorkDatePickerCell({
             onChange={(e) => setViewMonth(Number(e.target.value))}
             className="h-7 cursor-pointer rounded border border-gray-200 bg-white px-1.5 text-xs font-semibold text-gray-800 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
-            {MONTH_NAMES.map((name, idx) => (
+            {monthNames.map((name, idx) => (
               <option key={name} value={idx}>
                 {name}
               </option>
@@ -330,7 +342,7 @@ export function WorkDatePickerCell({
 
       {/* Weekday Header */}
       <div className="mb-1 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
-        {WEEKDAY_LABELS.map((dayLabel) => (
+        {weekdayLabels.map((dayLabel) => (
           <span key={dayLabel} className="py-1">
             {dayLabel}
           </span>
@@ -373,14 +385,14 @@ export function WorkDatePickerCell({
             onClick={() => selectDate(todayIso)}
             className="cursor-pointer rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
           >
-            Today
+            {tr(t, "datePicker.today", "Today")}
           </button>
           <button
             type="button"
             onClick={() => selectDate(addDaysToTodayIso(1))}
             className="cursor-pointer rounded border border-gray-200 bg-gray-50 px-2 py-1 text-[11px] font-medium text-gray-700 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
           >
-            Tomorrow
+            {tr(t, "datePicker.tomorrow", "Tomorrow")}
           </button>
           <button
             type="button"
@@ -397,7 +409,7 @@ export function WorkDatePickerCell({
             onClick={() => selectDate(null)}
             className="cursor-pointer rounded px-2 py-1 text-[11px] font-medium text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/15"
           >
-            Clear
+            {tr(t, "datePicker.clear", "Clear")}
           </button>
         )}
       </div>
@@ -431,7 +443,7 @@ export function WorkDatePickerCell({
         }`}
       >
         <MonoIcon name="calendar" className="h-3.5 w-3.5 shrink-0 opacity-75" />
-        <span>{normalizedValue ?? placeholder}</span>
+        <span>{normalizedValue ?? resolvedPlaceholder}</span>
       </button>
 
       {isOpen &&

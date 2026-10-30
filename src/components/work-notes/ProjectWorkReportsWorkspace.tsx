@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import {
@@ -10,67 +11,33 @@ import {
 import {
   AlertIcon,
   CalenderIcon,
-  CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CloseIcon,
-  DocsIcon,
-  DownloadIcon,
-  EyeIcon,
   FileIcon,
   GroupIcon,
   LockIcon,
   PencilIcon,
-  TimeIcon,
-  UploadIcon,
+  SearchIcon,
   UserCircleIcon,
 } from "@/icons";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
-import DocumentFilePreviewModal from "./DocumentFilePreviewModal";
-import WorkNotesPageHeader from "./WorkNotesPageHeader";
-import WorkNoteComposer from "./WorkNoteComposer";
-import { apiClient } from "@/lib/api-client";
-import { csrfHeaders } from "@/lib/queries/work-notes/useWorkNotes";
-import { useQueryClient } from "@tanstack/react-query";
+import { apiClient, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
-  REPORT_FREQUENCIES,
-  useDocumentsQuery,
+  csrfHeaders,
   useWorkNotesMutation,
   useWorkReportSettingsQuery,
   useWorkReportsQuery,
   workNoteKeys,
   workNotesApi,
-  type ProjectDocumentSummary,
   type ReportFrequency,
   type WorkReport,
   type WorkReportInput,
   type WorkReportScope,
   type WorkReportStatus,
 } from "@/lib/queries/work-notes/useWorkNotes";
-
-const FREQUENCIES: readonly ReportFrequency[] = REPORT_FREQUENCIES;
-const STATUSES: readonly (WorkReportStatus | "ALL")[] = [
-  "ALL",
-  "DRAFT",
-  "PENDING_REVIEW",
-  "APPROVED",
-  "CHANGES_REQUESTED",
-  "REJECTED",
-  "OVERDUE",
-];
+import WorkNoteComposer from "./WorkNoteComposer";
+import WorkNotesPageHeader from "./WorkNotesPageHeader";
+import WorkReportCadencePopover from "./WorkReportCadencePopover";
 
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
-
-const DOCUMENT_FILE_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.drawio,.sql,.png,.jpg,.jpeg,.webp";
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function statusBadgeClasses(status: WorkReportStatus): string {
   switch (status) {
@@ -89,6 +56,25 @@ function statusBadgeClasses(status: WorkReportStatus): string {
   }
 }
 
+function statusDotClasses(status: WorkReportStatus, hasContent: boolean): string {
+  switch (status) {
+    case "APPROVED":
+      return "bg-emerald-500";
+    case "PENDING_REVIEW":
+      return "bg-amber-500";
+    case "CHANGES_REQUESTED":
+      return "bg-orange-500";
+    case "REJECTED":
+    case "OVERDUE":
+      return "bg-rose-500";
+    case "DRAFT":
+    default:
+      return hasContent
+        ? "bg-brand-500"
+        : "border border-gray-300 bg-transparent dark:border-gray-600";
+  }
+}
+
 function initialsFromName(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "U";
@@ -96,44 +82,95 @@ function initialsFromName(name: string): string {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
+function reportBodyText(report: WorkReport): string {
+  return report.contentSchemaVersion === 2
+    ? (report.contentMarkdown ?? report.content ?? "")
+    : (report.content ?? report.contentMarkdown ?? "");
+}
+
+function hasReportContent(report: WorkReport): boolean {
+  return Boolean(
+    (report.title ?? "").trim() || reportBodyText(report).trim(),
+  );
+}
+
+function countCoreFields(report: WorkReport): number {
+  let filled = 0;
+  if ((report.title ?? "").trim()) filled += 1;
+  if (reportBodyText(report).trim()) filled += 1;
+  return filled;
+}
+
+function isReportOverdue(report: WorkReport, nowMs: number): boolean {
+  if (report.status === "OVERDUE") return true;
+  if (
+    (report.status === "DRAFT" || report.status === "CHANGES_REQUESTED") &&
+    Date.parse(report.dueAt) < nowMs
+  ) {
+    return true;
+  }
+  return false;
+}
+
+function resolveEffectiveStatus(
+  report: WorkReport,
+  nowMs: number,
+): WorkReportStatus {
+  return isReportOverdue(report, nowMs) ? "OVERDUE" : report.status;
+}
+
+function MiniProgressDots({
+  filled,
+  label,
+}: {
+  filled: number;
+  label: string;
+}) {
+  return (
+    <span
+      title={label}
+      aria-label={label}
+      className="inline-flex items-center gap-1"
+    >
+      {[0, 1].map((idx) => (
+        <span
+          key={idx}
+          className={`h-1.5 w-1.5 rounded-full ${
+            idx < filled
+              ? "bg-brand-500 dark:bg-brand-400"
+              : "bg-gray-300 dark:bg-gray-700"
+          }`}
+        />
+      ))}
+    </span>
+  );
+}
+
 function ReportEditor({
   report,
-  availableDocuments,
   isSaving,
   isSubmitting,
   error,
   onSave,
   onSubmit,
-  onDownloadFile,
-  onPreviewFile,
   onClose,
   onAgent,
 }: {
   report: WorkReport;
-  availableDocuments: readonly ProjectDocumentSummary[];
   isSaving: boolean;
   isSubmitting: boolean;
   error: string;
-  onSave: (input: WorkReportInput, file: File | null) => Promise<void>;
-  onSubmit: (input: WorkReportInput, file: File | null) => Promise<void>;
-  onDownloadFile: (report: WorkReport) => Promise<void>;
-  onPreviewFile?: (report: WorkReport) => void;
+  onSave: (input: WorkReportInput) => Promise<void>;
+  onSubmit: (input: WorkReportInput) => Promise<void>;
   onClose?: () => void;
   onAgent?: () => void;
 }) {
   const t = useTranslations("workNotes.reports");
   const format = useFormatter();
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState<WorkReportInput>({
-    accomplishments: report.accomplishments,
-    approach: report.approach,
-    reason: report.reason,
-    blockers: report.blockers ?? "",
-    nextSteps: report.nextSteps ?? "",
-    documentIds: report.documentIds ?? [],
+    title: report.title ?? "",
+    content: reportBodyText(report),
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewingSelectedFile, setPreviewingSelectedFile] = useState(false);
   const [validationError, setValidationError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>, saveOnly: boolean) {
@@ -142,369 +179,150 @@ function ReportEditor({
   }
 
   async function persist(saveOnly: boolean) {
-    const cleaned: WorkReportInput = {
-      accomplishments: form.accomplishments.trim(),
-      approach: form.approach.trim(),
-      reason: form.reason.trim(),
-      blockers: form.blockers?.trim() ?? "",
-      nextSteps: form.nextSteps?.trim() ?? "",
-      ...(form.documentIds && form.documentIds.length > 0
-        ? { documentIds: form.documentIds }
-        : {}),
-    };
+    const cleaned: WorkReportInput =
+      report.contentSchemaVersion === 2
+        ? {
+            title: (report.title ?? "").trim(),
+            content: reportBodyText(report).trim(),
+          }
+        : {
+            title: form.title.trim(),
+            content: form.content.trim(),
+          };
     if (
       report.contentSchemaVersion !== 2 &&
-      (!cleaned.accomplishments || !cleaned.approach || !cleaned.reason)
+      (!cleaned.title || !cleaned.content)
     ) {
       setValidationError(t("coreRequired"));
       return;
     }
     setValidationError("");
-    await (saveOnly
-      ? onSave(cleaned, selectedFile)
-      : onSubmit(cleaned, selectedFile));
-    setSelectedFile(null);
-  }
-
-  function toggleDocumentLink(docId: string) {
-    setForm((current) => {
-      const currentIds = current.documentIds ?? [];
-      const nextIds = currentIds.includes(docId)
-        ? currentIds.filter((id) => id !== docId)
-        : [...currentIds, docId];
-      return { ...current, documentIds: nextIds };
-    });
+    await (saveOnly ? onSave(cleaned) : onSubmit(cleaned));
   }
 
   return (
     <form
       onSubmit={(event) => void submit(event, true)}
-      className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+      className="space-y-4"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3.5 sm:px-5 dark:border-gray-800 dark:bg-gray-800/50">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-sm font-semibold text-gray-900 dark:text-white/90">
-              {t("reportEditorTitle")}
-            </h3>
-            <span
-              className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClasses(report.status)}`}
-            >
-              {t(`status.${report.status}`)}
-            </span>
-            <span className="inline-flex items-center rounded-md border border-brand-200 bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 tabular-nums dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300">
-              {t(`daysFull.${report.frequency}`)}
-            </span>
-          </div>
-          <p className="mt-1 flex flex-wrap items-center gap-1.5 text-xs text-gray-500 tabular-nums dark:text-gray-400">
-            <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-            <span>
-              {t("period", {
-                start: format.dateTime(new Date(report.periodStart), {
-                  dateStyle: "medium",
-                  timeZone: "UTC",
-                }),
-                end: format.dateTime(new Date(report.periodEnd), {
-                  dateStyle: "medium",
-                  timeZone: "UTC",
-                }),
-              })}
-            </span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-2.5 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
+        <span className="font-semibold text-gray-800 dark:text-gray-200">
+          {t("authorMeta", { author: report.memberName })}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {t("period", {
+            start: format.dateTime(new Date(report.periodStart), {
+              dateStyle: "medium",
+              timeZone: "UTC",
+            }),
+            end: format.dateTime(new Date(report.periodEnd), {
+              dateStyle: "medium",
+              timeZone: "UTC",
+            }),
+          })}
+        </span>
+        {Number.isFinite(Date.parse(report.updatedAt)) && (
+          <>
             <span aria-hidden="true">·</span>
-            <span className="font-medium text-gray-700 dark:text-gray-300">
-              {t("due", {
-                date: format.dateTime(new Date(report.dueAt), {
+            <span>
+              {t("updatedAtMeta", {
+                date: format.dateTime(new Date(report.updatedAt), {
                   dateStyle: "medium",
+                  timeStyle: "short",
                   timeZone: "UTC",
                 }),
               })}
             </span>
+          </>
+        )}
+      </div>
+
+      {onAgent && (
+        <div>
+          <Button type="button" size="sm" variant="outline" onClick={onAgent}>
+            {t("agentEdit")}
+          </Button>
+        </div>
+      )}
+
+      {report.contentSchemaVersion === 2 ? (
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/40 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {report.title}
+          </p>
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+            {reportBodyText(report)}
           </p>
         </div>
+      ) : (
+        <>
+          <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <span>
+              {t("reportTitleLabel")}
+              <span className="ms-0.5 text-error-600">*</span>
+            </span>
+            <input
+              type="text"
+              required
+              maxLength={240}
+              placeholder={t("reportTitlePlaceholder")}
+              value={form.title}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+              className={FIELD_CLASS}
+            />
+          </label>
+
+          <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <span>
+              {t("reportContentLabel")}
+              <span className="ms-0.5 text-error-600">*</span>
+            </span>
+            <textarea
+              required
+              maxLength={100000}
+              rows={10}
+              placeholder={t("reportContentPlaceholder")}
+              value={form.content}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  content: event.target.value,
+                }))
+              }
+              className={`${FIELD_CLASS} resize-y leading-relaxed`}
+            />
+          </label>
+        </>
+      )}
+
+      {(validationError || error) && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-lg border border-error-200 bg-error-50 px-3.5 py-2.5 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+        >
+          <AlertIcon className="h-4 w-4 shrink-0" />
+          <span>{validationError || error}</span>
+        </div>
+      )}
+
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
         {onClose && (
           <Button type="button" variant="outline" size="sm" onClick={onClose}>
             {t("closeEditor")}
           </Button>
         )}
-      </div>
-
-      <div className="space-y-4 p-4 sm:p-5">
-        {onAgent && (
-          <Button type="button" size="sm" variant="outline" onClick={onAgent}>
-            {t("agentEdit")}
-          </Button>
-        )}
-        {report.contentSchemaVersion === 2 ? (
-          <div className="space-y-2">
-            <p className="font-semibold">{report.title}</p>
-            <p className="break-words whitespace-pre-wrap">
-              {report.contentMarkdown}
-            </p>
-          </div>
-        ) : (
-          <>
-            <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-              <span>
-                {t(report.contentSchemaVersion===2?"contentLabel":"accomplishments")}
-                <span className="ms-0.5 text-error-600">*</span>
-              </span>
-              <textarea
-                required
-                maxLength={10000}
-                rows={4}
-                placeholder={t("accomplishmentsPlaceholder")}
-                value={form.accomplishments}
-                onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    accomplishments: event.target.value,
-                  }))
-                }
-                className={`${FIELD_CLASS} resize-y`}
-              />
-            </label>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <span>
-                  {t("approach")}
-                  <span className="ms-0.5 text-error-600">*</span>
-                </span>
-                <textarea
-                  required
-                  maxLength={10000}
-                  rows={3}
-                  placeholder={t("approachPlaceholder")}
-                  value={form.approach}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      approach: event.target.value,
-                    }))
-                  }
-                  className={`${FIELD_CLASS} resize-y`}
-                />
-              </label>
-
-              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <span>
-                  {t("reason")}
-                  <span className="ms-0.5 text-error-600">*</span>
-                </span>
-                <textarea
-                  required
-                  maxLength={5000}
-                  rows={3}
-                  placeholder={t("reasonPlaceholder")}
-                  value={form.reason}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      reason: event.target.value,
-                    }))
-                  }
-                  className={`${FIELD_CLASS} resize-y`}
-                />
-              </label>
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <span>{t("blockers")}</span>
-                <textarea
-                  maxLength={5000}
-                  rows={2}
-                  placeholder={t("blockersPlaceholder")}
-                  value={form.blockers ?? ""}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      blockers: event.target.value,
-                    }))
-                  }
-                  className={`${FIELD_CLASS} resize-y`}
-                />
-              </label>
-
-              <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                <span>{t("nextSteps")}</span>
-                <textarea
-                  maxLength={5000}
-                  rows={2}
-                  placeholder={t("nextStepsPlaceholder")}
-                  value={form.nextSteps ?? ""}
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      nextSteps: event.target.value,
-                    }))
-                  }
-                  className={`${FIELD_CLASS} resize-y`}
-                />
-              </label>
-            </div>
-          </>
-        )}
-        <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3.5 md:grid-cols-2 dark:border-gray-800 dark:bg-gray-950/60">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
-                <UploadIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-                {t("attachmentLabel")}
-              </span>
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("attachmentHint")}
-            </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept={DOCUMENT_FILE_ACCEPT}
-              className="sr-only"
-              onChange={(event) => {
-                const file = event.target.files?.[0] ?? null;
-                setSelectedFile(file);
-              }}
-            />
-
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <UploadIcon className="me-1.5 h-3.5 w-3.5" />
-                {selectedFile || report.file
-                  ? t("replaceFile")
-                  : t("selectFile")}
-              </Button>
-
-              {selectedFile && (
-                <div className="inline-flex flex-wrap items-center gap-1.5">
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                    <FileIcon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="max-w-44 truncate">
-                      {selectedFile.name}
-                    </span>
-                    <span className="text-[11px] tabular-nums opacity-80">
-                      ({formatFileSize(selectedFile.size)})
-                    </span>
-                    <button
-                      type="button"
-                      aria-label={t("removeSelectedFile")}
-                      onClick={() => {
-                        setSelectedFile(null);
-                        setPreviewingSelectedFile(false);
-                        if (fileInputRef.current)
-                          fileInputRef.current.value = "";
-                      }}
-                      className="ms-1 rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/20"
-                    >
-                      <CloseIcon className="h-3 w-3" />
-                    </button>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPreviewingSelectedFile(true)}
-                    className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
-                  >
-                    <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                    <span>{t("previewAttachment")}</span>
-                  </button>
-                  <DocumentFilePreviewModal
-                    isOpen={previewingSelectedFile}
-                    onClose={() => setPreviewingSelectedFile(false)}
-                    fileName={selectedFile.name}
-                    contentType={selectedFile.type}
-                    fileSize={selectedFile.size}
-                    fetchBlob={() => Promise.resolve(selectedFile)}
-                  />
-                </div>
-              )}
-
-              {!selectedFile && report.file && (
-                <div className="inline-flex flex-wrap items-center gap-1.5">
-                  {onPreviewFile && (
-                    <button
-                      type="button"
-                      onClick={() => onPreviewFile(report)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/80 px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
-                    >
-                      <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                      <span>{t("previewAttachment")}</span>
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void onDownloadFile(report)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                  >
-                    <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                    <span className="max-w-44 truncate">
-                      {report.file.name}
-                    </span>
-                    <span className="text-[11px] text-gray-400 tabular-nums">
-                      ({formatFileSize(report.file.size)})
-                    </span>
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2 border-t border-gray-200/70 pt-3 md:border-s md:border-t-0 md:ps-4 md:pt-0 dark:border-gray-800">
-            <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
-              <DocsIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-              {t("linkedDocumentsLabel")}
-            </span>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("linkedDocumentsHint")}
-            </p>
-
-            {availableDocuments.length > 0 ? (
-              <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pt-1">
-                {availableDocuments.map((doc) => {
-                  const selected = Boolean(form.documentIds?.includes(doc.id));
-                  return (
-                    <button
-                      key={doc.id}
-                      type="button"
-                      onClick={() => toggleDocumentLink(doc.id)}
-                      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                        selected
-                          ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/20 dark:text-brand-200"
-                          : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                      }`}
-                    >
-                      <DocsIcon className="h-3 w-3 shrink-0" />
-                      <span className="max-w-40 truncate">{doc.title}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="pt-1 text-xs text-gray-400 dark:text-gray-500">
-                {t("noProjectDocuments")}
-              </p>
-            )}
-          </div>
-        </div>
-
-        {(validationError || error) && (
-          <div
-            role="alert"
-            className="flex items-center gap-2 rounded-lg border border-error-200 bg-error-50 px-3.5 py-2.5 text-xs font-medium text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
-          >
-            <AlertIcon className="h-4 w-4 shrink-0" />
-            <span>{validationError || error}</span>
-          </div>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 bg-gray-50/70 px-4 py-3 sm:px-5 dark:border-gray-800 dark:bg-gray-800/40">
-        <Button type="submit" variant="outline" size="sm" isLoading={isSaving}>
+        <Button
+          type="submit"
+          variant="outline"
+          size="sm"
+          isLoading={isSaving}
+        >
           {t("saveDraft")}
         </Button>
         <Button
@@ -520,7 +338,7 @@ function ReportEditor({
   );
 }
 
-function ReportReviewActions({
+function InlineReportReviewBar({
   report,
   pending,
   onReview,
@@ -553,27 +371,20 @@ function ReportReviewActions({
   }
 
   return (
-    <div className="mt-4 space-y-2.5 rounded-xl border border-gray-200 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-950/60">
-      <label className="grid gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-        {t("reviewComment")}
-        <textarea
+    <div className="border-t border-gray-200 bg-gray-50/70 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-950/60">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="text"
           maxLength={5000}
-          rows={2}
+          aria-label={t("reviewComment")}
           placeholder={t("reviewCommentPlaceholder")}
           value={comment}
           onChange={(event) => {
             setComment(event.target.value);
             setError("");
           }}
-          className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 outline-none focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          className="h-9 min-w-48 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 outline-none transition focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         />
-      </label>
-      {error && (
-        <p role="alert" className="text-xs text-error-600 dark:text-error-400">
-          {error}
-        </p>
-      )}
-      <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
           isLoading={pending}
@@ -598,6 +409,14 @@ function ReportReviewActions({
           {t("reject")}
         </Button>
       </div>
+      {error && (
+        <p
+          role="alert"
+          className="mt-1.5 text-xs text-error-600 dark:text-error-400"
+        >
+          {error}
+        </p>
+      )}
     </div>
   );
 }
@@ -610,31 +429,27 @@ export default function ProjectWorkReportsWorkspace({
   const t = useTranslations("workNotes.reports");
   const common = useTranslations("workNotes");
   const format = useFormatter();
-
   const queryClient = useQueryClient();
+
   const [agentReportId, setAgentReportId] = useState<string | null>(null);
   const [activeScope, setActiveScope] = useState<WorkReportScope>("MEMBER");
-  const [filter, setFilter] = useState<WorkReportStatus | "ALL">("ALL");
+  const [periodFilter, setPeriodFilter] = useState<string>("DEFAULT");
+  const [statusFilter, setStatusFilter] = useState<WorkReportStatus | "ALL">(
+    "ALL",
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [page, setPage] = useState(1);
-  const [frequency, setFrequency] = useState<ReportFrequency | null>(null);
-  const [isConfirmingSchedule, setIsConfirmingSchedule] = useState(false);
-  const [pendingReportId, setPendingReportId] = useState("");
+  const [selectedReportId, setSelectedReportId] = useState("");
   const [editingReportId, setEditingReportId] = useState("");
-  const [expandedReportIds, setExpandedReportIds] = useState<
-    Record<string, boolean>
-  >({});
-  const [downloadingReportId, setDownloadingReportId] = useState("");
+  const [pendingReportId, setPendingReportId] = useState("");
 
   const memberSettings = useWorkReportSettingsQuery(projectId, "MEMBER");
   const settings = useWorkReportSettingsQuery(projectId, activeScope);
-  const reports = useWorkReportsQuery(projectId, filter, page, activeScope);
-  const currentReports = useWorkReportsQuery(projectId, "ALL", 1, activeScope);
-  const documentsQuery = useDocumentsQuery(projectId, "ALL", 1);
+  const reportsQuery = useWorkReportsQuery(projectId, "ALL", page, activeScope);
 
   const settingsAccessLost = isAccessOrResourceUnavailableError(settings.error);
-  const reportsAccessLost = isAccessOrResourceUnavailableError(reports.error);
-  const currentReportsAccessLost = isAccessOrResourceUnavailableError(
-    currentReports.error,
+  const reportsAccessLost = isAccessOrResourceUnavailableError(
+    reportsQuery.error,
   );
   const memberSettingsData = isAccessOrResourceUnavailableError(
     memberSettings.error,
@@ -642,10 +457,7 @@ export default function ProjectWorkReportsWorkspace({
     ? undefined
     : memberSettings.data;
   const settingsData = settingsAccessLost ? undefined : settings.data;
-  const reportsData = reportsAccessLost ? undefined : reports.data;
-  const currentReportsData = currentReportsAccessLost
-    ? undefined
-    : currentReports.data;
+  const reportsData = reportsAccessLost ? undefined : reportsQuery.data;
 
   const actorRole = settingsData?.actorRole ?? memberSettingsData?.actorRole;
   const canSwitchLeaderTier =
@@ -653,15 +465,198 @@ export default function ProjectWorkReportsWorkspace({
     actorRole === "MANAGER" ||
     Boolean(
       settingsData?.permissions.canConfigure ??
-      memberSettingsData?.permissions.canConfigure,
+        memberSettingsData?.permissions.canConfigure,
     );
 
-  const currentTime = Date.now();
-  const currentReport = currentReportsData?.data.find(
-    (report) =>
-      report.permissions.canEdit &&
-      Date.parse(report.periodStart) <= currentTime &&
-      currentTime < Date.parse(report.periodEnd),
+  const allScopeReports = useMemo(
+    () => reportsData?.data ?? [],
+    [reportsData?.data],
+  );
+  const totalReportsCount =
+    reportsData?.pagination.totalItems ?? allScopeReports.length;
+
+  const [mountNow] = useState(() => Date.now());
+  const currentTime = Math.max(mountNow, reportsQuery.dataUpdatedAt);
+
+  // Fixed Role × Period check: detect ALL reports in the active date window (not only canEdit!)
+  const activePeriodReports = useMemo(
+    () =>
+      allScopeReports.filter(
+        (report) =>
+          Date.parse(report.periodStart) <= currentTime &&
+          currentTime < Date.parse(report.periodEnd),
+      ),
+    [allScopeReports, currentTime],
+  );
+
+  // Editable report belonging to the signed-in author in the active cycle (used for POST /work-reports)
+  const editableCurrentReport = useMemo(
+    () => activePeriodReports.find((report) => report.permissions.canEdit),
+    [activePeriodReports],
+  );
+
+  const isReviewerOnlyScope =
+    actorRole === "MANAGER" ||
+    (actorRole === "LEADER" && activeScope === "MEMBER");
+
+  // Build distinct reporting periods sorted newest first
+  const periods = useMemo(() => {
+    const map = new Map<
+      string,
+      { key: string; start: string; end: string; dueAt: string }
+    >();
+    const sortedByDate = [...allScopeReports].sort(
+      (a, b) => Date.parse(b.periodStart) - Date.parse(a.periodStart),
+    );
+    for (const report of sortedByDate) {
+      if (!map.has(report.periodStart)) {
+        map.set(report.periodStart, {
+          key: report.periodStart,
+          start: report.periodStart,
+          end: report.periodEnd,
+          dueAt: report.dueAt,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [allScopeReports]);
+
+  const activePeriodKey = activePeriodReports[0]?.periodStart;
+
+  const effectivePeriod = useMemo(() => {
+    if (periodFilter === "ALL") return "ALL";
+    if (
+      periodFilter !== "DEFAULT" &&
+      periods.some((item) => item.key === periodFilter)
+    ) {
+      return periodFilter;
+    }
+    return activePeriodKey ?? periods[0]?.key ?? "ALL";
+  }, [periodFilter, periods, activePeriodKey]);
+
+  const periodReports = useMemo(() => {
+    if (effectivePeriod === "ALL") return allScopeReports;
+    return allScopeReports.filter(
+      (report) => report.periodStart === effectivePeriod,
+    );
+  }, [allScopeReports, effectivePeriod]);
+
+  // Detect overdue items in older periods when viewing a specific period
+  const hiddenPastOverdueReports = useMemo(() => {
+    if (effectivePeriod === "ALL") return [];
+    return allScopeReports.filter(
+      (report) =>
+        report.periodStart !== effectivePeriod &&
+        isReportOverdue(report, currentTime),
+    );
+  }, [allScopeReports, effectivePeriod, currentTime]);
+
+  // Semantic metrics separating on-track Drafts from genuinely Overdue items
+  const periodMetrics = useMemo(() => {
+    const total = periodReports.length;
+    const draftOnTrack = periodReports.filter(
+      (r) => r.status === "DRAFT" && !isReportOverdue(r, currentTime),
+    ).length;
+    const pendingReview = periodReports.filter(
+      (r) => r.status === "PENDING_REVIEW",
+    ).length;
+    const changesRequested = periodReports.filter(
+      (r) =>
+        r.status === "CHANGES_REQUESTED" && !isReportOverdue(r, currentTime),
+    ).length;
+    const approved = periodReports.filter(
+      (r) => r.status === "APPROVED",
+    ).length;
+    const rejected = periodReports.filter(
+      (r) => r.status === "REJECTED",
+    ).length;
+    const overdue = periodReports.filter((r) =>
+      isReportOverdue(r, currentTime),
+    ).length;
+
+    return {
+      total,
+      draftOnTrack,
+      pendingReview,
+      changesRequested,
+      approved,
+      rejected,
+      overdue,
+    };
+  }, [periodReports, currentTime]);
+
+  const filteredReports = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return periodReports.filter((report) => {
+      if (
+        query &&
+        !report.memberName.toLowerCase().includes(query) &&
+        !(report.title ?? "").toLowerCase().includes(query) &&
+        !reportBodyText(report).toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+      if (statusFilter === "ALL") return true;
+      if (statusFilter === "OVERDUE") {
+        return isReportOverdue(report, currentTime);
+      }
+      if (statusFilter === "DRAFT") {
+        return (
+          report.status === "DRAFT" && !isReportOverdue(report, currentTime)
+        );
+      }
+      if (statusFilter === "CHANGES_REQUESTED") {
+        return (
+          report.status === "CHANGES_REQUESTED" &&
+          !isReportOverdue(report, currentTime)
+        );
+      }
+      return report.status === statusFilter;
+    });
+  }, [periodReports, searchQuery, statusFilter, currentTime]);
+
+  const sortedReports = useMemo(() => {
+    function priority(report: WorkReport): number {
+      if (report.permissions.canEdit) return 0;
+      if (report.status === "PENDING_REVIEW") return 1;
+      if (isReportOverdue(report, currentTime)) return 2;
+      if (report.status === "CHANGES_REQUESTED") return 3;
+      if (report.status === "DRAFT" && hasReportContent(report)) return 4;
+      if (report.status === "APPROVED") return 5;
+      if (report.status === "REJECTED") return 6;
+      return 9;
+    }
+    return [...filteredReports].sort((a, b) => priority(a) - priority(b));
+  }, [filteredReports, currentTime]);
+
+  const activeRoster = useMemo(
+    () =>
+      sortedReports.filter(
+        (r) =>
+          r.permissions.canEdit ||
+          hasReportContent(r) ||
+          resolveEffectiveStatus(r, currentTime) !== "DRAFT",
+      ),
+    [sortedReports, currentTime],
+  );
+
+  const unstartedRoster = useMemo(
+    () =>
+      sortedReports.filter(
+        (r) =>
+          !r.permissions.canEdit &&
+          !hasReportContent(r) &&
+          resolveEffectiveStatus(r, currentTime) === "DRAFT",
+      ),
+    [sortedReports, currentTime],
+  );
+
+  const selectedReport = useMemo(
+    () =>
+      sortedReports.find((r) => r.id === selectedReportId) ??
+      sortedReports[0] ??
+      null,
+    [sortedReports, selectedReportId],
   );
 
   const settingsMutation = useWorkNotesMutation(
@@ -682,11 +677,6 @@ export default function ProjectWorkReportsWorkspace({
       workNotesApi.updateReport(projectId, value.id, value.input),
     [workNoteKeys.project(projectId)],
   );
-  const uploadFileMutation = useWorkNotesMutation(
-    (value: Readonly<{ id: string; file: File }>) =>
-      workNotesApi.uploadReportFile(projectId, value.id, value.file),
-    [workNoteKeys.project(projectId)],
-  );
   const reportAction = useWorkNotesMutation(
     (
       input: Readonly<{
@@ -704,88 +694,9 @@ export default function ProjectWorkReportsWorkspace({
     [workNoteKeys.project(projectId)],
   );
 
-  const availableDocuments = documentsQuery.data?.data ?? [];
-  const docTitleMap = new Map(
-    availableDocuments.map((doc) => [doc.id, doc.title]),
-  );
-  const docMap = new Map(availableDocuments.map((doc) => [doc.id, doc]));
-  const [previewTarget, setPreviewTarget] = useState<{
-    fileName: string;
-    contentType?: string;
-    fileSize?: number;
-    fetchBlob: () => Promise<Blob>;
-    downloadUrl?: string;
-    onDownload?: () => void;
-  } | null>(null);
-
-  function handlePreviewReportFile(report: WorkReport) {
-    if (!report.file) return;
-    setPreviewTarget({
-      fileName: report.file.name,
-      contentType: report.file.contentType,
-      fileSize: report.file.size,
-      fetchBlob: () => workNotesApi.downloadReportFile(projectId, report.id),
-      onDownload: () => void handleDownloadReportFile(report),
-    });
-  }
-
-  async function handlePreviewLinkedDocument(
-    docId: string,
-    fallbackTitle: string,
-  ) {
-    const summary = docMap.get(docId);
-    if (summary?.file) {
-      setPreviewTarget({
-        fileName: summary.file.name,
-        contentType: summary.file.contentType,
-        fileSize: summary.file.size,
-        fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
-        downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
-      });
-      return;
-    }
-    try {
-      const fullDoc = await workNotesApi.getDocument(projectId, docId);
-      if (fullDoc.file) {
-        setPreviewTarget({
-          fileName: fullDoc.file.name,
-          contentType: fullDoc.file.contentType,
-          fileSize: fullDoc.file.size,
-          fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
-          downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
-        });
-      } else {
-        const textBlob = new Blob([fullDoc.content || ""], {
-          type: "text/markdown;charset=utf-8",
-        });
-        setPreviewTarget({
-          fileName: `${fullDoc.title || fallbackTitle}.md`,
-          contentType: "text/markdown",
-          fileSize: textBlob.size,
-          fetchBlob: () => Promise.resolve(textBlob),
-        });
-      }
-    } catch {
-      const textBlob = new Blob([summary?.description || fallbackTitle], {
-        type: "text/plain;charset=utf-8",
-      });
-      setPreviewTarget({
-        fileName: `${fallbackTitle}.txt`,
-        contentType: "text/plain",
-        fileSize: textBlob.size,
-        fetchBlob: () => Promise.resolve(textBlob),
-      });
-    }
-  }
-
-  async function saveReportDraft(
-    report: WorkReport,
-    input: WorkReportInput,
-    file: File | null,
-  ) {
+  async function saveReportDraft(report: WorkReport, input: WorkReportInput) {
     saveReport.reset();
     updateReport.reset();
-    uploadFileMutation.reset();
     reportAction.reset();
     if (report.contentSchemaVersion === 2) {
       const saved = await apiClient<WorkReport>(
@@ -793,33 +704,24 @@ export default function ProjectWorkReportsWorkspace({
         {
           method: "PUT",
           headers: csrfHeaders(),
-          body: JSON.stringify({ documentIds: input.documentIds ?? [] }),
+          body: JSON.stringify({ documentIds: [] }),
         },
       );
-      if (file) await uploadFileMutation.mutateAsync({ id: report.id, file });
       await queryClient.invalidateQueries({
-        queryKey: ["work-notes", projectId],
+        queryKey: workNoteKeys.project(projectId),
       });
       return saved;
     }
-    const saved =
-      report.id === currentReport?.id
-        ? await saveReport.mutateAsync(input)
-        : await updateReport.mutateAsync({ id: report.id, input });
-    if (file) {
-      return uploadFileMutation.mutateAsync({ id: saved.id, file });
-    }
-    return saved;
+    return report.id === editableCurrentReport?.id
+      ? saveReport.mutateAsync(input)
+      : updateReport.mutateAsync({ id: report.id, input });
   }
 
-  async function submitReport(
-    report: WorkReport,
-    input: WorkReportInput,
-    file: File | null,
-  ) {
+  async function submitReport(report: WorkReport, input: WorkReportInput) {
     try {
-      const saved = await saveReportDraft(report, input, file);
+      const saved = await saveReportDraft(report, input);
       await reportAction.mutateAsync({ id: saved.id, action: "submit" });
+      setEditingReportId("");
     } catch {
       // The editor shows the failed request and retains entered content.
     }
@@ -843,489 +745,333 @@ export default function ProjectWorkReportsWorkspace({
     }
   }
 
-  async function handleDownloadReportFile(report: WorkReport) {
-    if (!report.file) return;
-    setDownloadingReportId(report.id);
-    try {
-      const blob = await workNotesApi.downloadReportFile(projectId, report.id);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = report.file.name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloadingReportId("");
-    }
-  }
-
-  function prepareScheduleChange(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsConfirmingSchedule(true);
-  }
-
-  async function applyScheduleChange() {
-    if (!frequency) return;
-    try {
-      await settingsMutation.mutateAsync(frequency);
-      setFrequency(null);
-      setIsConfirmingSchedule(false);
-    } catch {
-      // Keep the user's selection available for retry.
-    }
-  }
-
-  function toggleReportDetails(reportId: string) {
-    setExpandedReportIds((current) => ({
-      ...current,
-      [reportId]: !current[reportId],
-    }));
-  }
-
-  const allScopeReports = currentReportsData?.data ?? [];
-  const totalReportsCount =
-    currentReportsData?.pagination.totalItems ?? allScopeReports.length;
-  const pendingReviewCount = allScopeReports.filter(
-    (r) => r.status === "PENDING_REVIEW",
-  ).length;
-  const approvedCount = allScopeReports.filter(
-    (r) => r.status === "APPROVED",
-  ).length;
-  const attentionCount = allScopeReports.filter(
-    (r) =>
-      r.status === "OVERDUE" ||
-      r.status === "DRAFT" ||
-      r.status === "CHANGES_REQUESTED",
-  ).length;
-  const overdueCount = allScopeReports.filter(
-    (r) => r.status === "OVERDUE",
-  ).length;
-
   const reportError =
     saveReport.error instanceof Error
       ? saveReport.error.message
       : updateReport.error instanceof Error
         ? updateReport.error.message
-        : uploadFileMutation.error instanceof Error
-          ? uploadFileMutation.error.message
-          : reportAction.error instanceof Error
-            ? reportAction.error.message
-            : "";
+        : reportAction.error instanceof Error
+          ? reportAction.error.message
+          : "";
 
-  const activeFrequency = settingsData?.frequency ?? "WEEKLY";
-  const selectedFrequency = frequency ?? activeFrequency;
+  const submittedInPeriod = periodMetrics.approved + periodMetrics.pendingReview;
+  const activePeriodObj =
+    effectivePeriod !== "ALL"
+      ? periods.find((item) => item.key === effectivePeriod)
+      : undefined;
+  const progressPercent =
+    periodMetrics.total > 0
+      ? Math.max(Math.round((submittedInPeriod / periodMetrics.total) * 100), 8)
+      : 0;
 
-  return (
-    <main className="mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-      <WorkNotesPageHeader projectId={projectId} active="reports" />
+  const isEditingSelected = Boolean(
+    selectedReport &&
+      selectedReport.permissions.canEdit &&
+      editingReportId === selectedReport.id,
+  );
 
-      <div className="space-y-5">
-        <section
-          aria-labelledby="report-frequency-heading"
-          className="rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 shadow-2xs sm:px-4 dark:border-gray-800 dark:bg-gray-900"
-        >
-          <h2 id="report-frequency-heading" className="sr-only">
-            {activeScope === "LEADER" && actorRole === "MANAGER"
-              ? t("leaderScheduleSettingsTitle")
-              : t("settingsTitle")}
-          </h2>
+  function renderRosterItem(item: WorkReport) {
+    const isSelected = selectedReport?.id === item.id;
+    const hasContent = hasReportContent(item);
+    const effectiveStatus = resolveEffectiveStatus(item, currentTime);
+    const coreFilled = countCoreFields(item);
+    const reportTitle = (item.title ?? "").trim();
 
-          <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
-            {settings.isPending && !settingsData && !memberSettingsData ? (
-              <div className="h-8 w-64 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-            ) : canSwitchLeaderTier ? (
-              <nav
-                aria-label={t("title")}
-                className="inline-flex flex-wrap items-center gap-1 self-start rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScope("MEMBER");
-                    setFrequency(null);
-                    setIsConfirmingSchedule(false);
-                    setPage(1);
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    activeScope === "MEMBER"
-                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                  }`}
-                >
-                  <GroupIcon
-                    className={`h-3.5 w-3.5 shrink-0 ${
-                      activeScope === "MEMBER"
-                        ? "text-brand-600 dark:text-brand-400"
-                        : "text-gray-400"
-                    }`}
-                  />
-                  <span>{t("tabs.memberReports")}</span>
-                  {(memberSettingsData?.frequency ??
-                    (activeScope === "MEMBER"
-                      ? settingsData?.frequency
-                      : undefined)) && (
-                    <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 tabular-nums dark:bg-brand-500/15 dark:text-brand-300">
-                      {t(
-                        `daysShort.${
-                          (activeScope === "MEMBER"
-                            ? settingsData?.frequency
-                            : undefined) ?? memberSettingsData!.frequency
-                        }`,
-                      )}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveScope("LEADER");
-                    setFrequency(null);
-                    setIsConfirmingSchedule(false);
-                    setPage(1);
-                  }}
-                  className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                    activeScope === "LEADER"
-                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                  }`}
-                >
-                  <UserCircleIcon
-                    className={`h-3.5 w-3.5 shrink-0 ${
-                      activeScope === "LEADER"
-                        ? "text-brand-600 dark:text-brand-400"
-                        : "text-gray-400"
-                    }`}
-                  />
-                  <span>
-                    {actorRole === "MANAGER"
-                      ? t("tabs.managerLeaderReports")
-                      : t("tabs.leaderMyReport")}
-                  </span>
-                  {((activeScope === "LEADER"
-                    ? settingsData?.frequency
-                    : undefined) ??
-                    settingsData?.leaderSettings?.frequency ??
-                    memberSettingsData?.leaderSettings?.frequency) && (
-                    <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 tabular-nums dark:bg-brand-500/15 dark:text-brand-300">
-                      {t(
-                        `daysShort.${
-                          (activeScope === "LEADER"
-                            ? settingsData?.frequency
-                            : undefined) ??
-                          settingsData?.leaderSettings?.frequency ??
-                          memberSettingsData!.leaderSettings!.frequency
-                        }`,
-                      )}
-                    </span>
-                  )}
-                </button>
-              </nav>
-            ) : (
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                  <LockIcon className="h-3.5 w-3.5" />
-                </span>
-                <span className="text-xs font-semibold text-gray-900 dark:text-white/90">
-                  {t("mandatoryScheduleLabel")}
-                </span>
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-2">
-              {settings.isPending && !settingsData ? (
-                <span
-                  role="status"
-                  className="text-xs text-gray-500 dark:text-gray-400"
-                >
-                  {common("loading")}
-                </span>
-              ) : settings.isError && !settingsData ? (
-                <div
-                  role="alert"
-                  className="flex flex-wrap items-center gap-2 text-xs text-error-700 dark:text-error-300"
-                >
-                  <span>
-                    {settings.error instanceof Error
-                      ? settings.error.message
-                      : t("permissionDenied")}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => void settings.refetch()}
-                  >
-                    {common("retry")}
-                  </Button>
-                </div>
-              ) : settingsData?.permissions.canConfigure ? (
-                <form
-                  onSubmit={prepareScheduleChange}
-                  className="flex flex-wrap items-center gap-2"
-                >
-                  <label className="inline-flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-400">
-                    <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                    <span>{t("frequency")}</span>
-                    <select
-                      aria-label={t("frequency")}
-                      value={selectedFrequency}
-                      onChange={(event) => {
-                        const next = event.target.value as ReportFrequency;
-                        setFrequency(
-                          next === settingsData.frequency ? null : next,
-                        );
-                        setIsConfirmingSchedule(false);
-                      }}
-                      className="h-8 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-semibold text-gray-800 transition outline-none hover:border-gray-300 focus:border-brand-400 focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-                    >
-                      {FREQUENCIES.map((value) => (
-                        <option key={value} value={value}>
-                          {t(value)} ({t(`daysShort.${value}`)})
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  {frequency &&
-                    frequency !== settingsData.frequency &&
-                    !isConfirmingSchedule && (
-                      <>
-                        <Button
-                          type="submit"
-                          size="sm"
-                          isLoading={settingsMutation.isPending}
-                        >
-                          {t("saveFrequency")}
-                        </Button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setFrequency(null);
-                            setIsConfirmingSchedule(false);
-                          }}
-                          className="rounded-lg px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                        >
-                          {common("cancel")}
-                        </button>
-                      </>
-                    )}
-                </form>
-              ) : settingsData ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  {canSwitchLeaderTier && (
-                    <span className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
-                      <LockIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-                      {activeScope === "LEADER"
-                        ? t("mandatoryLeaderScheduleLabel")
-                        : t("mandatoryScheduleLabel")}
-                    </span>
-                  )}
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 tabular-nums dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                    <CalenderIcon className="h-3.5 w-3.5" />
-                    {t(`daysFull.${settingsData.frequency}`)}
-                  </span>
-                </div>
-              ) : null}
-
-              {settingsData?.history.length ? (
-                <details className="relative">
-                  <summary className="cursor-pointer list-none rounded-md px-2 py-1 text-xs font-medium text-gray-500 transition hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200">
-                    {t("scheduleHistory")} ({settingsData.history.length})
-                  </summary>
-                  <div className="mt-1.5 w-64 rounded-xl border border-gray-200 bg-white p-2.5 shadow-lg sm:absolute sm:end-0 sm:z-20 dark:border-gray-700 dark:bg-gray-900">
-                    <ol className="space-y-1.5">
-                      {settingsData.history.map((entry, idx) => (
-                        <li
-                          key={`${entry.effectiveAt}-${entry.frequency}-${idx}`}
-                          className="flex items-center justify-between gap-2 rounded-md bg-gray-50 px-2.5 py-1.5 text-[11px] text-gray-600 dark:bg-gray-800/70 dark:text-gray-400"
-                        >
-                          <span className="font-semibold text-gray-800 dark:text-gray-200">
-                            {t(entry.frequency)} (
-                            {t(`daysShort.${entry.frequency}`)})
-                          </span>
-                          <time className="tabular-nums">
-                            {format.dateTime(new Date(entry.effectiveAt), {
-                              dateStyle: "short",
-                              timeZone: "UTC",
-                            })}
-                          </time>
-                        </li>
-                      ))}
-                    </ol>
-                  </div>
-                </details>
-              ) : null}
-            </div>
-          </div>
-
-          {settingsData !== undefined &&
-            !settingsAccessLost &&
-            (settings.isFetching || settings.isRefetchError) && (
-              <div className="mt-2 border-t border-gray-100 pt-2 dark:border-gray-800">
-                {settings.isFetching && (
-                  <UpdatingStatus>{common("loading")}</UpdatingStatus>
-                )}
-                {settings.isRefetchError && (
-                  <BackgroundRefreshError
-                    retryLabel={common("retry")}
-                    onRetry={() => void settings.refetch()}
-                  >
-                    {common("updateFailed")}
-                  </BackgroundRefreshError>
-                )}
-              </div>
-            )}
-
-          {settingsData?.permissions.canConfigure &&
-            isConfirmingSchedule &&
-            frequency && (
-              <div
-                role="group"
-                aria-label={t("scheduleConfirmationTitle")}
-                className="mt-2.5 flex flex-col gap-2.5 rounded-lg border border-brand-200 bg-brand-50/70 px-3.5 py-2.5 sm:flex-row sm:items-center sm:justify-between dark:border-brand-500/30 dark:bg-brand-500/10"
-              >
-                <div className="min-w-0">
-                  <h3 className="text-xs font-semibold text-gray-900 dark:text-white/90">
-                    {t("scheduleConfirmationTitle")}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-gray-600 dark:text-gray-300">
-                    {t("scheduleConfirmation", { frequency: t(frequency) })}
-                  </p>
-                </div>
-                <div className="flex shrink-0 flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setIsConfirmingSchedule(false);
-                      setFrequency(null);
-                    }}
-                  >
-                    {common("cancel")}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    isLoading={settingsMutation.isPending}
-                    onClick={() => void applyScheduleChange()}
-                  >
-                    {t("confirmScheduleChange")}
-                  </Button>
-                </div>
-              </div>
-            )}
-
-          {(settingsMutation.isError || settingsMutation.isSuccess) && (
-            <div className="mt-2 border-t border-gray-100 pt-2 dark:border-gray-800">
-              {settingsMutation.isError && (
-                <p
-                  role="alert"
-                  className="text-xs text-error-600 dark:text-error-400"
-                >
-                  {settingsMutation.error instanceof Error
-                    ? settingsMutation.error.message
-                    : t("permissionDenied")}
-                </p>
-              )}
-              {settingsMutation.isSuccess && (
-                <p
-                  role="status"
-                  className="text-xs font-medium text-emerald-700 dark:text-emerald-400"
-                >
-                  {t("frequencySaved")}
-                </p>
-              )}
-            </div>
-          )}
-        </section>
-
-        <section
-          aria-label={t("title")}
-          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
-        >
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {t("kpi.total")}
-              </span>
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-                <FileIcon className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-gray-900 tabular-nums dark:text-white">
-              {totalReportsCount}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {t("kpi.pendingReview")}
-              </span>
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300">
-                <TimeIcon className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-amber-600 tabular-nums dark:text-amber-400">
-              {pendingReviewCount}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {t("kpi.approved")}
-              </span>
-              <span className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300">
-                <CheckCircleIcon className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <p className="mt-2 text-2xl font-bold text-emerald-600 tabular-nums dark:text-emerald-400">
-              {approvedCount}
-            </p>
-          </div>
-
-          <div className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                {t("kpi.attention")}
-              </span>
-              <span
-                className={`inline-flex h-7 w-7 items-center justify-center rounded-lg ${
-                  overdueCount > 0
-                    ? "bg-rose-50 text-rose-600 dark:bg-rose-500/15 dark:text-rose-300"
-                    : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"
-                }`}
-              >
-                <AlertIcon className="h-3.5 w-3.5" />
-              </span>
-            </div>
-            <p
-              className={`mt-2 text-2xl font-bold tabular-nums ${
-                overdueCount > 0
-                  ? "text-rose-600 dark:text-rose-400"
-                  : "text-gray-900 dark:text-white"
+    return (
+      <button
+        key={item.id}
+        type="button"
+        onClick={() => {
+          setSelectedReportId(item.id);
+          if (editingReportId && editingReportId !== item.id) {
+            setEditingReportId("");
+          }
+        }}
+        className={`flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-2 text-start transition ${
+          isSelected
+            ? "border-brand-200 bg-brand-50/80 dark:border-brand-500/30 dark:bg-brand-500/15"
+            : "border-transparent hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
+        }`}
+      >
+        <div className="flex min-w-0 items-center gap-2.5">
+          <span
+            className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+              effectiveStatus === "OVERDUE"
+                ? "bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300"
+                : "bg-brand-50 text-brand-700 dark:bg-brand-500/15 dark:text-brand-300"
+            }`}
+          >
+            {initialsFromName(item.memberName)}
+          </span>
+          <div className="min-w-0">
+            <div
+              className={`truncate text-xs ${
+                isSelected
+                  ? "font-bold text-brand-800 dark:text-brand-200"
+                  : hasContent ||
+                      effectiveStatus !== "DRAFT" ||
+                      item.permissions.canEdit
+                    ? "font-semibold text-gray-900 dark:text-white/90"
+                    : "font-medium text-gray-500 dark:text-gray-400"
               }`}
             >
-              {attentionCount}
-            </p>
+              {item.memberName}
+              {item.permissions.canEdit ? ` ${t("youSuffix")}` : ""}
+            </div>
+            {(reportTitle || effectivePeriod === "ALL") && (
+              <div className="truncate text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                {effectivePeriod === "ALL"
+                  ? `${format.dateTime(new Date(item.periodStart), {
+                      dateStyle: "short",
+                      timeZone: "UTC",
+                    })}${reportTitle ? ` · ${reportTitle}` : ""}`
+                  : reportTitle}
+              </div>
+            )}
           </div>
-        </section>
+        </div>
 
+        <div className="flex shrink-0 items-center gap-1.5">
+          {effectiveStatus === "DRAFT" && hasContent ? (
+            <MiniProgressDots
+              filled={coreFilled}
+              label={t("sectionsProgress", { filled: coreFilled })}
+            />
+          ) : (
+            <span
+              className={`text-xs font-semibold ${
+                effectiveStatus === "OVERDUE" || effectiveStatus === "REJECTED"
+                  ? "text-rose-600 dark:text-rose-400"
+                  : effectiveStatus === "PENDING_REVIEW"
+                    ? "text-amber-600 dark:text-amber-400"
+                    : effectiveStatus === "APPROVED"
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-gray-400 dark:text-gray-500"
+              }`}
+            >
+              {t(`status.${effectiveStatus}`)}
+            </span>
+          )}
+          <span
+            aria-hidden="true"
+            className={`h-2 w-2 shrink-0 rounded-full ${statusDotClasses(
+              effectiveStatus,
+              hasContent,
+            )}`}
+          />
+        </div>
+      </button>
+    );
+  }
+
+  return (
+    <main className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:px-8">
+      <WorkNotesPageHeader projectId={projectId} active="reports" />
+
+      <div className="space-y-4">
+        {/* MINIMAL TOP TOOLBAR: Scope Tabs + Period Selector + Cadence Popover */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {settings.isPending && !settingsData && !memberSettingsData ? (
+            <div className="h-9 w-60 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+          ) : canSwitchLeaderTier ? (
+            <nav
+              aria-label={t("title")}
+              className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScope("MEMBER");
+                  setPeriodFilter("DEFAULT");
+                  setStatusFilter("ALL");
+                  setSelectedReportId("");
+                  setEditingReportId("");
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  activeScope === "MEMBER"
+                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                }`}
+              >
+                <GroupIcon
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    activeScope === "MEMBER"
+                      ? "text-brand-600 dark:text-brand-400"
+                      : "text-gray-400"
+                  }`}
+                />
+                <span>{t("tabs.memberReports")}</span>
+                {(memberSettingsData?.frequency ??
+                  (activeScope === "MEMBER"
+                    ? settingsData?.frequency
+                    : undefined)) && (
+                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                    {t(
+                      `daysShort.${
+                        (activeScope === "MEMBER"
+                          ? settingsData?.frequency
+                          : undefined) ?? memberSettingsData!.frequency
+                      }`,
+                    )}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveScope("LEADER");
+                  setPeriodFilter("DEFAULT");
+                  setStatusFilter("ALL");
+                  setSelectedReportId("");
+                  setEditingReportId("");
+                  setPage(1);
+                }}
+                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                  activeScope === "LEADER"
+                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                }`}
+              >
+                <UserCircleIcon
+                  className={`h-3.5 w-3.5 shrink-0 ${
+                    activeScope === "LEADER"
+                      ? "text-brand-600 dark:text-brand-400"
+                      : "text-gray-400"
+                  }`}
+                />
+                <span>
+                  {actorRole === "MANAGER"
+                    ? t("tabs.managerLeaderReports")
+                    : t("tabs.leaderMyReport")}
+                </span>
+                {((activeScope === "LEADER"
+                  ? settingsData?.frequency
+                  : undefined) ??
+                  settingsData?.leaderSettings?.frequency ??
+                  memberSettingsData?.leaderSettings?.frequency) && (
+                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                    {t(
+                      `daysShort.${
+                        (activeScope === "LEADER"
+                          ? settingsData?.frequency
+                          : undefined) ??
+                        settingsData?.leaderSettings?.frequency ??
+                        memberSettingsData!.leaderSettings!.frequency
+                      }`,
+                    )}
+                  </span>
+                )}
+              </button>
+            </nav>
+          ) : (
+            <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+              <LockIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+              <span>{t("mandatoryScheduleLabel")}</span>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {!reportsQuery.isPending &&
+              !reportsQuery.isError &&
+              allScopeReports.length > 0 &&
+              activePeriodReports.length === 0 && (
+                <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+                  <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                  <span>{t("noActiveCycleArchive")}</span>
+                </span>
+              )}
+
+            {periods.length > 0 && (
+              <select
+                aria-label={t("periodSelectLabel")}
+                value={effectivePeriod}
+                onChange={(event) => {
+                  setPeriodFilter(event.target.value);
+                  setSelectedReportId("");
+                  setEditingReportId("");
+                }}
+                className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold tabular-nums text-gray-800 outline-none transition hover:border-gray-300 focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+              >
+                {periods.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {t("period", {
+                      start: format.dateTime(new Date(item.start), {
+                        dateStyle: "medium",
+                        timeZone: "UTC",
+                      }),
+                      end: format.dateTime(new Date(item.end), {
+                        dateStyle: "medium",
+                        timeZone: "UTC",
+                      }),
+                    })}
+                  </option>
+                ))}
+                {periods.length > 1 && (
+                  <option value="ALL">
+                    {t("allPeriods", { count: totalReportsCount })}
+                  </option>
+                )}
+              </select>
+            )}
+
+            <WorkReportCadencePopover
+              activeScope={activeScope}
+              actorRole={actorRole}
+              settingsData={settingsData}
+              isPending={settings.isPending}
+              isError={settings.isError}
+              error={settings.error}
+              isFetching={settings.isFetching}
+              isRefetchError={settings.isRefetchError}
+              accessLost={settingsAccessLost}
+              onRetry={() => void settings.refetch()}
+              isSaving={settingsMutation.isPending}
+              saveError={settingsMutation.error}
+              saveSuccess={settingsMutation.isSuccess}
+              onApplyFrequency={async (nextFreq) => {
+                await settingsMutation.mutateAsync(nextFreq);
+              }}
+            />
+          </div>
+        </div>
+
+        {/* SUBTLE PAST-OVERDUE ALERT STRIP */}
+        {hiddenPastOverdueReports.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              setPeriodFilter("ALL");
+              setStatusFilter("OVERDUE");
+              setSelectedReportId(hiddenPastOverdueReports[0]?.id ?? "");
+            }}
+            className="flex w-full items-center justify-between gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-100/70 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-300"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <AlertIcon className="h-3.5 w-3.5 shrink-0" />
+              <span>
+                {t("pastOverdueAlert", {
+                  count: hiddenPastOverdueReports.length,
+                })}
+              </span>
+            </span>
+            <span>{t("inspectOverdue")} →</span>
+          </button>
+        )}
+
+        {/* BACKGROUND REFRESH STATUS */}
         {reportsData !== undefined &&
           !reportsAccessLost &&
-          (reports.isFetching || reports.isRefetchError) && (
+          (reportsQuery.isFetching || reportsQuery.isRefetchError) && (
             <div>
-              {reports.isFetching && (
+              {reportsQuery.isFetching && (
                 <UpdatingStatus>{common("loading")}</UpdatingStatus>
               )}
-              {reports.isRefetchError && (
+              {reportsQuery.isRefetchError && (
                 <BackgroundRefreshError
                   retryLabel={common("retry")}
-                  onRetry={() => void reports.refetch()}
+                  onRetry={() => void reportsQuery.refetch()}
                 >
                   {common("updateFailed")}
                 </BackgroundRefreshError>
@@ -1333,549 +1079,601 @@ export default function ProjectWorkReportsWorkspace({
             </div>
           )}
 
-        {reports.isPending && !reportsData ? (
-          <div
-            role="status"
-            aria-label={common("loading")}
-            className="space-y-3"
-          >
-            {[0, 1, 2].map((item) => (
-              <div
-                key={item}
-                className="h-28 animate-pulse rounded-xl border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
-              />
-            ))}
-          </div>
-        ) : reports.isError && !reportsData ? (
+        {/* WORKFLOW MUTATION ALERTS */}
+        {reportAction.isError && (
           <div
             role="alert"
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
           >
             <span>
-              {reports.error instanceof Error
-                ? reports.error.message
+              {reportAction.error instanceof Error
+                ? reportAction.error.message
                 : t("permissionDenied")}
             </span>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => void reports.refetch()}
+              onClick={() => {
+                reportAction.reset();
+                void reportsQuery.refetch();
+              }}
+            >
+              {common("retry")}
+            </Button>
+          </div>
+        )}
+        {(reportAction.isSuccess ||
+          saveReport.isSuccess ||
+          updateReport.isSuccess) && (
+          <p
+            role="status"
+            className="text-xs font-medium text-emerald-700 dark:text-emerald-400"
+          >
+            {reportAction.isSuccess ? t("actionSuccess") : t("saveSuccess")}
+          </p>
+        )}
+
+        {/* MAIN SPLIT-VIEW 2-PANE WORKSPACE */}
+        {reportsQuery.isPending && !reportsData ? (
+          <div
+            role="status"
+            aria-label={common("loading")}
+            className="grid min-h-96 grid-cols-1 overflow-hidden rounded-2xl border border-gray-200 bg-white md:grid-cols-12 dark:border-gray-800 dark:bg-gray-900"
+          >
+            <div className="space-y-2 border-b border-gray-200 bg-gray-50/60 p-3 md:col-span-4 md:border-b-0 md:border-e dark:border-gray-800 dark:bg-gray-950/40">
+              {[0, 1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className="h-11 animate-pulse rounded-lg bg-gray-200/70 dark:bg-gray-800"
+                />
+              ))}
+            </div>
+            <div className="space-y-4 p-6 md:col-span-8">
+              <div className="h-12 w-2/3 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
+              <div className="h-32 animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+            </div>
+          </div>
+        ) : reportsQuery.isError && !reportsData ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-4 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+          >
+            <span>
+              {reportsQuery.error instanceof Error
+                ? reportsQuery.error.message
+                : t("permissionDenied")}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void reportsQuery.refetch()}
             >
               {common("retry")}
             </Button>
           </div>
         ) : (
-          <>
-            {currentReport && currentReport.permissions.canEdit && (
-              <section
-                aria-labelledby="current-work-report-heading"
-                className="space-y-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <h2
-                    id="current-work-report-heading"
-                    className="text-base font-semibold text-gray-900 dark:text-white/90"
-                  >
-                    {t("yourCurrentReport")}
-                  </h2>
-                </div>
-                <ReportEditor
-                  key={`${currentReport.id}-${currentReport.updatedAt}`}
-                  report={currentReport}
-                  onAgent={
-                    process.env.NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
-                      "true" || currentReport.contentSchemaVersion === 2
-                      ? () => setAgentReportId(currentReport.id)
-                      : undefined
-                  }
-                  availableDocuments={availableDocuments}
-                  isSaving={
-                    saveReport.isPending ||
-                    updateReport.isPending ||
-                    uploadFileMutation.isPending
-                  }
-                  isSubmitting={reportAction.isPending}
-                  error={reportError}
-                  onSave={async (input, file) => {
-                    try {
-                      await saveReportDraft(currentReport, input, file);
-                    } catch {
-                      /* form preserves draft */
-                    }
-                  }}
-                  onSubmit={(input, file) =>
-                    submitReport(currentReport, input, file)
-                  }
-                  onDownloadFile={handleDownloadReportFile}
-                  onPreviewFile={handlePreviewReportFile}
-                />
-              </section>
-            )}
-
-            {currentReports.isPending && !currentReportsData && (
-              <p
-                role="status"
-                className="text-sm text-gray-500 dark:text-gray-400"
-              >
-                {common("loading")}
-              </p>
-            )}
-            {currentReportsData !== undefined &&
-              !currentReportsAccessLost &&
-              (currentReports.isFetching || currentReports.isRefetchError) && (
-                <div className="mb-3">
-                  {currentReports.isFetching && (
-                    <UpdatingStatus>{common("loading")}</UpdatingStatus>
-                  )}
-                  {currentReports.isRefetchError && (
-                    <BackgroundRefreshError
-                      retryLabel={common("retry")}
-                      onRetry={() => void currentReports.refetch()}
-                    >
-                      {common("updateFailed")}
-                    </BackgroundRefreshError>
-                  )}
-                </div>
-              )}
-
-            {currentReports.isError && !currentReportsData && (
+          <section
+            aria-label={t("title")}
+            className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+          >
+            {/* SLIM FILTER & CYCLE PROGRESS HEADER (Draft separated from Overdue!) */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-gray-800">
               <div
-                role="alert"
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+                role="tablist"
+                aria-label={t("filterLabel")}
+                className="flex flex-wrap items-center gap-1"
               >
-                <span>
-                  {currentReports.error instanceof Error
-                    ? currentReports.error.message
-                    : t("permissionDenied")}
-                </span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void currentReports.refetch()}
-                >
-                  {common("retry")}
-                </Button>
+                {(
+                  [
+                    {
+                      id: "ALL" as const,
+                      label: t("filterTabs.all"),
+                      count: periodMetrics.total,
+                      alert: false,
+                    },
+                    {
+                      id: "DRAFT" as const,
+                      label: t("filterTabs.draft"),
+                      count: periodMetrics.draftOnTrack,
+                      alert: false,
+                    },
+                    {
+                      id: "PENDING_REVIEW" as const,
+                      label: t("filterTabs.review"),
+                      count: periodMetrics.pendingReview,
+                      alert: false,
+                    },
+                    ...(periodMetrics.changesRequested > 0 ||
+                    statusFilter === "CHANGES_REQUESTED"
+                      ? [
+                          {
+                            id: "CHANGES_REQUESTED" as const,
+                            label: t("filterTabs.revision"),
+                            count: periodMetrics.changesRequested,
+                            alert: false,
+                          },
+                        ]
+                      : []),
+                    {
+                      id: "APPROVED" as const,
+                      label: t("filterTabs.approved"),
+                      count: periodMetrics.approved,
+                      alert: false,
+                    },
+                    ...(periodMetrics.rejected > 0 ||
+                    statusFilter === "REJECTED"
+                      ? [
+                          {
+                            id: "REJECTED" as const,
+                            label: t("filterTabs.rejected"),
+                            count: periodMetrics.rejected,
+                            alert: true,
+                          },
+                        ]
+                      : []),
+                    {
+                      id: "OVERDUE" as const,
+                      label: t("filterTabs.overdue"),
+                      count: periodMetrics.overdue,
+                      alert: periodMetrics.overdue > 0,
+                    },
+                  ] as const
+                ).map((tab) => {
+                  const active = statusFilter === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      role="tab"
+                      aria-selected={active}
+                      onClick={() => setStatusFilter(tab.id)}
+                      className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs transition ${
+                        active
+                          ? tab.alert
+                            ? "bg-rose-600 font-semibold text-white dark:bg-rose-500"
+                            : "bg-gray-900 font-semibold text-white dark:bg-white dark:text-gray-900"
+                          : tab.alert
+                            ? "bg-rose-50 font-semibold text-rose-700 hover:bg-rose-100 dark:bg-rose-500/15 dark:text-rose-300"
+                            : "font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      <span>{tab.label}</span>{" "}
+                      <span className="tabular-nums opacity-80">
+                        {tab.count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-            )}
 
-            {!currentReport &&
-              !currentReports.isPending &&
-              !currentReports.isError && (
-                <div className="flex items-center gap-3 rounded-xl border border-gray-200 bg-gray-50/70 px-4 py-3.5 text-sm text-gray-600 dark:border-gray-800 dark:bg-gray-900/60 dark:text-gray-300">
-                  <CalenderIcon className="h-4 w-4 shrink-0 text-gray-400" />
-                  <span>{t("noCurrentReport")}</span>
-                </div>
-              )}
+              <div className="flex flex-wrap items-center gap-3">
+                {activePeriodObj && periodMetrics.total > 0 && (
+                  <div className="inline-flex items-center gap-2 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                    <span>
+                      {t("due", {
+                        date: format.dateTime(new Date(activePeriodObj.dueAt), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }),
+                      })}
+                    </span>
+                    <span className="h-1.5 w-11 overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
+                      <span
+                        style={{ width: `${progressPercent}%` }}
+                        className={`block h-full rounded-full ${
+                          submittedInPeriod > 0
+                            ? "bg-emerald-500"
+                            : "bg-gray-400 dark:bg-gray-500"
+                        }`}
+                      />
+                    </span>
+                    <strong className="font-semibold text-gray-700 dark:text-gray-200">
+                      {t("cycleSubmittedProgress", {
+                        submitted: submittedInPeriod,
+                        total: periodMetrics.total,
+                      })}
+                    </strong>
+                  </div>
+                )}
 
-            <section
-              aria-labelledby="report-list-heading"
-              className="space-y-4"
-            >
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <h2
-                    id="report-list-heading"
-                    className="text-base font-semibold text-gray-900 dark:text-white/90"
-                  >
-                    {t("title")}
-                  </h2>
+                <div className="relative">
+                  <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="search"
+                    aria-label={t("searchMemberLabel")}
+                    placeholder={t("searchMemberPlaceholder")}
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="h-7 w-36 rounded-lg border border-gray-200 bg-gray-50 ps-8 pe-2.5 text-xs text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:bg-white sm:w-44 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  />
                 </div>
-                <label className="grid gap-1 text-xs font-semibold text-gray-700 dark:text-gray-300">
-                  {t("filterLabel")}
-                  <select
-                    value={filter}
-                    onChange={(event) => {
-                      setFilter(event.target.value as WorkReportStatus | "ALL");
-                      setPage(1);
-                    }}
-                    className="h-10 min-w-48 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-                  >
-                    {STATUSES.map((status) => (
-                      <option key={status} value={status}>
-                        {status === "ALL"
-                          ? t("allStatuses")
-                          : t(`status.${status}`)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
               </div>
+            </div>
 
-              {reportAction.isError && (
-                <div
-                  role="alert"
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-error-200 bg-error-50 px-4 py-3 text-sm text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
-                >
-                  <span>
-                    {reportAction.error instanceof Error
-                      ? reportAction.error.message
-                      : t("permissionDenied")}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      reportAction.reset();
-                      void reports.refetch();
-                    }}
-                  >
-                    {common("retry")}
-                  </Button>
-                </div>
-              )}
-              {reportAction.isSuccess && (
-                <p
-                  role="status"
-                  className="text-sm font-medium text-emerald-700 dark:text-emerald-400"
-                >
-                  {t("actionSuccess")}
-                </p>
-              )}
+            {/* 2-PANE BODY: LEFT ROSTER + RIGHT READER & INLINE REVIEW CANVAS */}
+            {allScopeReports.length === 0 ? (
+              <div className="px-6 py-16 text-center">
+                <FileIcon className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
+                <h3 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white/90">
+                  {isReviewerOnlyScope ? t("empty") : t("noCurrentReport")}
+                </h3>
+              </div>
+            ) : (
+              <div className="flex min-h-96 flex-col md:flex-row">
+                {/* LEFT PANE: CLEAN MEMBER ROSTER (w-72 = 288px, zero paragraph clutter) */}
+                <div className="flex w-full flex-col justify-between border-b border-gray-200 bg-gray-50/50 md:w-72 md:shrink-0 md:border-b-0 md:border-e dark:border-gray-800 dark:bg-gray-950/40">
+                  <div className="max-h-60 space-y-1 overflow-y-auto p-2 md:max-h-none">
+                    {sortedReports.length === 0 ? (
+                      <p className="px-3 py-8 text-center text-xs text-gray-400 dark:text-gray-500">
+                        {t("noMatchingReports")}
+                      </p>
+                    ) : (
+                      <>
+                        {activeRoster.map(renderRosterItem)}
 
-              {reportsData?.data.length ? (
-                <ul className="space-y-3">
-                  {reportsData.data.map((report) => {
-                    const hasContent = Boolean(
-                      report.contentMarkdown?.trim() ||
-                      report.accomplishments.trim() ||
-                      report.approach.trim() ||
-                      report.reason.trim() ||
-                      report.blockers?.trim() ||
-                      report.nextSteps?.trim() ||
-                      report.file ||
-                      (report.documentIds && report.documentIds.length > 0),
-                    );
-                    const isExpanded = Boolean(expandedReportIds[report.id]);
-
-                    return (
-                      <li
-                        key={report.id}
-                        className="min-w-0 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs transition hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900"
-                      >
-                        <div className="p-4 sm:p-5">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="flex min-w-0 items-start gap-3">
-                              <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                                {initialsFromName(report.memberName)}
-                              </span>
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h3 className="text-sm font-semibold break-words text-gray-900 dark:text-white/90">
-                                    {report.memberName}
-                                  </h3>
-                                  <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                    {report.reportScope === "LEADER"
-                                      ? t("leaderReportBadge")
-                                      : t("memberReportBadge")}
-                                  </span>
-                                  <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-semibold text-brand-700 tabular-nums dark:bg-brand-500/15 dark:text-brand-300">
-                                    {t(`daysShort.${report.frequency}`)}
-                                  </span>
-                                </div>
-                                <p className="mt-1 text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                                  {t("period", {
-                                    start: format.dateTime(
-                                      new Date(report.periodStart),
-                                      { dateStyle: "medium", timeZone: "UTC" },
-                                    ),
-                                    end: format.dateTime(
-                                      new Date(report.periodEnd),
-                                      { dateStyle: "medium", timeZone: "UTC" },
-                                    ),
-                                  })}{" "}
-                                  ·{" "}
-                                  {t("due", {
-                                    date: format.dateTime(
-                                      new Date(report.dueAt),
-                                      { dateStyle: "medium", timeZone: "UTC" },
-                                    ),
-                                  })}
-                                </p>
-                              </div>
+                        {unstartedRoster.length > 0 && (
+                          <>
+                            <div className="px-2.5 pt-2.5 pb-1 text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
+                              {t("notStartedGroup", {
+                                count: unstartedRoster.length,
+                              })}
                             </div>
+                            {unstartedRoster.map(renderRosterItem)}
+                          </>
+                        )}
+                      </>
+                    )}
+                  </div>
 
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span
-                                className={`shrink-0 rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClasses(report.status)}`}
-                              >
-                                {t(`status.${report.status}`)}
-                              </span>
-                              {hasContent && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleReportDetails(report.id)}
-                                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  {reportsData && reportsData.pagination.totalPages > 1 && (
+                    <div className="flex items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
+                      <span className="tabular-nums text-gray-500 dark:text-gray-400">
+                        {common("pagination.total", {
+                          count: reportsData.pagination.totalItems,
+                        })}
+                      </span>
+                      <div className="flex gap-1.5">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page <= 1}
+                          onClick={() =>
+                            setPage((value) => Math.max(1, value - 1))
+                          }
+                        >
+                          {common("pagination.previous")}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page >= reportsData.pagination.totalPages}
+                          onClick={() => setPage((value) => value + 1)}
+                        >
+                          {common("pagination.next")}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* RIGHT PANE: CALM SPACIOUS READER, COMPOSER & INLINE REVIEW */}
+                <div className="flex min-w-0 flex-1 flex-col justify-between">
+                  {!selectedReport ? (
+                    <div className="flex flex-1 items-center justify-center px-6 py-16 text-center text-sm text-gray-400 dark:text-gray-500">
+                      {sortedReports.length === 0
+                        ? t("noMatchingReports")
+                        : t("selectMemberPrompt")}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-5 sm:p-6">
+                        {/* Selected Member Header */}
+                        <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                              {initialsFromName(selectedReport.memberName)}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <h2 className="break-words text-base font-bold text-gray-900 dark:text-white">
+                                  {selectedReport.memberName}
+                                </h2>
+                                <span
+                                  className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${statusBadgeClasses(
+                                    resolveEffectiveStatus(
+                                      selectedReport,
+                                      currentTime,
+                                    ),
+                                  )}`}
                                 >
-                                  <span>
-                                    {isExpanded
-                                      ? t("hideDetails")
-                                      : t("viewDetails")}
-                                  </span>
-                                  {isExpanded ? (
-                                    <ChevronUpIcon className="h-3.5 w-3.5" />
-                                  ) : (
-                                    <ChevronDownIcon className="h-3.5 w-3.5" />
+                                  {t(
+                                    `status.${resolveEffectiveStatus(
+                                      selectedReport,
+                                      currentTime,
+                                    )}`,
                                   )}
-                                </button>
-                              )}
-                              {report.permissions.canEdit &&
-                                report.id !== currentReport?.id && (
-                                  <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() =>
-                                      setEditingReportId((current) =>
-                                        current === report.id ? "" : report.id,
-                                      )
-                                    }
-                                  >
-                                    <PencilIcon className="me-1 h-3.5 w-3.5" />
-                                    {editingReportId === report.id
-                                      ? t("closeEditor")
-                                      : t("editReport")}
-                                  </Button>
-                                )}
+                                </span>
+                                <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                  {selectedReport.reportScope === "LEADER"
+                                    ? t("leaderReportBadge")
+                                    : t("memberReportBadge")}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                                {t("period", {
+                                  start: format.dateTime(
+                                    new Date(selectedReport.periodStart),
+                                    { dateStyle: "medium", timeZone: "UTC" },
+                                  ),
+                                  end: format.dateTime(
+                                    new Date(selectedReport.periodEnd),
+                                    { dateStyle: "medium", timeZone: "UTC" },
+                                  ),
+                                })}{" "}
+                                ·{" "}
+                                {t("due", {
+                                  date: format.dateTime(
+                                    new Date(selectedReport.dueAt),
+                                    { dateStyle: "medium", timeZone: "UTC" },
+                                  ),
+                                })}
+                                {selectedReport.reviewedBy
+                                  ? ` · ${t("reviewedByMeta", {
+                                      reviewer: selectedReport.reviewedBy,
+                                    })}`
+                                  : ""}
+                              </p>
                             </div>
                           </div>
 
-                          {editingReportId === report.id &&
-                            report.permissions.canEdit && (
-                              <div className="mt-4">
-                                <ReportEditor
-                                  key={`${report.id}-${report.updatedAt}`}
-                                  report={report}
-                                  onAgent={
-                                    process.env
-                                      .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
-                                      "true" ||
-                                    report.contentSchemaVersion === 2
-                                      ? () => setAgentReportId(report.id)
-                                      : undefined
-                                  }
-                                  availableDocuments={availableDocuments}
-                                  isSaving={
-                                    updateReport.isPending ||
-                                    uploadFileMutation.isPending
-                                  }
-                                  isSubmitting={reportAction.isPending}
-                                  error={reportError}
-                                  onSave={async (input, file) => {
-                                    try {
-                                      await saveReportDraft(
-                                        report,
-                                        input,
-                                        file,
-                                      );
-                                    } catch {
-                                      /* form preserves draft */
-                                    }
-                                  }}
-                                  onSubmit={(input, file) =>
-                                    submitReport(report, input, file)
-                                  }
-                                  onDownloadFile={handleDownloadReportFile}
-                                  onPreviewFile={handlePreviewReportFile}
-                                  onClose={() => setEditingReportId("")}
-                                />
-                              </div>
-                            )}
-
-                          {hasContent ? (
-                            <div className="mt-3.5 space-y-3 border-t border-gray-100 pt-3.5 dark:border-gray-800">
-                              <div className="min-w-0">
-                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
-                                  {t(report.contentSchemaVersion===2?"contentLabel":"accomplishments")}
-                                </p>
-                                <p className="mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                                  {report.contentSchemaVersion === 2
-                                    ? report.contentMarkdown
-                                    : report.accomplishments ||
-                                      common("noValue")}
-                                </p>
-                              </div>
-
-                              {(report.file ||
-                                (report.documentIds &&
-                                  report.documentIds.length > 0)) && (
-                                <div className="flex flex-wrap items-center gap-2 pt-1">
-                                  {report.file && (
-                                    <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-brand-50/40 p-1 ps-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
-                                      <FileIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                                      <span className="max-w-52 truncate text-xs font-medium text-gray-800 tabular-nums dark:text-gray-200">
-                                        {`${report.file.name} (${formatFileSize(report.file.size)})`}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handlePreviewReportFile(report)
-                                        }
-                                        className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-gray-800"
-                                      >
-                                        <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                                        <span>{t("previewAttachment")}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={
-                                          downloadingReportId === report.id
-                                        }
-                                        onClick={() =>
-                                          void handleDownloadReportFile(report)
-                                        }
-                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                                      >
-                                        <DownloadIcon className="h-3.5 w-3.5 shrink-0" />
-                                        <span>
-                                          {downloadingReportId === report.id
-                                            ? t("downloadingFile")
-                                            : t("downloadAttachment")}
-                                        </span>
-                                      </button>
-                                    </div>
-                                  )}
-                                  {report.documentIds?.map((docId) => {
-                                    const docTitle =
-                                      docTitleMap.get(docId) ?? docId;
-                                    return (
-                                      <span
-                                        key={docId}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                      >
-                                        <DocsIcon className="h-3 w-3 shrink-0 text-brand-600 dark:text-brand-400" />
-                                        <span className="max-w-48 truncate">
-                                          {docTitle}
-                                        </span>
-                                        <button
-                                          type="button"
-                                          aria-label={`${t("previewDocument")}: ${docTitle}`}
-                                          onClick={() =>
-                                            void handlePreviewLinkedDocument(
-                                              docId,
-                                              docTitle,
-                                            )
-                                          }
-                                          className="ms-1 inline-flex items-center gap-1 rounded border border-brand-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
-                                        >
-                                          <EyeIcon className="h-3 w-3 shrink-0" />
-                                          <span>{t("previewAttachment")}</span>
-                                        </button>
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              )}
-
-                              {isExpanded &&
-                                report.contentSchemaVersion !== 2 && (
-                                  <dl className="grid gap-3 rounded-xl bg-gray-50/80 p-3.5 md:grid-cols-2 dark:bg-gray-950/60">
-                                    {(
-                                      [
-                                        "approach",
-                                        "reason",
-                                        "blockers",
-                                        "nextSteps",
-                                      ] as const
-                                    ).map((field) => (
-                                      <div key={field} className="min-w-0">
-                                        <dt className="text-xs font-semibold text-gray-600 dark:text-gray-400">
-                                          {t(field)}
-                                        </dt>
-                                        <dd className="mt-1 text-sm leading-6 break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
-                                          {report[field] || common("noValue")}
-                                        </dd>
-                                      </div>
-                                    ))}
-                                  </dl>
-                                )}
-                            </div>
-                          ) : (
-                            <p className="mt-3 border-t border-gray-100 pt-3 text-xs text-gray-400 italic dark:border-gray-800 dark:text-gray-500">
-                              {t("emptyReportContent")}
-                            </p>
-                          )}
-
-                          {report.reviewComment && (
-                            <p className="mt-3 rounded-lg border-s-4 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-sm text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
-                              <strong>{t("reviewComment")}:</strong>{" "}
-                              {report.reviewComment}
-                            </p>
-                          )}
-
-                          {report.permissions.canReview && (
-                            <ReportReviewActions
-                              report={report}
-                              pending={
-                                reportAction.isPending &&
-                                pendingReportId === report.id
+                          {selectedReport.permissions.canEdit && (
+                            <Button
+                              type="button"
+                              variant={isEditingSelected ? "outline" : "primary"}
+                              size="sm"
+                              onClick={() =>
+                                setEditingReportId((current) =>
+                                  current === selectedReport.id
+                                    ? ""
+                                    : selectedReport.id,
+                                )
                               }
-                              onReview={reviewReport}
-                            />
+                            >
+                              {!isEditingSelected && (
+                                <PencilIcon className="me-1.5 h-3.5 w-3.5" />
+                              )}
+                              {isEditingSelected
+                                ? t("closeEditor")
+                                : hasReportContent(selectedReport)
+                                  ? t("editReport")
+                                  : t("writeReportCta")}
+                            </Button>
                           )}
                         </div>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <div className="rounded-xl border border-gray-200 bg-white px-5 py-12 text-center dark:border-gray-800 dark:bg-gray-900">
-                  <FileIcon className="mx-auto h-8 w-8 text-gray-300 dark:text-gray-600" />
-                  <h3 className="mt-2.5 text-sm font-semibold text-gray-900 dark:text-white/90">
-                    {t("empty")}
-                  </h3>
-                </div>
-              )}
 
-              {reportsData && reportsData.pagination.totalPages > 1 && (
-                <div className="flex items-center justify-between border-t border-gray-200 pt-4 text-sm dark:border-gray-800">
-                  <span className="text-gray-500 tabular-nums dark:text-gray-400">
-                    {common("pagination.total", {
-                      count: reportsData.pagination.totalItems,
-                    })}
-                  </span>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page <= 1}
-                      onClick={() => setPage((value) => Math.max(1, value - 1))}
-                    >
-                      {common("pagination.previous")}
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={page >= reportsData.pagination.totalPages}
-                      onClick={() => setPage((value) => value + 1)}
-                    >
-                      {common("pagination.next")}
-                    </Button>
-                  </div>
+                        {/* Canvas Content: Editor vs Spacious Reader vs Calm Empty State */}
+                        <div className="pt-5">
+                          {isEditingSelected &&
+                          selectedReport.permissions.canEdit ? (
+                            <ReportEditor
+                              key={`${selectedReport.id}-${selectedReport.updatedAt}`}
+                              report={selectedReport}
+                              onAgent={
+                                process.env
+                                  .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                                  "true" ||
+                                selectedReport.contentSchemaVersion === 2
+                                  ? () => setAgentReportId(selectedReport.id)
+                                  : undefined
+                              }
+                              isSaving={
+                                saveReport.isPending || updateReport.isPending
+                              }
+                              isSubmitting={reportAction.isPending}
+                              error={reportError}
+                              onSave={async (input) => {
+                                try {
+                                  await saveReportDraft(selectedReport, input);
+                                } catch {
+                                  /* form preserves draft */
+                                }
+                              }}
+                              onSubmit={(input) =>
+                                submitReport(selectedReport, input)
+                              }
+                              onClose={() => setEditingReportId("")}
+                            />
+                          ) : hasReportContent(selectedReport) ? (
+                            <div className="space-y-4">
+                              {Boolean(selectedReport.title?.trim()) && (
+                                <h3 className="break-words text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+                                  {selectedReport.title}
+                                </h3>
+                              )}
+
+                              <div
+                                aria-label={t("systemMetadataLabel")}
+                                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-400"
+                              >
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                                  {t("authorMeta", {
+                                    author: selectedReport.memberName,
+                                  })}
+                                </span>
+                                {Number.isFinite(
+                                  Date.parse(selectedReport.createdAt),
+                                ) && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                      {t("createdAtMeta", {
+                                        date: format.dateTime(
+                                          new Date(selectedReport.createdAt),
+                                          {
+                                            dateStyle: "medium",
+                                            timeStyle: "short",
+                                            timeZone: "UTC",
+                                          },
+                                        ),
+                                      })}
+                                    </span>
+                                  </>
+                                )}
+                                {Number.isFinite(
+                                  Date.parse(selectedReport.updatedAt),
+                                ) && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                      {t("updatedAtMeta", {
+                                        date: format.dateTime(
+                                          new Date(selectedReport.updatedAt),
+                                          {
+                                            dateStyle: "medium",
+                                            timeStyle: "short",
+                                            timeZone: "UTC",
+                                          },
+                                        ),
+                                      })}
+                                    </span>
+                                  </>
+                                )}
+                                {selectedReport.submittedAt &&
+                                  Number.isFinite(
+                                    Date.parse(selectedReport.submittedAt),
+                                  ) && (
+                                    <>
+                                      <span aria-hidden="true">·</span>
+                                      <span>
+                                        {t("submittedAtMeta", {
+                                          date: format.dateTime(
+                                            new Date(
+                                              selectedReport.submittedAt,
+                                            ),
+                                            {
+                                              dateStyle: "medium",
+                                              timeStyle: "short",
+                                              timeZone: "UTC",
+                                            },
+                                          ),
+                                        })}
+                                      </span>
+                                    </>
+                                  )}
+                                {selectedReport.reviewedAt &&
+                                  Number.isFinite(
+                                    Date.parse(selectedReport.reviewedAt),
+                                  ) && (
+                                    <>
+                                      <span aria-hidden="true">·</span>
+                                      <span>
+                                        {t("reviewedAtMeta", {
+                                          date: format.dateTime(
+                                            new Date(selectedReport.reviewedAt),
+                                            {
+                                              dateStyle: "medium",
+                                              timeStyle: "short",
+                                              timeZone: "UTC",
+                                            },
+                                          ),
+                                        })}
+                                      </span>
+                                    </>
+                                  )}
+                              </div>
+
+                              <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                                {reportBodyText(selectedReport) ||
+                                  common("noValue")}
+                              </div>
+
+                              {selectedReport.reviewComment && (
+                                <p className="rounded-lg border-s-4 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-xs leading-relaxed text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
+                                  <strong>{t("reviewComment")}:</strong>{" "}
+                                  {selectedReport.reviewComment}
+                                </p>
+                              )}
+                            </div>
+                          ) : (
+                            /* Calm Empty Canvas for Unstarted / Overdue Report */
+                            <div className="py-12 text-center">
+                              <p
+                                className={`text-sm font-semibold ${
+                                  resolveEffectiveStatus(
+                                    selectedReport,
+                                    currentTime,
+                                  ) === "OVERDUE"
+                                    ? "text-rose-600 dark:text-rose-400"
+                                    : "text-gray-800 dark:text-gray-200"
+                                }`}
+                              >
+                                {resolveEffectiveStatus(
+                                  selectedReport,
+                                  currentTime,
+                                ) === "OVERDUE"
+                                  ? t("overdueEmptyTitle")
+                                  : selectedReport.permissions.canEdit
+                                    ? t("yourReportEmptyTitle")
+                                    : t("emptyReportContent")}
+                              </p>
+                              <p className="mt-1 text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                                {t("due", {
+                                  date: format.dateTime(
+                                    new Date(selectedReport.dueAt),
+                                    { dateStyle: "medium", timeZone: "UTC" },
+                                  ),
+                                })}{" "}
+                                ·{" "}
+                                {t("sectionsProgress", {
+                                  filled: countCoreFields(selectedReport),
+                                })}
+                              </p>
+
+                              {selectedReport.permissions.canEdit && (
+                                <div className="mt-4">
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() =>
+                                      setEditingReportId(selectedReport.id)
+                                    }
+                                  >
+                                    <PencilIcon className="me-1.5 h-3.5 w-3.5" />
+                                    {t("writeReportCta")}
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {selectedReport.permissions.canReview &&
+                        !isEditingSelected && (
+                          <InlineReportReviewBar
+                            key={selectedReport.id}
+                            report={selectedReport}
+                            pending={
+                              reportAction.isPending &&
+                              pendingReportId === selectedReport.id
+                            }
+                            onReview={reviewReport}
+                          />
+                        )}
+                    </>
+                  )}
                 </div>
-              )}
-            </section>
-          </>
+              </div>
+            )}
+          </section>
         )}
       </div>
-
       {agentReportId && (
         <WorkNoteComposer
           projectId={projectId}
           source={{ workflow: "WORK_REPORT", resourceId: agentReportId }}
           onClose={() => setAgentReportId(null)}
           onSaved={() => setAgentReportId(null)}
-        />
-      )}
-      {previewTarget && (
-        <DocumentFilePreviewModal
-          isOpen={Boolean(previewTarget)}
-          onClose={() => setPreviewTarget(null)}
-          fileName={previewTarget.fileName}
-          contentType={previewTarget.contentType}
-          fileSize={previewTarget.fileSize}
-          fetchBlob={previewTarget.fetchBlob}
-          downloadUrl={previewTarget.downloadUrl}
-          onDownload={previewTarget.onDownload}
         />
       )}
     </main>

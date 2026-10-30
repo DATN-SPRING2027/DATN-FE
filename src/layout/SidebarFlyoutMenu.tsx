@@ -8,7 +8,9 @@ import React, {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { tr } from "@/i18n/tr";
 import { ArrowRightIcon, BookOpenIcon, DocsIcon, FolderIcon, GroupIcon, PlusIcon, SettingsIcon } from "@/icons/index";
 import type { Project } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
@@ -292,6 +294,7 @@ export function SidebarFlyoutPortal({
   onMouseLeave,
   onClose,
 }: SidebarFlyoutPortalProps) {
+  const t = useTranslations("sidebar");
   useLayoutEffect(() => {
     const flyoutEl = flyoutElRef.current;
     if (!config || !anchorRect || !flyoutEl) return;
@@ -377,11 +380,11 @@ export function SidebarFlyoutPortal({
             </div>
           ) : projects.length === 0 ? (
             <div className="rounded-md border border-dashed border-gray-200 bg-gray-50/70 px-3 py-3.5 text-center text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-400">
-              No active projects in this organization yet.
+              {tr(t, "flyout.noActiveProjects", "No active projects in this organization yet.")}
             </div>
           ) : (
             <ul
-              aria-label="Recent active projects"
+              aria-label={tr(t, "flyout.recentActiveProjects", "Recent active projects")}
               className="max-h-72 space-y-1 overflow-y-auto pr-0.5"
             >
               {projects.slice(0, 6).map((project) => {
@@ -429,7 +432,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] bg-white px-1.5 py-0.5 text-[11px] font-medium text-gray-700 ring-1 ring-gray-200/70 transition hover:text-brand-600 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:text-brand-300"
                       >
                         <DocsIcon viewBox="0.5 0.5 23 23" className="size-3.5 shrink-0" />
-                        <span>Work</span>
+                        <span>{tr(t, "projectWorkspace", "Work")}</span>
                       </Link>
                       <Link
                         href={overviewHref}
@@ -437,7 +440,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <FolderIcon viewBox="-2 -3 24 24" className="size-3.5 shrink-0" />
-                        <span>Overview</span>
+                        <span>{tr(t, "projectOverview", "Overview")}</span>
                       </Link>
                       <Link
                         href={membersHref}
@@ -445,7 +448,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <GroupIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
-                        <span>Members</span>
+                        <span>{tr(t, "projectMembers", "Members")}</span>
                       </Link>
                       <Link
                         href={workNotesHref}
@@ -453,7 +456,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <BookOpenIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
-                        <span>Work Notes</span>
+                        <span>{tr(t, "projectWorkNotes", "Work Notes")}</span>
                       </Link>
                       <Link
                         href={settingsHref}
@@ -461,7 +464,7 @@ export function SidebarFlyoutPortal({
                         className="inline-flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-gray-600 transition hover:bg-white hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-900 dark:hover:text-white"
                       >
                         <SettingsIcon viewBox="0 0 24 24" className="h-3 w-3 shrink-0" />
-                        <span>Settings</span>
+                        <span>{tr(t, "projectSettings", "Settings")}</span>
                       </Link>
                     </div>
                   </li>

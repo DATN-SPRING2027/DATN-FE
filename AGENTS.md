@@ -62,7 +62,7 @@ src/
 │   ├── header/                # header dropdowns
 │   └── <feature>/             # one folder per domain: ecommerce, crm, invoice…
 ├── i18n/                     # routing.ts, request.ts, navigation.ts, languages.ts
-├── messages/                 # translation dictionaries (en.json, ar.json, es.json, de.json)
+├── messages/                 # translation dictionaries (en.json, vi.json, plus legacy TailAdmin locales)
 ├── layout/                    # admin shell: AppSidebar, AppHeader
 ├── context/                   # SidebarContext, ThemeContext
 ├── hooks/                     # useModal, useGoBack, useClickOutside
@@ -92,7 +92,7 @@ src/
 ## Internationalization (next-intl) rules
 
 - **Navigation & Routing**: Always import navigation primitives (`Link`, `useRouter`, `usePathname`, `redirect`) from `@/i18n/navigation`, never directly from `next/link` or `next/navigation`.
-- **Routing Configuration**: Locales (`en`, `ar`, `es`, `de`) and routing settings are centralized in `src/i18n/routing.ts` (`localePrefix: "never"`).
+- **Routing Configuration**: Active Continuum AI locales (`en` English, `vi` Tiếng Việt) and routing settings are centralized in `src/i18n/routing.ts` (`localePrefix: "never"`).
 - **Translations**:
   - In Client Components: use `useTranslations("namespace")`.
   - In Server Components: use `getTranslations("namespace")` from `next-intl/server`.

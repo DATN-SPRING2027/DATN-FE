@@ -1,4 +1,4 @@
-import { UsFlagIcon } from "@/icons";
+import { UsFlagIcon, VnFlagIcon } from "@/icons";
 
 import type { Locale } from "./routing";
 
@@ -19,29 +19,13 @@ export const languages: Language[] = [
     dir: "ltr",
     FlagIcon: UsFlagIcon,
   },
-  // Add languages according to requirement
-  // {
-  //   id: "ar",
-  //   name: "Arabic (Saudi)",
-  //   shortName: "Arabic",
-  //   dir: "rtl",
-  //   FlagIcon: SaFlagIcon,
-  //   badge: "RTL",
-  // },
-  // {
-  //   id: "es",
-  //   name: "Español",
-  //   shortName: "Español",
-  //   dir: "ltr",
-  //   FlagIcon: EsFlagIcon,
-  // },
-  // {
-  //   id: "de",
-  //   name: "Deutsch",
-  //   shortName: "Deutsch",
-  //   dir: "ltr",
-  //   FlagIcon: DeFlagIcon,
-  // },
+  {
+    id: "vi",
+    name: "Tiếng Việt",
+    shortName: "Tiếng Việt",
+    dir: "ltr",
+    FlagIcon: VnFlagIcon,
+  },
 ];
 
 export function getLanguage(locale: Locale): Language {

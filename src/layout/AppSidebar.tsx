@@ -26,12 +26,14 @@ import {
   FolderIcon,
   GridIcon,
   GroupIcon,
+  HandShakeIcon,
   PlugInIcon,
   SettingsIcon,
   ShootingStarIcon,
   TaskIcon,
 } from "@/icons/index";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { cn } from "@/utils";
 import { isSidebarPathActive } from "@/utils/sidebar-active";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
@@ -80,6 +82,7 @@ function resolveProjectSwitchDestination(
       subSection === "members" ||
       subSection === "work" ||
       subSection === "work-notes" ||
+      subSection === "handover" ||
       subSection === "settings")
   ) {
     return `/projects/${encodedId}/${subSection}`;
@@ -428,6 +431,7 @@ const AppSidebar: React.FC = () => {
     const projectMembersPath = `${projectBasePath}/members`;
     const projectWorkPath = `${projectBasePath}/work`;
     const projectWorkNotesPath = `${projectBasePath}/work-notes`;
+    const projectHandoverPath = `${projectBasePath}/handover`;
     const projectSettingsPath = `${projectBasePath}/settings`;
 
     const isThisProjectInPath = activeProjectIdFromPath === activeProject.id;
@@ -439,12 +443,17 @@ const AppSidebar: React.FC = () => {
       isThisProjectInPath &&
       (pathname === projectWorkNotesPath ||
         pathname.startsWith(`${projectWorkNotesPath}/`));
+    const isProjectHandoverActive =
+      isThisProjectInPath &&
+      (pathname === projectHandoverPath ||
+        pathname.startsWith(`${projectHandoverPath}/`));
     const activeSyncedTab =
       isThisProjectInPath &&
       syncedProjectTab?.pathnameAtSync === pathname &&
       syncedProjectTab.projectId === activeProject.id &&
       !isProjectWorkActive &&
-      !isProjectWorkNotesActive
+      !isProjectWorkNotesActive &&
+      !isProjectHandoverActive
         ? syncedProjectTab.tab
         : null;
     const isProjectMembersActive = isThisProjectInPath
@@ -501,6 +510,14 @@ const AppSidebar: React.FC = () => {
         isActive: isProjectWorkNotesActive,
         icon: FileIcon,
         viewBox: "1 0.5 23 23",
+      },
+      {
+        key: "handover",
+        label: t("items.projectHandover"),
+        href: projectHandoverPath,
+        isActive: isProjectHandoverActive,
+        icon: HandShakeIcon,
+        viewBox: "0 0 24 24",
       },
       {
         key: "settings",
@@ -787,13 +804,17 @@ const AppSidebar: React.FC = () => {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize sidebar"
+        aria-label={tr(t, "resizeSidebar", "Resize sidebar")}
         aria-valuemin={COLLAPSED_WIDTH}
         aria-valuemax={MAX_WIDTH}
         aria-valuenow={currentWidthPx}
         tabIndex={0}
         data-testid="sidebar-resizer"
-        title="Drag to resize sidebar (double-click to reset)"
+        title={tr(
+          t,
+          "resizeSidebarHint",
+          "Drag to resize sidebar (double-click to reset)",
+        )}
         onMouseDown={handleResizeMouseDown}
         onDoubleClick={handleResizeDoubleClick}
         onKeyDown={handleResizeKeyDown}

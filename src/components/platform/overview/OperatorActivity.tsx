@@ -12,6 +12,8 @@ export default function OperatorActivity({
   canOpen: boolean;
 }) {
   const t = useTranslations("platformConsole");
+  const common = useTranslations("common");
+  const dateLocale = common("localeCode") === "vi" ? "vi-VN" : "en-US";
   return (
     <section
       className={`${jira.panel} ${jira.activity}`}
@@ -33,12 +35,12 @@ export default function OperatorActivity({
                 {item.action} <strong>{item.resourceType}</strong>
               </p>
               <time dateTime={item.occurredAt}>
-                {new Date(item.occurredAt).toLocaleDateString("en-US", {
+                {new Date(item.occurredAt).toLocaleDateString(dateLocale, {
                   day: "numeric",
                   month: "short",
                   year: "numeric",
                 })}{" "}
-                {new Date(item.occurredAt).toLocaleTimeString("en-US", {
+                {new Date(item.occurredAt).toLocaleTimeString(dateLocale, {
                   hour: "2-digit",
                   minute: "2-digit",
                 })}

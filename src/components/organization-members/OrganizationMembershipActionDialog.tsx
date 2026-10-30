@@ -100,7 +100,11 @@ function getEmailInitials(email: string): string {
 function formatShortDate(isoDate: string): string {
   const parsed = Date.parse(isoDate);
   if (!Number.isFinite(parsed)) return isoDate;
-  return new Intl.DateTimeFormat("en-US", {
+  const activeLang =
+    typeof document !== "undefined" ? document.documentElement.lang : "";
+  const dateLocale =
+    activeLang === "vi" || activeLang.startsWith("vi-") ? "vi-VN" : "en-US";
+  return new Intl.DateTimeFormat(dateLocale, {
     month: "short",
     day: "numeric",
     year: "numeric",

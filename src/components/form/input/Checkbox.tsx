@@ -1,12 +1,14 @@
 import type React from "react";
 
 interface CheckboxProps {
-  label?: string;
+  label?: React.ReactNode;
   checked: boolean;
   className?: string;
   id?: string;
   onChange: (checked: boolean) => void;
   disabled?: boolean;
+  ariaInvalid?: boolean;
+  ariaDescribedBy?: string;
 }
 
 const Checkbox: React.FC<CheckboxProps> = ({
@@ -16,6 +18,8 @@ const Checkbox: React.FC<CheckboxProps> = ({
   onChange,
   className = "",
   disabled = false,
+  ariaInvalid,
+  ariaDescribedBy,
 }) => {
   return (
     <label
@@ -23,10 +27,12 @@ const Checkbox: React.FC<CheckboxProps> = ({
         disabled ? "cursor-not-allowed opacity-60" : ""
       }`}
     >
-      <div className={`relative h-5 w-5`}>
+      <div className="relative h-5 w-5 shrink-0">
         <input
           id={id}
           type="checkbox"
+          aria-invalid={ariaInvalid}
+          aria-describedby={ariaDescribedBy}
           className={`h-5 w-5 cursor-pointer appearance-none rounded-md border border-gray-300 checked:border-transparent checked:bg-brand-500 disabled:opacity-60 dark:border-gray-700 ${className}`}
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
@@ -34,7 +40,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
         />
         {checked && (
           <svg
-            className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform"
+            className="pointer-events-none absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 transform rtl:translate-x-1/2"
             xmlns="http://www.w3.org/2000/svg"
             width="14"
             height="14"
@@ -52,7 +58,7 @@ const Checkbox: React.FC<CheckboxProps> = ({
         )}
         {disabled && (
           <svg
-            className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transform"
+            className="pointer-events-none absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 transform rtl:translate-x-1/2"
             xmlns="http://www.w3.org/2000/svg"
             width="14"
             height="14"

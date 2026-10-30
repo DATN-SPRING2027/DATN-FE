@@ -160,6 +160,7 @@ vi.mock("next-intl", () => ({
         "sidebar.items.projectMembers": "Members",
         "sidebar.items.workspace": "Workspace",
         "sidebar.items.projectWorkNotes": "Work Notes",
+        "sidebar.items.projectHandover": "Handover",
         "sidebar.items.projectSettings": "Settings",
         "sidebar.items.chat": "Chat",
         "sidebar.items.workNotes": "Work Notes",
@@ -443,7 +444,7 @@ describe("AppSidebar navigation", () => {
       within(projectActions)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Overview", "Members", "Workspace", "Work Notes", "Settings"]);
+    ).toEqual(["Overview", "Members", "Workspace", "Work Notes", "Handover", "Settings"]);
 
     expect(
       within(projectActions).getByRole("link", { name: "Overview" }),
@@ -460,6 +461,9 @@ describe("AppSidebar navigation", () => {
     expect(
       within(projectActions).getByRole("link", { name: "Work Notes" }),
     ).toHaveAttribute("aria-current", "page");
+    expect(
+      within(projectActions).getByRole("link", { name: "Handover" }),
+    ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/handover");
     expect(
       within(projectActions).getByRole("link", { name: "Settings" }),
     ).toHaveAttribute("href", "/projects/69e923c77859fd1c702d4c21/settings");

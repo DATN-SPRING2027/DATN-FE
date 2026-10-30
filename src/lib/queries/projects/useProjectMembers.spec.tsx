@@ -17,9 +17,11 @@ const api = vi.mocked(apiClient);
 const projectId = "123456789012345678901234";
 const userId = "123456789012345678901235";
 const membershipId = "123456789012345678901236";
-function wrapper(client = new QueryClient({
-  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-})) {
+function wrapper(
+  client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  }),
+) {
   return function Wrapper({ children }: PropsWithChildren) {
     return (
       <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -30,6 +32,65 @@ beforeEach(() => {
   api.mockReset();
 });
 afterEach(() => cleanup());
+it("loads members beyond the first 100 and retains inactive departing members", async () => {
+  const memberships = Array.from({ length: 120 }, (_, index) => ({
+    id: (index + 500).toString(16).padStart(24, "0"),
+    organizationId: "org",
+    projectId,
+    userId: (index + 1000).toString(16).padStart(24, "0"),
+    status: index === 119 ? "INACTIVE" : "ACTIVE",
+    joinedAt: "2026-10-01T00:00:00Z",
+  }));
+  api
+    .mockResolvedValueOnce({
+      data: memberships.slice(0, 100),
+      pagination: { page: 1, pageSize: 100, totalItems: 120, totalPages: 2 },
+    })
+    .mockResolvedValueOnce({
+      data: memberships.slice(100),
+      pagination: { page: 2, pageSize: 100, totalItems: 120, totalPages: 2 },
+    });
+  const { result } = renderHook(
+    () =>
+      useProjectMembersQuery(
+        "org",
+        projectId,
+        { page: 1, pageSize: 100 },
+        { allPages: true },
+      ),
+    { wrapper: wrapper() },
+  );
+  await waitFor(() => expect(result.current.isSuccess).toBe(true));
+  expect(result.current.data?.data).toHaveLength(120);
+  expect(result.current.data?.data[119]?.status).toBe("INACTIVE");
+  expect(api).toHaveBeenLastCalledWith(
+    `/iam/projects/${projectId}/memberships?page=2&pageSize=100`,
+    expect.anything(),
+  );
+});
+
+it("does not publish a partial member picker if a later membership page fails", async () => {
+  api
+    .mockResolvedValueOnce({
+      data: [],
+      pagination: { page: 1, pageSize: 100, totalItems: 120, totalPages: 2 },
+    })
+    .mockRejectedValueOnce(
+      new ApiError(403, "FORBIDDEN", "Membership access revoked"),
+    );
+  const { result } = renderHook(
+    () =>
+      useProjectMembersQuery(
+        "org",
+        projectId,
+        { page: 1, pageSize: 100 },
+        { allPages: true },
+      ),
+    { wrapper: wrapper() },
+  );
+  await waitFor(() => expect(result.current.isError).toBe(true));
+  expect(result.current.data).toBeUndefined();
+});
 it("lists the documented page and status without role inference", async () => {
   api.mockResolvedValue({
     data: [],

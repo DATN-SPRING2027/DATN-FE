@@ -32,6 +32,9 @@ export function useProjectManagementAccess(
   };
 }
 
+const PROJECT_ACCESS_STALE_TIME_MS = 30_000;
+const PROJECT_ACCESS_GC_TIME_MS = 5 * 60_000;
+
 export function useProjectSettingsAccess(
   organizationId: string,
   projectId: string,
@@ -41,9 +44,9 @@ export function useProjectSettingsAccess(
     queryKey: ["project-settings-access", organizationId, projectId],
     enabled: active && Boolean(organizationId && projectId),
     retry: false,
-    gcTime: 0,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    gcTime: PROJECT_ACCESS_GC_TIME_MS,
+    staleTime: PROJECT_ACCESS_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
     networkMode: "always",
     queryFn: async ({ signal }) => {
       try {

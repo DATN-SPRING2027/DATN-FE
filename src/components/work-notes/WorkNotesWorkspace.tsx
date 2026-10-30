@@ -52,13 +52,15 @@ function formatNoteTimestamp(
     yesterdayAt: (time: string) => string;
     dateAt: (date: string, time: string) => string;
   },
+  locale = "en",
 ): string {
   const parsed = new Date(isoDate);
   if (Number.isNaN(parsed.getTime())) {
     return isoDate;
   }
+  const resolvedLocale = locale === "vi" ? "vi-VN" : "en-US";
 
-  const timeStr = parsed.toLocaleTimeString([], {
+  const timeStr = parsed.toLocaleTimeString(resolvedLocale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -86,7 +88,7 @@ function formatNoteTimestamp(
     return formatters.yesterdayAt(timeStr);
   }
 
-  const dateStr = parsed.toLocaleDateString([], {
+  const dateStr = parsed.toLocaleDateString(resolvedLocale, {
     month: "short",
     day: "numeric",
     year: parsed.getFullYear() !== now.getFullYear() ? "numeric" : undefined,
@@ -108,6 +110,8 @@ function TaskNoteExplorerCard({
   onToggleExpand: () => void;
 }) {
   const t = useTranslations("workNotes");
+  const common = useTranslations("common");
+  const activeLocale = common("localeCode") === "vi" ? "vi" : "en";
   const encodedProjectId = encodeURIComponent(projectId);
   const taskHref = `/projects/${encodedProjectId}/work?taskId=${encodeURIComponent(note.taskId)}`;
 
@@ -117,11 +121,15 @@ function TaskNoteExplorerCard({
     t("taskNotes.untitledTask"),
   );
 
-  const formattedTimestamp = formatNoteTimestamp(note.createdAt, {
-    todayAt: (time) => t("taskNotes.todayAt", { time }),
-    yesterdayAt: (time) => t("taskNotes.yesterdayAt", { time }),
-    dateAt: (date, time) => t("taskNotes.dateAt", { date, time }),
-  });
+  const formattedTimestamp = formatNoteTimestamp(
+    note.createdAt,
+    {
+      todayAt: (time) => t("taskNotes.todayAt", { time }),
+      yesterdayAt: (time) => t("taskNotes.yesterdayAt", { time }),
+      dateAt: (date, time) => t("taskNotes.dateAt", { date, time }),
+    },
+    activeLocale,
+  );
 
   const detailId = `task-note-detail-${note.id}`;
 

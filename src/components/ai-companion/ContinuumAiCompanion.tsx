@@ -26,32 +26,32 @@ type CompanionMessage = {
   links?: CompanionActionLink[];
 };
 
-const STATUS_META: Record<
-  RobotStatus,
-  {
-    label: string;
-    subtitle: string;
-    badgeClass: string;
-    dotClass: string;
-  }
-> = {
+type StatusMetaEntry = {
+  label: string;
+  subtitle: string;
+  badgeClass: string;
+  dotClass: string;
+};
+
+const STATUS_META_VI: Record<RobotStatus, StatusMetaEntry> = {
   idle: {
     label: "Sẵn sàng",
-    subtitle: "Trợ lý ngữ cảnh dự án · Tự động tổng hợp Task Notes & Báo cáo",
+    subtitle:
+      "Trợ lý ngữ cảnh dự án · Tự động tổng hợp Ghi chú công việc & Báo cáo",
     badgeClass:
       "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
     dotClass: "bg-emerald-500",
   },
   thinking: {
     label: "Đang phân tích...",
-    subtitle: "Đang truy vấn dữ liệu dự án theo quyền RBAC của bạn...",
+    subtitle: "Đang truy vấn dữ liệu dự án theo quyền truy cập của bạn...",
     badgeClass:
       "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300",
     dotClass: "bg-amber-500 animate-ping",
   },
   speaking: {
     label: "Đang trả lời...",
-    subtitle: "Đang tổng hợp thông tin từ Workspace cho bạn...",
+    subtitle: "Đang tổng hợp thông tin từ Không gian làm việc cho bạn...",
     badgeClass:
       "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300",
     dotClass: "bg-brand-500 animate-pulse",
@@ -65,6 +65,44 @@ const STATUS_META: Record<
   },
 };
 
+const STATUS_META_EN: Record<RobotStatus, StatusMetaEntry> = {
+  idle: {
+    label: "Ready",
+    subtitle:
+      "Project context assistant · Auto-synthesizes Task Notes & Reports",
+    badgeClass:
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
+    dotClass: "bg-emerald-500",
+  },
+  thinking: {
+    label: "Analyzing...",
+    subtitle: "Querying project workspace data within your RBAC permissions...",
+    badgeClass:
+      "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-300",
+    dotClass: "bg-amber-500 animate-ping",
+  },
+  speaking: {
+    label: "Replying...",
+    subtitle: "Synthesizing workspace insights for you...",
+    badgeClass:
+      "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300",
+    dotClass: "bg-brand-500 animate-pulse",
+  },
+  happy: {
+    label: "Done",
+    subtitle: "Analysis complete! Need to inspect anything else?",
+    badgeClass:
+      "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300",
+    dotClass: "bg-emerald-500",
+  },
+};
+
+function getWelcomeText(isEn: boolean): string {
+  return isEn
+    ? "Hello! I can summarize project progress, compile a Handover Brief, or draft structured What / How / Why reports for you."
+    : "Xin chào! Mình có thể tóm tắt tiến độ dự án, tổng hợp bản tin bàn giao tri thức hoặc gợi ý báo cáo chuẩn Việc đã làm / Cách thực hiện / Lý do cho bạn.";
+}
+
 function extractProjectId(pathname: string): string | null {
   const source =
     pathname || (typeof window !== "undefined" ? window.location.pathname : "");
@@ -76,6 +114,7 @@ function extractProjectId(pathname: string): string | null {
 async function buildContextualReply(
   query: string,
   projectId: string | null,
+  isEn: boolean,
 ): Promise<{ text: string; links: CompanionActionLink[] }> {
   const normalized = query.toLowerCase().trim();
 
@@ -92,18 +131,22 @@ async function buildContextualReply(
         const latest = notesPage.data[0];
         if (latest) {
           return {
-            text:
-              `Dựa trên ghi chú công việc gần nhất (${latest.taskKey ? `${latest.taskKey} · ` : ""}${latest.title}), đây là bản nháp chuẩn cấu trúc 3 phần để bạn đưa vào Work Report:\n\n` +
-              `• What was done: ${latest.accomplishments}\n` +
-              `• How it was done: ${latest.approach}\n` +
-              `• Why this approach: ${latest.reason}`,
+            text: isEn
+              ? `Based on the latest task note (${latest.taskKey ? `${latest.taskKey} · ` : ""}${latest.title}), here is a structured 3-part draft for your Work Report:\n\n` +
+                `• What was done: ${latest.accomplishments}\n` +
+                `• How it was done: ${latest.approach}\n` +
+                `• Why this approach: ${latest.reason}`
+              : `Dựa trên ghi chú công việc gần nhất (${latest.taskKey ? `${latest.taskKey} · ` : ""}${latest.title}), đây là bản nháp chuẩn cấu trúc 3 phần để bạn đưa vào Báo cáo công việc:\n\n` +
+                `• Việc đã làm: ${latest.accomplishments}\n` +
+                `• Cách thực hiện: ${latest.approach}\n` +
+                `• Lý do chọn hướng này: ${latest.reason}`,
             links: [
               {
-                label: "Mở Work Reports",
+                label: isEn ? "Open Work Reports" : "Mở Báo cáo công việc",
                 href: `/projects/${projectId}/work-reports`,
               },
               {
-                label: "Mở Task Notes",
+                label: isEn ? "Open Task Notes" : "Mở Ghi chú công việc",
                 href: `/projects/${projectId}/work-notes`,
               },
             ],
@@ -115,19 +158,28 @@ async function buildContextualReply(
     }
 
     return {
-      text:
-        `Gợi ý khung ghi chú & báo cáo chuẩn Continuum AI (What / How / Why):\n\n` +
-        `• What was done: Tóm tắt hạng mục đã hoàn thành và kết quả đầu ra rõ ràng.\n` +
-        `• How it was done: Nêu giải pháp kỹ thuật, API/component hoặc quy trình đã áp dụng.\n` +
-        `• Why this approach: Giải thích lý do chọn hướng này để người tiếp nhận (Handover) hiểu rõ bối cảnh.`,
+      text: isEn
+        ? `Continuum AI structured note & report template (What / How / Why):\n\n` +
+          `• What was done: Summarize completed items and concrete deliverables.\n` +
+          `• How it was done: Describe technical implementation, APIs/components, or workflow.\n` +
+          `• Why this approach: Explain the rationale so handover recipients understand the context.`
+        : `Gợi ý khung ghi chú & báo cáo chuẩn Continuum AI (Việc đã làm / Cách thực hiện / Lý do):\n\n` +
+          `• Việc đã làm: Tóm tắt hạng mục đã hoàn thành và kết quả đầu ra rõ ràng.\n` +
+          `• Cách thực hiện: Nêu giải pháp kỹ thuật, API/thành phần hoặc quy trình đã áp dụng.\n` +
+          `• Lý do chọn hướng này: Giải thích bối cảnh để người tiếp nhận bàn giao hiểu rõ quyết định.`,
       links: projectId
         ? [
             {
-              label: "Mở Work Reports",
+              label: isEn ? "Open Work Reports" : "Mở Báo cáo công việc",
               href: `/projects/${projectId}/work-reports`,
             },
           ]
-        : [{ label: "Danh sách Projects", href: "/projects" }],
+        : [
+            {
+              label: isEn ? "All Projects" : "Danh sách Dự án",
+              href: "/projects",
+            },
+          ],
     };
   }
 
@@ -148,9 +200,10 @@ async function buildContextualReply(
         const docsPage = docsRes.status === "fulfilled" ? docsRes.value : null;
         const decisions = (notesPage?.data ?? [])
           .slice(0, 3)
-          .map(
-            (n) =>
-              `• [${n.taskKey ?? "Task"}] ${n.title}: ${n.reason} (Thực hiện bởi ${n.authorName})`,
+          .map((n) =>
+            isEn
+              ? `• [${n.taskKey ?? "Task"}] ${n.title}: ${n.reason} (by ${n.authorName})`
+              : `• [${n.taskKey ?? "Công việc"}] ${n.title}: ${n.reason} (Thực hiện bởi ${n.authorName})`,
           )
           .join("\n");
         const docTitles = (docsPage?.data ?? [])
@@ -159,19 +212,24 @@ async function buildContextualReply(
           .join("\n");
 
         return {
-          text:
-            `Bản tóm tắt Bàn giao (Handover Brief) của dự án hiện tại:\n\n` +
-            `1. Quyết định kỹ thuật gần đây (${notesPage?.pagination.totalItems ?? 0} Task Notes):\n` +
-            `${decisions || "• Chưa có Task Note nào được ghi nhận."}\n\n` +
-            `2. Tài liệu nền tảng (${docsPage?.pagination.totalItems ?? 0} Project Documents):\n` +
-            `${docTitles || "• Chưa có tài liệu nào."}`,
+          text: isEn
+            ? `Handover Brief for the current project:\n\n` +
+              `1. Recent technical decisions (${notesPage?.pagination.totalItems ?? 0} Task Notes):\n` +
+              `${decisions || "• No task notes recorded yet."}\n\n` +
+              `2. Reference documentation (${docsPage?.pagination.totalItems ?? 0} Project Documents):\n` +
+              `${docTitles || "• No documents uploaded yet."}`
+            : `Bản tóm tắt Bàn giao tri thức của dự án hiện tại:\n\n` +
+              `1. Quyết định kỹ thuật gần đây (${notesPage?.pagination.totalItems ?? 0} ghi chú công việc):\n` +
+              `${decisions || "• Chưa có ghi chú công việc nào được ghi nhận."}\n\n` +
+              `2. Tài liệu nền tảng (${docsPage?.pagination.totalItems ?? 0} tài liệu dự án):\n` +
+              `${docTitles || "• Chưa có tài liệu nào."}`,
           links: [
             {
-              label: "Xem Task Notes Explorer",
+              label: isEn ? "View Task Notes" : "Xem Ghi chú công việc",
               href: `/projects/${projectId}/work-notes`,
             },
             {
-              label: "Xem Project Documents",
+              label: isEn ? "View Project Documents" : "Xem Tài liệu dự án",
               href: `/projects/${projectId}/documents`,
             },
           ],
@@ -206,26 +264,30 @@ async function buildContextualReply(
       const latestNote = notesPage?.data[0];
 
       return {
-        text:
-          `Tổng quan nhanh dữ liệu dự án hiện tại:\n\n` +
-          `• Task Notes: ${notesPage?.pagination.totalItems ?? 0} ghi chú${latestNote ? ` (Mới nhất: "${latestNote.title}" bởi ${latestNote.authorName})` : ""}.\n` +
-          `• Project Documents: ${docsPage?.pagination.totalItems ?? 0} tài liệu kỹ thuật.\n` +
-          `• Work Reports: ${reportsPage?.pagination.totalItems ?? 0} báo cáo (${pendingReports} chờ duyệt, ${overdueOrDraft} bản nháp/quá hạn).`,
+        text: isEn
+          ? `Quick overview of the current project:\n\n` +
+            `• Task Notes: ${notesPage?.pagination.totalItems ?? 0} notes${latestNote ? ` (Latest: "${latestNote.title}" by ${latestNote.authorName})` : ""}.\n` +
+            `• Project Documents: ${docsPage?.pagination.totalItems ?? 0} technical documents.\n` +
+            `• Work Reports: ${reportsPage?.pagination.totalItems ?? 0} reports (${pendingReports} pending review, ${overdueOrDraft} draft/overdue).`
+          : `Tổng quan nhanh dữ liệu dự án hiện tại:\n\n` +
+            `• Ghi chú công việc: ${notesPage?.pagination.totalItems ?? 0} ghi chú${latestNote ? ` (Mới nhất: "${latestNote.title}" bởi ${latestNote.authorName})` : ""}.\n` +
+            `• Tài liệu dự án: ${docsPage?.pagination.totalItems ?? 0} tài liệu kỹ thuật.\n` +
+            `• Báo cáo công việc: ${reportsPage?.pagination.totalItems ?? 0} báo cáo (${pendingReports} chờ duyệt, ${overdueOrDraft} bản nháp/quá hạn).`,
         links: [
           {
-            label: "Task Notes",
+            label: isEn ? "Task Notes" : "Ghi chú công việc",
             href: `/projects/${projectId}/work-notes`,
           },
           {
-            label: "Documents",
+            label: isEn ? "Documents" : "Tài liệu",
             href: `/projects/${projectId}/documents`,
           },
           {
-            label: "Work Reports",
+            label: isEn ? "Work Reports" : "Báo cáo công việc",
             href: `/projects/${projectId}/work-reports`,
           },
           {
-            label: "Workspace Tasks",
+            label: isEn ? "Workspace Tasks" : "Công việc dự án",
             href: `/projects/${projectId}/work`,
           },
         ],
@@ -250,16 +312,21 @@ async function buildContextualReply(
           .map((p) => `• ${p.name} (${p.code})`)
           .join("\n");
         return {
-          text:
-            `Mình đã kiểm tra Workspace của bạn. Hiện có ${list.length} dự án đang hoạt động:\n\n${summary}\n\n` +
-            `Bạn có thể mở một dự án bất kỳ để mình tóm tắt Task Notes, tài liệu và Work Reports chi tiết!`,
+          text: isEn
+            ? `I checked your Workspace. There are ${list.length} active projects:\n\n${summary}\n\n` +
+              `Open any project so I can summarize its Task Notes, Documents, and Work Reports in detail!`
+            : `Mình đã kiểm tra Không gian làm việc của bạn. Hiện có ${list.length} dự án đang hoạt động:\n\n${summary}\n\n` +
+              `Bạn có thể mở một dự án bất kỳ để mình tóm tắt Ghi chú công việc, Tài liệu và Báo cáo chi tiết!`,
           links: [
             ...list.slice(0, 2).map((p) => ({
-              label: `Mở ${p.code}`,
+              label: isEn ? `Open ${p.code}` : `Mở ${p.code}`,
               href: `/projects/${p.id}/work-notes`,
             })),
-            { label: "Tất cả Projects", href: "/projects" },
-            { label: "Mở Chat", href: "/chat" },
+            {
+              label: isEn ? "All Projects" : "Tất cả Dự án",
+              href: "/projects",
+            },
+            { label: isEn ? "Open Chat" : "Mở Trò chuyện", href: "/chat" },
           ],
         };
       }
@@ -269,19 +336,31 @@ async function buildContextualReply(
   }
 
   return {
-    text:
-      `Mình là Trợ lý AI 3D của Continuum AI. Mình có thể giúp bạn:\n` +
-      `• Tóm tắt tiến độ Task Notes, Project Documents và Work Reports.\n` +
-      `• Tổng hợp bản tin Bàn giao (Handover Brief) từ các quyết định kỹ thuật.\n` +
-      `• Gợi ý viết báo cáo theo cấu trúc chuẩn What / How / Why.`,
+    text: isEn
+      ? `I am Continuum AI's 3D Companion. I can help you:\n` +
+        `• Summarize Task Notes, Project Documents, and Work Reports.\n` +
+        `• Synthesize Handover Briefs from recent technical decisions.\n` +
+        `• Draft structured reports using the What / How / Why format.`
+      : `Mình là Trợ lý AI 3D của Continuum AI. Mình có thể giúp bạn:\n` +
+        `• Tóm tắt tiến độ Ghi chú công việc, Tài liệu dự án và Báo cáo công việc.\n` +
+        `• Tổng hợp bản tin Bàn giao tri thức từ các quyết định kỹ thuật.\n` +
+        `• Gợi ý viết báo cáo theo cấu trúc chuẩn Việc đã làm / Cách thực hiện / Lý do.`,
     links: [
-      { label: "Danh sách Projects", href: "/projects" },
-      { label: "Trò chuyện (Chat)", href: "/chat" },
+      {
+        label: isEn ? "All Projects" : "Danh sách Dự án",
+        href: "/projects",
+      },
+      { label: isEn ? "Open Chat" : "Trò chuyện", href: "/chat" },
     ],
   };
 }
 
-export default function ContinuumAiCompanion() {
+export default function ContinuumAiCompanion({
+  locale = "vi",
+}: {
+  locale?: string;
+} = {}) {
+  const isEn = locale === "en";
   const pathname = usePathname();
   const activeProjectId = useMemo(() => extractProjectId(pathname), [pathname]);
 
@@ -293,12 +372,11 @@ export default function ContinuumAiCompanion() {
     null,
   );
   const [input, setInput] = useState("");
-  const [messages, setMessages] = useState<CompanionMessage[]>([
+  const [messages, setMessages] = useState<CompanionMessage[]>(() => [
     {
       id: "welcome",
       role: "assistant",
-      content:
-        "Xin chào! Mình có thể tóm tắt tiến độ dự án, tổng hợp bản tin bàn giao (Handover) hoặc gợi ý báo cáo chuẩn What / How / Why cho bạn.",
+      content: getWelcomeText(isEn),
     },
   ]);
 
@@ -368,13 +446,15 @@ export default function ContinuumAiCompanion() {
             typeof window !== "undefined" ? window.location.pathname : "",
           );
         const [built] = await Promise.all([
-          buildContextualReply(trimmed, resolvedProjectId),
+          buildContextualReply(trimmed, resolvedProjectId, isEn),
           new Promise((resolve) => setTimeout(resolve, 500)),
         ]);
         reply = built;
       } catch {
         reply = {
-          text: "Mình chưa thể kết nối dữ liệu lúc này. Bạn vui lòng thử lại nhé!",
+          text: isEn
+            ? "Could not connect to workspace data right now. Please try again!"
+            : "Mình chưa thể kết nối dữ liệu lúc này. Bạn vui lòng thử lại nhé!",
           links: [],
         };
       }
@@ -421,7 +501,7 @@ export default function ContinuumAiCompanion() {
         );
       }, 65);
     },
-    [activeProjectId, clearTimers, robotStatus],
+    [activeProjectId, clearTimers, isEn, robotStatus],
   );
 
   useEffect(() => {
@@ -540,7 +620,10 @@ export default function ContinuumAiCompanion() {
 
   const displayRobotStatus: RobotStatus =
     isDragging && robotStatus === "idle" ? "happy" : robotStatus;
-  const currentMeta = STATUS_META[displayRobotStatus];
+  const currentMeta = (isEn ? STATUS_META_EN : STATUS_META_VI)[
+    displayRobotStatus
+  ];
+  const companionPillLabel = isEn ? "AI Companion" : "Trợ lý AI";
 
   const isOnLeftHalf =
     position !== null &&
@@ -599,7 +682,7 @@ export default function ContinuumAiCompanion() {
               className="inline-flex cursor-grab items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 active:cursor-grabbing dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
             >
               <span className="h-2 w-2 rounded-full bg-brand-500" />
-              <span>AI Companion</span>
+              <span>{companionPillLabel}</span>
             </button>
           ) : (
             <div
@@ -614,7 +697,11 @@ export default function ContinuumAiCompanion() {
                 }`}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <span>Xin chào! Cần mình tóm tắt dự án không?</span>
+                <span>
+                  {isEn
+                    ? "Hi! Need a quick project summary?"
+                    : "Xin chào! Cần mình tóm tắt dự án không?"}
+                </span>
                 <button
                   type="button"
                   data-no-drag="true"
@@ -641,7 +728,11 @@ export default function ContinuumAiCompanion() {
                   }
                   setIsOpen(true);
                 }}
-                title="Bấm để mở trợ lý AI · Nhấn giữ chuột để kéo đi mọi nơi"
+                title={
+                  isEn
+                    ? "Click to open AI Companion · Hold & drag anywhere"
+                    : "Bấm để mở Trợ lý AI · Nhấn giữ chuột để kéo đi mọi nơi"
+                }
                 aria-label="Open Continuum AI Companion"
                 className={`relative flex h-28 w-28 flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-32 sm:w-32 ${
                   isDragging
@@ -655,7 +746,7 @@ export default function ContinuumAiCompanion() {
                 </div>
                 <span className="relative z-10 -mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                  AI Companion
+                  {companionPillLabel}
                 </span>
               </button>
             </div>
@@ -716,7 +807,11 @@ export default function ContinuumAiCompanion() {
                 href="https://sketchfab.com/3d-models/futuristic-flying-animated-robot-low-poly-c5b92c281dc444448e64c0607719c7a2"
                 target="_blank"
                 rel="noreferrer"
-                title="3D Model: Shayan (CC BY 4.0) · Đồng bộ theo quyền RBAC"
+                title={
+                  isEn
+                    ? "3D Model: Shayan (CC BY 4.0) · RBAC-synced"
+                    : "Mô hình 3D: Shayan (CC BY 4.0) · Đồng bộ theo quyền truy cập"
+                }
                 aria-label="3D Model: Shayan (CC BY 4.0)"
                 className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-xs font-semibold text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-300"
               >
@@ -750,7 +845,7 @@ export default function ContinuumAiCompanion() {
                       : "rounded-es-xs border border-gray-200/80 bg-gray-50/90 text-gray-800 dark:border-gray-800 dark:bg-gray-800/80 dark:text-gray-100"
                   }`}
                 >
-                  {message.content}
+                  {message.id === "welcome" ? getWelcomeText(isEn) : message.content}
                 </div>
 
                 {message.links && message.links.length > 0 && (
@@ -779,38 +874,46 @@ export default function ContinuumAiCompanion() {
               disabled={robotStatus === "thinking"}
               onClick={() =>
                 void runPrompt(
-                  activeProjectId
-                    ? "Tóm tắt tình hình dự án hiện tại"
-                    : "Tóm tắt các dự án trong Workspace",
+                  isEn
+                    ? activeProjectId
+                      ? "Summarize current project status"
+                      : "Summarize active workspace projects"
+                    : activeProjectId
+                      ? "Tóm tắt tình hình dự án hiện tại"
+                      : "Tóm tắt các dự án trong Không gian làm việc",
                 )
               }
               className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
-              📊 Tóm tắt dự án
+              {isEn ? "📊 Summarize project" : "📊 Tóm tắt dự án"}
             </button>
             <button
               type="button"
               disabled={robotStatus === "thinking"}
               onClick={() =>
                 void runPrompt(
-                  "Tổng hợp bản tin Bàn giao (Handover Brief) và các quyết định kỹ thuật",
+                  isEn
+                    ? "Compile a Handover Brief and recent technical decisions"
+                    : "Tổng hợp bản tin Bàn giao tri thức và các quyết định kỹ thuật",
                 )
               }
               className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
-              🤝 Bản tin Handover
+              {isEn ? "🤝 Handover Brief" : "🤝 Bản tin Bàn giao"}
             </button>
             <button
               type="button"
               disabled={robotStatus === "thinking"}
               onClick={() =>
                 void runPrompt(
-                  "Gợi ý soạn nhanh Work Report theo chuẩn What / How / Why",
+                  isEn
+                    ? "Suggest a structured Work Report using What / How / Why"
+                    : "Gợi ý soạn nhanh Báo cáo công việc theo chuẩn Việc đã làm / Cách thực hiện / Lý do",
                 )
               }
               className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/50 hover:text-brand-700 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
-              ✍️ Soạn What / How / Why
+              {isEn ? "✍️ Draft What / How / Why" : "✍️ Soạn Báo cáo chuẩn"}
             </button>
           </div>
 
@@ -824,8 +927,12 @@ export default function ContinuumAiCompanion() {
                 type="text"
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                placeholder="Hỏi AI về dự án, Task Notes, Handover..."
-                aria-label="Hỏi AI điều gì đó"
+                placeholder={
+                  isEn
+                    ? "Ask AI about project, Task Notes, Handover..."
+                    : "Hỏi AI về dự án, Ghi chú công việc, Bàn giao..."
+                }
+                aria-label={isEn ? "Ask AI anything" : "Hỏi AI điều gì đó"}
                 className="h-9 min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 text-xs text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:bg-white dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
               />
               <button
@@ -833,7 +940,7 @@ export default function ContinuumAiCompanion() {
                 disabled={!input.trim() || robotStatus === "thinking"}
                 className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 px-3.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                Gửi
+                {isEn ? "Send" : "Gửi"}
               </button>
             </div>
           </form>

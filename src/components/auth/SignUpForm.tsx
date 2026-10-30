@@ -18,6 +18,7 @@ export default function SignUpForm({ initialEmail }: { initialEmail?: string }) 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState(initialEmail ?? "");
   const [isChecked, setIsChecked] = useState(false);
+  const [agreementError, setAgreementError] = useState(false);
   const [requestAccepted, setRequestAccepted] = useState(false);
   const t = useTranslations("auth");
   const ui = useTranslations("authExperience");
@@ -25,6 +26,11 @@ export default function SignUpForm({ initialEmail }: { initialEmail?: string }) 
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!isChecked) {
+      setAgreementError(true);
+      return;
+    }
+    setAgreementError(false);
     setRequestAccepted(false);
     try {
       await registration.mutateAsync({
@@ -34,6 +40,13 @@ export default function SignUpForm({ initialEmail }: { initialEmail?: string }) 
       setRequestAccepted(true);
     } catch {
       // The API uses one generic response for every syntactically valid email.
+    }
+  }
+
+  function handleAgreementChange(nextChecked: boolean) {
+    setIsChecked(nextChecked);
+    if (nextChecked) {
+      setAgreementError(false);
     }
   }
 
@@ -123,10 +136,51 @@ export default function SignUpForm({ initialEmail }: { initialEmail?: string }) 
           </div>
           <div className={styles.agreement}>
             <Checkbox
+              id="signup-agreement"
               checked={isChecked}
-              onChange={setIsChecked}
-              label={ui("signupAgreement")}
+              onChange={handleAgreementChange}
+              ariaInvalid={agreementError}
+              ariaDescribedBy={
+                agreementError ? "signup-agreement-error" : undefined
+              }
+              className={
+                agreementError ? "border-error-500 dark:border-error-500" : ""
+              }
+              label={
+                <span>
+                  {ui("signupAgreementPrefix")}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className={styles.agreementLink}
+                  >
+                    {ui("signupTermsLink")}
+                  </Link>
+                  {ui("signupAgreementMiddle")}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(event) => event.stopPropagation()}
+                    className={styles.agreementLink}
+                  >
+                    {ui("signupPrivacyLink")}
+                  </Link>
+                  {ui("signupAgreementSuffix")}
+                </span>
+              }
             />
+            {agreementError ? (
+              <p
+                id="signup-agreement-error"
+                role="alert"
+                className={styles.agreementError}
+              >
+                {ui("signupAgreementRequired")}
+              </p>
+            ) : null}
           </div>
           <Button
             type="submit"

@@ -107,7 +107,7 @@ export default function UserDropdown({
 
   const handleSelectLanguage = (id: Locale) => {
     router.replace(pathname, { locale: id });
-    setIsSubDropdownOpen(false);
+    closeDropdown();
   };
 
   const handleSelectTheme = (mode: ThemeOption) => {

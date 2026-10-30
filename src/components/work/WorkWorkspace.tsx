@@ -419,17 +419,15 @@ export default function WorkWorkspace({
         initials: toPersonInitials(displayName),
       });
     }
-    if (list.length === 0 && currentUserPerson) {
-      return [currentUserPerson];
-    }
     return list;
   }, [currentUserPerson, isRealProject, visibleProjectMembers]);
   const projectPeopleById = useMemo(
     () => new Map(projectPeople.map((person) => [person.id, person])),
     [projectPeople],
   );
-  const defaultAssigneePerson =
-    projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON;
+  const defaultAssigneePerson = isRealProject
+    ? (projectPeople[0] ?? UNASSIGNED_WORK_PERSON)
+    : (projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON);
   const taskVersionsRef = useRef<Map<string, number>>(new Map());
   const pendingIdPromisesRef = useRef<Map<string, Promise<string | null>>>(
     new Map(),
@@ -487,6 +485,9 @@ export default function WorkWorkspace({
             if (typeof updatedVersion === "number") {
               taskVersionsRef.current.set(realId, updatedVersion);
             }
+            void queryClient.invalidateQueries({
+              queryKey: ["worknote-task-context", projectId, realId],
+            });
             return true;
           } catch (error) {
             onRollback?.();
@@ -928,6 +929,7 @@ export default function WorkWorkspace({
             item.id === openedTaskId
               ? {
                   ...item,
+                  ...(detail.title !== undefined ? { title: detail.title } : {}),
                   ...(detail.description !== undefined
                     ? { description: detail.description ?? undefined }
                     : {}),
@@ -1056,9 +1058,8 @@ export default function WorkWorkspace({
                 sub.id === openedSubtaskId
                   ? {
                       ...sub,
-                      ...(subDetail.description
-                        ? { description: subDetail.description }
-                        : {}),
+                      summary: subDetail.title,
+                      description: subDetail.description ?? undefined,
                       ...(liveSubComments ? { comments: liveSubComments } : {}),
                       ...(liveSubWorklogs ? { worklogs: liveSubWorklogs } : {}),
                       ...(liveSubHistory ? { history: liveSubHistory } : {}),
@@ -1410,10 +1411,12 @@ export default function WorkWorkspace({
             setAnnouncement(t("createStatusFailed"));
           }
           return created.id;
-        } catch {
+        } catch (error) {
           setItems((current) => current.filter((item) => item.id !== tempId));
           void tasksQuery.refetch();
-          setAnnouncement("Unable to create work item. Changes reverted.");
+          const message = describeMutationError(error);
+          setMutationError(message);
+          setAnnouncement(`Unable to create work item. ${message}`);
           return null;
         } finally {
           pendingIdPromisesRef.current.delete(tempId);
@@ -1465,6 +1468,100 @@ export default function WorkWorkspace({
         },
       );
     }
+  }
+
+  function updateItemTitle(
+    id: string,
+    nextTitle: string,
+  ): Promise<boolean> | boolean {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) {
+      return false;
+    }
+    const normalized = nextTitle.trim();
+    if (!normalized) return false;
+    const existing = items.find((item) => item.id === id);
+    const prevTitle = existing?.title ?? "";
+    if (prevTitle === normalized) return true;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, title: normalized } : item,
+      ),
+    );
+    if (isRealProject) {
+      return enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              title: normalized,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, title: prevTitle }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+    return true;
+  }
+
+  function updateItemDescription(
+    id: string,
+    nextDescription: string | null,
+  ): Promise<boolean> | boolean {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) {
+      return false;
+    }
+    const normalized =
+      nextDescription && nextDescription.trim().length > 0
+        ? nextDescription.trim()
+        : undefined;
+    const existing = items.find((item) => item.id === id);
+    const prevDescription = existing?.description;
+    if ((prevDescription ?? undefined) === normalized) return true;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, description: normalized } : item,
+      ),
+    );
+    if (isRealProject) {
+      return enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              description: normalized ?? null,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, description: prevDescription }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+    return true;
   }
 
   function updateItemPriority(id: string, nextPriority: WorkPriority) {
@@ -1602,52 +1699,6 @@ export default function WorkWorkspace({
     }
   }
 
-  function updateItemDescription(id: string, nextDescription: string) {
-    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
-    const existing = items.find((item) => item.id === id);
-    const prevDescription = existing?.description;
-    const cleaned = nextDescription.trim();
-    if ((prevDescription ?? "") === cleaned) return;
-    setMutationError(null);
-    setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              description: cleaned || undefined,
-            }
-          : item,
-      ),
-    );
-    if (isRealProject) {
-      enqueueTaskMutation(
-        id,
-        async (realId, version) => {
-          const updated = await updateProjectTaskApi(
-            projectId,
-            realId,
-            version,
-            {
-              description: cleaned || null,
-            },
-          );
-          void queryClient.invalidateQueries({
-            queryKey: ["worknote-task-context", projectId, realId],
-          });
-          return updated.version;
-        },
-        () => {
-          setItems((current) =>
-            current.map((item) =>
-              item.id === id || item.id === resolvedIdsRef.current.get(id)
-                ? { ...item, description: prevDescription }
-                : item,
-            ),
-          );
-        },
-      );
-    }
-  }
 
   function toggleSubtask(itemId: string, subtaskId: string) {
     const previousItems = items;
@@ -2991,11 +3042,12 @@ export default function WorkWorkspace({
             setFullPageSubtaskId(null);
             setFullPageWorkItemId(null);
           }}
+          onTitleChange={updateItemTitle}
+          onDescriptionChange={updateItemDescription}
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onDueDateChange={updateItemDueDate}
-          onDescriptionChange={updateItemDescription}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
@@ -3271,6 +3323,7 @@ export default function WorkWorkspace({
       </p>
       <WorkItemCreateDialog
         isOpen={createOpen}
+        isPreview={!isRealProject}
         people={projectPeople}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
@@ -3291,11 +3344,12 @@ export default function WorkWorkspace({
             setActiveSubtaskId(null);
             setActiveWorkItemId(null);
           }}
+          onTitleChange={updateItemTitle}
+          onDescriptionChange={updateItemDescription}
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onDueDateChange={updateItemDueDate}
-          onDescriptionChange={updateItemDescription}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}

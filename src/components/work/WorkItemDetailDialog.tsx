@@ -13,6 +13,7 @@ import {
   type ReactNode,
 } from"react";
 import { useLocale, useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { CloseLineIcon, TaskIcon } from"@/icons";
 import { Modal } from"@/components/ui/modal";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
@@ -100,11 +101,12 @@ export default function WorkItemDetailDialog({
   onOpenFullPage,
   onSelectSubtask,
   onClose,
+  onTitleChange,
+  onDescriptionChange,
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
   onDueDateChange,
-  onDescriptionChange,
   onToggleSubtask,
   onAddSubtask,
   onAddExistingTaskAsSubtask,
@@ -130,11 +132,18 @@ export default function WorkItemDetailDialog({
   onOpenFullPage?: (subtaskId?: string | null) => void;
   onSelectSubtask?: (subtaskId: string | null) => void;
   onClose: () => void;
+  onTitleChange?: (
+    id: string,
+    title: string,
+  ) => Promise<boolean> | boolean | void;
+  onDescriptionChange?: (
+    id: string,
+    description: string | null,
+  ) => Promise<boolean> | boolean | void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
   onDueDateChange?: (id: string, dueDate: string | null) => void;
-  onDescriptionChange?: (id: string, description: string) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
   onAddSubtask?: (
     itemId: string,
@@ -180,13 +189,14 @@ export default function WorkItemDetailDialog({
   ) => Promise<boolean> | boolean | void;
 }) {
   if (item?.readOnly) {
+    onTitleChange = undefined;
+    onDescriptionChange = undefined;
     onAddSubtask = undefined;
     onAddExistingTaskAsSubtask = undefined;
     onStatusChange = undefined;
     onPriorityChange = undefined;
     onAssigneeChange = undefined;
     onDueDateChange = undefined;
-    onDescriptionChange = undefined;
   }
   const t = useTranslations("work");
   const workNotesT = useTranslations("workNotes.taskNotes");
@@ -201,6 +211,12 @@ export default function WorkItemDetailDialog({
       : availablePeople;
   const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
   const mePerson = currentUserPerson ?? defaultAssignee;
+  const canAssignToMe =
+    people === undefined ||
+    Boolean(
+      currentUserPerson &&
+        availablePeople.some((p) => p.id === currentUserPerson.id),
+    );
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [subtaskInput, setSubtaskInput] = useState("");
@@ -267,12 +283,6 @@ export default function WorkItemDetailDialog({
   const [subtaskCommentInput, setSubtaskCommentInput] = useState("");
   const [editingSubtaskDesc, setEditingSubtaskDesc] = useState(false);
   const [subtaskDescDraft, setSubtaskDescDraft] = useState("");
-  const [editingDescItemId, setEditingDescItemId] = useState<string | null>(
-    null,
-  );
-  const [descDraft, setDescDraft] = useState("");
-  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
-  const editingDesc = Boolean(item && editingDescItemId === item.id);
   const [quickAddMenuOpen, setQuickAddMenuOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [branchCreated, setBranchCreated] = useState(false);
@@ -280,13 +290,33 @@ export default function WorkItemDetailDialog({
   const [isMaximized, setIsMaximized] = useState(false);
   const [watching, setWatching] = useState(true);
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
-  const [aiEnhancedDescState, setAiEnhancedDescState] = useState<{
+  const [titleEditState, setTitleEditState] = useState<{
+    itemId: string;
+    draft: string;
+    error: string | null;
+    saving: boolean;
+  } | null>(null);
+  const [descEditState, setDescEditState] = useState<{
+    itemId: string;
+    draft: string;
+    error: string | null;
+    saving: boolean;
+  } | null>(null);
+  const [aiEnhancedByItem, setAiEnhancedByItem] = useState<{
     itemId: string;
     text: string;
   } | null>(null);
+  const activeTitleEdit =
+    item && titleEditState?.itemId === item.id && Boolean(onTitleChange)
+      ? titleEditState
+      : null;
+  const activeDescEdit =
+    item && descEditState?.itemId === item.id && Boolean(onDescriptionChange)
+      ? descEditState
+      : null;
   const aiEnhancedDesc =
-    item && aiEnhancedDescState?.itemId === item.id
-      ? aiEnhancedDescState.text
+    item && aiEnhancedByItem?.itemId === item.id
+      ? aiEnhancedByItem.text
       : null;
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
@@ -656,23 +686,149 @@ export default function WorkItemDetailDialog({
     setWorklogNote("");
   }
 
-  function handleImproveTaskWithAi() {
-    if (!item) return;
-    const base = item.description ?? t("noDescription");
-    setAiEnhancedDescState({
+  function startTitleEdit() {
+    if (!item || !onTitleChange) return;
+    setTitleEditState({
       itemId: item.id,
-      text: `${base}\n\n[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated MEMBER in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`,
+      draft: item.title,
+      error: null,
+      saving: false,
     });
   }
 
-  function startEditingTaskDescription() {
+  async function handleSaveTitle(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!item || !onTitleChange || !activeTitleEdit || activeTitleEdit.saving) {
+      return;
+    }
+    const normalized = activeTitleEdit.draft.trim();
+    if (!normalized) {
+      setTitleEditState({
+        ...activeTitleEdit,
+        error: t("titleRequired"),
+      });
+      return;
+    }
+    if (normalized === item.title) {
+      setTitleEditState(null);
+      return;
+    }
+    setTitleEditState({ ...activeTitleEdit, error: null, saving: true });
+    try {
+      const ok = await onTitleChange(item.id, normalized);
+      if (ok === false) {
+        setTitleEditState({
+          itemId: item.id,
+          draft: normalized,
+          error: tr(
+            t,
+            "quickUi.saveFailed",
+            "Could not save changes. Please try again.",
+          ),
+          saving: false,
+        });
+        return;
+      }
+      setTitleEditState(null);
+    } catch {
+      setTitleEditState({
+        itemId: item.id,
+        draft: normalized,
+        error: tr(
+          t,
+          "quickUi.saveFailed",
+          "Could not save changes. Please try again.",
+        ),
+        saving: false,
+      });
+    }
+  }
+
+  function startDescriptionEdit(seedText?: string) {
     if (!item || !onDescriptionChange) return;
     setDescSectionCollapsed(false);
-    setDescDraft(aiEnhancedDesc ?? item.description ?? "");
-    setEditingDescItemId(item.id);
-    queueMicrotask(() => {
-      descTextareaRef.current?.focus();
+    setDescEditState({
+      itemId: item.id,
+      draft: seedText ?? aiEnhancedDesc ?? item.description ?? "",
+      error: null,
+      saving: false,
     });
+  }
+
+  async function handleSaveDescription(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (
+      !item ||
+      !onDescriptionChange ||
+      !activeDescEdit ||
+      activeDescEdit.saving
+    ) {
+      return;
+    }
+    const raw = activeDescEdit.draft;
+    const nextDescription = raw.trim().length > 0 ? raw.trim() : null;
+    const currentNormalized =
+      item.description && item.description.trim().length > 0
+        ? item.description.trim()
+        : null;
+    if (nextDescription === currentNormalized && !aiEnhancedDesc) {
+      setDescEditState(null);
+      return;
+    }
+    setDescEditState({ ...activeDescEdit, error: null, saving: true });
+    try {
+      const ok = await onDescriptionChange(item.id, nextDescription);
+      if (ok === false) {
+        setDescEditState({
+          itemId: item.id,
+          draft: raw,
+          error: tr(
+            t,
+            "quickUi.saveFailed",
+            "Could not save changes. Please try again.",
+          ),
+          saving: false,
+        });
+        return;
+      }
+      setAiEnhancedByItem(null);
+      setDescEditState(null);
+    } catch {
+      setDescEditState({
+        itemId: item.id,
+        draft: raw,
+        error: tr(
+          t,
+          "quickUi.saveFailed",
+          "Could not save changes. Please try again.",
+        ),
+        saving: false,
+      });
+    }
+  }
+
+  function handleImproveTaskWithAi() {
+    if (!item || item.readOnly) return;
+    const base = item.description?.trim() ? item.description.trim() : "";
+    const criteriaBlock = `[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated actor in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`;
+    const enhanced = base ? `${base}\n\n${criteriaBlock}` : criteriaBlock;
+    if (onDescriptionChange) {
+      startDescriptionEdit(enhanced);
+      return;
+    }
+    setAiEnhancedByItem({ itemId: item.id, text: enhanced });
+  }
+
+  function handleModalClose() {
+    if (activeTitleEdit) {
+      setTitleEditState(null);
+      return;
+    }
+    if (activeDescEdit) {
+      setDescEditState(null);
+      return;
+    }
+    onClose();
   }
 
   const subtaskList = item?.subtaskItems ?? [];
@@ -1029,7 +1185,7 @@ export default function WorkItemDetailDialog({
                   aria-label="Subtask header actions"
                   className="absolute end-0 top-full z-40 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1.5 text-xs shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  {onUpdateSubtask && (
+                  {onUpdateSubtask && canAssignToMe && (
                     <button
                       type="button"
                       onClick={() => {
@@ -1865,7 +2021,7 @@ export default function WorkItemDetailDialog({
                               </select>
                             )}
                           </label>
-                          {onUpdateSubtask && (
+                          {onUpdateSubtask && canAssignToMe && (
                             <button
                               type="button"
                               onClick={() => {
@@ -2051,22 +2207,119 @@ export default function WorkItemDetailDialog({
                 </div>
 
                 {/* Improve Task AI Copilot Button */}
-                <button
-                  type="button"
-                  onClick={handleImproveTaskWithAi}
-                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  <MonoIcon name="sparkle"className="h-3.5 w-3.5"/>
-                  <span>Improve Task</span>
-                </button>
+                {!item.readOnly && (
+                  <button
+                    type="button"
+                    onClick={handleImproveTaskWithAi}
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                  >
+                    <MonoIcon name="sparkle" className="h-3.5 w-3.5" />
+                    <span>Improve Task</span>
+                  </button>
+                )}
               </div>
 
-              <h2
-                id="work-detail-title"
-                className="text-xl font-semibold leading-7 text-gray-900 sm:text-2xl dark:text-white/90"
-              >
-                {item.title}
-              </h2>
+              {activeTitleEdit ? (
+                <div className="space-y-2">
+                  <h2 id="work-detail-title" className="sr-only">
+                    {item.title}
+                  </h2>
+                  <form onSubmit={handleSaveTitle} className="space-y-2">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={activeTitleEdit.draft}
+                      maxLength={255}
+                      disabled={activeTitleEdit.saving}
+                      aria-label={tr(
+                        t,
+                        "quickUi.editTitleAria",
+                        "Edit work item title",
+                      )}
+                      aria-invalid={Boolean(activeTitleEdit.error)}
+                      onChange={(event) =>
+                        setTitleEditState({
+                          ...activeTitleEdit,
+                          draft: event.target.value.replace(/[\r\n]+/g, " "),
+                          error: event.target.value.trim()
+                            ? null
+                            : activeTitleEdit.error,
+                        })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.nativeEvent.stopImmediatePropagation?.();
+                          setTitleEditState(null);
+                        } else if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void handleSaveTitle();
+                        }
+                      }}
+                      className="w-full resize-none rounded border border-brand-400 bg-white px-3 py-2 text-lg font-semibold leading-7 text-gray-900 outline-none ring-3 ring-brand-500/15 sm:text-xl dark:border-brand-500 dark:bg-gray-950 dark:text-white/90"
+                    />
+                    {activeTitleEdit.error && (
+                      <p
+                        role="alert"
+                        className="text-xs font-medium text-error-600 dark:text-error-400"
+                      >
+                        {activeTitleEdit.error}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="submit"
+                        disabled={activeTitleEdit.saving}
+                        aria-busy={activeTitleEdit.saving}
+                        className="inline-flex h-8 cursor-pointer items-center justify-center rounded bg-brand-600 px-3 text-xs font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {activeTitleEdit.saving
+                          ? tr(t, "quickUi.saving", "Saving…")
+                          : tr(t, "quickUi.save", "Save")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={activeTitleEdit.saving}
+                        onClick={() => setTitleEditState(null)}
+                        className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                      >
+                        {t("cancel")}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : onTitleChange ? (
+                <div className="flex items-start justify-between gap-3">
+                  <h2
+                    id="work-detail-title"
+                    onClick={startTitleEdit}
+                    className="-mx-1.5 min-w-0 flex-1 cursor-text rounded px-1.5 py-0.5 text-xl font-semibold leading-7 break-words text-gray-900 transition hover:bg-gray-100 sm:text-2xl dark:text-white/90 dark:hover:bg-gray-800/70"
+                  >
+                    {item.title}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={startTitleEdit}
+                    aria-label={tr(
+                      t,
+                      "quickUi.editTitleAria",
+                      "Edit work item title",
+                    )}
+                    className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                  >
+                    <MonoIcon name="edit" size={12} />
+                    <span>{tr(t, "quickUi.edit", "Edit")}</span>
+                  </button>
+                </div>
+              ) : (
+                <h2
+                  id="work-detail-title"
+                  className="text-xl font-semibold leading-7 break-words text-gray-900 sm:text-2xl dark:text-white/90"
+                >
+                  {item.title}
+                </h2>
+              )}
 
               {/* Jira Cloud Quick Action Bar under Title (`19-task-detail-view-open.png`, `24a-task-detail-plus-add-dropdown.png`) */}
               <div className="relative flex flex-wrap items-center gap-1.5">
@@ -2144,7 +2397,7 @@ export default function WorkItemDetailDialog({
                 aria-labelledby="work-detail-description-heading"
                 className="space-y-2"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={() => setDescSectionCollapsed((prev) => !prev)}
@@ -2158,88 +2411,128 @@ export default function WorkItemDetailDialog({
                       {t("description")}
                     </span>
                   </button>
-                  {onDescriptionChange && !editingDesc && (
+                  {onDescriptionChange && !activeDescEdit && (
                     <button
                       type="button"
-                      data-testid="edit-task-description"
-                      onClick={startEditingTaskDescription}
-                      className="inline-flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                      onClick={() => startDescriptionEdit()}
+                      aria-label={tr(
+                        t,
+                        "quickUi.editDescriptionAria",
+                        "Edit work item description",
+                      )}
+                      className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
                     >
                       <MonoIcon name="edit" size={11} />
-                      <span>Edit</span>
+                      <span>{tr(t, "quickUi.edit", "Edit")}</span>
                     </button>
                   )}
                 </div>
-
                 {!descSectionCollapsed &&
-                  (editingDesc ? (
+                  (activeDescEdit ? (
                     <form
-                      onSubmit={(event) => {
-                        event.preventDefault();
-                        onDescriptionChange?.(item.id, descDraft.trim());
-                        setAiEnhancedDescState(null);
-                        setEditingDescItemId(null);
-                      }}
-                      className="space-y-2 ps-4"
+                      onSubmit={handleSaveDescription}
+                      className="space-y-2.5"
                     >
                       <textarea
-                        ref={descTextareaRef}
+                        autoFocus
                         rows={8}
                         maxLength={20000}
-                        aria-label={t("description")}
-                        value={descDraft}
-                        onChange={(event) => setDescDraft(event.target.value)}
+                        disabled={activeDescEdit.saving}
+                        value={activeDescEdit.draft}
+                        aria-label={tr(
+                          t,
+                          "quickUi.editDescriptionAria",
+                          "Edit work item description",
+                        )}
+                        placeholder={tr(
+                          t,
+                          "quickUi.descriptionPlaceholder",
+                          "Add acceptance criteria or engineering context…",
+                        )}
+                        onChange={(event) =>
+                          setDescEditState({
+                            ...activeDescEdit,
+                            draft: event.target.value,
+                            error: null,
+                          })
+                        }
                         onKeyDown={(event) => {
                           if (event.key === "Escape") {
                             event.preventDefault();
                             event.stopPropagation();
-                            event.nativeEvent.stopImmediatePropagation();
-                            setEditingDescItemId(null);
+                            event.nativeEvent.stopImmediatePropagation?.();
+                            setDescEditState(null);
+                          } else if (
+                            (event.metaKey || event.ctrlKey) &&
+                            event.key === "Enter"
+                          ) {
+                            event.preventDefault();
+                            void handleSaveDescription();
                           }
                         }}
-                        placeholder="Add a description…"
-                        className="w-full rounded border border-gray-300 bg-white p-3 text-sm leading-6 text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                        className="w-full rounded border border-brand-400 bg-white px-3.5 py-2.5 text-sm leading-6 text-gray-800 outline-none ring-3 ring-brand-500/15 placeholder:text-gray-400 dark:border-brand-500 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
                       />
-                      <div className="flex items-center gap-2">
+                      {activeDescEdit.error && (
+                        <p
+                          role="alert"
+                          className="text-xs font-medium text-error-600 dark:text-error-400"
+                        >
+                          {activeDescEdit.error}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-end gap-2">
                         <button
                           type="submit"
-                          data-testid="save-task-description"
-                          className="h-8 cursor-pointer rounded bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                          disabled={activeDescEdit.saving}
+                          aria-busy={activeDescEdit.saving}
+                          className="inline-flex h-8 cursor-pointer items-center justify-center rounded bg-brand-600 px-3 text-xs font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                          Save
+                          {activeDescEdit.saving
+                            ? tr(t, "quickUi.saving", "Saving…")
+                            : tr(t, "quickUi.save", "Save")}
                         </button>
                         <button
                           type="button"
-                          data-testid="cancel-task-description"
-                          onClick={() => setEditingDescItemId(null)}
-                          className="h-8 cursor-pointer rounded px-3 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                          disabled={activeDescEdit.saving}
+                          onClick={() => setDescEditState(null)}
+                          className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                         >
-                          Cancel
+                          {t("cancel")}
                         </button>
                       </div>
                     </form>
-                  ) : (
-                    <p
-                      onClick={
-                        onDescriptionChange
-                          ? startEditingTaskDescription
-                          : undefined
-                      }
-                      className={`whitespace-pre-line rounded px-4 py-2 text-sm leading-6 transition ${
-                        onDescriptionChange
-                          ? "cursor-text hover:bg-gray-50 dark:hover:bg-gray-800/40"
-                          : ""
-                      } ${
-                        aiEnhancedDesc ?? item.description
-                          ? "text-gray-700 dark:text-gray-300"
-                          : "text-gray-400 dark:text-gray-500"
-                      }`}
+                  ) : onDescriptionChange ? (
+                    <div
+                      onClick={() => startDescriptionEdit()}
+                      className="cursor-text rounded border border-transparent px-3 py-2 text-sm leading-6 transition hover:border-gray-200 hover:bg-gray-50 dark:hover:border-gray-700 dark:hover:bg-gray-800/50"
                     >
+                      {aiEnhancedDesc ||
+                      (item.description && item.description.trim().length > 0) ? (
+                        <p className="whitespace-pre-line break-words text-gray-700 dark:text-gray-300">
+                          {aiEnhancedDesc ?? item.description}
+                        </p>
+                      ) : (
+                        <p className="italic text-gray-500 dark:text-gray-400">
+                          {tr(
+                            t,
+                            "quickUi.addDescriptionPrompt",
+                            "Click to add a description…",
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-line break-words rounded px-3 py-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
                       {aiEnhancedDesc ??
-                        item.description ??
-                        (onDescriptionChange
-                          ? "Add a description…"
-                          : t("noDescription"))}
+                        (item.description && item.description.trim().length > 0
+                          ? item.description
+                          : projectId
+                            ? tr(
+                                t,
+                                "quickUi.noDescriptionReal",
+                                "No description provided.",
+                              )
+                            : t("noDescription"))}
                     </p>
                   ))}
               </section>
@@ -2963,7 +3256,7 @@ export default function WorkItemDetailDialog({
                                           <span>Edit summary</span>
                                         </button>
                                       )}
-                                      {!sub.readOnly && onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && canAssignToMe && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -3838,7 +4131,7 @@ export default function WorkItemDetailDialog({
                             </select>
                           )}
                         </label>
-                        {onAssigneeChange && (
+                        {onAssigneeChange && canAssignToMe && (
                           <button
                             type="button"
                             onClick={() => {
@@ -4159,11 +4452,13 @@ export default function WorkItemDetailDialog({
   return (
     <Modal
       isOpen={Boolean(item)}
-      onClose={onClose}
+      onClose={handleModalClose}
       onBackdropClick={
-        isSplitOpen
-          ? () => setSplitDismissSignal((cur) => cur + 1)
-          : undefined
+        activeTitleEdit || activeDescEdit
+          ? handleModalClose
+          : isSplitOpen
+            ? () => setSplitDismissSignal((cur) => cur + 1)
+            : undefined
       }
       backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}

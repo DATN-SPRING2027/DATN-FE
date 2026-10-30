@@ -131,3 +131,78 @@ describe("BFF Platform rate-limit route responses", () => {
       expect(response.headers.has(name)).toBe(false);
   });
 });
+
+describe("BFF AI Chat SSE streaming", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("streams text/event-stream frames with x-accel-buffering and no-store cache headers", async () => {
+    const encoder = new TextEncoder();
+    const sseStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode('event: started\ndata: {"runId":"r1"}\n\n'),
+        );
+        controller.enqueue(
+          encoder.encode('event: delta\ndata: {"text":"Hello"}\n\n'),
+        );
+        controller.close();
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(sseStream, {
+          status: 200,
+          headers: {
+            "content-type": "text/event-stream; charset=utf-8",
+            "x-accel-buffering": "no",
+            "x-sag-internal": "never-leak",
+          },
+        }),
+      ),
+    );
+
+    const path = ["ai-chat", "projects", "proj-1", "threads", "t-1", "ask"];
+    const response = await POST(
+      new NextRequest(`http://localhost:3000/api/backend/${path.join("/")}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ query: "Hello?" }),
+      }),
+      { params: Promise.resolve({ path }) },
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(
+      "text/event-stream; charset=utf-8",
+    );
+    expect(response.headers.get("x-accel-buffering")).toBe("no");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(response.headers.has("x-sag-internal")).toBe(false);
+    expect(await response.text()).toContain('event: delta\ndata: {"text":"Hello"}');
+  });
+
+  it("forwards request AbortSignal on ai-chat routes and returns structured 503 BACKEND_UNAVAILABLE on network failure", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValueOnce(new TypeError("fetch failed"));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const path = ["ai-chat", "projects", "proj-1", "threads"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/ai-chat/projects/proj-1/threads"),
+      expect.objectContaining({ signal: req.signal }),
+    );
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "BACKEND_UNAVAILABLE",
+      message: "AI Chat service is temporarily unavailable.",
+    });
+  });
+});

@@ -57,10 +57,16 @@ export function useProjectMembersQuery(
   organizationId: string,
   projectId: string,
   filter: ProjectMemberFilter,
-  options: { enabled?: boolean; staleTime?: number } = {},
+  options: { enabled?: boolean; staleTime?: number; allPages?: boolean } = {},
 ) {
   return useQuery({
-    queryKey: projectMemberKeys.list(organizationId, projectId, filter),
+    queryKey: options.allPages
+      ? [
+          ...projectMemberKeys.scope(organizationId, projectId),
+          "directory",
+          filter,
+        ]
+      : projectMemberKeys.list(organizationId, projectId, filter),
     enabled:
       Boolean(organizationId && isResourceId(projectId)) &&
       options.enabled !== false,
@@ -70,13 +76,14 @@ export function useProjectMembersQuery(
     gcTime: 120_000,
     refetchOnWindowFocus: true,
     networkMode: "always",
-    queryFn: ({ signal }) => {
+    queryFn: async ({ signal }) => {
       if (
         !Number.isInteger(filter.page) ||
         filter.page < 1 ||
         !Number.isInteger(filter.pageSize) ||
         filter.pageSize < 1 ||
         filter.pageSize > 100 ||
+        (options.allPages && filter.page !== 1) ||
         (filter.status !== undefined &&
           !["ACTIVE", "INACTIVE"].includes(filter.status))
       )
@@ -90,13 +97,35 @@ export function useProjectMembersQuery(
         pageSize: String(filter.pageSize),
       });
       if (filter.status) params.set("status", filter.status);
-      return apiClient<unknown>(
-        `${path(organizationId, projectId)}?${params}`,
-        {
-          signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
-          cache: "no-store",
-        },
-      ).then((data) => parseMemberPage(data, organizationId, projectId));
+      const fetchPage = async (page: number) => {
+        params.set("page", String(page));
+        const response = await apiClient<unknown>(
+          `${path(organizationId, projectId)}?${params}`,
+          {
+            signal: AbortSignal.any([signal, AbortSignal.timeout(15_000)]),
+            cache: "no-store",
+          },
+        );
+        const parsed = parseMemberPage(response, organizationId, projectId);
+        if (parsed.pagination.page !== page) {
+          throw new ApiError(
+            502,
+            "INVALID_PROJECT_MEMBER_RESPONSE",
+            "Unexpected membership page",
+          );
+        }
+        return parsed;
+      };
+      const first = await fetchPage(filter.page);
+      if (!options.allPages) return first;
+      // Directory consumers use data only. Keep server pagination metadata and
+      // the aggregate in a separate cache from ordinary paged lists.
+      const members = new Map(first.data.map((member) => [member.id, member]));
+      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+        const result = await fetchPage(page);
+        for (const member of result.data) members.set(member.id, member);
+      }
+      return { ...first, data: [...members.values()] };
     },
   });
 }
@@ -105,11 +134,14 @@ export function useProjectMemberCandidatesQuery(
   organizationId: string,
   projectId: string,
   search?: string,
+  options: { enabled?: boolean } = {},
 ) {
   const trimmed = search?.trim();
   return useQuery({
     queryKey: projectMemberKeys.candidates(organizationId, projectId, trimmed),
-    enabled: Boolean(organizationId && isResourceId(projectId)),
+    enabled:
+      Boolean(organizationId && isResourceId(projectId)) &&
+      options.enabled !== false,
     retry: false,
     throwOnError: false,
     staleTime: 5_000,

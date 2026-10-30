@@ -301,71 +301,119 @@ describe("WorkItemDetailDialog", () => {
     expect(screen.getByTestId("split-saved-signal")).toHaveTextContent("1");
   });
 
-  it("allows editing and saving the main Task description via Edit button or click-to-edit, and cancels on Escape without closing the modal", () => {
-    const onDescriptionChange = vi.fn();
+
+  it("allows editing Task title and description when mutable callbacks are provided, validates empty title, and cancels on Escape without closing the modal", async () => {
     const onClose = vi.fn();
+    const onTitleChange = vi.fn().mockResolvedValue(true);
+    const onDescriptionChange = vi.fn().mockResolvedValue(true);
 
     render(
       <WorkItemDetailDialog
-        item={{
-          ...sampleItemWithSubtasks,
-          description: "Initial architecture notes",
-        }}
+        item={{ ...sampleItemWithSubtasks, description: "Initial spec" }}
         onClose={onClose}
+        onTitleChange={onTitleChange}
         onDescriptionChange={onDescriptionChange}
       />,
     );
 
-    // Click Edit button on Description header
-    fireEvent.click(screen.getByTestId("edit-task-description"));
-    const textarea = screen.getByRole("textbox", { name: "description" });
-    expect(textarea).toHaveValue("Initial architecture notes");
-
-    fireEvent.change(textarea, {
-      target: { value: "  Updated IAM architecture & RBAC scope  " },
-    });
-    fireEvent.click(screen.getByTestId("save-task-description"));
-
-    expect(onDescriptionChange).toHaveBeenCalledWith(
-      "work-1",
-      "Updated IAM architecture & RBAC scope",
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item title" }),
     );
-
-    // Click description body directly to enter edit mode, then press Escape -> cancels edit without closing modal
-    fireEvent.click(screen.getByText("Initial architecture notes"));
-    const reopenedTextarea = screen.getByRole("textbox", {
-      name: "description",
+    const titleInput = screen.getByRole("textbox", {
+      name: "Edit work item title",
     });
-    fireEvent.keyDown(reopenedTextarea, { key: "Escape" });
+    expect(titleInput).toHaveValue(sampleItemWithSubtasks.title);
 
+    fireEvent.change(titleInput, { target: { value: "   " } });
+    fireEvent.submit(titleInput.closest("form")!);
+    expect(screen.getByRole("alert")).toHaveTextContent("titleRequired");
+    expect(onTitleChange).not.toHaveBeenCalled();
+
+    fireEvent.change(titleInput, {
+      target: { value: "Draft cancelled via Escape" },
+    });
+    fireEvent.keyDown(titleInput, { key: "Escape" });
     expect(
-      screen.queryByRole("textbox", { name: "description" }),
+      screen.queryByRole("textbox", { name: "Edit work item title" }),
     ).not.toBeInTheDocument();
     expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("heading", { name: sampleItemWithSubtasks.title }),
+    );
+    const reopenedTitleInput = screen.getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(reopenedTitleInput, {
+      target: { value: "Rà soát cấu trúc citations tiếng Việt" },
+    });
+    fireEvent.submit(reopenedTitleInput.closest("form")!);
+    expect(onTitleChange).toHaveBeenCalledWith(
+      "work-1",
+      "Rà soát cấu trúc citations tiếng Việt",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit work item description" }),
+    );
+    const descInput = screen.getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    expect(descInput).toHaveValue("Initial spec");
+    fireEvent.change(descInput, {
+      target: { value: "Updated architecture & acceptance criteria" },
+    });
+    fireEvent.submit(descInput.closest("form")!);
+    expect(onDescriptionChange).toHaveBeenCalledWith(
+      "work-1",
+      "Updated architecture & acceptance criteria",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit work item description" }),
+    );
+    const clearDescInput = screen.getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    fireEvent.change(clearDescInput, { target: { value: "   " } });
+    fireEvent.submit(clearDescInput.closest("form")!);
+    expect(onDescriptionChange).toHaveBeenCalledWith("work-1", null);
   });
 
-  it("disables main Task description editing when the Task is read-only", () => {
+  it("blocks Task title and description editing when item.readOnly is true", () => {
+    const onTitleChange = vi.fn();
     const onDescriptionChange = vi.fn();
 
     render(
       <WorkItemDetailDialog
         item={{
           ...sampleItemWithSubtasks,
-          description: "Read-only specification",
           readOnly: true,
+          description: "Locked spec",
         }}
         onClose={vi.fn()}
+        onTitleChange={onTitleChange}
         onDescriptionChange={onDescriptionChange}
       />,
     );
 
     expect(
-      screen.queryByTestId("edit-task-description"),
+      screen.queryByRole("button", { name: "Edit work item title" }),
     ).not.toBeInTheDocument();
-    fireEvent.click(screen.getByText("Read-only specification"));
     expect(
-      screen.queryByRole("textbox", { name: "description" }),
+      screen.queryByRole("button", { name: "Edit work item description" }),
     ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(sampleItemWithSubtasks.title));
+    fireEvent.click(screen.getByText("Locked spec"));
+
+    expect(
+      screen.queryByRole("textbox", { name: "Edit work item title" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Edit work item description" }),
+    ).not.toBeInTheDocument();
+    expect(onTitleChange).not.toHaveBeenCalled();
     expect(onDescriptionChange).not.toHaveBeenCalled();
   });
 });
