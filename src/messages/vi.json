@@ -2607,7 +2607,16 @@
       "subtaskSummaryPlaceholder": "Tóm tắt công việc con…",
       "addSubtask": "Thêm công việc con",
       "descriptionPlaceholder": "Thêm tiêu chí nghiệm thu hoặc ngữ cảnh kỹ thuật…",
-      "createAnother": "Tạo thêm mục khác"
+      "createAnother": "Tạo thêm mục khác",
+      "edit": "Chỉnh sửa",
+      "save": "Lưu",
+      "saving": "Đang lưu…",
+      "editTitleAria": "Chỉnh sửa tiêu đề công việc",
+      "editDescriptionAria": "Chỉnh sửa mô tả công việc",
+      "addDescriptionPrompt": "Nhấp để thêm mô tả chi tiết…",
+      "noDescriptionReal": "Chưa có mô tả.",
+      "saveFailed": "Không thể lưu thay đổi. Vui lòng thử lại.",
+      "createDialogRealHint": "Tạo hạng mục công việc mới trong không gian dự án này."
     }
   },
   "organizationMembers": {

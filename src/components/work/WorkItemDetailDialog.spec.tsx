@@ -166,4 +166,119 @@ describe("WorkItemDetailDialog", () => {
       "651a2b3c4d5e6f7a8b9c0d21:sub-2",
     );
   });
+
+  it("allows editing Task title and description when mutable callbacks are provided, validates empty title, and cancels on Escape without closing the modal", async () => {
+    const onClose = vi.fn();
+    const onTitleChange = vi.fn().mockResolvedValue(true);
+    const onDescriptionChange = vi.fn().mockResolvedValue(true);
+
+    render(
+      <WorkItemDetailDialog
+        item={{ ...sampleItemWithSubtasks, description: "Initial spec" }}
+        onClose={onClose}
+        onTitleChange={onTitleChange}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item title" }),
+    );
+    const titleInput = screen.getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    expect(titleInput).toHaveValue(sampleItemWithSubtasks.title);
+
+    fireEvent.change(titleInput, { target: { value: "   " } });
+    fireEvent.submit(titleInput.closest("form")!);
+    expect(screen.getByRole("alert")).toHaveTextContent("titleRequired");
+    expect(onTitleChange).not.toHaveBeenCalled();
+
+    fireEvent.change(titleInput, {
+      target: { value: "Draft cancelled via Escape" },
+    });
+    fireEvent.keyDown(titleInput, { key: "Escape" });
+    expect(
+      screen.queryByRole("textbox", { name: "Edit work item title" }),
+    ).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("heading", { name: sampleItemWithSubtasks.title }),
+    );
+    const reopenedTitleInput = screen.getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(reopenedTitleInput, {
+      target: { value: "Rà soát cấu trúc citations tiếng Việt" },
+    });
+    fireEvent.submit(reopenedTitleInput.closest("form")!);
+    expect(onTitleChange).toHaveBeenCalledWith(
+      "work-1",
+      "Rà soát cấu trúc citations tiếng Việt",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit work item description" }),
+    );
+    const descInput = screen.getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    expect(descInput).toHaveValue("Initial spec");
+    fireEvent.change(descInput, {
+      target: { value: "Updated architecture & acceptance criteria" },
+    });
+    fireEvent.submit(descInput.closest("form")!);
+    expect(onDescriptionChange).toHaveBeenCalledWith(
+      "work-1",
+      "Updated architecture & acceptance criteria",
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Edit work item description" }),
+    );
+    const clearDescInput = screen.getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    fireEvent.change(clearDescInput, { target: { value: "   " } });
+    fireEvent.submit(clearDescInput.closest("form")!);
+    expect(onDescriptionChange).toHaveBeenCalledWith("work-1", null);
+  });
+
+  it("blocks Task title and description editing when item.readOnly is true", () => {
+    const onTitleChange = vi.fn();
+    const onDescriptionChange = vi.fn();
+
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          readOnly: true,
+          description: "Locked spec",
+        }}
+        onClose={vi.fn()}
+        onTitleChange={onTitleChange}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Edit work item title" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Edit work item description" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(sampleItemWithSubtasks.title));
+    fireEvent.click(screen.getByText("Locked spec"));
+
+    expect(
+      screen.queryByRole("textbox", { name: "Edit work item title" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Edit work item description" }),
+    ).not.toBeInTheDocument();
+    expect(onTitleChange).not.toHaveBeenCalled();
+    expect(onDescriptionChange).not.toHaveBeenCalled();
+  });
 });
