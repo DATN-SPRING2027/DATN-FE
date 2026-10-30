@@ -2607,7 +2607,16 @@
       "subtaskSummaryPlaceholder": "Subtask summary…",
       "addSubtask": "Add subtask",
       "descriptionPlaceholder": "Add acceptance criteria or engineering context…",
-      "createAnother": "Create another"
+      "createAnother": "Create another",
+      "edit": "Edit",
+      "save": "Save",
+      "saving": "Saving…",
+      "editTitleAria": "Edit work item title",
+      "editDescriptionAria": "Edit work item description",
+      "addDescriptionPrompt": "Click to add a description…",
+      "noDescriptionReal": "No description provided.",
+      "saveFailed": "Could not save changes. Please try again.",
+      "createDialogRealHint": "Create a new work item in this project workspace."
     }
   },
   "organizationMembers": {
