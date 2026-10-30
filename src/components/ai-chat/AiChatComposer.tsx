@@ -309,7 +309,7 @@ export default function AiChatComposer({
   return (
     <div className="shrink-0 bg-white/95 px-4 pt-2 pb-3 backdrop-blur-xs dark:bg-gpt-canvas/95">
       {formNode}
-      <p className="mt-2 text-center text-xs text-gray-400 dark:text-gray-500">
+      <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
         {t("composerDisclaimer", { project: projectName })}
       </p>
     </div>

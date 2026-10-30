@@ -23,6 +23,24 @@ is streaming and can be collapsed or expanded with the pointer or keyboard.
 
 ## Validation
 
+### Stable composer layout
+
+AI Chat has one docked composer in both the welcome screen and active threads;
+the Chat/Work switch is no longer displayed. Creating the first thread does not
+replace the textarea or lose keyboard focus. The greeting and prompt suggestions
+remain in the separate, flexible content region.
+
+Automatic message scrolling and jumps to session references scroll only the
+message-list container. They must not use `scrollIntoView` across the surrounding
+canvas: that also scrolls overflow-hidden ancestors and moves the composer.
+The message region shrinks within the viewport while the composer stays at its
+bottom. A multiline draft can grow upward naturally within its existing limit.
+
+Regression tests cover absence of both mode switches and textarea identity/focus
+through Enter, thread creation, streaming and completion. Live verification uses
+the authenticated local app at 390, 768, 1280 and 1440 pixels. No API, database,
+authentication or provider change is part of this layout fix.
+
 ### No-answer presentation follow-up
 
 A completed `no_answer` response is presented as one localized explanation,

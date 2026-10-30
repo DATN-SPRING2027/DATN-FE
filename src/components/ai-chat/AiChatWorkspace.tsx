@@ -163,7 +163,6 @@ function AiChatWorkspaceContent() {
   const projectId = selectedProject?.id ?? "";
   const pinnedStorageKey = `continuum.aiChat.pinned.${organizationId}.${projectId}`;
 
-  const [workspaceMode, setWorkspaceMode] = useState<"chat" | "work">("chat");
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -340,6 +339,7 @@ function AiChatWorkspaceContent() {
       return {
         ...msg,
         answerStatus: msg.answerStatus ?? localMatch.answerStatus,
+        errorCode: msg.errorCode ?? localMatch.errorCode,
         errorMessage: localMatch.errorMessage ?? msg.errorMessage,
         retryQuery: localMatch.retryQuery ?? msg.retryQuery,
       };
@@ -681,6 +681,7 @@ function AiChatWorkspaceContent() {
                     status: "failed",
                     isStreaming: false,
                     activityFinishedAt: Date.now(),
+                    errorCode: event.data.code,
                     errorMessage:
                       event.data.message || t("streamFailedDefault"),
                   }),
@@ -793,7 +794,19 @@ function AiChatWorkspaceContent() {
           ? document.getElementById(`ai-chat-turn-${turnId}`)
           : null;
       if (targetEl) {
-        targetEl.scrollIntoView?.({ behavior: "smooth", block: "center" });
+        const container = targetEl.closest<HTMLElement>(
+          "[data-ai-chat-scroll-region]",
+        );
+        if (container) {
+          container.scrollTo({
+            top:
+              container.scrollTop +
+              targetEl.getBoundingClientRect().top -
+              container.getBoundingClientRect().top -
+              (container.clientHeight - targetEl.clientHeight) / 2,
+            behavior: "smooth",
+          });
+        }
         setHighlightedTurnId(turnId);
         window.setTimeout(() => {
           setHighlightedTurnId((prev) => (prev === turnId ? null : prev));
@@ -894,18 +907,11 @@ function AiChatWorkspaceContent() {
 
   const isHeroStage = activeThreadId === null && displayedMessages.length === 0;
 
-  const quickPromptChips =
-    workspaceMode === "work"
-      ? [
-          { label: t("workChip1Label"), prompt: t("workChip1Prompt") },
-          { label: t("workChip2Label"), prompt: t("workChip2Prompt") },
-          { label: t("workChip3Label"), prompt: t("workChip3Prompt") },
-        ]
-      : [
-          { label: t("chatChip1Label"), prompt: t("chatChip1Prompt") },
-          { label: t("chatChip2Label"), prompt: t("chatChip2Prompt") },
-          { label: t("chatChip3Label"), prompt: t("chatChip3Prompt") },
-        ];
+  const quickPromptChips = [
+    { label: t("chatChip1Label"), prompt: t("chatChip1Prompt") },
+    { label: t("chatChip2Label"), prompt: t("chatChip2Prompt") },
+    { label: t("chatChip3Label"), prompt: t("chatChip3Prompt") },
+  ];
 
   return (
     <div
@@ -935,7 +941,7 @@ function AiChatWorkspaceContent() {
       />
 
       {/* Right Main ChatGPT Canvas */}
-      <div className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Floating Minimal ChatGPT Top Header Bar */}
         <header className="relative flex h-13 shrink-0 items-center justify-between gap-2 px-3 sm:px-4">
           {/* Top-Left: Sidebar Toggle + Engine Popover ("Continuum SAG v") */}
@@ -1061,40 +1067,6 @@ function AiChatWorkspaceContent() {
                 </div>
               )}
             </div>
-          </div>
-
-          {/* Top-Center: ChatGPT "Chat | Work" Segmented Pill */}
-          <div
-            role="group"
-            aria-label={t("modeSwitchAriaLabel")}
-            className="hidden items-center rounded-full border border-gray-200/80 bg-gray-100 p-0.5 sm:inline-flex dark:border-white/10 dark:bg-gpt-sidebar"
-          >
-            <button
-              type="button"
-              aria-pressed={workspaceMode === "chat"}
-              onClick={() => setWorkspaceMode("chat")}
-              className={cn(
-                "rounded-full px-4 py-1 text-xs font-medium transition-all",
-                workspaceMode === "chat"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gpt-bubble dark:text-white"
-                  : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              {t("modeChat")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={workspaceMode === "work"}
-              onClick={() => setWorkspaceMode("work")}
-              className={cn(
-                "rounded-full px-4 py-1 text-xs font-medium transition-all",
-                workspaceMode === "work"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gpt-bubble dark:text-white"
-                  : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              {t("modeWork")}
-            </button>
           </div>
 
           {/* Top-Right: Strict Single-Project Scope Pill */}
@@ -1230,69 +1202,12 @@ function AiChatWorkspaceContent() {
           </div>
         )}
 
-        {/* Main Body: ChatGPT Centered Hero Stage OR Active Conversation Stream */}
         {isHeroStage ? (
-          <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-10">
-            {/* Mobile Chat | Work Toggle */}
-            <div
-              role="group"
-              aria-label={t("modeSwitchAriaLabel")}
-              className="mb-5 inline-flex items-center rounded-full border border-gray-200/80 bg-gray-100 p-0.5 sm:hidden dark:border-white/10 dark:bg-gpt-sidebar"
-            >
-              <button
-                type="button"
-                aria-pressed={workspaceMode === "chat"}
-                onClick={() => setWorkspaceMode("chat")}
-                className={cn(
-                  "rounded-full px-3.5 py-1 text-xs font-medium transition-all",
-                  workspaceMode === "chat"
-                    ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gpt-bubble dark:text-white"
-                    : "text-gray-500 dark:text-gray-400",
-                )}
-              >
-                {t("modeChat")}
-              </button>
-              <button
-                type="button"
-                aria-pressed={workspaceMode === "work"}
-                onClick={() => setWorkspaceMode("work")}
-                className={cn(
-                  "rounded-full px-3.5 py-1 text-xs font-medium transition-all",
-                  workspaceMode === "work"
-                    ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gpt-bubble dark:text-white"
-                    : "text-gray-500 dark:text-gray-400",
-                )}
-              >
-                {t("modeWork")}
-              </button>
-            </div>
-
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
             <h1 className="mb-7 text-center text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl dark:text-white">
-              {workspaceMode === "work"
-                ? t("heroWorkHeading", { project: selectedProject.code })
-                : t("heroHeading")}
+              {t("heroHeading")}
             </h1>
-
-            <AiChatComposer
-              variant="hero"
-              mode={workspaceMode}
-              value={composerValue}
-              projectId={selectedProject.id}
-              projectCode={selectedProject.code}
-              projectName={selectedProject.name}
-              isStreaming={isStreaming}
-              disabled={Boolean(queryAccessError)}
-              validationError={validationError}
-              onChange={(next) => {
-                setComposerValue(next);
-                if (validationError) setValidationError(null);
-              }}
-              onSubmit={() => void sendQuestion(composerValue)}
-              onStopStreaming={handleStopStreaming}
-              onOpenProjectMenu={() => setIsProjectMenuOpen(true)}
-            />
-
-            <div className="mt-4 flex max-w-2xl flex-wrap items-center justify-center gap-2">
+            <div className="flex max-w-2xl flex-wrap items-center justify-center gap-2">
               {quickPromptChips.map((chip) => (
                 <button
                   key={chip.label}
@@ -1307,49 +1222,47 @@ function AiChatWorkspaceContent() {
             </div>
           </div>
         ) : (
-          <>
-            <AiChatMessageList
-              projectId={selectedProject.id}
-              mode={workspaceMode}
-              messages={displayedMessages}
-              isLoadingMessages={
-                Boolean(activeThreadId) && messagesQuery.isLoading
-              }
-              isMessagesError={
-                Boolean(activeThreadId) &&
-                messagesQuery.isError &&
-                !queryAccessError
-              }
-              hasOlderMessages={Boolean(messagesQuery.hasNextPage)}
-              isLoadingOlder={messagesQuery.isFetchingNextPage}
-              highlightedTurnId={highlightedTurnId}
-              onLoadOlder={() => void messagesQuery.fetchNextPage()}
-              onRetryMessages={() => void messagesQuery.refetch()}
-              onRetryTurn={(queryText) => void sendQuestion(queryText)}
-              onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
-              onJumpToTurn={handleJumpToTurn}
-            />
-
-            <AiChatComposer
-              variant="docked"
-              mode={workspaceMode}
-              value={composerValue}
-              projectId={selectedProject.id}
-              projectCode={selectedProject.code}
-              projectName={selectedProject.name}
-              isStreaming={isStreaming}
-              disabled={Boolean(queryAccessError)}
-              validationError={validationError}
-              onChange={(next) => {
-                setComposerValue(next);
-                if (validationError) setValidationError(null);
-              }}
-              onSubmit={() => void sendQuestion(composerValue)}
-              onStopStreaming={handleStopStreaming}
-              onOpenProjectMenu={() => setIsProjectMenuOpen(true)}
-            />
-          </>
+          <AiChatMessageList
+            projectId={selectedProject.id}
+            mode="chat"
+            messages={displayedMessages}
+            isLoadingMessages={
+              Boolean(activeThreadId) && messagesQuery.isLoading
+            }
+            isMessagesError={
+              Boolean(activeThreadId) &&
+              messagesQuery.isError &&
+              !queryAccessError
+            }
+            hasOlderMessages={Boolean(messagesQuery.hasNextPage)}
+            isLoadingOlder={messagesQuery.isFetchingNextPage}
+            highlightedTurnId={highlightedTurnId}
+            onLoadOlder={() => void messagesQuery.fetchNextPage()}
+            onRetryMessages={() => void messagesQuery.refetch()}
+            onRetryTurn={(queryText) => void sendQuestion(queryText)}
+            onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
+            onJumpToTurn={handleJumpToTurn}
+          />
         )}
+
+        <AiChatComposer
+          variant="docked"
+          mode="chat"
+          value={composerValue}
+          projectId={selectedProject.id}
+          projectCode={selectedProject.code}
+          projectName={selectedProject.name}
+          isStreaming={isStreaming}
+          disabled={Boolean(queryAccessError)}
+          validationError={validationError}
+          onChange={(next) => {
+            setComposerValue(next);
+            if (validationError) setValidationError(null);
+          }}
+          onSubmit={() => void sendQuestion(composerValue)}
+          onStopStreaming={handleStopStreaming}
+          onOpenProjectMenu={() => setIsProjectMenuOpen(true)}
+        />
       </div>
 
       {/* Evidence Excerpt Inspector Modal */}

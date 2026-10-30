@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { AnchorHTMLAttributes } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
@@ -131,4 +131,171 @@ describe("AI Chat no-answer presentation", () => {
       }
     },
   );
+
+  it.each(["vi", "en"] as const)(
+    "localizes whitelisted errorCode (%s) instead of displaying raw English backend failure text",
+    (locale) => {
+      const messages = locale === "vi" ? viMessages : en;
+      renderMessage(
+        {
+          ...assistant,
+          status: "failed",
+          content: "",
+          answerStatus: undefined,
+          errorCode: "SEARCH_UNAVAILABLE",
+          errorMessage:
+            "Knowledge search index is temporarily unavailable. Please try again.",
+        },
+        locale,
+      );
+
+      const alert = screen.getByRole("alert");
+      expect(alert).toHaveTextContent(
+        (messages.AiChat as Record<string, string>).errorSearchUnavailable,
+      );
+    },
+  );
+
+  it("enables Retry for cancelled turns and reloaded failed turns by inferring the preceding user prompt", () => {
+    const onRetryTurn = vi.fn();
+    const userTurn: DisplayAiChatMessage = {
+      id: "user-1",
+      role: "user",
+      status: "ok",
+      content: "Theo tài liệu 02_FRONTEND_NEXTJS.md, frontend dùng framework nào?",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T06:00:00Z",
+    };
+    const cancelledAssistant: DisplayAiChatMessage = {
+      ...assistant,
+      id: "assistant-cancelled",
+      status: "cancelled",
+      content: "Đang trả lời dở...",
+      answerStatus: undefined,
+    };
+
+    const { rerender } = render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <AiChatMessageList
+          projectId="project-1"
+          mode="chat"
+          messages={[userTurn, cancelledAssistant]}
+          isLoadingMessages={false}
+          isMessagesError={false}
+          hasOlderMessages={false}
+          isLoadingOlder={false}
+          highlightedTurnId={null}
+          onLoadOlder={vi.fn()}
+          onRetryMessages={vi.fn()}
+          onRetryTurn={onRetryTurn}
+          onInspectEvidence={vi.fn()}
+          onJumpToTurn={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: viMessages.AiChat.retryTurn }),
+    );
+    expect(onRetryTurn).toHaveBeenCalledWith(userTurn.content);
+
+    onRetryTurn.mockClear();
+    const reloadedFailed: DisplayAiChatMessage = {
+      ...assistant,
+      id: "assistant-failed-reloaded",
+      status: "failed",
+      content: "",
+      answerStatus: undefined,
+      errorCode: "LLM_TIMEOUT",
+    };
+
+    rerender(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <AiChatMessageList
+          projectId="project-1"
+          mode="chat"
+          messages={[userTurn, reloadedFailed]}
+          isLoadingMessages={false}
+          isMessagesError={false}
+          hasOlderMessages={false}
+          isLoadingOlder={false}
+          highlightedTurnId={null}
+          onLoadOlder={vi.fn()}
+          onRetryMessages={vi.fn()}
+          onRetryTurn={onRetryTurn}
+          onInspectEvidence={vi.fn()}
+          onJumpToTurn={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: viMessages.AiChat.retryTurn }),
+    );
+    expect(onRetryTurn).toHaveBeenCalledWith(userTurn.content);
+  });
+
+  it("renders GFM Markdown tables and ordered lists with interactive citations inside cells", () => {
+    const onInspectEvidence = vi.fn();
+    const markdownContent = [
+      "1. Bước xác thực phiên",
+      "2. Bước kiểm tra quyền dự án",
+      "",
+      "| Thành phần | Công nghệ | Nguồn |",
+      "| --- | --- | :---: |",
+      "| Frontend | **Next.js** `App Router` | [1] |",
+    ].join("\n");
+
+    render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <AiChatMessageList
+          projectId="project-1"
+          mode="chat"
+          messages={[
+            {
+              ...assistant,
+              answerStatus: "answered",
+              content: markdownContent,
+              citations: [
+                {
+                  number: 1,
+                  sourceId: "src-fe",
+                  documentId: "6ad8834abef68a3326035eeb",
+                  documentName: "02_FRONTEND_NEXTJS.md",
+                  heading: "Framework",
+                  snippet: "Frontend uses Next.js App Router.",
+                },
+              ],
+            },
+          ]}
+          isLoadingMessages={false}
+          isMessagesError={false}
+          hasOlderMessages={false}
+          isLoadingOlder={false}
+          highlightedTurnId={null}
+          onLoadOlder={vi.fn()}
+          onRetryMessages={vi.fn()}
+          onRetryTurn={vi.fn()}
+          onInspectEvidence={onInspectEvidence}
+          onJumpToTurn={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.getByRole("table")).toBeVisible();
+    expect(
+      screen.getByRole("columnheader", { name: "Thành phần" }),
+    ).toBeVisible();
+    expect(screen.getByRole("cell", { name: /Next\.js/ })).toBeVisible();
+    expect(screen.getByText("Bước xác thực phiên").closest("ol")).not.toBeNull();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: viMessages.AiChat.citationJumpAria.replace("{label}", "1"),
+      }),
+    );
+    expect(onInspectEvidence).toHaveBeenCalledTimes(1);
+  });
 });
