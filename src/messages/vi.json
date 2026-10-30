@@ -3023,6 +3023,7 @@
     "noData": "Chưa có dữ liệu.",
     "validationRequired": "Vui lòng điền đầy đủ các trường bắt buộc trước khi lưu.",
     "saveFailed": "Không thể lưu thay đổi của bạn. Vui lòng thử lại.",
+    "updateFailed": "Không thể làm mới dữ liệu này. Kết quả gần nhất vẫn đang được hiển thị.",
     "noValue": "Chưa cung cấp",
     "saveSucceeded": "Đã lưu thay đổi.",
     "noSearchResults": "Không tìm thấy bản ghi phù hợp",

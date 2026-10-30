@@ -3023,6 +3023,7 @@
     "noData": "No records yet.",
     "validationRequired": "Complete all required fields before saving.",
     "saveFailed": "Could not save your changes. Try again.",
+    "updateFailed": "Could not refresh this data. The last available results are still shown.",
     "noValue": "Not provided",
     "saveSucceeded": "Changes saved.",
     "noSearchResults": "No matching records",
