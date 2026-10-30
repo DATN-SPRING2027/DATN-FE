@@ -26,10 +26,7 @@ import {
   ShootingStarIcon,
   SidebarPanelIcon,
 } from "@/icons";
-import {
-  ApiError,
-  isAccessOrResourceUnavailableError,
-} from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { streamAiChatAsk } from "@/lib/queries/ai-chat/ai-chat-stream";
 import type {
   AiChatMessagePage,
@@ -185,6 +182,12 @@ function AiChatWorkspaceContent() {
   const [localTurnsByThread, setLocalTurnsByThread] = useState<
     Record<string, readonly DisplayAiChatMessage[]>
   >({});
+  const [activityTimingsByMessageId, setActivityTimingsByMessageId] = useState<
+    Record<
+      string,
+      Pick<DisplayAiChatMessage, "activityStartedAt" | "activityFinishedAt">
+    >
+  >({});
   const [answerStatusByMessageId, setAnswerStatusByMessageId] = useState<
     Record<string, "answered" | "no_answer">
   >({});
@@ -312,16 +315,18 @@ function AiChatWorkspaceContent() {
         if (!seen.has(item.id)) {
           seen.add(item.id);
           const rememberedAnswerStatus = answerStatusByMessageId[item.id];
-          ordered.push(
-            rememberedAnswerStatus
-              ? { ...item, answerStatus: rememberedAnswerStatus }
-              : item,
-          );
+          ordered.push({
+            ...item,
+            ...(rememberedAnswerStatus
+              ? { answerStatus: rememberedAnswerStatus }
+              : {}),
+            ...activityTimingsByMessageId[item.id],
+          });
         }
       }
     }
     return ordered;
-  }, [answerStatusByMessageId, messagesQuery.data]);
+  }, [activityTimingsByMessageId, answerStatusByMessageId, messagesQuery.data]);
 
   const displayedMessages: readonly DisplayAiChatMessage[] = useMemo(() => {
     if (!activeThreadId) return [];
@@ -558,6 +563,7 @@ function AiChatWorkspaceContent() {
           retrievalSteps: [],
           createdAt: nowIso,
           isStreaming: true,
+          activityStartedAt: Date.parse(nowIso),
           retryQuery: trimmed,
         };
 
@@ -629,6 +635,14 @@ function AiChatWorkspaceContent() {
 
               if (event.event === "completed") {
                 const finalId = event.data.messageId || activeAssistantTurnId;
+                const finishedAt = Date.now();
+                setActivityTimingsByMessageId((prev) => ({
+                  ...prev,
+                  [finalId]: {
+                    activityStartedAt: Date.parse(nowIso),
+                    activityFinishedAt: finishedAt,
+                  },
+                }));
                 setAnswerStatusByMessageId((prev) => ({
                   ...prev,
                   [finalId]: event.data.answerStatus,
@@ -642,6 +656,7 @@ function AiChatWorkspaceContent() {
                     content: event.data.content || turn.content,
                     status: "ok",
                     isStreaming: false,
+                    activityFinishedAt: finishedAt,
                     answerStatus: event.data.answerStatus,
                     citations: event.data.citations,
                     sessionCitations: event.data.sessionCitations,
@@ -665,6 +680,7 @@ function AiChatWorkspaceContent() {
                     id: failedId,
                     status: "failed",
                     isStreaming: false,
+                    activityFinishedAt: Date.now(),
                     errorMessage:
                       event.data.message || t("streamFailedDefault"),
                   }),
@@ -719,6 +735,7 @@ function AiChatWorkspaceContent() {
               ...turn,
               status: "cancelled",
               isStreaming: false,
+              activityFinishedAt: Date.now(),
             }));
           } else if (isProjectOrAuthAccessError(error)) {
             setPermissionBanner(
@@ -730,6 +747,7 @@ function AiChatWorkspaceContent() {
               ...turn,
               status: "failed",
               isStreaming: false,
+              activityFinishedAt: Date.now(),
               errorMessage:
                 error instanceof ApiError
                   ? error.message
@@ -740,6 +758,7 @@ function AiChatWorkspaceContent() {
               ...turn,
               status: "failed",
               isStreaming: false,
+              activityFinishedAt: Date.now(),
               errorMessage:
                 error instanceof Error
                   ? error.message
@@ -861,9 +880,7 @@ function AiChatWorkspaceContent() {
           proj.name
             .toLowerCase()
             .includes(projectFilter.trim().toLowerCase()) ||
-          proj.code
-            .toLowerCase()
-            .includes(projectFilter.trim().toLowerCase()),
+          proj.code.toLowerCase().includes(projectFilter.trim().toLowerCase()),
       )
     : projects;
 
@@ -1450,10 +1467,7 @@ function AiChatWorkspaceContent() {
                       className="inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-600"
                     >
                       <span>{t("openDocumentLink")}</span>
-                      <ArrowRightIcon
-                        aria-hidden="true"
-                        className="size-3.5"
-                      />
+                      <ArrowRightIcon aria-hidden="true" className="size-3.5" />
                     </Link>
                   </div>
                 )}
@@ -1477,7 +1491,7 @@ function AiChatWorkspaceContent() {
                     <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
                       {t("turnReferenceIdsLabel")}
                     </p>
-                    <p className="mt-1 font-mono text-xs text-gray-600 dark:text-gray-300">
+                    <p className="font-mono mt-1 text-xs text-gray-600 dark:text-gray-300">
                       {inspectedEvidence.sessionCitation.turnIds.join(", ")}
                     </p>
                   </div>

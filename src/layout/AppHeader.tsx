@@ -25,6 +25,7 @@ import { canReadOrganizationMemberships } from "@/lib/queries/organization-membe
 import { useProjectsQuery } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import type React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -114,9 +115,9 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
     if (canViewMembers) {
       items.push({
         id: "feature-overview",
-        title: "Overview",
-        description: "Organization dashboard, summary, and recent activity",
-        category: "Workspace",
+        title: tr(t, "searchItems.overviewTitle", "Overview"),
+        description: tr(t, "searchItems.overviewDesc", "Organization dashboard, summary, and recent activity"),
+        category: tr(t, "searchItems.categoryWorkspace", "Workspace"),
         href: "/dashboard",
         keywords:
           "overview dashboard home summary organization workspace tong quan trang chu",
@@ -134,8 +135,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       {
         id: "feature-projects",
         title: translateOrFallback("helpDrawer.projects", "Projects"),
-        description: "Browse and manage organization project workspaces",
-        category: "Workspace",
+        description: tr(t, "searchItems.projectsDesc", "Browse and manage organization project workspaces"),
+        category: tr(t, "searchItems.categoryWorkspace", "Workspace"),
         href: "/projects",
         keywords:
           "projects spaces directory workspace du an danh sach du an",
@@ -149,9 +150,9 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       },
       {
         id: "feature-create-project",
-        title: "Create project",
-        description: "Start a new project workspace in this organization",
-        category: "Projects",
+        title: tr(t, "searchItems.createProjectTitle", "Create project"),
+        description: tr(t, "searchItems.createProjectDesc", "Start a new project workspace in this organization"),
+        category: tr(t, "searchItems.categoryProjects", "Projects"),
         href: "/projects/new",
         keywords:
           "create project new project add project tao du an moi them du an",
@@ -166,8 +167,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       {
         id: "feature-chat",
         title: translateOrFallback("helpDrawer.chat", "Chat"),
-        description: "Real-time direct messages and team rooms",
-        category: "Workspace",
+        description: tr(t, "searchItems.chatDesc", "Real-time direct messages and team rooms"),
+        category: tr(t, "searchItems.categoryWorkspace", "Workspace"),
         href: "/chat",
         keywords:
           "chat messages direct rooms channels conversation tin nhan tro chuyen phong chat",
@@ -193,7 +194,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
             "settingsMenu.userManagementDesc",
             "Manage members, roles & invitations",
           ),
-          category: "Administration",
+          category: tr(t, "searchItems.categoryAdministration", "Administration"),
           href: "/organization/members",
           keywords:
             "members users team roles permissions user management thanh vien phan quyen nhan su",
@@ -207,9 +208,9 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
         },
         {
           id: "feature-invitations",
-          title: "Pending invitations",
-          description: "Invite new members or manage pending invitations",
-          category: "Administration",
+          title: tr(t, "searchItems.invitationsTitle", "Pending invitations"),
+          description: tr(t, "searchItems.invitationsDesc", "Invite new members or manage pending invitations"),
+          category: tr(t, "searchItems.categoryAdministration", "Administration"),
           href: "/organization/members?tab=invitations",
           keywords:
             "invitations invite member pending loi moi them thanh vien",
@@ -231,7 +232,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
             "settingsMenu.systemDesc",
             "Profile, security & governance policies",
           ),
-          category: "Administration",
+          category: tr(t, "searchItems.categoryAdministration", "Administration"),
           href: "/organization/settings",
           keywords:
             "organization settings system governance policies cai dat to chuc cau hinh",
@@ -257,7 +258,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
           "settingsMenu.generalDesc",
           "Personal profile, security & preferences",
         ),
-        category: "Account",
+        category: tr(t, "searchItems.categoryAccount", "Account"),
         href: "/profile",
         keywords:
           "profile account general settings password security ho so ca nhan tai khoan mat khau",
@@ -271,9 +272,9 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       },
       {
         id: "feature-switch-org",
-        title: "Switch organization",
-        description: "Choose or switch your active organization workspace",
-        category: "Account",
+        title: tr(t, "searchItems.switchOrgTitle", "Switch organization"),
+        description: tr(t, "searchItems.switchOrgDesc", "Choose or switch your active organization workspace"),
+        category: tr(t, "searchItems.categoryAccount", "Account"),
         href: "/select-organization",
         keywords:
           "switch organization workspace change organization chuyen to chuc doi to chuc",
@@ -291,8 +292,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
           "helpDrawer.keyboardShortcuts",
           "Help & Keyboard shortcuts",
         ),
-        description: "Open help guide and workspace keyboard shortcuts",
-        category: "Support",
+        description: tr(t, "searchItems.helpDesc", "Open help guide and workspace keyboard shortcuts"),
+        category: tr(t, "searchItems.categorySupport", "Support"),
         keywords:
           "help support keyboard shortcuts guide tro giup huong dan phim tat",
         icon: (
@@ -315,8 +316,8 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
         {
           id: `project-overview-${project.id}`,
           title: `${project.name} (${project.code})`,
-          description: "Project overview & workspace details",
-          category: "Projects",
+          description: tr(t, "searchItems.projectOverviewDesc", "Project overview & workspace details"),
+          category: tr(t, "searchItems.categoryProjects", "Projects"),
           href: `/projects/${encodedId}`,
           keywords: `${project.name} ${project.code} project overview du an`,
           icon: (
@@ -329,9 +330,9 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
         },
         {
           id: `project-work-${project.id}`,
-          title: `${project.name} — Work`,
-          description: `Tasks and work items for ${project.code}`,
-          category: "Projects",
+          title: tr(t, "searchItems.projectWorkTitle", `${project.name} — Work`, { name: project.name }),
+          description: tr(t, "searchItems.projectWorkDesc", `Tasks and work items for ${project.code}`, { code: project.code }),
+          category: tr(t, "searchItems.categoryProjects", "Projects"),
           href: `/projects/${encodedId}/work`,
           keywords: `${project.name} ${project.code} work tasks cong viec`,
           icon: (
@@ -586,7 +587,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
               {searchQuery && (
                 <button
                   type="button"
-                  aria-label="Clear search"
+                  aria-label={tr(t, "clearSearch", "Clear search")}
                   onClick={() => {
                     setSearchQuery("");
                     setActiveIndex(0);
@@ -602,12 +603,12 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
                 <div
                   id="header-feature-search-results"
                   role="region"
-                  aria-label="System features"
+                  aria-label={tr(t, "systemFeatures", "System features")}
                   className="absolute inset-s-0 top-[calc(100%+0.375rem)] z-50 max-h-80 w-full min-w-80 overflow-y-auto rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900"
                 >
                   {filteredFeatures.length === 0 ? (
                     <p className="px-3 py-3 text-center text-xs text-gray-500 dark:text-gray-400">
-                      No matching system features found.
+                      {tr(t, "noMatchingFeatures", "No matching system features found.")}
                     </p>
                   ) : (
                     <ul className="space-y-0.5">

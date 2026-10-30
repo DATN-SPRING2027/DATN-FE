@@ -190,11 +190,21 @@ export async function ensureProjectMemberBeforeHandover(input: {
   }
 }
 
-export function formatUtcDate(iso: string | null | undefined): string {
+function resolveDateLocale(locale?: string): string {
+  const active =
+    locale ||
+    (typeof document !== "undefined" ? document.documentElement.lang : "");
+  return active === "vi" || active.startsWith("vi-") ? "vi-VN" : "en-US";
+}
+
+export function formatUtcDate(
+  iso: string | null | undefined,
+  locale?: string,
+): string {
   if (!iso) return "—";
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-US", {
+  return parsed.toLocaleDateString(resolveDateLocale(locale), {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -202,11 +212,14 @@ export function formatUtcDate(iso: string | null | undefined): string {
   });
 }
 
-export function formatUtcDateTime(iso: string | null | undefined): string {
+export function formatUtcDateTime(
+  iso: string | null | undefined,
+  locale?: string,
+): string {
   if (!iso) return "—";
   const parsed = new Date(iso);
   if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleString("en-US", {
+  return parsed.toLocaleString(resolveDateLocale(locale), {
     year: "numeric",
     month: "short",
     day: "2-digit",

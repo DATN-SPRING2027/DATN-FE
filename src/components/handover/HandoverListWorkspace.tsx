@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { Link, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -727,7 +728,12 @@ export default function HandoverListWorkspace({
                           <td className="px-4 py-4 align-top text-xs whitespace-nowrap tabular-nums">
                             {item.publishedRevisionId ? (
                               <Badge color="info" size="sm">
-                                Published · Draft v{item.draftVersion}
+                                {tr(
+                                  t,
+                                  "status.publishedDraft",
+                                  `Published · Draft v${item.draftVersion}`,
+                                  { version: String(item.draftVersion) },
+                                )}
                               </Badge>
                             ) : (
                               <Badge color="warning" size="sm">

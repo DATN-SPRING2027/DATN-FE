@@ -1,0 +1,600 @@
+{
+  "ui": {
+    "headerBadge": "Trung tâm Pháp lý",
+    "heroEyebrow": "PHÁP LÝ, QUYỀN RIÊNG TƯ & QUẢN TRỊ DỮ LIỆU",
+    "heroTitle": "Điều khoản Sử dụng & Chính sách Bảo mật",
+    "heroDescription": "Khung cam kết pháp lý, quyền sở hữu tri thức dự án và tiêu chuẩn bảo vệ dữ liệu cá nhân minh bạch dành cho người dùng và Tổ chức trên nền tảng Continuum AI.",
+    "governingLanguageNotice": "Văn bản được cung cấp song ngữ Tiếng Việt và Tiếng Anh để thuận tiện tra cứu. Theo quy định tại Điều 1.4, phiên bản Tiếng Việt là bản gốc có giá trị pháp lý ưu tiên áp dụng tại Việt Nam.",
+    "langViLabel": "Tiếng Việt (Bản gốc)",
+    "langEnLabel": "English",
+    "langGroupAria": "Chọn ngôn ngữ văn bản pháp lý",
+    "printCta": "In / Lưu PDF",
+    "signInCta": "Đăng nhập",
+    "signUpCta": "Tạo tài khoản",
+    "homeCta": "Trang chủ",
+    "searchPlaceholder": "Tìm nhanh điều khoản (VD: Bàn giao, Google OAuth, AI, 365 ngày…)",
+    "searchAriaLabel": "Tìm kiếm nội dung điều khoản",
+    "clearSearchAria": "Xóa từ khóa tìm kiếm",
+    "searchResultsCount": "Hiển thị {count} / {total} mục khớp từ khóa",
+    "emptySearchTitle": "Không tìm thấy điều khoản phù hợp",
+    "emptySearchDescription": "Không có điều khoản nào trong mục hiện tại chứa từ khóa bạn vừa nhập. Hãy thử từ khóa khác hoặc chuyển sang tab còn lại.",
+    "emptySearchResetCta": "Xóa bộ lọc tìm kiếm",
+    "tocHeading": "Mục lục điều khoản",
+    "tocMobileToggle": "Mục lục chuyển nhanh ({count} mục)",
+    "copyLinkAria": "Sao chép liên kết tới mục này",
+    "copiedLinkLabel": "Đã chép liên kết",
+    "contactCardTitle": "Đầu mối Pháp lý & Dữ liệu cá nhân",
+    "contactCardDescription": "Tiếp nhận yêu cầu giải đáp điều khoản, quyền của chủ thể dữ liệu theo Nghị định 13/2023/NĐ-CP và thông báo bảo mật.",
+    "contactEmailLabel": "Email chính thức",
+    "slaAckLabel": "Phản hồi tiếp nhận",
+    "slaAckValue": "≤ 72 giờ",
+    "slaDeleteLabel": "Xử lý xóa dữ liệu cá nhân",
+    "slaDeleteValue": "≤ 30 ngày",
+    "slaAuditLabel": "Lưu nhật ký an ninh",
+    "slaAuditValue": "365 ngày",
+    "footerCopyright": "© 2026 Continuum AI. Bảo lưu mọi quyền.",
+    "footerJurisdiction": "Vận hành tại Đà Nẵng, Việt Nam • Điều chỉnh bởi pháp luật nước CHXHCN Việt Nam."
+  },
+  "terms": {
+    "tabLabel": "Điều khoản sử dụng",
+    "badgeLabel": "15 Điều khoản",
+    "title": "Điều khoản Sử dụng Dịch vụ Nền tảng Continuum AI",
+    "subtitle": "Quy định quyền, nghĩa vụ, cơ chế quản trị không gian làm việc đa tổ chức, nguyên tắc AI có kiểm soát và bảo toàn bàn giao tri thức dự án.",
+    "versionLabel": "Phiên bản",
+    "versionValue": "1.0",
+    "effectiveLabel": "Hiệu lực từ",
+    "effectiveValue": "30/10/2026",
+    "operatorLabel": "Đơn vị vận hành",
+    "operatorValue": "Đội ngũ phát triển & vận hành Nền tảng Continuum AI (Đà Nẵng, Việt Nam)",
+    "tldrTitle": "Tóm tắt cốt lõi trong 60 giây",
+    "tldrSubtitle": "5 cam kết nền tảng trước khi bạn đi vào chi tiết từng điều khoản:",
+    "tldrItems": [
+      "Dữ liệu dự án thuộc quyền sở hữu của Tổ chức bạn: Mọi công việc, tài liệu, ghi chú công việc, tri thức đã kiểm chứng và gói bàn giao tạo trong Tổ chức thuộc quyền kiểm soát của Tổ chức đó — không thuộc sở hữu của Continuum AI.",
+      "Bảo toàn tri thức khi nhân sự rời đi (A → D → B): Khi thành viên nghỉ việc hoặc chuyển dự án, gói bàn giao và tài liệu nghiệp vụ trong Tổ chức được giữ nguyên vẹn để đảm bảo tính kế thừa liên tục.",
+      "AI có kiểm soát & Con người quyết định (Human-in-the-loop): AI chỉ truy xuất dữ liệu trong phạm vi quyền đọc hiện hành của bạn, không tự ý xuất bản thay con người, và dữ liệu nội bộ của Tổ chức không bao giờ bị dùng để huấn luyện mô hình AI công cộng.",
+      "Phân quyền cô lập nghiêm ngặt: Ngay cả Quản trị viên vận hành nền tảng và Quản lý cấp Tổ chức cũng không mặc định đọc nội dung dự án riêng tư (PRIVATE) khi không được cấp quyền hợp lệ.",
+      "Minh bạch tuyệt đối về chi phí: Không có khoản thu phí tự động ẩn nào; mọi sự bổ sung gói trả phí trong tương lai đều được thông báo trước tối thiểu 30 ngày và cần sự xác nhận chủ động từ bạn."
+    ],
+    "tldrDisclaimer": "Lưu ý: Khung tóm tắt giúp nắm bắt nhanh các nguyên tắc chính và không thay thế giá trị pháp lý của toàn văn 15 Điều khoản bên dưới.",
+    "crossNavEyebrow": "TÀI LIỆU PHÁP LÝ LIÊN KẾT",
+    "crossNavTitle": "Xem Chính sách Bảo mật & Bảo vệ Dữ liệu Cá nhân",
+    "crossNavDescription": "Tìm hiểu chi tiết danh mục dữ liệu thu thập, cơ chế lọc quyền AI (Pre-Retrieval Scoped ACL), cam kết Google OAuth Limited Use và cách thực thi quyền theo Nghị định 13/2023/NĐ-CP.",
+    "crossNavCta": "Đọc Chính sách Bảo mật",
+    "articles": [
+      {
+        "id": "terms-1-scope",
+        "number": "01",
+        "shortTitle": "Giới thiệu & Chấp thuận",
+        "title": "Điều 1. Giới thiệu, Phạm vi điều chỉnh và Chấp thuận Điều khoản",
+        "paragraphs": [
+          "1.1. Chào mừng bạn đến với Continuum AI — nền tảng quản trị công việc dự án, ghi nhận, kiểm chứng và bàn giao tri thức phần mềm tích hợp trí tuệ nhân tạo có kiểm soát (sau đây gọi chung là \"Nền tảng\" hoặc \"Dịch vụ\"), bao gồm ứng dụng web chính thức và các giao diện lập trình, dịch vụ phụ trợ liên kết.",
+          "1.2. Nền tảng được phát triển, quản lý và vận hành bởi Đội ngũ phát triển và vận hành Nền tảng Continuum AI, hoạt động tại thành phố Đà Nẵng, Việt Nam (sau đây gọi là \"Continuum AI\", \"chúng tôi\" hoặc \"Đơn vị vận hành\"; trường hợp Nền tảng chuyển giao hoặc nâng cấp tư cách pháp lý sang doanh nghiệp đăng ký kinh doanh theo pháp luật Việt Nam, pháp nhân kế thừa sẽ tiếp nhận toàn bộ quyền và nghĩa vụ tương ứng sau khi thông báo công khai trên Nền tảng).",
+          "1.3. Bằng việc tích chọn ô đồng ý khi đăng ký tài khoản, đăng nhập thông qua địa chỉ Email hoặc tài khoản Google OAuth, chấp nhận lời mời tham gia một Tổ chức, hoặc tiếp tục truy cập và sử dụng Dịch vụ, bạn xác nhận đã đọc, hiểu rõ và đồng ý chịu sự ràng buộc pháp lý của bản Điều khoản Sử dụng này cùng Chính sách Bảo mật đi kèm. Nếu bạn không đồng ý với bất kỳ nội dung nào, vui lòng ngừng truy cập và không sử dụng Dịch vụ.",
+          "1.4. Bản Điều khoản này được lập thành hai ngôn ngữ là Tiếng Việt và Tiếng Anh nhằm tạo thuận lợi cho người dùng. Trong trường hợp có sự khác biệt hoặc mâu thuẫn về cách hiểu giữa hai phiên bản ngôn ngữ, phiên bản Tiếng Việt là văn bản gốc có giá trị pháp lý ưu tiên áp dụng."
+        ]
+      },
+      {
+        "id": "terms-2-definitions",
+        "number": "02",
+        "shortTitle": "Giải thích Thuật ngữ",
+        "title": "Điều 2. Giải thích Thuật ngữ",
+        "paragraphs": [
+          "Trong phạm vi Điều khoản Sử dụng và Chính sách Bảo mật này, các thuật ngữ chuyên ngành của Continuum AI được hiểu thống nhất như sau:"
+        ],
+        "bullets": [
+          "Tài khoản (Account): Định danh người dùng cá nhân được xác thực trên Continuum AI thông qua Email/Mật khẩu hoặc Google OAuth 2.0.",
+          "Tổ chức (Organization): Không gian làm việc độc lập đại diện cho một doanh nghiệp, phòng ban, nhóm phát triển hoặc tổ chức sử dụng Continuum AI.",
+          "Dự án (Project): Đơn vị công việc trực thuộc một Tổ chức, có chính sách hiển thị riêng tư (PRIVATE — mặc định khi khởi tạo) hoặc mở trong nội bộ Tổ chức (PUBLIC theo cấu hình được phép).",
+          "Quản trị viên Nền tảng (Admin / mã kỹ thuật PLATFORM_OPERATOR): Nhân sự vận hành hạ tầng hệ thống, khởi tạo Tổ chức cấp cao và giám sát độ tin cậy kỹ thuật; không mặc định có tư cách thành viên hay quyền đọc nội dung nghiệp vụ bên trong Tổ chức.",
+          "Quản lý Tổ chức (Manager / mã kỹ thuật ADMIN): Người đại diện quản trị thành viên, lời mời, vai trò và chính sách cấp Tổ chức; vai trò này không tự động cấp quyền đọc nội dung dự án riêng tư nếu không có phân quyền dự án tương ứng.",
+          "Trưởng nhóm Dự án (Leader / mã kỹ thuật TEAM_LEADER): Người điều phối công việc, thành viên dự án, quy trình kiểm chứng tri thức và quy trình bàn giao trong phạm vi Dự án/Nhóm được giao.",
+          "Thành viên (Member): Người dùng thực hiện công việc, tạo ghi chú, đóng góp tài liệu, tra cứu và tham gia bàn giao theo phạm vi phân quyền (ACL) hiện hành.",
+          "Dữ liệu Không gian làm việc (Workspace Content): Toàn bộ dữ liệu nghiệp vụ do người dùng tạo lập, tải lên hoặc đồng bộ trong phạm vi một Tổ chức/Dự án, bao gồm Công việc (Tasks), lịch sử công việc, Ghi chú công việc (Task Notes, Project Documents, Periodic Work Reports), tệp đính kèm, tin nhắn trò chuyện nội bộ (Human Chat), Đối tượng Tri thức (Knowledge Objects & các phiên bản) và Gói Bàn giao Tri thức.",
+          "Gói Bàn giao Tri thức (Knowledge Handover Package A → D → B): Hồ sơ chuyển giao có kiểm soát khi nhân sự luân chuyển hoặc rời dự án, kết nối giữa Thành viên bàn giao (A — Departing Member), Trưởng nhóm điều phối (D — Coordinator Leader) và Nhân sự kế nhiệm (B — Successor Recipient).",
+          "Trợ lý AI có kiểm soát (Continuum SAG / AI Chat / AI Companion): Hệ thống truy xuất tăng cường sinh văn bản (RAG) tích hợp bộ lọc phân quyền trước truy xuất (Pre-Retrieval Scoped ACL), hỗ trợ hỏi đáp có trích dẫn nguồn, đề xuất ứng viên tri thức và tổng hợp bản nháp bàn giao."
+        ]
+      },
+      {
+        "id": "terms-3-account-security",
+        "number": "03",
+        "shortTitle": "Đăng ký & Bảo mật Phiên",
+        "title": "Điều 3. Điều kiện Sử dụng, Đăng ký và Bảo mật Tài khoản",
+        "paragraphs": [
+          "3.1. Độ tuổi và tư cách đại diện: Bạn cam kết từ đủ 18 tuổi trở lên và có đầy đủ năng lực hành vi dân sự theo quy định pháp luật Việt Nam. Trường hợp bạn khởi tạo hoặc quản trị một Tổ chức thay mặt cho một doanh nghiệp/tổ chức, bạn cam kết mình có đủ thẩm quyền hợp pháp để ràng buộc tổ chức đó với các Điều khoản này.",
+          "3.2. Tính chính xác của thông tin: Bạn có nghĩa vụ cung cấp họ tên thật, địa chỉ email hợp lệ và thông tin trung thực khi đăng ký tài khoản, không mạo danh cá nhân hoặc tổ chức khác.",
+          "3.3. Tiêu chuẩn mật khẩu & xác thực: Mật khẩu đăng ký trực tiếp phải đáp ứng độ dài từ 12 đến 72 ký tự theo cơ chế kiểm tra của hệ thống. Bạn tự chịu trách nhiệm bảo mật mật khẩu, thiết bị truy cập và tài khoản Google liên kết.",
+          "3.4. Cơ chế bảo vệ phiên đăng nhập tự động: Để bảo vệ an toàn tài khoản, Continuum AI áp dụng cơ chế xoay vòng mã phiên (Refresh Token Rotation) kèm phát hiện tái sử dụng bất thường (Family Reuse Detection). Nếu hệ thống phát hiện một mã làm mới phiên đã thu hồi bị gửi lại (dấu hiệu nghi ngờ chiếm đoạt phiên trái phép), Continuum AI có quyền tự động hủy tức thời toàn bộ chuỗi phiên đăng nhập liên quan, yêu cầu xác thực lại và gửi cảnh báo an ninh về email đăng ký của bạn. Vui lòng thông báo ngay qua kimthang.work@gmail.com khi phát hiện truy cập trái phép."
+        ]
+      },
+      {
+        "id": "terms-4-multi-tenant",
+        "number": "04",
+        "shortTitle": "Quản trị Đa Tổ chức",
+        "title": "Điều 4. Quản trị Đa Tổ chức (Multi-Tenant Governance) và Phân quyền Nội bộ",
+        "paragraphs": [
+          "4.1. Một Tài khoản cá nhân có thể tham gia một hoặc nhiều Tổ chức thông qua lời mời hợp lệ hoặc khởi tạo mới. Quyền thao tác của bạn trong từng Tổ chức và Dự án phụ thuộc hoàn toàn vào trạng thái tư cách thành viên đang hoạt động (ACTIVE) và vai trò được gán tại không gian đó.",
+          "4.2. Khi tham gia vào một Tổ chức trên Continuum AI, bạn hiểu và đồng ý rằng những người giữ vai trò Quản lý Tổ chức (Manager) và Trưởng nhóm Dự án (Leader) trong phạm vi thẩm quyền hợp lệ có quyền:"
+        ],
+        "bullets": [
+          "Cấp mới, thay đổi vai trò, chuyển trạng thái sang chuẩn bị bàn giao (OFFBOARDING), tạm đình chỉ hoặc thu hồi tư cách thành viên của bạn trong Tổ chức/Dự án đó;",
+          "Cấu hình chế độ hiển thị Dự án (PRIVATE / PUBLIC), bổ nhiệm nhân sự kế nhiệm (B) hoặc người điều phối (D) trong quy trình bàn giao tri thức;",
+          "Tra cứu nhật ký kiểm toán hoạt động (Audit Trail) phát sinh trong phạm vi quản trị của Tổ chức nhằm đảm bảo an ninh và tuân thủ nội bộ."
+        ],
+        "subSections": [
+          {
+            "heading": "4.3. Ranh giới quản trị nội bộ",
+            "paragraphs": [
+              "Continuum AI cung cấp công cụ kỹ thuật để thực thi phân quyền theo cấu hình của Tổ chức và không can thiệp vào các quyết định nhân sự, phân công công việc hoặc tranh chấp lao động/quản trị nội bộ giữa các thành viên trong cùng một Tổ chức."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "terms-5-ownership-handover",
+        "number": "05",
+        "shortTitle": "Sở hữu Dữ liệu & Bàn giao A→D→B",
+        "title": "Điều 5. Quyền Sở hữu Dữ liệu Không gian làm việc & Kế thừa Bàn giao Tri thức (A → D → B)",
+        "paragraphs": [
+          "5.1. Quyền sở hữu của Tổ chức: Giữa Continuum AI và Tổ chức sử dụng Dịch vụ, Tổ chức giữ toàn quyền sở hữu và quyền kiểm soát hợp pháp đối với toàn bộ Workspace Content được khởi tạo, tải lên, xác nhận hoặc lưu trữ trong không gian làm việc của Tổ chức đó. Continuum AI không tuyên bố quyền sở hữu đối với bất kỳ mã nguồn, tài liệu kỹ thuật, ghi chú công việc hay tri thức nghiệp vụ nào của bạn.",
+          "5.2. Cấp phép vận hành kỹ thuật giới hạn: Bằng việc đưa dữ liệu vào không gian làm việc, Tổ chức và người dùng cấp cho Continuum AI quyền sử dụng không độc quyền, miễn phí bản quyền, giới hạn nghiêm ngặt trong phạm vi cần thiết để lưu trữ, sao lưu dự phòng, bóc tách cấu trúc văn bản, lập chỉ mục tìm kiếm vector, hiển thị theo phân quyền và thực thi các yêu cầu hỗ trợ AI phục vụ trực tiếp cho chính Tổ chức đó.",
+          "5.3. Bảo toàn tính liên tục của tri thức khi nhân sự rời đi (Continuity & Handover Clause): Mục tiêu cốt lõi của Continuum AI là bảo vệ tri thức dự án trước biến động nhân sự. Mọi Công việc (Tasks), Tài liệu dự án (Project Documents), Báo cáo định kỳ, Đối tượng Tri thức đã kiểm chứng (Verified Knowledge Objects), các Ghi chú đã được đưa vào Gói Bàn giao Tri thức (A → D → B) và phản hồi hỏi đáp bàn giao được tạo trong quá trình thực hiện nhiệm vụ tại Tổ chức là tài sản nghiệp vụ của Tổ chức.",
+          "5.4. Khi Thành viên (A) chấm dứt hợp tác với Tổ chức, rời Dự án hoặc gửi yêu cầu xóa Tài khoản cá nhân trên Continuum AI, việc xóa hoặc ẩn danh thông tin Tài khoản cá nhân của người đó không làm mất hiệu lực, không xóa bỏ và không làm gián đoạn các tài liệu dự án, lịch sử công việc, đối tượng tri thức và gói bàn giao đã lưu trong Tổ chức. Hệ thống sẽ duy trì dấu vết tác giả ở mức định danh rút gọn/ẩn danh hợp lý để bảo đảm tính xác thực nguồn gốc bằng chứng (Provenance) cho người kế nhiệm (B) và Tổ chức."
+        ]
+      },
+      {
+        "id": "terms-6-bounded-ai",
+        "number": "06",
+        "shortTitle": "Quản trị AI có Kiểm soát",
+        "title": "Điều 6. Quy định Sử dụng Trí tuệ Nhân tạo có Kiểm soát (Bounded AI & Human-in-the-loop)",
+        "paragraphs": [
+          "6.1. Giới hạn phạm vi truy xuất theo quyền (Pre-Retrieval Scoped ACL): Hệ thống AI của Continuum AI chỉ truy xuất các nguồn dữ liệu đã được phép lập chỉ mục và nằm trong phạm vi quyền đọc hợp lệ của chính người dùng thực hiện truy vấn tại thời điểm truy vấn. Các ghi chú công việc nháp không chính thức không bao giờ bị AI tự động phát tán hoặc tự động công bố thành gói bàn giao chính thức nếu chưa được người có thẩm quyền lựa chọn.",
+          "6.2. Nguyên tắc Con người Kiểm chứng Quyết định (Human-in-the-loop): Do đặc tính xác suất kỹ thuật của các mô hình ngôn ngữ lớn (LLM), nội dung do AI Chat, AI Companion hoặc công cụ tổng hợp bản nháp sinh ra có thể chứa sai sót, thiếu hụt ngữ cảnh hoặc chưa phản ánh kịp thời các thay đổi chưa được ghi nhận bằng văn bản. Mọi đầu ra của AI đều ở trạng thái gợi ý / đề xuất (PROPOSED / Draft) kèm trích dẫn nguồn đối chiếu, và không bao giờ tự động phê duyệt hay xuất bản chính thức thay cho con người.",
+          "6.3. Nghĩa vụ rà soát của người dùng: Người dùng, Trưởng nhóm (Leader), Chuyên gia thẩm định (SME) và Tổ chức có nghĩa vụ kiểm tra lại nguồn trích dẫn gốc trước khi phê duyệt tri thức, nghiệm thu gói bàn giao hoặc đưa ra quyết định kỹ thuật, vận hành, kinh doanh, an toàn thông tin hay pháp lý.",
+          "6.4. Cam kết Không Huấn luyện Mô hình AI Công cộng (Zero Public Training): Continuum AI cam kết không bán Workspace Content và không sử dụng tài liệu, ghi chú, hội thoại hay dữ liệu nội bộ của Tổ chức để huấn luyện hoặc tinh chỉnh (fine-tune) các mô hình trí tuệ nhân tạo nền tảng dùng chung cho công chúng hoặc cho khách hàng khác."
+        ],
+        "callout": {
+          "variant": "brand",
+          "title": "Nguyên tắc Bất biến về AI trên Continuum AI",
+          "body": "AI hỗ trợ tìm kiếm ngữ cảnh và đề xuất bản nháp kèm trích dẫn [1]/[S1], nhưng con người có thẩm quyền mới là chủ thể duy nhất phê duyệt tri thức chính thức và nghiệm thu gói bàn giao."
+        }
+      },
+      {
+        "id": "terms-7-acceptable-use",
+        "number": "07",
+        "shortTitle": "Quy tắc Sử dụng & Rate Limit",
+        "title": "Điều 7. Quy tắc Sử dụng Hợp lệ (Acceptable Use Policy) và Hạn mức Bảo vệ Hạ tầng",
+        "paragraphs": [
+          "7.1. Khi sử dụng Continuum AI, bạn cam kết không thực hiện hoặc tiếp tay cho bất kỳ hành vi nào sau đây:"
+        ],
+        "bullets": [
+          "Lưu trữ, tải lên hoặc phát tán nội dung vi phạm pháp luật Việt Nam, xâm phạm an ninh quốc gia, bí mật nhà nước, thuần phong mỹ tục, nội dung khiêu dâm, thù ghét, phỉ báng hoặc xâm phạm quyền sở hữu trí tuệ, bí mật kinh doanh, dữ liệu cá nhân hợp pháp của bên thứ ba;",
+          "Tải lên tệp tin chứa virus, mã độc, trojan, ransomware hoặc khai thác lỗ hổng tải tệp lưu trữ đám mây;",
+          "Thực hiện kiểm thử xâm nhập trái phép, quét lỗ hổng, dịch ngược mã nguồn (reverse engineering), giả mạo định danh phiên, hoặc vượt rào kiểm soát phân quyền (ACL bypass) để tiếp cận dữ liệu của Tổ chức hoặc Dự án khác;",
+          "Cố ý thực hiện tấn công tiêm lệnh (Prompt Injection / Jailbreak) nhằm thao túng hệ thống AI vượt qua ranh giới an toàn hoặc lạm dụng công cụ tự động (bot, scraper) gây quá tải tài nguyên tính toán và hạn mức gọi mô hình AI."
+        ],
+        "subSections": [
+          {
+            "heading": "7.2. Cơ chế giới hạn lưu lượng đa tầng (Multi-Tier Rate Limiting)",
+            "paragraphs": [
+              "Để bảo đảm chất lượng dịch vụ công bằng và phòng chống tấn công từ chối dịch vụ (DDoS / Brute-force), Continuum AI áp dụng hạn mức truy cập tự động theo từng tầng mạng, vai trò và tính năng (bao gồm giới hạn số lần đăng nhập sai liên tiếp, tần suất gửi truy vấn AI mỗi phút và số tệp tải lên mỗi giờ). Các yêu cầu vượt ngưỡng sẽ tạm thời nhận phản hồi HTTP 429 Too Many Requests kèm thời gian chờ phục hồi (Retry-After)."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "terms-8-third-party",
+        "number": "08",
+        "shortTitle": "Tích hợp Bên thứ ba",
+        "title": "Điều 8. Tích hợp và Dịch vụ Bên thứ ba",
+        "paragraphs": [
+          "8.1. Nền tảng hỗ trợ kết nối với một số dịch vụ bên thứ ba (chẳng hạn đăng nhập qua Google OAuth 2.0, hoặc đồng bộ dữ liệu dự án với Atlassian Jira khi Quản lý Tổ chức chủ động cấu hình).",
+          "8.2. Việc kích hoạt tích hợp bên thứ ba đồng nghĩa với việc Tổ chức cho phép Continuum AI trao đổi dữ liệu cần thiết theo phạm vi cấu hình đó. Các dịch vụ bên thứ ba vận hành theo điều khoản và chính sách riêng của nhà cung cấp tương ứng; Continuum AI không chịu trách nhiệm đối với sự cố gián đoạn, thay đổi API hoặc hành vi xử lý dữ liệu độc lập phía bên thứ ba ngoài tầm kiểm soát kỹ thuật của Nền tảng."
+        ]
+      },
+      {
+        "id": "terms-9-intellectual-property",
+        "number": "09",
+        "shortTitle": "Sở hữu Trí tuệ Nền tảng",
+        "title": "Điều 9. Quyền Sở hữu Trí tuệ đối với Nền tảng và Ý kiến Đóng góp",
+        "paragraphs": [
+          "9.1. Toàn bộ quyền sở hữu trí tuệ đối với Nền tảng Continuum AI — bao gồm kiến trúc phần mềm, mã nguồn, công cụ đồ thị tri thức và truy xuất SAG, giao diện thiết kế, biểu trưng (Logo), nhãn hiệu và tài liệu hướng dẫn — thuộc quyền sở hữu hợp pháp của Đội ngũ phát triển và vận hành Nền tảng Continuum AI (cùng các bên cấp phép mã nguồn mở hợp lệ theo giấy phép đi kèm). Không điều khoản nào trong văn bản này chuyển giao quyền sở hữu trí tuệ của Nền tảng cho người dùng.",
+          "9.2. Nếu bạn tự nguyện gửi đề xuất cải tiến tính năng hoặc phản hồi lỗi sản phẩm (không bao gồm dữ liệu mật của Tổ chức), bạn đồng ý rằng chúng tôi có thể áp dụng các ý tưởng cải tiến đó để nâng cấp chất lượng Dịch vụ mà không phát sinh nghĩa vụ trả phí bản quyền."
+        ]
+      },
+      {
+        "id": "terms-10-pricing",
+        "number": "10",
+        "shortTitle": "Chính sách Phí & Hạn mức",
+        "title": "Điều 10. Chính sách Phí Dịch vụ và Thay đổi Gói Cung cấp",
+        "paragraphs": [
+          "10.1. Ở giai đoạn vận hành hiện tại, Continuum AI cung cấp quyền truy cập các tính năng trên Nền tảng theo hạn mức tài khoản/Tổ chức hiện hành hoặc theo thỏa thuận triển khai riêng (nếu có), và không thực hiện bất kỳ khoản thu phí thanh toán trực tuyến tự động hay phí ẩn nào khi chưa có sự đăng ký rõ ràng từ bạn.",
+          "10.2. Continuum AI bảo lưu quyền giới thiệu các gói thuê bao nâng cao trả phí (Enterprise / Pro) hoặc điều chỉnh hạn mức lưu trữ, hạn mức truy vấn AI miễn phí trong tương lai. Trước khi áp dụng bất kỳ thay đổi thu phí nào đối với tính năng bạn đang sử dụng, chúng tôi sẽ gửi thông báo trước tối thiểu 30 (ba mươi) ngày qua email hoặc trên giao diện quản trị để bạn và Tổ chức toàn quyền chủ động lựa chọn nâng cấp, duy trì gói miễn phí (nếu có) hoặc trích xuất dữ liệu."
+        ]
+      },
+      {
+        "id": "terms-11-suspension",
+        "number": "11",
+        "shortTitle": "Tạm ngừng & Chấm dứt",
+        "title": "Điều 11. Tạm ngừng, Thu hồi Quyền truy cập và Chấm dứt Dịch vụ",
+        "paragraphs": [
+          "11.1. Do người dùng hoặc Tổ chức chủ động: Bạn có thể ngừng sử dụng Dịch vụ bất kỳ lúc nào và gửi yêu cầu đóng Tài khoản cá nhân theo hướng dẫn tại Chính sách Bảo mật. Quản lý Tổ chức (Manager) có quyền yêu cầu đóng không gian làm việc của Tổ chức.",
+          "11.2. Do Continuum AI thực hiện vì lý do an ninh & tuân thủ: Chúng tôi có quyền tạm khóa phiên, đình chỉ Tài khoản hoặc hạn chế quyền truy cập Tổ chức ngay lập tức nếu phát hiện hành vi vi phạm nghiêm trọng Điều 7 (tấn công mạng, phát tán mã độc, xâm phạm dữ liệu trái phép), tài khoản có dấu hiệu bị chiếm đoạt gây nguy cơ rò rỉ dữ liệu của Tổ chức, hoặc thực hiện theo yêu cầu bằng văn bản của cơ quan nhà nước có thẩm quyền theo pháp luật Việt Nam.",
+          "11.3. Trong các trường hợp vi phạm có thể khắc phục và không gây nguy hại khẩn cấp đến an ninh hệ thống, chúng tôi sẽ thông báo lý do qua email đăng ký để người dùng hoặc Quản lý Tổ chức giải trình và khắc phục trong thời hạn hợp lý."
+        ]
+      },
+      {
+        "id": "terms-12-availability",
+        "number": "12",
+        "shortTitle": "Mức độ Sẵn sàng & Bảo trì",
+        "title": "Điều 12. Tuyên bố về Mức độ Sẵn sàng Dịch vụ và Bảo trì",
+        "paragraphs": [
+          "12.1. Continuum AI nỗ lực duy trì hệ thống vận hành ổn định, an toàn và thực hiện sao lưu định kỳ cơ sở dữ liệu. Tuy nhiên, tương tự mọi nền tảng điện toán đám mây và trí tuệ nhân tạo trực tuyến, Dịch vụ được cung cấp trên cơ sở \"nguyên trạng\" (as-is) và \"theo khả năng sẵn có\" (as-available).",
+          "12.2. Chúng tôi không cam kết Dịch vụ sẽ hoạt động liên tục 100% không bao giờ gián đoạn hoặc hoàn toàn không có lỗi phần mềm phát sinh, đặc biệt trong các đợt bảo trì nâng cấp định kỳ, sự cố đường truyền viễn thông quốc tế, gián đoạn từ nhà cung cấp hạ tầng đám mây/mô hình AI thượng nguồn hoặc các sự kiện bất khả kháng (thiên tai, mất điện diện rộng, thay đổi chính sách pháp luật đột xuất)."
+        ]
+      },
+      {
+        "id": "terms-13-liability",
+        "number": "13",
+        "shortTitle": "Giới hạn Trách nhiệm",
+        "title": "Điều 13. Giới hạn Trách nhiệm Pháp lý và Bồi hoàn",
+        "paragraphs": [
+          "13.1. Trong phạm vi tối đa được pháp luật Việt Nam cho phép, Continuum AI không chịu trách nhiệm bồi thường đối với các thiệt hại gián tiếp, ngẫu nhiên, hệ quả phát sinh (như gián đoạn kinh doanh, mất lợi nhuận dự kiến) bắt nguồn từ: (a) việc người dùng hoặc Tổ chức áp dụng trực tiếp các gợi ý do AI sinh ra mà không thực hiện bước rà soát, kiểm chứng con người theo Điều 6.2; (b) việc lộ lọt thông tin do lỗi bảo quản mật khẩu/thiết bị từ phía người dùng hoặc quyết định phân quyền sai nội bộ Tổ chức; hoặc (c) sự cố gián đoạn từ các dịch vụ tích hợp bên thứ ba.",
+          "13.2. Trong mọi trường hợp phát sinh trách nhiệm bồi thường trực tiếp theo quy định pháp luật (trừ trường hợp lỗi cố ý hoặc các nghĩa vụ không được phép giới hạn theo luật định), tổng mức trách nhiệm tài chính tối đa của Đơn vị vận hành đối với một Tổ chức hoặc người dùng không vượt quá tổng khoản phí dịch vụ thực tế mà Tổ chức/người dùng đó đã thanh toán cho Continuum AI trong 12 (mười hai) tháng liền kề trước thời điểm phát sinh sự kiện (hoặc mức trần hợp lý theo quy định pháp luật dân sự hiện hành nếu sử dụng gói miễn phí).",
+          "13.3. Bạn đồng ý bảo vệ và giữ cho Continuum AI không bị thiệt hại trước các khiếu nại hợp pháp của bên thứ ba phát sinh trực tiếp từ việc bạn tải lên nội dung vi phạm pháp luật, xâm phạm bản quyền hoặc vi phạm nghiêm trọng Điều khoản này."
+        ]
+      },
+      {
+        "id": "terms-14-amendments",
+        "number": "14",
+        "shortTitle": "Sửa đổi & Cập nhật",
+        "title": "Điều 14. Sửa đổi và Cập nhật Điều khoản",
+        "paragraphs": [
+          "14.1. Khi Continuum AI bổ sung tính năng mới hoặc khi quy định pháp luật thay đổi, chúng tôi có thể cập nhật bản Điều khoản Sử dụng này. Mỗi phiên bản mới đều ghi rõ Số phiên bản và Ngày có hiệu lực ở đầu trang.",
+          "14.2. Đối với các thay đổi trọng yếu làm ảnh hưởng đáng kể đến quyền và nghĩa vụ của người dùng hoặc Tổ chức, chúng tôi sẽ thông báo trước tối thiểu 15 (mười lăm) ngày thông qua email đăng ký hoặc thông báo nổi bật bên trong ứng dụng trước khi thay đổi có hiệu lực. Việc bạn tiếp tục sử dụng Dịch vụ sau ngày có hiệu lực đồng nghĩa với việc chấp thuận bản Điều khoản cập nhật."
+        ]
+      },
+      {
+        "id": "terms-15-governing-law",
+        "number": "15",
+        "shortTitle": "Luật Điều chỉnh & Liên hệ",
+        "title": "Điều 15. Luật Điều chỉnh, Giải quyết Tranh chấp và Liên hệ",
+        "paragraphs": [
+          "15.1. Điều khoản Sử dụng này được điều chỉnh và giải thích theo pháp luật nước Cộng hòa Xã hội Chủ nghĩa Việt Nam.",
+          "15.2. Mọi vướng mắc hoặc tranh chấp phát sinh trước hết sẽ được hai bên ưu tiên giải quyết thông qua thương lượng thiện chí trong vòng 30 (ba mươi) ngày kể từ ngày một bên gửi thông báo bằng văn bản. Trường hợp thương lượng không đạt kết quả, tranh chấp sẽ được đưa ra giải quyết tại Tòa án nhân dân có thẩm quyền tại Việt Nam theo quy định pháp luật tố tụng dân sự.",
+          "15.3. Mọi câu hỏi, thông báo pháp lý hoặc yêu cầu hỗ trợ liên quan đến Điều khoản Sử dụng, vui lòng liên hệ Đội ngũ phát triển và vận hành Nền tảng Continuum AI (Đà Nẵng, Việt Nam) qua địa chỉ email chính thức: kimthang.work@gmail.com."
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "tabLabel": "Chính sách bảo mật",
+    "badgeLabel": "12 Mục bảo mật",
+    "title": "Chính sách Bảo mật và Bảo vệ Dữ liệu Cá nhân",
+    "subtitle": "Tuân thủ Nghị định 13/2023/NĐ-CP về Bảo vệ dữ liệu cá nhân, Luật Bảo vệ dữ liệu cá nhân Việt Nam và Chính sách Sử dụng Giới hạn Dữ liệu Google API (Limited Use).",
+    "versionLabel": "Phiên bản",
+    "versionValue": "1.0",
+    "effectiveLabel": "Hiệu lực từ",
+    "effectiveValue": "30/10/2026",
+    "operatorLabel": "Đầu mối bảo vệ dữ liệu",
+    "operatorValue": "Đội ngũ phát triển & vận hành Nền tảng Continuum AI (Đà Nẵng, Việt Nam)",
+    "tldrTitle": "Tóm tắt cam kết bảo mật trong 60 giây",
+    "tldrSubtitle": "5 nguyên tắc bảo vệ quyền riêng tư xuyên suốt kiến trúc Continuum AI:",
+    "tldrItems": [
+      "Không bán dữ liệu — Không quảng cáo theo dõi: Chúng tôi tuyệt đối không bán dữ liệu cá nhân hay dữ liệu dự án cho bất kỳ bên thứ ba nào và không sử dụng cookie quảng cáo chéo trang.",
+      "Không dùng dữ liệu nội bộ để dạy AI công cộng: Tài liệu, ghi chú và cuộc trò chuyện của Tổ chức chỉ được xử lý trong phạm vi quyền đọc hợp lệ (Pre-Retrieval Scoped ACL) và không bao giờ dùng để huấn luyện mô hình AI công cộng.",
+      "Phân định rõ vai trò Kiểm soát vs. Xử lý dữ liệu: Tổ chức của bạn là Bên Kiểm soát dữ liệu công việc nội bộ; Continuum AI kiểm soát an toàn Tài khoản gốc và đóng vai trò Bên Xử lý dữ liệu theo ủy quyền của Tổ chức.",
+      "Google OAuth chuẩn Limited Use: Khi đăng nhập bằng Google, chúng tôi chỉ xác thực email, tên hiển thị và ảnh đại diện cơ bản — không bao giờ truy cập Gmail, Google Drive hay Danh bạ của bạn.",
+      "Quyền dữ liệu rõ ràng & SLA phản hồi minh bạch: Bạn có đầy đủ quyền truy cập, chỉnh sửa, rút lại sự đồng ý và yêu cầu xóa Tài khoản cá nhân (phản hồi tiếp nhận trong 72 giờ, hoàn tất xử lý trong tối đa 30 ngày)."
+    ],
+    "tldrDisclaimer": "Lưu ý: Tóm tắt trên hỗ trợ tra cứu nhanh và không thay thế toàn văn 12 Mục Chính sách Bảo mật dưới đây.",
+    "crossNavEyebrow": "TÀI LIỆU PHÁP LÝ LIÊN KẾT",
+    "crossNavTitle": "Xem Điều khoản Sử dụng Dịch vụ Continuum AI",
+    "crossNavDescription": "Tìm hiểu quy định về quản trị Tổ chức, quyền sở hữu Gói Bàn giao Tri thức (A → D → B), nguyên tắc kiểm chứng con người (Human-in-the-loop) và quy tắc sử dụng hợp lệ.",
+    "crossNavCta": "Đọc Điều khoản Sử dụng",
+    "articles": [
+      {
+        "id": "privacy-1-roles",
+        "number": "01",
+        "shortTitle": "Vai trò Kiểm soát & Xử lý",
+        "title": "Mục 1. Vai trò Kiểm soát và Xử lý Dữ liệu Cá nhân",
+        "paragraphs": [
+          "Nhằm minh bạch hóa trách nhiệm theo Nghị định 13/2023/NĐ-CP và pháp luật bảo vệ dữ liệu cá nhân Việt Nam, vai trò pháp lý trên Continuum AI được xác lập theo hai phạm vi rõ ràng:"
+        ],
+        "bullets": [
+          "Đội ngũ phát triển và vận hành Nền tảng Continuum AI là Bên Kiểm soát và Xử lý dữ liệu cá nhân đối với: thông tin đăng ký Tài khoản gốc (Account), dữ liệu xác thực phiên đăng nhập, tùy chọn ngôn ngữ/giao diện, thông tin liên hệ hỗ trợ trực tiếp và nhật ký an ninh vận hành nền tảng.",
+          "Tổ chức (Organization) là Bên Kiểm soát dữ liệu và Continuum AI là Bên Xử lý dữ liệu đối với: toàn bộ dữ liệu cá nhân và nội dung nghiệp vụ phát sinh bên trong không gian làm việc của Tổ chức đó (thành viên dự án, công việc, ghi chú công việc, tài liệu tải lên, tin nhắn nội bộ và gói bàn giao tri thức A → D → B). Khi xử lý nhóm dữ liệu này, Continuum AI chỉ thực hiện theo đúng cấu hình phân quyền và lệnh thao tác hợp lệ từ Tổ chức."
+        ]
+      },
+      {
+        "id": "privacy-2-data-categories",
+        "number": "02",
+        "shortTitle": "Danh mục Dữ liệu Thu thập",
+        "title": "Mục 2. Danh mục Dữ liệu Cá nhân Chúng tôi Thu thập và Xử lý",
+        "paragraphs": [
+          "Continuum AI áp dụng nguyên tắc tối thiểu hóa dữ liệu, chỉ thu thập các nhóm dữ liệu cá nhân cơ bản và dữ liệu kỹ thuật cần thiết để cung cấp Dịch vụ:"
+        ],
+        "table": {
+          "caption": "Bảng phân loại dữ liệu thu thập và xử lý trên Continuum AI",
+          "headers": ["Nhóm dữ liệu", "Chi tiết trường thông tin", "Nguồn thu thập", "Phân loại (NĐ 13/2023)"],
+          "rows": [
+            [
+              "1. Định danh & Xác thực Tài khoản",
+              "Họ và tên hiển thị (fullName), địa chỉ Email, mật khẩu băm một chiều (bcrypt — không bao giờ lưu mật khẩu văn bản thuần), ảnh đại diện (nếu có), mã định danh liên kết Google OAuth.",
+              "Do bạn trực tiếp cung cấp hoặc ủy quyền qua Google OAuth.",
+              "Dữ liệu cá nhân cơ bản"
+            ],
+            [
+              "2. Tư cách Tổ chức & Cộng tác Dự án",
+              "Tổ chức/Dự án tham gia, vai trò (Manager, Leader, Member), trạng thái (ACTIVE, ONBOARDING, OFFBOARDING), nội dung Công việc, Ghi chú công việc, Tài liệu tải lên, Tin nhắn nội bộ, Tri thức kiểm chứng & Gói bàn giao (A → D → B).",
+              "Do bạn hoặc Quản lý / Trưởng nhóm trong Tổ chức khởi tạo.",
+              "Dữ liệu nghiệp vụ & dữ liệu cơ bản gắn công việc"
+            ],
+            [
+              "3. Tương tác với Trợ lý AI (SAG)",
+              "Nội dung câu hỏi trong AI Chat / AI Companion, phạm vi dự án đang chọn, danh sách trích dẫn nguồn và lịch sử luồng hội thoại AI.",
+              "Phát sinh khi bạn chủ động sử dụng tính năng AI.",
+              "Dữ liệu hoạt động ứng dụng"
+            ],
+            [
+              "4. Phiên bảo mật & Nhật ký Kiểm toán",
+              "Mã phiên băm SHA-256 (refresh_sessions), địa chỉ IP (ipAddress), chuỗi trình duyệt/thiết bị (userAgent), dấu thời gian đăng nhập và nhật ký thay đổi quyền hạn/dữ liệu quan trọng (audit_logs), chỉ số chẩn đoán lỗi kỹ thuật.",
+              "Hệ thống tự động ghi nhận để bảo vệ an ninh và truy vết.",
+              "Dữ liệu kỹ thuật & an ninh mạng"
+            ]
+          ]
+        },
+        "subSections": [
+          {
+            "heading": "Quy định về Dữ liệu Cá nhân Nhạy cảm",
+            "paragraphs": [
+              "Continuum AI không yêu cầu và không có mục đích thu thập dữ liệu cá nhân nhạy cảm theo quy định pháp luật (như dữ liệu sức khỏe, sinh trắc học, tôn giáo, quan điểm chính trị, thông tin thẻ tín dụng/tài khoản ngân hàng cá nhân, vị trí địa lý thời gian thực). Người dùng và Tổ chức không nên đưa dữ liệu cá nhân nhạy cảm của cá nhân khác vào tài liệu dự án nếu chưa có cơ sở pháp lý và sự đồng ý hợp lệ của chủ thể dữ liệu đó."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-3-purposes",
+        "number": "03",
+        "shortTitle": "Mục đích & Cơ sở Pháp lý",
+        "title": "Mục 3. Mục đích và Cơ sở Pháp lý của Hoạt động Xử lý Dữ liệu",
+        "paragraphs": [
+          "Chúng tôi xử lý dữ liệu nêu tại Mục 2 dựa trên sự đồng ý rõ ràng của bạn, việc thực hiện thỏa thuận cung cấp Dịch vụ và nghĩa vụ bảo đảm an toàn thông tin theo quy định pháp luật, phục vụ đúng 6 mục đích sau:"
+        ],
+        "bullets": [
+          "Tạo lập, xác thực Tài khoản, duy trì phiên đăng nhập an toàn và khôi phục mật khẩu khi bạn yêu cầu;",
+          "Thực thi kiểm soát phân quyền đa tầng (RBAC/ABAC & Pre-Retrieval Scoped ACL), bảo đảm mỗi thành viên chỉ nhìn thấy đúng dự án và nguồn tri thức được cấp quyền;",
+          "Bóc tách tài liệu, lập chỉ mục tìm kiếm ngữ nghĩa, vận hành hỏi đáp trích dẫn nguồn và hỗ trợ lập Gói Bàn giao Tri thức (A → D → B);",
+          "Gửi các email giao dịch thiết yếu (liên kết xác minh đăng ký tài khoản, đặt lại mật khẩu, lời mời tham gia Tổ chức, thông báo bàn giao/kiểm chứng quan trọng và cảnh báo bảo mật phiên — không gửi thư rác quảng cáo);",
+          "Phát hiện, ngăn chặn tấn công chiếm đoạt phiên, tấn công vét cạn mật khẩu, gian lận hoặc lạm dụng tài nguyên hạ tầng;",
+          "Lập nhật ký kiểm toán bất biến phục vụ giải trình an ninh cho Tổ chức và tuân thủ yêu cầu hợp pháp của cơ quan nhà nước có thẩm quyền."
+        ]
+      },
+      {
+        "id": "privacy-4-google-oauth",
+        "number": "04",
+        "shortTitle": "Dữ liệu Google OAuth",
+        "title": "Mục 4. Quy định Riêng về Dữ liệu Người dùng Google (Google OAuth Limited Use)",
+        "paragraphs": [
+          "4.1. Phạm vi truy cập tối thiểu: Khi bạn chủ động chọn \"Đăng nhập / Đăng ký bằng Google\", Continuum AI chỉ yêu cầu quyền xác thực định danh cơ bản (openid, email, profile) để nhận địa chỉ email đã xác minh, họ tên hiển thị và đường dẫn ảnh đại diện hồ sơ công khai từ Google nhằm khởi tạo hoặc đăng nhập vào Tài khoản Continuum AI của bạn. Chúng tôi không yêu cầu quyền đọc hộp thư Gmail, tệp Google Drive, Lịch hay Danh bạ của bạn.",
+          "4.2. Tuân thủ Chính sách Sử dụng Giới hạn (Limited Use): Việc Continuum AI sử dụng và truyền tải thông tin nhận được từ Google APIs tới bất kỳ ứng dụng nào khác tuân thủ nghiêm ngặt Chính sách Dữ liệu Người dùng Dịch vụ API của Google (Google API Services User Data Policy), bao gồm đầy đủ các yêu cầu về Sử dụng Giới hạn (Limited Use requirements):"
+        ],
+        "bullets": [
+          "Chỉ sử dụng dữ liệu Google để cung cấp tính năng xác thực và hiển thị hồ sơ tài khoản trực tiếp cho người dùng;",
+          "Không chuyển giao hoặc bán dữ liệu người dùng Google cho bên thứ ba phục vụ quảng cáo, môi giới dữ liệu hoặc đánh giá tín dụng;",
+          "Không cho phép con người đọc dữ liệu nhận từ Google trừ khi có sự đồng ý rõ ràng của bạn để hỗ trợ kỹ thuật, vì mục đích an ninh bắt buộc hoặc theo yêu cầu pháp luật."
+        ],
+        "callout": {
+          "variant": "info",
+          "title": "Cam kết Tuân thủ Google API Services User Data Policy",
+          "body": "Continuum AI tuân thủ đầy đủ các điều kiện Limited Use đối với toàn bộ dữ liệu xác thực nhận từ Google Identity / OAuth 2.0.",
+          "externalLinkLabel": "Xem chính sách chính thức của Google",
+          "externalLinkHref": "https://developers.google.com/terms/api-services-user-data-policy"
+        }
+      },
+      {
+        "id": "privacy-5-ai-privacy",
+        "number": "05",
+        "shortTitle": "Bảo mật Dữ liệu trong AI",
+        "title": "Mục 5. Cơ chế Bảo mật Khi Xử lý Dữ liệu Bằng Trí tuệ Nhân tạo (SAG AI Privacy)",
+        "paragraphs": [
+          "Để bảo vệ bí mật dự án của Tổ chức khi sử dụng các tính năng AI, kiến trúc kỹ thuật của Continuum AI thực thi 3 lớp bảo vệ nghiêm ngặt:"
+        ],
+        "bullets": [
+          "Lọc quyền trước khi đưa vào mô hình (Pre-Retrieval Scoped ACL): Trước mỗi truy vấn AI, hệ thống backend xác thực tư cách thành viên ACTIVE và lọc danh sách nguồn tài liệu mà bạn được phép đọc; chỉ các đoạn trích (chunks) thuộc phạm vi được phép mới được đưa vào ngữ cảnh xử lý. Khi quyền truy cập một nguồn bị thu hồi, các truy vấn tiếp theo lập tức bị chặn tiếp cận nguồn đó.",
+          "Xóa đồng bộ chỉ mục Vector: Cơ sở dữ liệu tri thức và chỉ mục vector (PostgreSQL pgvector / Qdrant) gắn ràng buộc xóa theo tầng (ON DELETE CASCADE) với tài liệu gốc để hạn chế tối đa mảnh dữ liệu mồ côi khi tài liệu bị xóa hợp lệ.",
+          "Truyền tải mã hóa & Không huấn luyện công cộng: Khi kết nối tới cổng suy luận mô hình ngôn ngữ lớn (LLM), mô hình nhúng vector (Embedding) hoặc công cụ nhận dạng tài liệu (OCR), chỉ phần ngữ cảnh tối thiểu phục vụ yêu cầu hiện hành mới được truyền qua kết nối mã hóa HTTPS/TLS, và không được phép dùng để huấn luyện mô hình công cộng."
+        ]
+      },
+      {
+        "id": "privacy-6-subprocessors",
+        "number": "06",
+        "shortTitle": "Đối tác Hạ tầng & Xuyên biên giới",
+        "title": "Mục 6. Đối tác Hạ tầng (Sub-processors) và Chuyển Dữ liệu Xuyên biên giới",
+        "paragraphs": [
+          "Continuum AI không bán, cho thuê hoặc trao đổi thương mại dữ liệu cá nhân của bạn. Chúng tôi chỉ sử dụng các nhà cung cấp hạ tầng kỹ thuật đáng tin cậy dưới đây để vận hành Dịch vụ:"
+        ],
+        "table": {
+          "caption": "Danh mục nhóm đối tác hạ tầng kỹ thuật (Sub-processors)",
+          "headers": ["Nhóm đối tác hạ tầng", "Mục đích xử lý kỹ thuật", "Phạm vi dữ liệu tối thiểu"],
+          "rows": [
+            [
+              "Google Cloud / Google Identity",
+              "Xác thực đăng nhập một lần (Google OAuth 2.0).",
+              "Mã xác thực OAuth, email và hồ sơ định danh cơ bản khi người dùng chọn đăng nhập bằng Google."
+            ],
+            [
+              "Cloudflare R2 & Amazon Web Services (AWS S3)",
+              "Lưu trữ đối tượng đám mây riêng tư thông qua đường dẫn ký số tạm thời (Presigned URL).",
+              "Tệp tài liệu dự án (PDF, DOCX, MD trên R2) và tệp hình ảnh đính kèm trong trò chuyện (trên S3)."
+            ],
+            [
+              "Nhà cung cấp API Mô hình AI, Embedding & OCR",
+              "Xử lý bóc tách cấu trúc tài liệu (MinerU OCR), tạo vector ngữ nghĩa và sinh phản hồi truy vấn AI (LLM / Decision Router).",
+              "Đoạn văn bản tài liệu cần lập chỉ mục và ngữ cảnh câu hỏi đã lọc ACL (truyền qua kênh TLS mã hóa)."
+            ],
+            [
+              "Dịch vụ Chuyển phát Email Giao dịch (SMTP)",
+              "Gửi email xác minh tài khoản, khôi phục mật khẩu, lời mời tham gia Tổ chức và cảnh báo bảo mật.",
+              "Địa chỉ email người nhận, tên hiển thị và nội dung thông báo giao dịch."
+            ],
+            [
+              "Atlassian Jira (Tùy chọn theo Tổ chức)",
+              "Đồng bộ công việc dự án khi Quản lý Tổ chức chủ động cấu hình tích hợp.",
+              "Thông tin tác vụ và định danh ánh xạ theo cấu hình do chính Tổ chức thiết lập."
+            ]
+          ]
+        },
+        "subSections": [
+          {
+            "heading": "Thông báo về lưu trữ và chuyển dữ liệu cá nhân ra nước ngoài",
+            "paragraphs": [
+              "Do đặc thù kiến trúc điện toán đám mây phân tán và các cổng API trí tuệ nhân tạo quốc tế, một phần dữ liệu được mã hóa có thể được truyền tải và xử lý trên các máy chủ đặt ngoài lãnh thổ Việt Nam (như các trung tâm dữ liệu khu vực châu Á - Thái Bình Dương, Hoa Kỳ hoặc châu Âu của các đối tác hạ tầng nêu trên). Khi sử dụng Dịch vụ và đồng ý với Chính sách này, bạn xác nhận đã được thông báo rõ và đồng ý với hoạt động xử lý kỹ thuật xuyên biên giới đó kèm các biện pháp mã hóa, kiểm soát truy cập và tuân thủ quy định tại Điều 25 Nghị định 13/2023/NĐ-CP."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-7-cookies",
+        "number": "07",
+        "shortTitle": "Cookie & Bộ nhớ Trình duyệt",
+        "title": "Mục 7. Chính sách Cookie và Lưu trữ Trình duyệt (Cookies & Local Storage)",
+        "paragraphs": [
+          "Continuum AI tôn trọng quyền riêng tư trình duyệt của bạn và chỉ sử dụng các cookie/bộ nhớ cục bộ thiết yếu phục vụ bảo mật phiên và trải nghiệm giao diện, tuyệt đối không sử dụng bất kỳ công cụ theo dõi quảng cáo bên thứ ba nào:"
+        ],
+        "table": {
+          "caption": "Danh mục Cookie và Local Storage sử dụng trên Continuum AI",
+          "headers": ["Tên / Nhóm lưu trữ", "Loại hình kỹ thuật", "Mục đích sử dụng", "Thời hạn lưu"],
+          "numericColumnIndices": [3],
+          "rows": [
+            [
+              "Cookie Phiên xác thực (Auth / Refresh Cookies)",
+              "HttpOnly, Secure, SameSite Cookie",
+              "Duy trì trạng thái đăng nhập an toàn qua tầng BFF; ngăn chặn mã độc JavaScript (XSS) đọc trộm token xác thực.",
+              "Theo phiên / Xóa ngay khi Đăng xuất"
+            ],
+            [
+              "NEXT_LOCALE",
+              "Functional Cookie",
+              "Ghi nhớ ngôn ngữ hiển thị bạn đã chọn (vi — Tiếng Việt hoặc en — Tiếng Anh) trên toàn hệ thống.",
+              "Tối đa 365 ngày"
+            ],
+            [
+              "theme & trạng thái bố cục thanh bên",
+              "Browser localStorage",
+              "Ghi nhớ chế độ giao diện Sáng / Tối / Tự động (light / dark / auto) trên thiết bị của bạn.",
+              "Lưu cục bộ trên trình duyệt"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "privacy-8-security-risks",
+        "number": "08",
+        "shortTitle": "Bảo mật & Ứng phó Sự cố",
+        "title": "Mục 8. Biện pháp Bảo vệ An ninh Dữ liệu và Nhận diện Rủi ro Khách quan",
+        "paragraphs": [
+          "8.1. Các biện pháp bảo vệ kỹ thuật & tổ chức đang áp dụng:"
+        ],
+        "bullets": [
+          "Mã hóa đường truyền toàn trình bằng giao thức HTTPS / TLS;",
+          "Băm mật khẩu một chiều bằng thuật toán bcrypt; mã hóa các thông điệp hàng đợi nhạy cảm (token đăng ký email, đặt lại mật khẩu, lời mời tổ chức) bằng khóa chuyên biệt dẫn xuất độc lập;",
+          "Lưu mã phiên làm mới dưới dạng băm SHA-256, phát hiện đánh cắp chuỗi phiên (familyId) và thu hồi hiệu lực token tức thời dưới 1ms qua danh sách chặn trên Redis;",
+          "Cô lập cơ sở dữ liệu theo miền dịch vụ nghiệp vụ, kiểm soát tương tranh lạc quan (Optimistic Concurrency Control) chống ghi đè dữ liệu và ghi nhật ký kiểm toán bất biến (Append-Only Audit Logs)."
+        ],
+        "subSections": [
+          {
+            "heading": "8.2. Thông báo về rủi ro khách quan và Quy trình thông báo sự cố 72 giờ (Điều 13 & Điều 23 Nghị định 13/2023/NĐ-CP)",
+            "paragraphs": [
+              "Mặc dù Continuum AI áp dụng các tiêu chuẩn bảo mật nghiêm ngặt nêu trên, không một hệ thống truyền dẫn Internet hay lưu trữ điện tử nào có thể cam kết miễn nhiễm tuyệt đối 100% trước các cuộc tấn công mạng tinh vi chưa từng biết tới (zero-day exploits), phần mềm độc hại cài sẵn trên thiết bị đầu cuối của người dùng hoặc sự cố hạ tầng bất khả kháng. Trong trường hợp xấu nhất xảy ra xâm phạm trái phép, hậu quả không mong muốn có thể bao gồm nguy cơ lộ lọt thông tin định danh cơ bản hoặc gián đoạn tạm thời quyền truy cập dữ liệu.",
+              "Nếu phát hiện hành vi vi phạm quy định bảo vệ dữ liệu cá nhân gây ảnh hưởng nghiêm trọng đến quyền và lợi ích hợp pháp của người dùng, Continuum AI sẽ kích hoạt quy trình cô lập sự cố khẩn cấp, thu hồi toàn bộ phiên liên quan và thực hiện nghĩa vụ thông báo trong thời hạn 72 (bảy mươi hai) giờ theo quy định pháp luật hiện hành."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-9-retention",
+        "number": "09",
+        "shortTitle": "Thời hạn Lưu trữ & Xóa dữ liệu",
+        "title": "Mục 9. Thời hạn Lưu trữ, Xóa Dữ liệu và Quy tắc Lưu vết Bàn giao",
+        "paragraphs": [
+          "Chúng tôi bắt đầu xử lý dữ liệu từ thời điểm bạn khởi tạo Tài khoản hoặc tham gia Tổ chức và áp dụng lịch trình lưu trữ minh bạch sau đây:"
+        ],
+        "table": {
+          "caption": "Lịch trình lưu trữ và xóa dữ liệu trên Continuum AI",
+          "headers": ["Loại dữ liệu", "Mốc thời gian cam kết", "Cơ chế xử lý khi kết thúc / xóa"],
+          "numericColumnIndices": [1],
+          "rows": [
+            [
+              "Thông tin Tài khoản Cá nhân (Account)",
+              "Phản hồi ≤ 72 giờ • Xóa ≤ 30 ngày",
+              "Lưu trong thời gian Tài khoản hoạt động. Khi nhận yêu cầu xóa hợp lệ, xác nhận trong 72 giờ và xóa/ẩn danh định danh cá nhân trong tối đa 30 ngày."
+            ],
+            [
+              "Dữ liệu Không gian làm việc & Gói Bàn giao (A → D → B)",
+              "Theo vòng đời Tổ chức (Xóa ≤ 30 ngày khi đóng Tổ chức)",
+              "Khi cá nhân rời Tổ chức/xóa Tài khoản, tài liệu dự án và gói bàn giao vẫn giữ nguyên vẹn cho Tổ chức (tác giả chuyển sang lưu vết tối giản/ẩn danh). Xóa hoàn toàn trong 30 ngày khi Quản lý xóa Tổ chức."
+            ],
+            [
+              "Nhật ký Kiểm toán An ninh (audit_logs)",
+              "365 ngày",
+              "Lưu trữ bất biến phục vụ điều tra an ninh, chống gian lận và giải trình tuân thủ trước khi tự động thanh lọc theo chính sách lưu trữ."
+            ],
+            [
+              "Tin nhắn & Bản nháp tạm thời",
+              "Theo dự án / cấu hình 90 ngày",
+              "Lưu theo vòng đời dự án hoặc tự động dọn dẹp theo chính sách data_retention_policies khi Tổ chức kích hoạt."
+            ],
+            [
+              "Token xác minh email, đặt lại mật khẩu & lời mời",
+              "Ngắn hạn theo TTL",
+              "Tự động vô hiệu hóa ngay lập tức sau một lần sử dụng hoặc khi hết thời hạn hiệu lực ngắn hạn."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "privacy-10-subject-rights",
+        "number": "10",
+        "shortTitle": "Quyền & Nghĩa vụ Chủ thể",
+        "title": "Mục 10. Quyền và Nghĩa vụ của Chủ thể Dữ liệu Cá nhân",
+        "paragraphs": [
+          "10.1. Quyền của bạn (Theo Điều 9 Nghị định 13/2023/NĐ-CP): Bạn có đầy đủ các quyền hợp pháp đối với dữ liệu cá nhân của mình, bao gồm:"
+        ],
+        "bullets": [
+          "Quyền được biết và Quyền đồng ý / rút lại sự đồng ý đối với hoạt động xử lý dữ liệu cá nhân (lưu ý: việc rút lại sự đồng ý đối với các dữ liệu thiết yếu phục vụ xác thực và phân quyền đồng nghĩa với việc không thể tiếp tục duy trì Tài khoản sử dụng Dịch vụ, nhưng không ảnh hưởng đến tính hợp pháp của quá trình xử lý đã thực hiện trước thời điểm rút lại);",
+          "Quyền xem, truy cập và chỉnh sửa thông tin hồ sơ cá nhân trực tiếp trong phần cài đặt Tài khoản hoặc thông qua yêu cầu hỗ trợ;",
+          "Quyền yêu cầu cung cấp bản sao dữ liệu, hạn chế xử lý, phản đối xử lý hoặc yêu cầu xóa dữ liệu cá nhân trong phạm vi Tài khoản cá nhân của bạn;",
+          "Quyền khiếu nại, tố cáo, khởi kiện, yêu cầu bồi thường thiệt hại và tự bảo vệ theo quy định của pháp luật Việt Nam."
+        ],
+        "subSections": [
+          {
+            "heading": "10.2. Quy trình gửi yêu cầu & Nghĩa vụ của Chủ thể dữ liệu (Điều 10 Nghị định 13/2023/NĐ-CP)",
+            "paragraphs": [
+              "Đối với dữ liệu nằm bên trong không gian làm việc của một Tổ chức (nơi Tổ chức là Bên Kiểm soát dữ liệu), vui lòng gửi yêu cầu trực tiếp tới Quản lý Tổ chức (Manager) của bạn. Đối với Tài khoản cá nhân trên Continuum AI, vui lòng gửi yêu cầu từ chính địa chỉ email đăng ký tới kimthang.work@gmail.com; chúng tôi sẽ xác minh danh tính và phản hồi tiếp nhận trong vòng 72 giờ.",
+              "Đồng thời, bạn có nghĩa vụ tự bảo vệ mật khẩu và thiết bị đăng nhập của mình, cung cấp thông tin chính xác khi đăng ký, và tôn trọng, bảo vệ dữ liệu cá nhân của các đồng nghiệp khác trong Tổ chức."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-11-children",
+        "number": "11",
+        "shortTitle": "Độ tuổi & Dữ liệu Trẻ em",
+        "title": "Mục 11. Bảo vệ Quyền riêng tư của Trẻ em",
+        "paragraphs": [
+          "Continuum AI là nền tảng cộng tác công việc và quản trị tri thức chuyên nghiệp, chỉ dành cho người dùng từ đủ 18 tuổi trở lên (và tuyệt đối không thu thập có chủ đích dữ liệu của trẻ em dưới 16 tuổi khi chưa có sự xác nhận hợp pháp theo quy định pháp luật). Nếu phát hiện một tài khoản được đăng ký bởi người chưa đủ tuổi quy định mà không có sự đồng ý hợp lệ, chúng tôi sẽ tiến hành khóa tài khoản và xóa dữ liệu cá nhân liên quan ngay khi xác minh."
+        ]
+      },
+      {
+        "id": "privacy-12-updates-contact",
+        "number": "12",
+        "shortTitle": "Cập nhật & Đầu mối Liên hệ",
+        "title": "Mục 12. Cập nhật Chính sách Bảo mật và Thông tin Liên hệ Chính thức",
+        "paragraphs": [
+          "12.1. Chính sách Bảo mật này có thể được rà soát, cập nhật định kỳ để phản ánh chính xác các cải tiến bảo mật của Continuum AI hoặc quy định pháp luật mới nhất. Các thay đổi trọng yếu sẽ được thông báo trước tối thiểu 15 (mười lăm) ngày qua email hoặc thông báo nổi bật trong ứng dụng.",
+          "12.2. Mọi yêu cầu thực thi quyền của chủ thể dữ liệu cá nhân, câu hỏi về quyền riêng tư hoặc thông báo an ninh, vui lòng gửi trực tiếp tới Đội ngũ phát triển và vận hành Nền tảng Continuum AI (Đà Nẵng, Việt Nam) qua email chính thức: kimthang.work@gmail.com (khuyến nghị ghi tiêu đề: [Yêu cầu Quyền Riêng Tư] - Địa chỉ email tài khoản của bạn)."
+        ]
+      }
+    ]
+  }
+}

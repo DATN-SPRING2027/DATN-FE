@@ -8,6 +8,7 @@ import {
   type KeyboardEvent,
 } from"react";
 import { useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { CloseLineIcon } from"@/icons";
 import Button from"@/components/ui/button/Button";
 import { Modal } from"@/components/ui/modal";
@@ -250,7 +251,7 @@ export default function WorkItemCreateDialog({
                 rows={2}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add acceptance criteria or engineering context…"
+                placeholder={tr(t, "quickUi.descriptionPlaceholder", "Add acceptance criteria or engineering context…")}
                 className="border border-gray-200 bg-white px-3.5 py-2 text-sm font-normal text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
               />
             </label>
@@ -325,7 +326,7 @@ export default function WorkItemCreateDialog({
                 onChange={(e) => setCreateAnother(e.target.checked)}
                 className="h-4 w-4 border-gray-300 text-brand-600"
               />
-              <span>Create another</span>
+              <span>{tr(t, "quickUi.createAnother", "Create another")}</span>
             </label>
 
             <div className="flex items-center justify-end gap-2">

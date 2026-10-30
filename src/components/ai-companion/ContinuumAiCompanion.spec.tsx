@@ -176,4 +176,23 @@ describe("ContinuumAiCompanion", () => {
       { timeout: 4000 },
     );
   });
+
+  it("renders English labels and greetings when locale is 'en'", () => {
+    render(<ContinuumAiCompanion locale="en" />);
+
+    expect(
+      screen.getByText("Hi! Need a quick project summary?"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open Continuum AI Companion" }),
+    );
+
+    expect(
+      screen.getByTestId("ai-companion-status-badge"),
+    ).toHaveTextContent("Ready");
+    expect(
+      screen.getByRole("button", { name: /Summarize project/i }),
+    ).toBeInTheDocument();
+  });
 });

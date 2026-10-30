@@ -115,13 +115,13 @@ export default function OrganizationMembershipList({
         <Table className="table-fixed block w-full min-w-0 text-start lg:table lg:min-w-full">
           <TableHeader className="hidden bg-gray-50/75 lg:table-header-group dark:bg-white/2">
             <TableRow className="border-b border-gray-100 dark:border-gray-800">
-              <TableCell isHeader className="w-[28%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[25%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("memberColumn")}
               </TableCell>
               <TableCell isHeader className="w-[13%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("roleColumn")}
               </TableCell>
-              <TableCell isHeader className="w-[12%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
+              <TableCell isHeader className="w-[15%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">
                 {t("statusColumn")}
               </TableCell>
               <TableCell isHeader className="w-[13%] px-4 py-3 text-start text-xs font-semibold uppercase tracking-wider text-gray-500 sm:px-5 dark:text-gray-400">

@@ -24,6 +24,7 @@ export default function AdminLayout({
   const router = useRouter();
   const pathname = usePathname();
   const common = useTranslations("common");
+  const locale = common("localeCode") === "vi" ? "vi" : "en";
   const isAiChat =
     pathname === "/ai-chat" || pathname.startsWith("/ai-chat/");
   const isChat = pathname === "/chat" || isAiChat;
@@ -181,7 +182,7 @@ export default function AdminLayout({
           </div>
         </div>
       </div>
-      {!isAiChat && <ContinuumAiCompanion />}
+      {!isAiChat && <ContinuumAiCompanion locale={locale} />}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Image from "next/image";
 import { Link, usePathname } from "@/i18n/navigation";
 import BrandLogo from "@/components/common/BrandLogo";
+import LanguageTogglePill from "@/components/common/LanguageTogglePill";
 import ThemeTogglerTwo from "@/components/common/ThemeTogglerTwo";
 import { ArrowRightIcon, CheckCircleIcon } from "@/icons";
 import LegacyAuthLayout from "./LegacyAuthLayout";
@@ -94,6 +95,7 @@ export default function AuthLayoutFrame({ children }: { children: ReactNode }) {
         </div>
       </aside>
       <div className={styles.themeControl}>
+        <LanguageTogglePill className={styles.languagePill} />
         <ThemeTogglerTwo />
       </div>
     </div>

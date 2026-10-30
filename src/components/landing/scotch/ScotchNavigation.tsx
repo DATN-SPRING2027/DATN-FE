@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import BrandLogo from "@/components/common/BrandLogo";
+import LanguageTogglePill from "@/components/common/LanguageTogglePill";
 import WorkspaceLink from "../rylo/WorkspaceLink";
 import UserDropdown from "@/components/header/UserDropdown";
 import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
@@ -61,6 +62,7 @@ export default function ScotchNavigation() {
               </div>
             ) : (
               <div className={styles.mobileGuestRow}>
+                <LanguageTogglePill variant="inverse" />
                 <Link
                   href="/signin"
                   className={styles.mobileSignInLink}
@@ -90,6 +92,7 @@ export default function ScotchNavigation() {
             </>
           ) : (
             <>
+              <LanguageTogglePill variant="inverse" />
               <Link href="/signin">{common("signin")}</Link>
               <span className={styles.primaryAction}>
                 <WorkspaceLink compact guestLabel={t("getStarted")} hideIcon />

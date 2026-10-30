@@ -26,12 +26,25 @@ import {
   ProjectDirectoryRow,
 } from "@/components/projects/ProjectVisualIdentity";
 
-function formatRelativeDays(isoDate: string): string {
+function formatRelativeDays(isoDate: string, locale = "en"): string {
+  const rtf = new Intl.RelativeTimeFormat(locale === "vi" ? "vi-VN" : "en-US", {
+    numeric: "always",
+  });
   const parsed = Date.parse(isoDate);
-  if (!Number.isFinite(parsed)) return "1 day ago";
+  if (!Number.isFinite(parsed)) return rtf.format(-1, "day");
   const diffMs = Math.max(0, Date.now() - parsed);
   const diffDays = Math.max(1, Math.floor(diffMs / 86_400_000));
-  return diffDays === 1 ? "1 day ago" : `${diffDays} days ago`;
+  return rtf.format(-diffDays, "day");
+}
+
+function formatPlanLabel(plan: string, locale = "en"): string {
+  if (locale !== "vi") return plan;
+  const normalized = plan.trim().toUpperCase();
+  if (normalized === "ENTERPRISE") return "Doanh nghiệp";
+  if (normalized === "PRO" || normalized === "PROFESSIONAL") return "Chuyên nghiệp";
+  if (normalized === "STARTER" || normalized === "TEAM") return "Cơ bản";
+  if (normalized === "FREE") return "Miễn phí";
+  return plan;
 }
 
 function OverviewSkeleton({ label }: { label: string }) {
@@ -229,8 +242,11 @@ function ManagerOverviewWorkspace({
       requiresLeaderRecovery: true,
     }));
 
+  const activeLocale = common("localeCode") === "vi" ? "vi" : "en";
   const primaryManagerName =
-    managers[0]?.fullName || managers[0]?.email || "Organization Manager";
+    managers[0]?.fullName ||
+    managers[0]?.email ||
+    (activeLocale === "vi" ? "Quản lý tổ chức" : "Organization Manager");
 
   return (
     <div className="@container min-w-0 space-y-5" aria-busy={overview.isFetching}>
@@ -290,7 +306,7 @@ function ManagerOverviewWorkspace({
                 @{organization.slug}
               </span>
               <span className="inline-flex items-center rounded-lg border border-gray-200/90 bg-white px-2.5 py-1 text-xs font-semibold tracking-wide text-slate-700 uppercase shadow-2xs dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                {organization.plan}
+                {formatPlanLabel(organization.plan, activeLocale)}
               </span>
               <span className="inline-flex items-center rounded-lg bg-brand-100/90 px-2.5 py-1 text-xs font-semibold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
                 <RoleLabel roleCode="ADMIN" />
@@ -714,7 +730,7 @@ function ManagerOverviewWorkspace({
                   </span>
                 </div>
                 <span className="shrink-0 text-xs text-gray-400 tabular-nums dark:text-gray-500">
-                  {formatRelativeDays(organization.createdAt)}
+                  {formatRelativeDays(organization.createdAt, activeLocale)}
                 </span>
               </li>
 
@@ -738,7 +754,7 @@ function ManagerOverviewWorkspace({
                     </span>
                   </div>
                   <span className="shrink-0 text-xs text-gray-400 tabular-nums dark:text-gray-500">
-                    {formatRelativeDays(project.createdAt)}
+                    {formatRelativeDays(project.createdAt, activeLocale)}
                   </span>
                 </li>
               ))}

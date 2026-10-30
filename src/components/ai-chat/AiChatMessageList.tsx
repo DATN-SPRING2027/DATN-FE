@@ -6,10 +6,7 @@ import { Link } from "@/i18n/navigation";
 import {
   AlertIcon,
   ArrowRightIcon,
-  BoltIcon,
   CheckLineIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
   CopyIcon,
   DocsIcon,
   ShootingStarIcon,
@@ -28,7 +25,11 @@ import {
   type CitationItemToken,
 } from "./citation-utils";
 
+import AiChatActivityProgress from "./AiChatActivityProgress";
+
 export type DisplayAiChatMessage = AiChatMessage & {
+  activityStartedAt?: number;
+  activityFinishedAt?: number;
   isStreaming?: boolean;
   answerStatus?: "answered" | "no_answer";
   errorMessage?: string;
@@ -66,7 +67,7 @@ function renderBoldAndCodeText(
       return (
         <code
           key={key}
-          className="rounded-md bg-gray-100 px-1.5 py-0.5 font-mono text-xs text-brand-600 dark:bg-white/10 dark:text-brand-300"
+          className="font-mono rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-brand-600 dark:bg-white/10 dark:text-brand-300"
         >
           {part.slice(1, -1)}
         </code>
@@ -161,7 +162,7 @@ function FormattedAnswerProse({
           return (
             <pre
               key={`code-${blockIdx}`}
-              className="overflow-x-auto rounded-2xl border border-gray-200/80 bg-gray-950 p-4 font-mono text-xs leading-relaxed text-gray-100 dark:border-white/10 dark:bg-gpt-sidebar"
+              className="font-mono overflow-x-auto rounded-2xl border border-gray-200/80 bg-gray-950 p-4 text-xs leading-relaxed text-gray-100 dark:border-white/10 dark:bg-gpt-sidebar"
             >
               <code>{stripped}</code>
             </pre>
@@ -248,18 +249,12 @@ export default function AiChatMessageList({
   const t = useTranslations("AiChat");
   const bottomEndRef = useRef<HTMLDivElement | null>(null);
   const prevCountRef = useRef<number>(0);
-  const [expandedTraces, setExpandedTraces] = useState<Record<string, boolean>>(
-    {},
-  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const messagesById = new Map(messages.map((item) => [item.id, item]));
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
-    if (
-      messages.length > prevCountRef.current ||
-      lastMessage?.isStreaming
-    ) {
+    if (messages.length > prevCountRef.current || lastMessage?.isStreaming) {
       bottomEndRef.current?.scrollIntoView?.({ behavior: "smooth" });
     }
     prevCountRef.current = messages.length;
@@ -369,9 +364,6 @@ export default function AiChatMessageList({
             );
           }
 
-          const isTraceOpen =
-            expandedTraces[message.id] ?? (mode === "work" ? true : false);
-
           const handleTokenClick = (item: CitationItemToken) => {
             if (item.type === "document") {
               const found = message.citations.find(
@@ -420,46 +412,6 @@ export default function AiChatMessageList({
                   <span>{t("assistantRoleLabel")}</span>
                 </span>
 
-                {message.retrievalSteps.length > 0 && (
-                  <button
-                    type="button"
-                    aria-expanded={isTraceOpen}
-                    onClick={() =>
-                      setExpandedTraces((prev) => ({
-                        ...prev,
-                        [message.id]: !isTraceOpen,
-                      }))
-                    }
-                    className="inline-flex items-center gap-1 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-0.5 text-xs text-gray-600 tabular-nums transition-colors hover:bg-gray-100 dark:border-white/10 dark:bg-white/6 dark:text-gray-300 dark:hover:bg-white/10"
-                  >
-                    <BoltIcon
-                      aria-hidden="true"
-                      className="size-3 text-brand-500 dark:text-brand-400"
-                    />
-                    <span>
-                      {t("retrievalTraceToggle", {
-                        count: message.retrievalSteps.length,
-                      })}
-                    </span>
-                    {message.citations.length > 0 && (
-                      <span className="text-gray-400 dark:text-gray-500">
-                        ·{" "}
-                        {t("sourcesCountBadge", {
-                          count: message.citations.length,
-                        })}
-                      </span>
-                    )}
-                    {isTraceOpen ? (
-                      <ChevronUpIcon aria-hidden="true" className="size-3.5" />
-                    ) : (
-                      <ChevronDownIcon
-                        aria-hidden="true"
-                        className="size-3.5"
-                      />
-                    )}
-                  </button>
-                )}
-
                 {message.sessionCitations.length > 0 && (
                   <span className="inline-flex items-center rounded-full border border-warning-500/30 bg-warning-500/10 px-2.5 py-0.5 text-xs font-medium text-warning-700 tabular-nums dark:text-warning-300">
                     {t("ecceMemoryBadge", {
@@ -481,55 +433,15 @@ export default function AiChatMessageList({
                 )}
               </div>
 
-              {/* Expandable Sanitized SAG + ECCE Trace */}
-              {isTraceOpen && message.retrievalSteps.length > 0 && (
-                <div className="rounded-2xl border border-gray-200/80 bg-gray-50/80 p-3 text-xs dark:border-white/10 dark:bg-gpt-sidebar">
-                  <ul className="space-y-1.5">
-                    {message.retrievalSteps.map((step, idx) => (
-                      <li
-                        key={`${step.kind}-${idx}`}
-                        className="flex items-center justify-between gap-3 text-gray-600 dark:text-gray-300"
-                      >
-                        <div className="flex min-w-0 items-center gap-2">
-                          <span className="size-1.5 shrink-0 rounded-full bg-brand-500" />
-                          <span className="truncate font-medium text-gray-900 dark:text-white">
-                            {step.label}
-                          </span>
-                          {step.mode && (
-                            <span className="rounded bg-gray-200/80 px-1.5 py-0.5 text-xs font-semibold uppercase text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                              {step.mode}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex shrink-0 items-center gap-2 font-mono text-xs text-gray-400 tabular-nums">
-                          {step.count !== undefined && (
-                            <span>
-                              {t("retrievalStepCount", { count: step.count })}
-                            </span>
-                          )}
-                          <span>
-                            {t("retrievalStepDuration", {
-                              ms: step.durationMs,
-                            })}
-                          </span>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              {/* Streaming Status Indicator before first token */}
-              {message.isStreaming && !message.content && (
-                <div
-                  role="status"
-                  aria-live="polite"
-                  className="flex items-center gap-2.5 py-1 text-xs text-gray-500 dark:text-gray-400"
-                >
-                  <span className="size-2 animate-ping rounded-full bg-brand-500" />
-                  <span>{t("statusStreaming")}</span>
-                </div>
-              )}
+              <AiChatActivityProgress
+                isStreaming={Boolean(message.isStreaming)}
+                hasContent={Boolean(message.content)}
+                status={message.status}
+                steps={message.retrievalSteps}
+                startedAt={message.activityStartedAt}
+                finishedAt={message.activityFinishedAt}
+                defaultExpanded={mode === "work"}
+              />
 
               {/* Borderless Answer Prose or Clean Empty-Evidence Scope Callout */}
               {isEmptyEvidenceScope ? (

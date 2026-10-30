@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -275,7 +276,7 @@ function PublishModalForm({
                     color={item.isRequired ? "warning" : "light"}
                     size="sm"
                   >
-                    {item.isRequired ? "Required" : "Optional"}
+                    {item.isRequired ? tr(t, "requiredBadge", "Required") : tr(t, "optionalBadge", "Optional")}
                   </Badge>
                 </div>
 
@@ -364,7 +365,7 @@ function PublishModalForm({
                             }
                             className="mt-1 w-full rounded-xl border border-warning-300 bg-white px-3 py-2 text-xs text-gray-900 dark:border-warning-500/40 dark:bg-gray-900 dark:text-white"
                           >
-                            <option value="">Select owner…</option>
+                            <option value="">{tr(t, "selectOwnerPlaceholder", "Select owner…")}</option>
                             {activeMembers.map((m) => (
                               <option key={m.userId} value={m.userId}>
                                 {formatMemberOptionLabel(m)}
