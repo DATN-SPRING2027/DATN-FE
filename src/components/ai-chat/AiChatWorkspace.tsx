@@ -68,6 +68,39 @@ function isProjectOrAuthAccessError(error: unknown): error is ApiError {
   return true;
 }
 
+export function upsertRetrievalStep(
+  steps: readonly AiChatRetrievalStep[],
+  incoming: AiChatRetrievalStep,
+): AiChatRetrievalStep[] {
+  if (!incoming.id) {
+    return [...steps, incoming];
+  }
+  const index = steps.findIndex((item) => item.id === incoming.id);
+  if (index === -1) {
+    return [...steps, incoming];
+  }
+  const next = [...steps];
+  const previous = next[index]!;
+  next[index] = {
+    ...previous,
+    ...incoming,
+    label: incoming.label || previous.label,
+  };
+  return next;
+}
+
+export function settleRunningSteps(
+  steps: readonly AiChatRetrievalStep[],
+  terminalStatus: "completed" | "failed",
+): AiChatRetrievalStep[] {
+  if (!steps.some((step) => step.status === "running")) {
+    return [...steps];
+  }
+  return steps.map((step) =>
+    step.status === "running" ? { ...step, status: terminalStatus } : step,
+  );
+}
+
 function deriveThreadTitle(query: string): string {
   const collapsed = query.replace(/\s+/g, " ").trim();
   if (collapsed.length <= 72) return collapsed;
@@ -194,6 +227,9 @@ function AiChatWorkspaceContent() {
   const [answerStatusByMessageId, setAnswerStatusByMessageId] = useState<
     Record<string, "answered" | "no_answer">
   >({});
+  const [retrievalStepsByMessageId, setRetrievalStepsByMessageId] = useState<
+    Record<string, readonly AiChatRetrievalStep[]>
+  >({});
   const [highlightedTurnId, setHighlightedTurnId] = useState<string | null>(
     null,
   );
@@ -318,8 +354,14 @@ function AiChatWorkspaceContent() {
         if (!seen.has(item.id)) {
           seen.add(item.id);
           const rememberedAnswerStatus = answerStatusByMessageId[item.id];
+          const rememberedSteps = retrievalStepsByMessageId[item.id];
           ordered.push({
             ...item,
+            ...(item.retrievalSteps.length === 0 &&
+            rememberedSteps &&
+            rememberedSteps.length > 0
+              ? { retrievalSteps: rememberedSteps }
+              : {}),
             ...(rememberedAnswerStatus
               ? { answerStatus: rememberedAnswerStatus }
               : {}),
@@ -329,7 +371,12 @@ function AiChatWorkspaceContent() {
       }
     }
     return ordered;
-  }, [activityTimingsByMessageId, answerStatusByMessageId, messagesQuery.data]);
+  }, [
+    activityTimingsByMessageId,
+    answerStatusByMessageId,
+    messagesQuery.data,
+    retrievalStepsByMessageId,
+  ]);
 
   const displayedMessages: readonly DisplayAiChatMessage[] = useMemo(() => {
     if (!activeThreadId) return [];
@@ -342,6 +389,10 @@ function AiChatWorkspaceContent() {
       if (!localMatch) return msg;
       return {
         ...msg,
+        retrievalSteps:
+          msg.retrievalSteps.length > 0
+            ? msg.retrievalSteps
+            : localMatch.retrievalSteps,
         answerStatus: msg.answerStatus ?? localMatch.answerStatus,
         errorCode: msg.errorCode ?? localMatch.errorCode,
         errorMessage: localMatch.errorMessage ?? msg.errorMessage,
@@ -374,6 +425,7 @@ function AiChatWorkspaceContent() {
       setIsStreaming(false);
       setManualProjectId(project.id);
       setActiveThreadId(null);
+      setRetrievalStepsByMessageId({});
       setValidationError(null);
       setPermissionBanner(null);
       setInspectedEvidence(null);
@@ -592,7 +644,7 @@ function AiChatWorkspaceContent() {
 
         let activeUserTurnId = tempUserTurnId;
         let activeAssistantTurnId = tempAssistantTurnId;
-        const collectedSteps: AiChatRetrievalStep[] = [];
+        let collectedSteps: AiChatRetrievalStep[] = [];
 
         try {
           await streamAiChatAsk({
@@ -622,13 +674,17 @@ function AiChatWorkspaceContent() {
               }
 
               if (event.event === "step") {
-                collectedSteps.push(event.data);
+                collectedSteps = upsertRetrievalStep(
+                  collectedSteps,
+                  event.data,
+                );
+                const snapshot = collectedSteps;
                 updateLocalTurn(
                   targetThreadId,
                   activeAssistantTurnId,
                   (turn) => ({
                     ...turn,
-                    retrievalSteps: [...collectedSteps],
+                    retrievalSteps: snapshot,
                   }),
                 );
                 return;
@@ -649,6 +705,10 @@ function AiChatWorkspaceContent() {
               if (event.event === "completed") {
                 const finalId = event.data.messageId || activeAssistantTurnId;
                 const finishedAt = Date.now();
+                const resolvedSteps =
+                  event.data.retrievalSteps.length > 0
+                    ? event.data.retrievalSteps
+                    : settleRunningSteps(collectedSteps, "completed");
                 setActivityTimingsByMessageId((prev) => ({
                   ...prev,
                   [finalId]: {
@@ -660,6 +720,12 @@ function AiChatWorkspaceContent() {
                   ...prev,
                   [finalId]: event.data.answerStatus,
                 }));
+                if (resolvedSteps.length > 0) {
+                  setRetrievalStepsByMessageId((prev) => ({
+                    ...prev,
+                    [finalId]: resolvedSteps,
+                  }));
+                }
                 updateLocalTurn(
                   targetThreadId,
                   activeAssistantTurnId,
@@ -677,9 +743,9 @@ function AiChatWorkspaceContent() {
                     citations: event.data.citations,
                     sessionCitations: event.data.sessionCitations,
                     retrievalSteps:
-                      event.data.retrievalSteps.length > 0
-                        ? event.data.retrievalSteps
-                        : turn.retrievalSteps,
+                      resolvedSteps.length > 0
+                        ? resolvedSteps
+                        : settleRunningSteps(turn.retrievalSteps, "completed"),
                   }),
                 );
                 activeAssistantTurnId = finalId;
@@ -697,6 +763,10 @@ function AiChatWorkspaceContent() {
                     status: "failed",
                     isStreaming: false,
                     activityFinishedAt: Date.now(),
+                    retrievalSteps: settleRunningSteps(
+                      turn.retrievalSteps,
+                      "failed",
+                    ),
                     errorCode: event.data.code,
                     errorMessage:
                       event.data.message || t("streamFailedDefault"),
@@ -765,6 +835,7 @@ function AiChatWorkspaceContent() {
               status: "failed",
               isStreaming: false,
               activityFinishedAt: Date.now(),
+              retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
               errorMessage:
                 error instanceof ApiError
                   ? error.message
@@ -776,6 +847,7 @@ function AiChatWorkspaceContent() {
               status: "failed",
               isStreaming: false,
               activityFinishedAt: Date.now(),
+              retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
               errorMessage:
                 error instanceof Error
                   ? error.message
@@ -862,7 +934,7 @@ function AiChatWorkspaceContent() {
       });
 
       let activeRegenTurnId = tempRegenId;
-      const collectedSteps: AiChatRetrievalStep[] = [];
+      let collectedSteps: AiChatRetrievalStep[] = [];
 
       try {
         await streamAiChatRegenerate({
@@ -882,10 +954,11 @@ function AiChatWorkspaceContent() {
             }
 
             if (event.event === "step") {
-              collectedSteps.push(event.data);
+              collectedSteps = upsertRetrievalStep(collectedSteps, event.data);
+              const snapshot = collectedSteps;
               updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
                 ...turn,
-                retrievalSteps: [...collectedSteps],
+                retrievalSteps: snapshot,
               }));
               return;
             }
@@ -901,6 +974,10 @@ function AiChatWorkspaceContent() {
             if (event.event === "completed") {
               const finalId = event.data.messageId || activeRegenTurnId;
               const finishedAt = Date.now();
+              const resolvedSteps =
+                event.data.retrievalSteps.length > 0
+                  ? event.data.retrievalSteps
+                  : settleRunningSteps(collectedSteps, "completed");
               setActivityTimingsByMessageId((prev) => ({
                 ...prev,
                 [finalId]: {
@@ -912,6 +989,12 @@ function AiChatWorkspaceContent() {
                 ...prev,
                 [finalId]: event.data.answerStatus,
               }));
+              if (resolvedSteps.length > 0) {
+                setRetrievalStepsByMessageId((prev) => ({
+                  ...prev,
+                  [finalId]: resolvedSteps,
+                }));
+              }
               updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
                 ...turn,
                 id: finalId,
@@ -923,9 +1006,9 @@ function AiChatWorkspaceContent() {
                 citations: event.data.citations,
                 sessionCitations: event.data.sessionCitations,
                 retrievalSteps:
-                  event.data.retrievalSteps.length > 0
-                    ? event.data.retrievalSteps
-                    : turn.retrievalSteps,
+                  resolvedSteps.length > 0
+                    ? resolvedSteps
+                    : settleRunningSteps(turn.retrievalSteps, "completed"),
                 ...(event.data.replyToMessageId
                   ? { replyToMessageId: event.data.replyToMessageId }
                   : {}),
@@ -948,6 +1031,10 @@ function AiChatWorkspaceContent() {
                 status: "failed",
                 isStreaming: false,
                 activityFinishedAt: Date.now(),
+                retrievalSteps: settleRunningSteps(
+                  turn.retrievalSteps,
+                  "failed",
+                ),
                 errorMessage: event.data.message || t("streamFailedDefault"),
                 ...(event.data.replyToMessageId
                   ? { replyToMessageId: event.data.replyToMessageId }
@@ -1030,6 +1117,7 @@ function AiChatWorkspaceContent() {
             status: "failed",
             isStreaming: false,
             activityFinishedAt: Date.now(),
+            retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
             errorMessage:
               error instanceof ApiError
                 ? error.message
@@ -1041,6 +1129,7 @@ function AiChatWorkspaceContent() {
             status: "failed",
             isStreaming: false,
             activityFinishedAt: Date.now(),
+            retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
             errorMessage:
               error instanceof Error ? error.message : t("streamFailedDefault"),
           }));
