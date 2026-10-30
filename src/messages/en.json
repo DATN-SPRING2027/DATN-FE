@@ -12,7 +12,8 @@
     "viewMore": "View More",
     "delete": "Delete",
     "filter": "Filter",
-    "seeAll": "See all"
+    "seeAll": "See all",
+    "localeCode": "en"
   },
   "roleLabels": {
     "platformOperator": "Admin",
@@ -1014,7 +1015,13 @@
       "signingOut": "Signing out…",
       "signOutError": "Could not sign out. Try again."
     },
-    "createOrganization": "Create organization"
+    "createOrganization": "Create organization",
+    "resizeSidebar": "Resize sidebar",
+    "resizeSidebarHint": "Drag to resize sidebar (double-click to reset)",
+    "flyout": {
+      "noActiveProjects": "No active projects in this organization yet.",
+      "recentActiveProjects": "Recent active projects"
+    }
   },
   "header": {
     "searchPlaceholder": "Search or type command...",
@@ -1126,6 +1133,30 @@
         "WORK_NOTE": "Work Note",
         "CHAT": "Chat"
       }
+    },
+    "clearSearch": "Clear search",
+    "systemFeatures": "System features",
+    "noMatchingFeatures": "No matching system features found.",
+    "searchItems": {
+      "overviewTitle": "Overview",
+      "overviewDesc": "Organization dashboard, summary, and recent activity",
+      "projectsDesc": "Browse and manage organization project workspaces",
+      "createProjectTitle": "Create project",
+      "createProjectDesc": "Start a new project workspace in this organization",
+      "chatDesc": "Real-time direct messages and team rooms",
+      "invitationsTitle": "Pending invitations",
+      "invitationsDesc": "Invite new members or manage pending invitations",
+      "switchOrgTitle": "Switch organization",
+      "switchOrgDesc": "Choose or switch your active organization workspace",
+      "helpDesc": "Open help guide and workspace keyboard shortcuts",
+      "projectOverviewDesc": "Project overview & workspace details",
+      "projectWorkTitle": "{name} — Work",
+      "projectWorkDesc": "Tasks and work items for {code}",
+      "categoryWorkspace": "Workspace",
+      "categoryProjects": "Projects",
+      "categoryAdministration": "Administration",
+      "categoryAccount": "Account",
+      "categorySupport": "Support"
     }
   },
   "userDropdown": {
@@ -2269,7 +2300,68 @@
     "handover": "Handover",
     "handoverTitle": "Knowledge handover",
     "handoverModuleDesc": "Coordinate member transitions, review cited handover packages, verify readiness, and transfer tasks safely.",
-    "openHandoverModule": "Open Knowledge Handover workspace"
+    "openHandoverModule": "Open Knowledge Handover workspace",
+    "wizard": {
+      "valNameBlank": "Project name cannot be blank.",
+      "valNameRequired": "Project name is required.",
+      "valNameMax": "Max 200 characters ({count}/200).",
+      "valCodeBlank": "Project code cannot be blank.",
+      "valCodeRequired": "Project code is required.",
+      "valCodeUppercase": "Use uppercase letters (A–Z) only.",
+      "valCodeNoSpaces": "Spaces are not allowed (use _ or -).",
+      "valCodeStartLetter": "Must start with a letter (A–Z).",
+      "valCodeMin": "Must be at least 2 characters.",
+      "valCodeMax": "Max 32 characters ({count}/32).",
+      "valCodeChars": "Only A–Z, 0–9, - and _ are allowed.",
+      "valDescMax": "Max 2,000 characters ({count}/2000).",
+      "stepsAria": "Project creation steps",
+      "step1Subtitle": "Basic information",
+      "step2Title": "Access & visibility",
+      "step2Subtitle": "Who can access",
+      "step2HeadingHint": "Choose who can view and access this workspace.",
+      "step3Title": "Team",
+      "step3Subtitle": "Add members",
+      "step4Title": "Review",
+      "step4Subtitle": "Confirm and create",
+      "namePlaceholder": "e.g. Customer onboarding",
+      "useSuggested": "Use suggested: {code}",
+      "codePlaceholder": "e.g. CUSTOMER_ONBOARDING",
+      "fixToCode": "Fix to {code}",
+      "codeHint": "2–32 characters · Letters, numbers, hyphens or underscores",
+      "descPlaceholder": "What is this project for? Add goals, scope, or context...",
+      "privateDesc": "Only invited project members can view and collaborate.",
+      "publicDesc": "All active members in your organization can view this project.",
+      "teamHeading": "Team & leadership",
+      "teamHeadingHint": "Choose who can work on this project.",
+      "availableMembers": "Available members",
+      "searchMembersAria": "Search organization members",
+      "searchMembersPlaceholder": "Search organization members...",
+      "loadingMembers": "Loading organization members...",
+      "loadMembersError": "Unable to load organization members.",
+      "noAvailableMembers": "No available members found.",
+      "addMemberBtn": "Add",
+      "projectTeam": "Project team",
+      "projectCreator": "Project Creator",
+      "workspaceOwner": "Workspace owner",
+      "youProjectLead": "You · Project lead",
+      "roleProjectLead": "Project lead",
+      "roleMember": "Member",
+      "reviewHeading": "Review & Confirm",
+      "reviewHeadingHint": "Confirm details before creating your project.",
+      "teamCountSingle": "{count} member",
+      "teamCountPlural": "{count} members",
+      "back": "Back",
+      "previewTitle": "Project preview",
+      "previewSubtitle": "This is how your project will appear after creation.",
+      "previewDefaultName": "Customer onboarding",
+      "previewNoMembers": "No members yet",
+      "previewMemberAddedSingle": "{count} member added",
+      "previewMemberAddedPlural": "{count} members added",
+      "defaultSettingsTitle": "Default settings",
+      "defaultSettingsSubtitle": "You can change these later in project settings.",
+      "organizationMembersScope": "Organization members",
+      "infoCallout": "You can invite members and configure more settings after the project is created."
+    }
   },
   "projectLeaders": {
     "title": "Leaders",
@@ -2490,7 +2582,33 @@
     "emptyProjectsTitle": "No active projects in this workspace",
     "emptyProjectsDescription": "You are not assigned to any active projects in this organization yet.",
     "browseProjects": "View projects",
-    "contentUnavailable": "Content is no longer available."
+    "contentUnavailable": "Content is no longer available.",
+    "datePicker": {
+      "none": "None",
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "clear": "Clear"
+    },
+    "quickUi": {
+      "askAi": "Ask AI",
+      "aiSearch": "AI Search",
+      "viewAsChart": "View work items as a chart",
+      "formatRules": "Format rules",
+      "hideDoneItems": "Hide done work items",
+      "showHierarchy": "Show hierarchy",
+      "export": "Export",
+      "importCsv": "Import work items from CSV",
+      "bulkChange": "Bulk change work items",
+      "goToAll": "Go to all work items",
+      "giveFeedback": "Give feedback",
+      "insights": "Insights",
+      "viewSettings": "View settings",
+      "noSubtasksYet": "No subtasks yet.",
+      "subtaskSummaryPlaceholder": "Subtask summary…",
+      "addSubtask": "Add subtask",
+      "descriptionPlaceholder": "Add acceptance criteria or engineering context…",
+      "createAnother": "Create another"
+    }
   },
   "organizationMembers": {
     "handoverTitle": "Hand over Project leadership",
@@ -4445,7 +4563,8 @@
       "unassignedSuccessor": "Unassigned (Pending B)",
       "publishedRev": "Rev #{number}",
       "unpublishedDraft": "Draft only (v{version})",
-      "epochBadge": "Epoch #{epoch}"
+      "epochBadge": "Epoch #{epoch}",
+      "publishedDraft": "Published · Draft v{version}"
     },
     "list": {
       "colHandover": "Handover package",
@@ -4711,7 +4830,10 @@
       "validationMissingReviewNote": "Enter a revision summary note and item review notes.",
       "cancel": "Cancel",
       "submit": "Publish Snapshot",
-      "submitting": "Publishing…"
+      "submitting": "Publishing…",
+      "requiredBadge": "Required",
+      "optionalBadge": "Optional",
+      "selectOwnerPlaceholder": "Select owner…"
     },
     "published": {
       "noPublishedTitle": "No revision published yet",
@@ -4751,7 +4873,14 @@
       "optionalExceptionCta": "Record Optional Gap Exception",
       "exceptionModalTitle": "Record Explicit Optional Item Exception",
       "exceptionModalDesc": "Only optional items can be deferred into a post-handover follow-up with an accountable owner, due date, and documented reason.",
-      "confirmExceptionCta": "Create Follow-up Exception"
+      "confirmExceptionCta": "Create Follow-up Exception",
+      "exceptionOwnerLabel": "Follow-up Owner *",
+      "exceptionDueLabel": "Due Date *",
+      "exceptionReasonLabel": "Documented Exception Reason *",
+      "exceptionReasonPlaceholder": "Explain why this optional item is deferred to post-handover follow-up…",
+      "cancelCta": "Cancel",
+      "immutableSnapshotBadge": "Immutable Snapshot",
+      "packageReceiptRecorded": "Package receipt recorded for current epoch."
     },
     "transfers": {
       "title": "Explicit Task Responsibility Transfers",

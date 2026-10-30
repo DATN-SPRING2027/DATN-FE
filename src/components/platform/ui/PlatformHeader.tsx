@@ -1,5 +1,6 @@
 "use client";
 import BrandLogo from "@/components/common/BrandLogo";
+import LanguageTogglePill from "@/components/common/LanguageTogglePill";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useState } from "react";
@@ -104,6 +105,7 @@ export default function PlatformHeader({
         )}
       </div>
       <div className={jira.topActions}>
+        <LanguageTogglePill variant="inline" />
         <details>
           <summary aria-label={t("jira.help")}>
             <PlatformHelpIcon aria-hidden="true" />

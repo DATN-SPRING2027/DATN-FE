@@ -33,6 +33,7 @@ import {
   TaskIcon,
 } from "@/icons/index";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { cn } from "@/utils";
 import { isSidebarPathActive } from "@/utils/sidebar-active";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
@@ -803,13 +804,17 @@ const AppSidebar: React.FC = () => {
       <div
         role="separator"
         aria-orientation="vertical"
-        aria-label="Resize sidebar"
+        aria-label={tr(t, "resizeSidebar", "Resize sidebar")}
         aria-valuemin={COLLAPSED_WIDTH}
         aria-valuemax={MAX_WIDTH}
         aria-valuenow={currentWidthPx}
         tabIndex={0}
         data-testid="sidebar-resizer"
-        title="Drag to resize sidebar (double-click to reset)"
+        title={tr(
+          t,
+          "resizeSidebarHint",
+          "Drag to resize sidebar (double-click to reset)",
+        )}
         onMouseDown={handleResizeMouseDown}
         onDoubleClick={handleResizeDoubleClick}
         onKeyDown={handleResizeKeyDown}

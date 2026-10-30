@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ChangeEvent } from"react";
 import { useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { Modal } from"@/components/ui/modal";
 import {
   ChevronDownIcon,
@@ -303,7 +304,7 @@ export default function WorkToolbar({
               className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded border border-gray-300 bg-gray-100 px-2.5 text-xs font-semibold text-gray-800 transition hover:bg-gray-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
               <MonoIcon name="sparkle" size={13} />
-              <span>Ask AI</span>
+              <span>{tr(t, "quickUi.askAi", "Ask AI")}</span>
             </button>
             <button
               type="button"
@@ -312,7 +313,7 @@ export default function WorkToolbar({
               title="Toggle AI natural language filter bar"
               className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
             >
-              AI Search
+              {tr(t, "quickUi.aiSearch", "AI Search")}
             </button>
           </div>
         )}
@@ -600,7 +601,7 @@ export default function WorkToolbar({
                   className="inline-flex cursor-pointer items-center gap-1.5 font-medium hover:text-gray-800 dark:hover:text-gray-200"
                 >
                   <MonoIcon name="comment"size={12} />
-                  <span>Give feedback</span>
+                  <span>{tr(t, "quickUi.giveFeedback", "Give feedback")}</span>
                 </button>
                 <span>
                   Press{""}
@@ -729,7 +730,7 @@ export default function WorkToolbar({
                   className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   <MonoIcon name="chart"size={14} className="text-gray-500"/>
-                  <span>View work items as a chart</span>
+                  <span>{tr(t, "quickUi.viewAsChart", "View work items as a chart")}</span>
                 </button>
 
                 <button
@@ -741,7 +742,7 @@ export default function WorkToolbar({
                   className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
                   <MonoIcon name="sliders"size={14} className="text-gray-500"/>
-                  <span>Format rules</span>
+                  <span>{tr(t, "quickUi.formatRules", "Format rules")}</span>
                 </button>
 
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
@@ -749,7 +750,7 @@ export default function WorkToolbar({
                 {/* Toggle: Hide done work items */}
                 <label className="flex cursor-pointer items-center justify-between px-3.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800">
                   <span className="text-xs font-medium text-gray-700 dark:text-gray-200">
-                    Hide done work items
+                    {tr(t, "quickUi.hideDoneItems", "Hide done work items")}
                   </span>
                   <input
                     type="checkbox"
@@ -763,7 +764,7 @@ export default function WorkToolbar({
                 <label className="flex cursor-pointer items-center justify-between px-3.5 py-2 hover:bg-gray-50 dark:hover:bg-gray-800">
                   <div>
                     <span className="block text-xs font-medium text-gray-700 dark:text-gray-200">
-                      Show hierarchy
+                      {tr(t, "quickUi.showHierarchy", "Show hierarchy")}
                     </span>
                     <span className="block text-[10px] text-gray-400">
                       Expandable parent &amp; child rows
@@ -786,7 +787,7 @@ export default function WorkToolbar({
                     onClick={() => setExportSubOpen((prev) => !prev)}
                     className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                   >
-                    <span>Export</span>
+                    <span>{tr(t, "quickUi.export", "Export")}</span>
                     <span aria-hidden="true">{exportSubOpen ?"▾":"▸"}</span>
                   </button>
                   {exportSubOpen && (
@@ -833,7 +834,7 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span>Import work items from CSV</span>
+                  <span>{tr(t, "quickUi.importCsv", "Import work items from CSV")}</span>
                 </button>
 
                 <button
@@ -844,7 +845,7 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span>Bulk change work items</span>
+                  <span>{tr(t, "quickUi.bulkChange", "Bulk change work items")}</span>
                 </button>
 
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>
@@ -858,7 +859,7 @@ export default function WorkToolbar({
                   }}
                   className="flex w-full cursor-pointer items-center justify-between px-3.5 py-2 text-start text-xs font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
                 >
-                  <span>Go to all work items</span>
+                  <span>{tr(t, "quickUi.goToAll", "Go to all work items")}</span>
                 </button>
 
                 <div className="my-1 border-t border-gray-100 dark:border-gray-800"/>

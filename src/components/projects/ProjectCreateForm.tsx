@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import {
   AlertCircle,
   ArrowLeft,
@@ -60,50 +61,59 @@ function suggestCodeFromName(rawName: string): string {
   return clamped;
 }
 
-function validateProjectName(value: string): string | null {
+function validateProjectName(
+  value: string,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
   if (value.length > 0 && !value.trim()) {
-    return "Project name cannot be blank.";
+    return tr(t, "wizard.valNameBlank", "Project name cannot be blank.");
   }
   if (!value.trim()) {
-    return "Project name is required.";
+    return tr(t, "wizard.valNameRequired", "Project name is required.");
   }
   if (value.length > 200) {
-    return `Max 200 characters (${value.length}/200).`;
+    return tr(t, "wizard.valNameMax", `Max 200 characters (${value.length}/200).`, { count: value.length });
   }
   return null;
 }
 
-function validateProjectCode(value: string): string | null {
+function validateProjectCode(
+  value: string,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
   if (value.length > 0 && !value.trim()) {
-    return "Project code cannot be blank.";
+    return tr(t, "wizard.valCodeBlank", "Project code cannot be blank.");
   }
   if (!value.trim()) {
-    return "Project code is required.";
+    return tr(t, "wizard.valCodeRequired", "Project code is required.");
   }
   if (/[a-z]/.test(value)) {
-    return "Use uppercase letters (A–Z) only.";
+    return tr(t, "wizard.valCodeUppercase", "Use uppercase letters (A–Z) only.");
   }
   if (/\s/.test(value)) {
-    return "Spaces are not allowed (use _ or -).";
+    return tr(t, "wizard.valCodeNoSpaces", "Spaces are not allowed (use _ or -).");
   }
   if (!/^[A-Z]/.test(value)) {
-    return "Must start with a letter (A–Z).";
+    return tr(t, "wizard.valCodeStartLetter", "Must start with a letter (A–Z).");
   }
   if (value.length < 2) {
-    return "Must be at least 2 characters.";
+    return tr(t, "wizard.valCodeMin", "Must be at least 2 characters.");
   }
   if (value.length > 32) {
-    return `Max 32 characters (${value.length}/32).`;
+    return tr(t, "wizard.valCodeMax", `Max 32 characters (${value.length}/32).`, { count: value.length });
   }
   if (!/^[A-Z][A-Z0-9_-]{1,31}$/.test(value)) {
-    return "Only A–Z, 0–9, - and _ are allowed.";
+    return tr(t, "wizard.valCodeChars", "Only A–Z, 0–9, - and _ are allowed.");
   }
   return null;
 }
 
-function validateProjectDescription(value: string): string | null {
+function validateProjectDescription(
+  value: string,
+  t: ReturnType<typeof useTranslations>,
+): string | null {
   if (value.length > 2000) {
-    return `Max 2,000 characters (${value.length}/2000).`;
+    return tr(t, "wizard.valDescMax", `Max 2,000 characters (${value.length}/2000).`, { count: value.length });
   }
   return null;
 }
@@ -232,9 +242,9 @@ export default function ProjectCreateForm({
     );
   }
 
-  const nameError = validateProjectName(name);
-  const rawCodeError = validateProjectCode(code);
-  const descriptionError = validateProjectDescription(description);
+  const nameError = validateProjectName(name, t);
+  const rawCodeError = validateProjectCode(code, t);
+  const descriptionError = validateProjectDescription(description, t);
 
   const serverCodeConflict =
     mutation.isError &&
@@ -343,22 +353,22 @@ export default function ProjectCreateForm({
     {
       id: 1,
       title: t("detail"),
-      subtitle: "Basic information",
+      subtitle: tr(t, "wizard.step1Subtitle", "Basic information"),
     },
     {
       id: 2,
-      title: "Access & visibility",
-      subtitle: "Who can access",
+      title: tr(t, "wizard.step2Title", "Access & visibility"),
+      subtitle: tr(t, "wizard.step2Subtitle", "Who can access"),
     },
     {
       id: 3,
-      title: "Team",
-      subtitle: "Add members",
+      title: tr(t, "wizard.step3Title", "Team"),
+      subtitle: tr(t, "wizard.step3Subtitle", "Add members"),
     },
     {
       id: 4,
-      title: "Review",
-      subtitle: "Confirm and create",
+      title: tr(t, "wizard.step4Title", "Review"),
+      subtitle: tr(t, "wizard.step4Subtitle", "Confirm and create"),
     },
   ];
 
@@ -376,7 +386,7 @@ export default function ProjectCreateForm({
             <div className="flex flex-col @2xl:flex-row">
               {/* Left Stepper Sidebar */}
               <aside
-                aria-label="Project creation steps"
+                aria-label={tr(t, "wizard.stepsAria", "Project creation steps")}
                 className="w-full shrink-0 border-b border-gray-100 bg-gray-50/40 p-5 sm:p-6 @2xl:w-60 @2xl:border-r @2xl:border-b-0 dark:border-gray-800 dark:bg-gray-800/20"
               >
                 <ol className="relative space-y-6">
@@ -502,7 +512,7 @@ export default function ProjectCreateForm({
                         required
                         maxLength={200}
                         disabled={mutation.isPending}
-                        placeholder="e.g. Customer onboarding"
+                        placeholder={tr(t, "wizard.namePlaceholder", "e.g. Customer onboarding")}
                         aria-invalid={showNameError}
                         aria-describedby={
                           showNameError ? "project-name-error" : undefined
@@ -567,7 +577,7 @@ export default function ProjectCreateForm({
                           className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-brand-200 bg-brand-50/80 px-2 py-0.5 text-[11px] font-semibold text-brand-600 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
                         >
                           <Sparkles aria-hidden="true" className="size-3" />
-                          <span>Use suggested: {suggestedCode}</span>
+                          <span>{tr(t, "wizard.useSuggested", `Use suggested: ${suggestedCode}`, { code: suggestedCode })}</span>
                         </button>
                       )}
                     </div>
@@ -596,7 +606,7 @@ export default function ProjectCreateForm({
                         required
                         maxLength={32}
                         disabled={mutation.isPending}
-                        placeholder="e.g. CUSTOMER_ONBOARDING"
+                        placeholder={tr(t, "wizard.codePlaceholder", "e.g. CUSTOMER_ONBOARDING")}
                         aria-invalid={showCodeError}
                         aria-describedby={
                           showCodeError
@@ -650,7 +660,7 @@ export default function ProjectCreateForm({
                             }}
                             className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-error-200 bg-error-50 px-2 py-0.5 font-mono text-[11px] font-semibold text-error-700 transition hover:bg-error-100 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-300"
                           >
-                            Fix to {fixableCode}
+                            {tr(t, "wizard.fixToCode", `Fix to ${fixableCode}`, { code: fixableCode })}
                           </button>
                         )}
                       </div>
@@ -659,8 +669,7 @@ export default function ProjectCreateForm({
                         id="project-code-hint"
                         className="mt-1.5 text-xs text-gray-500 dark:text-gray-400"
                       >
-                        2–32 characters · Letters, numbers, hyphens or
-                        underscores
+                        {tr(t, "wizard.codeHint", "2–32 characters · Letters, numbers, hyphens or underscores")}
                       </p>
                     )}
                   </div>
@@ -687,7 +696,7 @@ export default function ProjectCreateForm({
                         }}
                         maxLength={2000}
                         disabled={mutation.isPending}
-                        placeholder="What is this project for? Add goals, scope, or context..."
+                        placeholder={tr(t, "wizard.descPlaceholder", "What is this project for? Add goals, scope, or context...")}
                         aria-invalid={showDescriptionError}
                         aria-describedby={
                           showDescriptionError
@@ -728,10 +737,10 @@ export default function ProjectCreateForm({
                   <section className="space-y-4">
                     <div>
                       <h2 className="text-base font-bold text-gray-900 sm:text-lg dark:text-white/90">
-                        Access &amp; visibility
+                        {tr(t, "wizard.step2Title", "Access & visibility")}
                       </h2>
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        Choose who can view and access this workspace.
+                        {tr(t, "wizard.step2HeadingHint", "Choose who can view and access this workspace.")}
                       </p>
                     </div>
 
@@ -768,8 +777,7 @@ export default function ProjectCreateForm({
                               </span>
                             </div>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              Only invited project members can view and
-                              collaborate.
+                              {tr(t, "wizard.privateDesc", "Only invited project members can view and collaborate.")}
                             </p>
                           </div>
                         </div>
@@ -814,8 +822,7 @@ export default function ProjectCreateForm({
                               {t("PUBLIC")}
                             </span>
                             <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              All active members in your organization can view
-                              this project.
+                              {tr(t, "wizard.publicDesc", "All active members in your organization can view this project.")}
                             </p>
                           </div>
                         </div>
@@ -841,10 +848,10 @@ export default function ProjectCreateForm({
                   <section className="space-y-4">
                     <div>
                       <h2 className="text-base font-bold text-gray-900 sm:text-lg dark:text-white/90">
-                        Team &amp; leadership
+                        {tr(t, "wizard.teamHeading", "Team & leadership")}
                       </h2>
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        Choose who can work on this project.
+                        {tr(t, "wizard.teamHeadingHint", "Choose who can work on this project.")}
                       </p>
                     </div>
 
@@ -853,7 +860,7 @@ export default function ProjectCreateForm({
                       <div className="flex flex-col rounded-2xl border border-gray-200/90 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                            Available members
+                            {tr(t, "wizard.availableMembers", "Available members")}
                           </h3>
                           <span className="inline-flex h-5 min-w-6 items-center justify-center rounded-full bg-brand-50 px-2 text-xs font-bold text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
                             {unselectedOrgMembers.length}
@@ -869,7 +876,7 @@ export default function ProjectCreateForm({
                           </span>
                           <input
                             type="text"
-                            aria-label="Search organization members"
+                            aria-label={tr(t, "wizard.searchMembersAria", "Search organization members")}
                             value={memberSearch}
                             onChange={(e) => setMemberSearch(e.target.value)}
                             onKeyDown={(e) => {
@@ -877,7 +884,7 @@ export default function ProjectCreateForm({
                                 e.preventDefault();
                               }
                             }}
-                            placeholder="Search organization members..."
+                            placeholder={tr(t, "wizard.searchMembersPlaceholder", "Search organization members...")}
                             className="h-9 w-full rounded-xl border border-gray-200 bg-white ps-9 pe-3 text-xs text-gray-900 outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/15 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                           />
                         </div>
@@ -907,13 +914,13 @@ export default function ProjectCreateForm({
                           {orgMembersQuery.isPending &&
                           !visibleOrgMembers ? (
                             <p className="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                              Loading organization members...
+                              {tr(t, "wizard.loadingMembers", "Loading organization members...")}
                             </p>
                           ) : orgMembersQuery.isError &&
                             !visibleOrgMembers ? (
                             <div className="flex flex-col items-center justify-center gap-2 py-6 text-center">
                               <p className="text-xs text-error-600 dark:text-error-400">
-                                Unable to load organization members.
+                                {tr(t, "wizard.loadMembersError", "Unable to load organization members.")}
                               </p>
                               <button
                                 type="button"
@@ -927,7 +934,7 @@ export default function ProjectCreateForm({
                             </div>
                           ) : filteredAvailableMembers.length === 0 ? (
                             <p className="py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                              No available members found.
+                              {tr(t, "wizard.noAvailableMembers", "No available members found.")}
                             </p>
                           ) : (
                             filteredAvailableMembers.map((member) => (
@@ -963,7 +970,7 @@ export default function ProjectCreateForm({
                                     aria-hidden="true"
                                     className="size-3.5"
                                   />
-                                  <span>Add</span>
+                                  <span>{tr(t, "wizard.addMemberBtn", "Add")}</span>
                                 </button>
                               </div>
                             ))
@@ -975,7 +982,7 @@ export default function ProjectCreateForm({
                       <div className="flex flex-col rounded-2xl border border-gray-200/90 bg-white p-4 sm:p-5 dark:border-gray-800 dark:bg-gray-900">
                         <div className="flex items-center gap-2">
                           <h3 className="text-sm font-bold text-gray-900 dark:text-white">
-                            Project team
+                            {tr(t, "wizard.projectTeam", "Project team")}
                           </h3>
                           <span className="inline-flex h-5 min-w-6 items-center justify-center rounded-full bg-brand-50 px-2 text-xs font-bold text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
                             {1 + selectedMembers.length}
@@ -993,13 +1000,13 @@ export default function ProjectCreateForm({
                             </span>
                             <div className="min-w-0">
                               <p className="truncate text-xs sm:text-sm font-semibold text-gray-900 dark:text-white">
-                                {currentUserName || "Project Creator"}
+                                {currentUserName || tr(t, "wizard.projectCreator", "Project Creator")}
                               </p>
                               <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                                {currentUserEmail || "Workspace owner"}
+                                {currentUserEmail || tr(t, "wizard.workspaceOwner", "Workspace owner")}
                               </p>
                               <span className="mt-2 inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-[11px] font-semibold text-brand-600 dark:bg-brand-500/20 dark:text-brand-300">
-                                You · Project lead
+                                {tr(t, "wizard.youProjectLead", "You · Project lead")}
                               </span>
                             </div>
                           </div>
@@ -1043,8 +1050,8 @@ export default function ProjectCreateForm({
                                   >
                                     <span>
                                       {member.projectRole === "TEAM_LEADER"
-                                        ? "Project lead"
-                                        : "Member"}
+                                        ? tr(t, "wizard.roleProjectLead", "Project lead")
+                                        : tr(t, "wizard.roleMember", "Member")}
                                     </span>
                                     <ChevronDown
                                       aria-hidden="true"
@@ -1076,10 +1083,10 @@ export default function ProjectCreateForm({
                   <section className="space-y-4">
                     <div>
                       <h2 className="text-base font-bold text-gray-900 sm:text-lg dark:text-white/90">
-                        Review &amp; Confirm
+                        {tr(t, "wizard.reviewHeading", "Review & Confirm")}
                       </h2>
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                        Confirm details before creating your project.
+                        {tr(t, "wizard.reviewHeadingHint", "Confirm details before creating your project.")}
                       </p>
                     </div>
 
@@ -1123,11 +1130,12 @@ export default function ProjectCreateForm({
                       </div>
                       <div className="flex items-center justify-between gap-4 py-2.5">
                         <dt className="font-medium text-gray-500 dark:text-gray-400">
-                          Team
+                          {tr(t, "wizard.step3Title", "Team")}
                         </dt>
                         <dd className="font-semibold text-gray-800 dark:text-gray-200">
-                          {1 + selectedMembers.length}{" "}
-                          {selectedMembers.length === 0 ? "member" : "members"}
+                          {selectedMembers.length === 0
+                            ? tr(t, "wizard.teamCountSingle", `${1 + selectedMembers.length} member`, { count: 1 + selectedMembers.length })
+                            : tr(t, "wizard.teamCountPlural", `${1 + selectedMembers.length} members`, { count: 1 + selectedMembers.length })}
                         </dd>
                       </div>
                     </dl>
@@ -1170,7 +1178,7 @@ export default function ProjectCreateForm({
                         className="inline-flex h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 text-xs sm:text-sm font-semibold text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                       >
                         <ArrowLeft aria-hidden="true" className="size-4" />
-                        <span>Back</span>
+                        <span>{tr(t, "wizard.back", "Back")}</span>
                       </button>
                     )}
                   </div>
@@ -1217,10 +1225,10 @@ export default function ProjectCreateForm({
           {/* Card 1: Project Preview */}
           <div className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <h3 className="text-base font-bold text-gray-900 dark:text-white/90">
-              Project preview
+              {tr(t, "wizard.previewTitle", "Project preview")}
             </h3>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              This is how your project will appear after creation.
+              {tr(t, "wizard.previewSubtitle", "This is how your project will appear after creation.")}
             </p>
 
             <div className="mt-4 overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xs dark:border-gray-800 dark:bg-gray-900">
@@ -1240,7 +1248,7 @@ export default function ProjectCreateForm({
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-base font-bold text-gray-900 dark:text-white">
-                      {name.trim() || "Customer onboarding"}
+                      {name.trim() || tr(t, "wizard.previewDefaultName", "Customer onboarding")}
                     </p>
                     <div className="mt-1 flex flex-wrap items-center gap-1.5">
                       <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 font-mono text-[11px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -1302,8 +1310,10 @@ export default function ProjectCreateForm({
                   </div>
                   <span>
                     {selectedMembers.length === 0
-                      ? "No members yet"
-                      : `${selectedMembers.length} member${selectedMembers.length === 1 ? "" : "s"} added`}
+                      ? tr(t, "wizard.previewNoMembers", "No members yet")
+                      : selectedMembers.length === 1
+                        ? tr(t, "wizard.previewMemberAddedSingle", "1 member added", { count: 1 })
+                        : tr(t, "wizard.previewMemberAddedPlural", `${selectedMembers.length} members added`, { count: selectedMembers.length })}
                   </span>
                 </div>
               </div>
@@ -1313,10 +1323,10 @@ export default function ProjectCreateForm({
           {/* Card 2: Default Settings */}
           <div className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
             <h3 className="text-base font-bold text-gray-900 dark:text-white/90">
-              Default settings
+              {tr(t, "wizard.defaultSettingsTitle", "Default settings")}
             </h3>
             <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              You can change these later in project settings.
+              {tr(t, "wizard.defaultSettingsSubtitle", "You can change these later in project settings.")}
             </p>
 
             <dl className="mt-4 space-y-2.5 text-xs">
@@ -1357,7 +1367,7 @@ export default function ProjectCreateForm({
                   <span>{t("createBlueprintScopeLabel")}</span>
                 </dt>
                 <dd className="inline-flex h-8 min-w-[148px] items-center justify-between rounded-lg border border-gray-200/90 bg-gray-50/70 px-3 font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-                  <span>Organization members</span>
+                  <span>{tr(t, "wizard.organizationMembersScope", "Organization members")}</span>
                 </dd>
               </div>
             </dl>
@@ -1371,8 +1381,7 @@ export default function ProjectCreateForm({
               className="mt-0.5 size-4 shrink-0 text-brand-600 dark:text-brand-400"
             />
             <p>
-              You can invite members and configure more settings after the
-              project is created.
+              {tr(t, "wizard.infoCallout", "You can invite members and configure more settings after the project is created.")}
             </p>
           </div>
         </aside>

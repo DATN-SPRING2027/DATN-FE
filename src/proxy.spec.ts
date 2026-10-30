@@ -11,22 +11,27 @@ beforeEach(() => {
 });
 
 describe("route proxy", () => {
-  it("lets an internal locale rewrite reach the page without restarting locale redirects", () => {
-    const response = proxy(
-      new NextRequest("http://localhost:3000/en", {
-        headers: { "x-next-intl-locale": "en" },
-      }),
-    );
-    expect(response.status).toBe(200);
-    expect(response.headers.get("location")).toBeNull();
-    expect(localeMiddleware).not.toHaveBeenCalled();
-  });
+  it.each(["en", "vi"])(
+    "lets an internal %s locale rewrite reach the page without restarting locale redirects",
+    (locale) => {
+      const response = proxy(
+        new NextRequest(`http://localhost:3000/${locale}`, {
+          headers: { "x-next-intl-locale": locale },
+        }),
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+      expect(localeMiddleware).not.toHaveBeenCalled();
+    },
+  );
 
   it.each([
     ["/en", undefined],
-    ["/en", "de"],
+    ["/vi", undefined],
+    ["/en", "vi"],
     ["/de", "de"],
     ["/", "en"],
+    ["/", "vi"],
   ])(
     "keeps normal locale handling for %s with locale header %s",
     (pathname, locale) => {
@@ -38,6 +43,7 @@ describe("route proxy", () => {
       expect(localeMiddleware).toHaveBeenCalledOnce();
     },
   );
+
   it("allows a dashboard request without an access cookie to reach server-verified session recovery", () => {
     const response = proxy(new NextRequest("http://localhost:3000/users"));
     expect(response.status).toBe(200);
@@ -49,6 +55,9 @@ describe("route proxy", () => {
     const localizedSignIn = proxy(
       new NextRequest("http://localhost:3000/en/signin"),
     );
+    const localizedViSignIn = proxy(
+      new NextRequest("http://localhost:3000/vi/signin"),
+    );
     const cookie = proxy(
       new NextRequest("http://localhost:3000/users", {
         headers: { cookie: "continuum_access=present" },
@@ -56,6 +65,7 @@ describe("route proxy", () => {
     );
     expect(signIn.status).toBe(200);
     expect(localizedSignIn.status).toBe(200);
+    expect(localizedViSignIn.status).toBe(200);
     expect(cookie.status).toBe(200);
   });
 });

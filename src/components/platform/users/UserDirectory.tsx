@@ -67,8 +67,10 @@ export default function UserDirectory({
   const page = pagination?.page ?? 1;
   const total = pagination?.totalItems ?? 0;
   const totalPages = pagination?.totalPages ?? 0;
+  const common = useTranslations("common");
+  const dateLocale = common("localeCode") === "vi" ? "vi-VN" : "en-US";
   const formatDate = (value: string) =>
-    new Intl.DateTimeFormat("en-US", {
+    new Intl.DateTimeFormat(dateLocale, {
       day: "2-digit",
       month: "short",
       year: "numeric",

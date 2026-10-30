@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import HandoverListWorkspace from "@/components/handover/HandoverListWorkspace";
 
 export default async function ProjectHandoverListPage({
@@ -9,10 +9,10 @@ export default async function ProjectHandoverListPage({
 }) {
   const { locale, projectId } = await params;
   setRequestLocale(locale);
+  const t = await getTranslations({ locale, namespace: "handover" });
   return (
-    <Suspense fallback={<main role="status">Loading knowledge handovers…</main>}>
+    <Suspense fallback={<main role="status">{t("list.loadingTitle")}</main>}>
       <HandoverListWorkspace key={projectId} projectId={projectId} />
     </Suspense>
   );
 }
-

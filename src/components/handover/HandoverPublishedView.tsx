@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { tr } from "@/i18n/tr";
 import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -570,7 +571,7 @@ function AvailableItemCard({
         <form onSubmit={handleCreateException} className="mt-5 space-y-4">
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Follow-up Owner *
+              {tr(t, "exceptionOwnerLabel", "Follow-up Owner *")}
             </label>
             {members.length > 0 ? (
               <select
@@ -597,7 +598,7 @@ function AvailableItemCard({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Due Date *
+              {tr(t, "exceptionDueLabel", "Due Date *")}
             </label>
             <input
               type="date"
@@ -608,13 +609,13 @@ function AvailableItemCard({
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-              Documented Exception Reason *
+              {tr(t, "exceptionReasonLabel", "Documented Exception Reason *")}
             </label>
             <textarea
               rows={3}
               value={excReason}
               onChange={(e) => setExcReason(e.target.value)}
-              placeholder="Explain why this optional item is deferred to post-handover follow-up…"
+              placeholder={tr(t, "exceptionReasonPlaceholder", "Explain why this optional item is deferred to post-handover follow-up…")}
               className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
             />
           </div>
@@ -625,7 +626,7 @@ function AvailableItemCard({
               size="sm"
               onClick={() => setIsExcModalOpen(false)}
             >
-              Cancel
+              {tr(t, "cancelCta", "Cancel")}
             </Button>
             <Button
               type="submit"
@@ -698,7 +699,7 @@ export default function HandoverPublishedView({
               })}
             </h2>
             <Badge color="primary" size="sm">
-              Immutable Snapshot
+              {tr(t, "immutableSnapshotBadge", "Immutable Snapshot")}
             </Badge>
           </div>
           <p className="text-xs text-gray-600 dark:text-gray-300">
@@ -724,7 +725,7 @@ export default function HandoverPublishedView({
               className="inline-flex items-center gap-1 text-xs font-medium text-success-700 dark:text-success-300"
             >
               <CheckCircleIcon className="h-3.5 w-3.5" />
-              <span>Package receipt recorded for current epoch.</span>
+              <span>{tr(t, "packageReceiptRecorded", "Package receipt recorded for current epoch.")}</span>
             </p>
           )}
         </div>

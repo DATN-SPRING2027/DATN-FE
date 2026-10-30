@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useTranslations } from"next-intl";
+
 import { Table } from"@/components/ui/table";
 import { PlusIcon, SearchIcon } from"@/icons";
 import {
@@ -155,6 +156,28 @@ export default function WorkListView({
   onRefresh?: () => void;
 }) {
   const t = useTranslations("work");
+  const common = useTranslations("common");
+  const isVi = common("localeCode") === "vi";
+  const colLabel = (col: WorkListColumn): string => {
+    if (col.key === "work") return t("workColumn");
+    if (!isVi) return col.label;
+    const viMap: Record<string, string> = {
+      status: "Trạng thái",
+      assignee: "Người thực hiện",
+      priority: "Độ ưu tiên",
+      due: "Hạn chót",
+      parent: "Hạng mục cha",
+      created: "Ngày tạo",
+      updated: "Cập nhật",
+      reporter: "Người tạo",
+      resolution: "Kết quả xử lý",
+      progress: "∑ Tiến độ",
+      labels: "Nhãn",
+      storyPoints: "Điểm ước lượng",
+      team: "Nhóm",
+    };
+    return viMap[col.key] ?? col.label;
+  };
   const availablePeople = people ?? PREVIEW_PEOPLE;
   const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
   const mePerson = currentUserPerson ?? defaultAssignee;
@@ -373,7 +396,8 @@ export default function WorkListView({
   const filteredConfigColumns = columns.filter((col) =>
     !columnSearch.trim()
       ? true
-      : col.label.toLowerCase().includes(columnSearch.trim().toLowerCase()),
+      : colLabel(col).toLowerCase().includes(columnSearch.trim().toLowerCase()) ||
+        col.label.toLowerCase().includes(columnSearch.trim().toLowerCase()),
   );
 
   const totalColSpan = visibleColumns.length + 2; // Checkbox + visible columns + Config/More col
@@ -399,7 +423,7 @@ export default function WorkListView({
               type="search"
               value={columnSearch}
               onChange={(e) => setColumnSearch(e.target.value)}
-              placeholder="Search columns"
+              placeholder={isVi ? "Tìm cột..." : "Search columns"}
               className="h-8 w-full border border-gray-200 bg-white ps-8 pe-2.5 text-xs text-gray-800 outline-none focus:border-brand-300 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             />
           </div>
@@ -417,7 +441,7 @@ export default function WorkListView({
                     onChange={() => toggleColumnVisibility(col.key)}
                     className="h-3.5 w-3.5 border-gray-300 text-brand-600"
                   />
-                  <span>{col.label}</span>
+                  <span>{colLabel(col)}</span>
                 </span>
                 <span className="text-[10px] text-gray-400">
                   {col.category}
@@ -431,10 +455,12 @@ export default function WorkListView({
               onClick={() => setColumnPopoverOpen(false)}
               className="cursor-pointer font-semibold text-brand-600 hover:underline dark:text-brand-400"
             >
-              Done
+              {isVi ? "Xong" : "Done"}
             </button>
             <span>
-              {visibleColumns.length} of {columns.length} columns
+              {isVi
+                ? `${visibleColumns.length} / ${columns.length} cột`
+                : `${visibleColumns.length} of ${columns.length} columns`}
             </span>
           </div>
         </div>
@@ -504,23 +530,23 @@ export default function WorkListView({
                               groupBy === targetGroup ? "NONE" : targetGroup,
                             );
                           }}
-                          title={`Click to group by ${col.label}`}
+                          title={isVi ? `Nhấn để nhóm theo ${colLabel(col)}` : `Click to group by ${col.label}`}
                           className="inline-flex cursor-pointer items-center gap-1 hover:text-brand-600 dark:hover:text-brand-400"
                         >
-                          <span>{col.label}</span>
+                          <span>{colLabel(col)}</span>
                           {((col.key === "status" && groupBy === "STATUS") ||
                             (col.key === "assignee" &&
                               groupBy === "ASSIGNEE") ||
                             (col.key === "priority" &&
                               groupBy === "PRIORITY")) && (
                             <span className="rounded bg-brand-100 px-1 py-0.5 text-[9px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
-                              Grouped
+                              {isVi ? "Đã nhóm" : "Grouped"}
                             </span>
                           )}
                         </button>
                       ) : (
                         <span>
-                          {col.key === "work" ? t("workColumn") : col.label}
+                          {colLabel(col)}
                         </span>
                       )}
                       {col.key === "work" && workSortBy !== "none" && (
@@ -1970,7 +1996,7 @@ export default function WorkListView({
                                       type="submit"
                                       className="inline-flex h-7 cursor-pointer items-center gap-1 bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
                                     >
-                                      <span>Create</span>
+                                      <span>{isVi ? "Tạo mới" : "Create"}</span>
                                       <span aria-hidden="true">↵</span>
                                     </button>
                                     <button
@@ -2021,7 +2047,7 @@ export default function WorkListView({
                     <input
                       value={inlineTitle}
                       onChange={(event) => setInlineTitle(event.target.value)}
-                      placeholder="What needs to be done?"
+                      placeholder={isVi ? "Cần thực hiện công việc gì?" : "What needs to be done?"}
                       className="h-8 min-w-56 flex-1 border border-brand-300 bg-white px-3 text-xs text-gray-900 outline-none dark:border-brand-500 dark:bg-gray-950 dark:text-white"
                     />
                     <input
@@ -2047,7 +2073,7 @@ export default function WorkListView({
                       type="submit"
                       className="inline-flex h-8 cursor-pointer items-center gap-1 bg-brand-600 px-3.5 text-xs font-semibold text-white hover:bg-brand-700"
                     >
-                      <span>Create</span>
+                      <span>{isVi ? "Tạo mới" : "Create"}</span>
                       <span aria-hidden="true">↵</span>
                     </button>
                     <button
@@ -2082,7 +2108,7 @@ export default function WorkListView({
                 className="h-3.5 w-3.5"
                 aria-hidden="true"
               />
-              <span>Create</span>
+              <span>{isVi ? "Tạo mới" : "Create"}</span>
             </button>
           )}
           <span className="hidden text-gray-400 md:inline">
@@ -2100,7 +2126,9 @@ export default function WorkListView({
 
         <div className="flex items-center gap-2">
           <span className="font-medium text-gray-600 dark:text-gray-300">
-            {allItems.length} of {totalCount ?? allItems.length}
+            {isVi
+              ? `${allItems.length} / ${totalCount ?? allItems.length}`
+              : `${allItems.length} of ${totalCount ?? allItems.length}`}
           </span>
           <span className="text-gray-300 dark:text-gray-700">·</span>
           <span>
@@ -2113,9 +2141,9 @@ export default function WorkListView({
               type="button"
               onClick={() => {
                 onRefresh();
-                showNotice("Refreshed work items");
+                showNotice(isVi ? "Đã làm mới danh sách công việc" : "Refreshed work items");
               }}
-              title="Refresh data"
+              title={isVi ? "Làm mới dữ liệu" : "Refresh data"}
               className="inline-flex h-6 w-6 cursor-pointer items-center justify-center text-gray-500 hover:bg-gray-200/70 hover:text-gray-800 dark:hover:bg-gray-800 dark:hover:text-white"
             >
               ↻
@@ -2609,7 +2637,7 @@ function renderCellContent({
   if (colKey ==="created") {
     return (
       <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-        {new Intl.DateTimeFormat("en-US", {
+        {new Intl.DateTimeFormat(typeof document !== "undefined" && document.documentElement.lang === "vi" ? "vi-VN" : "en-US", {
           month:"short",
           day:"2-digit",
           year:"numeric",
@@ -2623,7 +2651,7 @@ function renderCellContent({
     const raw = item.updatedAt ?? item.createdAt;
     return (
       <span className="whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
-        {new Intl.DateTimeFormat("en-US", {
+        {new Intl.DateTimeFormat(typeof document !== "undefined" && document.documentElement.lang === "vi" ? "vi-VN" : "en-US", {
           month:"short",
           day:"2-digit",
           year:"numeric",

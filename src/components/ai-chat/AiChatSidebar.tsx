@@ -280,7 +280,7 @@ export default function AiChatSidebar({
       <aside
         aria-label={t("sidebarAriaLabel")}
         className={cn(
-          "h-full w-60 shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none dark:border-white/10 dark:bg-gpt-sidebar",
+          "h-full w-64 shrink-0 flex-col border-e border-gray-200/80 bg-gray-50/95 select-none dark:border-white/10 dark:bg-gpt-sidebar",
           isMobileOpen
             ? "max-md:absolute max-md:inset-y-0 max-md:start-0 max-md:z-40 max-md:flex max-md:shadow-theme-xl"
             : "max-md:hidden",
@@ -298,7 +298,7 @@ export default function AiChatSidebar({
             disabled={isCreatingThread}
             aria-busy={isCreatingThread}
             className={cn(
-              "inline-flex flex-1 items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-start text-theme-sm font-medium transition-colors",
+              "inline-flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-start text-xs font-medium transition-colors sm:text-theme-sm",
               activeThreadId === null
                 ? "bg-gray-200/80 text-gray-900 dark:bg-white/10 dark:text-white"
                 : "text-gray-700 hover:bg-gray-200/60 dark:text-gray-200 dark:hover:bg-white/6",
