@@ -30,7 +30,7 @@ function mount(overrides: Partial<WorkNoteAssessmentProps> = {}) {
 }
 it("keeps unsent text scoped to its question when a suggested answer advances to another gap", () => {
   const props = mount();
-  fireEvent.change(screen.getByLabelText("Your answer"), {
+  fireEvent.change(screen.getByLabelText("Câu trả lời của bạn"), {
     target: { value: "Unsent implementation detail for the first question." },
   });
   fireEvent.click(screen.getByRole("button", { name: "Manual retry" }));
@@ -51,8 +51,10 @@ it("keeps unsent text scoped to its question when a suggested answer advances to
       />
     </NextIntlClientProvider>,
   );
-  expect(screen.getByLabelText("Your answer")).toHaveValue("");
-  expect(screen.getByRole("button", { name: "Send answer" })).toBeDisabled();
+  expect(screen.getByLabelText("Câu trả lời của bạn")).toHaveValue("");
+  expect(
+    screen.getByRole("button", { name: "Gửi câu trả lời" }),
+  ).toBeDisabled();
   expect(props.onReply).toHaveBeenCalledExactlyOnceWith(
     "answered",
     "Manual retry",
@@ -63,27 +65,27 @@ it("shows the real acquisition manifest, separate support/verification, and the 
   expect(screen.getByText("waiting_for_answer")).toBeInTheDocument();
   expect(screen.getByText("Task checklist")).toBeInTheDocument();
   expect(
-    screen.getByText("Not included in this request", { exact: false }),
+    screen.getByText("Không đưa vào yêu cầu này", { exact: false }),
   ).toBeInTheDocument();
   expect(
     screen.getByText(
-      /Fully supported by the cited text.*Reported by the author/,
+      /Được chứng minh đầy đủ bởi trích dẫn.*Do tác giả báo cáo/,
     ),
   ).toBeInTheDocument();
   expect(
-    screen.getByText(/Independent semantic review: not established/),
+    screen.getByText(/Đánh giá ngữ nghĩa độc lập: chưa thiết lập/),
   ).toBeInTheDocument();
-  expect(screen.getByLabelText("Your answer")).toHaveFocus();
+  expect(screen.getByLabelText("Câu trả lời của bạn")).toHaveFocus();
 });
 it("sends typed unknown/skipped without answer content and permits free text or a suggested answer", () => {
   const props = mount();
-  fireEvent.click(screen.getByRole("button", { name: "I do not know" }));
-  fireEvent.click(screen.getByRole("button", { name: "Skip this question" }));
+  fireEvent.click(screen.getByRole("button", { name: "Tôi chưa biết" }));
+  fireEvent.click(screen.getByRole("button", { name: "Bỏ qua câu hỏi này" }));
   fireEvent.click(screen.getByRole("button", { name: "Manual retry" }));
-  fireEvent.change(screen.getByLabelText("Your answer"), {
+  fireEvent.change(screen.getByLabelText("Câu trả lời của bạn"), {
     target: { value: "Manual button after timeout." },
   });
-  fireEvent.click(screen.getByRole("button", { name: "Send answer" }));
+  fireEvent.click(screen.getByRole("button", { name: "Gửi câu trả lời" }));
   expect(props.onReply).toHaveBeenNthCalledWith(1, "unknown");
   expect(props.onReply).toHaveBeenNthCalledWith(2, "skipped");
   expect(props.onReply).toHaveBeenNthCalledWith(3, "answered", "Manual retry");
@@ -98,21 +100,25 @@ it("does not rewrite stale information, but keeps explicit manual editing, reset
   expect(screen.getByText("stale", { exact: true })).toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: "Prepare a proposal from this assessment",
+      name: "Tạo bản đề xuất từ đánh giá này",
     }),
   ).toBeDisabled();
-  expect(screen.queryByLabelText("Your answer")).not.toBeInTheDocument();
+  expect(
+    screen.queryByLabelText("Câu trả lời của bạn"),
+  ).not.toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", {
-      name: "Keep uncertainties and edit manually",
+      name: "Giữ điểm chưa rõ và tự sửa thủ công",
     }),
   );
   expect(
-    screen.getByText(/Unanswered information remains unknown/),
+    screen.getByText(
+      /Các thông tin chưa trả lời sẽ giữ trạng thái chưa xác định/,
+    ),
   ).toBeInTheDocument();
   expect(props.onRewrite).not.toHaveBeenCalled();
   expect(
-    screen.getByRole("button", { name: "Record quality feedback" }),
+    screen.getByRole("button", { name: "Ghi nhận phản hồi chất lượng" }),
   ).toBeEnabled();
 });
 it("carries no answers by default and only sends the explicitly selected answer when resetting purpose", () => {
@@ -126,23 +132,27 @@ it("carries no answers by default and only sends the explicitly selected answer 
     taskContextHash: "a".repeat(64),
   };
   const props = mount({ value: { ...assessmentFixture, answers: [answer] } });
-  fireEvent.change(screen.getByLabelText("Purpose of this note"), {
+  fireEvent.change(screen.getByLabelText("Mục đích của ghi chú này"), {
     target: { value: "HANDOVER" },
   });
   expect(
-    screen.getByRole("button", { name: "Check information" }),
+    screen.getByRole("button", { name: "Kiểm tra thông tin" }),
   ).toBeDisabled();
   fireEvent.click(
-    screen.getByRole("button", { name: "Start a new assessment" }),
+    screen.getByRole("button", { name: "Bắt đầu phiên đánh giá mới" }),
   );
   expect(
-    screen.getByRole("checkbox", { name: "Carry answer: Manual retry" }),
+    screen.getByRole("checkbox", {
+      name: "Mang theo câu trả lời: Manual retry",
+    }),
   ).not.toBeChecked();
   fireEvent.click(
-    screen.getByRole("checkbox", { name: "Carry answer: Manual retry" }),
+    screen.getByRole("checkbox", {
+      name: "Mang theo câu trả lời: Manual retry",
+    }),
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Start with selected answers" }),
+    screen.getByRole("button", { name: "Bắt đầu với các câu trả lời đã chọn" }),
   );
   expect(props.onReset).toHaveBeenCalledWith("HANDOVER", ["answer-one"]);
 });
@@ -150,11 +160,11 @@ it("routes claim correction independently from quality feedback and author valid
   const props = mount();
   fireEvent.click(
     screen.getByRole("button", {
-      name: "Correct statement: The queue has not been tested.",
+      name: "Đính chính phát biểu: The queue has not been tested.",
     }),
   );
   fireEvent.change(
-    screen.getByLabelText("Explain what the Agent understood incorrectly"),
+    screen.getByLabelText("Giải thích điểm AI đã hiểu chưa đúng"),
     {
       target: {
         value: "The network-loss scenario is untested, not the entire queue.",
@@ -162,21 +172,23 @@ it("routes claim correction independently from quality feedback and author valid
     },
   );
   fireEvent.click(
-    screen.getByRole("button", { name: "Reassess with this correction" }),
+    screen.getByRole("button", { name: "Đánh giá lại với đính chính này" }),
   );
   expect(props.onCorrect).toHaveBeenCalledWith(
     "claim-one",
     "The network-loss scenario is untested, not the entire queue.",
   );
-  fireEvent.change(screen.getByLabelText("Issue category"), {
+  fireEvent.change(screen.getByLabelText("Nhóm vấn đề"), {
     target: { value: "WRONG_SOURCE" },
   });
   fireEvent.click(
-    screen.getByRole("button", { name: "Record quality feedback" }),
+    screen.getByRole("button", { name: "Ghi nhận phản hồi chất lượng" }),
   );
   expect(props.onFeedback).toHaveBeenCalledWith("WRONG_SOURCE");
   fireEvent.click(
-    screen.getByRole("button", { name: "I confirm this reflects my note" }),
+    screen.getByRole("button", {
+      name: "Tôi xác nhận nội dung này phản ánh đúng ghi chú của tôi",
+    }),
   );
   expect(props.onValidate).toHaveBeenCalledOnce();
   expect(props.onRewrite).not.toHaveBeenCalled();
@@ -193,19 +205,19 @@ it("exposes paused state without asking again or treating the note as independen
     },
   });
   expect(screen.getByText("paused", { exact: true })).toBeInTheDocument();
+  expect(screen.getByText(/Đã tạm dừng hỏi tự động/)).toBeInTheDocument();
   expect(
-    screen.getByText(/Automatic questions have paused/),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("region", { name: "Assessment clarification" }),
+    screen.queryByRole("region", { name: "Câu hỏi làm rõ đánh giá" }),
   ).not.toBeInTheDocument();
   expect(
     screen.getByRole("button", {
-      name: "Prepare a proposal from this assessment",
+      name: "Tạo bản đề xuất từ đánh giá này",
     }),
   ).toBeEnabled();
   expect(
-    screen.getByRole("button", { name: "I confirm this reflects my note" }),
+    screen.getByRole("button", {
+      name: "Tôi xác nhận nội dung này phản ánh đúng ghi chú của tôi",
+    }),
   ).toBeDisabled();
 });
 it("renders source text as plain text rather than executing model-supplied markup", () => {
@@ -217,7 +229,60 @@ it("renders source text as plain text rather than executing model-supplied marku
   ).toBeInTheDocument();
   expect(
     within(
-      screen.getByRole("region", { name: "Task information check" }),
+      screen.getByRole("region", { name: "Kiểm tra thông tin theo Task" }),
     ).queryByRole("img"),
   ).not.toBeInTheDocument();
+});
+
+it("clearly separates adequate Progress note from incomplete overall Task criteria (Plan v3 §§1, 5)", () => {
+  mount({
+    value: {
+      ...assessmentFixture,
+      purpose: "PROGRESS",
+      state: "ready_to_edit",
+      taskContextStatus: "CLEAR",
+      noteAdequacy: "ENOUGH_FOR_PURPOSE",
+      gaps: [],
+      nextQuestion: null,
+      coverage: [
+        {
+          requirementId: "requirement-one",
+          status: "PARTIAL",
+          sourceRefs: [
+            { sourceId: "note-body", quote: "We have not tested the queue." },
+          ],
+        },
+      ],
+      allowedActions: [
+        "rewrite",
+        "correct",
+        "reset",
+        "feedback",
+        "manual",
+        "validate_author",
+      ],
+    },
+  });
+
+  const conclusions = screen.getByRole("region", {
+    name: "Ba kết luận đánh giá độc lập",
+  });
+  expect(within(conclusions).getByText("Độ rõ của Task")).toBeInTheDocument();
+  expect(
+    within(conclusions).getByText("Độ đầy đủ của ghi chú (Cập nhật tiến độ)"),
+  ).toBeInTheDocument();
+  expect(
+    within(conclusions).getByText("Mức đáp ứng tiêu chí Task"),
+  ).toBeInTheDocument();
+  expect(
+    within(conclusions).getByText("Đủ cho mục đích hiện tại"),
+  ).toBeInTheDocument();
+  expect(
+    within(conclusions).getByText("Tiêu chí Task chưa hoàn tất"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(
+      /Ghi chú này đã đủ thông tin cho mục đích Cập nhật tiến độ, dù các tiêu chí nghiệm thu tổng thể của Task vẫn chưa hoàn tất/,
+    ),
+  ).toBeInTheDocument();
 });

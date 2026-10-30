@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { ClipboardCheck, Sparkles } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import WorkNoteAssessmentEvidence from "./WorkNoteAssessmentEvidence";
@@ -81,12 +82,27 @@ export default function WorkNoteAssessment({
   return (
     <section
       aria-label={t("title")}
-      className="space-y-4 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
+      className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <h3 className="min-w-0 flex-1 font-semibold">{t("title")}</h3>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-2.5">
+          <span
+            aria-hidden="true"
+            className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
+          >
+            <ClipboardCheck className="size-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
+              {t("title")}
+            </h3>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              {t("intro")}
+            </p>
+          </div>
+        </div>
         {state && (
-          <span role="status" aria-live="polite">
+          <span role="status" aria-live="polite" className="shrink-0">
             <Badge
               color={
                 state === "ready_to_edit"
@@ -101,12 +117,11 @@ export default function WorkNoteAssessment({
           </span>
         )}
       </div>
-      <p className="text-xs text-gray-500 dark:text-gray-400">{t("intro")}</p>
       <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-40 flex-1 space-y-1 text-sm">
+        <label className="min-w-48 flex-1 space-y-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
           <span>{t("purpose")}</span>
           <select
-            className={fieldClass}
+            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             value={purpose}
             disabled={busy}
             onChange={(e) => {
@@ -121,17 +136,18 @@ export default function WorkNoteAssessment({
             ))}
           </select>
         </label>
-        <Button
-          size="sm"
-          variant="outline"
+        <button
+          type="button"
           disabled={busy || purposeChanged}
           onClick={() => {
             setManual(false);
             onAssess(purpose);
           }}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-600 shadow-2xs transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-brand-500/10"
         >
-          {t("check")}
-        </Button>
+          <Sparkles className="size-4" aria-hidden="true" />
+          <span>{t("check")}</span>
+        </button>
       </div>
       {state && (
         <p className="text-sm text-gray-600 dark:text-gray-300">

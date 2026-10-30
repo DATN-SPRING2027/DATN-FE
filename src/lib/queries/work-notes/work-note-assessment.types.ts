@@ -166,3 +166,33 @@ export type AssessmentReset = AssessmentMutation & {
   newPurpose: AssessmentPurpose;
   carryAnswerIds: string[];
 };
+
+export type TaskCompletionStatus =
+  | "CRITERIA_REPORTED_MET"
+  | "CRITERIA_INCOMPLETE"
+  | "CRITERIA_CONTRADICTED"
+  | "CRITERIA_UNSPECIFIED";
+
+/** Derives overall Task criteria completion independently from purpose-scoped noteAdequacy (Plan v3 §§1, 5). */
+export function deriveTaskCompletionStatus(
+  view: Pick<
+    AssessmentView,
+    "taskContextStatus" | "taskUnderstanding" | "coverage"
+  >,
+): TaskCompletionStatus {
+  const reqCount = view.taskUnderstanding.requirements.length;
+  if (view.taskContextStatus === "INSUFFICIENT" || reqCount === 0) {
+    return "CRITERIA_UNSPECIFIED";
+  }
+  if (view.coverage.some((c) => c.status === "CONTRADICTORY")) {
+    return "CRITERIA_CONTRADICTED";
+  }
+  if (
+    view.taskContextStatus === "CLEAR" &&
+    view.coverage.length === reqCount &&
+    view.coverage.every((c) => c.status === "SUPPORTED")
+  ) {
+    return "CRITERIA_REPORTED_MET";
+  }
+  return "CRITERIA_INCOMPLETE";
+}

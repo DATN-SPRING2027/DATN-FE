@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from"react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from"next-intl";
 import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
 import {
@@ -318,6 +319,7 @@ export default function WorkWorkspace({
 }) {
   const t = useTranslations("work");
   const common = useTranslations("common");
+  const queryClient = useQueryClient();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
   const visibleUser = userAccessLost ? undefined : user.data;
@@ -926,7 +928,9 @@ export default function WorkWorkspace({
             item.id === openedTaskId
               ? {
                   ...item,
-                  ...(detail.description ? { description: detail.description } : {}),
+                  ...(detail.description !== undefined
+                    ? { description: detail.description ?? undefined }
+                    : {}),
                   ...(liveComments ? { comments: liveComments } : {}),
                   ...(liveWorklogs ? { worklogs: liveWorklogs } : {}),
                   ...(liveHistory ? { history: liveHistory } : {}),
@@ -1598,6 +1602,53 @@ export default function WorkWorkspace({
     }
   }
 
+  function updateItemDescription(id: string, nextDescription: string) {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
+    const existing = items.find((item) => item.id === id);
+    const prevDescription = existing?.description;
+    const cleaned = nextDescription.trim();
+    if ((prevDescription ?? "") === cleaned) return;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              description: cleaned || undefined,
+            }
+          : item,
+      ),
+    );
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              description: cleaned || null,
+            },
+          );
+          void queryClient.invalidateQueries({
+            queryKey: ["worknote-task-context", projectId, realId],
+          });
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, description: prevDescription }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+  }
+
   function toggleSubtask(itemId: string, subtaskId: string) {
     const previousItems = items;
     const parentItem = items.find((item) => item.id === itemId);
@@ -2017,7 +2068,7 @@ export default function WorkWorkspace({
                       }
                     : {}),
                   ...(patch.description !== undefined
-                    ? { description: patch.description ?? null }
+                    ? { description: patch.description || null }
                     : {}),
                   ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
                   ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
@@ -2944,6 +2995,7 @@ export default function WorkWorkspace({
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onDueDateChange={updateItemDueDate}
+          onDescriptionChange={updateItemDescription}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}
@@ -3243,6 +3295,7 @@ export default function WorkWorkspace({
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
           onDueDateChange={updateItemDueDate}
+          onDescriptionChange={updateItemDescription}
           onToggleSubtask={toggleSubtask}
           onAddSubtask={addSubtask}
           onAddExistingTaskAsSubtask={addExistingTaskAsSubtask}

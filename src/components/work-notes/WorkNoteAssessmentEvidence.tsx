@@ -1,9 +1,11 @@
 "use client";
 import { useTranslations } from "next-intl";
+import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
-import type {
-  AssessmentView,
-  SourceRef,
+import {
+  deriveTaskCompletionStatus,
+  type AssessmentView,
+  type SourceRef,
 } from "@/lib/queries/work-notes/work-note-assessment.types";
 
 function SourceQuotes({
@@ -53,8 +55,101 @@ export default function WorkNoteAssessmentEvidence({
   onCorrectionRequest: (id: string) => void;
 }) {
   const t = useTranslations("workNotes.assessment");
+  const taskCompletion = deriveTaskCompletionStatus(value);
+  const purposeLabel = t(`purposes.${value.purpose}`);
+  const showIncompleteTaskAdequateNote =
+    value.noteAdequacy === "ENOUGH_FOR_PURPOSE" &&
+    taskCompletion !== "CRITERIA_REPORTED_MET";
+
   return (
     <>
+      <section
+        aria-label={t("conclusionsTitle")}
+        className="space-y-3 border-t border-gray-100 pt-3 dark:border-gray-800"
+      >
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+          <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-25 p-3 text-start dark:border-gray-700 dark:bg-gray-900/50">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                {t("conclusions.taskClarity")}
+              </span>
+              <Badge
+                size="sm"
+                color={
+                  value.taskContextStatus === "CLEAR"
+                    ? "success"
+                    : value.taskContextStatus === "PARTIAL"
+                      ? "warning"
+                      : "error"
+                }
+              >
+                {t(`taskStatus.${value.taskContextStatus}`)}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t("taskContext", {
+                status: t(`taskStatus.${value.taskContextStatus}`),
+              })}
+            </p>
+          </div>
+          <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-25 p-3 text-start dark:border-gray-700 dark:bg-gray-900/50">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                {t("conclusions.noteAdequacy", { purpose: purposeLabel })}
+              </span>
+              <Badge
+                size="sm"
+                color={
+                  value.noteAdequacy === "ENOUGH_FOR_PURPOSE"
+                    ? "success"
+                    : value.noteAdequacy === "CONTRADICTORY"
+                      ? "error"
+                      : "warning"
+                }
+              >
+                {t(`adequacyStatus.${value.noteAdequacy}`)}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t("adequacy", {
+                status: t(`adequacyStatus.${value.noteAdequacy}`),
+              })}
+            </p>
+          </div>
+          <div className="space-y-1 rounded-lg border border-gray-200 bg-gray-25 p-3 text-start dark:border-gray-700 dark:bg-gray-900/50">
+            <div className="flex flex-wrap items-center justify-between gap-1">
+              <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                {t("conclusions.taskCompletion")}
+              </span>
+              <Badge
+                size="sm"
+                color={
+                  taskCompletion === "CRITERIA_REPORTED_MET"
+                    ? "success"
+                    : taskCompletion === "CRITERIA_CONTRADICTED"
+                      ? "error"
+                      : "warning"
+                }
+              >
+                {t(`taskCompletionStatus.${taskCompletion}`)}
+              </Badge>
+            </div>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {t("taskCompletion", {
+                status: t(`taskCompletionStatus.${taskCompletion}`),
+              })}
+            </p>
+          </div>
+        </div>
+        {showIncompleteTaskAdequateNote && (
+          <p
+            role="note"
+            className="rounded-lg border border-brand-200 bg-brand-25 p-2.5 text-xs text-brand-800 dark:border-brand-800 dark:bg-brand-950/40 dark:text-brand-200"
+          >
+            {t("adequateNoteIncompleteTaskNotice", { purpose: purposeLabel })}
+          </p>
+        )}
+      </section>
       <details
         className="border-t border-gray-100 pt-3 dark:border-gray-800"
         open
@@ -97,16 +192,6 @@ export default function WorkNoteAssessmentEvidence({
         </p>
         <p className="text-sm text-gray-600 dark:text-gray-300">
           {value.taskUnderstanding.scope}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {t("taskContext", {
-            status: t(`taskStatus.${value.taskContextStatus}`),
-          })}
-        </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {t("adequacy", {
-            status: t(`adequacyStatus.${value.noteAdequacy}`),
-          })}
         </p>
         {!!value.taskUnderstanding.unknowns.length && (
           <ul className="list-inside list-disc text-sm text-warning-700 dark:text-warning-400">

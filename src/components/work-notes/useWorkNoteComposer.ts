@@ -40,6 +40,7 @@ export function useWorkNoteComposer(
   onSaved: (result?: unknown) => void,
   source?: EditorSourceIdentity,
 ) {
+  const t = useTranslations("workNotes.agent");
   const ta = useTranslations("workNotes.assessment");
   const client = useQueryClient();
   const api = source ? editorAgentApi(source) : agentApi;
@@ -70,6 +71,7 @@ export function useWorkNoteComposer(
   const localRef = useRef<Fields | null>(null);
   const [saving, setSaving] = useState(false),
     [agentBusy, setAgentBusy] = useState(false),
+    [pendingMessage, setPendingMessage] = useState<string | null>(null),
     [error, setError] = useState("");
   const [response, setResponse] = useState<AgentResponse | null>(null);
   const [historyCount, setHistoryCount] = useState(0);
@@ -206,7 +208,9 @@ export function useWorkNoteComposer(
     input: Omit<AgentMessageInput, "operationId" | "expectedRevision">,
   ) {
     if (!input.replyToQuestionId) lastRequest.current = input;
+    const outgoingContent = input.answer ?? input.instruction;
     setError("");
+    setPendingMessage(outgoingContent);
     setAgentBusy(true);
     try {
       const d = await flush();
@@ -235,7 +239,7 @@ export function useWorkNoteComposer(
         pendingQuestion: result.questions[0] ?? null,
         conversation: [
           ...current.conversation,
-          { role: "user", content: input.answer ?? input.instruction },
+          { role: "user", content: outgoingContent },
           { role: "assistant", content: result.message },
         ],
       });
@@ -243,6 +247,7 @@ export function useWorkNoteComposer(
     } catch (e) {
       setError(e instanceof Error ? e.message : "Agent unavailable");
     } finally {
+      setPendingMessage(null);
       setAgentBusy(false);
     }
   }
@@ -489,8 +494,7 @@ export function useWorkNoteComposer(
         ? {
             operation: suggestion.operation,
             scope: suggestion.scope,
-            instruction:
-              "Provide another proposal while preserving source meaning, language and uncertainty.",
+            instruction: t("regeneratePrompt"),
             includeWholeNoteContext: false,
             ...(suggestion.selection
               ? { selection: suggestion.selection }
@@ -545,6 +549,7 @@ export function useWorkNoteComposer(
     dirty,
     saving,
     agentBusy,
+    pendingMessage,
     assessmentBusy: assessmentPending.current,
     error,
     setError,

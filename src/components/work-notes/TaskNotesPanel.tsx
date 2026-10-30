@@ -88,18 +88,29 @@ function formatNoteTimestamp(value: string, locale: string): string {
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
 
+export type TaskNotesSplitControl = {
+  isOpen: boolean;
+  editingNoteId: string | null;
+  savedSignal?: number;
+  onOpen: (noteId?: string) => void;
+  onClose: () => void;
+};
+
 export default function TaskNotesPanel({
   projectId,
   taskId,
+  splitControl,
 }: {
   projectId: string;
   taskId: string;
+  splitControl?: TaskNotesSplitControl;
 }) {
   return (
     <TaskNotesContent
       key={`${projectId}:${taskId}`}
       projectId={projectId}
       taskId={taskId}
+      splitControl={splitControl}
     />
   );
 }
@@ -107,9 +118,11 @@ export default function TaskNotesPanel({
 function TaskNotesContent({
   projectId,
   taskId,
+  splitControl,
 }: {
   projectId: string;
   taskId: string;
+  splitControl?: TaskNotesSplitControl;
 }) {
   const t = useTranslations("workNotes.taskNotes");
   const locale = useLocale();
@@ -196,12 +209,25 @@ function TaskNotesContent({
   const notes = visibleNotes?.data ?? [];
   const notesCount = visibleNotes?.pagination.totalItems ?? notes.length;
   const showComposer = isComposerOpen || editingId !== null;
+  const envAgentEditorEnabled =
+    process.env.NEXT_PUBLIC_WORKNOTE_EDITOR_ENABLED === "true";
   const agentEditorEnabled =
-    process.env.NEXT_PUBLIC_WORKNOTE_EDITOR_ENABLED === "true" ||
+    envAgentEditorEnabled ||
     notes.some(
       (note) => note.id === editingId && note.contentSchemaVersion === 2,
     );
   const isDraftDirty = hasDraftContent(input);
+  const isNewNoteActive =
+    (showComposer && !editingId) ||
+    Boolean(splitControl?.isOpen && !splitControl.editingNoteId);
+
+  const [dismissedSplitSignal, setDismissedSplitSignal] = useState(
+    splitControl?.savedSignal ?? 0,
+  );
+  const currentSplitSignal = splitControl?.savedSignal ?? 0;
+  const effectiveSavedBanner =
+    showSavedBanner ||
+    (currentSplitSignal > 0 && currentSplitSignal !== dismissedSplitSignal);
 
   function resetFeedback() {
     create.reset();
@@ -209,11 +235,22 @@ function TaskNotesContent({
     remove.reset();
     setValidationError("");
     setShowSavedBanner(false);
+    setDismissedSplitSignal(currentSplitSignal);
   }
 
   function handleOpenNewNote() {
     resetFeedback();
     setOpenMenuId(null);
+    if (splitControl && envAgentEditorEnabled) {
+      if (editingId !== null || isComposerOpen) {
+        setEditingId(null);
+        setIsComposerOpen(false);
+        setInput(EMPTY_INPUT);
+        getDraftMap(queryClient).delete(draftKey);
+      }
+      splitControl.onOpen(undefined);
+      return;
+    }
     if (editingId !== null) {
       setEditingId(null);
       setInput(EMPTY_INPUT);
@@ -235,6 +272,19 @@ function TaskNotesContent({
   function handleStartEdit(note: (typeof notes)[number]) {
     resetFeedback();
     setOpenMenuId(null);
+    if (
+      splitControl &&
+      (envAgentEditorEnabled || note.contentSchemaVersion === 2)
+    ) {
+      if (editingId !== null || isComposerOpen) {
+        setEditingId(null);
+        setIsComposerOpen(false);
+        setInput(EMPTY_INPUT);
+        getDraftMap(queryClient).delete(draftKey);
+      }
+      splitControl.onOpen(note.id);
+      return;
+    }
     setEditingId(note.id);
     setIsComposerOpen(true);
     setInput({
@@ -261,6 +311,9 @@ function TaskNotesContent({
           setIsComposerOpen(false);
           setInput(EMPTY_INPUT);
           getDraftMap(queryClient).delete(draftKey);
+        }
+        if (splitControl?.isOpen && splitControl.editingNoteId === noteId) {
+          splitControl.onClose();
         }
       },
       onError: () => {
@@ -340,7 +393,7 @@ function TaskNotesContent({
         <Button
           type="button"
           size="sm"
-          variant={showComposer && !editingId ? "outline" : "primary"}
+          variant={isNewNoteActive ? "outline" : "primary"}
           startIcon={<PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
           onClick={handleOpenNewNote}
         >
@@ -367,7 +420,7 @@ function TaskNotesContent({
         )}
 
       {/* Saved Status Banner */}
-      {showSavedBanner && !validationError && !hasMutationError && (
+      {effectiveSavedBanner && !validationError && !hasMutationError && (
         <div
           role="status"
           className="flex items-center justify-between gap-3 rounded-lg border border-success-200 bg-success-50/80 px-3.5 py-2.5 text-xs font-medium text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
@@ -382,7 +435,10 @@ function TaskNotesContent({
           <button
             type="button"
             aria-label={t("dismissNotice")}
-            onClick={() => setShowSavedBanner(false)}
+            onClick={() => {
+              setShowSavedBanner(false);
+              setDismissedSplitSignal(currentSplitSignal);
+            }}
             className="cursor-pointer rounded p-1 text-success-700/80 transition-colors hover:bg-success-100 hover:text-success-800 dark:text-success-300 dark:hover:bg-success-500/20"
           >
             <CloseIcon
@@ -622,7 +678,11 @@ function TaskNotesContent({
         >
           {notes.map((note) => {
             const isExpanded = expandedIds.has(note.id);
-            const isBeingEdited = editingId === note.id;
+            const isBeingEdited =
+              editingId === note.id ||
+              Boolean(
+                splitControl?.isOpen && splitControl.editingNoteId === note.id,
+              );
             const isRemovingThis =
               remove.isPending && removingNoteId === note.id;
             const hasActions =

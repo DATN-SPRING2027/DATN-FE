@@ -6,8 +6,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from"react";
 import { useLocale, useTranslations } from"next-intl";
@@ -17,7 +19,10 @@ import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { WorkDatePickerCell } from "./WorkDatePicker";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
-import TaskNotesPanel from "@/components/work-notes/TaskNotesPanel";
+import TaskNotesPanel, {
+  type TaskNotesSplitControl,
+} from "@/components/work-notes/TaskNotesPanel";
+import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -99,6 +104,7 @@ export default function WorkItemDetailDialog({
   onPriorityChange,
   onAssigneeChange,
   onDueDateChange,
+  onDescriptionChange,
   onToggleSubtask,
   onAddSubtask,
   onAddExistingTaskAsSubtask,
@@ -128,6 +134,7 @@ export default function WorkItemDetailDialog({
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
   onDueDateChange?: (id: string, dueDate: string | null) => void;
+  onDescriptionChange?: (id: string, description: string) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
   onAddSubtask?: (
     itemId: string,
@@ -179,6 +186,7 @@ export default function WorkItemDetailDialog({
     onPriorityChange = undefined;
     onAssigneeChange = undefined;
     onDueDateChange = undefined;
+    onDescriptionChange = undefined;
   }
   const t = useTranslations("work");
   const workNotesT = useTranslations("workNotes.taskNotes");
@@ -259,6 +267,12 @@ export default function WorkItemDetailDialog({
   const [subtaskCommentInput, setSubtaskCommentInput] = useState("");
   const [editingSubtaskDesc, setEditingSubtaskDesc] = useState(false);
   const [subtaskDescDraft, setSubtaskDescDraft] = useState("");
+  const [editingDescItemId, setEditingDescItemId] = useState<string | null>(
+    null,
+  );
+  const [descDraft, setDescDraft] = useState("");
+  const descTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const editingDesc = Boolean(item && editingDescItemId === item.id);
   const [quickAddMenuOpen, setQuickAddMenuOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
   const [branchCreated, setBranchCreated] = useState(false);
@@ -266,7 +280,14 @@ export default function WorkItemDetailDialog({
   const [isMaximized, setIsMaximized] = useState(false);
   const [watching, setWatching] = useState(true);
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
-  const [aiEnhancedDesc, setAiEnhancedDesc] = useState<string | null>(null);
+  const [aiEnhancedDescState, setAiEnhancedDescState] = useState<{
+    itemId: string;
+    text: string;
+  } | null>(null);
+  const aiEnhancedDesc =
+    item && aiEnhancedDescState?.itemId === item.id
+      ? aiEnhancedDescState.text
+      : null;
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
   const [worklogError, setWorklogError] = useState<string | null>(null);
@@ -274,6 +295,131 @@ export default function WorkItemDetailDialog({
     null,
   );
   const [automationRan, setAutomationRan] = useState(false);
+
+  // Split-screen Task + Note (+ AI 3rd column) workspace state & horizontal resizer
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [splitComposerState, setSplitComposerState] = useState<{
+    parentItemId: string;
+    taskId: string;
+    noteId?: string;
+  } | null>(null);
+  const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
+    Record<string, number>
+  >({});
+  const [splitDismissSignal, setSplitDismissSignal] = useState(0);
+  const [twoColTaskPct, setTwoColTaskPct] = useState(48);
+  const [threeColTaskPct, setThreeColTaskPct] = useState(33);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  const activeSplitComposer =
+    item &&
+    projectId &&
+    splitComposerState &&
+    splitComposerState.parentItemId === item.id
+      ? splitComposerState
+      : null;
+  const isSplitOpen = Boolean(activeSplitComposer);
+  const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  function computeClampedTaskPct(clientX: number): number | null {
+    const container = splitContainerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const minTaskPx = 300;
+    const aiReservedPx = splitAiOpen ? 390 : 0;
+    const minNotePx = 360;
+    const splitterPx = 10;
+    const maxTaskPx = Math.max(
+      minTaskPx,
+      rect.width - aiReservedPx - minNotePx - splitterPx,
+    );
+    const clampedPx = Math.min(
+      maxTaskPx,
+      Math.max(minTaskPx, clientX - rect.left),
+    );
+    return Math.round((clampedPx / rect.width) * 1000) / 10;
+  }
+
+  function handleSplitterPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setIsDraggingSplitter(true);
+  }
+
+  function handleSplitterPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    const nextPct = computeClampedTaskPct(event.clientX);
+    if (nextPct === null) return;
+    if (splitAiOpen) setThreeColTaskPct(nextPct);
+    else setTwoColTaskPct(nextPct);
+  }
+
+  function handleSplitterPointerUp(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+    setIsDraggingSplitter(false);
+  }
+
+  function handleSplitterKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const minPct = 22;
+    const maxPct = splitAiOpen ? 52 : 74;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.max(minPct, cur - 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.max(minPct, cur - 2));
+      }
+    } else if (event.key === "ArrowRight") {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      }
+    } else if (event.key === "Home" || event.key === "Enter") {
+      event.preventDefault();
+      if (splitAiOpen) setThreeColTaskPct(33);
+      else setTwoColTaskPct(48);
+    }
+  }
+
+  function buildSplitControl(targetTaskId: string): TaskNotesSplitControl {
+    const isTargetOpen =
+      Boolean(activeSplitComposer) &&
+      activeSplitComposer?.taskId === targetTaskId;
+    return {
+      isOpen: isTargetOpen,
+      editingNoteId: isTargetOpen
+        ? (activeSplitComposer?.noteId ?? null)
+        : null,
+      savedSignal: splitSavedSignalByTask[targetTaskId] ?? 0,
+      onOpen: (noteId) => {
+        if (!item) return;
+        setSplitAiOpen(false);
+        setSplitComposerState({
+          parentItemId: item.id,
+          taskId: targetTaskId,
+          noteId,
+        });
+      },
+      onClose: () => {
+        setSplitAiOpen(false);
+        setSplitComposerState(null);
+      },
+    };
+  }
 
   function showSubtaskFeedback(msg: string) {
     setSubtaskNotice(msg);
@@ -513,9 +659,20 @@ export default function WorkItemDetailDialog({
   function handleImproveTaskWithAi() {
     if (!item) return;
     const base = item.description ?? t("noDescription");
-    setAiEnhancedDesc(
-      `${base}\n\n[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated MEMBER in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`,
-    );
+    setAiEnhancedDescState({
+      itemId: item.id,
+      text: `${base}\n\n[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated MEMBER in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`,
+    });
+  }
+
+  function startEditingTaskDescription() {
+    if (!item || !onDescriptionChange) return;
+    setDescSectionCollapsed(false);
+    setDescDraft(aiEnhancedDesc ?? item.description ?? "");
+    setEditingDescItemId(item.id);
+    queueMicrotask(() => {
+      descTextareaRef.current?.focus();
+    });
   }
 
   const subtaskList = item?.subtaskItems ?? [];
@@ -623,16 +780,18 @@ export default function WorkItemDetailDialog({
 
   const detailContent = item ? (
     <div
-      ref={dialogRef}
-      role={mode === "modal" ? "dialog" : "region"}
-      aria-modal={mode === "modal" ? "true" : undefined}
-      aria-labelledby="work-detail-title"
-      aria-describedby="work-detail-description"
-      onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+      ref={isSplitOpen ? undefined : dialogRef}
+      role={isSplitOpen ? undefined : mode === "modal" ? "dialog" : "region"}
+      aria-modal={!isSplitOpen && mode === "modal" ? "true" : undefined}
+      aria-labelledby={isSplitOpen ? undefined : "work-detail-title"}
+      aria-describedby={isSplitOpen ? undefined : "work-detail-description"}
+      onKeyDown={!isSplitOpen && mode === "modal" ? trapDialogFocus : undefined}
       className={
-        mode === "page"
-          ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-          : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
+        isSplitOpen
+          ? "relative min-w-0 bg-white dark:bg-gray-900"
+          : mode === "page"
+            ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+            : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
       }
     >
       {/* 2-Column Jira Skeleton Loading Overlay */}
@@ -1026,10 +1185,18 @@ export default function WorkItemDetailDialog({
         /* =====================================================================
          * 4TH-LEVEL FULL SUBTASK DETAIL LAYER (DRILL-DOWN VIEW — IMAGE 4 STYLE)
          * ===================================================================== */
-        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div
+          className={
+            isSplitOpen
+              ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+              : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+          }
+        >
           <main
             className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-              mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              mode === "page" && !isSplitOpen
+                ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                : ""
             }`}
           >
                 {/* Subtask Status, Type & Parent Context Strip */}
@@ -1598,6 +1765,7 @@ export default function WorkItemDetailDialog({
                       <TaskNotesPanel
                         projectId={projectId}
                         taskId={activeSubtask.id}
+                        splitControl={buildSplitControl(activeSubtask.id)}
                       />
                     )}
                 </section>
@@ -1605,8 +1773,14 @@ export default function WorkItemDetailDialog({
 
               {/* Right Sidebar for Subtask Detail Layer (Image 4 Jira Cloud Details Card) */}
               <aside
-                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                  mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                  isSplitOpen
+                    ? "@3xl:border-s @3xl:border-t-0"
+                    : "lg:border-s lg:border-t-0"
+                } ${
+                  mode === "page" && !isSplitOpen
+                    ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                    : ""
                 }`}
               >
                 {/* Top Status Transition Selector (Image 4) */}
@@ -1845,11 +2019,19 @@ export default function WorkItemDetailDialog({
               </aside>
             </div>
           ) : (
-            <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+            <div
+              className={
+                isSplitOpen
+                  ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+                  : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+              }
+            >
             {/* Left Main Content */}
             <main
               className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1962,24 +2144,104 @@ export default function WorkItemDetailDialog({
                 aria-labelledby="work-detail-description-heading"
                 className="space-y-2"
               >
-                <button
-                  type="button"
-                  onClick={() => setDescSectionCollapsed((prev) => !prev)}
-                  aria-expanded={!descSectionCollapsed}
-                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
-                >
-                  <span aria-hidden="true" className="text-xs">
-                    {descSectionCollapsed ? "▸" : "▾"}
-                  </span>
-                  <span id="work-detail-description-heading">
-                    {t("description")}
-                  </span>
-                </button>
-                {!descSectionCollapsed && (
-                  <p className="whitespace-pre-line rounded px-4 py-2 text-sm leading-6 text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/40">
-                    {aiEnhancedDesc ?? item.description ?? t("noDescription")}
-                  </p>
-                )}
+                <div className="flex items-center justify-between">
+                  <button
+                    type="button"
+                    onClick={() => setDescSectionCollapsed((prev) => !prev)}
+                    aria-expanded={!descSectionCollapsed}
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
+                  >
+                    <span aria-hidden="true" className="text-xs">
+                      {descSectionCollapsed ? "▸" : "▾"}
+                    </span>
+                    <span id="work-detail-description-heading">
+                      {t("description")}
+                    </span>
+                  </button>
+                  {onDescriptionChange && !editingDesc && (
+                    <button
+                      type="button"
+                      data-testid="edit-task-description"
+                      onClick={startEditingTaskDescription}
+                      className="inline-flex cursor-pointer items-center gap-1 rounded px-2 py-0.5 text-xs font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+                    >
+                      <MonoIcon name="edit" size={11} />
+                      <span>Edit</span>
+                    </button>
+                  )}
+                </div>
+
+                {!descSectionCollapsed &&
+                  (editingDesc ? (
+                    <form
+                      onSubmit={(event) => {
+                        event.preventDefault();
+                        onDescriptionChange?.(item.id, descDraft.trim());
+                        setAiEnhancedDescState(null);
+                        setEditingDescItemId(null);
+                      }}
+                      className="space-y-2 ps-4"
+                    >
+                      <textarea
+                        ref={descTextareaRef}
+                        rows={8}
+                        maxLength={20000}
+                        aria-label={t("description")}
+                        value={descDraft}
+                        onChange={(event) => setDescDraft(event.target.value)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.nativeEvent.stopImmediatePropagation();
+                            setEditingDescItemId(null);
+                          }
+                        }}
+                        placeholder="Add a description…"
+                        className="w-full rounded border border-gray-300 bg-white p-3 text-sm leading-6 text-gray-900 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="submit"
+                          data-testid="save-task-description"
+                          className="h-8 cursor-pointer rounded bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="cancel-task-description"
+                          onClick={() => setEditingDescItemId(null)}
+                          className="h-8 cursor-pointer rounded px-3 text-xs font-medium text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  ) : (
+                    <p
+                      onClick={
+                        onDescriptionChange
+                          ? startEditingTaskDescription
+                          : undefined
+                      }
+                      className={`whitespace-pre-line rounded px-4 py-2 text-sm leading-6 transition ${
+                        onDescriptionChange
+                          ? "cursor-text hover:bg-gray-50 dark:hover:bg-gray-800/40"
+                          : ""
+                      } ${
+                        aiEnhancedDesc ?? item.description
+                          ? "text-gray-700 dark:text-gray-300"
+                          : "text-gray-400 dark:text-gray-500"
+                      }`}
+                    >
+                      {aiEnhancedDesc ??
+                        item.description ??
+                        (onDescriptionChange
+                          ? "Add a description…"
+                          : t("noDescription"))}
+                    </p>
+                  ))}
               </section>
 
               {/* Child Work Items / Subtasks Section (Jira Cloud Subtasks Table + Expandable Subtask Detail Layer + Full Drill-Down) */}
@@ -3474,15 +3736,25 @@ export default function WorkItemDetailDialog({
                   </div>
                 )}
                 {activityTab === "notes" && projectId && item && (
-                  <TaskNotesPanel projectId={projectId} taskId={item.id} />
+                  <TaskNotesPanel
+                    projectId={projectId}
+                    taskId={item.id}
+                    splitControl={buildSplitControl(item.id)}
+                  />
                 )}
               </section>
             </main>
 
             {/* Right Details & Integrations Column (Image 4 Jira Cloud Details Card) */}
             <aside
-              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                isSplitOpen
+                  ? "@3xl:border-s @3xl:border-t-0"
+                  : "lg:border-s lg:border-t-0"
+              } ${
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               {/* Top Status Transition Selector (Image 4) */}
@@ -3771,21 +4043,139 @@ export default function WorkItemDetailDialog({
     </div>
   ) : null;
 
+  const workspaceContent =
+    item && projectId && activeSplitComposer ? (
+      <div
+        ref={(node) => {
+          dialogRef.current = node;
+          splitContainerRef.current = node;
+        }}
+        data-testid="work-note-split-workspace"
+        role={mode === "modal" ? "dialog" : "region"}
+        aria-modal={mode === "modal" ? "true" : undefined}
+        aria-labelledby="work-detail-title"
+        aria-describedby="work-detail-description"
+        onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+        className={`${
+          mode === "page"
+            ? "flex h-[calc(100dvh-5.5rem)] min-h-[640px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-sm lg:flex-row dark:border-gray-800 dark:bg-gray-900"
+            : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
+        } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
+      >
+        {/* Column 1 (Left): Resizable Task Pane */}
+        <div
+          data-testid="work-note-split-task-pane"
+          style={
+            {
+              "--task-split-w": `${activeTaskWidthPct}%`,
+            } as CSSProperties
+          }
+          className="@container relative max-h-[45dvh] min-h-0 w-full min-w-0 shrink-0 overflow-y-auto border-b border-gray-200 bg-white lg:h-full lg:max-h-none lg:w-[var(--task-split-w)] lg:border-b-0 dark:border-gray-800 dark:bg-gray-900"
+        >
+          {detailContent}
+        </div>
+
+        {/* Draggable Vertical Splitter (ONLY between Task and Note Task) */}
+        <div
+          role="separator"
+          data-testid="task-note-resizer"
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label="Kéo để thay đổi chiều ngang giữa Task và Ghi chú"
+          aria-valuemin={22}
+          aria-valuemax={splitAiOpen ? 52 : 74}
+          aria-valuenow={Math.round(activeTaskWidthPct)}
+          title="Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)"
+          onPointerDown={handleSplitterPointerDown}
+          onPointerMove={handleSplitterPointerMove}
+          onPointerUp={handleSplitterPointerUp}
+          onPointerCancel={handleSplitterPointerUp}
+          onKeyDown={handleSplitterKeyDown}
+          onDoubleClick={() => {
+            if (splitAiOpen) setThreeColTaskPct(33);
+            else setTwoColTaskPct(48);
+          }}
+          className="group relative z-20 hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center bg-gray-50/70 transition-colors hover:bg-brand-50/80 focus-visible:bg-brand-50/80 focus-visible:outline-none lg:flex dark:bg-gray-950/60 dark:hover:bg-brand-500/15"
+        >
+          <div
+            aria-hidden="true"
+            className={`h-full w-px transition-colors ${
+              isDraggingSplitter
+                ? "w-0.5 bg-brand-500"
+                : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
+            }`}
+          />
+          <div
+            aria-hidden="true"
+            className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
+              isDraggingSplitter
+                ? "border-brand-500 bg-brand-500 text-white"
+                : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
+            }`}
+          >
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+          </div>
+        </div>
+
+        {/* Column 2 (& Column 3 when AI Assistant is opened): Note Task + Fixed-Width AI Panel */}
+        <div
+          data-testid="work-note-split-note-pane"
+          className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-900"
+        >
+          <WorkNoteComposer
+            key={`${projectId}:${activeSplitComposer.taskId}:${activeSplitComposer.noteId ?? "new"}`}
+            variant="inline"
+            projectId={projectId}
+            taskId={activeSplitComposer.taskId}
+            noteId={activeSplitComposer.noteId}
+            dismissSignal={splitDismissSignal}
+            onPanelOpenChange={setSplitAiOpen}
+            onClose={() => {
+              setSplitAiOpen(false);
+              setSplitComposerState(null);
+            }}
+            onSaved={() => {
+              const savedTaskId = activeSplitComposer.taskId;
+              setSplitSavedSignalByTask((prev) => ({
+                ...prev,
+                [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
+              }));
+              setSplitAiOpen(false);
+              setSplitComposerState(null);
+            }}
+          />
+        </div>
+      </div>
+    ) : (
+      detailContent
+    );
+
   if (mode === "page") {
-    return detailContent;
+    return workspaceContent;
   }
 
   return (
     <Modal
       isOpen={Boolean(item)}
       onClose={onClose}
+      onBackdropClick={
+        isSplitOpen
+          ? () => setSplitDismissSignal((cur) => cur + 1)
+          : undefined
+      }
       backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
-      className={`overflow-hidden rounded-lg p-0 shadow-theme-lg ${
-        isMaximized ? "max-h-[92vh] max-w-7xl" : "max-h-[88vh] max-w-6xl"
+      className={`overflow-hidden p-0 shadow-theme-lg ${
+        isSplitOpen
+          ? "w-[96vw] max-w-[1840px] rounded-2xl"
+          : isMaximized
+            ? "max-h-[92vh] max-w-7xl rounded-lg"
+            : "max-h-[88vh] max-w-6xl rounded-lg"
       }`}
     >
-      {detailContent}
+      {workspaceContent}
     </Modal>
   );
 }
