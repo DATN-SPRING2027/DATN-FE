@@ -47,6 +47,8 @@ export function useOrganizationOptionsQuery(enabled: boolean) {
     queryFn: () => apiClient<OrganizationOption[]>("/auth/organizations"),
     enabled,
     retry: false,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
   });
 }
 
@@ -63,6 +65,7 @@ export function useMyOrganizationInvitationsQuery(enabled: boolean) {
 }
 
 export function useCreateOrganizationMutation() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { name: string; slug: string }) =>
       apiClient<OrganizationOption>("/iam/organizations", {
@@ -70,6 +73,9 @@ export function useCreateOrganizationMutation() {
         headers: csrfHeaders(),
         body: JSON.stringify(input),
       }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "organizations"] });
+    },
   });
 }
 
@@ -81,6 +87,7 @@ export interface AcceptOrganizationInvitationInput {
 }
 
 export function useAcceptOrganizationInvitationMutation() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: ({
       invitationId,
@@ -96,6 +103,9 @@ export function useAcceptOrganizationInvitationMutation() {
         idempotencyKey,
       ),
     retry: false,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["auth", "organizations"] });
+    },
   });
 }
 
