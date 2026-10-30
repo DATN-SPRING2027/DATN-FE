@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useState, type FormEvent } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import {
@@ -10,49 +10,31 @@ import {
 import {
   AlertIcon,
   CalenderIcon,
-  CloseIcon,
-  DocsIcon,
-  DownloadIcon,
-  EyeIcon,
   FileIcon,
   GroupIcon,
   LockIcon,
   PencilIcon,
   SearchIcon,
-  UploadIcon,
   UserCircleIcon,
 } from "@/icons";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
-  useDocumentsQuery,
   useWorkNotesMutation,
   useWorkReportSettingsQuery,
   useWorkReportsQuery,
   workNoteKeys,
   workNotesApi,
-  type ProjectDocumentSummary,
   type ReportFrequency,
   type WorkReport,
   type WorkReportInput,
   type WorkReportScope,
   type WorkReportStatus,
 } from "@/lib/queries/work-notes/useWorkNotes";
-import DocumentFilePreviewModal from "./DocumentFilePreviewModal";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import WorkReportCadencePopover from "./WorkReportCadencePopover";
 
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
-
-const DOCUMENT_FILE_ACCEPT =
-  ".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.odp,.rtf,.txt,.md,.markdown,.csv,.tsv,.json,.yaml,.yml,.xml,.drawio,.sql,.png,.jpg,.jpeg,.webp";
-
-function formatFileSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function statusBadgeClasses(status: WorkReportStatus): string {
   switch (status) {
@@ -99,21 +81,14 @@ function initialsFromName(name: string): string {
 
 function hasReportContent(report: WorkReport): boolean {
   return Boolean(
-    report.accomplishments.trim() ||
-      report.approach.trim() ||
-      report.reason.trim() ||
-      report.blockers?.trim() ||
-      report.nextSteps?.trim() ||
-      report.file ||
-      (report.documentIds && report.documentIds.length > 0),
+    (report.title ?? "").trim() || (report.content ?? "").trim(),
   );
 }
 
 function countCoreFields(report: WorkReport): number {
   let filled = 0;
-  if (report.accomplishments.trim()) filled += 1;
-  if (report.approach.trim()) filled += 1;
-  if (report.reason.trim()) filled += 1;
+  if ((report.title ?? "").trim()) filled += 1;
+  if ((report.content ?? "").trim()) filled += 1;
   return filled;
 }
 
@@ -148,7 +123,7 @@ function MiniProgressDots({
       aria-label={label}
       className="inline-flex items-center gap-1"
     >
-      {[0, 1, 2].map((idx) => (
+      {[0, 1].map((idx) => (
         <span
           key={idx}
           className={`h-1.5 w-1.5 rounded-full ${
@@ -164,39 +139,27 @@ function MiniProgressDots({
 
 function ReportEditor({
   report,
-  availableDocuments,
   isSaving,
   isSubmitting,
   error,
   onSave,
   onSubmit,
-  onDownloadFile,
-  onPreviewFile,
   onClose,
 }: {
   report: WorkReport;
-  availableDocuments: readonly ProjectDocumentSummary[];
   isSaving: boolean;
   isSubmitting: boolean;
   error: string;
-  onSave: (input: WorkReportInput, file: File | null) => Promise<void>;
-  onSubmit: (input: WorkReportInput, file: File | null) => Promise<void>;
-  onDownloadFile: (report: WorkReport) => Promise<void>;
-  onPreviewFile?: (report: WorkReport) => void;
+  onSave: (input: WorkReportInput) => Promise<void>;
+  onSubmit: (input: WorkReportInput) => Promise<void>;
   onClose?: () => void;
 }) {
   const t = useTranslations("workNotes.reports");
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const format = useFormatter();
   const [form, setForm] = useState<WorkReportInput>({
-    accomplishments: report.accomplishments,
-    approach: report.approach,
-    reason: report.reason,
-    blockers: report.blockers ?? "",
-    nextSteps: report.nextSteps ?? "",
-    documentIds: report.documentIds ?? [],
+    title: report.title ?? "",
+    content: report.content ?? "",
   });
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewingSelectedFile, setPreviewingSelectedFile] = useState(false);
   const [validationError, setValidationError] = useState("");
 
   async function submit(event: FormEvent<HTMLFormElement>, saveOnly: boolean) {
@@ -206,34 +169,15 @@ function ReportEditor({
 
   async function persist(saveOnly: boolean) {
     const cleaned: WorkReportInput = {
-      accomplishments: form.accomplishments.trim(),
-      approach: form.approach.trim(),
-      reason: form.reason.trim(),
-      blockers: form.blockers?.trim() ?? "",
-      nextSteps: form.nextSteps?.trim() ?? "",
-      ...(form.documentIds && form.documentIds.length > 0
-        ? { documentIds: form.documentIds }
-        : {}),
+      title: form.title.trim(),
+      content: form.content.trim(),
     };
-    if (!cleaned.accomplishments || !cleaned.approach || !cleaned.reason) {
+    if (!cleaned.title || !cleaned.content) {
       setValidationError(t("coreRequired"));
       return;
     }
     setValidationError("");
-    await (saveOnly
-      ? onSave(cleaned, selectedFile)
-      : onSubmit(cleaned, selectedFile));
-    setSelectedFile(null);
-  }
-
-  function toggleDocumentLink(docId: string) {
-    setForm((current) => {
-      const currentIds = current.documentIds ?? [];
-      const nextIds = currentIds.includes(docId)
-        ? currentIds.filter((id) => id !== docId)
-        : [...currentIds, docId];
-      return { ...current, documentIds: nextIds };
-    });
+    await (saveOnly ? onSave(cleaned) : onSubmit(cleaned));
   }
 
   return (
@@ -241,246 +185,80 @@ function ReportEditor({
       onSubmit={(event) => void submit(event, true)}
       className="space-y-4"
     >
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-2.5 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
+        <span className="font-semibold text-gray-800 dark:text-gray-200">
+          {t("authorMeta", { author: report.memberName })}
+        </span>
+        <span aria-hidden="true">·</span>
+        <span>
+          {t("period", {
+            start: format.dateTime(new Date(report.periodStart), {
+              dateStyle: "medium",
+              timeZone: "UTC",
+            }),
+            end: format.dateTime(new Date(report.periodEnd), {
+              dateStyle: "medium",
+              timeZone: "UTC",
+            }),
+          })}
+        </span>
+        {Number.isFinite(Date.parse(report.updatedAt)) && (
+          <>
+            <span aria-hidden="true">·</span>
+            <span>
+              {t("updatedAtMeta", {
+                date: format.dateTime(new Date(report.updatedAt), {
+                  dateStyle: "medium",
+                  timeStyle: "short",
+                  timeZone: "UTC",
+                }),
+              })}
+            </span>
+          </>
+        )}
+      </div>
+
       <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
         <span>
-          {t("accomplishments")}
+          {t("reportTitleLabel")}
+          <span className="ms-0.5 text-error-600">*</span>
+        </span>
+        <input
+          type="text"
+          required
+          maxLength={240}
+          placeholder={t("reportTitlePlaceholder")}
+          value={form.title}
+          onChange={(event) =>
+            setForm((current) => ({
+              ...current,
+              title: event.target.value,
+            }))
+          }
+          className={FIELD_CLASS}
+        />
+      </label>
+
+      <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
+        <span>
+          {t("reportContentLabel")}
           <span className="ms-0.5 text-error-600">*</span>
         </span>
         <textarea
           required
-          maxLength={10000}
-          rows={4}
-          placeholder={t("accomplishmentsPlaceholder")}
-          value={form.accomplishments}
+          maxLength={100000}
+          rows={10}
+          placeholder={t("reportContentPlaceholder")}
+          value={form.content}
           onChange={(event) =>
             setForm((current) => ({
               ...current,
-              accomplishments: event.target.value,
+              content: event.target.value,
             }))
           }
-          className={`${FIELD_CLASS} resize-y`}
+          className={`${FIELD_CLASS} resize-y leading-relaxed`}
         />
       </label>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-          <span>
-            {t("approach")}
-            <span className="ms-0.5 text-error-600">*</span>
-          </span>
-          <textarea
-            required
-            maxLength={10000}
-            rows={3}
-            placeholder={t("approachPlaceholder")}
-            value={form.approach}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                approach: event.target.value,
-              }))
-            }
-            className={`${FIELD_CLASS} resize-y`}
-          />
-        </label>
-
-        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-          <span>
-            {t("reason")}
-            <span className="ms-0.5 text-error-600">*</span>
-          </span>
-          <textarea
-            required
-            maxLength={5000}
-            rows={3}
-            placeholder={t("reasonPlaceholder")}
-            value={form.reason}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                reason: event.target.value,
-              }))
-            }
-            className={`${FIELD_CLASS} resize-y`}
-          />
-        </label>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-          <span>{t("blockers")}</span>
-          <textarea
-            maxLength={5000}
-            rows={2}
-            placeholder={t("blockersPlaceholder")}
-            value={form.blockers ?? ""}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                blockers: event.target.value,
-              }))
-            }
-            className={`${FIELD_CLASS} resize-y`}
-          />
-        </label>
-
-        <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-          <span>{t("nextSteps")}</span>
-          <textarea
-            maxLength={5000}
-            rows={2}
-            placeholder={t("nextStepsPlaceholder")}
-            value={form.nextSteps ?? ""}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                nextSteps: event.target.value,
-              }))
-            }
-            className={`${FIELD_CLASS} resize-y`}
-          />
-        </label>
-      </div>
-
-      <div className="grid gap-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-950/60 md:grid-cols-2">
-        <div className="space-y-2">
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
-            <UploadIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-            {t("attachmentLabel")}
-          </span>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {t("attachmentHint")}
-          </p>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={DOCUMENT_FILE_ACCEPT}
-            className="sr-only"
-            onChange={(event) => {
-              const file = event.target.files?.[0] ?? null;
-              setSelectedFile(file);
-            }}
-          />
-
-          <div className="flex flex-wrap items-center gap-2 pt-1">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <UploadIcon className="me-1.5 h-3.5 w-3.5" />
-              {selectedFile || report.file
-                ? t("replaceFile")
-                : t("selectFile")}
-            </Button>
-
-            {selectedFile && (
-              <div className="inline-flex flex-wrap items-center gap-1.5">
-                <span className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
-                  <FileIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span className="max-w-44 truncate">{selectedFile.name}</span>
-                  <span className="tabular-nums text-xs opacity-80">
-                    ({formatFileSize(selectedFile.size)})
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={t("removeSelectedFile")}
-                    onClick={() => {
-                      setSelectedFile(null);
-                      setPreviewingSelectedFile(false);
-                      if (fileInputRef.current) fileInputRef.current.value = "";
-                    }}
-                    className="ms-1 rounded p-0.5 hover:bg-brand-100 dark:hover:bg-brand-500/20"
-                  >
-                    <CloseIcon className="h-3 w-3" />
-                  </button>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPreviewingSelectedFile(true)}
-                  className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300"
-                >
-                  <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                  <span>{t("previewAttachment")}</span>
-                </button>
-                <DocumentFilePreviewModal
-                  isOpen={previewingSelectedFile}
-                  onClose={() => setPreviewingSelectedFile(false)}
-                  fileName={selectedFile.name}
-                  contentType={selectedFile.type}
-                  fileSize={selectedFile.size}
-                  fetchBlob={() => Promise.resolve(selectedFile)}
-                />
-              </div>
-            )}
-
-            {!selectedFile && report.file && (
-              <div className="inline-flex flex-wrap items-center gap-1.5">
-                {onPreviewFile && (
-                  <button
-                    type="button"
-                    onClick={() => onPreviewFile(report)}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/80 px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
-                  >
-                    <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                    <span>{t("previewAttachment")}</span>
-                  </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => void onDownloadFile(report)}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                >
-                  <DownloadIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                  <span className="max-w-44 truncate">{report.file.name}</span>
-                  <span className="tabular-nums text-xs text-gray-400">
-                    ({formatFileSize(report.file.size)})
-                  </span>
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="space-y-2 border-t border-gray-200/70 pt-3 md:border-s md:border-t-0 md:ps-4 md:pt-0 dark:border-gray-800">
-          <span className="flex items-center gap-1.5 text-xs font-semibold text-gray-800 dark:text-gray-200">
-            <DocsIcon className="h-3.5 w-3.5 text-brand-600 dark:text-brand-400" />
-            {t("linkedDocumentsLabel")}
-          </span>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {t("linkedDocumentsHint")}
-          </p>
-
-          {availableDocuments.length > 0 ? (
-            <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pt-1">
-              {availableDocuments.map((doc) => {
-                const selected = Boolean(form.documentIds?.includes(doc.id));
-                return (
-                  <button
-                    key={doc.id}
-                    type="button"
-                    onClick={() => toggleDocumentLink(doc.id)}
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-medium transition ${
-                      selected
-                        ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-400 dark:bg-brand-500/20 dark:text-brand-200"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
-                    }`}
-                  >
-                    <DocsIcon className="h-3 w-3 shrink-0" />
-                    <span className="max-w-40 truncate">{doc.title}</span>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="pt-1 text-xs text-gray-400 dark:text-gray-500">
-              {t("noProjectDocuments")}
-            </p>
-          )}
-        </div>
-      </div>
 
       {(validationError || error) && (
         <div
@@ -621,12 +399,10 @@ export default function ProjectWorkReportsWorkspace({
   const [selectedReportId, setSelectedReportId] = useState("");
   const [editingReportId, setEditingReportId] = useState("");
   const [pendingReportId, setPendingReportId] = useState("");
-  const [downloadingReportId, setDownloadingReportId] = useState("");
 
   const memberSettings = useWorkReportSettingsQuery(projectId, "MEMBER");
   const settings = useWorkReportSettingsQuery(projectId, activeScope);
   const reportsQuery = useWorkReportsQuery(projectId, "ALL", page, activeScope);
-  const documentsQuery = useDocumentsQuery(projectId, "ALL", 1);
 
   const settingsAccessLost = isAccessOrResourceUnavailableError(settings.error);
   const reportsAccessLost = isAccessOrResourceUnavailableError(
@@ -769,7 +545,12 @@ export default function ProjectWorkReportsWorkspace({
   const filteredReports = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return periodReports.filter((report) => {
-      if (query && !report.memberName.toLowerCase().includes(query)) {
+      if (
+        query &&
+        !report.memberName.toLowerCase().includes(query) &&
+        !(report.title ?? "").toLowerCase().includes(query) &&
+        !(report.content ?? "").toLowerCase().includes(query)
+      ) {
         return false;
       }
       if (statusFilter === "ALL") return true;
@@ -853,11 +634,6 @@ export default function ProjectWorkReportsWorkspace({
       workNotesApi.updateReport(projectId, value.id, value.input),
     [workNoteKeys.project(projectId)],
   );
-  const uploadFileMutation = useWorkNotesMutation(
-    (value: Readonly<{ id: string; file: File }>) =>
-      workNotesApi.uploadReportFile(projectId, value.id, value.file),
-    [workNoteKeys.project(projectId)],
-  );
   const reportAction = useWorkNotesMutation(
     (
       input: Readonly<{
@@ -875,107 +651,18 @@ export default function ProjectWorkReportsWorkspace({
     [workNoteKeys.project(projectId)],
   );
 
-  const availableDocuments = documentsQuery.data?.data ?? [];
-  const docTitleMap = new Map(
-    availableDocuments.map((doc) => [doc.id, doc.title]),
-  );
-  const docMap = new Map(availableDocuments.map((doc) => [doc.id, doc]));
-
-  const [previewTarget, setPreviewTarget] = useState<{
-    fileName: string;
-    contentType?: string;
-    fileSize?: number;
-    fetchBlob: () => Promise<Blob>;
-    downloadUrl?: string;
-    onDownload?: () => void;
-  } | null>(null);
-
-  function handlePreviewReportFile(report: WorkReport) {
-    if (!report.file) return;
-    setPreviewTarget({
-      fileName: report.file.name,
-      contentType: report.file.contentType,
-      fileSize: report.file.size,
-      fetchBlob: () => workNotesApi.downloadReportFile(projectId, report.id),
-      onDownload: () => void handleDownloadReportFile(report),
-    });
-  }
-
-  async function handlePreviewLinkedDocument(
-    docId: string,
-    fallbackTitle: string,
-  ) {
-    const summary = docMap.get(docId);
-    if (summary?.file) {
-      setPreviewTarget({
-        fileName: summary.file.name,
-        contentType: summary.file.contentType,
-        fileSize: summary.file.size,
-        fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
-        downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
-      });
-      return;
-    }
-    try {
-      const fullDoc = await workNotesApi.getDocument(projectId, docId);
-      if (fullDoc.file) {
-        setPreviewTarget({
-          fileName: fullDoc.file.name,
-          contentType: fullDoc.file.contentType,
-          fileSize: fullDoc.file.size,
-          fetchBlob: () => workNotesApi.downloadDocumentFile(projectId, docId),
-          downloadUrl: `/api/backend/capture/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/file`,
-        });
-      } else {
-        const textBlob = new Blob([fullDoc.content || ""], {
-          type: "text/markdown;charset=utf-8",
-        });
-        setPreviewTarget({
-          fileName: `${fullDoc.title || fallbackTitle}.md`,
-          contentType: "text/markdown",
-          fileSize: textBlob.size,
-          fetchBlob: () => Promise.resolve(textBlob),
-        });
-      }
-    } catch {
-      const textBlob = new Blob([summary?.description || fallbackTitle], {
-        type: "text/plain;charset=utf-8",
-      });
-      setPreviewTarget({
-        fileName: `${fallbackTitle}.txt`,
-        contentType: "text/plain",
-        fileSize: textBlob.size,
-        fetchBlob: () => Promise.resolve(textBlob),
-      });
-    }
-  }
-
-  async function saveReportDraft(
-    report: WorkReport,
-    input: WorkReportInput,
-    file: File | null,
-  ) {
+  async function saveReportDraft(report: WorkReport, input: WorkReportInput) {
     saveReport.reset();
     updateReport.reset();
-    uploadFileMutation.reset();
     reportAction.reset();
-    const saved =
-      report.id === editableCurrentReport?.id
-        ? await saveReport.mutateAsync(input)
-        : await updateReport.mutateAsync({ id: report.id, input });
-    if (file) {
-      return uploadFileMutation.mutateAsync({ id: saved.id, file });
-    }
-    return saved;
+    return report.id === editableCurrentReport?.id
+      ? saveReport.mutateAsync(input)
+      : updateReport.mutateAsync({ id: report.id, input });
   }
 
-  async function submitReport(
-    report: WorkReport,
-    input: WorkReportInput,
-    file: File | null,
-  ) {
+  async function submitReport(report: WorkReport, input: WorkReportInput) {
     try {
-      const saved = await saveReportDraft(report, input, file);
+      const saved = await saveReportDraft(report, input);
       await reportAction.mutateAsync({ id: saved.id, action: "submit" });
       setEditingReportId("");
     } catch {
@@ -1001,34 +688,14 @@ export default function ProjectWorkReportsWorkspace({
     }
   }
 
-  async function handleDownloadReportFile(report: WorkReport) {
-    if (!report.file) return;
-    setDownloadingReportId(report.id);
-    try {
-      const blob = await workNotesApi.downloadReportFile(projectId, report.id);
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = report.file.name;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      URL.revokeObjectURL(url);
-    } finally {
-      setDownloadingReportId("");
-    }
-  }
-
   const reportError =
     saveReport.error instanceof Error
       ? saveReport.error.message
       : updateReport.error instanceof Error
         ? updateReport.error.message
-        : uploadFileMutation.error instanceof Error
-          ? uploadFileMutation.error.message
-          : reportAction.error instanceof Error
-            ? reportAction.error.message
-            : "";
+        : reportAction.error instanceof Error
+          ? reportAction.error.message
+          : "";
 
   const submittedInPeriod = periodMetrics.approved + periodMetrics.pendingReview;
   const activePeriodObj =
@@ -1050,9 +717,8 @@ export default function ProjectWorkReportsWorkspace({
     const isSelected = selectedReport?.id === item.id;
     const hasContent = hasReportContent(item);
     const effectiveStatus = resolveEffectiveStatus(item, currentTime);
-    const attachCount =
-      (item.file ? 1 : 0) + (item.documentIds ? item.documentIds.length : 0);
     const coreFilled = countCoreFields(item);
+    const reportTitle = (item.title ?? "").trim();
 
     return (
       <button
@@ -1095,27 +761,20 @@ export default function ProjectWorkReportsWorkspace({
               {item.memberName}
               {item.permissions.canEdit ? ` ${t("youSuffix")}` : ""}
             </div>
-            {effectivePeriod === "ALL" && (
+            {(reportTitle || effectivePeriod === "ALL") && (
               <div className="truncate text-xs tabular-nums text-gray-400 dark:text-gray-500">
-                {format.dateTime(new Date(item.periodStart), {
-                  dateStyle: "short",
-                  timeZone: "UTC",
-                })}
+                {effectivePeriod === "ALL"
+                  ? `${format.dateTime(new Date(item.periodStart), {
+                      dateStyle: "short",
+                      timeZone: "UTC",
+                    })}${reportTitle ? ` · ${reportTitle}` : ""}`
+                  : reportTitle}
               </div>
             )}
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {Boolean(item.blockers?.trim()) && (
-            <AlertIcon
-              aria-label={t("blockers")}
-              className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400"
-            />
-          )}
-          {attachCount > 0 && (
-            <FileIcon className="h-3 w-3 text-gray-400 dark:text-gray-500" />
-          )}
           {effectiveStatus === "DRAFT" && hasContent ? (
             <MiniProgressDots
               filled={coreFilled}
@@ -1742,158 +1401,125 @@ export default function ProjectWorkReportsWorkspace({
                             <ReportEditor
                               key={`${selectedReport.id}-${selectedReport.updatedAt}`}
                               report={selectedReport}
-                              availableDocuments={availableDocuments}
                               isSaving={
-                                saveReport.isPending ||
-                                updateReport.isPending ||
-                                uploadFileMutation.isPending
+                                saveReport.isPending || updateReport.isPending
                               }
                               isSubmitting={reportAction.isPending}
                               error={reportError}
-                              onSave={async (input, file) => {
+                              onSave={async (input) => {
                                 try {
-                                  await saveReportDraft(
-                                    selectedReport,
-                                    input,
-                                    file,
-                                  );
+                                  await saveReportDraft(selectedReport, input);
                                 } catch {
                                   /* form preserves draft */
                                 }
                               }}
-                              onSubmit={(input, file) =>
-                                submitReport(selectedReport, input, file)
+                              onSubmit={(input) =>
+                                submitReport(selectedReport, input)
                               }
-                              onDownloadFile={handleDownloadReportFile}
-                              onPreviewFile={handlePreviewReportFile}
                               onClose={() => setEditingReportId("")}
                             />
                           ) : hasReportContent(selectedReport) ? (
-                            <div className="space-y-5">
-                              <div>
-                                <h3 className="text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                                  {t("accomplishments")}
+                            <div className="space-y-4">
+                              {Boolean(selectedReport.title?.trim()) && (
+                                <h3 className="break-words text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+                                  {selectedReport.title}
                                 </h3>
-                                <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-900 dark:text-gray-100">
-                                  {selectedReport.accomplishments ||
-                                    common("noValue")}
-                                </p>
-                              </div>
-
-                              <div className="grid gap-5 border-t border-gray-100 pt-4 md:grid-cols-2 dark:border-gray-800">
-                                <div className="min-w-0">
-                                  <h3 className="text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                                    {t("approach")}
-                                  </h3>
-                                  <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                                    {selectedReport.approach ||
-                                      common("noValue")}
-                                  </p>
-                                </div>
-                                <div className="min-w-0">
-                                  <h3 className="text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                                    {t("reason")}
-                                  </h3>
-                                  <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                                    {selectedReport.reason || common("noValue")}
-                                  </p>
-                                </div>
-                              </div>
-
-                              {Boolean(selectedReport.blockers?.trim()) && (
-                                <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-3.5 py-2.5 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
-                                  <strong className="font-semibold">
-                                    {t("blockers")}:
-                                  </strong>{" "}
-                                  <span className="whitespace-pre-wrap break-words">
-                                    {selectedReport.blockers}
-                                  </span>
-                                </div>
                               )}
 
-                              {Boolean(selectedReport.nextSteps?.trim()) && (
-                                <div className="min-w-0">
-                                  <h3 className="text-xs font-bold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                                    {t("nextSteps")}
-                                  </h3>
-                                  <p className="mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                                    {selectedReport.nextSteps}
-                                  </p>
-                                </div>
-                              )}
-
-                              {(selectedReport.file ||
-                                (selectedReport.documentIds &&
-                                  selectedReport.documentIds.length > 0)) && (
-                                <div className="flex flex-wrap items-center gap-2 pt-1">
-                                  {selectedReport.file && (
-                                    <div className="inline-flex flex-wrap items-center gap-1.5 rounded-xl border border-brand-200/80 bg-brand-50/40 p-1 ps-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
-                                      <FileIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                                      <span className="max-w-52 truncate text-xs font-medium tabular-nums text-gray-800 dark:text-gray-200">
-                                        {`${selectedReport.file.name} (${formatFileSize(selectedReport.file.size)})`}
-                                      </span>
-                                      <button
-                                        type="button"
-                                        onClick={() =>
-                                          handlePreviewReportFile(
-                                            selectedReport,
-                                          )
-                                        }
-                                        className="inline-flex items-center gap-1 rounded-lg border border-brand-200 bg-white px-2 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-50 dark:border-brand-500/30 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-gray-800"
-                                      >
-                                        <EyeIcon className="h-3.5 w-3.5 shrink-0" />
-                                        <span>{t("previewAttachment")}</span>
-                                      </button>
-                                      <button
-                                        type="button"
-                                        disabled={
-                                          downloadingReportId ===
-                                          selectedReport.id
-                                        }
-                                        onClick={() =>
-                                          void handleDownloadReportFile(
-                                            selectedReport,
-                                          )
-                                        }
-                                        className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-                                      >
-                                        <DownloadIcon className="h-3.5 w-3.5 shrink-0" />
-                                        <span>
-                                          {downloadingReportId ===
-                                          selectedReport.id
-                                            ? t("downloadingFile")
-                                            : t("downloadAttachment")}
-                                        </span>
-                                      </button>
-                                    </div>
-                                  )}
-
-                                  {selectedReport.documentIds?.map((docId) => {
-                                    const docTitle =
-                                      docTitleMap.get(docId) ?? docId;
-                                    return (
-                                      <button
-                                        key={docId}
-                                        type="button"
-                                        aria-label={`${t("previewDocument")}: ${docTitle}`}
-                                        onClick={() =>
-                                          void handlePreviewLinkedDocument(
-                                            docId,
-                                            docTitle,
-                                          )
-                                        }
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1.5 text-xs font-medium text-gray-700 transition hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                      >
-                                        <DocsIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-                                        <span className="max-w-48 truncate">
-                                          {docTitle}
-                                        </span>
-                                        <EyeIcon className="ms-0.5 h-3 w-3 shrink-0 text-brand-600 dark:text-brand-400" />
-                                      </button>
-                                    );
+                              <div
+                                aria-label={t("systemMetadataLabel")}
+                                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-400"
+                              >
+                                <span className="font-semibold text-gray-800 dark:text-gray-200">
+                                  {t("authorMeta", {
+                                    author: selectedReport.memberName,
                                   })}
-                                </div>
-                              )}
+                                </span>
+                                {Number.isFinite(
+                                  Date.parse(selectedReport.createdAt),
+                                ) && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                      {t("createdAtMeta", {
+                                        date: format.dateTime(
+                                          new Date(selectedReport.createdAt),
+                                          {
+                                            dateStyle: "medium",
+                                            timeStyle: "short",
+                                            timeZone: "UTC",
+                                          },
+                                        ),
+                                      })}
+                                    </span>
+                                  </>
+                                )}
+                                {Number.isFinite(
+                                  Date.parse(selectedReport.updatedAt),
+                                ) && (
+                                  <>
+                                    <span aria-hidden="true">·</span>
+                                    <span>
+                                      {t("updatedAtMeta", {
+                                        date: format.dateTime(
+                                          new Date(selectedReport.updatedAt),
+                                          {
+                                            dateStyle: "medium",
+                                            timeStyle: "short",
+                                            timeZone: "UTC",
+                                          },
+                                        ),
+                                      })}
+                                    </span>
+                                  </>
+                                )}
+                                {selectedReport.submittedAt &&
+                                  Number.isFinite(
+                                    Date.parse(selectedReport.submittedAt),
+                                  ) && (
+                                    <>
+                                      <span aria-hidden="true">·</span>
+                                      <span>
+                                        {t("submittedAtMeta", {
+                                          date: format.dateTime(
+                                            new Date(
+                                              selectedReport.submittedAt,
+                                            ),
+                                            {
+                                              dateStyle: "medium",
+                                              timeStyle: "short",
+                                              timeZone: "UTC",
+                                            },
+                                          ),
+                                        })}
+                                      </span>
+                                    </>
+                                  )}
+                                {selectedReport.reviewedAt &&
+                                  Number.isFinite(
+                                    Date.parse(selectedReport.reviewedAt),
+                                  ) && (
+                                    <>
+                                      <span aria-hidden="true">·</span>
+                                      <span>
+                                        {t("reviewedAtMeta", {
+                                          date: format.dateTime(
+                                            new Date(selectedReport.reviewedAt),
+                                            {
+                                              dateStyle: "medium",
+                                              timeStyle: "short",
+                                              timeZone: "UTC",
+                                            },
+                                          ),
+                                        })}
+                                      </span>
+                                    </>
+                                  )}
+                              </div>
+
+                              <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                                {selectedReport.content || common("noValue")}
+                              </div>
 
                               {selectedReport.reviewComment && (
                                 <p className="rounded-lg border-s-4 border-warning-500 bg-warning-50 px-3.5 py-2.5 text-xs leading-relaxed text-warning-900 dark:bg-warning-500/10 dark:text-warning-200">
@@ -1976,19 +1602,6 @@ export default function ProjectWorkReportsWorkspace({
           </section>
         )}
       </div>
-
-      {previewTarget && (
-        <DocumentFilePreviewModal
-          isOpen={Boolean(previewTarget)}
-          onClose={() => setPreviewTarget(null)}
-          fileName={previewTarget.fileName}
-          contentType={previewTarget.contentType}
-          fileSize={previewTarget.fileSize}
-          fetchBlob={previewTarget.fetchBlob}
-          downloadUrl={previewTarget.downloadUrl}
-          onDownload={previewTarget.onDownload}
-        />
-      )}
     </main>
   );
 }
