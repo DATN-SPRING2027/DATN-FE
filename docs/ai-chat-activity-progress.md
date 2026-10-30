@@ -23,6 +23,23 @@ is streaming and can be collapsed or expanded with the pointer or keyboard.
 
 ## Validation
 
+### No-answer presentation follow-up
+
+A completed `no_answer` response is presented as one localized explanation,
+including guidance to clarify the question or check searchable documents. Copy
+uses that displayed explanation. Failed/cancelled responses retain their own
+terminal state and partial content. Genuine English answers remain unchanged.
+
+For history without the transient `answerStatus`, only the exact canonical SAG
+fallback with no document/session citations is treated as an abstention. An
+explicit `answered` status takes precedence. No API or persistence field is
+added. `AiChatMessageList.spec.tsx` covers these seven behaviors in English and
+Vietnamese. Real-session checks verified localized history and Copy.
+
+The broader Vietnamese benchmark and final complete responsive/light/dark
+acceptance are still follow-up work; the scoped tests do not certify every
+question or UI state.
+
 The activity component tests cover status animation, actual step updates,
 answer generation, collapse/expand, terminal timing, failure/cancellation,
 Vietnamese, reduced motion, scoped busy state, cleanup and long labels.

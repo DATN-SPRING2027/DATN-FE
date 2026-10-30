@@ -27,6 +27,10 @@ import {
 
 import AiChatActivityProgress from "./AiChatActivityProgress";
 
+// Canonical SAG abstention marker used by history responses predating answerStatus.
+const SAG_NO_ANSWER_TEXT =
+  "The available knowledge base does not contain enough traceable evidence to answer this question.";
+
 export type DisplayAiChatMessage = AiChatMessage & {
   activityStartedAt?: number;
   activityFinishedAt?: number;
@@ -393,6 +397,14 @@ export default function AiChatMessageList({
           const isEmptyEvidenceScope =
             message.content.trim() ===
             "[Answer hidden because its evidence is unavailable in the current source scope.]";
+          const isNoAnswer =
+            message.status === "ok" &&
+            !message.isStreaming &&
+            (message.answerStatus === "no_answer" ||
+              (message.answerStatus === undefined &&
+                message.citations.length === 0 &&
+                message.sessionCitations.length === 0 &&
+                message.content.trim() === SAG_NO_ANSWER_TEXT));
 
           return (
             <article
@@ -472,6 +484,10 @@ export default function AiChatMessageList({
                     </div>
                   </div>
                 </div>
+              ) : isNoAnswer ? (
+                <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                  {t("noAnswerNotice")}
+                </p>
               ) : (
                 message.content && (
                   <FormattedAnswerProse
@@ -485,13 +501,6 @@ export default function AiChatMessageList({
                   />
                 )
               )}
-
-              {message.answerStatus === "no_answer" &&
-                !isEmptyEvidenceScope && (
-                  <p className="rounded-xl bg-gray-50 px-3.5 py-2 text-xs text-gray-600 dark:bg-gpt-sidebar dark:text-gray-300">
-                    {t("noAnswerNotice")}
-                  </p>
-                )}
 
               {/* Failed Error Banner with Retry */}
               {message.status === "failed" && (
@@ -688,7 +697,12 @@ export default function AiChatMessageList({
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
                   <button
                     type="button"
-                    onClick={() => void handleCopy(message.id, message.content)}
+                    onClick={() =>
+                      void handleCopy(
+                        message.id,
+                        isNoAnswer ? t("noAnswerNotice") : message.content,
+                      )
+                    }
                     aria-label={t("copyAnswer")}
                     className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
                   >

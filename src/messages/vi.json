@@ -4672,7 +4672,7 @@
     "activityStopped": "Đã dừng tạo câu trả lời.",
     "statusCancelled": "Đã dừng",
     "statusFailed": "Thất bại",
-    "noAnswerNotice": "Không thể xác nhận câu trả lời đã kiểm chứng từ các nguồn tham chiếu dự án đã lập chỉ mục.",
+    "noAnswerNotice": "Chưa tìm thấy đủ bằng chứng trong tài liệu dự án để trả lời. Bạn có thể làm rõ câu hỏi hoặc kiểm tra tài liệu nào đã sẵn sàng tra cứu.",
     "noEvidenceScopeTitle": "Chưa có minh chứng được lập chỉ mục trong dự án này",
     "noEvidenceScopeBody": "Dự án này chưa có tài liệu đã phê duyệt và lập chỉ mục khớp với câu hỏi của bạn. Hãy tải lên và phê duyệt tài liệu trong dự án để làm cơ sở cho câu trả lời của AI.",
     "manageDocumentsCta": "Quản lý tài liệu dự án",

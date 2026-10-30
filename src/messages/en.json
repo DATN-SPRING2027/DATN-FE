@@ -4672,7 +4672,7 @@
     "activityStopped": "Response generation was stopped.",
     "statusCancelled": "Stopped",
     "statusFailed": "Failed",
-    "noAnswerNotice": "No verified answer could be confirmed from indexed project sources.",
+    "noAnswerNotice": "I could not find enough evidence in this project's documents to answer. Try clarifying your question or checking which documents are ready to search.",
     "noEvidenceScopeTitle": "No indexed evidence in this project yet",
     "noEvidenceScopeBody": "This project does not have approved indexed documents matching your question yet. Upload and approve documents in this project to ground AI answers.",
     "manageDocumentsCta": "Manage project documents",
