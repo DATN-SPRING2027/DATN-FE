@@ -32,7 +32,11 @@ export type AiChatSessionCitation = Readonly<{
   claimLevel?: "claim" | "run";
 }>;
 
+export type AiChatStepStatus = "running" | "completed" | "failed";
+
 export type AiChatRetrievalStep = Readonly<{
+  id?: string;
+  status?: AiChatStepStatus;
   kind: "session_context" | "tool" | "thinking" | "answer";
   label: string;
   durationMs: number;

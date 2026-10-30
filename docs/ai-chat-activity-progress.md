@@ -6,17 +6,25 @@ is streaming and can be collapsed or expanded with the pointer or keyboard.
 
 - The initial status means a response is being prepared. It does not claim a
   search has occurred before receiving an actual SSE step.
-- Existing `step` events append tool/session metadata. A `delta` changes the
-  public status to writing the answer. No additional API contract is needed.
+- Real-time `step` events carry optional `id` and `status` (`running`,
+  `completed`, `failed`) for `session_context`, `thinking` planning, `tool`
+  calls, and `answer` synthesis/citation verification. Steps with matching `id`
+  update in place without duplicating timeline rows; legacy `step` frames
+  without `id` still append cleanly. A `delta` changes the public status to
+  writing the answer.
 - The status uses a typewriter effect, with one stable live-region announcement
   per status. Reduced-motion preferences show the full text without typing.
-- `thinking` step payloads are replaced with the generic public preparation
-  label; private reasoning is never rendered.
+- `thinking` step payloads are replaced with the localized planning step label
+  (`activityStepThinking`); private reasoning and raw tool arguments/errors are
+  never rendered. Canonical SAG tool labels are localized across English and
+  Vietnamese while custom tool labels render verbatim.
 - Completed, failed and cancelled responses stop their timers and animation.
   Their messages remain distinct; a failed or stopped response is never labelled
   ready. Only the active activity region has `aria-busy=true`.
-- Client timestamps are remembered by message ID during the current workspace
-  session, including after the final response is refetched. They are not added
+- Client timestamps and sanitized execution-trace steps from the completed
+  stream are remembered in memory by message ID during the current workspace
+  session (and cleared on project switch), including after the final response is
+  refetched in empty-source scopes. They are not added
   to the API or database. Reloaded historical activity without those timestamps
   has no invented elapsed time.
 - English and Vietnamese use matching `AiChat.activity*` translation keys.

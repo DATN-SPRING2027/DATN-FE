@@ -794,4 +794,205 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(screen.getByText("1 / 2")).toBeInTheDocument();
     expect(screen.getByText("First answer version.")).toBeInTheDocument();
   });
+
+  it("upserts streaming execution trace steps in place by id without duplicating rows", async () => {
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-trace",
+      title: "Trace test",
+      createdAt: "2026-10-30T10:00:00Z",
+      updatedAt: "2026-10-30T10:00:00Z",
+    });
+
+    let emitEvent!: (event: AiChatStreamEvent) => void;
+    let finishStream!: () => void;
+    streamAiChatAskMock.mockImplementationOnce(
+      ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        emitEvent = onEvent;
+        return new Promise<void>((resolve) => {
+          finishStream = resolve;
+        });
+      },
+    );
+
+    renderWorkspace();
+    const textarea = screen.getByRole("textbox", {
+      name: /Ask Continuum SAG/i,
+    });
+    fireEvent.change(textarea, {
+      target: { value: "Check execution trace upsert" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    });
+
+    await act(async () => {
+      emitEvent({
+        event: "started",
+        data: {
+          runId: "run-trace-1",
+          threadId: "thread-trace",
+          userMessageId: "msg-u-trace",
+        },
+      });
+      emitEvent({
+        event: "step",
+        data: {
+          id: "tool-call-42",
+          status: "running",
+          kind: "tool",
+          label: "Tìm trong kho tri thức",
+          durationMs: 0,
+        },
+      });
+    });
+
+    expect(
+      screen.getAllByText("Search project knowledge base"),
+    ).toHaveLength(1);
+    expect(screen.getByText("In progress…")).toBeVisible();
+
+    await act(async () => {
+      emitEvent({
+        event: "step",
+        data: {
+          id: "tool-call-42",
+          status: "completed",
+          kind: "tool",
+          label: "Tìm trong kho tri thức",
+          durationMs: 420,
+          count: 4,
+        },
+      });
+    });
+
+    expect(
+      screen.getAllByText("Search project knowledge base"),
+    ).toHaveLength(1);
+    expect(screen.queryByText("In progress…")).not.toBeInTheDocument();
+    expect(screen.getByText("420ms")).toBeVisible();
+    expect(screen.getByText("4 items")).toBeVisible();
+
+    await act(async () => {
+      emitEvent({
+        event: "completed",
+        data: {
+          messageId: "msg-a-trace",
+          replyToMessageId: "msg-u-trace",
+          content: "Verified answer.",
+          answerStatus: "answered",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+        },
+      });
+      finishStream();
+    });
+
+    expect(screen.getByText("Verified answer.")).toBeInTheDocument();
+  });
+
+  it("preserves completed execution trace steps in session memory when refetched empty-scope history omits steps", async () => {
+    let serverItems: AiChatMessagePage["items"] = [];
+    useMessagesInfiniteMock.mockImplementation(() => ({
+      data: {
+        pages: [{ items: serverItems, nextCursor: null, hasMore: false }],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    }));
+
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-empty-scope",
+      title: "Empty scope trace",
+      createdAt: "2026-10-30T10:05:00Z",
+      updatedAt: "2026-10-30T10:05:00Z",
+    });
+
+    invalidateQueriesMock.mockImplementation(async () => {
+      serverItems = [
+        {
+          id: "msg-u-empty",
+          role: "user",
+          content: "Summarize empty project",
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: "2026-10-30T10:05:01Z",
+        },
+        {
+          id: "msg-a-empty",
+          replyToMessageId: "msg-u-empty",
+          role: "assistant",
+          content:
+            "[Answer hidden because its evidence is unavailable in the current source scope.]",
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: "2026-10-30T10:05:05Z",
+        },
+      ];
+    });
+
+    streamAiChatAskMock.mockImplementationOnce(
+      async ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        onEvent({
+          event: "started",
+          data: {
+            runId: "run-empty-1",
+            threadId: "thread-empty-scope",
+            userMessageId: "msg-u-empty",
+          },
+        });
+        onEvent({
+          event: "completed",
+          data: {
+            messageId: "msg-a-empty",
+            replyToMessageId: "msg-u-empty",
+            content: "No indexed docs.",
+            answerStatus: "no_answer",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [
+              { kind: "thinking", label: "Reasoning", durationMs: 320 },
+              {
+                kind: "tool",
+                label: "Tìm trong kho tri thức",
+                durationMs: 45,
+                count: 0,
+              },
+              { kind: "answer", label: "Answer Synthesis", durationMs: 290 },
+            ],
+          },
+        });
+      },
+    );
+
+    renderWorkspace();
+    const textarea = screen.getByRole("textbox", {
+      name: /Ask Continuum SAG/i,
+    });
+    fireEvent.change(textarea, {
+      target: { value: "Summarize empty project" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Processed/i }));
+    expect(
+      screen.getByText("Analyzing question & planning"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Search project knowledge base"),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Synthesize & verify citations"),
+    ).toBeVisible();
+  });
 });
