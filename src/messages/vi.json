@@ -3908,7 +3908,13 @@
     "toggleTheme": "Chuyển đổi giao diện sáng/tối",
     "footer": "Được xây dựng cho những người kế nhiệm.",
     "copyright": "© 2026 Continuum AI",
-    "photoAlt": "Đội ngũ phần mềm chia sẻ ý tưởng và cộng tác trong không gian làm việc sáng sủa"
+    "photoAlt": "Đội ngũ phần mềm chia sẻ ý tưởng và cộng tác trong không gian làm việc sáng sủa",
+    "signupAgreementPrefix": "B?ng vi?c t?o t?i kho?n, b?n ??ng ? v?i ",
+    "signupTermsLink": "?i?u kho?n S? d?ng",
+    "signupAgreementMiddle": " v? ",
+    "signupPrivacyLink": "Ch?nh s?ch B?o m?t",
+    "signupAgreementSuffix": " c?a Continuum AI.",
+    "signupAgreementRequired": "Vui l?ng t?ch ch?n ??ng ? ?i?u kho?n S? d?ng v? Ch?nh s?ch B?o m?t ?? t?o t?i kho?n."
   },
   "teamPreview": {
     "title": "Nhóm",
@@ -4123,7 +4129,10 @@
     "sourceType4": "Bàn giao",
     "storyPhoto1": "Các lập trình viên đang cộng tác quanh bàn làm việc",
     "storyPhoto2": "Hai lập trình viên đang đánh giá mã nguồn trên màn hình lớn",
-    "storyPhoto3": "Đồng nghiệp đang thảo luận mã nguồn phần mềm trên máy tính xách tay"
+    "storyPhoto3": "Đồng nghiệp đang thảo luận mã nguồn phần mềm trên máy tính xách tay",
+    "footerLegal": "Ph?p l?",
+    "termsLink": "?i?u kho?n s? d?ng",
+    "privacyLink": "Ch?nh s?ch b?o m?t"
   },
   "organizationOverview": {
     "title": "Tổng quan tổ chức",
@@ -4940,5 +4949,14 @@
       "resolutionNotePlaceholder": "Mô tả cách khoảng trống tri thức đã được bổ sung và xác minh…",
       "confirmResolveCta": "Xác nhận đã giải quyết"
     }
+  },
+  "legalCenter": {
+    "defaultDocLang": "vi",
+    "brandHomeAria": "Trang ch? Continuum AI",
+    "tabsAriaLabel": "V?n b?n ph?p l?",
+    "termsMetaTitle": "?i?u kho?n S? d?ng | Continuum AI",
+    "termsMetaDescription": "?i?u kho?n S? d?ng ch?nh th?c quy ??nh quy?n s? h?u d? li?u T? ch?c, B?n giao Tri th?c (A ? D ? B) v? Qu?n tr? AI c? ki?m so?t tr?n Continuum AI.",
+    "privacyMetaTitle": "Ch?nh s?ch B?o m?t | Continuum AI",
+    "privacyMetaDescription": "Ch?nh s?ch B?o m?t v? B?o v? D? li?u C? nh?n ch?nh th?c (Ngh? ??nh 13/2023/N?-CP & Google OAuth Limited Use) c?a Continuum AI."
   }
 }

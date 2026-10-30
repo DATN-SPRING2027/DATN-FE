@@ -3908,7 +3908,13 @@
     "toggleTheme": "Toggle color theme",
     "footer": "Built for the people who come next.",
     "copyright": "© 2026 Continuum AI",
-    "photoAlt": "A software team sharing ideas and working together in a bright workspace"
+    "photoAlt": "A software team sharing ideas and working together in a bright workspace",
+    "signupAgreementPrefix": "By creating an account, you agree to the ",
+    "signupTermsLink": "Terms and Conditions",
+    "signupAgreementMiddle": " and ",
+    "signupPrivacyLink": "Privacy Policy",
+    "signupAgreementSuffix": ".",
+    "signupAgreementRequired": "Please accept the Terms and Conditions and Privacy Policy to create your account."
   },
   "teamPreview": {
     "title": "Teams",
@@ -4123,7 +4129,10 @@
     "sourceType4": "Handover",
     "storyPhoto1": "Software developers collaborating around a workstation",
     "storyPhoto2": "Two developers reviewing source code on a large screen",
-    "storyPhoto3": "Colleagues discussing software code on a laptop"
+    "storyPhoto3": "Colleagues discussing software code on a laptop",
+    "footerLegal": "Legal",
+    "termsLink": "Terms & Conditions",
+    "privacyLink": "Privacy Policy"
   },
   "organizationOverview": {
     "title": "Organization Overview",
@@ -4940,5 +4949,14 @@
       "resolutionNotePlaceholder": "Describe how the knowledge gap was closed and verified…",
       "confirmResolveCta": "Mark Resolved"
     }
+  },
+  "legalCenter": {
+    "defaultDocLang": "en",
+    "brandHomeAria": "Continuum AI home",
+    "tabsAriaLabel": "Legal documents",
+    "termsMetaTitle": "Terms and Conditions | Continuum AI",
+    "termsMetaDescription": "Official Terms and Conditions governing workspace ownership, Knowledge Handover (A → D → B), and Bounded AI governance on Continuum AI.",
+    "privacyMetaTitle": "Privacy Policy | Continuum AI",
+    "privacyMetaDescription": "Official Privacy Policy and Personal Data Protection Notice (Decree 13/2023/ND-CP & Google OAuth Limited Use) for Continuum AI."
   }
 }

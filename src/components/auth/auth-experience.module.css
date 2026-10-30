@@ -817,6 +817,32 @@
   font-size: 0.8rem;
   line-height: 1.7;
 }
+.agreementLink {
+  color: var(--color-brand-600);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.22rem;
+}
+:global(.dark) .agreementLink {
+  color: var(--color-brand-300);
+}
+.agreementLink:hover {
+  color: var(--color-brand-700);
+}
+:global(.dark) .agreementLink:hover {
+  color: var(--color-brand-200);
+}
+.agreementError {
+  margin-top: 0.45rem;
+  margin-inline-start: 2rem;
+  font-size: 0.775rem;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--color-error-600);
+}
+:global(.dark) .agreementError {
+  color: var(--color-error-400);
+}
 .signup {
   padding-block: 1rem;
 }

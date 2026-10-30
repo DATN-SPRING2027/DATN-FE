@@ -29,6 +29,11 @@ export default async function ScotchFooter() {
             <a href="#team-stories">{t("stories")}</a>
             <Link href="/signin">{common("signin")}</Link>
           </div>
+          <div>
+            <h2>{t("footerLegal")}</h2>
+            <Link href="/terms">{t("termsLink")}</Link>
+            <Link href="/privacy">{t("privacyLink")}</Link>
+          </div>
         </nav>
       </div>
       <small>{common("copyright")}</small>

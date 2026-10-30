@@ -1,0 +1,600 @@
+{
+  "ui": {
+    "headerBadge": "Legal & Privacy",
+    "heroEyebrow": "LEGAL, PRIVACY & DATA GOVERNANCE",
+    "heroTitle": "Terms and Conditions & Privacy Policy",
+    "heroDescription": "Transparent legal commitments, project knowledge ownership rules, and personal data protection standards for individuals and Organizations using Continuum AI.",
+    "governingLanguageNotice": "These policies are provided in both Vietnamese and English for convenience. Pursuant to Section 1.4, the Vietnamese version is the governing original under Vietnamese law.",
+    "langViLabel": "Tiếng Việt (Original)",
+    "langEnLabel": "English",
+    "langGroupAria": "Select legal document language",
+    "printCta": "Print / Save PDF",
+    "signInCta": "Sign in",
+    "signUpCta": "Create account",
+    "homeCta": "Home",
+    "searchPlaceholder": "Search clauses (e.g., Handover, Google OAuth, AI, 365 days…)",
+    "searchAriaLabel": "Search legal clauses",
+    "clearSearchAria": "Clear search query",
+    "searchResultsCount": "Showing {count} / {total} matching sections",
+    "emptySearchTitle": "No matching clauses found",
+    "emptySearchDescription": "No section in the current document matches your search keywords. Try another keyword or switch to the companion tab.",
+    "emptySearchResetCta": "Clear search filter",
+    "tocHeading": "Table of contents",
+    "tocMobileToggle": "Quick jump menu ({count} sections)",
+    "copyLinkAria": "Copy direct link to this section",
+    "copiedLinkLabel": "Link copied",
+    "contactCardTitle": "Legal & Data Protection Contact",
+    "contactCardDescription": "Official contact point for Terms inquiries, Personal Data Subject Rights (Decree 13/2023/ND-CP), and security disclosures.",
+    "contactEmailLabel": "Official email",
+    "slaAckLabel": "Initial acknowledgment",
+    "slaAckValue": "≤ 72 hours",
+    "slaDeleteLabel": "Personal data deletion",
+    "slaDeleteValue": "≤ 30 days",
+    "slaAuditLabel": "Security audit retention",
+    "slaAuditValue": "365 days",
+    "footerCopyright": "© 2026 Continuum AI. All rights reserved.",
+    "footerJurisdiction": "Operated in Da Nang, Vietnam • Governed by the laws of the Socialist Republic of Vietnam."
+  },
+  "terms": {
+    "tabLabel": "Terms and Conditions",
+    "badgeLabel": "15 Articles",
+    "title": "Continuum AI Platform Terms and Conditions",
+    "subtitle": "Governing user obligations, multi-tenant workspace administration, bounded AI verification, and project knowledge handover continuity.",
+    "versionLabel": "Version",
+    "versionValue": "1.0",
+    "effectiveLabel": "Effective date",
+    "effectiveValue": "Oct 30, 2026",
+    "operatorLabel": "Platform operator",
+    "operatorValue": "Continuum AI Platform Development & Operations Team (Da Nang, Vietnam)",
+    "tldrTitle": "Key Highlights in 60 Seconds",
+    "tldrSubtitle": "Five foundational commitments before reading the full legal text:",
+    "tldrItems": [
+      "Your Organization owns its Workspace Content: Every task, project document, work note, verified knowledge object, and handover package created inside an Organization belongs to that Organization — never to Continuum AI.",
+      "Protected Knowledge Handover Continuity (A → D → B): When a member leaves or rotates off a project, official project artifacts and handover packages remain intact for the Organization and incoming successor.",
+      "Bounded AI & Human-in-the-Loop Governance: AI retrieves only sources you are currently authorized to read, never auto-publishes without human approval, and never trains public AI models on your Organization's private data.",
+      "Strict Least-Privilege Isolation: Neither Platform Operators nor Organization Managers receive default read access to confidential PRIVATE project content unless explicitly authorized.",
+      "Transparent Commercial Terms: There are no hidden or automatic charges; any future paid tier or quota change will be announced at least 30 days in advance and requires explicit opt-in."
+    ],
+    "tldrDisclaimer": "Note: This executive summary is provided for readability and does not replace the full legal terms of Articles 1 through 15 below.",
+    "crossNavEyebrow": "COMPANION POLICY",
+    "crossNavTitle": "Read our Privacy Policy & Personal Data Protection Notice",
+    "crossNavDescription": "Inspect exact data categories, Pre-Retrieval Scoped ACL safeguards, Google OAuth Limited Use compliance, infrastructure sub-processors, and your data rights.",
+    "crossNavCta": "Open Privacy Policy",
+    "articles": [
+      {
+        "id": "terms-1-scope",
+        "number": "01",
+        "shortTitle": "Introduction & Acceptance",
+        "title": "Article 1. Introduction, Scope, and Acceptance of Terms",
+        "paragraphs": [
+          "1.1. Welcome to Continuum AI — a governed project work management, knowledge capture, verification, and handover continuity platform powered by permission-aware artificial intelligence (collectively, the \"Platform\" or \"Services\"), including our official web applications and associated backend services.",
+          "1.2. The Platform is developed, managed, and operated by the Continuum AI Platform Development and Operations Team based in Da Nang, Vietnam (\"Continuum AI\", \"we\", \"us\", or the \"Operator\"; upon incorporation or transfer to a registered corporate entity under Vietnamese law, the successor legal entity shall assume all rights and obligations hereunder following public notice on the Platform).",
+          "1.3. By checking the consent box during account registration, signing in via Email or Google OAuth, accepting an Organization invitation, or accessing and using the Services, you acknowledge that you have read, understood, and agreed to be legally bound by these Terms and Conditions and our accompanying Privacy Policy. If you do not agree, you must discontinue use of the Services immediately.",
+          "1.4. Governing Language: These Terms are published in Vietnamese and English for user convenience. In the event of any discrepancy or ambiguity in interpretation between the two versions, the Vietnamese version shall prevail as the authoritative original."
+        ]
+      },
+      {
+        "id": "terms-2-definitions",
+        "number": "02",
+        "shortTitle": "Definitions",
+        "title": "Article 2. Definitions",
+        "paragraphs": [
+          "Throughout these Terms and Conditions and the Privacy Policy, capitalized domain terms carry the following meanings:"
+        ],
+        "bullets": [
+          "Account: Your individual authenticated user identity on Continuum AI established via Email/Password or Google OAuth 2.0.",
+          "Organization: A dedicated multi-tenant workspace representing a company, engineering department, research group, or team operating on Continuum AI.",
+          "Project: A bounded workspace unit within an Organization, configured as PRIVATE by default upon creation or PUBLIC to active Organization members where permitted.",
+          "Platform Operator (UI label: Admin / technical code: PLATFORM_OPERATOR): Infrastructure operations personnel responsible for provisioning top-level Organizations and monitoring system health; holds no default Organization membership or read access to Organization content.",
+          "Organization Manager (UI label: Manager / technical code: ADMIN): Authorized workspace administrator managing Organization memberships, invitations, roles, and policies; does not automatically receive read access to confidential PRIVATE project content without explicit project scope.",
+          "Project Leader (UI label: Leader / technical code: TEAM_LEADER): Appointed project coordinator governing tasks, project members, knowledge verification workflows, and handover execution within assigned Project/Team scope.",
+          "Member (MEMBER): An authenticated participant contributing tasks, work notes, documents, searches, and handover items within granted access control lists (ACLs).",
+          "Workspace Content: All operational records created, uploaded, or synchronized within an Organization/Project, including Tasks, task history, Work Notes (Task Notes, Project Documents, Periodic Work Reports), attachments, Human Chat messages, Knowledge Objects & versions, and Knowledge Handover Packages.",
+          "Knowledge Handover Package (A → D → B): A governed transition workspace connecting a Departing Member (A), a Coordinator Leader (D), and a Successor Recipient (B), comprising selected official sources, readiness checklists, task transfers, cited Q&A, and follow-up items.",
+          "Bounded AI (Continuum SAG / AI Chat / AI Companion): Our retrieval-augmented generation (RAG) subsystem enforcing Pre-Retrieval Scoped ACLs to deliver cited answers, source proposals, and draft syntheses."
+        ]
+      },
+      {
+        "id": "terms-3-account-security",
+        "number": "03",
+        "shortTitle": "Eligibility & Session Security",
+        "title": "Article 3. Eligibility, Account Registration, and Session Security",
+        "paragraphs": [
+          "3.1. Age and Authority: You represent that you are at least 18 years old and possess full legal capacity under applicable law. If you create or administer an Organization on behalf of a company or institution, you warrant that you have full legal authority to bind that entity to these Terms.",
+          "3.2. Accurate Registration Information: You must provide your accurate full name and a valid email address during registration and must not impersonate any other person or organization.",
+          "3.3. Credential Security: Direct account passwords must be between 12 and 72 characters in length as enforced by the Platform. You are solely responsible for safeguarding your password, devices, and linked Google account.",
+          "3.4. Automated Session Protection & Reuse Detection: Continuum AI enforces cryptographic Refresh Token Rotation with token-family reuse detection (familyId). If our security subsystem detects replay of a previously rotated refresh token — indicating potential credential or session theft — Continuum AI will immediately revoke the entire session family, require re-authentication, and dispatch a security alert to your registered email. Report suspected unauthorized access immediately to kimthang.work@gmail.com."
+        ]
+      },
+      {
+        "id": "terms-4-multi-tenant",
+        "number": "04",
+        "shortTitle": "Multi-Tenant Governance",
+        "title": "Article 4. Multi-Tenant Workspace Governance and Role Administration",
+        "paragraphs": [
+          "4.1. A single Account may belong to one or more Organizations through verified invitations or self-service workspace creation. Your effective permissions depend strictly on holding an ACTIVE membership and valid scoped role assignments.",
+          "4.2. By joining an Organization on Continuum AI, you acknowledge and agree that authorized Organization Managers and Project Leaders within their respective scopes may:"
+        ],
+        "bullets": [
+          "Grant, modify, transition to OFFBOARDING state, suspend, or revoke your membership in that Organization or Project;",
+          "Configure Project visibility (PRIVATE / PUBLIC) and assign Coordinator Leaders (D) or Successor Recipients (B) in Knowledge Handover workflows;",
+          "Inspect workspace security and governance audit logs generated within that Organization's administrative boundary."
+        ],
+        "subSections": [
+          {
+            "heading": "4.3. Internal Organizational Autonomy",
+            "paragraphs": [
+              "Continuum AI provides technical enforcement of Organization-configured permissions and does not arbitrate internal employment, staffing, or governance disputes among members of an Organization."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "terms-5-ownership-handover",
+        "number": "05",
+        "shortTitle": "Content Ownership & Handover",
+        "title": "Article 5. Ownership of Workspace Content and Knowledge Handover Continuity (A → D → B)",
+        "paragraphs": [
+          "5.1. Organization Ownership: As between Continuum AI and the Organization, the Organization retains full ownership and lawful control over all Workspace Content created, uploaded, verified, or stored within its workspace. Continuum AI claims no ownership over your source code, engineering documentation, work notes, or institutional knowledge.",
+          "5.2. Limited Operational License: You and your Organization grant Continuum AI a non-exclusive, royalty-free, strictly limited license to host, back up, parse, index into vector/graph stores, render according to ACL rules, and process Workspace Content through AI features solely to provide and secure the Services for your Organization.",
+          "5.3. Knowledge Continuity Upon Member Departure (Handover Preservation Clause): Continuum AI exists specifically to preserve institutional continuity when team members rotate or depart. Tasks, Project Documents, Periodic Work Reports, Verified Knowledge Objects, official sources curated into a Knowledge Handover Package (A → D → B), and cited handover Q&A created in the course of Organization work constitute operational records under the Organization's control.",
+          "5.4. When a Departing Member (A) leaves a Project/Organization or requests deletion of their personal Continuum AI Account, deleting or anonymizing that individual's personal Account profile does not delete, invalidate, or disrupt the Organization's tasks, project documents, verified knowledge, or handover packages. Minimal or anonymized provenance attribution is preserved so Successors (B) and Leaders (D) retain verifiable audit continuity."
+        ]
+      },
+      {
+        "id": "terms-6-bounded-ai",
+        "number": "06",
+        "shortTitle": "Bounded AI Governance",
+        "title": "Article 6. Bounded AI Governance, Human-in-the-Loop Verification, and Zero Public Model Training",
+        "paragraphs": [
+          "6.1. Pre-Retrieval Scoped ACL Enforcement: Continuum AI filters source permissions prior to retrieval and generation. AI features only retrieve indexed sources that the requesting user is actively authorized to read at query time. Informal task notes are never auto-published or automatically promoted into official handover packages without explicit human selection.",
+          "6.2. Probabilistic Output & Mandatory Human-in-the-Loop Review: Due to the probabilistic nature of large language models (LLMs), responses, candidate source proposals, and synthesized checklist drafts produced by AI Chat or AI Companion may be incomplete or contain inaccuracies. All AI outputs remain in PROPOSED / Draft status accompanied by source citations and never self-publish or self-approve.",
+          "6.3. User Verification Responsibility: Users, Project Leaders, Subject-Matter Experts (SMEs), and Organizations are solely responsible for inspecting cited primary evidence before verifying knowledge, completing a handover gate, or relying on AI assistance for technical, operational, security, financial, or legal decisions.",
+          "6.4. Zero Public Model Training Commitment: Continuum AI does not sell Workspace Content and never uses your Organization's private documents, notes, chat messages, or prompts to train or fine-tune public foundation AI models shared with third parties."
+        ],
+        "callout": {
+          "variant": "brand",
+          "title": "Core Continuum AI Principle: AI Assists — People Decide",
+          "body": "AI accelerates retrieval and draft synthesis with inline citations [1]/[S1], while authorized human reviewers retain exclusive authority to verify knowledge and approve handovers."
+        }
+      },
+      {
+        "id": "terms-7-acceptable-use",
+        "number": "07",
+        "shortTitle": "Acceptable Use & Rate Limits",
+        "title": "Article 7. Acceptable Use Policy (AUP) and Multi-Tier Rate Limiting",
+        "paragraphs": [
+          "7.1. You agree not to misuse the Platform or assist any person in doing any of the following:"
+        ],
+        "bullets": [
+          "Uploading, storing, or transmitting content that violates Vietnamese or applicable law, infringes third-party intellectual property, trade secrets, or privacy rights, or contains unlawful, defamatory, or abusive material;",
+          "Uploading malware, trojans, ransomware, exploit payloads, or attempting to abuse presigned cloud object storage flows;",
+          "Conducting unauthorized penetration testing, vulnerability scanning, reverse engineering, session token tampering, or attempting to bypass multi-tenant or project ACL boundaries;",
+          "Executing adversarial Prompt Injection / Jailbreak attacks designed to subvert AI safety boundaries, or deploying automated scrapers/bots that degrade infrastructure stability or exhaust LLM quotas."
+        ],
+        "subSections": [
+          {
+            "heading": "7.2. Multi-Tier Rate Limiting",
+            "paragraphs": [
+              "To protect platform reliability against DDoS, credential stuffing, and quota exhaustion, Continuum AI enforces automated multi-tier rate limits across network edges, user roles, login attempts, file uploads, and AI streaming endpoints. Requests exceeding permitted thresholds receive HTTP 429 Too Many Requests with standard Retry-After headers."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "terms-8-third-party",
+        "number": "08",
+        "shortTitle": "Third-Party Integrations",
+        "title": "Article 8. Third-Party Integrations and External Services",
+        "paragraphs": [
+          "8.1. The Platform supports optional integrations with third-party services, including Google OAuth 2.0 authentication and Organization-configured Atlassian Jira synchronization.",
+          "8.2. Enabling a third-party integration authorizes Continuum AI to exchange scoped data necessary to operate that connection. Third-party services are governed by their own terms and privacy policies; Continuum AI is not liable for outages, API breaking changes, or independent processing actions performed by external providers outside our infrastructure."
+        ]
+      },
+      {
+        "id": "terms-9-intellectual-property",
+        "number": "09",
+        "shortTitle": "Platform Intellectual Property",
+        "title": "Article 9. Platform Intellectual Property Rights and Feedback",
+        "paragraphs": [
+          "9.1. All intellectual property rights in the Continuum AI Platform — including software architecture, source code, SAG retrieval and knowledge graph engines, visual interfaces, logos, and product documentation — remain the exclusive property of the Continuum AI Platform Development and Operations Team and its respective open-source licensors. Nothing in these Terms transfers Platform intellectual property ownership to you.",
+          "9.2. If you voluntarily submit product suggestions or bug reports (excluding confidential Workspace Content), we may incorporate such feedback to improve the Services without royalty or restriction."
+        ]
+      },
+      {
+        "id": "terms-10-pricing",
+        "number": "10",
+        "shortTitle": "Service Plans & Pricing Notice",
+        "title": "Article 10. Service Plans, Fair-Use Quotas, and Pricing Notice",
+        "paragraphs": [
+          "10.1. During the current operational phase, Continuum AI provides Platform access under active account/workspace quotas or separate Organization agreements without automatic online billing or hidden charges.",
+          "10.2. Continuum AI reserves the right to introduce optional paid subscription tiers (such as Pro or Enterprise plans) or adjust free-tier storage and AI usage quotas in the future. We will provide at least thirty (30) days' advance notice via email or in-app administrative banner before any fee applies to features you use, and no charges will ever occur without your explicit opt-in confirmation."
+        ]
+      },
+      {
+        "id": "terms-11-suspension",
+        "number": "11",
+        "shortTitle": "Suspension & Termination",
+        "title": "Article 11. Suspension, Access Revocation, and Account Termination",
+        "paragraphs": [
+          "11.1. User-Initiated Termination: You may stop using the Services at any time and request personal Account deletion in accordance with our Privacy Policy. Organization Managers may request closure of their Organization workspace.",
+          "11.2. Security & Compliance Suspension: We may immediately revoke active tokens, suspend an Account, or restrict workspace access if we detect severe violations of Article 7 (cyberattacks, malware distribution, cross-tenant intrusion), active account compromise threatening Organization data, or mandatory legal orders issued by competent Vietnamese authorities.",
+          "11.3. Where a violation is curable and poses no immediate security threat, we will notify the registered email address to provide a reasonable opportunity for remediation."
+        ]
+      },
+      {
+        "id": "terms-12-availability",
+        "number": "12",
+        "shortTitle": "Availability & Disclaimers",
+        "title": "Article 12. Service Availability, Maintenance, and Disclaimer of Warranties",
+        "paragraphs": [
+          "12.1. While Continuum AI maintains database replication, automated backups, and operational monitoring, the Services are provided on an \"AS IS\" and \"AS AVAILABLE\" basis.",
+          "12.2. We do not warrant uninterrupted 100% uptime or error-free operation during scheduled maintenance, international submarine cable disruptions, upstream cloud/LLM provider outages, or force majeure events."
+        ]
+      },
+      {
+        "id": "terms-13-liability",
+        "number": "13",
+        "shortTitle": "Limitation of Liability",
+        "title": "Article 13. Limitation of Liability and Indemnification",
+        "paragraphs": [
+          "13.1. To the fullest extent permitted by Vietnamese law, Continuum AI shall not be liable for indirect, incidental, or consequential damages (including lost profits or business interruption) arising from: (a) reliance on unverified AI outputs without human review under Article 6.2; (b) credential compromise on user devices or misconfigured internal Organization roles; or (c) third-party service outages.",
+          "13.2. Except for willful misconduct or liabilities that cannot be excluded under mandatory Vietnamese law, Continuum AI's aggregate direct liability to any user or Organization shall not exceed the total fees actually paid by that user or Organization to Continuum AI during the twelve (12) months preceding the claim.",
+          "13.3. You agree to indemnify and hold Continuum AI harmless from third-party claims arising directly from unlawful content you upload or your breach of Article 7."
+        ]
+      },
+      {
+        "id": "terms-14-amendments",
+        "number": "14",
+        "shortTitle": "Changes to Terms",
+        "title": "Article 14. Modifications to the Terms",
+        "paragraphs": [
+          "14.1. We may update these Terms to reflect new Platform capabilities or regulatory requirements. Updated versions display a revised Version number and Effective Date at the top of this page.",
+          "14.2. For material changes affecting your rights or obligations, we will provide at least fifteen (15) days' advance notice via email or prominent in-app notification prior to taking effect. Continued use after the effective date constitutes acceptance of the updated Terms."
+        ]
+      },
+      {
+        "id": "terms-15-governing-law",
+        "number": "15",
+        "shortTitle": "Governing Law & Contact",
+        "title": "Article 15. Governing Law, Dispute Resolution, and Contact",
+        "paragraphs": [
+          "15.1. These Terms are governed by and construed in accordance with the laws of the Socialist Republic of Vietnam.",
+          "15.2. Any dispute arising out of or relating to these Terms shall first be addressed through good-faith negotiation within thirty (30) days of written notice. Unresolved disputes shall be submitted to the competent People's Court in Vietnam.",
+          "15.3. For legal notices, Terms inquiries, or support, contact the Continuum AI Platform Development and Operations Team (Da Nang, Vietnam) at: kimthang.work@gmail.com."
+        ]
+      }
+    ]
+  },
+  "privacy": {
+    "tabLabel": "Privacy Policy",
+    "badgeLabel": "12 Sections",
+    "title": "Privacy Policy & Personal Data Protection Notice",
+    "subtitle": "Aligned with Vietnam Decree 13/2023/ND-CP on Personal Data Protection, the Personal Data Protection Law, and the Google API Services User Data Policy (Limited Use).",
+    "versionLabel": "Version",
+    "versionValue": "1.0",
+    "effectiveLabel": "Effective date",
+    "effectiveValue": "Oct 30, 2026",
+    "operatorLabel": "Data protection contact",
+    "operatorValue": "Continuum AI Platform Development & Operations Team (Da Nang, Vietnam)",
+    "tldrTitle": "Privacy Commitments in 60 Seconds",
+    "tldrSubtitle": "Five privacy safeguards engineered directly into Continuum AI:",
+    "tldrItems": [
+      "Zero Data Selling — Zero Ad Tracking: We never sell personal or project data to third parties and never deploy cross-site advertising cookies.",
+      "Zero Public AI Model Training: Workspace documents, work notes, and chats are processed strictly behind Pre-Retrieval Scoped ACLs and are never used to train public AI models.",
+      "Clear Controller vs. Processor Boundaries: Your Organization acts as Data Controller for workspace records; Continuum AI controls core Account security and processes workspace data solely under Organization instructions.",
+      "Google OAuth Limited Use Compliance: When you sign in with Google, we access only your verified email, display name, and profile avatar — never your Gmail, Google Drive, or Contacts.",
+      "Actionable Data Rights & Clear SLAs: Exercise access, correction, consent withdrawal, and personal Account deletion rights with ≤ 72-hour acknowledgment and ≤ 30-day completion."
+    ],
+    "tldrDisclaimer": "Note: This summary highlights key privacy principles and does not replace the full provisions of Sections 1 through 12 below.",
+    "crossNavEyebrow": "COMPANION POLICY",
+    "crossNavTitle": "Read Continuum AI Terms and Conditions",
+    "crossNavDescription": "Review multi-tenant governance rules, Knowledge Handover (A → D → B) continuity rights, Human-in-the-Loop AI obligations, and acceptable use standards.",
+    "crossNavCta": "Open Terms and Conditions",
+    "articles": [
+      {
+        "id": "privacy-1-roles",
+        "number": "01",
+        "shortTitle": "Controller & Processor Roles",
+        "title": "Section 1. Data Controller vs. Data Processor Roles",
+        "paragraphs": [
+          "In accordance with Vietnam's Decree 13/2023/ND-CP on Personal Data Protection and international B2B privacy standards, data protection responsibilities are structured across two distinct scopes:"
+        ],
+        "bullets": [
+          "Continuum AI acts as Personal Data Controller-cum-Processor for core Account registration records, authentication sessions, interface/locale preferences, direct support inquiries, and platform-level security logs.",
+          "Your Organization acts as Data Controller and Continuum AI acts as Data Processor for all personal data and operational records inside that Organization's workspace (project memberships, tasks, work notes, uploaded documents, chat messages, and Knowledge Handover Packages A → D → B). Continuum AI processes Workspace Content strictly in accordance with the Organization's configured RBAC/ACL permissions."
+        ]
+      },
+      {
+        "id": "privacy-2-data-categories",
+        "number": "02",
+        "shortTitle": "Categories of Data Collected",
+        "title": "Section 2. Categories of Personal and Workspace Data Collected",
+        "paragraphs": [
+          "Following strict data minimization principles, Continuum AI collects only basic personal data and technical records required to deliver and secure the Services:"
+        ],
+        "table": {
+          "caption": "Summary of Personal and Technical Data Processed on Continuum AI",
+          "headers": ["Data Category", "Specific Data Elements", "Collection Source", "Decree 13 Classification"],
+          "rows": [
+            [
+              "1. Account Identity & Authentication",
+              "Display name (fullName), email address, one-way bcrypt password hash (plaintext passwords are never stored), optional avatar URL, and Google OAuth subject identifier.",
+              "Provided directly by you or authorized via Google OAuth.",
+              "Basic Personal Data"
+            ],
+            [
+              "2. Organization & Project Collaboration",
+              "Organization/Project memberships, roles (Manager, Leader, Member), lifecycle states (ACTIVE, ONBOARDING, OFFBOARDING), Tasks, Work Notes, Project Documents, Chat messages, Knowledge Objects & Handover Packages (A → D → B).",
+              "Created by you or authorized Organization Managers / Leaders.",
+              "Workspace & Work-Linked Basic Data"
+            ],
+            [
+              "3. Bounded AI Interactions (SAG)",
+              "Questions submitted in AI Chat / AI Companion, selected project scope, cited source references, and thread conversation history.",
+              "Generated when you actively invoke AI features.",
+              "Application Activity Data"
+            ],
+            [
+              "4. Session Security & Immutable Audit Logs",
+              "SHA-256 hashed refresh session tokens, IP address (ipAddress), browser/device User-Agent, authentication timestamps, state-change audit records (audit_logs), and service diagnostics.",
+              "Recorded automatically for security and compliance.",
+              "Technical & Cybersecurity Data"
+            ]
+          ]
+        },
+        "subSections": [
+          {
+            "heading": "Sensitive Personal Data Notice",
+            "paragraphs": [
+              "Continuum AI does not request or intentionally collect Sensitive Personal Data as defined under Decree 13/2023/ND-CP (such as medical records, biometric data, political or religious beliefs, personal banking credentials, or real-time geolocation). Users and Organizations must not upload third-party sensitive personal data without a valid legal basis and consent."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-3-purposes",
+        "number": "03",
+        "shortTitle": "Purposes & Legal Bases",
+        "title": "Section 3. Purposes and Legal Bases for Data Processing",
+        "paragraphs": [
+          "We process the data described in Section 2 based on your explicit consent, performance of the Platform service agreement, and statutory cybersecurity obligations for six specific purposes:"
+        ],
+        "bullets": [
+          "Creating and authenticating your Account, maintaining secure sessions, and executing password recovery requests;",
+          "Enforcing multi-tenant RBAC/ABAC and Pre-Retrieval Scoped ACLs so members access only authorized projects and knowledge sources;",
+          "Parsing documents, building semantic vector indices, serving cited RAG answers, and orchestrating Knowledge Handover Packages (A → D → B);",
+          "Sending essential transactional emails (account verification links, password resets, Organization invitations, critical handover/review alerts, and security warnings — never unsolicited promotional spam);",
+          "Detecting and mitigating session hijacking, brute-force attacks, fraud, and infrastructure abuse;",
+          "Maintaining immutable audit trails for Organization governance accountability and lawful regulatory compliance."
+        ]
+      },
+      {
+        "id": "privacy-4-google-oauth",
+        "number": "04",
+        "shortTitle": "Google User Data Disclosure",
+        "title": "Section 4. Google User Data & Google API Services Limited Use Disclosure",
+        "paragraphs": [
+          "4.1. Minimal OAuth Scopes: When you choose \"Sign in / Sign up with Google\", Continuum AI requests only basic identity scopes (openid, email, profile) to retrieve your verified email address, display name, and public profile picture URL to authenticate your Continuum AI Account. We never request access to your Gmail messages, Google Drive files, Calendar, or Contacts.",
+          "4.2. Strict Limited Use Compliance: Continuum AI's use and transfer to any other app of information received from Google APIs will adhere to the Google API Services User Data Policy, including the Limited Use requirements:"
+        ],
+        "bullets": [
+          "Google user data is used exclusively to provide user-facing authentication and account profile identification;",
+          "Google user data is never sold or transferred to third parties for advertising, data brokering, or creditworthiness profiling;",
+          "Humans do not read Google user data unless you provide affirmative consent for a specific support request, it is strictly necessary for security investigation, or required by law."
+        ],
+        "callout": {
+          "variant": "info",
+          "title": "Google API Services User Data Policy Alignment",
+          "body": "Continuum AI strictly complies with Google's Limited Use requirements across all Google OAuth 2.0 authentication flows.",
+          "externalLinkLabel": "View Google API Services User Data Policy",
+          "externalLinkHref": "https://developers.google.com/terms/api-services-user-data-policy"
+        }
+      },
+      {
+        "id": "privacy-5-ai-privacy",
+        "number": "05",
+        "shortTitle": "SAG AI & Vector Privacy",
+        "title": "Section 5. AI Data Privacy, Pre-Retrieval Scoped ACL, and Vector Index Lifecycle",
+        "paragraphs": [
+          "To safeguard confidential engineering context during AI operations, Continuum AI enforces three architectural privacy controls:"
+        ],
+        "bullets": [
+          "Pre-Retrieval Scoped ACL Filtering: Prior to every retrieval or LLM call, our backend verifies ACTIVE membership and restricts candidate sources to those the requesting user is currently authorized to read. Revoking source permissions immediately blocks subsequent AI retrieval of that source.",
+          "Synchronized Vector Lifecycle: Knowledge chunks and vector embeddings (PostgreSQL pgvector / Qdrant) maintain cascading deletion links (ON DELETE CASCADE) with canonical source records to prevent orphaned embeddings upon authorized document deletion.",
+          "Encrypted Inference & Zero Public Training: Only minimal ACL-filtered context chunks required to answer your active query are transmitted over TLS-encrypted channels to configured inference/embedding/OCR endpoints, with zero permission to train public foundation models."
+        ]
+      },
+      {
+        "id": "privacy-6-subprocessors",
+        "number": "06",
+        "shortTitle": "Sub-processors & Transfers",
+        "title": "Section 6. Infrastructure Sub-processors and Cross-Border Data Transfers",
+        "paragraphs": [
+          "Continuum AI never sells or rents personal data. We engage only trusted technical infrastructure sub-processors necessary to operate the Platform:"
+        ],
+        "table": {
+          "caption": "Categories of Technical Infrastructure Sub-processors",
+          "headers": ["Sub-processor Category", "Technical Processing Purpose", "Minimal Data Scope"],
+          "rows": [
+            [
+              "Google Cloud / Google Identity",
+              "Single Sign-On authentication (Google OAuth 2.0).",
+              "OAuth tokens, verified email, and basic profile metadata when Google login is used."
+            ],
+            [
+              "Cloudflare R2 & Amazon Web Services (AWS S3)",
+              "Private cloud object storage via short-lived Presigned URLs.",
+              "Uploaded project documents (PDF, DOCX, MD on R2) and chat image attachments (on S3)."
+            ],
+            [
+              "LLM, Embedding & Document OCR API Providers",
+              "Document layout parsing (MinerU OCR), semantic embeddings, and cited RAG generation.",
+              "Document segments for indexing and ACL-filtered query context transmitted over TLS."
+            ],
+            [
+              "Transactional Email Delivery (SMTP)",
+              "Delivering registration verification, password reset, invitation, and security emails.",
+              "Recipient email address, display name, and transactional message payload."
+            ],
+            [
+              "Atlassian Jira (Optional per Organization)",
+              "Project issue synchronization when explicitly enabled by an Organization Manager.",
+              "Task metadata and assignee mappings configured by the Organization."
+            ]
+          ]
+        },
+        "subSections": [
+          {
+            "heading": "Cross-Border Data Processing Notice",
+            "paragraphs": [
+              "Because cloud storage and AI inference infrastructure operate across distributed global data centers, encrypted data payloads may be processed on servers located outside Vietnam (including Asia-Pacific, United States, or European cloud regions). By consenting to this Policy and using the Services, you acknowledge and consent to such technical cross-border processing protected by TLS encryption, strict access controls, and compliance safeguards aligned with Article 25 of Decree 13/2023/ND-CP."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-7-cookies",
+        "number": "07",
+        "shortTitle": "Cookies & Browser Storage",
+        "title": "Section 7. Cookies and Browser Storage Policy",
+        "paragraphs": [
+          "Continuum AI uses strictly necessary security cookies and functional interface preferences only — with zero third-party advertising or behavioral tracking cookies:"
+        ],
+        "table": {
+          "caption": "Cookies and Browser Storage Keys Used by Continuum AI",
+          "headers": ["Cookie / Storage Key", "Mechanism", "Purpose", "Retention"],
+          "numericColumnIndices": [3],
+          "rows": [
+            [
+              "Session & Refresh Auth Cookies",
+              "HttpOnly, Secure, SameSite Cookie",
+              "Maintains authenticated BFF sessions while shielding tokens from client-side JavaScript (XSS) access.",
+              "Session TTL / Cleared on Sign-out"
+            ],
+            [
+              "NEXT_LOCALE",
+              "Functional Cookie",
+              "Remembers your selected display language (vi — Vietnamese or en — English).",
+              "Up to 365 days"
+            ],
+            [
+              "theme & sidebar layout state",
+              "Browser localStorage",
+              "Persists Light / Dark / System theme preference and workspace panel state locally on your device.",
+              "Local browser storage"
+            ]
+          ]
+        }
+      },
+      {
+        "id": "privacy-8-security-risks",
+        "number": "08",
+        "shortTitle": "Security & 72h Breach Protocol",
+        "title": "Section 8. Technical Security Measures, Objective Risk Disclosure, and 72-Hour Breach Protocol",
+        "paragraphs": [
+          "8.1. Technical and Organizational Safeguards:"
+        ],
+        "bullets": [
+          "End-to-end HTTPS / TLS transport encryption across web, BFF, and service-to-service boundaries;",
+          "One-way bcrypt password hashing and purpose-derived encryption keys for sensitive outbox tokens (registration, password reset, invitations);",
+          "SHA-256 refresh session hashing with family reuse detection and sub-millisecond Redis token blacklisting upon logout or offboarding;",
+          "Database-per-service logical isolation, Optimistic Concurrency Control (OCC), and append-only security audit logging."
+        ],
+        "subSections": [
+          {
+            "heading": "8.2. Objective Risk Disclosure & 72-Hour Incident Notification (Articles 13 & 23, Decree 13/2023/ND-CP)",
+            "paragraphs": [
+              "While Continuum AI enforces defense-in-depth engineering controls, no Internet transmission or cloud storage architecture can guarantee absolute immunity against novel zero-day exploits, compromised user endpoints, or force majeure events. Potential unintended consequences of a severe security breach could include unauthorized exposure of basic identity metadata or temporary service disruption.",
+              "Upon confirming a personal data breach that materially impacts user rights, Continuum AI will immediately isolate affected components, revoke impacted session families, and issue statutory notifications within seventy-two (72) hours as required by Vietnamese law."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-9-retention",
+        "number": "09",
+        "shortTitle": "Data Retention & Deletion",
+        "title": "Section 9. Data Retention Schedule, Account Deletion, and Handover Preservation",
+        "paragraphs": [
+          "Data processing begins upon Account registration or workspace enrollment and follows the retention schedule below:"
+        ],
+        "table": {
+          "caption": "Continuum AI Data Retention and Deletion Schedule",
+          "headers": ["Data Category", "Committed Timeline", "End-of-Lifecycle / Deletion Handling"],
+          "numericColumnIndices": [1],
+          "rows": [
+            [
+              "Personal Account Profile (Account)",
+              "Ack ≤ 72 hours • Delete ≤ 30 days",
+              "Retained while active. Upon verified deletion request, acknowledged within 72 hours and deleted/anonymized within 30 days."
+            ],
+            [
+              "Workspace Content & Handover Packages (A → D → B)",
+              "Organization lifecycle (Purged ≤ 30 days after Org closure)",
+              "Preserved intact for the Organization when an individual departs or deletes their personal Account (with minimized/anonymized author provenance). Purged within 30 days if an Organization Manager deletes the entire Organization."
+            ],
+            [
+              "Immutable Security Audit Logs (audit_logs)",
+              "365 days",
+              "Retained append-only for security forensics, fraud prevention, and compliance accountability before automated purge."
+            ],
+            [
+              "Chat Messages & Temporary Drafts",
+              "Project lifecycle / 90-day policy option",
+              "Retained for active collaboration or purged automatically when Organization data_retention_policies are enabled."
+            ],
+            [
+              "Verification, Password Reset & Invitation Tokens",
+              "Short-lived TTL",
+              "Invalidated immediately upon single use or short-term expiration."
+            ]
+          ]
+        }
+      },
+      {
+        "id": "privacy-10-subject-rights",
+        "number": "10",
+        "shortTitle": "Data Subject Rights",
+        "title": "Section 10. Data Subject Rights and Obligations",
+        "paragraphs": [
+          "10.1. Your Rights (Article 9, Decree 13/2023/ND-CP): Subject to applicable law, you hold the right to:"
+        ],
+        "bullets": [
+          "Be informed of processing activities and grant or withdraw consent (noting that withdrawing consent for essential authentication/ACL data requires closing your Account without affecting prior lawful processing);",
+          "Access, review, and rectify your personal profile details via Account settings or verified support request;",
+          "Request data export copies, restriction of processing, objection to processing, or deletion of your personal Account data;",
+          "Lodge complaints, pursue legal remedies, claim statutory damages, and exercise self-protection rights under Vietnamese law."
+        ],
+        "subSections": [
+          {
+            "heading": "10.2. Exercising Your Rights & Data Subject Obligations (Article 10, Decree 13/2023/ND-CP)",
+            "paragraphs": [
+              "For records inside an Organization workspace (where the Organization is Data Controller), please direct requests to your Organization Manager. For personal Account requests controlled by Continuum AI, email kimthang.work@gmail.com from your registered email address; we verify ownership and acknowledge requests within 72 hours.",
+              "You are also obligated to safeguard your own credentials, provide accurate registration information, and respect the personal data of fellow workspace members."
+            ]
+          }
+        ]
+      },
+      {
+        "id": "privacy-11-children",
+        "number": "11",
+        "shortTitle": "Age Limit & Children's Privacy",
+        "title": "Section 11. Age Requirement (18+) and Children's Privacy",
+        "paragraphs": [
+          "Continuum AI is designed exclusively for professional project teams and individuals aged 18 and older, and never knowingly collects personal data from children under 16 without lawful guardian verification. Any account discovered to violate this age requirement will be promptly suspended and purged."
+        ]
+      },
+      {
+        "id": "privacy-12-updates-contact",
+        "number": "12",
+        "shortTitle": "Policy Updates & Contact",
+        "title": "Section 12. Policy Updates and Official Contact",
+        "paragraphs": [
+          "12.1. We may revise this Privacy Policy periodically to reflect security enhancements or legal developments. Material updates are announced at least fifteen (15) days in advance via email or prominent in-app notice.",
+          "12.2. Submit all privacy inquiries, Data Subject Rights requests, or security reports to the Continuum AI Platform Development and Operations Team (Da Nang, Vietnam) at: kimthang.work@gmail.com (recommended subject line: [Privacy / Personal Data Request] - Your Account Email)."
+        ]
+      }
+    ]
+  }
+}
