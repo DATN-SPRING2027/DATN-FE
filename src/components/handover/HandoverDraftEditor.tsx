@@ -10,8 +10,10 @@ import Badge from "@/components/ui/badge/Badge";
 import {
   BoltIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
   DocsIcon,
   PlusIcon,
+  SearchIcon,
   ShootingStarIcon,
   TaskIcon,
   TrashBinIcon,
@@ -47,6 +49,8 @@ interface EditableDraftItem extends DraftItemInputDto {
   localKey: string;
 }
 
+type TaskFilterScope = "active" | "selected" | "all";
+
 const LOCATOR_KINDS: readonly CitationLocatorKind[] = [
   "SECTION",
   "PAGE",
@@ -56,6 +60,15 @@ const LOCATOR_KINDS: readonly CitationLocatorKind[] = [
 
 function sourceKey(ref: SourceRefDto): string {
   return `${ref.kind}:${ref.id}:${ref.version}`;
+}
+
+function taskStatusBadgeColor(
+  status: string,
+): "info" | "warning" | "success" | "light" {
+  if (status === "IN_PROGRESS") return "info";
+  if (status === "IN_REVIEW") return "warning";
+  if (status === "DONE") return "success";
+  return "light";
 }
 
 export default function HandoverDraftEditor({
@@ -226,6 +239,11 @@ export default function HandoverDraftEditor({
   const [newSourceId, setNewSourceId] = useState("");
   const [newSourceVer, setNewSourceVer] = useState("1");
 
+  // Task filter & search state (tames projects with 50-100+ tasks)
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskFilterScope, setTaskFilterScope] =
+    useState<TaskFilterScope>("active");
+
   // AI assist state
   const [proposeQuery, setProposeQuery] = useState("");
   const [activeJobId, setActiveJobId] = useState<string | null>(null);
@@ -273,6 +291,55 @@ export default function HandoverDraftEditor({
     }
     return [];
   }, [newSourceKind, docsQuery.data, notesQuery.data]);
+
+  const allProjectTasks = useMemo(
+    () => tasksQuery.data?.items ?? [],
+    [tasksQuery.data?.items],
+  );
+
+  const activeTasksCount = useMemo(
+    () => allProjectTasks.filter((task) => task.status !== "DONE").length,
+    [allProjectTasks],
+  );
+
+  const effectiveTaskScope: TaskFilterScope =
+    taskFilterScope === "active" && activeTasksCount === 0
+      ? "all"
+      : taskFilterScope;
+
+  const filteredProjectTasks = useMemo(() => {
+    const selectedSet = new Set(selectedTaskIds);
+    const q = taskSearch.trim().toLowerCase();
+
+    return allProjectTasks.filter((task) => {
+      if (effectiveTaskScope === "active") {
+        if (task.status === "DONE" && !selectedSet.has(task.id)) return false;
+      } else if (effectiveTaskScope === "selected") {
+        if (!selectedSet.has(task.id)) return false;
+      }
+
+      if (!q) return true;
+      return (
+        task.key.toLowerCase().includes(q) ||
+        task.title.toLowerCase().includes(q)
+      );
+    });
+  }, [allProjectTasks, effectiveTaskScope, selectedTaskIds, taskSearch]);
+
+  const humanizeSourceKind = (kind: SourceRefKind): string => {
+    if (kind === "PROJECT_DOCUMENT") return t("kindProjectDocument");
+    if (kind === "WORK_REPORT") return t("kindWorkReport");
+    if (kind === "KNOWLEDGE_OBJECT") return t("kindKnowledgeObject");
+    return t("kindTaskNote");
+  };
+
+  const formatTaskStatusLabel = (status: string): string => {
+    if (status === "IN_PROGRESS") return t("taskStatusInProgress");
+    if (status === "IN_REVIEW") return t("taskStatusInReview");
+    if (status === "TODO") return t("taskStatusTodo");
+    if (status === "DONE") return t("taskStatusDone");
+    return status;
+  };
 
   const addOfficialSource = (ref: SourceRefDto) => {
     const clean: SourceRefDto = {
@@ -335,7 +402,10 @@ export default function HandoverDraftEditor({
       }
       const linkedKeys = new Set(item.sources.map(sourceKey));
       for (const cit of item.citations) {
-        if (!cit.locator.value.trim() || !linkedKeys.has(sourceKey(cit.source))) {
+        if (
+          !cit.locator.value.trim() ||
+          !linkedKeys.has(sourceKey(cit.source))
+        ) {
           setLocalError(t("validationCitationLocator"));
           return;
         }
@@ -495,7 +565,72 @@ export default function HandoverDraftEditor({
     );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5 pb-12">
+      {/* Top Sticky Draft Curation Action Bar (avoids bottom-right AI Companion overlap & never covers Step 2 at scrollY=0) */}
+      {isOpenStatus && (
+        <div className="sticky top-20 z-20 flex flex-wrap items-center justify-between gap-2.5 rounded-2xl border border-gray-200/90 bg-white/95 px-4 py-2.5 shadow-theme-sm ring-1 ring-gray-950/5 backdrop-blur-xs sm:px-5 dark:border-gray-700 dark:bg-gray-900/95 dark:ring-white/10">
+          <div className="flex min-w-0 items-center gap-2.5 text-xs">
+            <span
+              aria-hidden="true"
+              className={`size-2 shrink-0 rounded-full ${
+                dirty
+                  ? "bg-warning-500"
+                  : currentDraftVersion >= 1
+                    ? "bg-success-500"
+                    : "bg-gray-400"
+              }`}
+            />
+            <div className="min-w-0">
+              <span className="font-semibold text-gray-800 tabular-nums dark:text-gray-200">
+                {dirty
+                  ? t("unsavedChangesStatus")
+                  : currentDraftVersion >= 1
+                    ? t("savedDraftStatus", {
+                        version: String(currentDraftVersion),
+                      })
+                    : t("draftZeroStatus")}
+              </span>
+              <span className="ms-2 hidden text-gray-500 xl:inline dark:text-gray-400">
+                ·{" "}
+                {canOpenPublish
+                  ? t("publishReadyHint")
+                  : t("publishLockedHint")}
+              </span>
+            </div>
+          </div>
+
+          <div className="ms-auto flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-h-9 !px-3.5 !py-2 !text-xs"
+              isLoading={saveDraftMutation.isPending}
+              onClick={() => void handleSaveDraft()}
+            >
+              {saveDraftMutation.isPending
+                ? t("savingDraft")
+                : t("saveDraftCta", {
+                    nextVersion: String(currentDraftVersion + 1),
+                  })}
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              className="min-h-9 !px-3.5 !py-2 !text-xs"
+              disabled={!canOpenPublish}
+              title={
+                !canOpenPublish ? t("publishValidationNoItems") : undefined
+              }
+              onClick={() => setIsPublishOpen(true)}
+            >
+              {t("openPublishModalCta")}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {!isOpenStatus && (
         <div className="rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
           {t("readOnlyNotice")}
@@ -516,118 +651,154 @@ export default function HandoverDraftEditor({
           role="status"
           className="flex items-center gap-2 rounded-xl border border-success-200 bg-success-50 px-4 py-3 text-sm text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
         >
-          <CheckCircleIcon className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <CheckCircleIcon className="size-4 shrink-0" aria-hidden="true" />
           <span>{statusBanner}</span>
         </div>
       )}
 
       {/* 1. Official Selected Sources */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-start justify-between gap-2">
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-              {t("selectedSourcesTitle", {
-                count: String(selectedSources.length),
-              })}
-            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-gray-600 uppercase dark:bg-gray-800 dark:text-gray-300">
+                {t("stepBadge", { step: "1" })}
+              </span>
+              <h2 className="text-base font-semibold text-gray-900 tabular-nums dark:text-white">
+                {t("selectedSourcesTitle", {
+                  count: String(selectedSources.length),
+                })}
+              </h2>
+            </div>
             <p className="mt-1 max-w-2xl text-xs leading-5 text-gray-600 dark:text-gray-400">
               {t("selectedSourcesHint")}
             </p>
           </div>
           <Badge color="primary" size="sm">
-            Draft v{currentDraftVersion}
+            {t("draftVersionBadge", {
+              version: String(currentDraftVersion),
+            })}
           </Badge>
         </div>
 
         {isOpenStatus && (
-          <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/50">
-            <h3 className="text-xs font-semibold tracking-wide text-gray-600 uppercase dark:text-gray-300">
+          <div className="mt-4 rounded-xl border border-gray-200/80 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+            <h3 className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
               {t("addSourceHeading")}
             </h3>
-            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-4">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+            <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-12">
+              <div className="sm:col-span-3">
+                <label
+                  htmlFor="handover-draft-source-kind"
+                  className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+                >
                   {t("sourceKindLabel")}
                 </label>
-                <select
-                  value={newSourceKind}
-                  onChange={(e) => {
-                    setNewSourceKind(e.target.value as SourceRefKind);
-                    setNewSourceId("");
-                    setNewSourceVer("1");
-                  }}
-                  className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                >
-                  <option value="PROJECT_DOCUMENT">
-                    {t("kindProjectDocument")}
-                  </option>
-                  <option value="WORK_REPORT">{t("kindWorkReport")}</option>
-                  <option value="KNOWLEDGE_OBJECT">
-                    {t("kindKnowledgeObject")}
-                  </option>
-                  <option value="TASK_NOTE">{t("kindTaskNote")}</option>
-                </select>
+                <div className="relative mt-1">
+                  <select
+                    id="handover-draft-source-kind"
+                    value={newSourceKind}
+                    onChange={(e) => {
+                      setNewSourceKind(e.target.value as SourceRefKind);
+                      setNewSourceId("");
+                      setNewSourceVer("1");
+                    }}
+                    className="min-h-10 w-full cursor-pointer appearance-none rounded-xl border border-gray-300 bg-white ps-3 pe-8 py-2 text-xs font-medium text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                  >
+                    <option value="PROJECT_DOCUMENT">
+                      {t("kindProjectDocument")}
+                    </option>
+                    <option value="WORK_REPORT">{t("kindWorkReport")}</option>
+                    <option value="KNOWLEDGE_OBJECT">
+                      {t("kindKnowledgeObject")}
+                    </option>
+                    <option value="TASK_NOTE">{t("kindTaskNote")}</option>
+                  </select>
+                  <ChevronDownIcon
+                    className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400"
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
 
               {pickerOptions.length > 0 ? (
-                <div className="sm:col-span-2">
-                  <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                <div className="sm:col-span-6">
+                  <label
+                    htmlFor="handover-draft-source-record"
+                    className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+                  >
                     {t("pickExistingSource")}
                   </label>
-                  <select
-                    value={newSourceId}
-                    onChange={(e) => {
-                      const chosen = pickerOptions.find(
-                        (o) => o.id === e.target.value,
-                      );
-                      setNewSourceId(e.target.value);
-                      if (chosen) setNewSourceVer(chosen.version);
-                    }}
-                    className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                  >
-                    <option value="">Select record…</option>
-                    {pickerOptions.map((opt) => (
-                      <option key={opt.id} value={opt.id}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative mt-1">
+                    <select
+                      id="handover-draft-source-record"
+                      value={newSourceId}
+                      onChange={(e) => {
+                        const chosen = pickerOptions.find(
+                          (o) => o.id === e.target.value,
+                        );
+                        setNewSourceId(e.target.value);
+                        if (chosen) setNewSourceVer(chosen.version);
+                      }}
+                      className="min-h-10 w-full cursor-pointer appearance-none rounded-xl border border-gray-300 bg-white ps-3 pe-8 py-2 text-xs text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                    >
+                      <option value="">{t("selectRecordPlaceholder")}</option>
+                      {pickerOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDownIcon
+                      className="pointer-events-none absolute end-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400"
+                      aria-hidden="true"
+                    />
+                  </div>
                 </div>
               ) : (
                 <>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  <div className="sm:col-span-4">
+                    <label
+                      htmlFor="handover-draft-source-id"
+                      className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+                    >
                       {t("manualSourceIdLabel")}
                     </label>
                     <input
+                      id="handover-draft-source-id"
                       type="text"
                       value={newSourceId}
                       onChange={(e) => setNewSourceId(e.target.value)}
-                      placeholder="24-char ObjectId"
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      placeholder={t("manualObjectIdPlaceholder")}
+                      className="mt-1 min-h-10 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 font-mono text-xs text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-600 dark:text-gray-400">
+                  <div className="sm:col-span-2">
+                    <label
+                      htmlFor="handover-draft-source-ver"
+                      className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+                    >
                       {t("manualSourceVersionLabel")}
                     </label>
                     <input
+                      id="handover-draft-source-ver"
                       type="text"
                       value={newSourceVer}
                       onChange={(e) => setNewSourceVer(e.target.value)}
                       placeholder="1"
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 tabular-nums dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 min-h-10 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 shadow-theme-xs tabular-nums focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
                 </>
               )}
 
-              <div className="flex items-end">
+              <div className="flex items-end sm:col-span-3">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="w-full"
+                  className="min-h-10 w-full"
+                  startIcon={<PlusIcon className="size-3.5" />}
                   onClick={() => {
                     addOfficialSource({
                       kind: newSourceKind,
@@ -657,16 +828,15 @@ export default function HandoverDraftEditor({
                   key={sourceKey(src)}
                   className="flex items-center justify-between gap-2 rounded-xl border border-gray-200 bg-gray-50/50 px-3.5 py-2.5 text-xs dark:border-gray-800 dark:bg-gray-800/40"
                 >
-                  <div className="flex min-w-0 items-center gap-2">
-                    <DocsIcon
-                      className="h-4 w-4 shrink-0 text-brand-600 dark:text-brand-400"
-                      aria-hidden="true"
-                    />
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">
+                      <DocsIcon className="size-4" aria-hidden="true" />
+                    </span>
                     <div className="min-w-0">
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        {src.kind}
+                      <span className="block truncate font-semibold text-gray-900 dark:text-white">
+                        {humanizeSourceKind(src.kind)}
                       </span>
-                      <span className="ms-1.5 font-mono text-gray-500 dark:text-gray-400">
+                      <span className="block font-mono text-[11px] text-gray-500 tabular-nums dark:text-gray-400">
                         {formatShortId(src.id)} · v{src.version}
                       </span>
                     </div>
@@ -675,7 +845,7 @@ export default function HandoverDraftEditor({
                     <button
                       type="button"
                       onClick={() => removeOfficialSource(src)}
-                      className="shrink-0 text-xs font-medium text-error-600 hover:underline dark:text-error-400"
+                      className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-xs font-medium text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
                     >
                       {t("removeSource")}
                     </button>
@@ -689,35 +859,41 @@ export default function HandoverDraftEditor({
 
       {/* 2. Bounded AI Assistance */}
       {isOpenStatus && (
-        <section className="rounded-2xl border border-brand-200/80 bg-brand-50/30 p-5 shadow-theme-xs sm:p-6 dark:border-brand-500/25 dark:bg-brand-500/5">
+        <section className="rounded-2xl border border-brand-200/80 bg-brand-50/35 p-5 shadow-theme-xs sm:p-6 dark:border-brand-500/25 dark:bg-brand-500/5">
           <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
-              <ShootingStarIcon className="h-4 w-4" aria-hidden="true" />
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-brand-100 text-brand-700 ring-1 ring-brand-200/70 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/30">
+              <ShootingStarIcon className="size-4.5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1">
-              <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                {t("aiAssistTitle")}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-md bg-brand-100/80 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-brand-700 uppercase dark:bg-brand-500/20 dark:text-brand-300">
+                  {t("stepBadge", { step: "2" })}
+                </span>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                  {t("aiAssistTitle")}
+                </h2>
+              </div>
               <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
                 {t("aiAssistSubtitle")}
               </p>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+          <div className="mt-4 flex flex-col gap-2.5 lg:flex-row">
             <input
               type="text"
               aria-label={t("proposeQueryLabel")}
               value={proposeQuery}
               onChange={(e) => setProposeQuery(e.target.value)}
               placeholder={t("proposeQueryPlaceholder")}
-              className="min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+              className="min-h-10 min-w-0 flex-1 rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
             />
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
+                className="min-h-10"
                 isLoading={proposeMutation.isPending}
                 onClick={() => void handleProposeSources()}
               >
@@ -727,7 +903,8 @@ export default function HandoverDraftEditor({
                 type="button"
                 variant="primary"
                 size="sm"
-                startIcon={<BoltIcon className="h-3.5 w-3.5" />}
+                className="min-h-10"
+                startIcon={<BoltIcon className="size-3.5" />}
                 isLoading={generateMutation.isPending}
                 onClick={() => void handleGenerateDraft()}
               >
@@ -826,78 +1003,181 @@ export default function HandoverDraftEditor({
         </section>
       )}
 
-      {/* 3. Candidate Tasks Scope */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-          {t("tasksScopeTitle", { count: String(selectedTaskIds.length) })}
-        </h2>
-        <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
-          {t("tasksScopeHint")}
-        </p>
-
-        <div className="mt-3">
-          {(tasksQuery.data?.items ?? []).length === 0 ? (
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("noProjectTasks")}
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {(tasksQuery.data?.items ?? []).map((task) => {
-                const checked = selectedTaskIds.includes(task.id);
-                return (
-                  <label
-                    key={task.id}
-                    className={`flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-xs transition-colors ${
-                      checked
-                        ? "border-brand-300 bg-brand-50/40 dark:border-brand-500/40 dark:bg-brand-500/10"
-                        : "border-gray-200 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800/40"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={!isOpenStatus}
-                      onChange={(e) => {
-                        setSelectedTaskIds((prev) =>
-                          e.target.checked
-                            ? [...prev, task.id]
-                            : prev.filter((id) => id !== task.id),
-                        );
-                        setDirty(true);
-                      }}
-                      className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand-600"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white">
-                        <TaskIcon className="h-3.5 w-3.5 shrink-0 text-brand-500" />
-                        <span className="tabular-nums">{task.key}</span>
-                        <span>·</span>
-                        <span className="truncate">{task.title}</span>
-                      </div>
-                      <p className="mt-0.5 text-gray-500 tabular-nums dark:text-gray-400">
-                        {task.status} · v{task.version}
-                      </p>
-                    </div>
-                  </label>
-                );
-              })}
+      {/* 3. Candidate Tasks Scope (Compact, Searchable, Bounded Scroll) */}
+      <section className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-gray-600 uppercase dark:bg-gray-800 dark:text-gray-300">
+                {t("stepBadge", { step: "3" })}
+              </span>
+              <h2 className="text-base font-semibold text-gray-900 tabular-nums dark:text-white">
+                {t("tasksScopeTitle", {
+                  count: String(selectedTaskIds.length),
+                })}
+              </h2>
             </div>
+            <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-400">
+              {t("tasksScopeHint")}
+            </p>
+          </div>
+
+          {selectedTaskIds.length > 0 && (
+            <Badge color="primary" size="sm">
+              {t("selectedTasksBadge", {
+                count: String(selectedTaskIds.length),
+              })}
+            </Badge>
           )}
         </div>
+
+        {allProjectTasks.length === 0 ? (
+          <p className="mt-4 rounded-xl border border-dashed border-gray-200 px-4 py-5 text-center text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+            {t("noProjectTasks")}
+          </p>
+        ) : (
+          <div className="mt-4 space-y-3">
+            {/* Search & Status Scope Filter Bar */}
+            <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+              <div className="relative min-w-0 flex-1 sm:max-w-xs">
+                <SearchIcon
+                  className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-gray-400"
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  placeholder={t("taskSearchPlaceholder")}
+                  aria-label={t("taskSearchPlaceholder")}
+                  className="min-h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 py-1.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:bg-white focus:ring-2 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:focus:bg-gray-900"
+                />
+              </div>
+
+              <div className="inline-flex flex-wrap items-center gap-1 rounded-xl border border-gray-200/80 bg-gray-50/80 p-1 dark:border-gray-800 dark:bg-gray-800/60">
+                {(
+                  [
+                    {
+                      id: "active" as const,
+                      label: t("taskFilterActive", {
+                        count: String(activeTasksCount),
+                      }),
+                    },
+                    {
+                      id: "selected" as const,
+                      label: t("taskFilterSelected", {
+                        count: String(selectedTaskIds.length),
+                      }),
+                    },
+                    {
+                      id: "all" as const,
+                      label: t("taskFilterAll", {
+                        count: String(allProjectTasks.length),
+                      }),
+                    },
+                  ] as const
+                ).map((pill) => {
+                  const active = effectiveTaskScope === pill.id;
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      onClick={() => setTaskFilterScope(pill.id)}
+                      className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums transition-all ${
+                        active
+                          ? "bg-white text-gray-900 shadow-theme-xs ring-1 ring-gray-200 dark:bg-gray-900 dark:text-white dark:ring-gray-700"
+                          : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Bounded Scroll Task Grid */}
+            {filteredProjectTasks.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-gray-200 px-4 py-6 text-center text-xs text-gray-500 dark:border-gray-800 dark:text-gray-400">
+                {t("noMatchingTasksFilter")}
+              </p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 bg-gray-50/30 p-2 dark:border-gray-800/80 dark:bg-gray-950/20">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {filteredProjectTasks.map((task) => {
+                    const checked = selectedTaskIds.includes(task.id);
+                    return (
+                      <label
+                        key={task.id}
+                        className={`flex cursor-pointer items-center justify-between gap-2.5 rounded-xl border bg-white px-3 py-2.5 text-xs transition-all dark:bg-gray-900 ${
+                          checked
+                            ? "border-brand-300 bg-brand-50/40 ring-1 ring-brand-200/60 dark:border-brand-500/40 dark:bg-brand-500/10 dark:ring-brand-500/20"
+                            : "border-gray-200/90 hover:border-gray-300 hover:bg-gray-50/70 dark:border-gray-800 dark:hover:border-gray-700 dark:hover:bg-gray-800/50"
+                        }`}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            disabled={!isOpenStatus}
+                            onChange={(e) => {
+                              setSelectedTaskIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, task.id]
+                                  : prev.filter((id) => id !== task.id),
+                              );
+                              setDirty(true);
+                            }}
+                            className="size-4 shrink-0 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 font-semibold text-gray-900 dark:text-white">
+                              <TaskIcon
+                                className="size-3.5 shrink-0 text-brand-500"
+                                aria-hidden="true"
+                              />
+                              <span className="shrink-0 font-mono text-[11px] text-gray-500 tabular-nums dark:text-gray-400">
+                                {task.key}
+                              </span>
+                              <span className="truncate">{task.title}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <Badge
+                          color={taskStatusBadgeColor(task.status)}
+                          size="sm"
+                        >
+                          {formatTaskStatusLabel(task.status)}
+                        </Badge>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       {/* 4. Structured Checklist Items */}
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+      <section className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-            {t("itemsTitle", { count: String(items.length) })}
-          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-md bg-gray-100 px-2 py-0.5 text-[11px] font-semibold tracking-wide text-gray-600 uppercase dark:bg-gray-800 dark:text-gray-300">
+              {t("stepBadge", { step: "4" })}
+            </span>
+            <h2 className="text-base font-semibold text-gray-900 tabular-nums dark:text-white">
+              {t("itemsTitle", { count: String(items.length) })}
+            </h2>
+          </div>
+
           {isOpenStatus && (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              startIcon={<PlusIcon className="h-3.5 w-3.5" />}
+              startIcon={<PlusIcon className="size-3.5" />}
               onClick={handleAddChecklistItem}
             >
               {t("addItemCta")}
@@ -918,7 +1198,7 @@ export default function HandoverDraftEditor({
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-brand-600 tabular-nums dark:text-brand-400">
-                    Item #{idx + 1}
+                    {t("itemHeading", { index: String(idx + 1) })}
                   </span>
                   {isOpenStatus && (
                     <button
@@ -929,9 +1209,9 @@ export default function HandoverDraftEditor({
                         );
                         setDirty(true);
                       }}
-                      className="inline-flex items-center gap-1 text-xs font-medium text-error-600 hover:underline dark:text-error-400"
+                      className="inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
                     >
-                      <TrashBinIcon className="h-3.5 w-3.5" />
+                      <TrashBinIcon className="size-3.5" />
                       <span>{t("removeItemCta")}</span>
                     </button>
                   )}
@@ -958,7 +1238,7 @@ export default function HandoverDraftEditor({
                         setDirty(true);
                       }}
                       placeholder={t("itemTitlePlaceholder")}
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 min-h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
 
@@ -982,7 +1262,7 @@ export default function HandoverDraftEditor({
                         setDirty(true);
                       }}
                       placeholder={t("itemBodyPlaceholder")}
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
 
@@ -1006,7 +1286,7 @@ export default function HandoverDraftEditor({
                         setDirty(true);
                       }}
                       placeholder={t("itemRequirementPlaceholder")}
-                      className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                      className="mt-1 min-h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                     />
                   </div>
 
@@ -1027,7 +1307,7 @@ export default function HandoverDraftEditor({
                           );
                           setDirty(true);
                         }}
-                        className="h-4 w-4 rounded border-gray-300 text-brand-600"
+                        className="size-4 rounded border-gray-300 text-brand-600"
                       />
                       <span>{t("isRequiredToggle")}</span>
                     </label>
@@ -1048,7 +1328,7 @@ export default function HandoverDraftEditor({
                           );
                           setDirty(true);
                         }}
-                        className="h-4 w-4 rounded border-gray-300 text-brand-600"
+                        className="size-4 rounded border-gray-300 text-brand-600"
                       />
                       <span>{t("evidenceRequiredToggle")}</span>
                     </label>
@@ -1116,7 +1396,7 @@ export default function HandoverDraftEditor({
                                   );
                                   setDirty(true);
                                 }}
-                                className="h-3.5 w-3.5 rounded border-gray-300"
+                                className="size-3.5 rounded border-gray-300"
                               />
                               <span className="font-mono text-gray-700 dark:text-gray-300">
                                 {src.kind}:{formatShortId(src.id)}
@@ -1159,9 +1439,9 @@ export default function HandoverDraftEditor({
                               );
                               setDirty(true);
                             }}
-                            className="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                            className="inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
                           >
-                            <PlusIcon className="h-3 w-3" />
+                            <PlusIcon className="size-3" />
                             <span>{t("addCitationCta")}</span>
                           </button>
                         )}
@@ -1178,7 +1458,7 @@ export default function HandoverDraftEditor({
                               key={`${sourceKey(cit.source)}-${citIdx}`}
                               className="grid grid-cols-1 gap-2 sm:grid-cols-12"
                             >
-                              <div className="sm:col-span-5">
+                              <div className="relative sm:col-span-5">
                                 <select
                                   aria-label={t("citationSourceAria", {
                                     index: String(citIdx + 1),
@@ -1210,7 +1490,7 @@ export default function HandoverDraftEditor({
                                     );
                                     setDirty(true);
                                   }}
-                                  className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 font-mono text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                  className="w-full appearance-none rounded-lg border border-gray-300 bg-white ps-2.5 pe-7 py-1.5 font-mono text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                 >
                                   {item.sources.map((src) => (
                                     <option
@@ -1222,9 +1502,13 @@ export default function HandoverDraftEditor({
                                     </option>
                                   ))}
                                 </select>
+                                <ChevronDownIcon
+                                  className="pointer-events-none absolute end-2 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
+                                  aria-hidden="true"
+                                />
                               </div>
 
-                              <div className="sm:col-span-3">
+                              <div className="relative sm:col-span-3">
                                 <select
                                   aria-label={t("citationKindAria", {
                                     index: String(citIdx + 1),
@@ -1257,7 +1541,7 @@ export default function HandoverDraftEditor({
                                     );
                                     setDirty(true);
                                   }}
-                                  className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                  className="w-full appearance-none rounded-lg border border-gray-300 bg-white ps-2.5 pe-7 py-1.5 text-xs text-gray-900 dark:border-gray-700 dark:bg-gray-900 dark:text-white"
                                 >
                                   {LOCATOR_KINDS.map((kind) => (
                                     <option key={kind} value={kind}>
@@ -1265,6 +1549,10 @@ export default function HandoverDraftEditor({
                                     </option>
                                   ))}
                                 </select>
+                                <ChevronDownIcon
+                                  className="pointer-events-none absolute end-2 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
+                                  aria-hidden="true"
+                                />
                               </div>
 
                               <div className="flex items-center gap-1.5 sm:col-span-4">
@@ -1325,9 +1613,9 @@ export default function HandoverDraftEditor({
                                       );
                                       setDirty(true);
                                     }}
-                                    className="rounded-lg p-1 text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
+                                    className="cursor-pointer rounded-lg p-1 text-error-600 hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
                                   >
-                                    <TrashBinIcon className="h-3.5 w-3.5" />
+                                    <TrashBinIcon className="size-3.5" />
                                   </button>
                                 )}
                               </div>
@@ -1340,36 +1628,6 @@ export default function HandoverDraftEditor({
                 </div>
               </div>
             ))}
-          </div>
-        )}
-
-        {isOpenStatus && (
-          <div className="mt-6 flex flex-wrap items-center justify-end gap-3 border-t border-gray-200 pt-5 dark:border-gray-800">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              isLoading={saveDraftMutation.isPending}
-              onClick={() => void handleSaveDraft()}
-            >
-              {saveDraftMutation.isPending
-                ? t("savingDraft")
-                : t("saveDraftCta", {
-                    nextVersion: String(currentDraftVersion + 1),
-                  })}
-            </Button>
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              disabled={!canOpenPublish}
-              title={
-                !canOpenPublish ? t("publishValidationNoItems") : undefined
-              }
-              onClick={() => setIsPublishOpen(true)}
-            >
-              {t("openPublishModalCta")}
-            </Button>
           </div>
         )}
       </section>

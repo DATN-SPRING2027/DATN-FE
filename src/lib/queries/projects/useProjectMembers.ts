@@ -134,11 +134,14 @@ export function useProjectMemberCandidatesQuery(
   organizationId: string,
   projectId: string,
   search?: string,
+  options: { enabled?: boolean } = {},
 ) {
   const trimmed = search?.trim();
   return useQuery({
     queryKey: projectMemberKeys.candidates(organizationId, projectId, trimmed),
-    enabled: Boolean(organizationId && isResourceId(projectId)),
+    enabled:
+      Boolean(organizationId && isResourceId(projectId)) &&
+      options.enabled !== false,
     retry: false,
     throwOnError: false,
     staleTime: 5_000,

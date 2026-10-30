@@ -11,7 +11,11 @@ import messages from "@/messages/en.json";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
-import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
+import {
+  useAddProjectMember,
+  useProjectMemberCandidatesQuery,
+  useProjectMembersQuery,
+} from "@/lib/queries/projects/useProjectMembers";
 import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import {
   useCreateHandoverMutation,
@@ -44,6 +48,8 @@ vi.mock("@/lib/queries/projects/useProjects", () => ({
 }));
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
+  useProjectMemberCandidatesQuery: vi.fn(),
+  useAddProjectMember: vi.fn(),
 }));
 vi.mock("@/lib/queries/projects/useProjectLeaders", () => ({
   useProjectLeadersQuery: vi.fn(),
@@ -72,6 +78,8 @@ vi.mock("@/lib/queries/handovers/handover.service", async (importOriginal) => {
 const mockedCurrentUser = vi.mocked(useCurrentUserQuery);
 const mockedProject = vi.mocked(useProjectQuery);
 const mockedMembers = vi.mocked(useProjectMembersQuery);
+const mockedCandidates = vi.mocked(useProjectMemberCandidatesQuery);
+const mockedAddMember = vi.mocked(useAddProjectMember);
 const mockedLeaders = vi.mocked(useProjectLeadersQuery);
 const mockedHandovers = vi.mocked(useHandoversQuery);
 const mockedCreateMutation = vi.mocked(useCreateHandoverMutation);
@@ -187,6 +195,21 @@ describe("HandoverListWorkspace", () => {
       isError: false,
     } as unknown as ReturnType<typeof useProjectMembersQuery>);
 
+    mockedCandidates.mockReturnValue({
+      data: [],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectMemberCandidatesQuery>);
+
+    mockedAddMember.mockReturnValue({
+      mutateAsync: vi.fn(),
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAddProjectMember>);
+
     mockedCreateMutation.mockReturnValue({
       mutateAsync: vi.fn(),
       reset: vi.fn(),
@@ -212,6 +235,15 @@ describe("HandoverListWorkspace", () => {
   });
 
   it("allows B to be coordinator D and preserves B when the same coordinator is selected again", async () => {
+    const addMember = vi.fn();
+    mockedAddMember.mockReturnValue({
+      mutateAsync: addMember,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
     const create = vi
       .fn()
       .mockResolvedValue({ data: { handoverId: "created-handover" } });
@@ -274,6 +306,225 @@ describe("HandoverListWorkspace", () => {
         }),
       ),
     );
+    expect(addMember).not.toHaveBeenCalled();
+  });
+
+  it("lists Organization colleagues in Successor (B) even when Project has only 1 member, and auto-adds B to Project in 1 click before creating Handover", async () => {
+    const callOrder: string[] = [];
+    const addMemberMutate = vi.fn().mockImplementation(async (uid: string) => {
+      callOrder.push(`addMember:${uid}`);
+      return { id: "new-mem", userId: uid, status: "ACTIVE" };
+    });
+    const createMutate = vi.fn().mockImplementation(async () => {
+      callOrder.push("createHandover");
+      return { data: { handoverId: "69e923c77859fd1c702d4d88" } };
+    });
+
+    mockedAddMember.mockReturnValue({
+      mutateAsync: addMemberMutate,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: createMutate,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+    } as never);
+
+    // Project currently has ONLY 1 member (Leader Minh, who is departing!)
+    mockedMembers.mockReturnValue({
+      data: {
+        data: [
+          {
+            id: "mem-only-1",
+            userId: "69e923c77859fd1c702d4a02",
+            projectId: PROJECT_ID,
+            role: "TEAM_LEADER",
+            status: "ACTIVE",
+            user: {
+              id: "69e923c77859fd1c702d4a02",
+              fullName: "Leader Minh",
+              email: "leader@continuum.local",
+            },
+          },
+        ],
+      },
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as never);
+
+    // Organization has colleague Chau Le (not yet in the project)
+    mockedCandidates.mockReturnValue({
+      data: [
+        {
+          userId: "69e923c77859fd1c702d4a02",
+          email: "leader@continuum.local",
+          fullName: "Leader Minh",
+          avatarUrl: null,
+          organizationMembershipStatus: "ACTIVE",
+          isProjectMember: true,
+        },
+        {
+          userId: "69e923c77859fd1c702d4c99",
+          email: "chau.org@continuum.local",
+          fullName: "Chau Le",
+          avatarUrl: null,
+          organizationMembershipStatus: "ACTIVE",
+          isProjectMember: false,
+        },
+      ],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as never);
+
+    mockedHandovers.mockReturnValue({
+      data: { data: [], nextCursor: null },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    renderWorkspace();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /new handover/i })[0]!,
+    );
+
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "Core Platform Rotation to Colleague" },
+    });
+
+    // Pick Leader Minh as Departing (A)
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /departing member \(a\)/i }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /leader minh/i,
+      }),
+    );
+
+    // Open Successor (B) -> Chau Le from Organization is listed with "Org member · Auto-add"
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /successor recipient \(b\)/i }),
+    );
+    const listbox = screen.getByRole("listbox");
+    const orgOption = within(listbox).getByRole("option", { name: /chau le/i });
+    expect(orgOption).toHaveTextContent(/org member · auto-add/i);
+    fireEvent.click(orgOption);
+
+    // Auto-add notice appears clearly
+    expect(
+      screen.getByText(
+        /colleague will be automatically added to this project upon submission/i,
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+
+    await waitFor(() => {
+      expect(createMutate).toHaveBeenCalledTimes(1);
+    });
+
+    expect(callOrder).toEqual([
+      "addMember:69e923c77859fd1c702d4c99",
+      "createHandover",
+    ]);
+    expect(createMutate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Core Platform Rotation to Colleague",
+        departingUserId: "69e923c77859fd1c702d4a02",
+        assignedLeaderId: "69e923c77859fd1c702d4a02",
+        successorUserId: "69e923c77859fd1c702d4c99",
+      }),
+    );
+  });
+
+  it("gracefully treats 409 PROJECT_MEMBERSHIP_ALREADY_ACTIVE as success during 1-click auto-add", async () => {
+    const addMemberMutate = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError(
+          409,
+          "PROJECT_MEMBERSHIP_ALREADY_ACTIVE",
+          "The user is already an active Project member.",
+        ),
+      );
+    const createMutate = vi
+      .fn()
+      .mockResolvedValue({ data: { handoverId: "69e923c77859fd1c702d4d90" } });
+
+    mockedAddMember.mockReturnValue({
+      mutateAsync: addMemberMutate,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: createMutate,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+    } as never);
+    mockedCandidates.mockReturnValue({
+      data: [
+        {
+          userId: "69e923c77859fd1c702d4c88",
+          email: "khoa@continuum.local",
+          fullName: "Khoa Pham",
+          avatarUrl: null,
+          organizationMembershipStatus: "ACTIVE",
+          isProjectMember: false,
+        },
+      ],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as never);
+    mockedHandovers.mockReturnValue({
+      data: { data: [], nextCursor: null },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    renderWorkspace();
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /new handover/i })[0]!,
+    );
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "Concurrent Membership Race Check" },
+    });
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /departing member \(a\)/i }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /an nguyen/i,
+      }),
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /successor recipient \(b\)/i }),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /khoa pham/i,
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+
+    await waitFor(() => {
+      expect(createMutate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          successorUserId: "69e923c77859fd1c702d4c88",
+        }),
+      );
+    });
   });
 
   it("renders accessible loading skeleton while fetching initial handovers", () => {
@@ -586,7 +837,7 @@ describe("HandoverListWorkspace", () => {
       within(successorListbox).getByRole("option", { name: /binh tran/i }),
     );
 
-    // Quick preset +30d updates target completion date and renders UTC preview
+    // Quick preset +30d updates target completion date and renders UTC badge
     fireEvent.click(screen.getByRole("button", { name: "+30d" }));
     expect(screen.getByText(/\(UTC\) · in 30d/i)).toBeVisible();
 

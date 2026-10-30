@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useId,
@@ -28,6 +29,7 @@ export interface HandoverMemberOption {
   status?: "ACTIVE" | "INACTIVE";
   roleCode?: string;
   isCurrentUser?: boolean;
+  membershipScope?: "PROJECT" | "ORG_CANDIDATE";
 }
 
 export interface HandoverMemberSelectProps {
@@ -44,6 +46,11 @@ export interface HandoverMemberSelectProps {
   activeBadgeLabel?: string;
   departedBadgeLabel?: string;
   youBadgeLabel?: string;
+  inProjectBadgeLabel?: string;
+  orgCandidateBadgeLabel?: string;
+  projectGroupLabel?: string;
+  orgCandidateGroupLabel?: string;
+  alwaysShowSearch?: boolean;
   invalid?: boolean;
   disabled?: boolean;
   describedBy?: string;
@@ -88,9 +95,11 @@ function MemberAvatar({
   const toneClass =
     option.status === "INACTIVE"
       ? "bg-warning-50 text-warning-700 ring-warning-200/90 dark:bg-warning-500/15 dark:text-warning-300 dark:ring-warning-500/30"
-      : option.roleCode === "TEAM_LEADER" || option.roleCode === "LEADER"
-        ? "bg-brand-50 text-brand-700 ring-brand-200/90 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
-        : "bg-gray-100 text-gray-700 ring-gray-200/90 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700";
+      : option.membershipScope === "ORG_CANDIDATE"
+        ? "bg-blue-light-50 text-blue-light-700 ring-blue-light-200/90 dark:bg-blue-light-500/15 dark:text-blue-light-300 dark:ring-blue-light-500/30"
+        : option.roleCode === "TEAM_LEADER" || option.roleCode === "LEADER"
+          ? "bg-brand-50 text-brand-700 ring-brand-200/90 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
+          : "bg-gray-100 text-gray-700 ring-gray-200/90 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700";
 
   return (
     <span
@@ -103,7 +112,8 @@ function MemberAvatar({
 }
 
 interface PopoverGeometry {
-  top: number;
+  top?: number;
+  bottom?: number;
   left: number;
   width: number;
   maxHeight: number;
@@ -123,6 +133,11 @@ export default function HandoverMemberSelect({
   activeBadgeLabel = "Active",
   departedBadgeLabel = "Departed",
   youBadgeLabel = "You",
+  inProjectBadgeLabel,
+  orgCandidateBadgeLabel = "Org member · Auto-add",
+  projectGroupLabel,
+  orgCandidateGroupLabel,
+  alwaysShowSearch = false,
   invalid = false,
   disabled = false,
   describedBy,
@@ -140,8 +155,8 @@ export default function HandoverMemberSelect({
   const [geometry, setGeometry] = useState<PopoverGeometry>({
     top: 0,
     left: 0,
-    width: 300,
-    maxHeight: 280,
+    width: 356,
+    maxHeight: 300,
   });
 
   const selectedOption = useMemo(
@@ -149,7 +164,7 @@ export default function HandoverMemberSelect({
     [options, value],
   );
 
-  const showSearch = options.length >= 4;
+  const showSearch = alwaysShowSearch || options.length >= 4;
 
   const filteredOptions = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -176,7 +191,7 @@ export default function HandoverMemberSelect({
     const viewportWidth = window.innerWidth || 1280;
     const margin = 12;
     const desiredWidth = Math.min(
-      Math.max(rect.width, 272),
+      Math.max(rect.width, 356),
       viewportWidth - margin * 2,
     );
     const clampedLeft = Math.max(
@@ -186,23 +201,35 @@ export default function HandoverMemberSelect({
 
     const spaceBelow = viewportHeight - rect.bottom - margin;
     const spaceAbove = rect.top - margin;
-    const preferAbove = spaceBelow < 220 && spaceAbove > spaceBelow;
+    const preferAbove = spaceBelow < 240 && spaceAbove > spaceBelow;
     const maxHeight = Math.max(
-      160,
-      Math.min(300, (preferAbove ? spaceAbove : spaceBelow) - 8),
+      170,
+      Math.min(320, (preferAbove ? spaceAbove : spaceBelow) - 10),
     );
 
-    setGeometry({
-      top: preferAbove ? Math.max(margin, rect.top - maxHeight - 6) : rect.bottom + 6,
-      left: clampedLeft,
-      width: desiredWidth,
-      maxHeight,
-    });
+    setGeometry(
+      preferAbove
+        ? {
+            top: undefined,
+            bottom: Math.max(margin, viewportHeight - rect.top + 6),
+            left: clampedLeft,
+            width: desiredWidth,
+            maxHeight,
+          }
+        : {
+            top: rect.bottom + 6,
+            bottom: undefined,
+            left: clampedLeft,
+            width: desiredWidth,
+            maxHeight,
+          },
+    );
   }, []);
 
   const openDropdown = useCallback(() => {
     if (disabled) return;
     setQuery("");
+    updateGeometry();
     const selectedIdx = options.findIndex((opt) => opt.userId === value);
     if (selectedIdx >= 0) {
       setActiveIndex(selectedIdx + (allowEmpty && emptyOptionLabel ? 1 : 0));
@@ -210,7 +237,7 @@ export default function HandoverMemberSelect({
       setActiveIndex(0);
     }
     setIsOpen(true);
-  }, [allowEmpty, disabled, emptyOptionLabel, options, value]);
+  }, [allowEmpty, disabled, emptyOptionLabel, options, updateGeometry, value]);
 
   const closeDropdown = useCallback((restoreFocus = false) => {
     setIsOpen(false);
@@ -224,7 +251,10 @@ export default function HandoverMemberSelect({
 
   useLayoutEffect(() => {
     if (!isOpen) return;
-    updateGeometry();
+    const raf = requestAnimationFrame(() => {
+      updateGeometry();
+    });
+    return () => cancelAnimationFrame(raf);
   }, [isOpen, updateGeometry, filteredOptions.length]);
 
   useEffect(() => {
@@ -360,7 +390,6 @@ export default function HandoverMemberSelect({
           ];
         (next ?? trigger).focus();
       } else {
-        // Native Tab navigation resumes from the trigger that survives closing.
         trigger?.focus();
       }
       closeDropdown(false);
@@ -382,7 +411,9 @@ export default function HandoverMemberSelect({
             onClick={(e) => e.stopPropagation()}
             style={{
               position: "fixed",
-              top: `${geometry.top}px`,
+              ...(geometry.bottom !== undefined
+                ? { bottom: `${geometry.bottom}px` }
+                : { top: `${geometry.top ?? 0}px` }),
               left: `${geometry.left}px`,
               width: `${geometry.width}px`,
               zIndex: 100005,
@@ -417,7 +448,9 @@ export default function HandoverMemberSelect({
               id={listboxId}
               role="listbox"
               aria-labelledby={id}
-              style={{ maxHeight: `${geometry.maxHeight - (showSearch ? 48 : 0)}px` }}
+              style={{
+                maxHeight: `${Math.max(120, geometry.maxHeight - (showSearch ? 52 : 8))}px`,
+              }}
               className="overflow-y-auto p-1.5"
             >
               {showEmptyRow && emptyOptionLabel && (
@@ -473,67 +506,104 @@ export default function HandoverMemberSelect({
                   const isLeader =
                     opt.roleCode === "TEAM_LEADER" || opt.roleCode === "LEADER";
 
-                  return (
-                    <button
-                      key={opt.userId}
-                      ref={(el) => {
-                        optionRefs.current[rowIndex] = el;
-                      }}
-                      type="button"
-                      role="option"
-                      aria-selected={isSelected}
-                      onMouseEnter={() => setActiveIndex(rowIndex)}
-                      onClick={() => commitRowAt(rowIndex)}
-                      className={`mt-0.5 flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition-colors first:mt-0 ${
-                        isActive
-                          ? "bg-brand-50/70 dark:bg-brand-500/15"
-                          : isSelected
-                            ? "bg-gray-50 dark:bg-gray-800/70"
-                            : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
-                      }`}
-                    >
-                      <MemberAvatar option={opt} size="md" />
+                  const prevScope =
+                    idx > 0 ? filteredOptions[idx - 1]?.membershipScope : null;
+                  const showProjectGroupHeading =
+                    Boolean(projectGroupLabel) &&
+                    opt.membershipScope === "PROJECT" &&
+                    prevScope !== "PROJECT";
+                  const showOrgGroupHeading =
+                    Boolean(orgCandidateGroupLabel) &&
+                    opt.membershipScope === "ORG_CANDIDATE" &&
+                    prevScope !== "ORG_CANDIDATE";
 
-                      <span className="min-w-0 flex-1">
-                        <span className="flex items-center gap-1.5">
-                          <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
-                            {opt.fullName}
+                  return (
+                    <Fragment key={opt.userId}>
+                      {showProjectGroupHeading && (
+                        <div
+                          role="presentation"
+                          className="mt-1 px-2.5 pt-1.5 pb-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase first:mt-0 dark:text-gray-500"
+                        >
+                          {projectGroupLabel}
+                        </div>
+                      )}
+                      {showOrgGroupHeading && (
+                        <div
+                          role="presentation"
+                          className="mt-1.5 border-t border-gray-100 px-2.5 pt-2 pb-1 text-[11px] font-semibold tracking-wider text-gray-400 uppercase first:mt-0 first:border-t-0 dark:border-gray-800 dark:text-gray-500"
+                        >
+                          {orgCandidateGroupLabel}
+                        </div>
+                      )}
+                      <button
+                        ref={(el) => {
+                          optionRefs.current[rowIndex] = el;
+                        }}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onMouseEnter={() => setActiveIndex(rowIndex)}
+                        onClick={() => commitRowAt(rowIndex)}
+                        className={`mt-0.5 flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-start transition-colors first:mt-0 ${
+                          isActive
+                            ? "bg-brand-50/70 dark:bg-brand-500/15"
+                            : isSelected
+                              ? "bg-gray-50 dark:bg-gray-800/70"
+                              : "hover:bg-gray-50 dark:hover:bg-gray-800/50"
+                        }`}
+                      >
+                        <MemberAvatar option={opt} size="md" />
+
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-1.5">
+                            <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                              {opt.fullName}
+                            </span>
+                            {opt.isCurrentUser && (
+                              <Badge color="light" size="sm">
+                                {youBadgeLabel}
+                              </Badge>
+                            )}
                           </span>
-                          {opt.isCurrentUser && (
-                            <Badge color="light" size="sm">
-                              {youBadgeLabel}
-                            </Badge>
+                          {opt.email && (
+                            <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
+                              {opt.email}
+                            </span>
                           )}
                         </span>
-                        {opt.email && (
-                          <span className="block truncate text-xs text-gray-500 dark:text-gray-400">
-                            {opt.email}
-                          </span>
-                        )}
-                      </span>
 
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        {opt.status === "INACTIVE" ? (
-                          <Badge color="warning" size="sm">
-                            {departedBadgeLabel}
-                          </Badge>
-                        ) : isLeader && opt.roleCode ? (
-                          <Badge color="primary" size="sm">
-                            <RoleLabel roleCode={opt.roleCode} />
-                          </Badge>
-                        ) : (
-                          <Badge color="success" size="sm">
-                            {activeBadgeLabel}
-                          </Badge>
-                        )}
-                        {isSelected && (
-                          <CheckLineIcon
-                            className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
-                            aria-hidden="true"
-                          />
-                        )}
-                      </span>
-                    </button>
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          {opt.status === "INACTIVE" ? (
+                            <Badge color="warning" size="sm">
+                              {departedBadgeLabel}
+                            </Badge>
+                          ) : opt.membershipScope === "ORG_CANDIDATE" ? (
+                            <Badge color="info" size="sm">
+                              {orgCandidateBadgeLabel}
+                            </Badge>
+                          ) : opt.membershipScope === "PROJECT" &&
+                            inProjectBadgeLabel ? (
+                            <Badge color="success" size="sm">
+                              {inProjectBadgeLabel}
+                            </Badge>
+                          ) : isLeader && opt.roleCode ? (
+                            <Badge color="primary" size="sm">
+                              <RoleLabel roleCode={opt.roleCode} />
+                            </Badge>
+                          ) : (
+                            <Badge color="success" size="sm">
+                              {activeBadgeLabel}
+                            </Badge>
+                          )}
+                          {isSelected && (
+                            <CheckLineIcon
+                              className="size-4 shrink-0 text-brand-600 dark:text-brand-400"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </span>
+                      </button>
+                    </Fragment>
                   );
                 })
               )}
@@ -570,16 +640,34 @@ export default function HandoverMemberSelect({
         {selectedOption ? (
           <span className="flex min-w-0 flex-1 items-center gap-2.5">
             <MemberAvatar option={selectedOption} size="sm" />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900 dark:text-white">
-              {selectedOption.fullName}
+            <span className="flex min-w-0 flex-1 items-baseline gap-2 truncate">
+              <span className="truncate text-sm font-medium text-gray-900 dark:text-white">
+                {selectedOption.fullName}
+              </span>
+              {selectedOption.email &&
+                selectedOption.email.toLowerCase() !==
+                  selectedOption.fullName.toLowerCase() && (
+                  <span className="hidden truncate text-xs text-gray-500 sm:inline dark:text-gray-400">
+                    {selectedOption.email}
+                  </span>
+                )}
             </span>
             {selectedOption.status === "INACTIVE" ? (
               <Badge color="warning" size="sm">
                 {departedBadgeLabel}
               </Badge>
+            ) : selectedOption.membershipScope === "ORG_CANDIDATE" ? (
+              <Badge color="info" size="sm">
+                {orgCandidateBadgeLabel}
+              </Badge>
             ) : selectedOption.isCurrentUser ? (
               <Badge color="light" size="sm">
                 {youBadgeLabel}
+              </Badge>
+            ) : selectedOption.membershipScope === "PROJECT" &&
+              inProjectBadgeLabel ? (
+              <Badge color="success" size="sm">
+                {inProjectBadgeLabel}
               </Badge>
             ) : null}
           </span>
