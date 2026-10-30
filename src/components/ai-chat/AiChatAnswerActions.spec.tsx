@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -9,6 +9,7 @@ import type {
   AiChatCitation,
 } from "@/lib/queries/ai-chat/ai-chat.types";
 import AiChatAnswerActionBar from "./AiChatAnswerActionBar";
+import { useLocalSpeech } from "./useLocalSpeech";
 
 const {
   useFeedbackQueryMock,
@@ -272,5 +273,163 @@ describe("AiChatAnswerActionBar (Copy, Like/Dislike, Read Aloud, Share, Try Agai
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRegenerate).toHaveBeenCalledTimes(1);
+  });
+
+  it("scopes inline feedback retry state to the exact answer version and hides it on version switch (Finding #6)", async () => {
+    upsertFeedbackMutateAsync.mockRejectedValueOnce(
+      new ApiError(503, "SAG_UNAVAILABLE", "Temporary vote failure on v1"),
+    );
+
+    const { rerender, onSelectVersion, onRegenerate, onToggleSpeak } = renderBar({
+      message: {
+        id: "msg-v1",
+        role: "assistant",
+        content: "Answer version 1 [1].",
+        status: "ok",
+        citations: sampleCitations,
+        sessionCitations: [],
+        retrievalSteps: [],
+        createdAt: "2026-10-30T09:00:00Z",
+      },
+      versionIndex: 0,
+      versionCount: 2,
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Helpful" }));
+    });
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      /Temporary vote failure on v1/i,
+    );
+
+    // Switch active version from msg-v1 -> msg-v2 on the same mounted bar: v1's error/retry must NOT leak!
+    rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatAnswerActionBar
+          organizationId="org-1"
+          projectId="proj-1"
+          projectName="Continuum Core"
+          threadId="thread-1"
+          message={{
+            id: "msg-v2",
+            role: "assistant",
+            content: "Answer version 2 [1].",
+            status: "ok",
+            citations: sampleCitations,
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T09:01:00Z",
+          }}
+          questionText="How does BFF isolate project access?"
+          versionIndex={1}
+          versionCount={2}
+          isThreadStreaming={false}
+          isSpeaking={false}
+          speechError={null}
+          onSelectVersionIndex={onSelectVersion}
+          onRegenerate={onRegenerate}
+          onToggleSpeak={onToggleSpeak}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Retry" })).not.toBeInTheDocument();
+  });
+
+  it("never speaks after unmount or stopSpeech while browser voices are still loading asynchronously (Finding #8)", async () => {
+    const listenerState: {
+      active: (() => void) | null;
+      lastRegistered: (() => void) | null;
+    } = { active: null, lastRegistered: null };
+    let availableVoices: SpeechSynthesisVoice[] = [];
+    const speakSpy = vi.fn();
+    const cancelSpy = vi.fn();
+
+    const fakeSynth = {
+      getVoices: vi.fn(() => availableVoices),
+      speak: speakSpy,
+      cancel: cancelSpy,
+      addEventListener: vi.fn((event: string, cb: () => void) => {
+        if (event === "voiceschanged") {
+          listenerState.active = cb;
+          listenerState.lastRegistered = cb;
+        }
+      }),
+      removeEventListener: vi.fn((event: string, cb: () => void) => {
+        if (event === "voiceschanged" && listenerState.active === cb) {
+          listenerState.active = null;
+        }
+      }),
+    };
+
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      writable: true,
+      value: fakeSynth,
+    });
+    class FakeUtterance {
+      text: string;
+      voice: SpeechSynthesisVoice | null = null;
+      lang = "";
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((e: { error: string }) => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+
+    const localVoice = {
+      lang: "en-US",
+      localService: true,
+      name: "Local English",
+      default: true,
+      voiceURI: "local-en",
+    } as SpeechSynthesisVoice;
+
+    // Case A: stopSpeech called (e.g. version switch) while voices are still resolving
+    const { result, unmount } = renderHook(() => useLocalSpeech("en"));
+    let pendingPromise: Promise<void> | undefined;
+    act(() => {
+      pendingPromise = result.current.toggleSpeak("msg-v1", "Read this aloud.");
+    });
+    expect(result.current.preparingMessageId).toBe("msg-v1");
+
+    act(() => {
+      result.current.stopSpeech();
+    });
+    expect(listenerState.active).toBeNull();
+    availableVoices = [localVoice];
+    listenerState.lastRegistered?.();
+    await act(async () => {
+      await pendingPromise;
+    });
+    expect(speakSpy).not.toHaveBeenCalled();
+
+    // Case B: component unmounts while voices are still resolving
+    availableVoices = [];
+    const { result: result2, unmount: unmount2 } = renderHook(() =>
+      useLocalSpeech("en"),
+    );
+    let pendingUnmountPromise: Promise<void> | undefined;
+    act(() => {
+      pendingUnmountPromise = result2.current.toggleSpeak(
+        "msg-v2",
+        "Never speak after unmount.",
+      );
+    });
+    unmount2();
+    expect(listenerState.active).toBeNull();
+    availableVoices = [localVoice];
+    listenerState.lastRegistered?.();
+    await act(async () => {
+      await pendingUnmountPromise;
+    });
+    expect(speakSpy).not.toHaveBeenCalled();
+
+    unmount();
+    vi.unstubAllGlobals();
   });
 });

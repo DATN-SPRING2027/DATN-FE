@@ -279,8 +279,13 @@ export default function AiChatMessageList({
       Record<string, { selectedIndex: number; knownVersionCount: number }>
     >({});
 
-  const { speakingMessageId, speechError, stopSpeech, toggleSpeak } =
-    useLocalSpeech(locale);
+  const {
+    speakingMessageId,
+    preparingMessageId,
+    speechError,
+    stopSpeech,
+    toggleSpeak,
+  } = useLocalSpeech(locale);
 
   useEffect(() => {
     stopSpeech();
@@ -291,6 +296,29 @@ export default function AiChatMessageList({
     [messages],
   );
   const groupedTurns = useMemo(() => groupAnswerVersions(messages), [messages]);
+
+  const activeSpeechMessageId = speakingMessageId ?? preparingMessageId;
+  useEffect(() => {
+    if (!activeSpeechMessageId) return;
+    const isStillActiveVersion = groupedTurns.some((turn) => {
+      if (turn.message.role !== "assistant") return false;
+      const versions = turn.versions ?? [turn.message];
+      const saved = selectedVersionIndexByGroup[turn.groupKey];
+      const idx =
+        saved && saved.knownVersionCount === versions.length
+          ? Math.min(Math.max(0, saved.selectedIndex), versions.length - 1)
+          : versions.length - 1;
+      return versions[idx]?.id === activeSpeechMessageId;
+    });
+    if (!isStillActiveVersion) {
+      stopSpeech();
+    }
+  }, [
+    activeSpeechMessageId,
+    groupedTurns,
+    selectedVersionIndexByGroup,
+    stopSpeech,
+  ]);
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -751,7 +779,10 @@ export default function AiChatMessageList({
                   versionIndex={activeVersionIndex}
                   versionCount={versionCount}
                   isThreadStreaming={isThreadStreaming}
-                  isSpeaking={speakingMessageId === message.id}
+                  isSpeaking={
+                    speakingMessageId === message.id ||
+                    preparingMessageId === message.id
+                  }
                   speechError={
                     speechError?.messageId === message.id
                       ? speechError.kind
@@ -759,7 +790,10 @@ export default function AiChatMessageList({
                   }
                   canRegenerate={canRegenerateTurn}
                   onSelectVersionIndex={(nextIdx) => {
-                    if (speakingMessageId === message.id) {
+                    if (
+                      speakingMessageId === message.id ||
+                      preparingMessageId === message.id
+                    ) {
                       stopSpeech();
                     }
                     setSelectedVersionIndexByGroup((prev) => ({

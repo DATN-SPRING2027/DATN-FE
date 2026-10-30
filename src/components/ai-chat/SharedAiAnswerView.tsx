@@ -50,7 +50,7 @@ export default function SharedAiAnswerView({
   const [inspectedCitation, setInspectedCitation] =
     useState<AiChatCitation | null>(null);
 
-  const { speakingMessageId, speechError, toggleSpeak } =
+  const { speakingMessageId, preparingMessageId, speechError, toggleSpeak } =
     useLocalSpeech(locale);
 
   const backHref = `/ai-chat?projectId=${encodeURIComponent(projectId)}`;
@@ -138,7 +138,9 @@ export default function SharedAiAnswerView({
   }
 
   const shared = sharedQuery.data;
-  const isSpeaking = speakingMessageId === shared.answer.id;
+  const isSpeaking =
+    speakingMessageId === shared.answer.id ||
+    preparingMessageId === shared.answer.id;
   const parsedSharedDate = new Date(shared.share.createdAt);
   const formattedSharedDate = Number.isNaN(parsedSharedDate.getTime())
     ? "—"

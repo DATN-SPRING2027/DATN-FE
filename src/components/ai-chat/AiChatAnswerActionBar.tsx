@@ -80,24 +80,57 @@ export default function AiChatAnswerActionBar({
     Boolean(message.content.trim()) &&
     !isHiddenScopeMessage(message.content);
 
-  const [copied, setCopied] = useState(false);
-  const [copyError, setCopyError] = useState<string | null>(null);
-  const [inlineFeedbackError, setInlineFeedbackError] = useState<{
+  const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [copyErrorState, setCopyErrorState] = useState<{
+    messageId: string;
+    message: string;
+  } | null>(null);
+  const [inlineFeedbackErrorState, setInlineFeedbackErrorState] = useState<{
+    messageId: string;
     message: string;
     retry: () => Promise<void>;
   } | null>(null);
 
-  const [isDislikeOpen, setIsDislikeOpen] = useState(false);
-  const [dislikeModalError, setDislikeModalError] = useState<string | null>(
+  const [dislikeOpenMessageId, setDislikeOpenMessageId] = useState<
+    string | null
+  >(null);
+  const [dislikeModalErrorState, setDislikeModalErrorState] = useState<{
+    messageId: string;
+    message: string;
+  } | null>(null);
+
+  const [shareOpenMessageId, setShareOpenMessageId] = useState<string | null>(
     null,
   );
-
-  const [isShareOpen, setIsShareOpen] = useState(false);
   const [activeShareByMessageId, setActiveShareByMessageId] = useState<
     Record<string, AiAnswerShare | null>
   >({});
-  const [shareModalError, setShareModalError] = useState<string | null>(null);
-  const [shareRevokedNotice, setShareRevokedNotice] = useState(false);
+  const [shareModalErrorState, setShareModalErrorState] = useState<{
+    messageId: string;
+    message: string;
+  } | null>(null);
+  const [shareRevokedMessageId, setShareRevokedMessageId] = useState<
+    string | null
+  >(null);
+
+  const copied = copiedMessageId === message.id;
+  const copyError =
+    copyErrorState?.messageId === message.id ? copyErrorState.message : null;
+  const inlineFeedbackError =
+    inlineFeedbackErrorState?.messageId === message.id
+      ? inlineFeedbackErrorState
+      : null;
+  const isDislikeOpen = dislikeOpenMessageId === message.id;
+  const dislikeModalError =
+    dislikeModalErrorState?.messageId === message.id
+      ? dislikeModalErrorState.message
+      : null;
+  const isShareOpen = shareOpenMessageId === message.id;
+  const shareModalError =
+    shareModalErrorState?.messageId === message.id
+      ? shareModalErrorState.message
+      : null;
+  const shareRevokedNotice = shareRevokedMessageId === message.id;
 
   const feedbackQuery = useAiAnswerFeedbackQuery(
     organizationId,
@@ -131,45 +164,60 @@ export default function AiChatAnswerActionBar({
   const activeShare = activeShareByMessageId[message.id] ?? null;
 
   const handleCopy = async () => {
-    setCopyError(null);
+    const targetMessageId = message.id;
+    setCopyErrorState(null);
     if (!navigator.clipboard?.writeText) {
-      setCopied(false);
-      setCopyError(t("copyFailedError"));
+      setCopiedMessageId(null);
+      setCopyErrorState({
+        messageId: targetMessageId,
+        message: t("copyFailedError"),
+      });
       return;
     }
     try {
       await navigator.clipboard.writeText(message.content);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 1800);
+      setCopiedMessageId(targetMessageId);
+      window.setTimeout(() => {
+        setCopiedMessageId((prev) => (prev === targetMessageId ? null : prev));
+      }, 1800);
     } catch {
-      setCopied(false);
-      setCopyError(t("copyFailedError"));
+      setCopiedMessageId(null);
+      setCopyErrorState({
+        messageId: targetMessageId,
+        message: t("copyFailedError"),
+      });
     }
   };
 
   const handleLikeClick = async () => {
     if (!threadId || !isPersisted || isFeedbackBusy) return;
-    setInlineFeedbackError(null);
+    const targetThreadId = threadId;
+    const targetMessageId = message.id;
+    const shouldDelete = currentRating === "LIKE";
+    setInlineFeedbackErrorState(null);
     const runAction = async () => {
-      if (currentRating === "LIKE") {
+      if (shouldDelete) {
         await deleteFeedbackMutation.mutateAsync({
-          threadId,
-          messageId: message.id,
+          threadId: targetThreadId,
+          messageId: targetMessageId,
         });
       } else {
         await upsertFeedbackMutation.mutateAsync({
-          threadId,
-          messageId: message.id,
+          threadId: targetThreadId,
+          messageId: targetMessageId,
           body: { rating: "LIKE" },
         });
       }
-      setInlineFeedbackError(null);
+      setInlineFeedbackErrorState((prev) =>
+        prev?.messageId === targetMessageId ? null : prev,
+      );
     };
 
     try {
       await runAction();
     } catch (error) {
-      setInlineFeedbackError({
+      setInlineFeedbackErrorState({
+        messageId: targetMessageId,
         message:
           error instanceof ApiError ? error.message : t("feedbackSaveError"),
         retry: runAction,
@@ -179,19 +227,24 @@ export default function AiChatAnswerActionBar({
 
   const handleDislikeClick = async () => {
     if (!threadId || !isPersisted || isFeedbackBusy) return;
-    setInlineFeedbackError(null);
+    const targetThreadId = threadId;
+    const targetMessageId = message.id;
+    setInlineFeedbackErrorState(null);
     if (currentRating === "DISLIKE") {
       const runDelete = async () => {
         await deleteFeedbackMutation.mutateAsync({
-          threadId,
-          messageId: message.id,
+          threadId: targetThreadId,
+          messageId: targetMessageId,
         });
-        setInlineFeedbackError(null);
+        setInlineFeedbackErrorState((prev) =>
+          prev?.messageId === targetMessageId ? null : prev,
+        );
       };
       try {
         await runDelete();
       } catch (error) {
-        setInlineFeedbackError({
+        setInlineFeedbackErrorState({
+          messageId: targetMessageId,
           message:
             error instanceof ApiError ? error.message : t("feedbackSaveError"),
           retry: runDelete,
@@ -199,69 +252,82 @@ export default function AiChatAnswerActionBar({
       }
       return;
     }
-    setDislikeModalError(null);
-    setIsDislikeOpen(true);
+    setDislikeModalErrorState(null);
+    setDislikeOpenMessageId(targetMessageId);
   };
 
   const handleDislikeSubmit = async (
     payload: Extract<AiAnswerFeedbackInput, { rating: "DISLIKE" }>,
   ) => {
     if (!threadId) return;
-    setDislikeModalError(null);
+    const targetThreadId = threadId;
+    const targetMessageId = message.id;
+    setDislikeModalErrorState(null);
     try {
       await upsertFeedbackMutation.mutateAsync({
-        threadId,
-        messageId: message.id,
+        threadId: targetThreadId,
+        messageId: targetMessageId,
         body: payload,
       });
-      setIsDislikeOpen(false);
-    } catch (error) {
-      setDislikeModalError(
-        error instanceof ApiError ? error.message : t("feedbackSaveError"),
+      setDislikeOpenMessageId((prev) =>
+        prev === targetMessageId ? null : prev,
       );
+    } catch (error) {
+      setDislikeModalErrorState({
+        messageId: targetMessageId,
+        message:
+          error instanceof ApiError ? error.message : t("feedbackSaveError"),
+      });
     }
   };
 
   const handleOpenShare = () => {
     if (!threadId || !isPersisted) return;
-    setShareModalError(null);
-    setShareRevokedNotice(false);
-    setIsShareOpen(true);
+    setShareModalErrorState(null);
+    setShareRevokedMessageId(null);
+    setShareOpenMessageId(message.id);
   };
 
   const handleCreateShare = async () => {
     if (!threadId) return;
-    setShareModalError(null);
-    setShareRevokedNotice(false);
+    const targetThreadId = threadId;
+    const targetMessageId = message.id;
+    setShareModalErrorState(null);
+    setShareRevokedMessageId(null);
     try {
       const created = await createShareMutation.mutateAsync({
-        threadId,
-        messageId: message.id,
+        threadId: targetThreadId,
+        messageId: targetMessageId,
       });
       setActiveShareByMessageId((prev) => ({
         ...prev,
-        [message.id]: created,
+        [targetMessageId]: created,
       }));
     } catch (error) {
-      setShareModalError(
-        error instanceof ApiError ? error.message : t("shareErrorDefault"),
-      );
+      setShareModalErrorState({
+        messageId: targetMessageId,
+        message:
+          error instanceof ApiError ? error.message : t("shareErrorDefault"),
+      });
     }
   };
 
   const handleRevokeShare = async (shareId: string) => {
-    setShareModalError(null);
+    const targetMessageId = message.id;
+    setShareModalErrorState(null);
     try {
       await revokeShareMutation.mutateAsync({ shareId });
       setActiveShareByMessageId((prev) => ({
         ...prev,
-        [message.id]: null,
+        [targetMessageId]: null,
       }));
-      setShareRevokedNotice(true);
+      setShareRevokedMessageId(targetMessageId);
     } catch (error) {
-      setShareModalError(
-        error instanceof ApiError ? error.message : t("shareErrorDefault"),
-      );
+      setShareModalErrorState({
+        messageId: targetMessageId,
+        message:
+          error instanceof ApiError ? error.message : t("shareErrorDefault"),
+      });
     }
   };
 
@@ -493,7 +559,7 @@ export default function AiChatAnswerActionBar({
           errorMessage={dislikeModalError}
           onClose={() => {
             if (!upsertFeedbackMutation.isPending) {
-              setIsDislikeOpen(false);
+              setDislikeOpenMessageId(null);
             }
           }}
           onSubmit={handleDislikeSubmit}
@@ -519,7 +585,7 @@ export default function AiChatAnswerActionBar({
               !createShareMutation.isPending &&
               !revokeShareMutation.isPending
             ) {
-              setIsShareOpen(false);
+              setShareOpenMessageId(null);
             }
           }}
           onCreateShare={handleCreateShare}

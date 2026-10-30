@@ -16,6 +16,7 @@ export interface LocalSpeechErrorState {
 
 async function resolveVoicesWithFallback(
   synth: SpeechSynthesis,
+  registerCleanup: (cleanup: (() => void) | null) => void,
 ): Promise<readonly SpeechSynthesisVoice[]> {
   const immediate = synth.getVoices();
   if (immediate.length > 0) {
@@ -24,15 +25,31 @@ async function resolveVoicesWithFallback(
 
   return new Promise<readonly SpeechSynthesisVoice[]>((resolve) => {
     let settled = false;
+    let timerId: number | null = null;
+    const teardown = () => {
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+        timerId = null;
+      }
+      synth.removeEventListener?.("voiceschanged", handleVoicesChanged);
+      registerCleanup(null);
+    };
     const finish = () => {
       if (settled) return;
       settled = true;
-      synth.removeEventListener?.("voiceschanged", handleVoicesChanged);
+      teardown();
       resolve(synth.getVoices());
     };
+    const cancelPending = () => {
+      if (settled) return;
+      settled = true;
+      teardown();
+      resolve([]);
+    };
     const handleVoicesChanged = () => finish();
+    registerCleanup(cancelPending);
     synth.addEventListener?.("voiceschanged", handleVoicesChanged);
-    window.setTimeout(finish, 450);
+    timerId = window.setTimeout(finish, 450);
   });
 }
 
@@ -47,9 +64,12 @@ export function useLocalSpeech(locale: string) {
     null,
   );
   const requestIdRef = useRef(0);
+  const pendingVoiceCleanupRef = useRef<(() => void) | null>(null);
 
   const stopSpeech = useCallback(() => {
     requestIdRef.current += 1;
+    pendingVoiceCleanupRef.current?.();
+    pendingVoiceCleanupRef.current = null;
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try {
         window.speechSynthesis.cancel();
@@ -63,6 +83,9 @@ export function useLocalSpeech(locale: string) {
 
   useEffect(() => {
     return () => {
+      requestIdRef.current += 1;
+      pendingVoiceCleanupRef.current?.();
+      pendingVoiceCleanupRef.current = null;
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         try {
           window.speechSynthesis.cancel();
@@ -105,7 +128,9 @@ export function useLocalSpeech(locale: string) {
       setPreparingMessageId(messageId);
 
       const synth = window.speechSynthesis;
-      const voices = await resolveVoicesWithFallback(synth);
+      const voices = await resolveVoicesWithFallback(synth, (cleanup) => {
+        pendingVoiceCleanupRef.current = cleanup;
+      });
       if (requestIdRef.current !== currentRequestId) {
         return;
       }

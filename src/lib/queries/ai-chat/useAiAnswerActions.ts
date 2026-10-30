@@ -78,6 +78,17 @@ export function useUpsertAiAnswerFeedbackMutation(
   return useMutation({
     mutationKey: ["ai-chat-feedback-upsert", organizationId, projectId],
     retry: false,
+    onMutate: async ({ threadId, messageId }) => {
+      await queryClient.cancelQueries({
+        queryKey: aiAnswerActionKeys.feedback(
+          organizationId,
+          projectId,
+          threadId,
+          messageId,
+        ),
+        exact: true,
+      });
+    },
     mutationFn: ({
       threadId,
       messageId,
@@ -98,16 +109,26 @@ export function useUpsertAiAnswerFeedbackMutation(
           cache: "no-store",
         },
       ),
-    onSuccess: (saved, { threadId, messageId }) => {
-      queryClient.setQueryData<AiOwnAnswerFeedback>(
-        aiAnswerActionKeys.feedback(
-          organizationId,
-          projectId,
-          threadId,
-          messageId,
-        ),
-        { feedback: saved },
+    onSuccess: async (saved, { threadId, messageId }) => {
+      const key = aiAnswerActionKeys.feedback(
+        organizationId,
+        projectId,
+        threadId,
+        messageId,
       );
+      await queryClient.cancelQueries({ queryKey: key, exact: true });
+      queryClient.setQueryData<AiOwnAnswerFeedback>(key, { feedback: saved });
+    },
+    onError: (_error, { threadId, messageId }) => {
+      const key = aiAnswerActionKeys.feedback(
+        organizationId,
+        projectId,
+        threadId,
+        messageId,
+      );
+      if (queryClient.getQueryData(key) === undefined) {
+        void queryClient.invalidateQueries({ queryKey: key, exact: true });
+      }
     },
   });
 }
@@ -120,6 +141,17 @@ export function useDeleteAiAnswerFeedbackMutation(
   return useMutation({
     mutationKey: ["ai-chat-feedback-delete", organizationId, projectId],
     retry: false,
+    onMutate: async ({ threadId, messageId }) => {
+      await queryClient.cancelQueries({
+        queryKey: aiAnswerActionKeys.feedback(
+          organizationId,
+          projectId,
+          threadId,
+          messageId,
+        ),
+        exact: true,
+      });
+    },
     mutationFn: ({
       threadId,
       messageId,
@@ -137,16 +169,26 @@ export function useDeleteAiAnswerFeedbackMutation(
           cache: "no-store",
         },
       ),
-    onSuccess: (_result, { threadId, messageId }) => {
-      queryClient.setQueryData<AiOwnAnswerFeedback>(
-        aiAnswerActionKeys.feedback(
-          organizationId,
-          projectId,
-          threadId,
-          messageId,
-        ),
-        { feedback: null },
+    onSuccess: async (_result, { threadId, messageId }) => {
+      const key = aiAnswerActionKeys.feedback(
+        organizationId,
+        projectId,
+        threadId,
+        messageId,
       );
+      await queryClient.cancelQueries({ queryKey: key, exact: true });
+      queryClient.setQueryData<AiOwnAnswerFeedback>(key, { feedback: null });
+    },
+    onError: (_error, { threadId, messageId }) => {
+      const key = aiAnswerActionKeys.feedback(
+        organizationId,
+        projectId,
+        threadId,
+        messageId,
+      );
+      if (queryClient.getQueryData(key) === undefined) {
+        void queryClient.invalidateQueries({ queryKey: key, exact: true });
+      }
     },
   });
 }
