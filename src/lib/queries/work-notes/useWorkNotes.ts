@@ -277,12 +277,8 @@ export type WorkReportStatus =
   | "REJECTED"
   | "OVERDUE";
 export type WorkReportInput = Readonly<{
-  accomplishments: string;
-  approach: string;
-  reason: string;
-  blockers?: string;
-  nextSteps?: string;
-  documentIds?: readonly string[];
+  title: string;
+  content: string;
 }>;
 export type WorkReport = WorkReportInput &
   Readonly<{
@@ -296,8 +292,6 @@ export type WorkReport = WorkReportInput &
     periodEnd: string;
     dueAt: string;
     status: WorkReportStatus;
-    file?: Readonly<{ name: string; contentType: string; size: number }>;
-    documentIds?: readonly string[];
     createdAt: string;
     updatedAt: string;
     submittedAt?: string;
@@ -821,29 +815,6 @@ export const workNotesApi = {
         body: JSON.stringify(input),
       },
     );
-  },
-  uploadReportFile(projectId: string, reportId: string, file: File) {
-    const headers = new Headers(csrfHeaders());
-    headers.set("Content-Type", file.type || "application/octet-stream");
-    headers.set("X-File-Name", encodeURIComponent(file.name));
-    return apiClient<WorkReport>(
-      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`,
-      {
-        method: "PUT",
-        headers,
-        body: file,
-      },
-    );
-  },
-  async downloadReportFile(projectId: string, reportId: string) {
-    const path = `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`;
-    const response = await fetch(`/api/backend${path}`, {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!response.ok)
-      throw new Error(`Could not download report file (${response.status}).`);
-    return response.blob();
   },
   reportAction(
     projectId: string,
