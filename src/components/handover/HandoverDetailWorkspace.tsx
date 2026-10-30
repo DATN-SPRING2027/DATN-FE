@@ -7,6 +7,8 @@ import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import {
+  useAddProjectMember,
+  useProjectMemberCandidatesQuery,
   useProjectMembersQuery,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
@@ -36,12 +38,16 @@ import {
   TimeIcon,
   UserCircleIcon,
 } from "@/icons";
+import HandoverDatePicker from "./HandoverDatePicker";
+import HandoverMemberSelect from "./HandoverMemberSelect";
 import HandoverDraftEditor from "./HandoverDraftEditor";
 import HandoverPublishedView from "./HandoverPublishedView";
 import HandoverTaskTransfersPanel from "./HandoverTaskTransfersPanel";
 import HandoverQaPanel from "./HandoverQaPanel";
 import HandoverFollowUpsPanel from "./HandoverFollowUpsPanel";
 import {
+  buildOrganizationSuccessorOptions,
+  ensureProjectMemberBeforeHandover,
   extractHandoverErrorMessage,
   formatMemberOptionLabel,
   formatUtcDate,
@@ -64,28 +70,6 @@ export default function HandoverDetailWorkspace({
   const currentUserId = currentUser.data?.id ?? "";
   const isOrgManager = Boolean(currentUser.data?.roles?.includes("ADMIN"));
 
-  const projectQuery = useProjectQuery(organizationId, projectId);
-  const membersQuery = useProjectMembersQuery(organizationId, projectId, {
-    page: 1,
-    pageSize: 100,
-  }, { allPages: true });
-  const detailQuery = useHandoverDetailQuery(projectId, handoverId);
-
-  const updateMetaMutation = useUpdateHandoverMetadataMutation(
-    projectId,
-    handoverId,
-  );
-  const setSuccessorMutation = useSetHandoverSuccessorMutation(
-    projectId,
-    handoverId,
-  );
-  const setCoordinatorMutation = useSetHandoverCoordinatorMutation(
-    projectId,
-    handoverId,
-  );
-  const completeMutation = useCompleteHandoverMutation(projectId, handoverId);
-  const cancelMutation = useCancelHandoverMutation(projectId, handoverId);
-
   const [activeTab, setActiveTab] = useState<DetailTab | null>(null);
 
   // Lifecycle Modals
@@ -105,6 +89,43 @@ export default function HandoverDetailWorkspace({
   const [safeReceiptBanner, setSafeReceiptBanner] = useState<string | null>(
     null,
   );
+
+  const projectQuery = useProjectQuery(organizationId, projectId);
+  const membersQuery = useProjectMembersQuery(
+    organizationId,
+    projectId,
+    {
+      page: 1,
+      pageSize: 100,
+    },
+    { allPages: true },
+  );
+  const candidatesQuery = useProjectMemberCandidatesQuery(
+    organizationId,
+    projectId,
+    undefined,
+    { enabled: modalMode === "successor" },
+  );
+  const addProjectMemberMutation = useAddProjectMember(
+    organizationId,
+    projectId,
+  );
+  const detailQuery = useHandoverDetailQuery(projectId, handoverId);
+
+  const updateMetaMutation = useUpdateHandoverMetadataMutation(
+    projectId,
+    handoverId,
+  );
+  const setSuccessorMutation = useSetHandoverSuccessorMutation(
+    projectId,
+    handoverId,
+  );
+  const setCoordinatorMutation = useSetHandoverCoordinatorMutation(
+    projectId,
+    handoverId,
+  );
+  const completeMutation = useCompleteHandoverMutation(projectId, handoverId);
+  const cancelMutation = useCancelHandoverMutation(projectId, handoverId);
 
   const members = useMemo(
     () => membersQuery.data?.data ?? [],
@@ -141,6 +162,33 @@ export default function HandoverDetailWorkspace({
 
   const canManage =
     capabilities.includes("MANAGE") && handover?.status === "OPEN";
+
+  const {
+    options: successorOptions,
+    activeProjectUserIds: successorActiveProjectIds,
+  } = useMemo(
+    () =>
+      buildOrganizationSuccessorOptions({
+        activeProjectMembers: activeMembers,
+        orgCandidates: candidatesQuery.data,
+        departingUserId: handover?.departingUserId ?? "",
+        currentUserId,
+      }),
+    [
+      activeMembers,
+      candidatesQuery.data,
+      currentUserId,
+      handover?.departingUserId,
+    ],
+  );
+
+  const selectedNextSuccessor = useMemo(
+    () => successorOptions.find((opt) => opt.userId === nextSuccessorId) ?? null,
+    [nextSuccessorId, successorOptions],
+  );
+
+  const isSavingSuccessor =
+    addProjectMemberMutation.isPending || setSuccessorMutation.isPending;
 
   const resolvedTab: DetailTab = useMemo(() => {
     if (activeTab) return activeTab;
@@ -311,7 +359,7 @@ export default function HandoverDetailWorkspace({
                       {t("status.overdueBadge")}
                     </Badge>
                   )}
-                  <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                  <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
                     {t("detail.versionMeta", {
                       version: String(handover.version),
                       draftVersion: String(handover.draftVersion),
@@ -328,7 +376,7 @@ export default function HandoverDetailWorkspace({
                 </h1>
 
                 <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                  <span className="text-xs text-gray-500 dark:text-gray-400 me-1">
+                  <span className="me-1 text-xs text-gray-500 dark:text-gray-400">
                     {t("detail.capabilitiesLabel")}:
                   </span>
                   {capabilities.map((cap) => (
@@ -472,7 +520,7 @@ export default function HandoverDetailWorkspace({
                   <TimeIcon className="h-3.5 w-3.5" />
                   <span>{t("list.colTargetDate")}</span>
                 </dt>
-                <dd className="mt-1 text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
+                <dd className="mt-1 text-sm font-semibold text-gray-900 tabular-nums dark:text-white">
                   {formatUtcDate(handover.targetCompletionDate)}
                 </dd>
               </div>
@@ -596,7 +644,10 @@ export default function HandoverDetailWorkspace({
       {/* Lifecycle Modals */}
       <Modal
         isOpen={modalMode !== null}
-        onClose={() => setModalMode(null)}
+        onClose={() => {
+          if (isSavingSuccessor) return;
+          setModalMode(null);
+        }}
         backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
         className="max-w-lg border border-gray-200/90 p-6 shadow-theme-xl ring-1 ring-gray-950/5 sm:p-8 dark:border-gray-800 dark:ring-white/10"
       >
@@ -642,25 +693,37 @@ export default function HandoverDetailWorkspace({
               </div>
             )}
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="handover-edit-title"
+                className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+              >
                 {t("createModal.titleLabel")}
               </label>
               <input
+                id="handover-edit-title"
                 type="text"
                 value={editTitle}
                 onChange={(e) => setEditTitle(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="handover-edit-target-date"
+                className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+              >
                 {t("createModal.targetDateLabel")}
               </label>
-              <input
-                type="date"
+              <HandoverDatePicker
+                id="handover-edit-target-date"
                 value={editDate}
-                onChange={(e) => setEditDate(e.target.value)}
-                className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                onChange={setEditDate}
+                placeholder={t("createModal.targetDatePlaceholder")}
+                dialogLabel={t("createModal.calendarDialogLabel")}
+                todayLabel={t("createModal.calendarToday")}
+                prevMonthLabel={t("createModal.calendarPrevMonth")}
+                nextMonthLabel={t("createModal.calendarNextMonth")}
+                utcNoteLabel={t("createModal.calendarUtcNote")}
               />
             </div>
             <div className="flex justify-end gap-2.5 pt-2">
@@ -693,11 +756,37 @@ export default function HandoverDetailWorkspace({
                 setModalError("Enter a reason for the successor change.");
                 return;
               }
+              const cleanSuccessor = nextSuccessorId.trim() || null;
+              if (
+                cleanSuccessor &&
+                cleanSuccessor === handover.departingUserId
+              ) {
+                setModalError(t("createModal.validationSamePerson"));
+                return;
+              }
+
+              try {
+                await ensureProjectMemberBeforeHandover({
+                  successorUserId: cleanSuccessor,
+                  activeProjectUserIds: successorActiveProjectIds,
+                  addProjectMember: (uid) =>
+                    addProjectMemberMutation.mutateAsync(uid),
+                });
+              } catch (err) {
+                setModalError(
+                  extractHandoverErrorMessage(
+                    err,
+                    t("createModal.autoAddMemberFailed"),
+                  ),
+                );
+                return;
+              }
+
               try {
                 await setSuccessorMutation.mutateAsync({
                   etag,
                   input: {
-                    successorUserId: nextSuccessorId.trim() || null,
+                    successorUserId: cleanSuccessor,
                     reason: successorReason.trim(),
                   },
                 });
@@ -725,43 +814,73 @@ export default function HandoverDetailWorkspace({
               </div>
             )}
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
-                {t("createModal.successorLabel")}
-              </label>
-              {activeMembers.length > 0 ? (
-                <select
-                  value={nextSuccessorId}
-                  onChange={(e) => setNextSuccessorId(e.target.value)}
-                  className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              <div className="flex items-center justify-between gap-2">
+                <label
+                  htmlFor="handover-detail-successor"
+                  className="block text-xs font-medium text-gray-700 dark:text-gray-300"
                 >
-                  <option value="">{t("createModal.noSuccessorYet")}</option>
-                  {activeMembers
-                    .filter(
-                      (m) =>
-                        m.userId !== handover.departingUserId &&
-                        m.userId !== handover.assignedLeaderId,
-                    )
-                    .map((m) => (
-                      <option key={m.userId} value={m.userId}>
-                        {formatMemberOptionLabel(m)}
-                      </option>
-                    ))}
-                </select>
+                  {t("createModal.successorLabel")}
+                </label>
+                <Badge color="light" size="sm">
+                  {t("createModal.optionalBadge")}
+                </Badge>
+              </div>
+              {successorOptions.length > 0 ||
+              activeMembers.length > 0 ||
+              candidatesQuery.isPending ? (
+                <HandoverMemberSelect
+                  id="handover-detail-successor"
+                  value={nextSuccessorId}
+                  onChange={setNextSuccessorId}
+                  options={successorOptions}
+                  placeholder={t("createModal.noSuccessorYet")}
+                  allowEmpty
+                  emptyOptionLabel={t("createModal.noSuccessorYet")}
+                  emptyOptionHint={t("createModal.successorRoleHint")}
+                  alwaysShowSearch={successorOptions.length >= 2}
+                  searchPlaceholder={t(
+                    "createModal.searchOrgMembersPlaceholder",
+                  )}
+                  noMatchesLabel={t("createModal.noMatchingOrgMembers")}
+                  activeBadgeLabel={t("createModal.activeBadge")}
+                  departedBadgeLabel={t("createModal.departedBadge")}
+                  youBadgeLabel={t("createModal.youBadge")}
+                  inProjectBadgeLabel={t("createModal.inProjectBadge")}
+                  orgCandidateBadgeLabel={t("createModal.orgCandidateBadge")}
+                  projectGroupLabel={t("createModal.projectGroupHeading")}
+                  orgCandidateGroupLabel={t(
+                    "createModal.orgCandidateGroupHeading",
+                  )}
+                />
               ) : (
                 <input
+                  id="handover-detail-successor"
                   type="text"
                   value={nextSuccessorId}
                   onChange={(e) => setNextSuccessorId(e.target.value)}
                   placeholder={t("createModal.noSuccessorYet")}
-                  className="mt-1 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 font-mono text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  className="mt-1 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 font-mono text-sm dark:border-gray-700 dark:bg-gray-800 dark:text-white"
                 />
+              )}
+              {selectedNextSuccessor?.membershipScope === "ORG_CANDIDATE" && (
+                <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-blue-light-50/70 px-3 py-2 text-xs text-blue-light-700 ring-1 ring-blue-light-200/70 dark:bg-blue-light-500/10 dark:text-blue-light-300 dark:ring-blue-light-500/25">
+                  <CheckCircleIcon
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>{t("createModal.autoAddProjectNotice")}</span>
+                </p>
               )}
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300">
+              <label
+                htmlFor="handover-successor-reason"
+                className="block text-xs font-medium text-gray-700 dark:text-gray-300"
+              >
                 {t("detail.successorReasonLabel")} *
               </label>
               <textarea
+                id="handover-successor-reason"
                 rows={3}
                 value={successorReason}
                 onChange={(e) => setSuccessorReason(e.target.value)}
@@ -774,6 +893,7 @@ export default function HandoverDetailWorkspace({
                 type="button"
                 variant="outline"
                 size="sm"
+                disabled={isSavingSuccessor}
                 onClick={() => setModalMode(null)}
               >
                 {t("createModal.cancel")}
@@ -782,9 +902,11 @@ export default function HandoverDetailWorkspace({
                 type="submit"
                 variant="primary"
                 size="sm"
-                isLoading={setSuccessorMutation.isPending}
+                isLoading={isSavingSuccessor}
               >
-                {t("detail.saveSuccessor")}
+                {addProjectMemberMutation.isPending
+                  ? t("detail.savingSuccessorAutoAdd")
+                  : t("detail.saveSuccessor")}
               </Button>
             </div>
           </form>
@@ -1069,4 +1191,3 @@ export default function HandoverDetailWorkspace({
     </div>
   );
 }
-

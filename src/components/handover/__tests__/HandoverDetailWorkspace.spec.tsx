@@ -1,11 +1,15 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
-import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
+import {
+  useAddProjectMember,
+  useProjectMemberCandidatesQuery,
+  useProjectMembersQuery,
+} from "@/lib/queries/projects/useProjectMembers";
 import * as useHandoversModule from "@/lib/queries/handovers/useHandovers";
 import type {
   HandoverDetailDto,
@@ -34,6 +38,8 @@ vi.mock("@/lib/queries/projects/useProjects", () => ({
 }));
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
+  useProjectMemberCandidatesQuery: vi.fn(),
+  useAddProjectMember: vi.fn(),
 }));
 vi.mock("@/lib/queries/work-notes/useWorkNotes", () => ({
   workNotesApi: {
@@ -82,6 +88,8 @@ vi.mock("@/lib/queries/handovers/useHandovers", () => ({
 const mockedCurrentUser = vi.mocked(useCurrentUserQuery);
 const mockedProject = vi.mocked(useProjectQuery);
 const mockedMembers = vi.mocked(useProjectMembersQuery);
+const mockedCandidates = vi.mocked(useProjectMemberCandidatesQuery);
+const mockedAddMember = vi.mocked(useAddProjectMember);
 
 const PROJECT_ID = "69e923c77859fd1c702d4c21";
 const HANDOVER_ID = "69e923c77859fd1c702d4d01";
@@ -220,6 +228,20 @@ describe("HandoverDetailWorkspace", () => {
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useProjectMembersQuery>);
+
+    mockedCandidates.mockReturnValue({
+      data: [],
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectMemberCandidatesQuery>);
+
+    mockedAddMember.mockReturnValue({
+      mutateAsync: vi.fn(),
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAddProjectMember>);
 
     vi.mocked(
       useHandoversModule.useUpdateHandoverMetadataMutation,
@@ -981,6 +1003,104 @@ describe("HandoverDetailWorkspace", () => {
           }),
         ],
       }),
+    });
+  });
+  it("auto-adds an Organization colleague to the project before saving Successor (B) in Set Successor modal", async () => {
+    const callOrder: string[] = [];
+    const addMemberMutate = vi.fn().mockImplementation(async (uid: string) => {
+      callOrder.push(`addMember:${uid}`);
+      return { id: "mem-new", userId: uid, status: "ACTIVE" };
+    });
+    const setSuccessorMutate = vi.fn().mockImplementation(async () => {
+      callOrder.push("setSuccessor");
+      return { data: { version: 6 } };
+    });
+
+    mockedAddMember.mockReturnValue({
+      mutateAsync: addMemberMutate,
+      reset: vi.fn(),
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    vi.mocked(
+      useHandoversModule.useSetHandoverSuccessorMutation,
+    ).mockReturnValue({
+      mutateAsync: setSuccessorMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    mockedCandidates.mockReturnValue({
+      data: [
+        {
+          userId: "org-colleague-77",
+          email: "newcomer@continuum.local",
+          fullName: "Phuc Org Newcomer",
+          avatarUrl: null,
+          organizationMembershipStatus: "ACTIVE",
+          isProjectMember: false,
+        },
+      ],
+      isPending: false,
+      isError: false,
+    } as never);
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary({ successorUserId: null }),
+          capabilities: ["READ", "MANAGE"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: null,
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    renderDetail();
+
+    fireEvent.click(screen.getByRole("button", { name: /set successor \(b\)/i }));
+
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /successor recipient \(b\)/i }),
+    );
+    const listbox = screen.getByRole("listbox");
+    const orgOpt = within(listbox).getByRole("option", {
+      name: /phuc org newcomer/i,
+    });
+    expect(orgOpt).toHaveTextContent(/org member · auto-add/i);
+    fireEvent.click(orgOpt);
+
+    fireEvent.change(
+      screen.getByLabelText(/reason for assignment change/i),
+      { target: { value: "Onboarding Phuc from platform org team." } },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /save successor/i }));
+
+    await waitFor(() => {
+      expect(setSuccessorMutate).toHaveBeenCalledTimes(1);
+    });
+
+    expect(callOrder).toEqual([
+      "addMember:org-colleague-77",
+      "setSuccessor",
+    ]);
+    expect(setSuccessorMutate).toHaveBeenCalledWith({
+      etag: `"handover:${HANDOVER_ID}:5"`,
+      input: {
+        successorUserId: "org-colleague-77",
+        reason: "Onboarding Phuc from platform org team.",
+      },
     });
   });
 });
