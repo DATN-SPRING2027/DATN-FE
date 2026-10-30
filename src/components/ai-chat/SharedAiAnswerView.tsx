@@ -6,7 +6,6 @@ import { Link } from "@/i18n/navigation";
 import {
   AlertIcon,
   ArrowRightIcon,
-  AudioIcon,
   CheckLineIcon,
   ChevronLeftIcon,
   CloseLineIcon,
@@ -15,6 +14,7 @@ import {
   LockIcon,
   ShootingStarIcon,
   StopSquareIcon,
+  VolumeUpIcon,
 } from "@/icons";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -218,27 +218,25 @@ export default function SharedAiAnswerView({
             {shared.answer.content}
           </div>
 
-          {/* Read-only utility bar: Copy + Local Speech */}
-          <div className="flex flex-wrap items-center gap-1.5 border-t border-gray-100 pt-3 dark:border-white/10">
+          {/* Read-only utility bar: Copy + Local Speech (Icon-only) */}
+          <div className="flex flex-wrap items-center gap-0.5 border-t border-gray-100 pt-3 dark:border-white/10">
             <button
               type="button"
               onClick={() => void handleCopy()}
-              aria-label={t("copyAnswer")}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+              aria-label={copied ? t("copiedAnswer") : t("copyAnswer")}
+              title={copied ? t("copiedAnswer") : t("copyAnswer")}
+              className={cn(
+                "inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
+                copied && "text-success-600 dark:text-success-400",
+              )}
             >
               {copied ? (
-                <>
-                  <CheckLineIcon
-                    aria-hidden="true"
-                    className="size-3.5 text-success-500"
-                  />
-                  <span>{t("copiedAnswer")}</span>
-                </>
+                <CheckLineIcon
+                  aria-hidden="true"
+                  className="size-4 text-success-500"
+                />
               ) : (
-                <>
-                  <CopyIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("copyAnswer")}</span>
-                </>
+                <CopyIcon aria-hidden="true" className="size-4" />
               )}
             </button>
 
@@ -250,24 +248,21 @@ export default function SharedAiAnswerView({
               aria-label={
                 isSpeaking ? t("stopReadingAction") : t("readAloudAction")
               }
+              title={
+                isSpeaking ? t("stopReadingAction") : t("readAloudAction")
+              }
               aria-pressed={isSpeaking}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                "inline-flex size-8 items-center justify-center rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40",
                 isSpeaking
-                  ? "bg-brand-500/15 text-brand-600 dark:text-brand-300"
-                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white",
+                  ? "bg-brand-500/15 text-brand-600 hover:bg-brand-500/20 dark:text-brand-300"
+                  : "text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white",
               )}
             >
               {isSpeaking ? (
-                <>
-                  <StopSquareIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("stopReadingAction")}</span>
-                </>
+                <StopSquareIcon aria-hidden="true" className="size-4" />
               ) : (
-                <>
-                  <AudioIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("readAloudAction")}</span>
-                </>
+                <VolumeUpIcon aria-hidden="true" className="size-4" />
               )}
             </button>
           </div>

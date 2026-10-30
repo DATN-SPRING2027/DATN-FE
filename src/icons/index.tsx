@@ -81,6 +81,7 @@ import RawUserCircleIcon from "./user-circle.svg";
 import RawUserIcon from "./user-line.svg";
 import RawVideoIcon from "./videos.svg";
 import RawVoiceWaveIcon from "./voice-wave.svg";
+import RawVolumeUpIcon from "./volume-up.svg";
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>;
 
@@ -183,3 +184,4 @@ export const UserCircleIcon = createIcon(RawUserCircleIcon, "0 0 24 24");
 export const UserIcon = createIcon(RawUserIcon, "0 0 20 20");
 export const VideoIcon = createIcon(RawVideoIcon, "0.75 0 25 24");
 export const VoiceWaveIcon = createIcon(RawVoiceWaveIcon, "0 0 20 20");
+export const VolumeUpIcon = createIcon(RawVolumeUpIcon, "0 0 20 20");

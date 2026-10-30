@@ -275,6 +275,23 @@ describe("AiChatAnswerActionBar (Copy, Like/Dislike, Read Aloud, Share, Try Agai
     expect(onRegenerate).toHaveBeenCalledTimes(1);
   });
 
+  it("renders all 6 answer action buttons as icon-only controls with aria-label and hover title", () => {
+    renderBar();
+
+    for (const label of [
+      "Copy",
+      "Helpful",
+      "Not helpful",
+      "Read aloud",
+      "Share",
+      "Try again",
+    ]) {
+      const btn = screen.getByRole("button", { name: label });
+      expect(btn.textContent?.trim() ?? "").toBe("");
+      expect(btn).toHaveAttribute("title", label);
+    }
+  });
+
   it("scopes inline feedback retry state to the exact answer version and hides it on version switch (Finding #6)", async () => {
     upsertFeedbackMutateAsync.mockRejectedValueOnce(
       new ApiError(503, "SAG_UNAVAILABLE", "Temporary vote failure on v1"),

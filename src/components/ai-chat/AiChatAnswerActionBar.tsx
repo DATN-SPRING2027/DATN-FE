@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertIcon,
-  AudioIcon,
   CheckLineIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -14,6 +13,7 @@ import {
   StopSquareIcon,
   ThumbDownIcon,
   ThumbUpIcon,
+  VolumeUpIcon,
 } from "@/icons";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -332,22 +332,30 @@ export default function AiChatAnswerActionBar({
   };
 
   const actionButtonClass =
-    "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white";
+    "inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white";
+  const copyLabel = copied ? t("copiedAnswer") : t("copyAnswer");
+  const speechLabel = isSpeaking
+    ? t("stopReadingAction")
+    : t("readAloudAction");
 
   return (
     <div className="space-y-2 pt-0.5">
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex flex-wrap items-center gap-0.5">
         {/* Version Switcher (< 1 / N >) */}
         {versionCount > 1 && (
-          <div className="me-1 inline-flex items-center gap-0.5 rounded-lg border border-gray-200/80 bg-gray-50 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300">
+          <div className="me-1.5 inline-flex h-8 items-center gap-0.5 rounded-lg border border-gray-200/80 bg-gray-50 px-1 text-xs font-medium text-gray-600 tabular-nums dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300">
             <button
               type="button"
               disabled={versionIndex <= 0}
               onClick={() => onSelectVersionIndex(versionIndex - 1)}
               aria-label={t("previousVersionAria")}
-              className="inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+              title={t("previousVersionAria")}
+              className="inline-flex size-6 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
-              <ChevronLeftIcon aria-hidden="true" className="size-3.5" />
+              <ChevronLeftIcon
+                aria-hidden="true"
+                className="size-3.5 rtl:rotate-180"
+              />
             </button>
             <span className="px-1 text-[11px] font-semibold tabular-nums">
               {t("versionIndicator", {
@@ -360,9 +368,13 @@ export default function AiChatAnswerActionBar({
               disabled={versionIndex >= versionCount - 1}
               onClick={() => onSelectVersionIndex(versionIndex + 1)}
               aria-label={t("nextVersionAria")}
-              className="inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+              title={t("nextVersionAria")}
+              className="inline-flex size-6 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
             >
-              <ChevronRightIcon aria-hidden="true" className="size-3.5" />
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="size-3.5 rtl:rotate-180"
+              />
             </button>
           </div>
         )}
@@ -373,24 +385,20 @@ export default function AiChatAnswerActionBar({
             <button
               type="button"
               onClick={() => void handleCopy()}
-              aria-label={t("copyAnswer")}
-              className={actionButtonClass}
+              aria-label={copyLabel}
+              title={copyLabel}
+              className={cn(
+                actionButtonClass,
+                copied && "text-success-600 dark:text-success-400",
+              )}
             >
               {copied ? (
-                <>
-                  <CheckLineIcon
-                    aria-hidden="true"
-                    className="size-3.5 text-success-500"
-                  />
-                  <span className="text-success-600 dark:text-success-400">
-                    {t("copiedAnswer")}
-                  </span>
-                </>
+                <CheckLineIcon
+                  aria-hidden="true"
+                  className="size-4 text-success-500"
+                />
               ) : (
-                <>
-                  <CopyIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("copyAnswer")}</span>
-                </>
+                <CopyIcon aria-hidden="true" className="size-4" />
               )}
             </button>
 
@@ -400,18 +408,16 @@ export default function AiChatAnswerActionBar({
                 type="button"
                 disabled={isFeedbackBusy}
                 aria-label={t("likeAction")}
+                title={t("likeAction")}
                 aria-pressed={currentRating === "LIKE"}
                 onClick={() => void handleLikeClick()}
                 className={cn(
                   actionButtonClass,
                   currentRating === "LIKE" &&
-                    "bg-success-500/15 font-semibold text-success-700 hover:bg-success-500/20 dark:text-success-300",
+                    "bg-success-500/15 text-success-700 hover:bg-success-500/20 dark:text-success-300",
                 )}
               >
-                <ThumbUpIcon aria-hidden="true" className="size-3.5" />
-                <span className="sr-only sm:not-sr-only">
-                  {t("likeAction")}
-                </span>
+                <ThumbUpIcon aria-hidden="true" className="size-4" />
               </button>
             )}
 
@@ -421,47 +427,36 @@ export default function AiChatAnswerActionBar({
                 type="button"
                 disabled={isFeedbackBusy}
                 aria-label={t("dislikeAction")}
+                title={t("dislikeAction")}
                 aria-pressed={currentRating === "DISLIKE"}
                 onClick={() => void handleDislikeClick()}
                 className={cn(
                   actionButtonClass,
                   currentRating === "DISLIKE" &&
-                    "bg-error-500/15 font-semibold text-error-700 hover:bg-error-500/20 dark:text-error-300",
+                    "bg-error-500/15 text-error-700 hover:bg-error-500/20 dark:text-error-300",
                 )}
               >
-                <ThumbDownIcon aria-hidden="true" className="size-3.5" />
-                <span className="sr-only sm:not-sr-only">
-                  {t("dislikeAction")}
-                </span>
+                <ThumbDownIcon aria-hidden="true" className="size-4" />
               </button>
             )}
 
             {/* 4. Read Aloud / Stop (Local Voice Only) */}
             <button
               type="button"
-              aria-label={
-                isSpeaking ? t("stopReadingAction") : t("readAloudAction")
-              }
+              aria-label={speechLabel}
+              title={speechLabel}
               aria-pressed={isSpeaking}
               onClick={onToggleSpeak}
               className={cn(
                 actionButtonClass,
                 isSpeaking &&
-                  "bg-brand-500/15 font-semibold text-brand-600 hover:bg-brand-500/20 dark:text-brand-300",
+                  "bg-brand-500/15 text-brand-600 hover:bg-brand-500/20 dark:text-brand-300",
               )}
             >
               {isSpeaking ? (
-                <>
-                  <StopSquareIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("stopReadingAction")}</span>
-                </>
+                <StopSquareIcon aria-hidden="true" className="size-4" />
               ) : (
-                <>
-                  <AudioIcon aria-hidden="true" className="size-3.5" />
-                  <span className="sr-only sm:not-sr-only">
-                    {t("readAloudAction")}
-                  </span>
-                </>
+                <VolumeUpIcon aria-hidden="true" className="size-4" />
               )}
             </button>
 
@@ -470,13 +465,11 @@ export default function AiChatAnswerActionBar({
               <button
                 type="button"
                 aria-label={t("shareAction")}
+                title={t("shareAction")}
                 onClick={handleOpenShare}
                 className={actionButtonClass}
               >
-                <ShareIcon aria-hidden="true" className="size-3.5" />
-                <span className="sr-only sm:not-sr-only">
-                  {t("shareAction")}
-                </span>
+                <ShareIcon aria-hidden="true" className="size-4" />
               </button>
             )}
           </>
@@ -488,20 +481,17 @@ export default function AiChatAnswerActionBar({
             type="button"
             disabled={isThreadStreaming}
             aria-label={t("tryAgainAction")}
+            title={t("tryAgainAction")}
             onClick={onRegenerate}
             className={actionButtonClass}
           >
-            <RefreshIcon aria-hidden="true" className="size-3.5" />
-            <span>{t("tryAgainAction")}</span>
+            <RefreshIcon aria-hidden="true" className="size-4" />
           </button>
         )}
       </div>
 
       {isSpeaking && (
-        <p
-          role="status"
-          className="text-[11px] font-medium text-brand-600 dark:text-brand-300"
-        >
+        <p role="status" className="sr-only">
           {t("readingStatus")}
         </p>
       )}

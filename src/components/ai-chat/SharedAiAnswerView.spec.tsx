@@ -94,6 +94,11 @@ describe("SharedAiAnswerView (Project-member read-only shared Q&A boundary)", ()
       screen.getByText(/Never edit an existing numbered migration/),
     ).toBeInTheDocument();
     expect(screen.getByText("Database Governance Spec")).toBeInTheDocument();
+    for (const label of ["Copy", "Read aloud"]) {
+      const btn = screen.getByRole("button", { name: label });
+      expect(btn.textContent?.trim() ?? "").toBe("");
+      expect(btn).toHaveAttribute("title", label);
+    }
     expect(
       screen.queryByRole("textbox", { name: "Ask Continuum SAG" }),
     ).not.toBeInTheDocument();
