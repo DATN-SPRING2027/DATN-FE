@@ -345,14 +345,14 @@ export default function WorkNotesWorkspace({
       return [
         note.title,
         note.authorName,
-        note.accomplishments,
+        note.accomplishments ?? "",
         note.contentMarkdown ?? "",
-        note.approach,
-        note.reason,
+        note.approach ?? "",
+        note.reason ?? "",
         note.taskId,
         taskKey,
         taskTitle,
-      ].some((value) => value.toLocaleLowerCase().includes(needle));
+      ].some((value) => (value ?? "").toLocaleLowerCase().includes(needle));
     });
 
     return [...filtered].sort((first, second) => {

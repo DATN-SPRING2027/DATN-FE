@@ -66,6 +66,7 @@ export default function WorkNoteComposer({
   source,
   variant = "modal",
   onPanelOpenChange,
+  onConfirmationChange,
   dismissSignal = 0,
 }: {
   projectId: string;
@@ -76,6 +77,7 @@ export default function WorkNoteComposer({
   source?: EditorSourceIdentity;
   variant?: "modal" | "inline";
   onPanelOpenChange?: (open: boolean) => void;
+  onConfirmationChange?: (open: boolean) => void;
   dismissSignal?: number;
 }) {
   const t = useTranslations("workNotes.agent");
@@ -170,6 +172,14 @@ export default function WorkNoteComposer({
   useEffect(() => {
     onPanelOpenChange?.(panelOpen);
   }, [onPanelOpenChange, panelOpen]);
+
+  useEffect(() => {
+    onConfirmationChange?.(Boolean(confirmation));
+    if (!confirmation) return;
+    confirmPanel.current
+      ?.querySelector<HTMLElement>("button:not([disabled])")
+      ?.focus();
+  }, [confirmation, onConfirmationChange]);
 
   useEffect(() => {
     if (!appliedHighlight) return;
@@ -468,16 +478,23 @@ export default function WorkNoteComposer({
     void run(async () => {
       const next = await editor.apply(targetSuggestion, action, applyTitle);
       if (edited !== null) {
-        const contentMarkdown = anchor
-          ? action === "insert_after"
-            ? beforeMarkdown.slice(0, anchor.end) +
-              edited +
-              beforeMarkdown.slice(anchor.end)
-            : beforeMarkdown.slice(0, anchor.start) +
-              edited +
-              beforeMarkdown.slice(anchor.end)
-          : edited;
-        editor.change({ title: next.title, contentMarkdown }, false);
+        if (action === "replace_title") {
+          editor.change(
+            { title: edited, contentMarkdown: next.contentMarkdown },
+            false,
+          );
+        } else {
+          const contentMarkdown = anchor
+            ? action === "insert_after"
+              ? beforeMarkdown.slice(0, anchor.end) +
+                edited +
+                beforeMarkdown.slice(anchor.end)
+              : beforeMarkdown.slice(0, anchor.start) +
+                edited +
+                beforeMarkdown.slice(anchor.end)
+            : edited;
+          editor.change({ title: next.title, contentMarkdown }, false);
+        }
       }
       clearSelectionUi();
       setAppliedHighlight(nextHighlight);
@@ -1002,7 +1019,7 @@ export default function WorkNoteComposer({
                       </button>
 
                       {/* Right-aligned Improve with AI dropdown */}
-                      <div ref={toolbarAiRef} className="relative ml-auto">
+                      <div ref={toolbarAiRef} className="relative ms-auto">
                         <button
                           type="button"
                           aria-expanded={toolbarAiOpen}
@@ -1016,7 +1033,7 @@ export default function WorkNoteComposer({
                           <ChevronDown className="size-3" aria-hidden="true" />
                         </button>
                         {toolbarAiOpen && (
-                          <div className="absolute right-0 z-30 mt-1.5 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
+                          <div className="absolute end-0 z-30 mt-1.5 w-52 rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-900">
                             {textTools.map(({ operation, key, Icon }) => (
                               <button
                                 key={operation}
@@ -1305,7 +1322,7 @@ export default function WorkNoteComposer({
                 <aside
                   id="worknote-ai-panel"
                   aria-label={t("assistantTitle")}
-                  className="flex min-h-[460px] flex-col border-t border-gray-200/90 bg-white lg:min-h-0 lg:border-t-0 lg:border-l dark:border-gray-800 dark:bg-gray-900"
+                  className="flex min-h-[460px] flex-col border-t border-gray-200/90 bg-white lg:min-h-0 lg:border-t-0 lg:border-s dark:border-gray-800 dark:bg-gray-900"
                 >
                   {/* Panel Header + Collapse Button [⌃] */}
                   <div className="flex shrink-0 items-start gap-2.5 px-4 pt-4 pb-3">
@@ -1608,6 +1625,10 @@ export default function WorkNoteComposer({
             role="alertdialog"
             aria-modal="true"
             aria-labelledby="agent-confirm-title"
+            onKeyDown={(e) => {
+              trap(e);
+              if (e.key === "Tab") e.stopPropagation();
+            }}
             className="absolute inset-0 z-40 flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-[2px]"
           >
             <div className="w-full max-w-md space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">

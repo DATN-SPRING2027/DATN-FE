@@ -58,10 +58,10 @@ function getDraftMap(client: QueryClient): Map<string, TaskNoteDraftSnapshot> {
 
 function hasDraftContent(input: TaskNoteInput): boolean {
   return Boolean(
-    input.title.trim() ||
-    input.accomplishments.trim() ||
-    input.approach.trim() ||
-    input.reason.trim(),
+    (input.title ?? "").trim() ||
+    (input.accomplishments ?? "").trim() ||
+    (input.approach ?? "").trim() ||
+    (input.reason ?? "").trim(),
   );
 }
 
@@ -288,10 +288,10 @@ function TaskNotesContent({
     setEditingId(note.id);
     setIsComposerOpen(true);
     setInput({
-      title: note.title,
-      accomplishments: note.accomplishments,
-      approach: note.approach,
-      reason: note.reason,
+      title: note.title ?? "",
+      accomplishments: note.accomplishments ?? "",
+      approach: note.approach ?? "",
+      reason: note.reason ?? "",
     });
     setTimeout(() => {
       titleInputRef.current?.focus();
@@ -467,6 +467,7 @@ function TaskNotesContent({
       {/* Collapsible Composer */}
       {showComposer && agentEditorEnabled && (
         <WorkNoteComposer
+          key={`${projectId}:${taskId}:${editingId ?? "new"}`}
           projectId={projectId}
           taskId={taskId}
           noteId={editingId ?? undefined}

@@ -55,6 +55,7 @@ export function useWorkNoteComposer(
     noteId ?? "new",
   ];
   const [createOperation] = useState(() => crypto.randomUUID());
+  const [closed, setClosed] = useState(false);
   const query = useQuery({
     queryKey: key,
     queryFn: async ({ signal }) =>
@@ -64,6 +65,7 @@ export function useWorkNoteComposer(
         taskId,
         ...(noteId ? { noteId } : {}),
       }),
+    enabled: !closed,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -90,6 +92,9 @@ export function useWorkNoteComposer(
     operationId: string;
   } | null>(null);
   const alive = useRef(true);
+  const closedDraft = useRef(false);
+  const discarding = useRef(false);
+  const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editEpoch = useRef(0);
   const assessmentPending = useRef(false);
   const assessmentOperation = useRef<{
@@ -100,12 +105,6 @@ export function useWorkNoteComposer(
     AgentMessageInput,
     "operationId" | "expectedRevision"
   > | null>(null);
-  useEffect(() => {
-    alive.current = true;
-    return () => {
-      alive.current = false;
-    };
-  }, []);
   function server() {
     const d = client.getQueryData<AgentDraft>(key);
     if (!d) throw Error("Draft unavailable");
@@ -155,7 +154,7 @@ export function useWorkNoteComposer(
     const signature = JSON.stringify([d.id, d.revision, value]);
     if (updateRequest.current?.signature !== signature)
       updateRequest.current = { signature, operationId: crypto.randomUUID() };
-    setSaving(true);
+    if (alive.current) setSaving(true);
     const operationId = updateRequest.current.operationId;
     const request = api
       .update(projectId, d.id, {
@@ -164,17 +163,17 @@ export function useWorkNoteComposer(
         ...value,
       })
       .then((next) => {
-        cache(next);
+        if (!closedDraft.current) cache(next);
         if (JSON.stringify(localRef.current) === JSON.stringify(value)) {
           localRef.current = null;
-          setLocal(null);
+          if (alive.current) setLocal(null);
         }
         updateRequest.current = null;
         return next;
       })
       .finally(() => {
         pending.current = null;
-        setSaving(false);
+        if (alive.current) setSaving(false);
       });
     pending.current = request;
     return request;
@@ -186,15 +185,46 @@ export function useWorkNoteComposer(
       return flush();
     return d;
   }
-  const autosave = useEffectEvent(() => {
-    void persist().catch((e) =>
-      setError(e instanceof Error ? e.message : "Autosave failed"),
-    );
+  const flushOnUnmount = useEffectEvent(() => {
+    if (closedDraft.current) {
+      client.removeQueries({ queryKey: key, exact: true });
+      return;
+    }
+    if (
+      !discarding.current &&
+      localRef.current &&
+      client.getQueryData<AgentDraft>(key)
+    ) {
+      void flush().catch(() => undefined);
+    }
   });
   useEffect(() => {
-    if (!dirty) return;
-    const timer = setTimeout(() => autosave(), 600);
-    return () => clearTimeout(timer);
+    alive.current = true;
+    closedDraft.current = false;
+    discarding.current = false;
+    return () => {
+      alive.current = false;
+      flushOnUnmount();
+    };
+  }, []);
+  const autosave = useEffectEvent(() => {
+    if (closedDraft.current || discarding.current) return;
+    void persist().catch((e) => {
+      if (alive.current)
+        setError(e instanceof Error ? e.message : "Autosave failed");
+    });
+  });
+  useEffect(() => {
+    if (!dirty || closedDraft.current || discarding.current) return;
+    const timer = setTimeout(() => {
+      autosaveTimer.current = null;
+      autosave();
+    }, 600);
+    autosaveTimer.current = timer;
+    return () => {
+      clearTimeout(timer);
+      if (autosaveTimer.current === timer) autosaveTimer.current = null;
+    };
   }, [dirty, local]);
   useEffect(() => {
     if (!dirty && !saving) return;
@@ -454,7 +484,10 @@ export function useWorkNoteComposer(
         expectedRevision: d.revision,
         discardOriginalConfirmed: confirmed,
       });
+      closedDraft.current = true;
       alive.current = false;
+      setClosed(true);
+      await client.cancelQueries({ queryKey: key, exact: true });
       client.removeQueries({ queryKey: key, exact: true });
       await client.invalidateQueries({ queryKey: ["work-notes", projectId] });
       onSaved(saved);
@@ -466,14 +499,33 @@ export function useWorkNoteComposer(
     }
   }
   async function discard() {
-    const d = server();
-    await api.discard(projectId, d.id, {
-      expectedRevision: d.revision,
-      discardConfirmed: true,
-    });
-    client.removeQueries({ queryKey: key, exact: true });
-    localRef.current = null;
-    setLocal(null);
+    if (autosaveTimer.current) {
+      clearTimeout(autosaveTimer.current);
+      autosaveTimer.current = null;
+    }
+    discarding.current = true;
+    try {
+      if (pending.current) {
+        await pending.current.catch(() => undefined);
+      }
+      const d = server();
+      closedDraft.current = true;
+      setClosed(true);
+      await client.cancelQueries({ queryKey: key, exact: true });
+      await api.discard(projectId, d.id, {
+        expectedRevision: d.revision,
+        discardConfirmed: true,
+      });
+      alive.current = false;
+      client.removeQueries({ queryKey: key, exact: true });
+      localRef.current = null;
+      setLocal(null);
+    } catch (e) {
+      closedDraft.current = false;
+      discarding.current = false;
+      setClosed(false);
+      throw e;
+    }
   }
   async function reset() {
     const d = await flush();
@@ -520,10 +572,14 @@ export function useWorkNoteComposer(
       versionNumber,
       ...(source ? { expectedContentHash: d.baseContentHash } : {}),
     });
+    closedDraft.current = true;
+    setClosed(true);
+    await client.cancelQueries({ queryKey: key, exact: true });
     await api.discard(projectId, d.id, {
       expectedRevision: d.revision,
       discardConfirmed: true,
     });
+    alive.current = false;
     client.removeQueries({ queryKey: key, exact: true });
     await client.invalidateQueries({ queryKey: ["work-notes", projectId] });
     onSaved();

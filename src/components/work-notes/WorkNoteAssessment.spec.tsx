@@ -1,7 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { expect, it, vi } from "vitest";
-import messages from "@/messages/en.json";
+import enMessages from "@/messages/en.json";
+import messages from "@/messages/vi.json";
 import WorkNoteAssessment, {
   type WorkNoteAssessmentProps,
 } from "./WorkNoteAssessment";
@@ -22,7 +23,7 @@ function mount(overrides: Partial<WorkNoteAssessmentProps> = {}) {
     ...overrides,
   };
   const rendered = render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale="vi" messages={messages}>
       <WorkNoteAssessment {...props} />
     </NextIntlClientProvider>,
   );
@@ -35,7 +36,7 @@ it("keeps unsent text scoped to its question when a suggested answer advances to
   });
   fireEvent.click(screen.getByRole("button", { name: "Manual retry" }));
   props.rerender(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale="vi" messages={messages}>
       <WorkNoteAssessment
         {...props}
         value={{
@@ -284,5 +285,34 @@ it("clearly separates adequate Progress note from incomplete overall Task criter
     screen.getByText(
       /Ghi chú này đã đủ thông tin cho mục đích Cập nhật tiến độ, dù các tiêu chí nghiệm thu tổng thể của Task vẫn chưa hoàn tất/,
     ),
+  ).toBeInTheDocument();
+});
+
+it("renders English assessment copy when mounted with en.json", () => {
+  render(
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <WorkNoteAssessment
+        value={structuredClone(assessmentFixture)}
+        busy={false}
+        stale={false}
+        onAssess={vi.fn()}
+        onReply={vi.fn()}
+        onRewrite={vi.fn()}
+        onCorrect={vi.fn()}
+        onReset={vi.fn()}
+        onValidate={vi.fn()}
+        onFeedback={vi.fn()}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  expect(screen.getByLabelText("Your answer")).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Send answer" }),
+  ).toBeDisabled();
+  expect(
+    screen.getByRole("region", {
+      name: "Three independent evaluation dimensions",
+    }),
   ).toBeInTheDocument();
 });

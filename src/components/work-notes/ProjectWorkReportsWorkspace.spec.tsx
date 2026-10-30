@@ -60,7 +60,7 @@ beforeEach(() => {
   api.mockReset();
 });
 
-it("keeps freeform canonical v2 Report content while saving links and submitting through separate operations", async () => {
+it("keeps freeform canonical v2 Report content without wiping document links and surfaces submit errors", async () => {
   const canonical = {
     ...report,
     title: "Investigation",
@@ -68,7 +68,9 @@ it("keeps freeform canonical v2 Report content while saving links and submitting
     contentSchemaVersion: 2 as const,
     contentMarkdown: "Chưa xác định nguyên nhân.",
     currentVersionNumber: 2,
+    documentIds: ["951a2b3c4d5e6f7a8b9c0d21"],
   };
+  let shouldFailSubmit = true;
   api.mockImplementation(async (path, options) => {
     if (path.endsWith("/work-report-settings")) {
       return {
@@ -87,10 +89,11 @@ it("keeps freeform canonical v2 Report content while saving links and submitting
         pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
       } as never;
     }
-    if (path.endsWith("/document-links") && options?.method === "PUT") {
-      return canonical as never;
-    }
     if (path.endsWith("/submit") && options?.method === "POST") {
+      if (shouldFailSubmit) {
+        shouldFailSubmit = false;
+        throw new Error("Submission temporarily unavailable");
+      }
       return { ...canonical, status: "PENDING_REVIEW" } as never;
     }
     throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
@@ -111,18 +114,23 @@ it("keeps freeform canonical v2 Report content while saving links and submitting
   expect(
     screen.queryByRole("textbox", { name: /Title/i }),
   ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Save draft" }),
+  ).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+  // First submit rejects -> alert error is surfaced and editor stays open
+  fireEvent.click(screen.getByRole("button", { name: "Submit report" }));
   await waitFor(() =>
-    expect(api).toHaveBeenCalledWith(
-      expect.stringContaining("/editor-drafts/sources/WORK_REPORT/"),
-      expect.objectContaining({
-        method: "PUT",
-        body: JSON.stringify({ documentIds: [] }),
-      }),
-    ),
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((el) =>
+          el.textContent?.includes("Submission temporarily unavailable"),
+        ),
+    ).toBe(true),
   );
 
+  // Retry submit succeeds -> calls POST /submit without PUT /document-links or POST /work-reports
   fireEvent.click(screen.getByRole("button", { name: "Submit report" }));
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
@@ -133,8 +141,9 @@ it("keeps freeform canonical v2 Report content while saving links and submitting
   expect(
     api.mock.calls.some(
       ([path, options]) =>
-        path === `/capture/projects/${projectId}/work-reports` &&
-        options?.method === "POST",
+        (path.endsWith("/document-links") && options?.method === "PUT") ||
+        (path === `/capture/projects/${projectId}/work-reports` &&
+          options?.method === "POST"),
     ),
   ).toBe(false);
 });

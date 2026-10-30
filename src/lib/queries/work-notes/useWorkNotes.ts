@@ -29,24 +29,27 @@ export type TaskNoteInput = Readonly<{
   reason: string;
 }>;
 
-export type TaskNote = TaskNoteInput &
-  Readonly<{
-    contentMarkdown?: string;
-    contentSchemaVersion?: 2;
-    currentVersionNumber?: number;
-    id: string;
-    projectId: string;
-    taskId: string;
-    taskKey?: string;
-    taskTitle?: string;
-    authorId: string;
-    authorName: string;
-    type: "TASK_NOTE";
-    status: "CONFIRMED";
-    createdAt: string;
-    updatedAt: string;
-    permissions: WorkNotePermissions;
-  }>;
+export type TaskNote = Readonly<{
+  title: string;
+  accomplishments?: string;
+  approach?: string;
+  reason?: string;
+  contentMarkdown?: string;
+  contentSchemaVersion?: 2;
+  currentVersionNumber?: number;
+  id: string;
+  projectId: string;
+  taskId: string;
+  taskKey?: string;
+  taskTitle?: string;
+  authorId: string;
+  authorName: string;
+  type: "TASK_NOTE";
+  status: "CONFIRMED";
+  createdAt: string;
+  updatedAt: string;
+  permissions: WorkNotePermissions;
+}>;
 
 export const DOCUMENT_TYPES = [
   "MVP",

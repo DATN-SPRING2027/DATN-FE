@@ -1,20 +1,24 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
+  act,
   fireEvent,
   render,
+  renderHook,
   screen,
   waitFor,
   within,
 } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import messages from "@/messages/en.json";
+import enMessages from "@/messages/en.json";
+import messages from "@/messages/vi.json";
 import {
   agentApi,
   type EditorSourceIdentity,
   type AgentDraft,
 } from "@/lib/queries/work-notes/work-note-agent.api";
 import WorkNoteComposer from "./WorkNoteComposer";
+import { useWorkNoteComposer } from "./useWorkNoteComposer";
 import { assessmentApi } from "@/lib/queries/work-notes/work-note-assessment.api";
 vi.mock("@/lib/queries/work-notes/work-note-assessment.api", () => ({
   assessmentApi: {
@@ -98,7 +102,7 @@ function mount(source?: EditorSourceIdentity) {
         })
       }
     >
-      <NextIntlClientProvider locale="en" messages={messages}>
+      <NextIntlClientProvider locale="vi" messages={messages}>
         <WorkNoteComposer
           source={source}
           projectId="651a2b3c4d5e6f7a8b9c0d21"
@@ -1015,7 +1019,7 @@ it("renders inline without a Modal wrapper when variant='inline' and notifies pa
         })
       }
     >
-      <NextIntlClientProvider locale="en" messages={messages}>
+      <NextIntlClientProvider locale="vi" messages={messages}>
         <WorkNoteComposer
           variant="inline"
           projectId="651a2b3c4d5e6f7a8b9c0d21"
@@ -1045,4 +1049,187 @@ it("renders inline without a Modal wrapper when variant='inline' and notifies pa
     screen.getByRole("button", { name: "Thu gọn bảng Trợ lý AI" }),
   );
   expect(onPanelOpenChange).toHaveBeenLastCalledWith(false);
+});
+
+it("renders English translations cleanly when mounted with en.json", async () => {
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <WorkNoteComposer
+          projectId="651a2b3c4d5e6f7a8b9c0d21"
+          taskId={base.taskId}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByLabelText("Content");
+  expect(
+    screen.getByRole("button", { name: "Improve with AI" }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "AI Assistant" }));
+  expect(
+    screen.getByRole("complementary", { name: "AI Assistant" }),
+  ).toBeVisible();
+});
+
+it("flushes pending debounced edits immediately when unmounted before 600ms", async () => {
+  const rendered = mount();
+  const body = await screen.findByLabelText("Nội dung");
+  fireEvent.change(body, {
+    target: { value: "Typed within 600ms right before closing modal." },
+  });
+  expect(agentApi.update).not.toHaveBeenCalled();
+
+  rendered.unmount();
+
+  await waitFor(() =>
+    expect(agentApi.update).toHaveBeenCalledWith(
+      "651a2b3c4d5e6f7a8b9c0d21",
+      base.id,
+      expect.objectContaining({
+        expectedRevision: 1,
+        contentMarkdown: "Typed within 600ms right before closing modal.",
+      }),
+    ),
+  );
+});
+
+it("serializes discard() behind an in-flight autosave so expectedRevision matches and the cache is not repopulated", async () => {
+  let resolvePatch!: (value: AgentDraft) => void;
+  vi.mocked(agentApi.update).mockImplementation(
+    () =>
+      new Promise<AgentDraft>((resolve) => {
+        resolvePatch = resolve;
+      }),
+  );
+  vi.mocked(agentApi.discard).mockResolvedValue(undefined);
+
+  const client = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  const wrapper = ({ children }: { children: React.ReactNode }) => (
+    <QueryClientProvider client={client}>
+      <NextIntlClientProvider locale="vi" messages={messages}>
+        {children}
+      </NextIntlClientProvider>
+    </QueryClientProvider>
+  );
+
+  const { result, unmount } = renderHook(
+    () =>
+      useWorkNoteComposer(
+        "651a2b3c4d5e6f7a8b9c0d21",
+        base.taskId,
+        undefined,
+        vi.fn(),
+      ),
+    { wrapper },
+  );
+
+  await waitFor(() => expect(result.current.draft?.id).toBe(base.id));
+
+  act(() => {
+    result.current.change({
+      title: base.title,
+      contentMarkdown: "Dirty text triggering PATCH",
+    });
+  });
+
+  // Wait for 600ms debounced autosave PATCH to start in-flight
+  await waitFor(() => expect(agentApi.update).toHaveBeenCalledTimes(1));
+
+  // Trigger discard() while PATCH is still in-flight
+  let discardSettled = false;
+  const discardPromise = result.current.discard().then(() => {
+    discardSettled = true;
+  });
+  expect(agentApi.discard).not.toHaveBeenCalled();
+
+  // Resolve in-flight PATCH with bumped revision 2
+  await act(async () => {
+    resolvePatch({
+      ...base,
+      contentMarkdown: "Dirty text triggering PATCH",
+      revision: 2,
+    });
+    await discardPromise;
+  });
+
+  expect(discardSettled).toBe(true);
+  expect(agentApi.discard).toHaveBeenCalledWith(
+    "651a2b3c4d5e6f7a8b9c0d21",
+    base.id,
+    { expectedRevision: 2, discardConfirmed: true },
+  );
+  unmount();
+  expect(agentApi.update).toHaveBeenCalledTimes(1);
+  expect(
+    client.getQueryData([
+      "worknote-agent-draft",
+      "651a2b3c4d5e6f7a8b9c0d21",
+      "TASK_NOTE",
+      base.taskId,
+      "new",
+    ]),
+  ).toBeUndefined();
+});
+
+it("applies edited proposal text to title instead of contentMarkdown for replace_title proposals", async () => {
+  const titleSuggestion = {
+    id: "sug-title-1",
+    baseRevision: 1,
+    operation: "title" as const,
+    scope: "whole_note" as const,
+    changeSummary: ["Đề xuất tiêu đề rõ hơn."],
+    suggestedTitle: "Queue Retry Strategy",
+    replacementText: null,
+  };
+  vi.mocked(agentApi.resume).mockResolvedValue({
+    ...structuredClone(base),
+    suggestion: titleSuggestion,
+  });
+  vi.mocked(agentApi.apply).mockResolvedValue({
+    ...structuredClone(base),
+    revision: 2,
+    title: "Queue Retry Strategy",
+    contentMarkdown: base.contentMarkdown,
+    hasAppliedRewrite: true,
+    suggestion: null,
+  });
+
+  mount();
+  const body = await screen.findByLabelText("Nội dung");
+  const titleInput = screen.getByLabelText("Tiêu đề");
+
+  fireEvent.click(screen.getByRole("button", { name: "Chỉnh sửa đề xuất" }));
+  fireEvent.change(screen.getByLabelText("Chỉnh sửa đề xuất"), {
+    target: { value: "Custom Edited Queue Title" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: messages.workNotes.agent.apply }));
+
+  await waitFor(() =>
+    expect(agentApi.apply).toHaveBeenCalledWith(
+      "651a2b3c4d5e6f7a8b9c0d21",
+      base.id,
+      "sug-title-1",
+      expect.objectContaining({
+        action: "replace_title",
+        applyTitle: true,
+      }),
+    ),
+  );
+  expect(titleInput).toHaveValue("Custom Edited Queue Title");
+  expect(body).toHaveValue(base.contentMarkdown);
 });

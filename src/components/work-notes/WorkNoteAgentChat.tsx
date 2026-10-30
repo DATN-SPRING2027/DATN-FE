@@ -280,7 +280,7 @@ function ClarificationQuestionCard({
         <Sparkles className="size-3.5" aria-hidden="true" />
       </span>
 
-      <div className="min-w-0 flex-1 space-y-2.5 rounded-2xl rounded-tl-md border border-brand-200 bg-brand-50/65 p-3.5 shadow-2xs dark:border-brand-500/30 dark:bg-brand-500/10">
+      <div className="min-w-0 flex-1 space-y-2.5 rounded-2xl rounded-ss-md border border-brand-200 bg-brand-50/65 p-3.5 shadow-2xs dark:border-brand-500/30 dark:bg-brand-500/10">
         <div className="inline-flex items-center gap-1 rounded-md bg-brand-100/80 px-2 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
           <HelpCircle className="size-3" aria-hidden="true" />
           <span>{t("clarificationBadge")}</span>
@@ -550,7 +550,7 @@ function DiffHighlightedContent({
                     seg.type === "delete" ? (
                       <del
                         className={`rounded border border-error-200 bg-error-100 px-1 py-0.5 font-medium text-error-800 line-through decoration-error-500 dark:border-error-500/35 dark:bg-error-500/20 dark:text-error-300 ${
-                          isLastLine && needsGapAfter ? "mr-1" : ""
+                          isLastLine && needsGapAfter ? "me-1" : ""
                         }`}
                       >
                         {line}
@@ -633,7 +633,7 @@ function InlineChatProposalCard({
       </span>
 
       <div className="min-w-0 flex-1 space-y-2.5">
-        <div className="space-y-2.5 rounded-2xl rounded-tl-md border border-gray-200/90 bg-white p-3.5 shadow-xs dark:border-gray-800 dark:bg-gray-900">
+        <div className="space-y-2.5 rounded-2xl rounded-ss-md border border-gray-200/90 bg-white p-3.5 shadow-xs dark:border-gray-800 dark:bg-gray-900">
           {/* Header Row + Change Count Badge + Dismiss */}
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 flex-wrap items-center gap-1.5">
@@ -708,7 +708,7 @@ function InlineChatProposalCard({
             )}
 
             <div className="flex items-center gap-1">
-              {suggestion.replacementText !== null && (
+              {proposedText.length > 0 && (
                 <button
                   type="button"
                   disabled={busy}
@@ -716,9 +716,7 @@ function InlineChatProposalCard({
                     if (isEditing) {
                       setIsEditing(false);
                     } else {
-                      setEdited(
-                        (prev) => prev ?? suggestion.replacementText ?? "",
-                      );
+                      setEdited((prev) => prev ?? proposedText);
                       setIsEditing(true);
                     }
                   }}
@@ -1042,7 +1040,7 @@ export default function WorkNoteAgentChat({
             >
               <Sparkles className="size-3.5" aria-hidden="true" />
             </span>
-            <div className="rounded-2xl rounded-tl-md bg-brand-50/75 px-3.5 py-2.5 text-xs leading-relaxed text-gray-800 dark:bg-brand-500/10 dark:text-gray-200">
+            <div className="rounded-2xl rounded-ss-md bg-brand-50/75 px-3.5 py-2.5 text-xs leading-relaxed text-gray-800 dark:bg-brand-500/10 dark:text-gray-200">
               {t("chatEmptyGreeting")}
             </div>
           </div>
@@ -1060,7 +1058,7 @@ export default function WorkNoteAgentChat({
           if (entry.role === "user") {
             return (
               <div key={i} className="flex items-end justify-end gap-2">
-                <div className="max-w-[82%] rounded-2xl rounded-br-md bg-brand-100/80 px-3.5 py-2 text-xs font-medium break-words whitespace-pre-wrap text-gray-900 dark:bg-brand-500/20 dark:text-brand-100">
+                <div className="max-w-[82%] rounded-2xl rounded-ee-md bg-brand-100/80 px-3.5 py-2 text-xs font-medium break-words whitespace-pre-wrap text-gray-900 dark:bg-brand-500/20 dark:text-brand-100">
                   {entry.content}
                 </div>
                 <span
@@ -1081,7 +1079,7 @@ export default function WorkNoteAgentChat({
               >
                 <Sparkles className="size-3.5" aria-hidden="true" />
               </span>
-              <div className="max-w-[86%] rounded-2xl rounded-tl-md border border-gray-100 bg-white px-3.5 py-2.5 text-xs leading-relaxed break-words text-gray-800 shadow-2xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+              <div className="max-w-[86%] rounded-2xl rounded-ss-md border border-gray-100 bg-white px-3.5 py-2.5 text-xs leading-relaxed break-words text-gray-800 shadow-2xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
                 <FormattedAssistantText content={entry.content} />
               </div>
             </div>
@@ -1098,7 +1096,7 @@ export default function WorkNoteAgentChat({
               <Sparkles className="size-3.5" aria-hidden="true" />
             </span>
             <div className="min-w-0 flex-1 space-y-2">
-              <div className="rounded-2xl rounded-tl-md bg-brand-50/80 px-3.5 py-2.5 text-xs leading-relaxed text-gray-800 dark:bg-brand-500/15 dark:text-gray-100">
+              <div className="rounded-2xl rounded-ss-md bg-brand-50/80 px-3.5 py-2.5 text-xs leading-relaxed text-gray-800 dark:bg-brand-500/15 dark:text-gray-100">
                 <p>
                   {t("selectionGreetingPrefix")}{" "}
                   <span className="font-semibold text-gray-900 dark:text-white">
@@ -1169,7 +1167,7 @@ export default function WorkNoteAgentChat({
             data-testid="optimistic-user-message"
             className="flex items-end justify-end gap-2"
           >
-            <div className="max-w-[82%] rounded-2xl rounded-br-md bg-brand-100/80 px-3.5 py-2 text-xs font-medium break-words whitespace-pre-wrap text-gray-900 dark:bg-brand-500/20 dark:text-brand-100">
+            <div className="max-w-[82%] rounded-2xl rounded-ee-md bg-brand-100/80 px-3.5 py-2 text-xs font-medium break-words whitespace-pre-wrap text-gray-900 dark:bg-brand-500/20 dark:text-brand-100">
               {pendingUserMessage}
             </div>
             <span

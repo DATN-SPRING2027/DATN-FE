@@ -51,6 +51,7 @@ vi.mock("@/components/work-notes/WorkNoteComposer", () => ({
     variant,
     taskId,
     noteId,
+    dismissSignal,
     onPanelOpenChange,
     onClose,
     onSaved,
@@ -58,12 +59,13 @@ vi.mock("@/components/work-notes/WorkNoteComposer", () => ({
     variant?: string;
     taskId?: string;
     noteId?: string;
+    dismissSignal?: number;
     onPanelOpenChange?: (open: boolean) => void;
     onClose: () => void;
     onSaved: () => void;
   }) => (
     <div data-testid="inline-work-note-composer">
-      <span>{`composer:${variant}:${taskId}:${noteId ?? "new"}`}</span>
+      <span>{`composer:${variant}:${taskId}:${noteId ?? "new"}:dismiss=${dismissSignal ?? 0}`}</span>
       <button type="button" onClick={() => onPanelOpenChange?.(true)}>
         Open AI 3rd column
       </button>
@@ -257,7 +259,7 @@ describe("WorkItemDetailDialog", () => {
     expect(resizers[0]).toHaveAttribute("data-testid", "task-note-resizer");
     expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("48%");
     expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
-      "composer:inline:work-1:new",
+      "composer:inline:work-1:new:dismiss=0",
     );
 
     // Drag the horizontal splitter between Task and Note
@@ -415,5 +417,39 @@ describe("WorkItemDetailDialog", () => {
     ).not.toBeInTheDocument();
     expect(onTitleChange).not.toHaveBeenCalled();
     expect(onDescriptionChange).not.toHaveBeenCalled();
+  });
+
+  it("closes the inline split composer when navigating away from a subtask and forwards Escape in mode='page'", () => {
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        initialSubtaskId="sub-1"
+        mode="page"
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:sub-1:new:dismiss=0",
+    );
+
+    // Escape in mode="page" forwards dismissSignal to inline WorkNoteComposer
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:sub-1:new:dismiss=1",
+    );
+
+    // Navigating back to parent task closes the subtask's split composer
+    fireEvent.click(
+      screen.getByRole("button", { name: /Back to KNW-142/ }),
+    );
+    expect(
+      screen.queryByTestId("work-note-split-workspace"),
+    ).not.toBeInTheDocument();
   });
 });

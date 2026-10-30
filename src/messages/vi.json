@@ -2673,6 +2673,10 @@
       "noDescriptionReal": "Chưa có mô tả.",
       "saveFailed": "Không thể lưu thay đổi. Vui lòng thử lại.",
       "createDialogRealHint": "Tạo hạng mục công việc mới trong không gian dự án này."
+    },
+    "detail": {
+      "splitResizeAria": "Kéo để thay đổi chiều ngang giữa Task và Ghi chú",
+      "splitResizeTitle": "Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)"
     }
   },
   "organizationMembers": {

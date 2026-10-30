@@ -136,7 +136,7 @@ export default function WorkNoteSelectionAssistant({
           event.preventDefault();
         }}
         onClick={onActivate}
-        className="group flex items-center gap-1.5 rounded-full border border-brand-200 bg-white py-1 pr-3 pl-1 text-xs font-bold text-brand-700 shadow-lg ring-4 ring-brand-500/15 transition-all hover:-translate-y-0.5 hover:border-brand-400 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-gray-800"
+        className="group flex items-center gap-1.5 rounded-full border border-brand-200 bg-white py-1 pe-3 ps-1 text-xs font-bold text-brand-700 shadow-lg ring-4 ring-brand-500/15 transition-all hover:-translate-y-0.5 hover:border-brand-400 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-gray-800"
       >
         <span
           aria-hidden="true"

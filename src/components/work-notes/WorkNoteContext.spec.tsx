@@ -2,7 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, expect, it, vi } from "vitest";
-import messages from "@/messages/en.json";
+import enMessages from "@/messages/en.json";
+import messages from "@/messages/vi.json";
 import {
   fetchProjectTaskDetail,
   type BackendTaskDetail,
@@ -51,7 +52,7 @@ function mount(
       }
     >
       <NextIntlClientProvider
-        locale="en"
+        locale="vi"
         timeZone="Asia/Bangkok"
         messages={messages}
       >
@@ -174,4 +175,25 @@ it("shows an access/load error without treating it as a business clarification",
     screen.getByRole("button", { name: "Tải lại ngữ cảnh Task" }),
   ).toBeInTheDocument();
   expect(screen.queryByText("Validate retry")).not.toBeInTheDocument();
+});
+
+it("renders English task context labels when mounted with en.json", async () => {
+  vi.mocked(fetchProjectTaskDetail).mockResolvedValue(task);
+  render(
+    <QueryClientProvider
+      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+    >
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <WorkNoteContext
+          projectId={projectId}
+          taskId={taskId}
+          selection={null}
+          fullContext={false}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  expect(await screen.findByText("Linked task details")).toBeInTheDocument();
+  expect(await screen.findByText("Checklist progress")).toBeInTheDocument();
 });

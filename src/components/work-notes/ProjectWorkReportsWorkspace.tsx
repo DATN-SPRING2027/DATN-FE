@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import {
@@ -18,9 +17,8 @@ import {
   SearchIcon,
   UserCircleIcon,
 } from "@/icons";
-import { apiClient, isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
-  csrfHeaders,
   useWorkNotesMutation,
   useWorkReportSettingsQuery,
   useWorkReportsQuery,
@@ -317,14 +315,16 @@ function ReportEditor({
             {t("closeEditor")}
           </Button>
         )}
-        <Button
-          type="submit"
-          variant="outline"
-          size="sm"
-          isLoading={isSaving}
-        >
-          {t("saveDraft")}
-        </Button>
+        {report.contentSchemaVersion !== 2 && (
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            isLoading={isSaving}
+          >
+            {t("saveDraft")}
+          </Button>
+        )}
         <Button
           type="button"
           size="sm"
@@ -429,7 +429,6 @@ export default function ProjectWorkReportsWorkspace({
   const t = useTranslations("workNotes.reports");
   const common = useTranslations("workNotes");
   const format = useFormatter();
-  const queryClient = useQueryClient();
 
   const [agentReportId, setAgentReportId] = useState<string | null>(null);
   const [activeScope, setActiveScope] = useState<WorkReportScope>("MEMBER");
@@ -699,18 +698,7 @@ export default function ProjectWorkReportsWorkspace({
     updateReport.reset();
     reportAction.reset();
     if (report.contentSchemaVersion === 2) {
-      const saved = await apiClient<WorkReport>(
-        `/capture/projects/${encodeURIComponent(projectId)}/editor-drafts/sources/WORK_REPORT/${encodeURIComponent(report.id)}/document-links`,
-        {
-          method: "PUT",
-          headers: csrfHeaders(),
-          body: JSON.stringify({ documentIds: [] }),
-        },
-      );
-      await queryClient.invalidateQueries({
-        queryKey: workNoteKeys.project(projectId),
-      });
-      return saved;
+      return report;
     }
     return report.id === editableCurrentReport?.id
       ? saveReport.mutateAsync(input)
@@ -719,7 +707,13 @@ export default function ProjectWorkReportsWorkspace({
 
   async function submitReport(report: WorkReport, input: WorkReportInput) {
     try {
-      const saved = await saveReportDraft(report, input);
+      saveReport.reset();
+      updateReport.reset();
+      reportAction.reset();
+      const saved =
+        report.contentSchemaVersion === 2
+          ? report
+          : await saveReportDraft(report, input);
       await reportAction.mutateAsync({ id: saved.id, action: "submit" });
       setEditingReportId("");
     } catch {

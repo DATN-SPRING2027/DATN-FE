@@ -556,7 +556,7 @@ export default function WorkNoteContext({
           <div className="border-t border-gray-200/75 px-3.5 py-2.5 dark:border-gray-800">
             <blockquote
               aria-label={t("selectedSource")}
-              className="max-h-24 overflow-auto rounded-lg border-l-2 border-brand-400 bg-white py-1.5 pr-2.5 pl-2.5 text-[11px] break-words whitespace-pre-wrap text-gray-700 dark:bg-gray-800/60 dark:text-gray-200"
+              className="max-h-24 overflow-auto rounded-lg border-s-2 border-brand-400 bg-white px-2.5 py-1.5 text-[11px] break-words whitespace-pre-wrap text-gray-700 dark:bg-gray-800/60 dark:text-gray-200"
             >
               {selection.quote}
             </blockquote>

@@ -334,6 +334,7 @@ export default function WorkItemDetailDialog({
     noteId?: string;
   } | null>(null);
   const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
   const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
     Record<string, number>
   >({});
@@ -342,15 +343,28 @@ export default function WorkItemDetailDialog({
   const [threeColTaskPct, setThreeColTaskPct] = useState(33);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
 
+  const resolvedLayerSubtask =
+    internalSubtaskId && item?.subtaskItems
+      ? (item.subtaskItems.find((s) => s.id === internalSubtaskId) ?? null)
+      : null;
+  const activeLayerTaskId = resolvedLayerSubtask?.id ?? item?.id ?? null;
+
   const activeSplitComposer =
     item &&
     projectId &&
     splitComposerState &&
-    splitComposerState.parentItemId === item.id
+    splitComposerState.parentItemId === item.id &&
+    splitComposerState.taskId === activeLayerTaskId
       ? splitComposerState
       : null;
   const isSplitOpen = Boolean(activeSplitComposer);
   const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  function isSplitRtl(): boolean {
+    const container = splitContainerRef.current;
+    if (!container || typeof window === "undefined") return false;
+    return window.getComputedStyle(container).direction === "rtl";
+  }
 
   function computeClampedTaskPct(clientX: number): number | null {
     const container = splitContainerRef.current;
@@ -365,10 +379,10 @@ export default function WorkItemDetailDialog({
       minTaskPx,
       rect.width - aiReservedPx - minNotePx - splitterPx,
     );
-    const clampedPx = Math.min(
-      maxTaskPx,
-      Math.max(minTaskPx, clientX - rect.left),
-    );
+    const inlineOffsetPx = isSplitRtl()
+      ? rect.right - clientX
+      : clientX - rect.left;
+    const clampedPx = Math.min(maxTaskPx, Math.max(minTaskPx, inlineOffsetPx));
     return Math.round((clampedPx / rect.width) * 1000) / 10;
   }
 
@@ -404,14 +418,16 @@ export default function WorkItemDetailDialog({
   function handleSplitterKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const minPct = 22;
     const maxPct = splitAiOpen ? 52 : 74;
-    if (event.key === "ArrowLeft") {
+    const shrinkKey = isSplitRtl() ? "ArrowRight" : "ArrowLeft";
+    const growKey = isSplitRtl() ? "ArrowLeft" : "ArrowRight";
+    if (event.key === shrinkKey) {
       event.preventDefault();
       if (splitAiOpen) {
         setThreeColTaskPct((cur) => Math.max(minPct, cur - 2));
       } else {
         setTwoColTaskPct((cur) => Math.max(minPct, cur - 2));
       }
-    } else if (event.key === "ArrowRight") {
+    } else if (event.key === growKey) {
       event.preventDefault();
       if (splitAiOpen) {
         setThreeColTaskPct((cur) => Math.min(maxPct, cur + 2));
@@ -438,6 +454,7 @@ export default function WorkItemDetailDialog({
       onOpen: (noteId) => {
         if (!item) return;
         setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
         setSplitComposerState({
           parentItemId: item.id,
           taskId: targetTaskId,
@@ -446,6 +463,7 @@ export default function WorkItemDetailDialog({
       },
       onClose: () => {
         setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
         setSplitComposerState(null);
       },
     };
@@ -464,7 +482,22 @@ export default function WorkItemDetailDialog({
     }
   }, [item, mode]);
 
+  useEffect(() => {
+    if (mode !== "page" || !isSplitOpen) return;
+    const handlePageKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeTitleEdit || activeDescEdit) return;
+      event.preventDefault();
+      setSplitDismissSignal((cur) => cur + 1);
+    };
+    window.addEventListener("keydown", handlePageKeyDown);
+    return () => window.removeEventListener("keydown", handlePageKeyDown);
+  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode]);
+
   function selectSubtaskLayer(nextSubtaskId: string | null) {
+    setSplitAiOpen(false);
+    setSplitConfirmOpen(false);
+    setSplitComposerState(null);
     setIsSubtaskTransitioning(true);
     setSubtaskIdOverride({
       itemId: item?.id,
@@ -549,8 +582,12 @@ export default function WorkItemDetailDialog({
   }
 
   function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !=="Tab") return;
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+    if (event.key !== "Tab") return;
+    const activeAlertDialog = dialogRef.current?.querySelector<HTMLElement>(
+      '[role="alertdialog"][aria-modal="true"]',
+    );
+    const scopeRoot = activeAlertDialog ?? dialogRef.current;
+    const focusable = scopeRoot?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
     );
     if (!focusable?.length) return;
@@ -826,6 +863,10 @@ export default function WorkItemDetailDialog({
     }
     if (activeDescEdit) {
       setDescEditState(null);
+      return;
+    }
+    if (isSplitOpen) {
+      setSplitDismissSignal((cur) => cur + 1);
       return;
     }
     onClose();
@@ -4358,6 +4399,7 @@ export default function WorkItemDetailDialog({
         {/* Column 1 (Left): Resizable Task Pane */}
         <div
           data-testid="work-note-split-task-pane"
+          inert={splitConfirmOpen || undefined}
           style={
             {
               "--task-split-w": `${activeTaskWidthPct}%`,
@@ -4372,13 +4414,22 @@ export default function WorkItemDetailDialog({
         <div
           role="separator"
           data-testid="task-note-resizer"
+          inert={splitConfirmOpen || undefined}
           tabIndex={0}
           aria-orientation="vertical"
-          aria-label="Kéo để thay đổi chiều ngang giữa Task và Ghi chú"
+          aria-label={tr(
+            t,
+            "splitResizeAria",
+            "Drag to resize width between Task and Note",
+          )}
           aria-valuemin={22}
           aria-valuemax={splitAiOpen ? 52 : 74}
           aria-valuenow={Math.round(activeTaskWidthPct)}
-          title="Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)"
+          title={tr(
+            t,
+            "splitResizeTitle",
+            "Drag to resize width (double-click to reset)",
+          )}
           onPointerDown={handleSplitterPointerDown}
           onPointerMove={handleSplitterPointerMove}
           onPointerUp={handleSplitterPointerUp}
@@ -4425,8 +4476,10 @@ export default function WorkItemDetailDialog({
             noteId={activeSplitComposer.noteId}
             dismissSignal={splitDismissSignal}
             onPanelOpenChange={setSplitAiOpen}
+            onConfirmationChange={setSplitConfirmOpen}
             onClose={() => {
               setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
               setSplitComposerState(null);
             }}
             onSaved={() => {
@@ -4436,6 +4489,7 @@ export default function WorkItemDetailDialog({
                 [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
               }));
               setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
               setSplitComposerState(null);
             }}
           />
