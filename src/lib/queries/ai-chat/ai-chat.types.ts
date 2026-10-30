@@ -50,6 +50,8 @@ export type AiChatMessage = Readonly<{
   sessionCitations: readonly AiChatSessionCitation[];
   retrievalSteps: readonly AiChatRetrievalStep[];
   createdAt: string;
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
 }>;
 
 export type AiChatMessagePage = Readonly<{
@@ -75,6 +77,8 @@ export type AiChatCompletedEventData = Readonly<{
   citations: readonly AiChatCitation[];
   sessionCitations: readonly AiChatSessionCitation[];
   retrievalSteps: readonly AiChatRetrievalStep[];
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
 }>;
 
 export type AiChatFailedEventData = Readonly<{
@@ -82,6 +86,8 @@ export type AiChatFailedEventData = Readonly<{
   message: string;
   retryable: boolean;
   messageId?: string;
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
 }>;
 
 export type AiChatStreamEvent =
@@ -90,3 +96,57 @@ export type AiChatStreamEvent =
   | Readonly<{ event: "delta"; data: AiChatDeltaEventData }>
   | Readonly<{ event: "completed"; data: AiChatCompletedEventData }>
   | Readonly<{ event: "failed"; data: AiChatFailedEventData }>;
+
+export type AiAnswerRating = "LIKE" | "DISLIKE";
+
+export type AiDislikeReasonCategory =
+  | "INACCURATE"
+  | "OUTDATED"
+  | "IRRELEVANT_CITATION"
+  | "INCOMPLETE"
+  | "OTHER";
+
+export type AiAnswerFeedbackInput =
+  | Readonly<{
+      rating: "LIKE";
+    }>
+  | Readonly<{
+      rating: "DISLIKE";
+      reasonCategory: AiDislikeReasonCategory;
+      reasonText?: string;
+    }>;
+
+export type AiAnswerFeedback = Readonly<{
+  messageId: string;
+  rating: AiAnswerRating;
+  reasonCategory?: AiDislikeReasonCategory;
+  reasonText?: string;
+  updatedAt: string;
+}>;
+
+export type AiOwnAnswerFeedback = Readonly<{
+  feedback: AiAnswerFeedback | null;
+}>;
+
+export type AiAnswerShare = Readonly<{
+  id: string;
+  projectId: string;
+  messageId: string;
+  createdAt: string;
+}>;
+
+export type AiPublicAnswer = Readonly<{
+  id: string;
+  content: string;
+  citations: readonly AiChatCitation[];
+}>;
+
+export type AiSharedQuestion = Readonly<{
+  content: string;
+}>;
+
+export type AiSharedAnswer = Readonly<{
+  share: AiAnswerShare;
+  question: AiSharedQuestion;
+  answer: AiPublicAnswer;
+}>;

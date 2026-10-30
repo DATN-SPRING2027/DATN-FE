@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import type { AnchorHTMLAttributes } from "react";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { AnchorHTMLAttributes, ReactElement } from "react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import en from "@/messages/en.json";
@@ -35,26 +36,45 @@ const assistant: DisplayAiChatMessage = {
   createdAt: "2026-10-30T06:00:00Z",
 };
 
-function renderMessage(message = assistant, locale = "vi") {
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+function renderWithProviders(ui: ReactElement, locale = "vi") {
   const messages = locale === "vi" ? viMessages : en;
-  render(
-    <NextIntlClientProvider locale={locale} messages={messages}>
-      <AiChatMessageList
-        projectId="project-1"
-        mode="chat"
-        messages={[message]}
-        isLoadingMessages={false}
-        isMessagesError={false}
-        hasOlderMessages={false}
-        isLoadingOlder={false}
-        highlightedTurnId={null}
-        onLoadOlder={vi.fn()}
-        onRetryMessages={vi.fn()}
-        onRetryTurn={vi.fn()}
-        onInspectEvidence={vi.fn()}
-        onJumpToTurn={vi.fn()}
-      />
-    </NextIntlClientProvider>,
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <NextIntlClientProvider locale={locale} messages={messages}>
+        {ui}
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+}
+
+function renderMessage(message = assistant, locale = "vi") {
+  renderWithProviders(
+    <AiChatMessageList
+      projectId="project-1"
+      mode="chat"
+      messages={[message]}
+      isLoadingMessages={false}
+      isMessagesError={false}
+      hasOlderMessages={false}
+      isLoadingOlder={false}
+      highlightedTurnId={null}
+      onLoadOlder={vi.fn()}
+      onRetryMessages={vi.fn()}
+      onRetryTurn={vi.fn()}
+      onInspectEvidence={vi.fn()}
+      onJumpToTurn={vi.fn()}
+    />,
+    locale,
   );
 }
 
@@ -176,24 +196,27 @@ describe("AI Chat no-answer presentation", () => {
       answerStatus: undefined,
     };
 
+    const queryClient = createTestQueryClient();
     const { rerender } = render(
-      <NextIntlClientProvider locale="vi" messages={viMessages}>
-        <AiChatMessageList
-          projectId="project-1"
-          mode="chat"
-          messages={[userTurn, cancelledAssistant]}
-          isLoadingMessages={false}
-          isMessagesError={false}
-          hasOlderMessages={false}
-          isLoadingOlder={false}
-          highlightedTurnId={null}
-          onLoadOlder={vi.fn()}
-          onRetryMessages={vi.fn()}
-          onRetryTurn={onRetryTurn}
-          onInspectEvidence={vi.fn()}
-          onJumpToTurn={vi.fn()}
-        />
-      </NextIntlClientProvider>,
+      <QueryClientProvider client={queryClient}>
+        <NextIntlClientProvider locale="vi" messages={viMessages}>
+          <AiChatMessageList
+            projectId="project-1"
+            mode="chat"
+            messages={[userTurn, cancelledAssistant]}
+            isLoadingMessages={false}
+            isMessagesError={false}
+            hasOlderMessages={false}
+            isLoadingOlder={false}
+            highlightedTurnId={null}
+            onLoadOlder={vi.fn()}
+            onRetryMessages={vi.fn()}
+            onRetryTurn={onRetryTurn}
+            onInspectEvidence={vi.fn()}
+            onJumpToTurn={vi.fn()}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(
@@ -212,23 +235,25 @@ describe("AI Chat no-answer presentation", () => {
     };
 
     rerender(
-      <NextIntlClientProvider locale="vi" messages={viMessages}>
-        <AiChatMessageList
-          projectId="project-1"
-          mode="chat"
-          messages={[userTurn, reloadedFailed]}
-          isLoadingMessages={false}
-          isMessagesError={false}
-          hasOlderMessages={false}
-          isLoadingOlder={false}
-          highlightedTurnId={null}
-          onLoadOlder={vi.fn()}
-          onRetryMessages={vi.fn()}
-          onRetryTurn={onRetryTurn}
-          onInspectEvidence={vi.fn()}
-          onJumpToTurn={vi.fn()}
-        />
-      </NextIntlClientProvider>,
+      <QueryClientProvider client={queryClient}>
+        <NextIntlClientProvider locale="vi" messages={viMessages}>
+          <AiChatMessageList
+            projectId="project-1"
+            mode="chat"
+            messages={[userTurn, reloadedFailed]}
+            isLoadingMessages={false}
+            isMessagesError={false}
+            hasOlderMessages={false}
+            isLoadingOlder={false}
+            highlightedTurnId={null}
+            onLoadOlder={vi.fn()}
+            onRetryMessages={vi.fn()}
+            onRetryTurn={onRetryTurn}
+            onInspectEvidence={vi.fn()}
+            onJumpToTurn={vi.fn()}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
     );
 
     fireEvent.click(
@@ -248,40 +273,39 @@ describe("AI Chat no-answer presentation", () => {
       "| Frontend | **Next.js** `App Router` | [1] |",
     ].join("\n");
 
-    render(
-      <NextIntlClientProvider locale="vi" messages={viMessages}>
-        <AiChatMessageList
-          projectId="project-1"
-          mode="chat"
-          messages={[
-            {
-              ...assistant,
-              answerStatus: "answered",
-              content: markdownContent,
-              citations: [
-                {
-                  number: 1,
-                  sourceId: "src-fe",
-                  documentId: "6ad8834abef68a3326035eeb",
-                  documentName: "02_FRONTEND_NEXTJS.md",
-                  heading: "Framework",
-                  snippet: "Frontend uses Next.js App Router.",
-                },
-              ],
-            },
-          ]}
-          isLoadingMessages={false}
-          isMessagesError={false}
-          hasOlderMessages={false}
-          isLoadingOlder={false}
-          highlightedTurnId={null}
-          onLoadOlder={vi.fn()}
-          onRetryMessages={vi.fn()}
-          onRetryTurn={vi.fn()}
-          onInspectEvidence={onInspectEvidence}
-          onJumpToTurn={vi.fn()}
-        />
-      </NextIntlClientProvider>,
+    renderWithProviders(
+      <AiChatMessageList
+        projectId="project-1"
+        mode="chat"
+        messages={[
+          {
+            ...assistant,
+            answerStatus: "answered",
+            content: markdownContent,
+            citations: [
+              {
+                number: 1,
+                sourceId: "src-fe",
+                documentId: "6ad8834abef68a3326035eeb",
+                documentName: "02_FRONTEND_NEXTJS.md",
+                heading: "Framework",
+                snippet: "Frontend uses Next.js App Router.",
+              },
+            ],
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onInspectEvidence={onInspectEvidence}
+        onJumpToTurn={vi.fn()}
+      />,
+      "vi",
     );
 
     expect(screen.getByRole("table")).toBeVisible();

@@ -27,7 +27,10 @@ import {
   SidebarPanelIcon,
 } from "@/icons";
 import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
-import { streamAiChatAsk } from "@/lib/queries/ai-chat/ai-chat-stream";
+import {
+  streamAiChatAsk,
+  streamAiChatRegenerate,
+} from "@/lib/queries/ai-chat/ai-chat-stream";
 import type {
   AiChatMessagePage,
   AiChatRetrievalStep,
@@ -51,6 +54,7 @@ import AiChatMessageList, {
   type InspectedEvidence,
 } from "./AiChatMessageList";
 import AiChatSidebar from "./AiChatSidebar";
+import { isPersistedMessageId } from "./answer-action-utils";
 import {
   isContinuumDocumentId,
   resolveSessionCitationPreview,
@@ -562,6 +566,7 @@ function AiChatWorkspaceContent() {
           sessionCitations: [],
           retrievalSteps: [],
           createdAt: nowIso,
+          replyToMessageId: tempUserTurnId,
           isStreaming: true,
           activityStartedAt: Date.parse(nowIso),
           retryQuery: trimmed,
@@ -604,6 +609,14 @@ function AiChatWorkspaceContent() {
                     id: realUserMessageId,
                   }));
                   activeUserTurnId = realUserMessageId;
+                  updateLocalTurn(
+                    targetThreadId,
+                    activeAssistantTurnId,
+                    (turn) => ({
+                      ...turn,
+                      replyToMessageId: realUserMessageId,
+                    }),
+                  );
                 }
                 return;
               }
@@ -658,6 +671,9 @@ function AiChatWorkspaceContent() {
                     isStreaming: false,
                     activityFinishedAt: finishedAt,
                     answerStatus: event.data.answerStatus,
+                    ...(event.data.replyToMessageId
+                      ? { replyToMessageId: event.data.replyToMessageId }
+                      : {}),
                     citations: event.data.citations,
                     sessionCitations: event.data.sessionCitations,
                     retrievalSteps:
@@ -777,6 +793,267 @@ function AiChatWorkspaceContent() {
     [
       activeThreadId,
       createThreadMutation,
+      isStreaming,
+      organizationId,
+      queryClient,
+      selectedProject,
+      serverMessages,
+      t,
+      updateLocalTurn,
+    ],
+  );
+
+  const regenerateAnswer = useCallback(
+    async (
+      targetMessage: DisplayAiChatMessage,
+      questionMessage?: DisplayAiChatMessage,
+    ) => {
+      if (
+        !selectedProject ||
+        !activeThreadId ||
+        isStreaming ||
+        !isPersistedMessageId(targetMessage.id)
+      ) {
+        return;
+      }
+
+      const requestProjectId = selectedProject.id;
+      const targetThreadId = activeThreadId;
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+      setIsStreaming(true);
+      setValidationError(null);
+      setPermissionBanner(null);
+
+      const nowIso = new Date().toISOString();
+      const tempRegenId = `local-assistant-regen-${Date.now()}`;
+      const optimisticRegenTurn: DisplayAiChatMessage = {
+        id: tempRegenId,
+        role: "assistant",
+        content: "",
+        status: "ok",
+        citations: [],
+        sessionCitations: [],
+        retrievalSteps: [],
+        createdAt: nowIso,
+        ...(targetMessage.replyToMessageId ?? questionMessage?.id
+          ? {
+              replyToMessageId:
+                targetMessage.replyToMessageId ?? questionMessage?.id,
+            }
+          : {}),
+        regeneratedFromMessageId: targetMessage.id,
+        isStreaming: true,
+        activityStartedAt: Date.parse(nowIso),
+      };
+
+      const currentServerIds = new Set(serverMessages.map((msg) => msg.id));
+      setLocalTurnsByThread((prev) => {
+        const retained = (prev[targetThreadId] ?? []).filter(
+          (turn) =>
+            turn.isStreaming ||
+            turn.status !== "ok" ||
+            !currentServerIds.has(turn.id),
+        );
+        return {
+          ...prev,
+          [targetThreadId]: [...retained, optimisticRegenTurn],
+        };
+      });
+
+      let activeRegenTurnId = tempRegenId;
+      const collectedSteps: AiChatRetrievalStep[] = [];
+
+      try {
+        await streamAiChatRegenerate({
+          projectId: requestProjectId,
+          threadId: targetThreadId,
+          messageId: targetMessage.id,
+          signal: controller.signal,
+          onEvent: (event) => {
+            if (event.event === "started") {
+              if (event.data.userMessageId) {
+                updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+                  ...turn,
+                  replyToMessageId: event.data.userMessageId,
+                }));
+              }
+              return;
+            }
+
+            if (event.event === "step") {
+              collectedSteps.push(event.data);
+              updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+                ...turn,
+                retrievalSteps: [...collectedSteps],
+              }));
+              return;
+            }
+
+            if (event.event === "delta") {
+              updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+                ...turn,
+                content: `${turn.content}${event.data.text}`,
+              }));
+              return;
+            }
+
+            if (event.event === "completed") {
+              const finalId = event.data.messageId || activeRegenTurnId;
+              const finishedAt = Date.now();
+              setActivityTimingsByMessageId((prev) => ({
+                ...prev,
+                [finalId]: {
+                  activityStartedAt: Date.parse(nowIso),
+                  activityFinishedAt: finishedAt,
+                },
+              }));
+              setAnswerStatusByMessageId((prev) => ({
+                ...prev,
+                [finalId]: event.data.answerStatus,
+              }));
+              updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+                ...turn,
+                id: finalId,
+                content: event.data.content || turn.content,
+                status: "ok",
+                isStreaming: false,
+                activityFinishedAt: finishedAt,
+                answerStatus: event.data.answerStatus,
+                citations: event.data.citations,
+                sessionCitations: event.data.sessionCitations,
+                retrievalSteps:
+                  event.data.retrievalSteps.length > 0
+                    ? event.data.retrievalSteps
+                    : turn.retrievalSteps,
+                ...(event.data.replyToMessageId
+                  ? { replyToMessageId: event.data.replyToMessageId }
+                  : {}),
+                ...(event.data.regeneratedFromMessageId
+                  ? {
+                      regeneratedFromMessageId:
+                        event.data.regeneratedFromMessageId,
+                    }
+                  : {}),
+              }));
+              activeRegenTurnId = finalId;
+              return;
+            }
+
+            if (event.event === "failed") {
+              const failedId = event.data.messageId || activeRegenTurnId;
+              updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+                ...turn,
+                id: failedId,
+                status: "failed",
+                isStreaming: false,
+                activityFinishedAt: Date.now(),
+                errorMessage: event.data.message || t("streamFailedDefault"),
+                ...(event.data.replyToMessageId
+                  ? { replyToMessageId: event.data.replyToMessageId }
+                  : {}),
+                ...(event.data.regeneratedFromMessageId
+                  ? {
+                      regeneratedFromMessageId:
+                        event.data.regeneratedFromMessageId,
+                    }
+                  : {}),
+              }));
+              activeRegenTurnId = failedId;
+            }
+          },
+        });
+
+        const messagesKey = aiChatKeys.messages(
+          organizationId,
+          requestProjectId,
+          targetThreadId,
+        );
+        await Promise.all([
+          queryClient.invalidateQueries({
+            queryKey: aiChatKeys.threads(organizationId, requestProjectId),
+          }),
+          queryClient.invalidateQueries({
+            queryKey: messagesKey,
+          }),
+        ]);
+
+        if (typeof queryClient.getQueryData === "function") {
+          const refreshed = queryClient.getQueryData<{
+            pages?: readonly AiChatMessagePage[];
+          }>(messagesKey);
+          const refreshedIds = new Set<string>();
+          for (const page of refreshed?.pages ?? []) {
+            for (const item of page.items) {
+              refreshedIds.add(item.id);
+            }
+          }
+          if (refreshedIds.size > 0) {
+            setLocalTurnsByThread((prev) => {
+              const existing = prev[targetThreadId];
+              if (!existing || existing.length === 0) return prev;
+              const filtered = existing.filter(
+                (turn) =>
+                  turn.isStreaming ||
+                  turn.status !== "ok" ||
+                  !refreshedIds.has(turn.id),
+              );
+              if (filtered.length === existing.length) return prev;
+              return { ...prev, [targetThreadId]: filtered };
+            });
+          }
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 409) {
+          setLocalTurnsByThread((prev) => ({
+            ...prev,
+            [targetThreadId]: (prev[targetThreadId] ?? []).filter(
+              (turn) => turn.id !== activeRegenTurnId,
+            ),
+          }));
+          setValidationError(t("regenerateConflictError"));
+        } else if (isAbortError(error) || controller.signal.aborted) {
+          updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+            ...turn,
+            status: "cancelled",
+            isStreaming: false,
+            activityFinishedAt: Date.now(),
+          }));
+        } else if (isProjectOrAuthAccessError(error)) {
+          setPermissionBanner(
+            error.status === 401
+              ? t("sessionExpiredBody")
+              : t("permissionDeniedBody"),
+          );
+          updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+            ...turn,
+            status: "failed",
+            isStreaming: false,
+            activityFinishedAt: Date.now(),
+            errorMessage:
+              error instanceof ApiError
+                ? error.message
+                : t("permissionDeniedBody"),
+          }));
+        } else {
+          updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
+            ...turn,
+            status: "failed",
+            isStreaming: false,
+            activityFinishedAt: Date.now(),
+            errorMessage:
+              error instanceof Error ? error.message : t("streamFailedDefault"),
+          }));
+        }
+      } finally {
+        if (abortControllerRef.current === controller) {
+          abortControllerRef.current = null;
+          setIsStreaming(false);
+        }
+      }
+    },
+    [
+      activeThreadId,
       isStreaming,
       organizationId,
       queryClient,
@@ -1223,7 +1500,11 @@ function AiChatWorkspaceContent() {
           </div>
         ) : (
           <AiChatMessageList
+            organizationId={organizationId}
             projectId={selectedProject.id}
+            projectName={selectedProject.name}
+            threadId={activeThreadId}
+            isThreadStreaming={isStreaming}
             mode="chat"
             messages={displayedMessages}
             isLoadingMessages={
@@ -1240,6 +1521,9 @@ function AiChatWorkspaceContent() {
             onLoadOlder={() => void messagesQuery.fetchNextPage()}
             onRetryMessages={() => void messagesQuery.refetch()}
             onRetryTurn={(queryText) => void sendQuestion(queryText)}
+            onRegenerateMessage={(msg, qMsg) =>
+              void regenerateAnswer(msg, qMsg)
+            }
             onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
             onJumpToTurn={handleJumpToTurn}
           />

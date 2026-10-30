@@ -1,13 +1,18 @@
 "use client";
 
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
-import { useTranslations } from "next-intl";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
   AlertIcon,
   ArrowRightIcon,
-  CheckLineIcon,
-  CopyIcon,
   DocsIcon,
   ShootingStarIcon,
   TimeIcon,
@@ -18,14 +23,19 @@ import type {
   AiChatSessionCitation,
 } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
+import AiChatActivityProgress from "./AiChatActivityProgress";
+import AiChatAnswerActionBar from "./AiChatAnswerActionBar";
+import {
+  groupAnswerVersions,
+  isPersistedMessageId,
+} from "./answer-action-utils";
 import {
   isContinuumDocumentId,
   resolveSessionCitationPreview,
   tokenizeTextWithCitations,
   type CitationItemToken,
 } from "./citation-utils";
-
-import AiChatActivityProgress from "./AiChatActivityProgress";
+import { useLocalSpeech } from "./useLocalSpeech";
 
 // Canonical SAG abstention marker used by history responses predating answerStatus.
 const SAG_NO_ANSWER_TEXT =
@@ -45,9 +55,13 @@ export type InspectedEvidence =
   | Readonly<{ kind: "session"; sessionCitation: AiChatSessionCitation }>;
 
 export interface AiChatMessageListProps {
+  organizationId?: string;
   projectId: string;
+  projectName?: string;
+  threadId?: string | null;
   mode: "chat" | "work";
   messages: readonly DisplayAiChatMessage[];
+  isThreadStreaming?: boolean;
   isLoadingMessages: boolean;
   isMessagesError: boolean;
   hasOlderMessages: boolean;
@@ -56,6 +70,10 @@ export interface AiChatMessageListProps {
   onLoadOlder: () => void;
   onRetryMessages: () => void;
   onRetryTurn: (query: string) => void;
+  onRegenerateMessage?: (
+    targetMessage: DisplayAiChatMessage,
+    questionMessage?: DisplayAiChatMessage,
+  ) => void;
   onInspectEvidence: (evidence: InspectedEvidence) => void;
   onJumpToTurn: (turnId: string, fallback: AiChatSessionCitation) => void;
 }
@@ -398,9 +416,13 @@ function FormattedAnswerProse({
 }
 
 export default function AiChatMessageList({
+  organizationId = "",
   projectId,
+  projectName = "",
+  threadId = null,
   mode,
   messages,
+  isThreadStreaming = false,
   isLoadingMessages,
   isMessagesError,
   hasOlderMessages,
@@ -409,14 +431,60 @@ export default function AiChatMessageList({
   onLoadOlder,
   onRetryMessages,
   onRetryTurn,
+  onRegenerateMessage,
   onInspectEvidence,
   onJumpToTurn,
 }: AiChatMessageListProps) {
   const t = useTranslations("AiChat");
+  const locale = useLocale();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const prevCountRef = useRef<number>(0);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const messagesById = new Map(messages.map((item) => [item.id, item]));
+
+  const [selectedVersionIndexByGroup, setSelectedVersionIndexByGroup] =
+    useState<
+      Record<string, { selectedIndex: number; knownVersionCount: number }>
+    >({});
+
+  const {
+    speakingMessageId,
+    preparingMessageId,
+    speechError,
+    stopSpeech,
+    toggleSpeak,
+  } = useLocalSpeech(locale);
+
+  useEffect(() => {
+    stopSpeech();
+  }, [projectId, stopSpeech, threadId]);
+
+  const messagesById = useMemo(
+    () => new Map(messages.map((item) => [item.id, item])),
+    [messages],
+  );
+  const groupedTurns = useMemo(() => groupAnswerVersions(messages), [messages]);
+
+  const activeSpeechMessageId = speakingMessageId ?? preparingMessageId;
+  useEffect(() => {
+    if (!activeSpeechMessageId) return;
+    const isStillActiveVersion = groupedTurns.some((turn) => {
+      if (turn.message.role !== "assistant") return false;
+      const versions = turn.versions ?? [turn.message];
+      const saved = selectedVersionIndexByGroup[turn.groupKey];
+      const idx =
+        saved && saved.knownVersionCount === versions.length
+          ? Math.min(Math.max(0, saved.selectedIndex), versions.length - 1)
+          : versions.length - 1;
+      return versions[idx]?.id === activeSpeechMessageId;
+    });
+    if (!isStillActiveVersion) {
+      stopSpeech();
+    }
+  }, [
+    activeSpeechMessageId,
+    groupedTurns,
+    selectedVersionIndexByGroup,
+    stopSpeech,
+  ]);
 
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
@@ -429,18 +497,6 @@ export default function AiChatMessageList({
     }
     prevCountRef.current = messages.length;
   }, [messages]);
-
-  const handleCopy = async (messageId: string, text: string) => {
-    try {
-      await navigator.clipboard?.writeText(text);
-      setCopiedId(messageId);
-      window.setTimeout(() => {
-        setCopiedId((prev) => (prev === messageId ? null : prev));
-      }, 1800);
-    } catch {
-      // Clipboard may be restricted in headless contexts.
-    }
-  };
 
   if (isLoadingMessages && messages.length === 0) {
     return (
@@ -512,14 +568,14 @@ export default function AiChatMessageList({
           </div>
         )}
 
-        {messages.map((message, index) => {
-          const isHighlighted = highlightedTurnId === message.id;
-
-          if (message.role === "user") {
+        {groupedTurns.map((turn) => {
+          if (turn.message.role === "user") {
+            const userMsg = turn.message;
+            const isHighlighted = highlightedTurnId === userMsg.id;
             return (
               <div
-                key={message.id}
-                id={`ai-chat-turn-${message.id}`}
+                key={userMsg.id}
+                id={`ai-chat-turn-${userMsg.id}`}
                 className={cn(
                   "flex flex-col items-end rounded-3xl transition-all",
                   isHighlighted &&
@@ -532,11 +588,26 @@ export default function AiChatMessageList({
                   </span>
                 )}
                 <div className="max-w-4/5 rounded-3xl bg-gray-100 px-4 py-2.5 text-sm leading-6 break-words whitespace-pre-wrap text-gray-900 dark:bg-gpt-bubble dark:text-gray-100">
-                  {message.content}
+                  {userMsg.content}
                 </div>
               </div>
             );
           }
+
+          const versionCount = turn.versions.length;
+          const storedSelection = selectedVersionIndexByGroup[turn.groupKey];
+          const activeVersionIndex =
+            storedSelection &&
+            storedSelection.knownVersionCount === versionCount &&
+            storedSelection.selectedIndex >= 0 &&
+            storedSelection.selectedIndex < versionCount
+              ? storedSelection.selectedIndex
+              : versionCount - 1;
+          const message = turn.versions[activeVersionIndex] ?? turn.message;
+
+          const isHighlighted = turn.versions.some(
+            (ver) => ver.id === highlightedTurnId,
+          );
 
           const handleTokenClick = (item: CitationItemToken) => {
             if (item.type === "document") {
@@ -580,18 +651,29 @@ export default function AiChatMessageList({
             if (message.status !== "failed" && message.status !== "cancelled") {
               return undefined;
             }
-            for (let prevIdx = index - 1; prevIdx >= 0; prevIdx -= 1) {
-              const prevMsg = messages[prevIdx];
-              if (prevMsg?.role === "user" && prevMsg.content.trim()) {
-                return prevMsg.content.trim();
-              }
-            }
-            return undefined;
+            return turn.questionMessage?.content?.trim() || undefined;
           })();
+
+          const canRegenerateTurn =
+            (Boolean(onRegenerateMessage) && isPersistedMessageId(message.id)) ||
+            Boolean(effectiveRetryQuery);
+
+          const handleTriggerRegenerate = () => {
+            stopSpeech();
+            if (onRegenerateMessage && isPersistedMessageId(message.id)) {
+              onRegenerateMessage(message, turn.questionMessage);
+            } else if (effectiveRetryQuery) {
+              onRetryTurn(effectiveRetryQuery);
+            }
+          };
+
+          const effectiveDisplayMessage = isNoAnswer
+            ? { ...message, content: t("noAnswerNotice") }
+            : message;
 
           return (
             <article
-              key={message.id}
+              key={turn.groupKey}
               id={`ai-chat-turn-${message.id}`}
               aria-label={t("assistantRoleLabel")}
               className={cn(
@@ -701,11 +783,12 @@ export default function AiChatMessageList({
                       )}
                     </span>
                   </div>
-                  {effectiveRetryQuery && (
+                  {canRegenerateTurn && (
                     <button
                       type="button"
-                      onClick={() => onRetryTurn(effectiveRetryQuery)}
-                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 dark:bg-gpt-composer dark:text-error-300 dark:ring-error-700"
+                      disabled={isThreadStreaming}
+                      onClick={handleTriggerRegenerate}
+                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 disabled:opacity-50 dark:bg-gpt-composer dark:text-error-300 dark:ring-error-700"
                     >
                       {t("retryTurn")}
                     </button>
@@ -879,51 +962,58 @@ export default function AiChatMessageList({
                 </div>
               )}
 
-              {/* Minimal ChatGPT Message Action Bar */}
+              {/* Answer Action Bar (Copy, Like/Dislike, Read Aloud, Share, Try Again & Version Switcher) */}
               {!message.isStreaming &&
-                (Boolean(message.content) ||
-                  (message.status === "cancelled" &&
-                    Boolean(effectiveRetryQuery))) && (
-                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                    {message.content && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          void handleCopy(
-                            message.id,
-                            isNoAnswer ? t("noAnswerNotice") : message.content,
-                          )
-                        }
-                        aria-label={t("copyAnswer")}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-                      >
-                        {copiedId === message.id ? (
-                          <>
-                            <CheckLineIcon
-                              aria-hidden="true"
-                              className="size-3.5 text-success-500"
-                            />
-                            <span>{t("copiedAnswer")}</span>
-                          </>
-                        ) : (
-                          <>
-                            <CopyIcon aria-hidden="true" className="size-3.5" />
-                            <span>{t("copyAnswer")}</span>
-                          </>
-                        )}
-                      </button>
-                    )}
-                    {message.status === "cancelled" && effectiveRetryQuery && (
-                      <button
-                        type="button"
-                        onClick={() => onRetryTurn(effectiveRetryQuery)}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200/80 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-white/10 dark:bg-gpt-composer dark:text-gray-200 dark:hover:bg-white/10"
-                      >
-                        <span>{t("retryTurn")}</span>
-                      </button>
-                    )}
-                  </div>
-                )}
+                !isEmptyEvidenceScope &&
+                (message.status !== "failed" ||
+                  Boolean(message.content) ||
+                  versionCount > 1) && (
+                  <AiChatAnswerActionBar
+                    organizationId={organizationId}
+                    projectId={projectId}
+                    projectName={projectName}
+                    threadId={threadId}
+                    message={effectiveDisplayMessage}
+                    questionText={turn.questionMessage?.content ?? ""}
+                    versionIndex={activeVersionIndex}
+                    versionCount={versionCount}
+                    isThreadStreaming={isThreadStreaming}
+                    isSpeaking={
+                      speakingMessageId === message.id ||
+                      preparingMessageId === message.id
+                    }
+                    speechError={
+                      speechError?.messageId === message.id
+                        ? speechError.kind
+                        : null
+                    }
+                    canRegenerate={
+                      canRegenerateTurn && message.status !== "failed"
+                    }
+                  onSelectVersionIndex={(nextIdx) => {
+                    if (
+                      speakingMessageId === message.id ||
+                      preparingMessageId === message.id
+                    ) {
+                      stopSpeech();
+                    }
+                    setSelectedVersionIndexByGroup((prev) => ({
+                      ...prev,
+                      [turn.groupKey]: {
+                        selectedIndex: nextIdx,
+                        knownVersionCount: versionCount,
+                      },
+                    }));
+                  }}
+                  onRegenerate={handleTriggerRegenerate}
+                  onToggleSpeak={() =>
+                    void toggleSpeak(
+                      message.id,
+                      effectiveDisplayMessage.content,
+                    )
+                  }
+                />
+              )}
             </article>
           );
         })}

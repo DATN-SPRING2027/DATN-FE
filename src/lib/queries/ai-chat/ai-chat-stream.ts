@@ -28,6 +28,14 @@ export interface StreamAiChatAskInput {
   onEvent: (event: AiChatStreamEvent) => void;
 }
 
+export interface StreamAiChatRegenerateInput {
+  projectId: string;
+  threadId: string;
+  messageId: string;
+  signal?: AbortSignal;
+  onEvent: (event: AiChatStreamEvent) => void;
+}
+
 function parseSseFrameBlock(rawBlock: string): AiChatStreamEvent | null {
   const lines = rawBlock.split(/\r?\n/);
   let eventName = "";
@@ -85,17 +93,12 @@ function parseSseFrameBlock(rawBlock: string): AiChatStreamEvent | null {
   }
 }
 
-export async function streamAiChatAsk({
-  projectId,
-  threadId,
-  query,
-  signal,
-  onEvent,
-}: StreamAiChatAskInput): Promise<void> {
-  const url = `${getApiBaseUrl()}/ai-chat/projects/${encodeURIComponent(
-    projectId,
-  )}/threads/${encodeURIComponent(threadId)}/ask`;
-
+async function consumeAiChatSseStream(
+  url: string,
+  body: Record<string, unknown>,
+  signal: AbortSignal | undefined,
+  onEvent: (event: AiChatStreamEvent) => void,
+): Promise<void> {
   const headers = new Headers({
     "Content-Type": "application/json",
     Accept: "text/event-stream",
@@ -108,7 +111,7 @@ export async function streamAiChatAsk({
     credentials: "include",
     cache: "no-store",
     signal,
-    body: JSON.stringify({ query }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -187,4 +190,32 @@ export async function streamAiChatAsk({
     }
     reader.releaseLock();
   }
+}
+
+export async function streamAiChatAsk({
+  projectId,
+  threadId,
+  query,
+  signal,
+  onEvent,
+}: StreamAiChatAskInput): Promise<void> {
+  const url = `${getApiBaseUrl()}/ai-chat/projects/${encodeURIComponent(
+    projectId,
+  )}/threads/${encodeURIComponent(threadId)}/ask`;
+  await consumeAiChatSseStream(url, { query }, signal, onEvent);
+}
+
+export async function streamAiChatRegenerate({
+  projectId,
+  threadId,
+  messageId,
+  signal,
+  onEvent,
+}: StreamAiChatRegenerateInput): Promise<void> {
+  const url = `${getApiBaseUrl()}/ai-chat/projects/${encodeURIComponent(
+    projectId,
+  )}/threads/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(
+    messageId,
+  )}/regenerate`;
+  await consumeAiChatSseStream(url, {}, signal, onEvent);
 }

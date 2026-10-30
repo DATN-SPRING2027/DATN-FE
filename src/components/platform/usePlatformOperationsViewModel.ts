@@ -285,6 +285,7 @@ export function usePlatformOperationsViewModel({
   return {
     section,
     operatorId,
+    permissions,
     canReadUsers,
     canManageUsers,
     canReadSessions,
