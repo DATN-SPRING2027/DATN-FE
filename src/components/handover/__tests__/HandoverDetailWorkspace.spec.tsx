@@ -10,6 +10,7 @@ import {
   useProjectMemberCandidatesQuery,
   useProjectMembersQuery,
 } from "@/lib/queries/projects/useProjectMembers";
+import { fetchProjectTasks } from "@/lib/queries/tasks/useTasks";
 import * as useHandoversModule from "@/lib/queries/handovers/useHandovers";
 import type {
   HandoverDetailDto,
@@ -158,6 +159,7 @@ describe("HandoverDetailWorkspace", () => {
     resolveFollowUpMutate.mockReset();
     saveDraftMutate.mockReset();
     publishMutate.mockReset();
+    vi.mocked(fetchProjectTasks).mockResolvedValue({ items: [] } as never);
 
     mockedCurrentUser.mockReturnValue({
       data: {
@@ -1102,5 +1104,166 @@ describe("HandoverDetailWorkspace", () => {
         reason: "Onboarding Phuc from platform org team.",
       },
     });
+  });
+
+  it("tucks destructive Cancel Handover inside the More actions menu and displays viewer role badge", async () => {
+    const cancelMutate = vi.fn().mockResolvedValue({ data: { status: "CANCELLED" } });
+    vi.mocked(useHandoversModule.useCancelHandoverMutation).mockReturnValue({
+      mutateAsync: cancelMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    mockedCurrentUser.mockReturnValue({
+      data: {
+        id: "user-d",
+        name: "Minh Coordinator",
+        email: "minh@continuum.local",
+        organizationId: "org-1",
+        roles: ["TEAM_LEADER"],
+      },
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useCurrentUserQuery>);
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary({ publishedRevisionId: null }),
+          capabilities: ["READ", "MANAGE", "REVIEW"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: null,
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    renderDetail();
+
+    expect(screen.getByText(/you · coordinator \(d\)/i)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /^cancel handover$/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /more handover actions/i }),
+    );
+    const menu = screen.getByRole("menu", { name: /more handover actions/i });
+    fireEvent.click(
+      within(menu).getByRole("menuitem", { name: /cancel handover/i }),
+    );
+
+    const dialog = screen.getByRole("dialog", {
+      name: /cancel knowledge handover/i,
+    });
+    fireEvent.change(within(dialog).getByLabelText(/cancellation reason/i), {
+      target: { value: "Transition merged into sprint Q4 consolidation." },
+    });
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: /confirm cancellation/i }),
+    );
+
+    await waitFor(() => {
+      expect(cancelMutate).toHaveBeenCalledWith({
+        etag: `"handover:${HANDOVER_ID}:5"`,
+        input: { reason: "Transition merged into sprint Q4 consolidation." },
+      });
+    });
+  });
+
+  it("filters Candidate Tasks by Active/Selected/All scopes and search query in Draft & AI Assist", async () => {
+    vi.mocked(fetchProjectTasks).mockResolvedValue({
+      items: [
+        {
+          id: "task-1",
+          key: "FE-1",
+          title: "Design core handover workspace",
+          status: "IN_PROGRESS",
+          version: 3,
+        },
+        {
+          id: "task-2",
+          key: "FE-2",
+          title: "Legacy auth session cleanup",
+          status: "DONE",
+          version: 2,
+        },
+        {
+          id: "task-3",
+          key: "FE-3",
+          title: "Telemetry alert thresholds",
+          status: "TODO",
+          version: 1,
+        },
+      ],
+    } as never);
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary({ publishedRevisionId: null }),
+          capabilities: ["READ", "MANAGE"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: null,
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    vi.mocked(useHandoversModule.useHandoverDraftQuery).mockReturnValue({
+      data: {
+        draft: {
+          draftVersion: 0,
+          selectedSources: [],
+          taskIds: [],
+          items: [],
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    renderDetail();
+
+    expect(
+      await screen.findByText(/design core handover workspace/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/telemetry alert thresholds/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/legacy auth session cleanup/i),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /all \(3\)/i }));
+    expect(
+      screen.getByText(/legacy auth session cleanup/i),
+    ).toBeInTheDocument();
+
+    fireEvent.change(
+      screen.getByLabelText(/filter tasks by key or title/i),
+      { target: { value: "FE-3" } },
+    );
+    expect(
+      screen.getByText(/telemetry alert thresholds/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/design core handover workspace/i),
+    ).not.toBeInTheDocument();
   });
 });
