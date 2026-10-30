@@ -4642,6 +4642,7 @@
     "openSidebar": "Mở thanh bên lịch sử trò chuyện",
     "closeSidebar": "Đóng thanh bên lịch sử trò chuyện",
     "collapseSidebar": "Thu gọn thanh bên lịch sử trò chuyện",
+    "resizeSidebarAriaLabel": "Kéo thay đổi độ rộng thanh lịch sử trò chuyện",
     "newChat": "Trò chuyện mới",
     "newChatCreating": "Đang khởi tạo…",
     "searchThreadsLabel": "Tìm kiếm lịch sử trò chuyện",
