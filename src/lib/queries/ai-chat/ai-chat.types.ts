@@ -45,6 +45,7 @@ export type AiChatMessage = Readonly<{
   role: "user" | "assistant";
   content: string;
   status: "ok" | "failed" | "cancelled";
+  errorCode?: string;
   citations: readonly AiChatCitation[];
   sessionCitations: readonly AiChatSessionCitation[];
   retrievalSteps: readonly AiChatRetrievalStep[];

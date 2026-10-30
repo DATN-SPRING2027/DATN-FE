@@ -2021,4 +2021,319 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     expect(header?.className).toContain("top-0");
     expect(within(dialog).getByRole("button", { name: "Close work item details" })).toBeVisible();
   });
+
+  it("allows an Organization Manager (ADMIN) to create tasks without direct project membership and edit Task title and description with ETag CAS and rollback", async () => {
+    const orgId = "6ad76c7d938f3bf53df7335e";
+    const projectId = "6addb4e1601e4bc926ed4602";
+    const managerId = "6acbab2449b08a24945ccb6e";
+    const otherCreatorId = "6ae3e59a2dee7f772d44cfaa";
+    const existingTaskId = "6addbc84601e4bc926ed6b71";
+    const createdTaskId = "6addbc84601e4bc926ed6b99";
+
+    let currentTitle = "[DATN-289] [AUTH] Google OAuth đăng nhập và tự động tạo tài khoản";
+    let currentDescription: string | null = "Original Jira specification";
+    let currentVersion = 3;
+    let failNextPatch = false;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: managerId,
+          name: "KeyT Xin Chàoo",
+          organizationId: orgId,
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: orgId,
+          name: "General",
+          code: "GENERAL",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          leaders: [],
+          createdBy: otherCreatorId,
+          createdAt: "2026-10-25T00:00:00Z",
+          updatedAt: "2026-10-25T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          title: string;
+          description: string | null;
+          assigneeId: string | null;
+        };
+        if (body.assigneeId !== null) {
+          throw new ApiError(
+            422,
+            "ASSIGNEE_NOT_IN_PROJECT",
+            "assigneeId must be an active member of the project.",
+          );
+        }
+        return {
+          id: createdTaskId,
+          projectId,
+          key: "GENERAL-99",
+          title: body.title,
+          description: body.description,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: managerId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-30T10:00:00.000Z",
+          updatedAt: "2026-10-30T10:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${existingTaskId}` &&
+        init?.method === "PATCH"
+      ) {
+        if (failNextPatch) {
+          throw new ApiError(
+            409,
+            "TASK_VERSION_CONFLICT",
+            "Task was modified by another request.",
+          );
+        }
+        const headers = new Headers(init.headers);
+        expect(headers.get("If-Match")).toBe(
+          `"task:${existingTaskId}:${currentVersion}"`,
+        );
+        const patchBody = JSON.parse(String(init.body ?? "{}")) as {
+          title?: string;
+          description?: string | null;
+        };
+        if (patchBody.title !== undefined) {
+          currentTitle = patchBody.title;
+        }
+        if (patchBody.description !== undefined) {
+          currentDescription = patchBody.description;
+        }
+        currentVersion += 1;
+        return {
+          id: existingTaskId,
+          projectId,
+          key: "GENERAL-2",
+          title: currentTitle,
+          description: currentDescription,
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: otherCreatorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: "2026-10-25T10:00:00.000Z",
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T10:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/tasks/${existingTaskId}`) {
+        return {
+          id: existingTaskId,
+          projectId,
+          key: "GENERAL-2",
+          title: currentTitle,
+          description: currentDescription,
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: otherCreatorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: "2026-10-25T10:00:00.000Z",
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/history`,
+        )
+      ) {
+        return {
+          data: [],
+          pagination: { page: 1, limit: 50, hasNext: false },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: existingTaskId,
+              projectId,
+              key: "GENERAL-2",
+              title: currentTitle,
+              type: "TASK",
+              status: "DONE",
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: otherCreatorId,
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+
+    // 1. Manager creates a task via top Create dialog without hitting ASSIGNEE_NOT_IN_PROJECT
+    expect(await screen.findByText(currentTitle)).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: "Create" })[0]);
+    const createDialog = await screen.findByRole("dialog", {
+      name: "Create work item",
+    });
+    fireEvent.change(
+      within(createDialog).getByPlaceholderText("Describe the work item"),
+      { target: { value: "Manager roadmap review task" } },
+    );
+    fireEvent.change(
+      within(createDialog).getByPlaceholderText(
+        /Add acceptance criteria or engineering context/i,
+      ),
+      { target: { value: "Created by Organization Manager" } },
+    );
+    fireEvent.submit(within(createDialog).getByRole("textbox", { name: /Summary/i }).closest("form")!);
+
+    expect(await screen.findByText("GENERAL-99")).toBeVisible();
+    expect(screen.getByText("Manager roadmap review task")).toBeVisible();
+
+    // 2. Manager opens GENERAL-2 (created by another user) and edits Title + Description
+    fireEvent.click(screen.getByText(currentTitle));
+    const detailDialog = await screen.findByRole("dialog");
+    expect(
+      await within(detailDialog).findByText("Original Jira specification"),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item title",
+      }),
+    );
+    const titleInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(titleInput, {
+      target: {
+        value: "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+      },
+    });
+    fireEvent.submit(titleInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(
+        within(detailDialog).getByRole("heading", {
+          name: "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+        }),
+      ).toBeVisible();
+    });
+
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item description",
+      }),
+    );
+    const descInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    fireEvent.change(descInput, {
+      target: { value: "Updated description by Manager in General workspace" },
+    });
+    fireEvent.submit(descInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(
+        within(detailDialog).getByText(
+          "Updated description by Manager in General workspace",
+        ),
+      ).toBeVisible();
+    });
+    expect(currentVersion).toBe(5);
+
+    // 3. Simulate version conflict on next Title PATCH -> rolls back optimistic state & shows alert
+    failNextPatch = true;
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item title",
+      }),
+    );
+    const failingTitleInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(failingTitleInput, {
+      target: { value: "Conflicting title edit" },
+    });
+    fireEvent.submit(failingTitleInput.closest("form")!);
+
+    expect(await screen.findAllByRole("alert")).not.toHaveLength(0);
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(
+          "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+        ).length,
+      ).toBeGreaterThan(0);
+    });
+  });
 });

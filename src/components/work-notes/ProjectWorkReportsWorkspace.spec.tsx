@@ -17,10 +17,6 @@ vi.mock("./WorkNotesPageHeader", () => ({
 const api = vi.mocked(apiClient);
 const projectId = "651a2b3c4d5e6f7a8b9c0d21";
 const reportId = "751a2b3c4d5e6f7a8b9c0d21";
-const emptyDocumentsPage = {
-  data: [],
-  pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
-};
 
 const report = {
   id: reportId,
@@ -33,12 +29,10 @@ const report = {
   dueAt: new Date(Date.now() + 86_400_000).toISOString(),
   status: "DRAFT" as const,
   createdAt: "2026-10-24T09:00:00.000Z",
-  updatedAt: "2026-10-24T09:00:00.000Z",
-  accomplishments: "Completed the invitation route.",
-  approach: "Used an outbox transaction.",
-  reason: "Avoid duplicate sends.",
-  blockers: "",
-  nextSteps: "Add delivery metrics.",
+  updatedAt: "2026-10-24T10:30:00.000Z",
+  title: "Sprint 10 Invitation Flow",
+  content:
+    "Completed the invitation route using an outbox transaction to avoid duplicate sends. Next: delivery metrics.",
   reviewHistory: [],
   permissions: {
     canCreate: true,
@@ -79,9 +73,6 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
         permissions: { canConfigure: false },
       } as never;
     }
-    if (path.includes("/documents?")) {
-      return emptyDocumentsPage as never;
-    }
     if (path.includes("/work-reports?")) {
       return {
         data: [report],
@@ -106,16 +97,37 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
     await screen.findByRole("heading", { name: "Jordan Lee" }),
   ).toBeVisible();
   expect(
-    screen.getByText("Completed the invitation route."),
+    screen.getByRole("heading", { name: "Sprint 10 Invitation Flow" }),
   ).toBeVisible();
+  expect(
+    screen.getByText(/Completed the invitation route using an outbox transaction/),
+  ).toBeVisible();
+  expect(screen.getByText("Author: Jordan Lee")).toBeVisible();
+  expect(screen.queryByText("What was done")).not.toBeInTheDocument();
+  expect(screen.queryByText("Attach file")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
+  expect(screen.queryByRole("button", { name: /Attach file/i })).not.toBeInTheDocument();
+  expect(screen.queryByText("What was done")).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText(/Title/i), {
+    target: { value: "Sprint 10 Invitation Flow (Updated)" },
+  });
+  fireEvent.change(screen.getByLabelText(/Content/i), {
+    target: { value: "Free-form note with updated delivery status." },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       `/capture/projects/${projectId}/work-reports`,
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: "Sprint 10 Invitation Flow (Updated)",
+          content: "Free-form note with updated delivery status.",
+        }),
+      }),
     ),
   );
 });
@@ -147,9 +159,6 @@ it("supports all 1-7 day reporting frequencies in the cadence popover and asks a
         history: [],
         permissions: { canConfigure: true },
       } as never;
-    }
-    if (path.includes("/documents?")) {
-      return emptyDocumentsPage as never;
     }
     if (path.includes("/work-reports?"))
       return {
@@ -257,9 +266,6 @@ it("allows an Organization Manager to switch to the Leader Reports & Schedule ta
         },
       } as never;
     }
-    if (path.includes("/documents?")) {
-      return emptyDocumentsPage as never;
-    }
     if (path.includes("/work-reports?")) {
       return {
         data: [],
@@ -315,7 +321,8 @@ it("never shows the false no-report-obligation alert for a Manager viewing activ
     id: "751a2b3c4d5e6f7a8b9c0d31",
     memberId: "851a2b3c4d5e6f7a8b9c0d31",
     memberName: "Le Hoang Member 1",
-    accomplishments: "Implemented OAuth callback handler.",
+    title: "OAuth Callback Note",
+    content: "Implemented OAuth callback handler.",
     permissions: {
       canCreate: false,
       canEdit: false,
@@ -329,11 +336,8 @@ it("never shows the false no-report-obligation alert for a Manager viewing activ
     id: "751a2b3c4d5e6f7a8b9c0d32",
     memberId: "851a2b3c4d5e6f7a8b9c0d32",
     memberName: "Vo Khoa Member 2",
-    accomplishments: "",
-    approach: "",
-    reason: "",
-    blockers: "",
-    nextSteps: "",
+    title: "",
+    content: "",
     permissions: {
       canCreate: false,
       canEdit: false,
@@ -362,9 +366,6 @@ it("never shows the false no-report-obligation alert for a Manager viewing activ
           permissions: { canConfigure: true },
         },
       } as never;
-    }
-    if (path.includes("/documents?")) {
-      return emptyDocumentsPage as never;
     }
     if (path.includes("/work-reports?")) {
       return {
@@ -440,9 +441,6 @@ it("allows a Reviewer to approve a submitted Pending Review report from the Spli
         history: [],
         permissions: { canConfigure: true },
       } as never;
-    }
-    if (path.includes("/documents?")) {
-      return emptyDocumentsPage as never;
     }
     if (path.includes("/work-reports?")) {
       return {

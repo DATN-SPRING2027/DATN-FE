@@ -215,7 +215,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     streamAiChatRegenerateMock.mockReset();
   });
 
-  it("renders ChatGPT-style hero ('Ready when you are.'), Chat | Work pill, and auto-selects first ACTIVE project without 'All Projects'", () => {
+  it("renders the welcome state without a Chat/Work switch and auto-selects the first ACTIVE project", () => {
     renderWorkspace();
 
     expect(
@@ -247,12 +247,111 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     );
     expect(within(sidebar).getByText("Pinned")).toBeInTheDocument();
 
-    // Switch Chat -> Work mode updates hero heading
-    const workButtons = screen.getAllByRole("button", { name: "Work" });
-    fireEvent.click(workButtons[0]!);
     expect(
-      screen.getByRole("heading", { name: "Ready to synthesize CORE." }),
-    ).toBeInTheDocument();
+      screen.queryAllByRole("group", { name: "Workspace mode" }),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("button", { name: "Chat" }),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("button", { name: "Work" }),
+    ).toHaveLength(0);
+
+    fireEvent.click(
+      within(sidebar).getByRole("button", {
+        name: "SAG BFF Security Review",
+      }),
+    );
+    expect(
+      screen.queryAllByRole("group", { name: "Workspace mode" }),
+    ).toHaveLength(0);
+    expect(
+      screen.queryAllByRole("button", { name: "Work" }),
+    ).toHaveLength(0);
+  });
+
+  it("keeps the focused composer mounted across Enter, thread creation, streaming and completion", async () => {
+    let resolveCreateThread!: (thread: AiChatThread) => void;
+    let emitEvent!: (event: AiChatStreamEvent) => void;
+    let finishStream: (() => void) | undefined;
+    createThreadMutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<AiChatThread>((resolve) => {
+          resolveCreateThread = resolve;
+        }),
+    );
+    streamAiChatAskMock.mockImplementationOnce(
+      ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        emitEvent = onEvent;
+        return new Promise<void>((resolve) => {
+          finishStream = resolve;
+        });
+      },
+    );
+
+    renderWorkspace();
+    const composer = screen.getByRole("textbox", { name: "Ask Continuum SAG" });
+    composer.focus();
+    fireEvent.change(composer, {
+      target: { value: "Which framework does this project use?" },
+    });
+    fireEvent.keyDown(composer, { key: "Enter", code: "Enter" });
+    expect(createThreadMutateAsync).toHaveBeenCalledTimes(1);
+    expect(composer).toHaveFocus();
+
+    await act(async () => {
+      resolveCreateThread({
+        id: "thread-stable-composer",
+        title: "Which framework does this project use?",
+        createdAt: "2026-10-30T08:00:00Z",
+        updatedAt: "2026-10-30T08:00:00Z",
+      });
+    });
+
+    try {
+      expect(streamAiChatAskMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Stop generating" }),
+      ).toBeInTheDocument();
+
+      act(() =>
+        emitEvent({ event: "delta", data: { text: "Next.js is used." } }),
+      );
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+
+      await act(async () => {
+        emitEvent({
+          event: "completed",
+          data: {
+            messageId: "answer-stable-composer",
+            content: "Next.js is used.",
+            answerStatus: "answered",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+          },
+        });
+        finishStream?.();
+      });
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Send message" }),
+      ).toBeDisabled();
+    } finally {
+      await act(async () => {
+        finishStream?.();
+      });
+    }
   });
 
   it("creates a thread on first question, docks composer, streams SAG delta chunks, and renders verified [1] & [S1] citations", async () => {
@@ -264,11 +363,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     } satisfies AiChatThread);
 
     streamAiChatAskMock.mockImplementationOnce(
-      async ({
-        onEvent,
-      }: {
-        onEvent: (event: AiChatStreamEvent) => void;
-      }) => {
+      async ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
         onEvent({
           event: "started",
           data: {

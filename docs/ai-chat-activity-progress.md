@@ -23,6 +23,41 @@ is streaming and can be collapsed or expanded with the pointer or keyboard.
 
 ## Validation
 
+### Stable composer layout
+
+AI Chat has one docked composer in both the welcome screen and active threads;
+the Chat/Work switch is no longer displayed. Creating the first thread does not
+replace the textarea or lose keyboard focus. The greeting and prompt suggestions
+remain in the separate, flexible content region.
+
+Automatic message scrolling and jumps to session references scroll only the
+message-list container. They must not use `scrollIntoView` across the surrounding
+canvas: that also scrolls overflow-hidden ancestors and moves the composer.
+The message region shrinks within the viewport while the composer stays at its
+bottom. A multiline draft can grow upward naturally within its existing limit.
+
+Regression tests cover absence of both mode switches and textarea identity/focus
+through Enter, thread creation, streaming and completion. Live verification uses
+the authenticated local app at 390, 768, 1280 and 1440 pixels. No API, database,
+authentication or provider change is part of this layout fix.
+
+### No-answer presentation follow-up
+
+A completed `no_answer` response is presented as one localized explanation,
+including guidance to clarify the question or check searchable documents. Copy
+uses that displayed explanation. Failed/cancelled responses retain their own
+terminal state and partial content. Genuine English answers remain unchanged.
+
+For history without the transient `answerStatus`, only the exact canonical SAG
+fallback with no document/session citations is treated as an abstention. An
+explicit `answered` status takes precedence. No API or persistence field is
+added. `AiChatMessageList.spec.tsx` covers these seven behaviors in English and
+Vietnamese. Real-session checks verified localized history and Copy.
+
+The broader Vietnamese benchmark and final complete responsive/light/dark
+acceptance are still follow-up work; the scoped tests do not certify every
+question or UI state.
+
 The activity component tests cover status animation, actual step updates,
 answer generation, collapse/expand, terminal timing, failure/cancellation,
 Vietnamese, reduced motion, scoped busy state, cleanup and long labels.

@@ -181,6 +181,12 @@ export default function WorkListView({
   const availablePeople = people ?? PREVIEW_PEOPLE;
   const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
   const mePerson = currentUserPerson ?? defaultAssignee;
+  const canAssignToMe =
+    people === undefined ||
+    Boolean(
+      currentUserPerson &&
+        availablePeople.some((person) => person.id === currentUserPerson.id),
+    );
   const allAssigneeChoices = [
     UNASSIGNED_PERSON,
     ...availablePeople.filter((person) => person.id !== UNASSIGNED_PERSON.id),
@@ -1488,7 +1494,7 @@ export default function WorkListView({
                                               <span>Edit summary</span>
                                             </button>
                                           )}
-                                          {!sub.readOnly && onUpdateSubtask && (
+                                          {!sub.readOnly && onUpdateSubtask && canAssignToMe && (
                                             <button
                                               type="button"
                                               onClick={() => {

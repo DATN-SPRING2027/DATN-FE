@@ -61,6 +61,9 @@ export function useChangeProjectVisibility(
   });
 }
 
+const PROJECT_VISIBILITY_STALE_TIME_MS = 30_000;
+const PROJECT_VISIBILITY_GC_TIME_MS = 5 * 60_000;
+
 export function useProjectVisibilityAccess(
   organizationId: string,
   projectId: string,
@@ -70,9 +73,9 @@ export function useProjectVisibilityAccess(
     queryKey: ["project-visibility-access", organizationId, projectId],
     enabled: active && Boolean(organizationId && projectId),
     retry: false,
-    gcTime: 0,
-    staleTime: 0,
-    refetchOnWindowFocus: true,
+    gcTime: PROJECT_VISIBILITY_GC_TIME_MS,
+    staleTime: PROJECT_VISIBILITY_STALE_TIME_MS,
+    refetchOnWindowFocus: false,
     networkMode: "always",
     queryFn: async ({ signal }) => {
       try {
