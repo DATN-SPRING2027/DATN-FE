@@ -50,7 +50,8 @@ export async function forwardBackendRequest(
     );
   }
 
-  const isAiChatRequest = path[0] === "ai-chat";
+  const isAiChatRequest =
+    path[0] === "ai-chat" || (path[0] === "platform" && path[1] === "ai");
   const streamBody = options.streamBody && !["GET", "HEAD"].includes(request.method);
   const body = ["GET", "HEAD"].includes(request.method)
     ? undefined
@@ -129,7 +130,7 @@ export async function forwardBackendRequest(
   for (const cookie of backendResponse.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
-  if (isTeamPath(path) || path[0] === "ai-chat") {
+  if (isTeamPath(path) || isAiChatRequest) {
     responseHeaders.set("cache-control", "no-store");
   }
   return new Response(backendResponse.body, {

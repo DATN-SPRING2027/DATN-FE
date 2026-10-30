@@ -1885,3 +1885,137 @@ export function usePlatformAuditResourceHistoryQuery(
     retry: false,
   });
 }
+
+const aiFeedbackRatings = new Set(["LIKE", "DISLIKE"]);
+const aiFeedbackCategories = new Set([
+  "INACCURATE",
+  "OUTDATED",
+  "IRRELEVANT_CITATION",
+  "INCOMPLETE",
+  "OTHER",
+]);
+const safeAiFeedbackIdPattern = /^[A-Za-z0-9_-]{1,64}$/;
+
+export type PlatformAiFeedbackRating = "LIKE" | "DISLIKE";
+export type PlatformAiFeedbackReasonCategory =
+  | "INACCURATE"
+  | "OUTDATED"
+  | "IRRELEVANT_CITATION"
+  | "INCOMPLETE"
+  | "OTHER";
+
+export type PlatformAiFeedbackFilters = Readonly<{
+  organizationId?: string;
+  projectId?: string;
+  rating?: PlatformAiFeedbackRating;
+  from?: string;
+  to?: string;
+  cursor?: string;
+  limit?: number;
+}>;
+
+export type PlatformAiFeedbackRow = Readonly<{
+  id: string;
+  organizationId: string;
+  projectId: string;
+  messageId: string;
+  rating: PlatformAiFeedbackRating;
+  reasonCategory?: PlatformAiFeedbackReasonCategory;
+  reasonText?: string;
+  createdAt: string;
+  updatedAt: string;
+}>;
+
+export type PlatformAiFeedbackPage = Readonly<{
+  totals: Readonly<{
+    likes: number;
+    dislikes: number;
+  }>;
+  items: readonly PlatformAiFeedbackRow[];
+  nextCursor: string | null;
+}>;
+
+function requireAiFeedbackEntityId(value: unknown): string {
+  if (typeof value !== "string" || !safeAiFeedbackIdPattern.test(value)) {
+    throw invalidResponse();
+  }
+  return value;
+}
+
+function parseAiFeedbackRow(item: unknown): PlatformAiFeedbackRow {
+  const row = requireRecord(item);
+  if (!aiFeedbackRatings.has(String(row.rating))) {
+    throw invalidResponse();
+  }
+  const rating = row.rating as PlatformAiFeedbackRating;
+  let reasonCategory: PlatformAiFeedbackReasonCategory | undefined;
+  if (row.reasonCategory !== undefined && row.reasonCategory !== null) {
+    if (!aiFeedbackCategories.has(String(row.reasonCategory))) {
+      throw invalidResponse();
+    }
+    reasonCategory = row.reasonCategory as PlatformAiFeedbackReasonCategory;
+  }
+  let reasonText: string | undefined;
+  if (row.reasonText !== undefined && row.reasonText !== null) {
+    reasonText = requireText(row.reasonText, 1000);
+  }
+  return {
+    id: requireAiFeedbackEntityId(row.id),
+    organizationId: requireAiFeedbackEntityId(row.organizationId),
+    projectId: requireAiFeedbackEntityId(row.projectId),
+    messageId: requireAiFeedbackEntityId(row.messageId),
+    rating,
+    ...(reasonCategory ? { reasonCategory } : {}),
+    ...(reasonText ? { reasonText } : {}),
+    createdAt: requireTimestamp(row.createdAt),
+    updatedAt: requireTimestamp(row.updatedAt),
+  };
+}
+
+export function usePlatformAiFeedbackQuery(
+  filters: PlatformAiFeedbackFilters,
+  enabled: boolean,
+) {
+  const qs = queryString({
+    organizationId: filters.organizationId,
+    projectId: filters.projectId,
+    rating: filters.rating,
+    from: filters.from,
+    to: filters.to,
+    cursor: filters.cursor,
+    limit: filters.limit ?? 20,
+  });
+
+  return useQuery({
+    queryKey: [...platformKeys.all, "ai-feedback", qs],
+    queryFn: async () => {
+      const payload = requireRecord(
+        await platformApiClient<unknown>(
+          `/platform/ai/feedback${qs ? `?${qs}` : ""}`,
+          { cache: "no-store" },
+        ),
+      );
+      const totals = requireRecord(payload.totals);
+      if (!Array.isArray(payload.items) || payload.items.length > 100) {
+        throw invalidResponse();
+      }
+      if (
+        payload.nextCursor !== null &&
+        (!isText(payload.nextCursor, 1024) || !payload.nextCursor)
+      ) {
+        throw invalidResponse();
+      }
+      return {
+        totals: {
+          likes: requireInteger(totals.likes, 0),
+          dislikes: requireInteger(totals.dislikes, 0),
+        },
+        items: payload.items.map(parseAiFeedbackRow),
+        nextCursor: payload.nextCursor,
+      } satisfies PlatformAiFeedbackPage;
+    },
+    enabled,
+    retry: false,
+  });
+}
+

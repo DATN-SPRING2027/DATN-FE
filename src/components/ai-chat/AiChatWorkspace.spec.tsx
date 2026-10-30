@@ -20,6 +20,7 @@ const {
   deleteThreadMutateAsync,
   useMessagesInfiniteMock,
   streamAiChatAskMock,
+  streamAiChatRegenerateMock,
   invalidateQueriesMock,
 } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
@@ -31,6 +32,7 @@ const {
   deleteThreadMutateAsync: vi.fn(),
   useMessagesInfiniteMock: vi.fn(),
   streamAiChatAskMock: vi.fn(),
+  streamAiChatRegenerateMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
 }));
 
@@ -110,6 +112,32 @@ vi.mock("@/lib/queries/ai-chat/useAiChat", () => ({
 
 vi.mock("@/lib/queries/ai-chat/ai-chat-stream", () => ({
   streamAiChatAsk: (...args: unknown[]) => streamAiChatAskMock(...args),
+  streamAiChatRegenerate: (...args: unknown[]) =>
+    streamAiChatRegenerateMock(...args),
+}));
+
+vi.mock("@/lib/queries/ai-chat/useAiAnswerActions", () => ({
+  useAiAnswerFeedbackQuery: () => ({
+    data: { feedback: null },
+    isLoading: false,
+    isError: false,
+  }),
+  useUpsertAiAnswerFeedbackMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteAiAnswerFeedbackMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useCreateAiAnswerShareMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRevokeAiAnswerShareMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
 }));
 
 function renderWorkspace() {
@@ -184,6 +212,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     updateThreadMutateAsync.mockReset();
     deleteThreadMutateAsync.mockReset();
     streamAiChatAskMock.mockReset();
+    streamAiChatRegenerateMock.mockReset();
   });
 
   it("renders ChatGPT-style hero ('Ready when you are.'), Chat | Work pill, and auto-selects first ACTIVE project without 'All Projects'", () => {
@@ -564,5 +593,110 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     });
 
     expect(streamAiChatAskMock).not.toHaveBeenCalled();
+  });
+
+  it("regenerates an existing answer via Try again without duplicating the user bubble and switches versions", async () => {
+    useMessagesInfiniteMock.mockReturnValue({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: "msg-user-1",
+                role: "user",
+                content: "Explain Continuum SAG ACL.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-30T08:00:00Z",
+              },
+              {
+                id: "msg-assistant-1",
+                role: "assistant",
+                content: "First answer version.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-30T08:00:05Z",
+                replyToMessageId: "msg-user-1",
+              },
+            ],
+            nextCursor: null,
+            hasMore: false,
+          } satisfies AiChatMessagePage,
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    streamAiChatRegenerateMock.mockImplementationOnce(
+      async ({
+        onEvent,
+      }: {
+        onEvent: (event: AiChatStreamEvent) => void;
+      }) => {
+        onEvent({
+          event: "started",
+          data: {
+            runId: "run-regen-1",
+            threadId: "thread-1",
+            userMessageId: "msg-user-1",
+          },
+        });
+        onEvent({
+          event: "delta",
+          data: { text: "Second regenerated answer version." },
+        });
+        onEvent({
+          event: "completed",
+          data: {
+            messageId: "msg-assistant-2",
+            replyToMessageId: "msg-user-1",
+            regeneratedFromMessageId: "msg-assistant-1",
+            content: "Second regenerated answer version.",
+            answerStatus: "answered",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+          },
+        });
+      },
+    );
+
+    renderWorkspace();
+    fireEvent.click(screen.getByText("SAG BFF Security Review"));
+
+    expect(screen.getByText("First answer version.")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    });
+
+    expect(streamAiChatRegenerateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "proj-core",
+        threadId: "thread-1",
+        messageId: "msg-assistant-1",
+      }),
+    );
+
+    expect(screen.getAllByText("Explain Continuum SAG ACL.")).toHaveLength(1);
+    expect(
+      screen.getByText("Second regenerated answer version."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Previous answer version" }),
+    );
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("First answer version.")).toBeInTheDocument();
   });
 });

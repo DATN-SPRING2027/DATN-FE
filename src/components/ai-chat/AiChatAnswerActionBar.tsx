@@ -1,0 +1,531 @@
+"use client";
+
+import { useState } from "react";
+import { useTranslations } from "next-intl";
+import {
+  AlertIcon,
+  AudioIcon,
+  CheckLineIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CopyIcon,
+  RefreshIcon,
+  ShareIcon,
+  StopSquareIcon,
+  ThumbDownIcon,
+  ThumbUpIcon,
+} from "@/icons";
+import { ApiError } from "@/lib/api-client";
+import {
+  useAiAnswerFeedbackQuery,
+  useCreateAiAnswerShareMutation,
+  useDeleteAiAnswerFeedbackMutation,
+  useRevokeAiAnswerShareMutation,
+  useUpsertAiAnswerFeedbackMutation,
+} from "@/lib/queries/ai-chat/useAiAnswerActions";
+import type {
+  AiAnswerFeedbackInput,
+  AiAnswerShare,
+  AiChatMessage,
+} from "@/lib/queries/ai-chat/ai-chat.types";
+import { cn } from "@/utils";
+import AiChatDislikeModal from "./AiChatDislikeModal";
+import AiChatShareModal from "./AiChatShareModal";
+import {
+  isHiddenScopeMessage,
+  isPersistedMessageId,
+} from "./answer-action-utils";
+import type { LocalSpeechErrorKind } from "./useLocalSpeech";
+
+export interface AiChatAnswerActionBarProps {
+  organizationId: string;
+  projectId: string;
+  projectName: string;
+  threadId: string | null;
+  message: AiChatMessage;
+  questionText?: string;
+  versionIndex: number;
+  versionCount: number;
+  isThreadStreaming: boolean;
+  isSpeaking: boolean;
+  speechError: LocalSpeechErrorKind | null;
+  canRegenerate?: boolean;
+  onSelectVersionIndex: (nextIndex: number) => void;
+  onRegenerate: () => void;
+  onToggleSpeak: () => void;
+}
+
+export default function AiChatAnswerActionBar({
+  organizationId,
+  projectId,
+  projectName,
+  threadId,
+  message,
+  questionText = "",
+  versionIndex,
+  versionCount,
+  isThreadStreaming,
+  isSpeaking,
+  speechError,
+  canRegenerate = true,
+  onSelectVersionIndex,
+  onRegenerate,
+  onToggleSpeak,
+}: AiChatAnswerActionBarProps) {
+  const t = useTranslations("AiChat");
+  const isPersisted =
+    Boolean(threadId) && isPersistedMessageId(message.id);
+  const isCompletedOk =
+    message.status === "ok" &&
+    Boolean(message.content.trim()) &&
+    !isHiddenScopeMessage(message.content);
+
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+  const [inlineFeedbackError, setInlineFeedbackError] = useState<{
+    message: string;
+    retry: () => Promise<void>;
+  } | null>(null);
+
+  const [isDislikeOpen, setIsDislikeOpen] = useState(false);
+  const [dislikeModalError, setDislikeModalError] = useState<string | null>(
+    null,
+  );
+
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [activeShareByMessageId, setActiveShareByMessageId] = useState<
+    Record<string, AiAnswerShare | null>
+  >({});
+  const [shareModalError, setShareModalError] = useState<string | null>(null);
+  const [shareRevokedNotice, setShareRevokedNotice] = useState(false);
+
+  const feedbackQuery = useAiAnswerFeedbackQuery(
+    organizationId,
+    projectId,
+    threadId,
+    message.id,
+    { enabled: isPersisted && isCompletedOk },
+  );
+  const upsertFeedbackMutation = useUpsertAiAnswerFeedbackMutation(
+    organizationId,
+    projectId,
+  );
+  const deleteFeedbackMutation = useDeleteAiAnswerFeedbackMutation(
+    organizationId,
+    projectId,
+  );
+  const createShareMutation = useCreateAiAnswerShareMutation(
+    organizationId,
+    projectId,
+  );
+  const revokeShareMutation = useRevokeAiAnswerShareMutation(
+    organizationId,
+    projectId,
+  );
+
+  const currentFeedback = feedbackQuery.data?.feedback ?? null;
+  const currentRating = currentFeedback?.rating ?? null;
+  const isFeedbackBusy =
+    upsertFeedbackMutation.isPending || deleteFeedbackMutation.isPending;
+
+  const activeShare = activeShareByMessageId[message.id] ?? null;
+
+  const handleCopy = async () => {
+    setCopyError(null);
+    if (!navigator.clipboard?.writeText) {
+      setCopied(false);
+      setCopyError(t("copyFailedError"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
+    } catch {
+      setCopied(false);
+      setCopyError(t("copyFailedError"));
+    }
+  };
+
+  const handleLikeClick = async () => {
+    if (!threadId || !isPersisted || isFeedbackBusy) return;
+    setInlineFeedbackError(null);
+    const runAction = async () => {
+      if (currentRating === "LIKE") {
+        await deleteFeedbackMutation.mutateAsync({
+          threadId,
+          messageId: message.id,
+        });
+      } else {
+        await upsertFeedbackMutation.mutateAsync({
+          threadId,
+          messageId: message.id,
+          body: { rating: "LIKE" },
+        });
+      }
+      setInlineFeedbackError(null);
+    };
+
+    try {
+      await runAction();
+    } catch (error) {
+      setInlineFeedbackError({
+        message:
+          error instanceof ApiError ? error.message : t("feedbackSaveError"),
+        retry: runAction,
+      });
+    }
+  };
+
+  const handleDislikeClick = async () => {
+    if (!threadId || !isPersisted || isFeedbackBusy) return;
+    setInlineFeedbackError(null);
+    if (currentRating === "DISLIKE") {
+      const runDelete = async () => {
+        await deleteFeedbackMutation.mutateAsync({
+          threadId,
+          messageId: message.id,
+        });
+        setInlineFeedbackError(null);
+      };
+      try {
+        await runDelete();
+      } catch (error) {
+        setInlineFeedbackError({
+          message:
+            error instanceof ApiError ? error.message : t("feedbackSaveError"),
+          retry: runDelete,
+        });
+      }
+      return;
+    }
+    setDislikeModalError(null);
+    setIsDislikeOpen(true);
+  };
+
+  const handleDislikeSubmit = async (
+    payload: Extract<AiAnswerFeedbackInput, { rating: "DISLIKE" }>,
+  ) => {
+    if (!threadId) return;
+    setDislikeModalError(null);
+    try {
+      await upsertFeedbackMutation.mutateAsync({
+        threadId,
+        messageId: message.id,
+        body: payload,
+      });
+      setIsDislikeOpen(false);
+    } catch (error) {
+      setDislikeModalError(
+        error instanceof ApiError ? error.message : t("feedbackSaveError"),
+      );
+    }
+  };
+
+  const handleOpenShare = () => {
+    if (!threadId || !isPersisted) return;
+    setShareModalError(null);
+    setShareRevokedNotice(false);
+    setIsShareOpen(true);
+  };
+
+  const handleCreateShare = async () => {
+    if (!threadId) return;
+    setShareModalError(null);
+    setShareRevokedNotice(false);
+    try {
+      const created = await createShareMutation.mutateAsync({
+        threadId,
+        messageId: message.id,
+      });
+      setActiveShareByMessageId((prev) => ({
+        ...prev,
+        [message.id]: created,
+      }));
+    } catch (error) {
+      setShareModalError(
+        error instanceof ApiError ? error.message : t("shareErrorDefault"),
+      );
+    }
+  };
+
+  const handleRevokeShare = async (shareId: string) => {
+    setShareModalError(null);
+    try {
+      await revokeShareMutation.mutateAsync({ shareId });
+      setActiveShareByMessageId((prev) => ({
+        ...prev,
+        [message.id]: null,
+      }));
+      setShareRevokedNotice(true);
+    } catch (error) {
+      setShareModalError(
+        error instanceof ApiError ? error.message : t("shareErrorDefault"),
+      );
+    }
+  };
+
+  const actionButtonClass =
+    "inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white";
+
+  return (
+    <div className="space-y-2 pt-0.5">
+      <div className="flex flex-wrap items-center gap-1">
+        {/* Version Switcher (< 1 / N >) */}
+        {versionCount > 1 && (
+          <div className="me-1 inline-flex items-center gap-0.5 rounded-lg border border-gray-200/80 bg-gray-50 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300">
+            <button
+              type="button"
+              disabled={versionIndex <= 0}
+              onClick={() => onSelectVersionIndex(versionIndex - 1)}
+              aria-label={t("previousVersionAria")}
+              className="inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <ChevronLeftIcon aria-hidden="true" className="size-3.5" />
+            </button>
+            <span className="px-1 text-[11px] font-semibold tabular-nums">
+              {t("versionIndicator", {
+                current: versionIndex + 1,
+                total: versionCount,
+              })}
+            </span>
+            <button
+              type="button"
+              disabled={versionIndex >= versionCount - 1}
+              onClick={() => onSelectVersionIndex(versionIndex + 1)}
+              aria-label={t("nextVersionAria")}
+              className="inline-flex size-5 items-center justify-center rounded text-gray-500 hover:bg-gray-200/70 hover:text-gray-900 disabled:opacity-35 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <ChevronRightIcon aria-hidden="true" className="size-3.5" />
+            </button>
+          </div>
+        )}
+
+        {isCompletedOk && (
+          <>
+            {/* 1. Copy */}
+            <button
+              type="button"
+              onClick={() => void handleCopy()}
+              aria-label={t("copyAnswer")}
+              className={actionButtonClass}
+            >
+              {copied ? (
+                <>
+                  <CheckLineIcon
+                    aria-hidden="true"
+                    className="size-3.5 text-success-500"
+                  />
+                  <span className="text-success-600 dark:text-success-400">
+                    {t("copiedAnswer")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <CopyIcon aria-hidden="true" className="size-3.5" />
+                  <span>{t("copyAnswer")}</span>
+                </>
+              )}
+            </button>
+
+            {/* 2. Like */}
+            {isPersisted && (
+              <button
+                type="button"
+                disabled={isFeedbackBusy}
+                aria-label={t("likeAction")}
+                aria-pressed={currentRating === "LIKE"}
+                onClick={() => void handleLikeClick()}
+                className={cn(
+                  actionButtonClass,
+                  currentRating === "LIKE" &&
+                    "bg-success-500/15 font-semibold text-success-700 hover:bg-success-500/20 dark:text-success-300",
+                )}
+              >
+                <ThumbUpIcon aria-hidden="true" className="size-3.5" />
+                <span className="sr-only sm:not-sr-only">
+                  {t("likeAction")}
+                </span>
+              </button>
+            )}
+
+            {/* 3. Dislike */}
+            {isPersisted && (
+              <button
+                type="button"
+                disabled={isFeedbackBusy}
+                aria-label={t("dislikeAction")}
+                aria-pressed={currentRating === "DISLIKE"}
+                onClick={() => void handleDislikeClick()}
+                className={cn(
+                  actionButtonClass,
+                  currentRating === "DISLIKE" &&
+                    "bg-error-500/15 font-semibold text-error-700 hover:bg-error-500/20 dark:text-error-300",
+                )}
+              >
+                <ThumbDownIcon aria-hidden="true" className="size-3.5" />
+                <span className="sr-only sm:not-sr-only">
+                  {t("dislikeAction")}
+                </span>
+              </button>
+            )}
+
+            {/* 4. Read Aloud / Stop (Local Voice Only) */}
+            <button
+              type="button"
+              aria-label={
+                isSpeaking ? t("stopReadingAction") : t("readAloudAction")
+              }
+              aria-pressed={isSpeaking}
+              onClick={onToggleSpeak}
+              className={cn(
+                actionButtonClass,
+                isSpeaking &&
+                  "bg-brand-500/15 font-semibold text-brand-600 hover:bg-brand-500/20 dark:text-brand-300",
+              )}
+            >
+              {isSpeaking ? (
+                <>
+                  <StopSquareIcon aria-hidden="true" className="size-3.5" />
+                  <span>{t("stopReadingAction")}</span>
+                </>
+              ) : (
+                <>
+                  <AudioIcon aria-hidden="true" className="size-3.5" />
+                  <span className="sr-only sm:not-sr-only">
+                    {t("readAloudAction")}
+                  </span>
+                </>
+              )}
+            </button>
+
+            {/* 5. Share (Project Members Only) */}
+            {isPersisted && (
+              <button
+                type="button"
+                aria-label={t("shareAction")}
+                onClick={handleOpenShare}
+                className={actionButtonClass}
+              >
+                <ShareIcon aria-hidden="true" className="size-3.5" />
+                <span className="sr-only sm:not-sr-only">
+                  {t("shareAction")}
+                </span>
+              </button>
+            )}
+          </>
+        )}
+
+        {/* 6. Try Again (Regenerate) */}
+        {canRegenerate && (isPersisted || !isCompletedOk) && (
+          <button
+            type="button"
+            disabled={isThreadStreaming}
+            aria-label={t("tryAgainAction")}
+            onClick={onRegenerate}
+            className={actionButtonClass}
+          >
+            <RefreshIcon aria-hidden="true" className="size-3.5" />
+            <span>{t("tryAgainAction")}</span>
+          </button>
+        )}
+      </div>
+
+      {isSpeaking && (
+        <p
+          role="status"
+          className="text-[11px] font-medium text-brand-600 dark:text-brand-300"
+        >
+          {t("readingStatus")}
+        </p>
+      )}
+
+      {copyError && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-3 py-1.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-200"
+        >
+          <AlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <span>{copyError}</span>
+        </div>
+      )}
+
+      {speechError && (
+        <div
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border border-warning-200 bg-warning-50 px-3 py-1.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-200"
+        >
+          <AlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <span>
+            {speechError === "unavailable"
+              ? t("speechUnavailableError")
+              : t("speechFailedError")}
+          </span>
+        </div>
+      )}
+
+      {inlineFeedbackError && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-error-200 bg-error-50 px-3 py-1.5 text-xs text-error-700 dark:border-error-800/60 dark:bg-error-500/10 dark:text-error-300"
+        >
+          <div className="flex items-center gap-1.5">
+            <AlertIcon aria-hidden="true" className="size-3.5 shrink-0" />
+            <span>{inlineFeedbackError.message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => void inlineFeedbackError.retry()}
+            className="rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 dark:bg-gpt-composer dark:text-error-200 dark:ring-error-700"
+          >
+            {t("retryAction")}
+          </button>
+        </div>
+      )}
+
+      {isDislikeOpen && (
+        <AiChatDislikeModal
+          key={message.id}
+          isOpen={isDislikeOpen}
+          initialCategory={currentFeedback?.reasonCategory ?? "INACCURATE"}
+          initialReasonText={currentFeedback?.reasonText ?? ""}
+          isSubmitting={upsertFeedbackMutation.isPending}
+          errorMessage={dislikeModalError}
+          onClose={() => {
+            if (!upsertFeedbackMutation.isPending) {
+              setIsDislikeOpen(false);
+            }
+          }}
+          onSubmit={handleDislikeSubmit}
+        />
+      )}
+
+      {isShareOpen && (
+        <AiChatShareModal
+          key={`share-${message.id}`}
+          isOpen={isShareOpen}
+          projectId={projectId}
+          projectName={projectName}
+          questionText={questionText}
+          answerContent={message.content}
+          citationCount={message.citations.length}
+          activeShare={activeShare}
+          isCreating={createShareMutation.isPending}
+          isRevoking={revokeShareMutation.isPending}
+          errorMessage={shareModalError}
+          revokedNotice={shareRevokedNotice}
+          onClose={() => {
+            if (
+              !createShareMutation.isPending &&
+              !revokeShareMutation.isPending
+            ) {
+              setIsShareOpen(false);
+            }
+          }}
+          onCreateShare={handleCreateShare}
+          onRevokeShare={handleRevokeShare}
+        />
+      )}
+    </div>
+  );
+}
