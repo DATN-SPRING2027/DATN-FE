@@ -4448,14 +4448,16 @@ export default function ProjectDocumentsWorkspace({
                               return {
                                 ring: "bg-success-100 text-success-700 dark:bg-success-500/20 dark:text-success-300",
                                 role: "reviewer" as const,
-                                icon: <CheckLineIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <CheckLineIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                             case "KNOWLEDGE_SYNCED":
                               return {
                                 ring: "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300",
                                 role: "reviewer" as const,
                                 icon: (
-                                  <UploadIndexReadyIcon className="h-2.5 w-2.5" />
+                                  <UploadIndexReadyIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "KNOWLEDGE_REPROCESSED":
@@ -4463,7 +4465,7 @@ export default function ProjectDocumentsWorkspace({
                                 ring: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300",
                                 role: "reviewer" as const,
                                 icon: (
-                                  <UploadRetryIcon className="h-2.5 w-2.5" />
+                                  <UploadRetryIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "KNOWLEDGE_RESUMED":
@@ -4471,7 +4473,7 @@ export default function ProjectDocumentsWorkspace({
                                 ring: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300",
                                 role: "reviewer" as const,
                                 icon: (
-                                  <UploadResumeIcon className="h-2.5 w-2.5" />
+                                  <UploadResumeIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "KNOWLEDGE_PAUSED":
@@ -4479,7 +4481,7 @@ export default function ProjectDocumentsWorkspace({
                                 ring: "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-300",
                                 role: "reviewer" as const,
                                 icon: (
-                                  <UploadPauseIcon className="h-2.5 w-2.5" />
+                                  <UploadPauseIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "KNOWLEDGE_REVOKED":
@@ -4487,39 +4489,47 @@ export default function ProjectDocumentsWorkspace({
                                 ring: "bg-gray-200 text-gray-700 dark:bg-gray-800 dark:text-gray-300",
                                 role: "reviewer" as const,
                                 icon: (
-                                  <UploadIndexDetachIcon className="h-2.5 w-2.5" />
+                                  <UploadIndexDetachIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "CHANGES_REQUESTED":
                               return {
                                 ring: "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-300",
                                 role: "reviewer" as const,
-                                icon: <InfoIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <InfoIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                             case "REJECTED":
                               return {
                                 ring: "bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300",
                                 role: "reviewer" as const,
-                                icon: <InfoIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <InfoIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                             case "ARCHIVED":
                               return {
                                 ring: "bg-gray-200 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
                                 role: "reviewer" as const,
-                                icon: <TrashBinIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <TrashBinIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                             case "COMMENTED":
                               return {
                                 ring: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300",
                                 role: "reviewer" as const,
-                                icon: <ChatIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <ChatIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                             case "SUBMITTED":
                               return {
                                 ring: "bg-brand-100 text-brand-700 dark:bg-brand-500/20 dark:text-brand-300",
                                 role: "author" as const,
                                 icon: (
-                                  <PaperPlaneIcon className="h-2.5 w-2.5" />
+                                  <PaperPlaneIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "FILE_UPLOADED":
@@ -4527,7 +4537,7 @@ export default function ProjectDocumentsWorkspace({
                                 ring: "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300",
                                 role: "author" as const,
                                 icon: (
-                                  <UploadDropzoneIcon className="h-2.5 w-2.5" />
+                                  <UploadDropzoneIcon className="h-3.5 w-3.5 shrink-0" />
                                 ),
                               };
                             case "CREATED":
@@ -4536,69 +4546,85 @@ export default function ProjectDocumentsWorkspace({
                               return {
                                 ring: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300",
                                 role: "author" as const,
-                                icon: <DocsIcon className="h-2.5 w-2.5" />,
+                                icon: (
+                                  <DocsIcon className="h-3.5 w-3.5 shrink-0" />
+                                ),
                               };
                           }
                         };
 
                         return timelineEvents.length > 0 ? (
-                          <ol className="relative ms-2 mt-3 max-h-72 space-y-3.5 overflow-y-auto border-s border-gray-200 ps-4 pr-1 dark:border-gray-700">
-                            {timelineEvents.map((event) => {
+                          <ol className="mt-3 max-h-80 overflow-y-auto pr-1">
+                            {timelineEvents.map((event, idx) => {
                               const meta = styleForAction(event.action);
+                              const isLast = idx === timelineEvents.length - 1;
                               return (
-                                <li key={event.id} className="relative text-xs">
-                                  <span
-                                    className={`absolute -start-[21px] top-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-white dark:ring-gray-900 ${meta.ring}`}
+                                <li
+                                  key={event.id}
+                                  className="flex gap-3 text-xs"
+                                >
+                                  <div className="flex shrink-0 flex-col items-center">
+                                    <span
+                                      className={`inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${meta.ring}`}
+                                    >
+                                      {meta.icon}
+                                    </span>
+                                    {!isLast && (
+                                      <span
+                                        aria-hidden="true"
+                                        className="my-1 w-px flex-1 bg-gray-200 dark:bg-gray-700/80"
+                                      />
+                                    )}
+                                  </div>
+                                  <div
+                                    className={`min-w-0 flex-1 pt-0.5 ${isLast ? "pb-0.5" : "pb-3.5"}`}
                                   >
-                                    {meta.icon}
-                                  </span>
-                                  <div className="flex flex-wrap items-center justify-between gap-1">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5 leading-5">
                                       <span className="font-semibold text-gray-900 dark:text-white/90">
                                         {labelForAction(event.action)}
                                       </span>
                                       {typeof event.version === "number" && (
-                                        <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                                        <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] leading-none font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                                           v{event.version}
                                         </span>
                                       )}
                                     </div>
-                                    <time className="text-[11px] text-gray-500 tabular-nums dark:text-gray-400">
+                                    <p className="mt-0.5 leading-4 text-gray-500 dark:text-gray-400">
+                                      {t("activityByActor", {
+                                        actor: resolveActorLabel(
+                                          event.actorId,
+                                          meta.role,
+                                        ),
+                                      })}
+                                    </p>
+                                    <time className="mt-0.5 block text-[11px] leading-4 text-gray-400 tabular-nums dark:text-gray-500">
                                       {format.dateTime(new Date(event.at), {
                                         dateStyle: "medium",
                                         timeStyle: "short",
                                         timeZone: "UTC",
                                       })}
                                     </time>
-                                  </div>
-                                  <p className="mt-0.5 text-gray-500 dark:text-gray-400">
-                                    {t("activityByActor", {
-                                      actor: resolveActorLabel(
-                                        event.actorId,
-                                        meta.role,
-                                      ),
-                                    })}
-                                  </p>
-                                  {event.fileName && (
-                                    <div className="mt-1 inline-flex max-w-full items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
-                                      <span className="truncate">
-                                        {event.fileName}
-                                      </span>
-                                      {event.deduplicated && (
-                                        <span
-                                          title={t("aiDeduplicatedTooltip")}
-                                          className="shrink-0 text-gray-400"
-                                        >
-                                          <UploadDedupeIcon className="h-3 w-3" />
+                                    {event.fileName && (
+                                      <div className="mt-1.5 inline-flex max-w-full items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-300">
+                                        <span className="truncate">
+                                          {event.fileName}
                                         </span>
-                                      )}
-                                    </div>
-                                  )}
-                                  {event.comment && (
-                                    <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50/90 px-3 py-2 text-xs break-words whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200">
-                                      {event.comment}
-                                    </div>
-                                  )}
+                                        {event.deduplicated && (
+                                          <span
+                                            title={t("aiDeduplicatedTooltip")}
+                                            className="shrink-0 text-gray-400"
+                                          >
+                                            <UploadDedupeIcon className="h-3 w-3" />
+                                          </span>
+                                        )}
+                                      </div>
+                                    )}
+                                    {event.comment && (
+                                      <div className="mt-1.5 rounded-lg border border-gray-100 bg-gray-50/90 px-3 py-2 text-xs break-words whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:bg-gray-950 dark:text-gray-200">
+                                        {event.comment}
+                                      </div>
+                                    )}
+                                  </div>
                                 </li>
                               );
                             })}

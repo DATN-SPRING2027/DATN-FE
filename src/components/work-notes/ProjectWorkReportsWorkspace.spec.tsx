@@ -17,6 +17,11 @@ vi.mock("./WorkNotesPageHeader", () => ({
 const api = vi.mocked(apiClient);
 const projectId = "651a2b3c4d5e6f7a8b9c0d21";
 const reportId = "751a2b3c4d5e6f7a8b9c0d21";
+const emptyDocumentsPage = {
+  data: [],
+  pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
+};
+
 const report = {
   id: reportId,
   projectId,
@@ -61,7 +66,7 @@ beforeEach(() => {
   api.mockReset();
 });
 
-it("shows mandatory read-only schedule for a Member and saves the current Periodic Work Report through the API", async () => {
+it("shows mandatory read-only schedule for a Member and saves the current Periodic Work Report through the Split-View editor", async () => {
   api.mockImplementation(async (path, options) => {
     if (path.endsWith("/work-report-settings")) {
       return {
@@ -75,10 +80,7 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
       } as never;
     }
     if (path.includes("/documents?")) {
-      return {
-        data: [],
-        pagination: { page: 1, pageSize: 50, totalItems: 0, totalPages: 0 },
-      } as never;
+      return emptyDocumentsPage as never;
     }
     if (path.includes("/work-reports?")) {
       return {
@@ -98,11 +100,16 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
 
   mount();
   expect(
-    await screen.findByRole("heading", { name: "Your current period" }),
-  ).toBeVisible();
-  expect(
     await screen.findByText("Mandatory reporting cadence"),
   ).toBeVisible();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Completed the invitation route."),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
   await waitFor(() =>
@@ -113,7 +120,7 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
   );
 });
 
-it("supports all 1-7 day reporting frequencies and asks a Leader to confirm a schedule change before saving it", async () => {
+it("supports all 1-7 day reporting frequencies in the cadence popover and asks a Leader to confirm a schedule change before saving it", async () => {
   api.mockImplementation(async (path, options) => {
     if (
       path.endsWith("/work-report-settings") &&
@@ -141,6 +148,9 @@ it("supports all 1-7 day reporting frequencies and asks a Leader to confirm a sc
         permissions: { canConfigure: true },
       } as never;
     }
+    if (path.includes("/documents?")) {
+      return emptyDocumentsPage as never;
+    }
     if (path.includes("/work-reports?"))
       return {
         data: [],
@@ -152,6 +162,11 @@ it("supports all 1-7 day reporting frequencies and asks a Leader to confirm a sc
   });
 
   mount();
+  const cadenceButton = await screen.findByRole("button", {
+    name: /Cadence: 7d/i,
+  });
+  fireEvent.click(cadenceButton);
+
   const select = (await screen.findByLabelText(
     "Reporting frequency",
   )) as HTMLSelectElement;
@@ -242,6 +257,9 @@ it("allows an Organization Manager to switch to the Leader Reports & Schedule ta
         },
       } as never;
     }
+    if (path.includes("/documents?")) {
+      return emptyDocumentsPage as never;
+    }
     if (path.includes("/work-reports?")) {
       return {
         data: [],
@@ -258,6 +276,11 @@ it("allows an Organization Manager to switch to the Leader Reports & Schedule ta
     name: /Leader Reports & Schedule/i,
   });
   fireEvent.click(leaderTab);
+
+  const cadenceButton = await screen.findByRole("button", {
+    name: /Cadence: 7d/i,
+  });
+  fireEvent.click(cadenceButton);
 
   expect(
     await screen.findByRole("heading", {
@@ -281,6 +304,189 @@ it("allows an Organization Manager to switch to the Leader Reports & Schedule ta
       expect.objectContaining({
         method: "PATCH",
         body: JSON.stringify({ frequency: "EVERY_4_DAYS", scope: "LEADER" }),
+      }),
+    ),
+  );
+});
+
+it("never shows the false no-report-obligation alert for a Manager viewing active in-period Draft member reports, separates Draft from Overdue, and switches members in the Split-View roster", async () => {
+  const activeDraftInProgress = {
+    ...report,
+    id: "751a2b3c4d5e6f7a8b9c0d31",
+    memberId: "851a2b3c4d5e6f7a8b9c0d31",
+    memberName: "Le Hoang Member 1",
+    accomplishments: "Implemented OAuth callback handler.",
+    permissions: {
+      canCreate: false,
+      canEdit: false,
+      canSubmit: false,
+      canReview: false,
+      canConfigure: false,
+    },
+  };
+  const unstartedDraft = {
+    ...report,
+    id: "751a2b3c4d5e6f7a8b9c0d32",
+    memberId: "851a2b3c4d5e6f7a8b9c0d32",
+    memberName: "Vo Khoa Member 2",
+    accomplishments: "",
+    approach: "",
+    reason: "",
+    blockers: "",
+    nextSteps: "",
+    permissions: {
+      canCreate: false,
+      canEdit: false,
+      canSubmit: false,
+      canReview: false,
+      canConfigure: false,
+    },
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        scope: "MEMBER",
+        actorRole: "MANAGER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: false },
+        leaderSettings: {
+          frequency: "WEEKLY",
+          effectiveAt: report.periodStart,
+          updatedBy: report.memberId,
+          history: [],
+          permissions: { canConfigure: true },
+        },
+      } as never;
+    }
+    if (path.includes("/documents?")) {
+      return emptyDocumentsPage as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [unstartedDraft, activeDraftInProgress],
+        pagination: { page: 1, pageSize: 100, totalItems: 2, totalPages: 1 },
+      } as never;
+    }
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+
+  expect(
+    await screen.findByRole("heading", { name: "Le Hoang Member 1" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Implemented OAuth callback handler."),
+  ).toBeVisible();
+
+  // Regression check 1: No contradictory "no report obligation" alert when active period reports exist
+  expect(
+    screen.queryByText(
+      "There is no report obligation for the current period in this project.",
+    ),
+  ).not.toBeInTheDocument();
+
+  // Regression check 2: "Draft / Overdue" merged label is gone; Draft (2) and Overdue (0) are separated
+  expect(screen.queryByText(/Draft \/ Overdue/i)).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("tab", { name: /Draft\s+2/i }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("tab", { name: /Overdue\s+0/i }),
+  ).toBeVisible();
+
+  // Unstarted draft is grouped cleanly in the left roster and selectable
+  expect(screen.getByText("Not started (1)")).toBeVisible();
+  fireEvent.click(
+    screen.getByRole("button", { name: /Vo Khoa Member 2/i }),
+  );
+  expect(
+    await screen.findByRole("heading", { name: "Vo Khoa Member 2" }),
+  ).toBeVisible();
+  expect(
+    screen.getByText("No report content submitted for this period yet."),
+  ).toBeVisible();
+});
+
+it("allows a Reviewer to approve a submitted Pending Review report from the Split-View inline review bar", async () => {
+  const pendingReviewReport = {
+    ...report,
+    status: "PENDING_REVIEW" as const,
+    permissions: {
+      canCreate: false,
+      canEdit: false,
+      canSubmit: false,
+      canReview: true,
+      canConfigure: true,
+    },
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        scope: "MEMBER",
+        actorRole: "LEADER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+    if (path.includes("/documents?")) {
+      return emptyDocumentsPage as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [pendingReviewReport],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (
+      path === `/capture/projects/${projectId}/work-reports/${reportId}/approve` &&
+      options?.method === "POST"
+    ) {
+      return {
+        ...pendingReviewReport,
+        status: "APPROVED",
+        reviewComment: "Clean implementation, verified.",
+      } as never;
+    }
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+  expect(
+    screen.queryByText(
+      "There is no report obligation for the current period in this project.",
+    ),
+  ).not.toBeInTheDocument();
+
+  fireEvent.change(screen.getByLabelText("Review comment"), {
+    target: { value: "Clean implementation, verified." },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-reports/${reportId}/approve`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ comment: "Clean implementation, verified." }),
       }),
     ),
   );
