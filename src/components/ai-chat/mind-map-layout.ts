@@ -3,18 +3,20 @@ import type { AiChatMindMapNode } from "@/lib/queries/ai-chat/ai-chat.types";
 export const MIND_MAP_MAX_DEPTH = 3;
 export const MIND_MAP_MAX_NODES = 60;
 export const MIND_MAP_MAX_CHILDREN = 8;
+export const MIND_MAP_BRANCH_PALETTE_COUNT = 5;
 
-const CANVAS_PADDING_X = 36;
-const CANVAS_PADDING_Y = 36;
-const ROOT_NODE_WIDTH = 244;
-const BRANCH_NODE_WIDTH = 224;
-const COLUMN_GAP = 84;
+const CANVAS_PADDING_X = 40;
+const CANVAS_PADDING_Y = 40;
+const ROOT_NODE_WIDTH = 252;
+const BRANCH_NODE_WIDTH = 232;
+const COLUMN_GAP = 88;
 const SIBLING_VERTICAL_GAP = 16;
-const SUBTREE_GROUP_GAP = 24;
+const SUBTREE_GROUP_GAP = 26;
 
 export type PositionedMindMapNode = Readonly<{
   node: AiChatMindMapNode;
   depth: number;
+  branchIndex: number;
   x: number;
   y: number;
   width: number;
@@ -32,6 +34,7 @@ export type MindMapEdge = Readonly<{
   sourceId: string;
   targetId: string;
   depth: number;
+  branchIndex: number;
   path: string;
 }>;
 
@@ -143,9 +146,9 @@ function nodeHeightForLines(
   hasCitations: boolean,
   depth: number,
 ): number {
-  const base = lineCount === 2 ? 64 : 46;
-  const metaExtra = hasCitations ? 10 : 0;
-  const rootExtra = depth === 0 ? 6 : 0;
+  const base = lineCount === 2 ? 66 : 48;
+  const metaExtra = hasCitations ? 14 : 0;
+  const rootExtra = depth === 0 ? 8 : 0;
   return base + metaExtra + rootExtra;
 }
 
@@ -169,6 +172,7 @@ export function computeMindMapLayout(
   const layoutSubtree = (
     node: AiChatMindMapNode,
     depth: number,
+    branchIndex: number,
     ancestorLabels: readonly string[],
   ): PositionedMindMapNode | null => {
     if (depth > MIND_MAP_MAX_DEPTH || visitedVisible >= MIND_MAP_MAX_NODES) {
@@ -204,6 +208,7 @@ export function computeMindMapLayout(
       const item: PositionedMindMapNode = {
         node,
         depth,
+        branchIndex,
         x,
         y,
         width,
@@ -216,7 +221,7 @@ export function computeMindMapLayout(
         ancestorLabels,
       };
       positioned.push(item);
-      maxRight = Math.max(maxRight, x + width + (hasChildren ? 38 : 0));
+      maxRight = Math.max(maxRight, x + width + (hasChildren ? 42 : 0));
       maxBottom = Math.max(maxBottom, y + height);
       return item;
     }
@@ -226,7 +231,14 @@ export function computeMindMapLayout(
     const placedChildren: PositionedMindMapNode[] = [];
     for (let idx = 0; idx < boundedChildren.length; idx += 1) {
       const child = boundedChildren[idx]!;
-      const placed = layoutSubtree(child, depth + 1, childAncestors);
+      const nextBranchIndex =
+        depth === 0 ? idx % MIND_MAP_BRANCH_PALETTE_COUNT : branchIndex;
+      const placed = layoutSubtree(
+        child,
+        depth + 1,
+        nextBranchIndex,
+        childAncestors,
+      );
       if (placed) {
         placedChildren.push(placed);
       }
@@ -239,6 +251,7 @@ export function computeMindMapLayout(
       const item: PositionedMindMapNode = {
         node,
         depth,
+        branchIndex,
         x,
         y,
         width,
@@ -264,12 +277,14 @@ export function computeMindMapLayout(
     const parentBottom = y + height;
 
     // Ensure subsequent siblings below this subtree never collide with the parent box either.
-    cursorY = Math.max(cursorY, parentBottom + SIBLING_VERTICAL_GAP) +
+    cursorY =
+      Math.max(cursorY, parentBottom + SIBLING_VERTICAL_GAP) +
       (depth === 1 ? SUBTREE_GROUP_GAP - SIBLING_VERTICAL_GAP : 0);
 
     const item: PositionedMindMapNode = {
       node,
       depth,
+      branchIndex,
       x,
       y,
       width,
@@ -282,7 +297,7 @@ export function computeMindMapLayout(
       ancestorLabels,
     };
     positioned.push(item);
-    maxRight = Math.max(maxRight, x + width + 38);
+    maxRight = Math.max(maxRight, x + width + 42);
     maxBottom = Math.max(maxBottom, parentBottom);
 
     const startX = x + width;
@@ -294,6 +309,7 @@ export function computeMindMapLayout(
         sourceId: node.id,
         targetId: childItem.node.id,
         depth: depth + 1,
+        branchIndex: childItem.branchIndex,
         path: `M ${startX} ${centerY} C ${midX} ${centerY}, ${midX} ${childItem.centerY}, ${endX} ${childItem.centerY}`,
       });
     }
@@ -301,10 +317,12 @@ export function computeMindMapLayout(
     return item;
   };
 
-  layoutSubtree(root, 0, []);
+  layoutSubtree(root, 0, -1, []);
 
   // Order positioned nodes in pre-order / depth-then-y so root comes first.
-  positioned.sort((a, b) => (a.depth !== b.depth ? a.depth - b.depth : a.y - b.y));
+  positioned.sort((a, b) =>
+    a.depth !== b.depth ? a.depth - b.depth : a.y - b.y,
+  );
 
   return {
     nodes: positioned,

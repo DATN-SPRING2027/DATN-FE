@@ -155,7 +155,7 @@ export type AiSharedAnswer = Readonly<{
   answer: AiPublicAnswer;
 }>;
 
-export type AiChatMindMapStatus = "ready" | "empty";
+export type AiChatMindMapStatus = "ready" | "empty" | "uninitialized";
 
 export type AiChatMindMapGenerationMode =
   | "llm"
@@ -190,6 +190,8 @@ export type AiChatMindMapResponse = Readonly<{
   generationMode: AiChatMindMapGenerationMode;
   fallbackReason: AiChatMindMapFallbackReason | null;
   scopeFingerprint: string;
+  cached?: boolean;
+  hasSourceUpdates?: boolean;
   coverage: AiChatMindMapCoverage;
   tree: AiChatMindMapNode | null;
   citations: readonly AiChatCitation[];

@@ -1,12 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
 import type {
   MindMapLayoutResult,
   PositionedMindMapNode,
 } from "./mind-map-layout";
+import { getMindMapBranchPalette } from "./mind-map-theme";
 
 const MIN_SCALE = 0.4;
 const MAX_SCALE = 1.75;
@@ -16,6 +24,7 @@ export type AiChatMindMapCanvasProps = Readonly<{
   layout: MindMapLayoutResult;
   selectedNodeId: string | null;
   isFullscreen: boolean;
+  inspectorReserveWidth?: number;
   onSelectNode: (nodeId: string) => void;
   onToggleNode: (nodeId: string) => void;
   onExpandAll: () => void;
@@ -30,6 +39,7 @@ export default function AiChatMindMapCanvas({
   layout,
   selectedNodeId,
   isFullscreen,
+  inspectorReserveWidth = 0,
   onSelectNode,
   onToggleNode,
   onExpandAll,
@@ -87,26 +97,47 @@ export default function AiChatMindMapCanvas({
     ) {
       return {
         scale: isFullscreen ? 1 : 0.72,
-        pan: { x: 12, y: 12 },
+        pan: { x: 14, y: 24 },
       };
     }
-    const fitX = Math.max(1, containerSize.width - 20) / Math.max(1, layout.width);
-    const fitY = Math.max(1, containerSize.height - 54) / Math.max(1, layout.height);
+    const reservedEnd =
+      isFullscreen &&
+      inspectorReserveWidth > 0 &&
+      containerSize.width >= 1024
+        ? inspectorReserveWidth
+        : 0;
+    const effectiveWidth = Math.max(240, containerSize.width - reservedEnd);
+    const fitX =
+      Math.max(1, effectiveWidth - 24) / Math.max(1, layout.width);
+    const fitY =
+      Math.max(1, containerSize.height - 64) / Math.max(1, layout.height);
     // Fit must include every node, even when a supported tree needs <40% zoom.
     const nextScale = Math.min(isFullscreen ? 1.05 : 0.96, fitX, fitY);
     const offsetX = Math.max(
-      8,
-      Math.round((containerSize.width - layout.width * nextScale) / 2),
+      10,
+      Math.round((effectiveWidth - layout.width * nextScale) / 2),
+    );
+    const topSafeInset = containerSize.height >= 360 ? 36 : 8;
+    const bottomSafeInset = 44;
+    const usableHeight = Math.max(
+      1,
+      containerSize.height - topSafeInset - bottomSafeInset,
     );
     const offsetY = Math.max(
-      8,
-      Math.round((containerSize.height - 40 - layout.height * nextScale) / 2),
+      topSafeInset,
+      topSafeInset + Math.round((usableHeight - layout.height * nextScale) / 2),
     );
     return {
       scale: nextScale,
       pan: { x: offsetX, y: offsetY },
     };
-  }, [containerSize, isFullscreen, layout.height, layout.width]);
+  }, [
+    containerSize,
+    inspectorReserveWidth,
+    isFullscreen,
+    layout.height,
+    layout.width,
+  ]);
 
   const activeCamera = userCamera ?? autoFitCamera;
   const minimumScale = Math.min(MIN_SCALE, autoFitCamera.scale);
@@ -117,7 +148,6 @@ export default function AiChatMindMapCanvas({
     const active = new Set<string>();
     if (!selectedNodeId) return active;
     active.add(selectedNodeId);
-    // Trace edges backwards from selectedNodeId up to root
     const parentByChild = new Map<string, string>();
     for (const edge of layout.edges) {
       parentByChild.set(edge.targetId, edge.sourceId);
@@ -255,19 +285,28 @@ export default function AiChatMindMapCanvas({
   const renderNode = (item: PositionedMindMapNode) => {
     const isRoot = item.depth === 0;
     const isSelected = item.node.id === selectedNodeId;
+    const isOnSelectedTrail = selectedPathIds.has(item.node.id);
+    const palette = getMindMapBranchPalette(item.branchIndex);
     const citeCount = item.node.citationNumbers.length;
-    const textStartX = item.x + (isRoot ? 16 : 18);
+    const textStartX = item.x + (isRoot ? 18 : 20);
     const firstLineY =
       item.y +
       (item.lines.length === 2
         ? citeCount > 0
           ? 24
-          : 27
+          : 28
         : citeCount > 0
           ? 24
           : Math.round(item.height / 2 + 4));
 
-    const toggleWidth = item.isExpanded ? 24 : Math.max(28, 20 + String(item.hiddenDescendantCount).length * 7);
+    const sourceLabel =
+      citeCount > 0 ? t("mindMapNodeSourcesCount", { count: citeCount }) : "";
+    const sourcePillWidth =
+      citeCount > 0 ? Math.max(54, 18 + sourceLabel.length * 5.8) : 0;
+
+    const toggleWidth = item.isExpanded
+      ? 24
+      : Math.max(30, 20 + String(item.hiddenDescendantCount).length * 7);
     const toggleX = item.x + item.width + 6;
     const toggleY = Math.round(item.centerY - 12);
 
@@ -293,35 +332,34 @@ export default function AiChatMindMapCanvas({
             y={item.y}
             width={item.width}
             height={item.height}
-            rx={12}
-            ry={12}
-            strokeWidth={isSelected ? 2 : 1.25}
+            rx={isRoot ? 14 : 12}
+            ry={isRoot ? 14 : 12}
+            filter={`url(#mindmap-shadow-${patternId})`}
+            fill={isRoot ? `url(#mindmap-root-grad-${patternId})` : undefined}
+            strokeWidth={isSelected ? 2.25 : isOnSelectedTrail ? 1.6 : 1.25}
             className={cn(
               "transition-colors duration-150",
               isRoot
                 ? isSelected
-                  ? "fill-brand-700 stroke-brand-300 dark:fill-brand-600 dark:stroke-brand-300"
-                  : "fill-brand-600 stroke-brand-700 hover:fill-brand-700 dark:fill-brand-600 dark:stroke-brand-400"
+                  ? "stroke-brand-300 dark:stroke-brand-300"
+                  : "stroke-brand-700 dark:stroke-brand-400/80"
                 : isSelected
-                  ? "fill-brand-50 stroke-brand-500 dark:fill-brand-950 dark:stroke-brand-400"
-                  : "fill-white stroke-gray-200 hover:stroke-brand-300 dark:fill-gpt-popover dark:stroke-white/15 dark:hover:stroke-brand-400/70",
+                  ? palette.selectedCard
+                  : cn(
+                      "fill-white stroke-gray-200/95 dark:fill-gpt-popover dark:stroke-white/15",
+                      palette.restCardHover,
+                    ),
             )}
           />
 
           {!isRoot && (
             <rect
-              x={item.x + 5}
+              x={item.x + 6}
               y={item.y + 10}
-              width={3.5}
-              height={Math.max(16, item.height - 20)}
+              width={4}
+              height={Math.max(18, item.height - 20)}
               rx={2}
-              className={cn(
-                item.depth === 1
-                  ? "fill-brand-500 dark:fill-brand-400"
-                  : item.depth === 2
-                    ? "fill-blue-light-500 dark:fill-blue-light-400"
-                    : "fill-success-500 dark:fill-success-400",
-              )}
+              className={palette.accentFill}
             />
           )}
 
@@ -329,11 +367,11 @@ export default function AiChatMindMapCanvas({
             x={textStartX}
             y={firstLineY}
             className={cn(
-              "select-none text-[12.5px] font-semibold",
+              "select-none text-xs font-semibold",
               isRoot
                 ? "fill-white"
                 : isSelected
-                  ? "fill-brand-950 dark:fill-white"
+                  ? "fill-gray-950 dark:fill-white"
                   : "fill-gray-900 dark:fill-gray-100",
             )}
           >
@@ -348,20 +386,32 @@ export default function AiChatMindMapCanvas({
           </text>
 
           {citeCount > 0 && (
-            <text
-              x={textStartX}
-              y={item.y + item.height - 10}
-              className={cn(
-                "select-none text-[10.5px] font-medium tabular-nums",
-                isRoot
-                  ? "fill-brand-100"
-                  : isSelected
-                    ? "fill-brand-700 dark:fill-brand-300"
-                    : "fill-gray-500 dark:fill-gray-400",
-              )}
-            >
-              {t("mindMapNodeSourcesCount", { count: citeCount })}
-            </text>
+            <g>
+              <rect
+                x={textStartX}
+                y={item.y + item.height - 23}
+                width={sourcePillWidth}
+                height={16}
+                rx={8}
+                className={
+                  isRoot
+                    ? "fill-white/18"
+                    : palette.sourcePillFill
+                }
+              />
+              <text
+                x={textStartX + sourcePillWidth / 2}
+                y={item.y + item.height - 11.5}
+                textAnchor="middle"
+                className={cn(
+                  "select-none text-xs font-semibold tabular-nums",
+                  isRoot ? "fill-white" : palette.sourcePillText,
+                )}
+                style={{ fontSize: "10px" }}
+              >
+                {sourceLabel}
+              </text>
+            </g>
           )}
         </g>
 
@@ -404,8 +454,8 @@ export default function AiChatMindMapCanvas({
               className={cn(
                 "transition-colors",
                 item.isExpanded
-                  ? "fill-gray-100 stroke-gray-300 hover:fill-gray-200 dark:fill-gpt-composer dark:stroke-white/20 dark:hover:fill-gpt-bubble"
-                  : "fill-brand-50 stroke-brand-300 hover:fill-brand-100 dark:fill-brand-950 dark:stroke-brand-400/60 dark:hover:fill-brand-900",
+                  ? "fill-white stroke-gray-300 hover:fill-gray-100 dark:fill-gpt-composer dark:stroke-white/20 dark:hover:fill-gpt-bubble"
+                  : palette.expandPillRect,
               )}
             />
             <text
@@ -413,11 +463,12 @@ export default function AiChatMindMapCanvas({
               y={toggleY + 15.5}
               textAnchor="middle"
               className={cn(
-                "select-none text-[11px] font-semibold tabular-nums",
+                "select-none text-xs font-semibold tabular-nums",
                 item.isExpanded
                   ? "fill-gray-700 dark:fill-gray-200"
-                  : "fill-brand-700 dark:fill-brand-300",
+                  : palette.expandPillText,
               )}
+              style={{ fontSize: "11px" }}
             >
               {item.isExpanded ? "−" : `+${item.hiddenDescendantCount}`}
             </text>
@@ -435,7 +486,7 @@ export default function AiChatMindMapCanvas({
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
       className={cn(
-        "relative flex min-h-64 flex-1 touch-none overflow-hidden bg-gray-50/90 select-none dark:bg-gpt-canvas",
+        "relative flex min-h-60 flex-1 touch-none overflow-hidden bg-gray-50/95 select-none dark:bg-gpt-canvas",
         isDragging ? "cursor-grabbing" : "cursor-grab",
       )}
     >
@@ -447,17 +498,44 @@ export default function AiChatMindMapCanvas({
         <defs>
           <pattern
             id={`mindmap-grid-${patternId}`}
-            width={20}
-            height={20}
+            width={22}
+            height={22}
             patternUnits="userSpaceOnUse"
           >
             <circle
               cx={2}
               cy={2}
               r={1}
-              className="fill-gray-300/70 dark:fill-white/10"
+              className="fill-gray-300/75 dark:fill-white/10"
             />
           </pattern>
+
+          <linearGradient
+            id={`mindmap-root-grad-${patternId}`}
+            x1="0%"
+            y1="0%"
+            x2="100%"
+            y2="100%"
+          >
+            <stop offset="0%" stopColor="var(--color-brand-500)" />
+            <stop offset="100%" stopColor="var(--color-brand-700)" />
+          </linearGradient>
+
+          <filter
+            id={`mindmap-shadow-${patternId}`}
+            x="-8%"
+            y="-10%"
+            width="116%"
+            height="128%"
+          >
+            <feDropShadow
+              dx={0}
+              dy={2}
+              stdDeviation={2.5}
+              floodColor="var(--color-gray-900)"
+              floodOpacity={0.07}
+            />
+          </filter>
         </defs>
 
         <rect
@@ -471,18 +549,17 @@ export default function AiChatMindMapCanvas({
             const isHighlighted =
               selectedPathIds.has(edge.sourceId) &&
               selectedPathIds.has(edge.targetId);
+            const edgePalette = getMindMapBranchPalette(edge.branchIndex);
             return (
               <path
                 key={edge.id}
                 d={edge.path}
                 fill="none"
-                strokeWidth={isHighlighted ? 2.25 : 1.5}
+                strokeWidth={isHighlighted ? 2.5 : 1.65}
                 strokeLinecap="round"
                 className={cn(
                   "transition-colors duration-150",
-                  isHighlighted
-                    ? "stroke-brand-500 dark:stroke-brand-400"
-                    : "stroke-gray-300 dark:stroke-white/20",
+                  isHighlighted ? edgePalette.activeEdge : edgePalette.restEdge,
                 )}
               />
             );
@@ -492,58 +569,65 @@ export default function AiChatMindMapCanvas({
         </g>
       </svg>
 
-      {/* Floating Bottom Controls */}
+      {/* Unified Glassmorphism Bottom Control Dock */}
       <div
         data-mind-map-interactive="true"
-        className="pointer-events-auto absolute start-3 end-3 bottom-3 flex flex-wrap items-center justify-between gap-2"
+        className="pointer-events-auto absolute start-3 bottom-3 z-10 inline-flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-1 rounded-2xl border border-gray-200/90 bg-white/92 p-1 shadow-theme-sm backdrop-blur-md dark:border-white/12 dark:bg-gpt-popover/92"
       >
-        <div className="inline-flex items-center gap-1 rounded-xl border border-gray-200/90 bg-white/95 p-1 shadow-theme-xs backdrop-blur-xs dark:border-white/10 dark:bg-gpt-popover/95">
+        <div className="inline-flex items-center gap-0.5">
           <button
             type="button"
             onClick={onCollapseDefault}
-            className="rounded-lg px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
           >
             {t("mindMapCollapseDefault")}
           </button>
           <button
             type="button"
             onClick={onExpandAll}
-            className="rounded-lg px-2 py-1 text-[11px] font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
           >
             {t("mindMapExpandAll")}
           </button>
-          <span className="hidden px-1.5 text-[11px] text-gray-500 tabular-nums sm:inline dark:text-gray-400">
-            {t("mindMapVisibleNodesMeta", {
-              visible: layout.visibleNodeCount,
-              total: layout.totalNodeCount,
-            })}
-          </span>
+          {isFullscreen ? (
+            <span className="hidden px-1.5 text-xs text-gray-500 tabular-nums md:inline dark:text-gray-400">
+              {t("mindMapVisibleNodesMeta", {
+                visible: layout.visibleNodeCount,
+                total: layout.totalNodeCount,
+              })}
+            </span>
+          ) : null}
         </div>
 
-        <div className="inline-flex items-center gap-0.5 rounded-xl border border-gray-200/90 bg-white/95 p-1 shadow-theme-xs backdrop-blur-xs dark:border-white/10 dark:bg-gpt-popover/95">
+        <span
+          aria-hidden="true"
+          className="h-4 w-px bg-gray-200 dark:bg-white/12"
+        />
+
+        <div className="inline-flex items-center gap-0.5">
           <button
             type="button"
             onClick={handleZoomOut}
             aria-label={t("mindMapZoomOut")}
-            className="inline-flex size-6 items-center justify-center rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
           >
             −
           </button>
-          <span className="min-w-11 px-1 text-center text-[11px] font-medium text-gray-700 tabular-nums dark:text-gray-200">
+          <span className="min-w-10 px-1 text-center text-xs font-semibold text-gray-700 tabular-nums dark:text-gray-200">
             {Math.round(scale * 100)}%
           </span>
           <button
             type="button"
             onClick={handleZoomIn}
             aria-label={t("mindMapZoomIn")}
-            className="inline-flex size-6 items-center justify-center rounded-lg text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
           >
             +
           </button>
           <button
             type="button"
             onClick={handleFitView}
-            className="ms-0.5 rounded-lg px-2 py-1 text-[11px] font-medium text-brand-600 hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/15"
+            className="ms-0.5 rounded-xl bg-brand-50/80 px-2 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
           >
             {t("mindMapFitView")}
           </button>

@@ -3,6 +3,7 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
+import { authKeys } from "../auth/auth.keys";
 import type { AiChatMindMapResponse } from "./ai-chat.types";
 import {
   aiMindMapKeys,
@@ -251,6 +252,81 @@ describe("useAiMindMap scope-bound cache & access revocation hygiene", () => {
     );
     await act(async () => {
       await result.current.generate("Handover Spec").catch(() => undefined);
+    });
+    expect(
+      queryClient.getQueryData(
+        aiMindMapKeys.byTopic("user-1", "org-1", "proj-1", "Handover Spec"),
+      ),
+    ).toBeUndefined();
+
+    // GET saved snapshot when enabled=true + POST with explicit refresh: true
+    apiClientMock.mockReset();
+    const savedSnapshot = sampleResponse({
+      topic: "Architecture",
+      cached: true,
+      hasSourceUpdates: false,
+    });
+    const refreshedSnapshot = sampleResponse({
+      topic: "Architecture",
+      cached: false,
+      hasSourceUpdates: false,
+      generatedAt: "2026-10-31T06:00:00Z",
+    });
+    apiClientMock
+      .mockResolvedValueOnce(savedSnapshot)
+      .mockResolvedValueOnce(refreshedSnapshot);
+
+    const enabledHook = renderHook(
+      () =>
+        useAiMindMap({
+          userId: "user-1",
+          organizationId: "org-1",
+          projectId: "proj-1",
+          topic: "  Architecture ",
+          enabled: true,
+        }),
+      { wrapper },
+    );
+    await waitFor(() =>
+      expect(enabledHook.result.current.mindMap).toEqual(savedSnapshot),
+    );
+    expect(apiClientMock).toHaveBeenCalledWith(
+      "/ai-chat/projects/proj-1/mind-map?topic=Architecture",
+      expect.objectContaining({ method: "GET" }),
+    );
+    await act(async () => {
+      await enabledHook.result.current.generate({
+        topic: "Architecture",
+        refresh: true,
+      });
+    });
+    expect(apiClientMock).toHaveBeenLastCalledWith(
+      "/ai-chat/projects/proj-1/mind-map",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ topic: "Architecture", refresh: true }),
+      }),
+    );
+    await waitFor(() =>
+      expect(enabledHook.result.current.mindMap).toEqual(refreshedSnapshot),
+    );
+
+    const invalidateSpy = vi.spyOn(queryClient, "invalidateQueries");
+    apiClientMock.mockRejectedValueOnce(
+      new ApiError(401, "UNAUTHORIZED", "Session expired"),
+    );
+    await act(async () => {
+      await enabledHook.result.current
+        .generate({ topic: "Architecture", refresh: true })
+        .catch(() => undefined);
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: authKeys.currentUser(),
+      exact: true,
+    });
+    enabledHook.unmount();
+    await act(async () => {
+      await Promise.resolve();
     });
     expect(
       queryClient.getQueryData(

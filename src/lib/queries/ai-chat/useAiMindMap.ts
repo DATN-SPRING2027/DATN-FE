@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
@@ -7,9 +8,19 @@ import {
   isAccessOrResourceUnavailableError,
 } from "@/lib/api-client";
 import { aiChatCsrfHeaders } from "./ai-chat-stream";
+import { authKeys } from "../auth/auth.keys";
 import type { AiChatMindMapResponse } from "./ai-chat.types";
 
 export const AI_MIND_MAP_MAX_TOPIC_LENGTH = 200;
+
+export type GenerateMindMapInput =
+  | string
+  | null
+  | undefined
+  | Readonly<{
+      topic?: string | null;
+      refresh?: boolean;
+    }>;
 
 export function normalizeMindMapTopic(raw?: string | null): string {
   if (!raw) return "";
@@ -36,8 +47,30 @@ export const aiMindMapKeys = {
     ] as const,
 };
 
-function projectMindMapPath(projectId: string): string {
-  return `/ai-chat/projects/${encodeURIComponent(projectId)}/mind-map`;
+function projectMindMapPath(projectId: string, topic?: string): string {
+  const base = `/ai-chat/projects/${encodeURIComponent(projectId)}/mind-map`;
+  return topic ? `${base}?topic=${encodeURIComponent(topic)}` : base;
+}
+
+function parseGenerateInput(
+  input: GenerateMindMapInput,
+  fallbackTopic: string,
+): { requestedTopic: string; refresh: boolean | undefined } {
+  if (input && typeof input === "object") {
+    const requestedTopic =
+      input.topic !== undefined
+        ? normalizeMindMapTopic(input.topic)
+        : fallbackTopic;
+    return {
+      requestedTopic,
+      refresh: input.refresh,
+    };
+  }
+  return {
+    requestedTopic:
+      input !== undefined ? normalizeMindMapTopic(input) : fallbackTopic,
+    refresh: undefined,
+  };
 }
 
 export function useAiMindMap({
@@ -45,11 +78,13 @@ export function useAiMindMap({
   organizationId,
   projectId,
   topic,
+  enabled = false,
 }: {
   userId: string;
   organizationId: string;
   projectId: string;
   topic?: string | null;
+  enabled?: boolean;
 }) {
   const queryClient = useQueryClient();
   const normalizedTopic = normalizeMindMapTopic(topic);
@@ -60,14 +95,43 @@ export function useAiMindMap({
     normalizedTopic,
   );
 
-  // Session-memory cache only: never auto-refetches without explicit user or panel-open trigger.
-  const cachedQuery = useQuery<AiChatMindMapResponse>({
+  const purgeScopeOnAccessError = useCallback(
+    (error: unknown) => {
+      if (!isAccessOrResourceUnavailableError(error)) return;
+      if (error instanceof ApiError && error.status === 401) {
+        queryClient.removeQueries({ queryKey: aiMindMapKeys.all });
+        void queryClient
+          .invalidateQueries({
+            queryKey: authKeys.currentUser(),
+            exact: true,
+          })
+          .catch(() => undefined);
+      } else {
+        queryClient.removeQueries({
+          queryKey: aiMindMapKeys.scope(userId, organizationId, projectId),
+        });
+      }
+    },
+    [organizationId, projectId, queryClient, userId],
+  );
+
+  const savedQuery = useQuery<AiChatMindMapResponse>({
     queryKey: activeKey,
-    queryFn: () =>
-      Promise.reject(
-        new Error("Mind map cache entry is populated via generate"),
-      ),
-    enabled: false,
+    queryFn: async () => {
+      try {
+        return await apiClient<AiChatMindMapResponse>(
+          projectMindMapPath(projectId, normalizedTopic || undefined),
+          {
+            method: "GET",
+            cache: "no-store",
+          },
+        );
+      } catch (error) {
+        purgeScopeOnAccessError(error);
+        throw error;
+      }
+    },
+    enabled: Boolean(enabled && userId && organizationId && projectId),
     retry: false,
     staleTime: Number.POSITIVE_INFINITY,
     gcTime: 30 * 60_000,
@@ -87,21 +151,24 @@ export function useAiMindMap({
       queryKey: activeKey,
       cacheEntry: queryClient
         .getQueryCache()
-        .find({ queryKey: activeKey, exact: true }),
+        .build(queryClient, { queryKey: activeKey as readonly unknown[] }),
     }),
-    mutationFn: async (overrideTopic?: string | null) => {
-      const requestedTopic =
-        overrideTopic !== undefined
-          ? normalizeMindMapTopic(overrideTopic)
-          : normalizedTopic;
+    mutationFn: async (input?: GenerateMindMapInput) => {
+      const { requestedTopic, refresh } = parseGenerateInput(
+        input,
+        normalizedTopic,
+      );
       return apiClient<AiChatMindMapResponse>(projectMindMapPath(projectId), {
         method: "POST",
         headers: aiChatCsrfHeaders(),
-        body: JSON.stringify(requestedTopic ? { topic: requestedTopic } : {}),
+        body: JSON.stringify({
+          ...(requestedTopic ? { topic: requestedTopic } : {}),
+          ...(refresh !== undefined ? { refresh } : {}),
+        }),
         cache: "no-store",
       });
     },
-    onSuccess: (response, overrideTopic, context) => {
+    onSuccess: (response, input, context) => {
       // Logout/access revocation removes this exact entry. A late response must
       // not recreate it or overwrite a new session's entry with the same key.
       if (
@@ -110,12 +177,10 @@ export function useAiMindMap({
           queryKey: context.queryKey,
           exact: true,
         }) !== context.cacheEntry
-      )
+      ) {
         return;
-      const requestedTopic =
-        overrideTopic !== undefined
-          ? normalizeMindMapTopic(overrideTopic)
-          : normalizedTopic;
+      }
+      const { requestedTopic } = parseGenerateInput(input, normalizedTopic);
       const scopePrefix = aiMindMapKeys.scope(
         userId,
         organizationId,
@@ -123,11 +188,10 @@ export function useAiMindMap({
       );
 
       // Evict any cached map in the same scope whose underlying authorized documents changed.
-      const existingEntries = queryClient.getQueriesData<AiChatMindMapResponse>(
-        {
+      const existingEntries =
+        queryClient.getQueriesData<AiChatMindMapResponse>({
           queryKey: scopePrefix,
-        },
-      );
+        });
       for (const [entryKey, entryData] of existingEntries) {
         if (
           entryData &&
@@ -145,33 +209,32 @@ export function useAiMindMap({
       );
       queryClient.setQueryData<AiChatMindMapResponse>(targetKey, response);
     },
-    onError: (error, _overrideTopic, context) => {
+    onError: (error, _input, context) => {
       if (
         !context?.cacheEntry ||
         queryClient.getQueryCache().find({
           queryKey: context.queryKey,
           exact: true,
         }) !== context.cacheEntry
-      )
+      ) {
         return;
-      if (isAccessOrResourceUnavailableError(error)) {
-        if (error instanceof ApiError && error.status === 401) {
-          queryClient.removeQueries({ queryKey: aiMindMapKeys.all });
-        } else {
-          queryClient.removeQueries({
-            queryKey: aiMindMapKeys.scope(userId, organizationId, projectId),
-          });
-        }
       }
+      purgeScopeOnAccessError(error);
     },
   });
 
+  const resetError = useCallback(() => {
+    mutation.reset();
+  }, [mutation]);
+
   return {
-    mindMap: cachedQuery.data,
+    mindMap: savedQuery.data,
+    isCheckingSaved: savedQuery.isLoading || savedQuery.isFetching,
     isGenerating: mutation.isPending,
-    error: mutation.error,
-    isError: mutation.isError,
-    resetError: mutation.reset,
+    error: mutation.error ?? savedQuery.error,
+    isError: mutation.isError || savedQuery.isError,
+    resetError,
+    refetchSaved: savedQuery.refetch,
     generate: mutation.mutateAsync,
   };
 }

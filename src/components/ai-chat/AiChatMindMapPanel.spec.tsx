@@ -214,4 +214,135 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
       expect(screen.getByTestId("mind-map-permission-error")).toBeTruthy();
     });
   });
+
+  it("opens saved Project snapshot in 0s without POST, auto-initializes when uninitialized, supports collapsible inspector, and refreshes on explicit user request", async () => {
+    const savedMap: AiChatMindMapResponse = {
+      projectId: "proj-1",
+      topic: null,
+      status: "ready",
+      generationMode: "llm",
+      fallbackReason: null,
+      scopeFingerprint: "fp_saved_1234567890",
+      cached: true,
+      hasSourceUpdates: true,
+      coverage: {
+        accessibleReadyDocumentCount: 3,
+        usedDocumentCount: 2,
+        omittedDocumentCount: 0,
+        pendingDocumentCount: 0,
+        truncatedDocumentCount: 0,
+        evidenceUnitCount: 5,
+      },
+      tree: {
+        id: "root",
+        label: "Saved Continuum Overview",
+        summary: "Loaded immediately from server snapshot.",
+        citationNumbers: [],
+        children: [],
+      },
+      citations: [],
+      generatedAt: "2026-10-31T05:40:00Z",
+    };
+    apiClientMock.mockResolvedValueOnce(savedMap);
+
+    const firstView = renderPanel();
+    expect(
+      (await screen.findAllByText("Saved Continuum Overview")).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(apiClientMock).toHaveBeenCalledTimes(1);
+    expect(apiClientMock).toHaveBeenCalledWith(
+      "/ai-chat/projects/proj-1/mind-map",
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    expect(
+      screen.getByText("Loaded immediately from server snapshot."),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByTestId("mind-map-inspector-toggle"));
+    expect(
+      screen.queryByText("Loaded immediately from server snapshot."),
+    ).toBeNull();
+    fireEvent.click(screen.getByTestId("mind-map-inspector-toggle"));
+    expect(
+      screen.getByText("Loaded immediately from server snapshot."),
+    ).toBeTruthy();
+
+    const refreshedMap: AiChatMindMapResponse = {
+      ...savedMap,
+      cached: false,
+      hasSourceUpdates: false,
+      scopeFingerprint: "fp_refreshed_9999999999",
+      tree: {
+        id: "root",
+        label: "Refreshed Continuum Overview",
+        summary: "Updated with newly indexed docs.",
+        citationNumbers: [],
+        children: [],
+      },
+    };
+    apiClientMock.mockResolvedValueOnce(refreshedMap);
+    fireEvent.click(screen.getByTestId("mind-map-new-docs-refresh"));
+    expect(
+      (await screen.findAllByText("Refreshed Continuum Overview")).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(apiClientMock).toHaveBeenLastCalledWith(
+      "/ai-chat/projects/proj-1/mind-map",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ refresh: true }),
+      }),
+    );
+    firstView.unmount();
+
+    apiClientMock.mockClear();
+    apiClientMock
+      .mockResolvedValueOnce({
+        projectId: "proj-2",
+        topic: null,
+        status: "uninitialized",
+        generationMode: "none",
+        fallbackReason: null,
+        scopeFingerprint: "fp_uninit_1234567890",
+        cached: false,
+        hasSourceUpdates: false,
+        coverage: {
+          accessibleReadyDocumentCount: 2,
+          usedDocumentCount: 0,
+          omittedDocumentCount: 0,
+          pendingDocumentCount: 0,
+          truncatedDocumentCount: 0,
+          evidenceUnitCount: 0,
+        },
+        tree: null,
+        citations: [],
+        generatedAt: "2026-10-31T05:45:00Z",
+      } satisfies AiChatMindMapResponse)
+      .mockResolvedValueOnce({
+        ...savedMap,
+        projectId: "proj-2",
+        cached: false,
+        hasSourceUpdates: false,
+        tree: {
+          id: "root",
+          label: "First-Time Generated Overview",
+          summary: "Persisted on server for project.",
+          citationNumbers: [],
+          children: [],
+        },
+      });
+
+    renderPanel({ projectId: "proj-2" });
+    expect(
+      (await screen.findAllByText("First-Time Generated Overview")).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(apiClientMock).toHaveBeenCalledTimes(2);
+    expect(apiClientMock.mock.calls[0]?.[1]).toMatchObject({ method: "GET" });
+    expect(apiClientMock.mock.calls[1]?.[1]).toMatchObject({
+      method: "POST",
+      body: JSON.stringify({ refresh: false }),
+    });
+    await waitFor(() => {
+    expect(screen.queryByTestId("mind-map-loading-state")).toBeNull();
+    });
+  });
 });
