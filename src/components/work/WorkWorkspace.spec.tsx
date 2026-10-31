@@ -2336,4 +2336,334 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       ).toBeGreaterThan(0);
     });
   });
+
+  it("supports Jira-style docked inline quick-create popovers (Type, Due date calendar, and Assignee) and sends exact POST payload", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const createdTaskId = "69e923c77859fd1c702d4cb8";
+    let capturedCreateBody: Record<string, unknown> | null = null;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: actorId,
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: actorId,
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: actorId,
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/sprints`)) {
+        return { items: [], nextCursor: null };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        capturedCreateBody = JSON.parse(String(init.body));
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-78",
+          title: String(capturedCreateBody?.title ?? ""),
+          description: null,
+          type: String(capturedCreateBody?.type ?? "TASK"),
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: (capturedCreateBody?.assigneeId as string | null) ?? null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: (capturedCreateBody?.dueDate as string | null) ?? null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: "69e923c77859fd1c702d4ca1",
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "Existing workspace item",
+              type: "TASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: actorId,
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+    expect(await screen.findByText("Existing workspace item")).toBeVisible();
+
+    // Open docked inline quick-create composer
+    fireEvent.click(screen.getByTestId("work-list-inline-create-trigger"));
+    expect(screen.getByTestId("work-list-inline-composer")).toBeVisible();
+
+    // 1. Select BUG via interactive Issue Type popover
+    fireEvent.click(screen.getByTestId("inline-create-type-trigger"));
+    fireEvent.click(screen.getByTestId("inline-create-type-option-BUG"));
+
+    // 2. Select 2026-12-20 via interactive Calendar Due Date popover
+    const dueWrapper = screen.getByTestId("inline-create-due-date-wrapper");
+    fireEvent.click(within(dueWrapper).getByRole("button"));
+    const calendarDialog = screen.getByRole("dialog", {
+      name: /Select due date for new work item/i,
+    });
+    fireEvent.change(
+      within(calendarDialog).getByRole("combobox", {
+        name: /Year for new work item/i,
+      }),
+      { target: { value: "2026" } },
+    );
+    fireEvent.change(
+      within(calendarDialog).getByRole("combobox", {
+        name: /Month for new work item/i,
+      }),
+      { target: { value: "11" } },
+    );
+    fireEvent.click(
+      within(calendarDialog).getByRole("button", {
+        name: "Set due date 2026-12-20",
+      }),
+    );
+
+    // 3. Assign to current user via interactive Assignee popover
+    fireEvent.click(screen.getByTestId("inline-create-assignee-trigger"));
+    fireEvent.click(screen.getByTestId("inline-create-assign-to-me"));
+
+    // 4. Enter summary & submit
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Fix docked composer keyboard focus" },
+    });
+    fireEvent.click(screen.getByTestId("inline-create-submit"));
+
+    await waitFor(() => {
+      expect(capturedCreateBody).toMatchObject({
+        title: "Fix docked composer keyboard focus",
+        type: "BUG",
+        assigneeId: actorId,
+        dueDate: "2026-12-20T00:00:00.000Z",
+      });
+    });
+    expect(await screen.findByText("FE-78")).toBeVisible();
+  });
+
+  it("shows an actionable Created <KEY> / View <KEY> toast after task creation and opens the full-page task editor when clicking View", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const createdTaskId = "69e923c77859fd1c702d4cb9";
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: actorId,
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/sprints`)) {
+        return { items: [], nextCursor: null };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-79",
+          title: "Upgrade Jira toast experience",
+          description: null,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path === `/tasks/projects/${realProjectId}/tasks/${createdTaskId}`) {
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-79",
+          title: "Upgrade Jira toast experience",
+          description: null,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/history`,
+        )
+      ) {
+        return {
+          data: [],
+          pagination: { page: 1, limit: 50, hasNext: false },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return { items: [], nextAfterId: null, nextCursor: null };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+    expect(
+      await screen.findByTestId("work-list-inline-create-trigger"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("work-list-inline-create-trigger"));
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Upgrade Jira toast experience" },
+    });
+    fireEvent.click(screen.getByTestId("inline-create-submit"));
+
+    // Verify Jira-style Created FE-79 / View FE-79 toast notification
+    const toast = await screen.findByTestId("created-task-toast");
+    await waitFor(() => {
+      expect(toast).toBeVisible();
+    });
+    expect(within(toast).getByText("Created FE-79")).toBeVisible();
+    const viewBtn = within(toast).getByRole("button", { name: "View FE-79" });
+    expect(viewBtn).toBeVisible();
+
+    // Clicking View FE-79 dismisses the toast and opens the full-page task detail editor
+    fireEvent.click(viewBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("created-task-toast")).not.toBeInTheDocument();
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Upgrade Jira toast experience",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    ).toBeVisible();
+  });
 });

@@ -72,7 +72,6 @@ type CalendarCell = Readonly<{
 
 function buildCalendarGrid(year: number, monthIndex: number): CalendarCell[] {
   const firstOfMonth = new Date(year, monthIndex, 1);
-  // Convert Sunday=0..Saturday=6 into Monday=0..Sunday=6
   const startOffset = (firstOfMonth.getDay() + 6) % 7;
   const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
   const daysInPrevMonth = new Date(year, monthIndex, 0).getDate();
@@ -124,6 +123,9 @@ export function WorkDatePickerCell({
   placeholder,
   disabled = false,
   align = "start",
+  compactEmpty = false,
+  variant = "cell",
+  ariaLabel,
   onChange,
 }: {
   value: string | null | undefined;
@@ -131,6 +133,9 @@ export function WorkDatePickerCell({
   placeholder?: string;
   disabled?: boolean;
   align?: "start" | "end";
+  compactEmpty?: boolean;
+  variant?: "cell" | "composer";
+  ariaLabel?: string;
   onChange?: (nextDate: string | null) => void;
 }) {
   const t = useTranslations("work");
@@ -140,9 +145,13 @@ export function WorkDatePickerCell({
   const monthNames = useMemo(() => {
     if (!isVi) return MONTH_NAMES;
     const fmt = new Intl.DateTimeFormat("vi-VN", { month: "long" });
-    return Array.from({ length: 12 }, (_, idx) => fmt.format(new Date(2026, idx, 1)));
+    return Array.from({ length: 12 }, (_, idx) =>
+      fmt.format(new Date(2026, idx, 1)),
+    );
   }, [isVi]);
-  const weekdayLabels = isVi ? (["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const) : WEEKDAY_LABELS;
+  const weekdayLabels = isVi
+    ? (["T2", "T3", "T4", "T5", "T6", "T7", "CN"] as const)
+    : WEEKDAY_LABELS;
   const [isOpen, setIsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const popoverRef = useRef<HTMLDivElement | null>(null);
@@ -282,6 +291,7 @@ export function WorkDatePickerCell({
 
   const normalizedValue = value ? value.slice(0, 10) : null;
   const isOverdue = Boolean(normalizedValue && normalizedValue < todayIso);
+  const canInteract = !disabled && Boolean(onChange);
 
   const popoverNode = isOpen ? (
     <div
@@ -289,7 +299,7 @@ export function WorkDatePickerCell({
       role="dialog"
       aria-label={`Select due date for ${itemKey}`}
       style={{ top: `${coords.top}px`, left: `${coords.left}px` }}
-      className="fixed z-[80] w-68 rounded-md border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+      className="fixed z-[85] w-68 rounded-md border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
     >
       {/* Month & Year Selector Header */}
       <div className="mb-2.5 flex items-center justify-between gap-1">
@@ -320,7 +330,7 @@ export function WorkDatePickerCell({
             aria-label={`Year for ${itemKey}`}
             value={viewYear}
             onChange={(e) => setViewYear(Number(e.target.value))}
-            className="h-7 cursor-pointer rounded border border-gray-200 bg-white px-1.5 text-xs font-semibold tabular-nums text-gray-800 outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
+            className="h-7 cursor-pointer rounded border border-gray-200 bg-white px-1.5 text-xs font-semibold text-gray-800 tabular-nums outline-none focus:border-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-100"
           >
             {yearOptions.map((y) => (
               <option key={y} value={y}>
@@ -341,7 +351,7 @@ export function WorkDatePickerCell({
       </div>
 
       {/* Weekday Header */}
-      <div className="mb-1 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+      <div className="mb-1 grid grid-cols-7 text-center text-[10px] font-semibold tracking-wide text-gray-400 uppercase dark:text-gray-500">
         {weekdayLabels.map((dayLabel) => (
           <span key={dayLabel} className="py-1">
             {dayLabel}
@@ -416,18 +426,50 @@ export function WorkDatePickerCell({
     </div>
   ) : null;
 
+  if (variant === "composer") {
+    const label = ariaLabel ?? `Due date for ${itemKey}`;
+    return (
+      <div className="relative inline-flex items-center">
+        <button
+          ref={triggerRef}
+          type="button"
+          disabled={!canInteract}
+          onClick={openPicker}
+          title={normalizedValue ?? label}
+          aria-label={label}
+          aria-expanded={isOpen}
+          className={`inline-flex h-7 cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded border text-xs tabular-nums transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+            normalizedValue
+              ? "border-brand-200 bg-brand-50 px-2 font-medium text-brand-700 hover:bg-brand-100/70 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300"
+              : isOpen
+                ? "w-7 border-brand-300 bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-300"
+                : "w-7 border-transparent text-gray-500 hover:border-gray-200 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+          }`}
+        >
+          <MonoIcon name="calendar" size={14} className="shrink-0" />
+          {normalizedValue && <span>{normalizedValue}</span>}
+        </button>
+
+        {isOpen &&
+          (typeof document !== "undefined"
+            ? createPortal(popoverNode, document.body)
+            : popoverNode)}
+      </div>
+    );
+  }
+
   return (
     <div className="relative inline-flex items-center">
       <button
         ref={triggerRef}
         type="button"
-        disabled={disabled || !onChange}
+        disabled={!canInteract}
         onClick={openPicker}
         title={`Click to change due date for ${itemKey}`}
         aria-label={`Due date for ${itemKey}`}
         aria-expanded={isOpen}
-        className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-1 text-xs tabular-nums transition ${
-          disabled || !onChange
+        className={`group/date inline-flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded px-1.5 py-0.5 text-xs tabular-nums transition ${
+          !canInteract
             ? "cursor-default"
             : "cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800"
         } ${
@@ -442,8 +484,41 @@ export function WorkDatePickerCell({
             : "text-gray-400 dark:text-gray-500"
         }`}
       >
-        <MonoIcon name="calendar" className="h-3.5 w-3.5 shrink-0 opacity-75" />
-        <span>{normalizedValue ?? resolvedPlaceholder}</span>
+        {normalizedValue ? (
+          <>
+            <MonoIcon
+              name="calendar"
+              className="h-3.5 w-3.5 shrink-0 opacity-75"
+            />
+            <span>{normalizedValue}</span>
+          </>
+        ) : compactEmpty ? (
+          <>
+            <span
+              className={
+                canInteract
+                  ? "text-gray-300 group-hover/date:hidden group-focus-visible/date:hidden dark:text-gray-600"
+                  : "text-gray-300 dark:text-gray-600"
+              }
+            >
+              —
+            </span>
+            {canInteract && (
+              <span className="hidden items-center gap-1 text-gray-500 group-hover/date:inline-flex group-focus-visible/date:inline-flex dark:text-gray-400">
+                <MonoIcon name="calendar" className="h-3.5 w-3.5 shrink-0" />
+                <span className="text-[11px]">{resolvedPlaceholder}</span>
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <MonoIcon
+              name="calendar"
+              className="h-3.5 w-3.5 shrink-0 opacity-75"
+            />
+            <span>{resolvedPlaceholder}</span>
+          </>
+        )}
       </button>
 
       {isOpen &&

@@ -17,6 +17,7 @@ import { BackgroundRefreshError, UpdatingStatus } from"@/components/ui/loading/A
 import { PlusIcon } from"@/icons";
 import WorkBoardView from"./WorkBoardView";
 import WorkCalendarView from"./WorkCalendarView";
+import { WorkCreatedTaskToast, type CreatedTaskToastData } from "./WorkCreatedTaskToast";
 import WorkItemCreateDialog from"./WorkItemCreateDialog";
 import WorkItemDetailDialog from"./WorkItemDetailDialog";
 import WorkListView from"./WorkListView";
@@ -358,6 +359,7 @@ export default function WorkWorkspace({
   const [highlightDoneRows, setHighlightDoneRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [createdTaskToast, setCreatedTaskToast] = useState<CreatedTaskToastData | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeWorkItemId, setActiveWorkItemId] = useState<string | null>(null);
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
@@ -1295,6 +1297,7 @@ export default function WorkWorkspace({
     const previousSelected = new Set(selectedIds);
     const existing = items.find((item) => item.id === id);
     const fromStatus = existing?.status ?? "TODO";
+    setCreatedTaskToast((curr) => (curr?.id === id ? null : curr));
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -1322,6 +1325,14 @@ export default function WorkWorkspace({
   function addPreviewItem(input: CreatePreviewWorkItem) {
     const targetStatus = input.status ?? "TODO";
     const tempId = `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const previewSequence =
+      items.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
+    if (!isRealProject) {
+      setCreatedTaskToast({
+        id: tempId,
+        key: `PREVIEW-${previewSequence}`,
+      });
+    }
     setItems((current) => {
       const sequence =
         current.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
@@ -1367,6 +1378,10 @@ export default function WorkWorkspace({
           });
           taskVersionsRef.current.set(created.id, created.version);
           resolvedIdsRef.current.set(tempId, created.id);
+          setCreatedTaskToast({
+            id: created.id,
+            key: created.key,
+          });
           setItems((current) =>
             current.map((item) =>
               item.id === tempId
@@ -2763,6 +2778,9 @@ export default function WorkWorkspace({
     const previousSelected = new Set(selectedIds);
     const affectedItems = itemsWithPermissions.filter((item) => !item.readOnly && selectedIds.has(item.id));
     const affectedIds = new Set(affectedItems.map((item) => item.id));
+    setCreatedTaskToast((curr) =>
+      curr && affectedIds.has(curr.id) ? null : curr,
+    );
     setItems((current) =>
       current.filter((item) => !affectedIds.has(item.id)),
     );
@@ -3255,9 +3273,13 @@ export default function WorkWorkspace({
               onInlineCreate={(title, type, options) =>
                 addPreviewItem({
                   title,
-                  type: type ??"TASK",
-                  priority:"MEDIUM",
-                  assignee: options?.assignee ?? defaultAssigneePerson,
+                  type: type ?? "TASK",
+                  priority: "MEDIUM",
+                  assignee:
+                    options?.assignee ??
+                    (isRealProject
+                      ? UNASSIGNED_WORK_PERSON
+                      : defaultAssigneePerson),
                   dueDate: options?.dueDate ?? null,
                 })
               }
@@ -3327,6 +3349,17 @@ export default function WorkWorkspace({
         people={projectPeople}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
+      />
+      <WorkCreatedTaskToast
+        toast={createdTaskToast}
+        onDismiss={() => setCreatedTaskToast(null)}
+        onViewTask={(taskId) => {
+          setCreatedTaskToast(null);
+          setActiveWorkItemId(null);
+          setActiveSubtaskId(null);
+          setFullPageSubtaskId(null);
+          setFullPageWorkItemId(taskId);
+        }}
       />
       {activeWorkItem && (
         <WorkItemDetailDialog
