@@ -1535,6 +1535,7 @@
     }
   },
   "notFound": {
+    "pageTitle": "Page not found",
     "error": "ERROR",
     "message": "We can’t seem to find the page you are looking for!",
     "backHome": "Back to Home Page"

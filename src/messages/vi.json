@@ -1535,6 +1535,7 @@
     }
   },
   "notFound": {
+    "pageTitle": "Không tìm thấy trang",
     "error": "LỖI",
     "message": "Không tìm thấy trang bạn đang yêu cầu!",
     "backHome": "Quay về trang chủ"

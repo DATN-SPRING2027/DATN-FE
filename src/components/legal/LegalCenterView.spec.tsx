@@ -113,6 +113,15 @@ describe("LegalCenterView", () => {
     );
   });
 
+  it("keeps the full legal operator name available on narrow screens", () => {
+    renderLegal("terms");
+
+    const operatorName = screen.getByText(enLegal.terms.operatorValue);
+
+    expect(operatorName).toHaveClass("min-w-0", "break-words");
+    expect(operatorName).not.toHaveClass("truncate");
+  });
+
   it("toggles between the Vietnamese governing original and English counterpart", () => {
     renderLegal("privacy");
 
