@@ -7,6 +7,7 @@ import {
   useState,
   type FormEvent,
   type KeyboardEvent,
+  type RefObject,
 } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -38,6 +39,7 @@ export interface AiChatComposerProps {
   isStreaming: boolean;
   disabled?: boolean;
   validationError: string | null;
+  inputRef?: RefObject<HTMLTextAreaElement | null>;
   isProjectMenuOpen?: boolean;
   onProjectMenuOpenChange?: (nextOpen: boolean) => void;
   onSelectProject?: (project: Project) => void;
@@ -57,6 +59,7 @@ export default function AiChatComposer({
   isStreaming,
   disabled = false,
   validationError,
+  inputRef,
   isProjectMenuOpen,
   onProjectMenuOpenChange,
   onSelectProject,
@@ -65,12 +68,22 @@ export default function AiChatComposer({
   onStopStreaming,
 }: AiChatComposerProps) {
   const t = useTranslations("AiChat");
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const internalTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const plusMenuRef = useRef<HTMLDivElement | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [uncontrolledProjectMenuOpen, setUncontrolledProjectMenuOpen] =
     useState(false);
+
+  const setTextareaRef = useCallback(
+    (node: HTMLTextAreaElement | null) => {
+      internalTextareaRef.current = node;
+      if (inputRef) {
+        inputRef.current = node;
+      }
+    },
+    [inputRef],
+  );
 
   const projectMenuOpen = isProjectMenuOpen ?? uncontrolledProjectMenuOpen;
   const setProjectMenuOpen = useCallback(
@@ -84,7 +97,7 @@ export default function AiChatComposer({
   );
 
   useEffect(() => {
-    const el = textareaRef.current;
+    const el = internalTextareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 144)}px`;
@@ -242,7 +255,7 @@ export default function AiChatComposer({
                   onClick={() => {
                     onChange(t("workChip1Prompt"));
                     setIsPlusMenuOpen(false);
-                    textareaRef.current?.focus();
+                    internalTextareaRef.current?.focus();
                   }}
                   className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
                 >
@@ -258,7 +271,7 @@ export default function AiChatComposer({
 
           {/* Center Auto-Expanding Textarea */}
           <textarea
-            ref={textareaRef}
+            ref={setTextareaRef}
             rows={1}
             value={value}
             disabled={disabled}

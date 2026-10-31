@@ -182,7 +182,8 @@ describe("AI Chat no-answer presentation", () => {
       id: "user-1",
       role: "user",
       status: "ok",
-      content: "Theo tài liệu 02_FRONTEND_NEXTJS.md, frontend dùng framework nào?",
+      content:
+        "Theo tài liệu 02_FRONTEND_NEXTJS.md, frontend dùng framework nào?",
       citations: [],
       sessionCitations: [],
       retrievalSteps: [],
@@ -313,7 +314,9 @@ describe("AI Chat no-answer presentation", () => {
       screen.getByRole("columnheader", { name: "Thành phần" }),
     ).toBeVisible();
     expect(screen.getByRole("cell", { name: /Next\.js/ })).toBeVisible();
-    expect(screen.getByText("Bước xác thực phiên").closest("ol")).not.toBeNull();
+    expect(
+      screen.getByText("Bước xác thực phiên").closest("ol"),
+    ).not.toBeNull();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -321,5 +324,269 @@ describe("AI Chat no-answer presentation", () => {
       }),
     );
     expect(onInspectEvidence).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders clickable Branched from divider at the branch point and hides in-place Regenerate on inherited messages", () => {
+    const onSelectParentThread = vi.fn();
+    const onBranchFromMessage = vi.fn();
+    const onRegenerateMessage = vi.fn();
+
+    const inheritedUser: DisplayAiChatMessage = {
+      id: "msg-u1",
+      role: "user",
+      status: "ok",
+      content: "Explain the BFF ACL boundary.",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T08:00:00Z",
+      isInherited: true,
+    };
+    const inheritedV1: DisplayAiChatMessage = {
+      id: "msg-a1-v1",
+      role: "assistant",
+      status: "ok",
+      answerStatus: "answered",
+      content: "Version 1 inherited answer.",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T08:00:05Z",
+      replyToMessageId: "msg-u1",
+      isInherited: true,
+    };
+    const inheritedV2: DisplayAiChatMessage = {
+      id: "msg-a1-v2",
+      role: "assistant",
+      status: "ok",
+      answerStatus: "answered",
+      content: "Version 2 inherited answer.",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T08:00:10Z",
+      replyToMessageId: "msg-u1",
+      regeneratedFromMessageId: "msg-a1-v1",
+      isInherited: true,
+    };
+    const ownFollowUpUser: DisplayAiChatMessage = {
+      id: "msg-u2",
+      role: "user",
+      status: "ok",
+      content: "What if we revoke membership?",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T08:05:00Z",
+      isInherited: false,
+    };
+    const ownFollowUpAssistant: DisplayAiChatMessage = {
+      id: "msg-a2",
+      role: "assistant",
+      status: "ok",
+      answerStatus: "answered",
+      content: "Live ACL blocks access immediately.",
+      citations: [],
+      sessionCitations: [],
+      retrievalSteps: [],
+      createdAt: "2026-10-30T08:05:06Z",
+      replyToMessageId: "msg-u2",
+      isInherited: false,
+    };
+
+    renderWithProviders(
+      <AiChatMessageList
+        organizationId="org-1"
+        projectId="project-1"
+        projectName="Continuum Core"
+        threadId="thread-branch-1"
+        activeThread={{
+          id: "thread-branch-1",
+          title: "Branch · Security Review",
+          createdAt: "2026-10-30T08:02:00Z",
+          updatedAt: "2026-10-30T08:05:06Z",
+          isBranched: true,
+          parentThreadId: "thread-parent",
+          parentThreadTitle: "Security Review",
+          branchPointMessageId: "msg-a1-v2",
+        }}
+        mode="chat"
+        messages={[
+          inheritedUser,
+          inheritedV1,
+          inheritedV2,
+          ownFollowUpUser,
+          ownFollowUpAssistant,
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onRegenerateMessage={onRegenerateMessage}
+        onBranchFromMessage={onBranchFromMessage}
+        onSelectParentThread={onSelectParentThread}
+        onInspectEvidence={vi.fn()}
+        onJumpToTurn={vi.fn()}
+      />,
+      "en",
+    );
+
+    // Only own non-inherited assistant turn has Try again; inherited turn hides in-place regenerate
+    const tryAgainButtons = screen.getAllByRole("button", {
+      name: en.AiChat.tryAgainAction,
+    });
+    expect(tryAgainButtons).toHaveLength(1);
+
+    // Inline Branched from pill navigates back to parent thread
+    const parentLinkBtn = screen.getByRole("button", {
+      name: "Open original conversation: Security Review",
+    });
+    expect(parentLinkBtn).toHaveTextContent("Branched from Security Review");
+    fireEvent.click(parentLinkBtn);
+    expect(onSelectParentThread).toHaveBeenCalledWith("thread-parent");
+
+    // Switching < 2 / 2 > -> < 1 / 2 > on inherited turn and branching locks onto msg-a1-v1!
+    fireEvent.click(
+      screen.getByRole("button", { name: en.AiChat.previousVersionAria }),
+    );
+    expect(screen.getByText("Version 1 inherited answer.")).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("ai-chat-more-actions-msg-a1-v1"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: en.AiChat.branchInNewChatAction }),
+    );
+    expect(onBranchFromMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "msg-a1-v1" }),
+    );
+  });
+
+  it("renders non-clickable tombstone fallback when parentThreadId is null on a branched thread", () => {
+    renderWithProviders(
+      <AiChatMessageList
+        organizationId="org-1"
+        projectId="project-1"
+        threadId="thread-orphan-branch"
+        activeThread={{
+          id: "thread-orphan-branch",
+          title: "Branch · Deleted Original",
+          createdAt: "2026-10-30T08:02:00Z",
+          updatedAt: "2026-10-30T08:02:00Z",
+          isBranched: true,
+          parentThreadId: null,
+          parentThreadTitle: null,
+          branchPointMessageId: "assistant-1",
+        }}
+        mode="chat"
+        messages={[
+          {
+            ...assistant,
+            answerStatus: "answered",
+            content: "Inherited turn.",
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onSelectParentThread={vi.fn()}
+        onInspectEvidence={vi.fn()}
+        onJumpToTurn={vi.fn()}
+      />,
+      "en",
+    );
+
+    const divider = screen.getByTestId("ai-chat-branch-divider");
+    expect(divider).toHaveTextContent(en.AiChat.branchedFromDeletedChat);
+    expect(divider.querySelector("button")).toBeNull();
+  });
+
+  it("places the Branched from divider after the last inherited turn when branchPointMessageId is redacted or absent", () => {
+    renderWithProviders(
+      <AiChatMessageList
+        organizationId="org-1"
+        projectId="project-1"
+        threadId="thread-redacted-branch"
+        activeThread={{
+          id: "thread-redacted-branch",
+          title: "Branch · Redacted Point",
+          createdAt: "2026-10-30T08:02:00Z",
+          updatedAt: "2026-10-30T08:05:00Z",
+          isBranched: true,
+          parentThreadId: "thread-parent",
+          parentThreadTitle: "Parent Chat",
+          branchPointMessageId: "msg-missing-redacted",
+        }}
+        mode="chat"
+        messages={[
+          {
+            id: "msg-inh-u1",
+            role: "user",
+            status: "ok",
+            content: "Inherited question",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:00:00Z",
+            isInherited: true,
+          },
+          {
+            id: "msg-inh-a1",
+            role: "assistant",
+            status: "ok",
+            answerStatus: "answered",
+            content: "Inherited answer before branch",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:00:03Z",
+            replyToMessageId: "msg-inh-u1",
+            isInherited: true,
+          },
+          {
+            id: "msg-own-u2",
+            role: "user",
+            status: "ok",
+            content: "New follow-up in branch",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:05:00Z",
+            isInherited: false,
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onSelectParentThread={vi.fn()}
+        onInspectEvidence={vi.fn()}
+        onJumpToTurn={vi.fn()}
+      />,
+      "en",
+    );
+
+    const inhTurn = document.getElementById("ai-chat-turn-msg-inh-a1")!;
+    const divider = screen.getByTestId("ai-chat-branch-divider");
+    const ownTurn = document.getElementById("ai-chat-turn-msg-own-u2")!;
+    expect(
+      inhTurn.compareDocumentPosition(divider) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      divider.compareDocumentPosition(ownTurn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });
