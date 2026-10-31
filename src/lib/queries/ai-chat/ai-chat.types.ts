@@ -32,7 +32,11 @@ export type AiChatSessionCitation = Readonly<{
   claimLevel?: "claim" | "run";
 }>;
 
+export type AiChatStepStatus = "running" | "completed" | "failed";
+
 export type AiChatRetrievalStep = Readonly<{
+  id?: string;
+  status?: AiChatStepStatus;
   kind: "session_context" | "tool" | "thinking" | "answer";
   label: string;
   durationMs: number;
@@ -149,4 +153,45 @@ export type AiSharedAnswer = Readonly<{
   share: AiAnswerShare;
   question: AiSharedQuestion;
   answer: AiPublicAnswer;
+}>;
+
+export type AiChatMindMapStatus = "ready" | "empty";
+
+export type AiChatMindMapGenerationMode =
+  | "llm"
+  | "outline_fallback"
+  | "none";
+
+export type AiChatMindMapFallbackReason =
+  | "LLM_UNAVAILABLE"
+  | "LLM_INVALID_OUTPUT";
+
+export type AiChatMindMapCoverage = Readonly<{
+  accessibleReadyDocumentCount: number;
+  usedDocumentCount: number;
+  omittedDocumentCount: number;
+  pendingDocumentCount: number;
+  truncatedDocumentCount: number;
+  evidenceUnitCount: number;
+}>;
+
+export type AiChatMindMapNode = Readonly<{
+  id: string;
+  label: string;
+  summary: string | null;
+  citationNumbers: readonly number[];
+  children: readonly AiChatMindMapNode[];
+}>;
+
+export type AiChatMindMapResponse = Readonly<{
+  projectId: string;
+  topic: string | null;
+  status: AiChatMindMapStatus;
+  generationMode: AiChatMindMapGenerationMode;
+  fallbackReason: AiChatMindMapFallbackReason | null;
+  scopeFingerprint: string;
+  coverage: AiChatMindMapCoverage;
+  tree: AiChatMindMapNode | null;
+  citations: readonly AiChatCitation[];
+  generatedAt: string;
 }>;

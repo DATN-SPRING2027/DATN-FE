@@ -21,6 +21,28 @@ export interface AiChatActivityProgressProps {
   defaultExpanded?: boolean;
 }
 
+type CanonicalToolKey =
+  | "activityToolSearchContext"
+  | "activityToolGetEntity"
+  | "activityToolSearchTimeline"
+  | "activityToolWebSearch"
+  | "activityToolOpenUrl";
+
+const CANONICAL_TOOL_LABEL_KEYS: Readonly<Record<string, CanonicalToolKey>> = {
+  "Tìm trong kho tri thức": "activityToolSearchContext",
+  "Tìm kiếm kho tri thức": "activityToolSearchContext",
+  "Knowledge Retrieval": "activityToolSearchContext",
+  search_context: "activityToolSearchContext",
+  "Tra cứu thực thể": "activityToolGetEntity",
+  get_entity: "activityToolGetEntity",
+  "Tra cứu thời gian": "activityToolSearchTimeline",
+  search_timeline: "activityToolSearchTimeline",
+  "Tìm kiếm Internet": "activityToolWebSearch",
+  web_search: "activityToolWebSearch",
+  "Mở trang web": "activityToolOpenUrl",
+  open_url: "activityToolOpenUrl",
+};
+
 function ActivityText({ text }: { text: string }) {
   const [characters, setCharacters] = useState(0);
   useEffect(() => {
@@ -51,6 +73,22 @@ function ActivityText({ text }: { text: string }) {
   );
 }
 
+type DisplayStepStatus = "running" | "completed" | "failed" | "stopped";
+
+function resolveEffectiveStepStatus(
+  step: AiChatRetrievalStep,
+  isStreaming: boolean,
+  turnStatus: "ok" | "failed" | "cancelled",
+): DisplayStepStatus {
+  if (step.status === "failed") return "failed";
+  if (step.status === "running") {
+    if (isStreaming) return "running";
+    if (turnStatus === "failed") return "failed";
+    if (turnStatus === "cancelled") return "stopped";
+  }
+  return "completed";
+}
+
 export default function AiChatActivityProgress({
   isStreaming,
   hasContent,
@@ -76,6 +114,15 @@ export default function AiChatActivityProgress({
 
   if (!isStreaming && steps.length === 0 && startedAt === undefined)
     return null;
+
+  const resolveStepTitle = (step: AiChatRetrievalStep): string => {
+    if (step.kind === "thinking") return t("activityStepThinking");
+    if (step.kind === "session_context") return t("activityStepSessionContext");
+    if (step.kind === "answer") return t("activityStepAnswer");
+    const canonicalKey = CANONICAL_TOOL_LABEL_KEYS[step.label.trim()];
+    return canonicalKey ? t(canonicalKey) : step.label;
+  };
+
   const seconds = Math.floor(
     (finishedAt !== undefined && startedAt !== undefined
       ? Math.max(0, finishedAt - startedAt)
@@ -91,17 +138,30 @@ export default function AiChatActivityProgress({
           : startedAt !== undefined
             ? t("activityProcessed")
             : t("activityHistory");
+
+  const activeRunningStep = isStreaming
+    ? [...steps].reverse().find((step) => step.status === "running")
+    : undefined;
+
   const stage = hasContent
     ? t("activityWriting")
-    : steps.some((step) => step.kind === "tool")
-      ? t("activityToolResults")
-      : steps.some((step) => step.kind === "session_context")
-        ? t("activityContext")
-        : t("activityPreparing");
+    : activeRunningStep?.kind === "tool"
+      ? t("activityRunningTool", { tool: resolveStepTitle(activeRunningStep) })
+      : activeRunningStep?.kind === "answer"
+        ? t("activitySynthesizing")
+        : activeRunningStep?.kind === "thinking"
+          ? t("activityPlanning")
+          : steps.some((step) => step.kind === "answer")
+            ? t("activitySynthesizing")
+            : steps.some((step) => step.kind === "tool")
+              ? t("activityToolResults")
+              : steps.some((step) => step.kind === "session_context")
+                ? t("activityContext")
+                : t("activityPreparing");
 
   return (
     <section
-      className="min-w-0 rounded-xl bg-gray-50/80 dark:bg-gpt-sidebar"
+      className="min-w-0 rounded-xl border border-gray-200/70 bg-gray-50/80 dark:border-white/10 dark:bg-gpt-sidebar"
       aria-label={t("activityAriaLabel")}
       aria-busy={isStreaming}
     >
@@ -115,7 +175,7 @@ export default function AiChatActivityProgress({
         {isStreaming ? (
           <span
             aria-hidden="true"
-            className="size-1.5 shrink-0 rounded-full bg-brand-500 motion-safe:animate-pulse"
+            className="size-2 shrink-0 rounded-full bg-brand-500 motion-safe:animate-pulse dark:bg-brand-400"
           />
         ) : status === "failed" ? (
           <AlertIcon
@@ -123,9 +183,15 @@ export default function AiChatActivityProgress({
             className="size-3.5 shrink-0 text-error-600 dark:text-error-400"
           />
         ) : status === "cancelled" ? (
-          <StopSquareIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <StopSquareIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+          />
         ) : (
-          <CheckLineIcon aria-hidden="true" className="size-3.5 shrink-0" />
+          <CheckLineIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-success-600 dark:text-success-400"
+          />
         )}
         <span>{title}</span>
         {startedAt !== undefined && (
@@ -136,7 +202,7 @@ export default function AiChatActivityProgress({
         <ChevronDownIcon
           aria-hidden="true"
           className={cn(
-            "size-3.5 shrink-0 transition-transform motion-reduce:transition-none",
+            "ms-auto size-3.5 shrink-0 text-gray-500 transition-transform motion-reduce:transition-none dark:text-gray-400",
             isOpen && "rotate-180",
           )}
         />
@@ -147,31 +213,103 @@ export default function AiChatActivityProgress({
         className="min-w-0 space-y-3 px-4 pt-1 pb-3 text-sm leading-6 text-gray-700 dark:text-gray-300"
       >
         {steps.length > 0 && (
-          <ol className="space-y-2 border-s border-gray-200 ps-3 dark:border-gray-700">
-            {steps.map((step, index) => (
-              <li key={`${index}-${step.kind}`} className="min-w-0 space-y-0.5">
-                <p className="[overflow-wrap:anywhere] break-words">
-                  {step.kind === "thinking"
-                    ? t("activityPreparing")
-                    : step.label}
-                </p>
-                <p className="flex flex-wrap gap-x-2 text-xs text-gray-600 tabular-nums dark:text-gray-400">
-                  <span>{t("activityStepCompleted")}</span>
-                  <span>
-                    {t("retrievalStepDuration", { ms: step.durationMs })}
-                  </span>
-                  {step.count !== undefined && (
-                    <span>
-                      {t("retrievalStepCount", { count: step.count })}
-                    </span>
-                  )}
-                </p>
-              </li>
-            ))}
+          <ol className="space-y-2.5 border-s border-gray-200 ps-3.5 dark:border-white/10">
+            {steps.map((step, index) => {
+              const stepStatus = resolveEffectiveStepStatus(
+                step,
+                isStreaming,
+                status,
+              );
+              const stepTitle = resolveStepTitle(step);
+              const showDuration =
+                stepStatus !== "running" || step.durationMs > 0;
+
+              return (
+                <li
+                  key={step.id ?? `${index}-${step.kind}`}
+                  data-step-status={stepStatus}
+                  className="min-w-0"
+                >
+                  <div className="flex items-start gap-2">
+                    {stepStatus === "running" ? (
+                      <span
+                        aria-hidden="true"
+                        className="mt-1.5 inline-block size-2 shrink-0 rounded-full bg-brand-500 ring-4 ring-brand-500/15 motion-safe:animate-pulse dark:bg-brand-400 dark:ring-brand-400/20"
+                      />
+                    ) : stepStatus === "failed" ? (
+                      <AlertIcon
+                        aria-hidden="true"
+                        className="mt-0.5 size-3.5 shrink-0 text-error-600 dark:text-error-400"
+                      />
+                    ) : stepStatus === "stopped" ? (
+                      <StopSquareIcon
+                        aria-hidden="true"
+                        className="mt-0.5 size-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+                      />
+                    ) : (
+                      <CheckLineIcon
+                        aria-hidden="true"
+                        className="mt-1 size-3.5 shrink-0 text-success-600 dark:text-success-400"
+                      />
+                    )}
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p
+                        className={cn(
+                          "[overflow-wrap:anywhere] break-words text-sm leading-5 font-medium",
+                          stepStatus === "running"
+                            ? "text-gray-900 dark:text-white"
+                            : stepStatus === "failed"
+                              ? "text-error-700 dark:text-error-300"
+                              : "text-gray-800 dark:text-gray-200",
+                        )}
+                      >
+                        {stepTitle}
+                      </p>
+                      <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs leading-4 text-gray-600 tabular-nums dark:text-gray-400">
+                        <span
+                          className={cn(
+                            stepStatus === "running" &&
+                              "font-medium text-brand-600 dark:text-brand-300",
+                            stepStatus === "failed" &&
+                              "font-medium text-error-600 dark:text-error-400",
+                          )}
+                        >
+                          {stepStatus === "running"
+                            ? t("activityStepRunning")
+                            : stepStatus === "failed"
+                              ? t("activityStepFailed")
+                              : stepStatus === "stopped"
+                                ? t("statusCancelled")
+                                : t("activityStepCompleted")}
+                        </span>
+                        {showDuration && (
+                          <span>
+                            {t("retrievalStepDuration", {
+                              ms: step.durationMs,
+                            })}
+                          </span>
+                        )}
+                        {step.count !== undefined && (
+                          <span>
+                            {t("retrievalStepCount", { count: step.count })}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
           </ol>
         )}
         {isStreaming && (
-          <p className="min-h-6 break-words">
+          <p
+            className={cn(
+              "min-h-6 break-words text-xs font-medium text-gray-600 dark:text-gray-300",
+              steps.length > 0 &&
+                "border-t border-gray-200/60 pt-2 dark:border-white/8",
+            )}
+          >
             <ActivityText key={stage} text={stage} />
           </p>
         )}
