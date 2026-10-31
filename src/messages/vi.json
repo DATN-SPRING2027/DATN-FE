@@ -166,7 +166,8 @@
       },
       "services": {
         "title": "Vận hành dịch vụ",
-        "description": "Chức năng kiểm tra trạng thái vận hành hiện chỉ báo cáo tình trạng phản hồi tiến trình IAM."
+        "description": "Chức năng kiểm tra trạng thái vận hành hiện chỉ báo cáo tình trạng phản hồi tiến trình IAM.",
+        "permissionNeeded": "Kiểm tra trạng thái dịch vụ yêu cầu quyền đọc trạng thái vận hành nền tảng tương ứng."
       },
       "jobs": {
         "title": "Tác vụ & hàng đợi",
@@ -1363,7 +1364,20 @@
     "onboardingCheckAgain": "Kiểm tra lại",
     "onboardingActionError": "Không thể tiếp tục",
     "onboardingActionErrorDetail": "Vui lòng kiểm tra thông tin tổ chức hoặc thử lại sau.",
-    "onboardingSignOut": "Đăng xuất"
+    "onboardingSignOut": "Đăng xuất",
+    "onboardingBackToOrganizations": "Quay lại danh sách tổ chức",
+    "onboardingPreviewRole": "Quản lý",
+    "onboardingSlugChecking": "Đang kiểm tra…",
+    "onboardingSlugTakenBadge": "Đã tồn tại",
+    "onboardingSlugInvalidBadge": "Không hợp lệ",
+    "onboardingSlugValidBadge": "Khả dụng",
+    "onboardingSlugTakenError": "Định danh URL này đã được sử dụng. Vui lòng chọn tên khác.",
+    "onboardingSlugAvailableHint": "continuum.ai/{slug} có thể sử dụng.",
+    "onboardingSlugErrorEmpty": "Vui lòng nhập định danh URL của tổ chức.",
+    "onboardingSlugErrorUppercase": "Chỉ sử dụng chữ cái viết thường.",
+    "onboardingSlugErrorChars": "Chỉ sử dụng chữ cái viết thường, chữ số và dấu gạch ngang đơn.",
+    "onboardingSlugErrorHyphenEdge": "Không được bắt đầu hoặc kết thúc bằng dấu gạch ngang.",
+    "onboardingSlugErrorHyphenDouble": "Không được chứa hai dấu gạch ngang liên tiếp (--)."
   },
   "users": {
     "title": "Người dùng",
@@ -1410,7 +1424,8 @@
     "invitationsEmpty": "Hiện không có lời mời nào đang chờ.",
     "invitationRoleExpiry": "Vai trò: {role} · Hết hạn {date}",
     "revokeInvitation": "Thu hồi",
-    "invitationRevokeError": "Không thể thu hồi lời mời này. Lời mời có thể đã được chấp nhận, hết hạn hoặc bị thu hồi trước đó."
+    "invitationRevokeError": "Không thể thu hồi lời mời này. Lời mời có thể đã được chấp nhận, hết hạn hoặc bị thu hồi trước đó.",
+    "retry": "Thử lại"
   },
   "ecommerce": {
     "title": "Bảng điều khiển Thương mại điện tử",
@@ -2718,7 +2733,13 @@
       "slashChecklist": "Danh sách việc cần kiểm tra",
       "slashCodeBlock": "Khối mã nguồn",
       "createdAnotherNotice": "Đã tạo hạng mục công việc — sẵn sàng nhập mục tiếp theo.",
-      "ctrlEnterHint": "Nhấn Ctrl + Enter để tạo nhanh"
+      "ctrlEnterHint": "Nhấn Ctrl + Enter để tạo nhanh",
+      "devGitTitle": "Phát triển · Lệnh Git",
+      "devGitHint": "Sao chép nhanh lệnh tạo nhánh Git và tạo commit chuẩn theo mã hạng mục để dán vào terminal.",
+      "devBranchLabel": "Tạo nhánh Git",
+      "devCommitLabel": "Tạo Git commit",
+      "devCopyBtn": "Sao chép",
+      "devCopiedBtn": "Đã chép"
     },
     "detail": {
       "splitResizeAria": "Kéo để thay đổi chiều ngang giữa Task và Ghi chú",
@@ -5523,7 +5544,8 @@
       "emptyTitle": "Chưa có gói bàn giao tri thức nào",
       "emptyBody": "Khởi tạo gói bàn giao có cấu trúc khi thành viên luân chuyển hoặc rời dự án để tri thức nghiệp vụ trọng yếu, tài liệu vận hành và các công việc đang chạy được xác minh trước khi chuyển giao.",
       "noMatchesTitle": "Không có gói bàn giao nào khớp với bộ lọc",
-      "noMatchesBody": "Hãy xóa từ khóa tìm kiếm hoặc đổi bộ lọc trạng thái để kiểm tra các bản ghi bàn giao khác."
+      "noMatchesBody": "Hãy xóa từ khóa tìm kiếm hoặc đổi bộ lọc trạng thái để kiểm tra các bản ghi bàn giao khác.",
+      "loadingTitle": "Đang tải danh sách bàn giao tri thức…"
     },
     "createModal": {
       "title": "Tạo gói bàn giao tri thức",
@@ -5666,7 +5688,8 @@
       "dueInDays": "còn {days} ngày",
       "dueToday": "Đến hạn hôm nay",
       "dueOverdueDays": "Quá hạn {days} ngày",
-      "manualLeaderIdPlaceholder": "Nhập ID người dùng Trưởng nhóm"
+      "manualLeaderIdPlaceholder": "Nhập ID người dùng Trưởng nhóm",
+      "loadingTitle": "Đang tải không gian bàn giao…"
     },
     "draft": {
       "title": "Biên soạn bản nháp & Hỗ trợ AI",

@@ -15,7 +15,6 @@ import {
 } from"./work-types";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 
-const WIP_LIMIT_IN_PROGRESS = 4;
 const UNASSIGNED_PERSON: WorkPerson = {
   id: "unassigned",
   name: "Unassigned",
@@ -291,10 +290,10 @@ export default function WorkBoardView({
           </div>
           <div className="border border-gray-200 bg-white p-3 dark:border-gray-800 dark:bg-gray-900">
             <p className="text-xs font-semibold text-gray-900 dark:text-white">
-              Work in progress limit
+              Work in progress
             </p>
             <p className="mt-1 text-xs text-gray-700 dark:text-gray-300">
-              Max {WIP_LIMIT_IN_PROGRESS} items in In Progress column
+              {items.filter((i) => i.status === "IN_PROGRESS").length} active items in In Progress column
             </p>
           </div>
         </div>
@@ -355,9 +354,6 @@ export default function WorkBoardView({
               )
             : [];
           const totalColumnCards = columnItems.length + columnSubtasks.length;
-          const isWipExceeded =
-            status ==="IN_PROGRESS"&&
-            columnItems.length > WIP_LIMIT_IN_PROGRESS;
           const isDragOver = dragOverColumn === status;
           const isCollapsed = collapsedColumns.has(status);
 
@@ -393,9 +389,7 @@ export default function WorkBoardView({
               className={`min-w-0 rounded-lg p-2.5 transition ${
                 isDragOver
                   ? "bg-brand-50/70 ring-2 ring-brand-500 dark:bg-brand-500/15"
-                  : isWipExceeded
-                    ? "bg-error-50/60 ring-1 ring-error-300 dark:bg-error-500/10"
-                    : "bg-gray-100/80 dark:bg-gray-800/60"
+                  : "bg-gray-100/80 dark:bg-gray-800/60"
               }`}
             >
               <div className="flex items-center justify-between px-1 pb-2">
@@ -407,17 +401,6 @@ export default function WorkBoardView({
                   <span className="rounded bg-white px-1.5 py-0.5 text-[11px] font-semibold text-gray-600 dark:bg-gray-900 dark:text-gray-300">
                     {totalColumnCards}
                   </span>
-                  {status === "IN_PROGRESS" && (
-                    <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
-                        isWipExceeded
-                          ? "bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-300"
-                          : "bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-                      }`}
-                    >
-                      MAX {WIP_LIMIT_IN_PROGRESS}
-                    </span>
-                  )}
                 </h2>
                 <button
                   type="button"

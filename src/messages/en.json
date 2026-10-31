@@ -166,7 +166,8 @@
       },
       "services": {
         "title": "Service operations",
-        "description": "The current health capability reports IAM process liveness only."
+        "description": "The current health capability reports IAM process liveness only.",
+        "permissionNeeded": "Service health inspection requires the exact Platform health read permission."
       },
       "jobs": {
         "title": "Jobs & queues",
@@ -1363,7 +1364,20 @@
     "onboardingCheckAgain": "Check again",
     "onboardingActionError": "Could not continue",
     "onboardingActionErrorDetail": "Check the organization details or try again later.",
-    "onboardingSignOut": "Sign out"
+    "onboardingSignOut": "Sign out",
+    "onboardingBackToOrganizations": "Back to organizations",
+    "onboardingPreviewRole": "Manager",
+    "onboardingSlugChecking": "Checking…",
+    "onboardingSlugTakenBadge": "Taken",
+    "onboardingSlugInvalidBadge": "Invalid",
+    "onboardingSlugValidBadge": "Available",
+    "onboardingSlugTakenError": "This organization URL name is already taken. Try another one.",
+    "onboardingSlugAvailableHint": "continuum.ai/{slug} is available.",
+    "onboardingSlugErrorEmpty": "Enter an organization URL name.",
+    "onboardingSlugErrorUppercase": "Use lowercase letters only.",
+    "onboardingSlugErrorChars": "Use only lowercase letters, numbers, and single hyphens.",
+    "onboardingSlugErrorHyphenEdge": "Cannot start or end with a hyphen.",
+    "onboardingSlugErrorHyphenDouble": "Cannot contain consecutive hyphens (--)."
   },
   "users": {
     "title": "Users",
@@ -1410,7 +1424,8 @@
     "invitationsEmpty": "There are no pending invitations.",
     "invitationRoleExpiry": "Role: {role} · Expires {date}",
     "revokeInvitation": "Revoke",
-    "invitationRevokeError": "Could not revoke this invitation. It may already be accepted, expired, or revoked."
+    "invitationRevokeError": "Could not revoke this invitation. It may already be accepted, expired, or revoked.",
+    "retry": "Retry"
   },
   "ecommerce": {
     "title": "E-commerce Dashboard",
@@ -2718,7 +2733,13 @@
       "slashChecklist": "Action checklist",
       "slashCodeBlock": "Code snippet",
       "createdAnotherNotice": "Created work item — ready for the next one.",
-      "ctrlEnterHint": "Ctrl + Enter to create"
+      "ctrlEnterHint": "Ctrl + Enter to create",
+      "devGitTitle": "Development · Git CLI",
+      "devGitHint": "Copy ready-to-use Git branch and commit commands for this work item to paste into your terminal.",
+      "devBranchLabel": "Create Git branch",
+      "devCommitLabel": "Create Git commit",
+      "devCopyBtn": "Copy",
+      "devCopiedBtn": "Copied"
     },
     "detail": {
       "splitResizeAria": "Drag to resize width between Task and Note",
@@ -5523,7 +5544,8 @@
       "emptyTitle": "No knowledge handovers yet",
       "emptyBody": "Start a structured handover when a member rotates or departs so critical domain knowledge, runbooks, and active tasks are verified before transition.",
       "noMatchesTitle": "No handovers match your filters",
-      "noMatchesBody": "Try clearing the search query or switching the status filter to inspect other handover records."
+      "noMatchesBody": "Try clearing the search query or switching the status filter to inspect other handover records.",
+      "loadingTitle": "Loading knowledge handovers…"
     },
     "createModal": {
       "title": "Create Knowledge Handover",
@@ -5666,7 +5688,8 @@
       "dueInDays": "in {days}d",
       "dueToday": "Due today",
       "dueOverdueDays": "{days}d overdue",
-      "manualLeaderIdPlaceholder": "Enter Leader user ID"
+      "manualLeaderIdPlaceholder": "Enter Leader user ID",
+      "loadingTitle": "Loading handover workspace…"
     },
     "draft": {
       "title": "Draft Curation & AI Assist",
