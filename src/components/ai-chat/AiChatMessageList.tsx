@@ -30,6 +30,7 @@ import {
   isPersistedMessageId,
 } from "./answer-action-utils";
 import {
+  buildProjectDocumentHref,
   isContinuumDocumentId,
   resolveSessionCitationPreview,
   tokenizeTextWithCitations,
@@ -51,7 +52,13 @@ export type DisplayAiChatMessage = AiChatMessage & {
 };
 
 export type InspectedEvidence =
-  | Readonly<{ kind: "document"; citation: AiChatCitation }>
+  | Readonly<{
+      kind: "document";
+      citation: AiChatCitation;
+      focusLabel?: string;
+      focusTerms?: readonly string[];
+      relatedCitations?: readonly AiChatCitation[];
+    }>
   | Readonly<{ kind: "session"; sessionCitation: AiChatSessionCitation }>;
 
 export interface AiChatMessageListProps {
@@ -546,7 +553,7 @@ export default function AiChatMessageList({
     <div
       ref={scrollContainerRef}
       data-ai-chat-scroll-region
-      className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6"
+      className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-6"
     >
       <div className="mx-auto max-w-3xl space-y-7">
         {hasOlderMessages && (
@@ -615,7 +622,14 @@ export default function AiChatMessageList({
                 (cit) => cit.number === item.number,
               );
               if (found) {
-                onInspectEvidence({ kind: "document", citation: found });
+                onInspectEvidence({
+                  kind: "document",
+                  citation: found,
+                  relatedCitations: message.citations,
+                  focusTerms: turn.questionMessage?.content
+                    ? [turn.questionMessage.content]
+                    : undefined,
+                });
               }
             } else {
               const foundSession = message.sessionCitations.find(
@@ -865,6 +879,10 @@ export default function AiChatMessageList({
                                 onInspectEvidence({
                                   kind: "document",
                                   citation: cit,
+                                  relatedCitations: message.citations,
+                                  focusTerms: turn.questionMessage?.content
+                                    ? [turn.questionMessage.content]
+                                    : undefined,
                                 })
                               }
                               className="font-medium text-brand-600 hover:underline dark:text-brand-400"
@@ -874,11 +892,10 @@ export default function AiChatMessageList({
 
                             {canDeepLink && (
                               <Link
-                                href={`/projects/${encodeURIComponent(
+                                href={buildProjectDocumentHref(
                                   projectId,
-                                )}/documents/${encodeURIComponent(
                                   cit.documentId,
-                                )}`}
+                                )}
                                 className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                               >
                                 <span>{t("openDocumentLink")}</span>

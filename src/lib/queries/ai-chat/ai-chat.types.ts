@@ -10,9 +10,12 @@ export type AiChatCitation = Readonly<{
   sourceId: string;
   sourceName?: string;
   documentId: string;
+  sagDocumentId?: string;
   documentName?: string;
   versionNo?: number;
+  chunkId?: string;
   heading?: string;
+  sectionPath?: string;
   snippet?: string;
   label?: string;
   pageFrom?: number;
@@ -155,7 +158,7 @@ export type AiSharedAnswer = Readonly<{
   answer: AiPublicAnswer;
 }>;
 
-export type AiChatMindMapStatus = "ready" | "empty";
+export type AiChatMindMapStatus = "ready" | "empty" | "uninitialized";
 
 export type AiChatMindMapGenerationMode =
   | "llm"
@@ -190,6 +193,8 @@ export type AiChatMindMapResponse = Readonly<{
   generationMode: AiChatMindMapGenerationMode;
   fallbackReason: AiChatMindMapFallbackReason | null;
   scopeFingerprint: string;
+  cached?: boolean;
+  hasSourceUpdates?: boolean;
   coverage: AiChatMindMapCoverage;
   tree: AiChatMindMapNode | null;
   citations: readonly AiChatCitation[];

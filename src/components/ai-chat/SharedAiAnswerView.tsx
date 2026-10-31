@@ -8,9 +8,7 @@ import {
   ArrowRightIcon,
   CheckLineIcon,
   ChevronLeftIcon,
-  CloseLineIcon,
   CopyIcon,
-  DocsIcon,
   LockIcon,
   ShootingStarIcon,
   StopSquareIcon,
@@ -21,7 +19,11 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useSharedAiAnswerQuery } from "@/lib/queries/ai-chat/useAiAnswerActions";
 import type { AiChatCitation } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
-import { isContinuumDocumentId } from "./citation-utils";
+import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
+import {
+  buildProjectDocumentHref,
+  isContinuumDocumentId,
+} from "./citation-utils";
 import { useLocalSpeech } from "./useLocalSpeech";
 
 export interface SharedAiAnswerViewProps {
@@ -327,9 +329,10 @@ export default function SharedAiAnswerView({
                         </button>
                         {canDeepLink && (
                           <Link
-                            href={`/projects/${encodeURIComponent(
+                            href={buildProjectDocumentHref(
                               projectId,
-                            )}/documents/${encodeURIComponent(cit.documentId)}`}
+                              cit.documentId,
+                            )}
                             className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                           >
                             <span>{t("openDocumentLink")}</span>
@@ -349,47 +352,22 @@ export default function SharedAiAnswerView({
         </article>
       </section>
 
-      {inspectedCitation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label={t("closeDialog")}
-            onClick={() => setInspectedCitation(null)}
-            className="fixed inset-0 bg-gray-950/65 backdrop-blur-xs"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("citationDialogAriaLabel")}
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-white/10 dark:bg-gpt-popover"
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-gray-200 pb-3 dark:border-white/10">
-              <div className="flex min-w-0 items-center gap-2">
-                <DocsIcon
-                  aria-hidden="true"
-                  className="size-4 shrink-0 text-brand-600 dark:text-brand-300"
-                />
-                <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                  {inspectedCitation.documentName ??
-                    inspectedCitation.sourceName ??
-                    inspectedCitation.documentId}
-                </h3>
-              </div>
-              <button
-                type="button"
-                aria-label={t("closeDialog")}
-                onClick={() => setInspectedCitation(null)}
-                className="inline-flex size-7 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/10"
-              >
-                <CloseLineIcon aria-hidden="true" className="size-4" />
-              </button>
-            </div>
-            <div className="mt-4 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-3.5 text-xs leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-200">
-              {inspectedCitation.snippet ?? t("excerptNoSnippet")}
-            </div>
-          </div>
-        </div>
-      )}
+      <AiChatEvidenceSheet
+        evidence={
+          inspectedCitation
+            ? {
+                kind: "document",
+                citation: inspectedCitation,
+                relatedCitations: shared.answer.citations,
+                focusTerms: shared.question.content
+                  ? [shared.question.content]
+                  : undefined,
+              }
+            : null
+        }
+        projectId={projectId}
+        onClose={() => setInspectedCitation(null)}
+      />
     </main>
   );
 }

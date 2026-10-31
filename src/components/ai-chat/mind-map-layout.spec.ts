@@ -150,5 +150,10 @@ describe("mind-map-layout", () => {
     const prompt = buildBranchDeepDivePrompt(leaf, "vi");
     expect(prompt).toContain("Idempotent Consumer Lease");
     expect(prompt).toContain("Service-Owned MongoDB Topology");
+    expect(leaf.branchIndex).toBe(0);
+    const b2Leaf = layout.nodes.find((item) => item.node.id === "b2_1")!;
+    expect(b2Leaf.branchIndex).toBe(1);
+    const rootNode = layout.nodes.find((item) => item.node.id === "root")!;
+    expect(rootNode.branchIndex).toBe(-1);
   });
 });
