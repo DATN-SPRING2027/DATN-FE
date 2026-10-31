@@ -20,7 +20,10 @@ import { useSharedAiAnswerQuery } from "@/lib/queries/ai-chat/useAiAnswerActions
 import type { AiChatCitation } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
 import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
-import { isContinuumDocumentId } from "./citation-utils";
+import {
+  buildProjectDocumentHref,
+  isContinuumDocumentId,
+} from "./citation-utils";
 import { useLocalSpeech } from "./useLocalSpeech";
 
 export interface SharedAiAnswerViewProps {
@@ -326,9 +329,10 @@ export default function SharedAiAnswerView({
                         </button>
                         {canDeepLink && (
                           <Link
-                            href={`/projects/${encodeURIComponent(
+                            href={buildProjectDocumentHref(
                               projectId,
-                            )}/documents/${encodeURIComponent(cit.documentId)}`}
+                              cit.documentId,
+                            )}
                             className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                           >
                             <span>{t("openDocumentLink")}</span>
@@ -355,6 +359,9 @@ export default function SharedAiAnswerView({
                 kind: "document",
                 citation: inspectedCitation,
                 relatedCitations: shared.answer.citations,
+                focusTerms: shared.question.content
+                  ? [shared.question.content]
+                  : undefined,
               }
             : null
         }

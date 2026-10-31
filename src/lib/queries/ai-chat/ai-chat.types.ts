@@ -10,9 +10,12 @@ export type AiChatCitation = Readonly<{
   sourceId: string;
   sourceName?: string;
   documentId: string;
+  sagDocumentId?: string;
   documentName?: string;
   versionNo?: number;
+  chunkId?: string;
   heading?: string;
+  sectionPath?: string;
   snippet?: string;
   label?: string;
   pageFrom?: number;

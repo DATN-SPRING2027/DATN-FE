@@ -5373,7 +5373,19 @@
     "evidenceCopyExcerpt": "Sao chép đoạn trích",
     "evidenceCopiedExcerpt": "Đã sao chép",
     "evidenceCloseAction": "Đóng",
-    "evidenceSourceSwitcherAria": "Các nguồn tài liệu của nhánh này"
+    "evidenceSourceSwitcherAria": "Các nguồn tài liệu tham chiếu",
+    "evidenceExpandWidthAria": "Mở rộng khung đọc nguồn tài liệu",
+    "evidenceRestoreWidthAria": "Thu về độ rộng mặc định",
+    "evidenceResizeAriaLabel": "Kéo thay đổi độ rộng khung đọc nguồn tài liệu",
+    "evidenceHighlightToggle": "Tô sáng",
+    "evidenceHighlightToggleAria": "Bật hoặc tắt tô sáng cụm từ khóa",
+    "evidenceDiagramBadge": "SƠ ĐỒ KIẾN TRÚC",
+    "evidenceCodeBadge": "MÃ NGUỒN",
+    "evidenceFullChunkBadge": "Đầy đủ phân đoạn #{ordinal}",
+    "evidenceShowPrevChunk": "Xem đoạn phía trước",
+    "evidenceHidePrevChunk": "Ẩn đoạn phía trước",
+    "evidenceShowNextChunk": "Xem đoạn tiếp theo",
+    "evidenceHideNextChunk": "Ẩn đoạn tiếp theo"
   },
   "handover": {
     "aiCoverage": {

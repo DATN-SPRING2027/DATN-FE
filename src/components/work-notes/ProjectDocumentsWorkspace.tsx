@@ -599,8 +599,10 @@ const STATUS_DOT_CLASSES: Record<DocumentStatus, string> = {
 
 export default function ProjectDocumentsWorkspace({
   projectId,
+  initialDocumentId,
 }: {
   projectId: string;
+  initialDocumentId?: string;
 }) {
   const t = useTranslations("workNotes.documents");
   const common = useTranslations("workNotes");
@@ -684,9 +686,32 @@ export default function ProjectDocumentsWorkspace({
     projectId,
     { page: 1, pageSize: 100 },
   );
+  const [autoOpenedDocId, setAutoOpenedDocId] = useState<string | null>(null);
+  const normalizedInitialDocId =
+    initialDocumentId && /^[a-f0-9]{24}$/i.test(initialDocumentId.trim())
+      ? initialDocumentId.trim()
+      : "";
+  const shouldAutoOpenInitialDoc =
+    Boolean(normalizedInitialDocId) &&
+    autoOpenedDocId !== normalizedInitialDocId;
+
   const list = useDocumentsQuery(projectId, filter, page);
-  const documentId = selected?.id ?? "";
+  const documentId =
+    selected?.id || (shouldAutoOpenInitialDoc ? normalizedInitialDocId : "");
   const detail = useDocumentQuery(projectId, documentId);
+
+  if (shouldAutoOpenInitialDoc) {
+    const candidate =
+      list.data?.data.find((item) => item.id === normalizedInitialDocId) ??
+      (detail.data?.id === normalizedInitialDocId ? detail.data : null);
+    if (candidate) {
+      setAutoOpenedDocId(normalizedInitialDocId);
+      setSelected(candidate);
+      setReplacementNote(candidate.description ?? "");
+    } else if (detail.isError) {
+      setAutoOpenedDocId(normalizedInitialDocId);
+    }
+  }
 
   const knowledgeStatusQuery = useDocumentKnowledgeStatusQuery(
     projectId,

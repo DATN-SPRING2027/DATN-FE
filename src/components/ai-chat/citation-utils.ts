@@ -133,6 +133,13 @@ export function isContinuumDocumentId(documentId: string | undefined): boolean {
   return Boolean(documentId && MONGO_OBJECT_ID_REGEX.test(documentId));
 }
 
+export function buildProjectDocumentHref(
+  projectId: string,
+  documentId: string,
+): string {
+  return `/projects/${encodeURIComponent(projectId)}/documents?documentId=${encodeURIComponent(documentId)}`;
+}
+
 export function isSyntheticSessionExcerpt(excerpt: string): boolean {
   const trimmed = excerpt.trim();
   return (

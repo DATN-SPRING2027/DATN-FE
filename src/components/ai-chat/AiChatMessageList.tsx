@@ -30,6 +30,7 @@ import {
   isPersistedMessageId,
 } from "./answer-action-utils";
 import {
+  buildProjectDocumentHref,
   isContinuumDocumentId,
   resolveSessionCitationPreview,
   tokenizeTextWithCitations,
@@ -621,7 +622,14 @@ export default function AiChatMessageList({
                 (cit) => cit.number === item.number,
               );
               if (found) {
-                onInspectEvidence({ kind: "document", citation: found });
+                onInspectEvidence({
+                  kind: "document",
+                  citation: found,
+                  relatedCitations: message.citations,
+                  focusTerms: turn.questionMessage?.content
+                    ? [turn.questionMessage.content]
+                    : undefined,
+                });
               }
             } else {
               const foundSession = message.sessionCitations.find(
@@ -871,6 +879,10 @@ export default function AiChatMessageList({
                                 onInspectEvidence({
                                   kind: "document",
                                   citation: cit,
+                                  relatedCitations: message.citations,
+                                  focusTerms: turn.questionMessage?.content
+                                    ? [turn.questionMessage.content]
+                                    : undefined,
                                 })
                               }
                               className="font-medium text-brand-600 hover:underline dark:text-brand-400"
@@ -880,11 +892,10 @@ export default function AiChatMessageList({
 
                             {canDeepLink && (
                               <Link
-                                href={`/projects/${encodeURIComponent(
+                                href={buildProjectDocumentHref(
                                   projectId,
-                                )}/documents/${encodeURIComponent(
                                   cit.documentId,
-                                )}`}
+                                )}
                                 className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                               >
                                 <span>{t("openDocumentLink")}</span>

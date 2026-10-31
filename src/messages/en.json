@@ -5373,7 +5373,19 @@
     "evidenceCopyExcerpt": "Copy excerpt",
     "evidenceCopiedExcerpt": "Copied",
     "evidenceCloseAction": "Close",
-    "evidenceSourceSwitcherAria": "Supporting sources for this branch"
+    "evidenceSourceSwitcherAria": "Supporting sources",
+    "evidenceExpandWidthAria": "Expand source reader width",
+    "evidenceRestoreWidthAria": "Restore default reader width",
+    "evidenceResizeAriaLabel": "Resize source reader drawer",
+    "evidenceHighlightToggle": "Highlight",
+    "evidenceHighlightToggleAria": "Toggle key phrase highlights",
+    "evidenceDiagramBadge": "ARCHITECTURE DIAGRAM",
+    "evidenceCodeBadge": "SOURCE CODE",
+    "evidenceFullChunkBadge": "Full section #{ordinal}",
+    "evidenceShowPrevChunk": "View preceding passage",
+    "evidenceHidePrevChunk": "Hide preceding passage",
+    "evidenceShowNextChunk": "View following passage",
+    "evidenceHideNextChunk": "Hide following passage"
   },
   "handover": {
     "aiCoverage": {
