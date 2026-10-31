@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
   AlertIcon,
+  BranchIcon,
   CheckLineIcon,
   CloseLineIcon,
   ComposeChatIcon,
@@ -305,6 +306,7 @@ export default function AiChatSidebar({
     const isPinned = pinnedThreadIds.has(thread.id);
     const isEditing = editingThreadId === thread.id;
     const isDeleting = deletingThreadId === thread.id;
+    const isBranched = Boolean(thread.isBranched || thread.branchPointMessageId);
 
     if (isEditing) {
       return (
@@ -381,6 +383,15 @@ export default function AiChatSidebar({
               isActive && "max-md:w-[calc(100%-4.75rem)]",
             )}
           >
+            {isBranched && (
+              <span
+                aria-hidden="true"
+                data-testid={`sidebar-branch-icon-${thread.id}`}
+                className="me-1.5 inline-flex items-center align-[-2px] text-gray-400 dark:text-gray-500"
+              >
+                <BranchIcon className="size-3.5 shrink-0" />
+              </span>
+            )}
             {thread.title}
           </button>
 

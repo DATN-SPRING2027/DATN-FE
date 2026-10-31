@@ -5448,7 +5448,21 @@
     "evidenceShowPrevChunk": "View preceding passage",
     "evidenceHidePrevChunk": "Hide preceding passage",
     "evidenceShowNextChunk": "View following passage",
-    "evidenceHideNextChunk": "Hide following passage"
+    "evidenceHideNextChunk": "Hide following passage",
+    "moreActionsAria": "More actions",
+    "viewSourcesAction": "View sources",
+    "branchInNewChatAction": "Branch in new chat",
+    "branchingInNewChatStatus": "Branching…",
+    "branchedFromThread": "Branched from {title}",
+    "branchedFromThreadAria": "Open original conversation: {title}",
+    "branchedFromDeletedChat": "Branched from an earlier chat",
+    "untitledThreadFallback": "Untitled chat",
+    "branchCreatedToast": "Branched in new chat",
+    "branchCreatedToastFrom": "Context preserved from {title}",
+    "branchBackToOriginalAction": "View original",
+    "branchToastDismissAria": "Dismiss branch notification",
+    "branchErrorDefault": "Unable to branch this conversation. Please try again.",
+    "branchedThreadBadgeAria": "Branched conversation"
   },
   "handover": {
     "aiCoverage": {

@@ -129,11 +129,82 @@ export function useDeleteAiChatThreadMutation(
     onSuccess: (_result, { threadId }) => {
       queryClient.setQueryData<readonly AiChatThread[]>(
         aiChatKeys.threads(organizationId, projectId),
-        (existing) => (existing ?? []).filter((item) => item.id !== threadId),
+        (existing) =>
+          (existing ?? [])
+            .filter((item) => item.id !== threadId)
+            .map((item) =>
+              item.parentThreadId === threadId
+                ? {
+                    ...item,
+                    parentThreadId: null,
+                    parentThreadTitle: null,
+                  }
+                : item,
+            ),
       );
       queryClient.removeQueries({
         queryKey: aiChatKeys.messages(organizationId, projectId, threadId),
       });
+    },
+  });
+}
+
+export async function branchAiChatThread(
+  projectId: string,
+  threadId: string,
+  messageId: string,
+  input: { title?: string } = {},
+): Promise<AiChatThread> {
+  return apiClient<AiChatThread>(
+    `${projectBasePath(projectId)}/threads/${encodeURIComponent(
+      threadId,
+    )}/messages/${encodeURIComponent(messageId)}/branch`,
+    {
+      method: "POST",
+      headers: aiChatCsrfHeaders(),
+      body: JSON.stringify(
+        input.title !== undefined ? { title: input.title } : {},
+      ),
+    },
+  );
+}
+
+export function useBranchAiChatThreadMutation(
+  organizationId: string,
+  projectId: string,
+) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationKey: ["ai-chat-thread-branch", organizationId, projectId],
+    retry: false,
+    mutationFn: ({
+      threadId,
+      messageId,
+      title,
+    }: {
+      threadId: string;
+      messageId: string;
+      title?: string;
+    }) =>
+      branchAiChatThread(
+        projectId,
+        threadId,
+        messageId,
+        title !== undefined ? { title } : {},
+      ),
+    onSuccess: (branched) => {
+      queryClient.setQueryData<readonly AiChatThread[]>(
+        aiChatKeys.threads(organizationId, projectId),
+        (existing) => {
+          const list = existing ?? [];
+          if (list.some((item) => item.id === branched.id)) {
+            return list.map((item) =>
+              item.id === branched.id ? branched : item,
+            );
+          }
+          return [branched, ...list];
+        },
+      );
     },
   });
 }

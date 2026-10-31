@@ -19,6 +19,7 @@ const {
   createThreadMutateAsync,
   updateThreadMutateAsync,
   deleteThreadMutateAsync,
+  branchThreadMutateAsync,
   useMessagesInfiniteMock,
   streamAiChatAskMock,
   streamAiChatRegenerateMock,
@@ -31,6 +32,7 @@ const {
   createThreadMutateAsync: vi.fn(),
   updateThreadMutateAsync: vi.fn(),
   deleteThreadMutateAsync: vi.fn(),
+  branchThreadMutateAsync: vi.fn(),
   useMessagesInfiniteMock: vi.fn(),
   streamAiChatAskMock: vi.fn(),
   streamAiChatRegenerateMock: vi.fn(),
@@ -107,6 +109,10 @@ vi.mock("@/lib/queries/ai-chat/useAiChat", () => ({
     mutateAsync: deleteThreadMutateAsync,
     isPending: false,
   }),
+  useBranchAiChatThreadMutation: () => ({
+    mutateAsync: branchThreadMutateAsync,
+    isPending: false,
+  }),
   useAiChatMessagesInfiniteQuery: (...args: unknown[]) =>
     useMessagesInfiniteMock(...args),
 }));
@@ -166,6 +172,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
   beforeEach(() => {
     window.localStorage.clear();
     replaceMock.mockReset();
+    branchThreadMutateAsync.mockReset();
     invalidateQueriesMock.mockReset().mockResolvedValue(undefined);
     useSearchParamsMock.mockReturnValue(new URLSearchParams());
     useActiveProjectsMock.mockReset().mockReturnValue({
@@ -1205,6 +1212,131 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     fireEvent.keyDown(document, { key: "Escape" });
     expect(
       screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("branches from an assistant turn via More actions (⋯), switches to the new chat, shows toast, and navigates back to original", async () => {
+    useMessagesInfiniteMock.mockImplementation(
+      (_orgId: string, _projId: string, threadId: string | null) => ({
+        data: {
+          pages: [
+            {
+              items:
+                threadId === "thread-branch-99"
+                  ? [
+                      {
+                        id: "msg-u1",
+                        role: "user",
+                        content: "How does SAG isolate private projects?",
+                        status: "ok",
+                        citations: [],
+                        sessionCitations: [],
+                        retrievalSteps: [],
+                        createdAt: "2026-10-28T10:00:00Z",
+                        isInherited: true,
+                      },
+                      {
+                        id: "msg-a1",
+                        role: "assistant",
+                        content: "Live ACL is checked per turn [1].",
+                        status: "ok",
+                        citations: [],
+                        sessionCitations: [],
+                        retrievalSteps: [],
+                        createdAt: "2026-10-28T10:00:04Z",
+                        replyToMessageId: "msg-u1",
+                        isInherited: true,
+                      },
+                    ]
+                  : threadId === "thread-1"
+                    ? [
+                        {
+                          id: "msg-u1",
+                          role: "user",
+                          content: "How does SAG isolate private projects?",
+                          status: "ok",
+                          citations: [],
+                          sessionCitations: [],
+                          retrievalSteps: [],
+                          createdAt: "2026-10-28T10:00:00Z",
+                        },
+                        {
+                          id: "msg-a1",
+                          role: "assistant",
+                          content: "Live ACL is checked per turn [1].",
+                          status: "ok",
+                          citations: [],
+                          sessionCitations: [],
+                          retrievalSteps: [],
+                          createdAt: "2026-10-28T10:00:04Z",
+                          replyToMessageId: "msg-u1",
+                        },
+                      ]
+                    : [],
+              nextCursor: null,
+              hasMore: false,
+            } satisfies AiChatMessagePage,
+          ],
+        },
+        isLoading: false,
+        isError: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+        refetch: vi.fn(),
+      }),
+    );
+
+    branchThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-branch-99",
+      title: "Branch · SAG BFF Security Review",
+      createdAt: "2026-10-28T10:12:00Z",
+      updatedAt: "2026-10-28T10:12:00Z",
+      isBranched: true,
+      parentThreadId: "thread-1",
+      parentThreadTitle: "SAG BFF Security Review",
+      branchPointMessageId: "msg-a1",
+    } satisfies AiChatThread);
+
+    renderWorkspace();
+
+    // Open original thread-1
+    fireEvent.click(
+      screen.getByRole("button", { name: "SAG BFF Security Review" }),
+    );
+    expect(
+      screen.getByText(/Live ACL is checked per turn/),
+    ).toBeInTheDocument();
+
+    // Click More actions (⋯) -> Branch in new chat
+    fireEvent.click(screen.getByTestId("ai-chat-more-actions-msg-a1"));
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Branch in new chat" }),
+      );
+    });
+
+    expect(branchThreadMutateAsync).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      messageId: "msg-a1",
+    });
+
+    // Switched to branched thread: sidebar shows branched row, toast appears, inline divider renders
+    expect(
+      screen.getByRole("button", { name: "Branch · SAG BFF Security Review" }),
+    ).toBeInTheDocument();
+    const toast = screen.getByTestId("ai-chat-branch-toast");
+    expect(toast).toHaveTextContent("Branched in new chat");
+    expect(
+      screen.getByTestId("ai-chat-branch-divider"),
+    ).toHaveTextContent("Branched from SAG BFF Security Review");
+
+    // Clicking "View original" in the toast returns to parent thread-1
+    fireEvent.click(
+      within(toast).getByRole("button", { name: "View original" }),
+    );
+    expect(
+      screen.queryByTestId("ai-chat-branch-divider"),
     ).not.toBeInTheDocument();
   });
 });

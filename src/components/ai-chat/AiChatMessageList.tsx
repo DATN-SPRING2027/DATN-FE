@@ -13,6 +13,7 @@ import { Link } from "@/i18n/navigation";
 import {
   AlertIcon,
   ArrowRightIcon,
+  BranchIcon,
   DocsIcon,
   ShootingStarIcon,
   TimeIcon,
@@ -21,6 +22,7 @@ import type {
   AiChatCitation,
   AiChatMessage,
   AiChatSessionCitation,
+  AiChatThread,
 } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
 import AiChatActivityProgress from "./AiChatActivityProgress";
@@ -66,6 +68,8 @@ export interface AiChatMessageListProps {
   projectId: string;
   projectName?: string;
   threadId?: string | null;
+  activeThread?: AiChatThread | null;
+  branchingMessageId?: string | null;
   mode: "chat" | "work";
   messages: readonly DisplayAiChatMessage[];
   isThreadStreaming?: boolean;
@@ -81,8 +85,74 @@ export interface AiChatMessageListProps {
     targetMessage: DisplayAiChatMessage,
     questionMessage?: DisplayAiChatMessage,
   ) => void;
+  onBranchFromMessage?: (targetMessage: DisplayAiChatMessage) => void;
+  onSelectParentThread?: (parentThreadId: string) => void;
   onInspectEvidence: (evidence: InspectedEvidence) => void;
   onJumpToTurn: (turnId: string, fallback: AiChatSessionCitation) => void;
+}
+
+function BranchLineageDivider({
+  parentThreadId,
+  parentThreadTitle,
+  untitledFallback,
+  branchedFromLabel,
+  branchedFromAria,
+  deletedChatLabel,
+  onSelectParentThread,
+}: {
+  parentThreadId: string | null | undefined;
+  parentThreadTitle: string | null | undefined;
+  untitledFallback: string;
+  branchedFromLabel: (title: string) => string;
+  branchedFromAria: (title: string) => string;
+  deletedChatLabel: string;
+  onSelectParentThread?: (parentThreadId: string) => void;
+}) {
+  const effectiveTitle = parentThreadTitle?.trim() || untitledFallback;
+  const canNavigateToParent =
+    Boolean(parentThreadId) && Boolean(onSelectParentThread);
+
+  return (
+    <div
+      data-testid="ai-chat-branch-divider"
+      className="flex items-center gap-3 py-1"
+    >
+      <span
+        aria-hidden="true"
+        className="h-px flex-1 bg-gray-200/80 dark:bg-white/10"
+      />
+      {canNavigateToParent && parentThreadId && onSelectParentThread ? (
+        <button
+          type="button"
+          onClick={() => onSelectParentThread(parentThreadId)}
+          aria-label={branchedFromAria(effectiveTitle)}
+          title={branchedFromLabel(effectiveTitle)}
+          className="inline-flex max-w-[min(26rem,calc(100%-2rem))] min-w-0 items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/90 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-200"
+        >
+          <BranchIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-brand-500 dark:text-brand-400"
+          />
+          <span className="truncate">{branchedFromLabel(effectiveTitle)}</span>
+        </button>
+      ) : (
+        <div
+          role="note"
+          className="inline-flex max-w-[min(26rem,calc(100%-2rem))] min-w-0 items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50/70 px-3 py-1 text-xs font-medium text-gray-500 dark:border-white/10 dark:bg-gpt-sidebar/80 dark:text-gray-400"
+        >
+          <BranchIcon
+            aria-hidden="true"
+            className="size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
+          />
+          <span className="truncate">{deletedChatLabel}</span>
+        </div>
+      )}
+      <span
+        aria-hidden="true"
+        className="h-px flex-1 bg-gray-200/80 dark:bg-white/10"
+      />
+    </div>
+  );
 }
 
 function renderBoldAndCodeText(
@@ -427,6 +497,8 @@ export default function AiChatMessageList({
   projectId,
   projectName = "",
   threadId = null,
+  activeThread = null,
+  branchingMessageId = null,
   mode,
   messages,
   isThreadStreaming = false,
@@ -439,6 +511,8 @@ export default function AiChatMessageList({
   onRetryMessages,
   onRetryTurn,
   onRegenerateMessage,
+  onBranchFromMessage,
+  onSelectParentThread,
   onInspectEvidence,
   onJumpToTurn,
 }: AiChatMessageListProps) {
@@ -469,6 +543,22 @@ export default function AiChatMessageList({
     [messages],
   );
   const groupedTurns = useMemo(() => groupAnswerVersions(messages), [messages]);
+
+  const branchPointMessageId = activeThread?.branchPointMessageId ?? null;
+  const isBranchedThread = Boolean(
+    activeThread?.isBranched || branchPointMessageId,
+  );
+  const branchPointVisibleInTurns = useMemo(
+    () =>
+      Boolean(
+        isBranchedThread &&
+          branchPointMessageId &&
+          groupedTurns.some((turn) =>
+            turn.versions.some((ver) => ver.id === branchPointMessageId),
+          ),
+      ),
+    [branchPointMessageId, groupedTurns, isBranchedThread],
+  );
 
   const activeSpeechMessageId = speakingMessageId ?? preparingMessageId;
   useEffect(() => {
@@ -549,6 +639,18 @@ export default function AiChatMessageList({
     );
   }
 
+  const renderLineageDivider = () => (
+    <BranchLineageDivider
+      parentThreadId={activeThread?.parentThreadId}
+      parentThreadTitle={activeThread?.parentThreadTitle}
+      untitledFallback={t("untitledThreadFallback")}
+      branchedFromLabel={(title) => t("branchedFromThread", { title })}
+      branchedFromAria={(title) => t("branchedFromThreadAria", { title })}
+      deletedChatLabel={t("branchedFromDeletedChat")}
+      onSelectParentThread={onSelectParentThread}
+    />
+  );
+
   return (
     <div
       ref={scrollContainerRef}
@@ -575,29 +677,42 @@ export default function AiChatMessageList({
           </div>
         )}
 
+        {isBranchedThread &&
+          !branchPointVisibleInTurns &&
+          groupedTurns.length > 0 &&
+          renderLineageDivider()}
+
         {groupedTurns.map((turn) => {
+          const isTurnBranchPoint = Boolean(
+            isBranchedThread &&
+              branchPointMessageId &&
+              turn.versions.some((ver) => ver.id === branchPointMessageId),
+          );
+
           if (turn.message.role === "user") {
             const userMsg = turn.message;
             const isHighlighted = highlightedTurnId === userMsg.id;
             return (
-              <div
-                key={userMsg.id}
-                id={`ai-chat-turn-${userMsg.id}`}
-                className={cn(
-                  "flex flex-col items-end rounded-3xl transition-all",
-                  isHighlighted &&
-                    "ring-2 ring-warning-400 ring-offset-4 dark:ring-offset-gpt-canvas",
-                )}
-              >
-                {isHighlighted && (
-                  <span className="mb-1 text-xs font-semibold text-warning-600 dark:text-warning-400">
-                    {t("turnHighlightedNotice")}
-                  </span>
-                )}
-                <div className="max-w-4/5 rounded-3xl bg-gray-100 px-4 py-2.5 text-sm leading-6 break-words whitespace-pre-wrap text-gray-900 dark:bg-gpt-bubble dark:text-gray-100">
-                  {userMsg.content}
+              <Fragment key={userMsg.id}>
+                <div
+                  id={`ai-chat-turn-${userMsg.id}`}
+                  className={cn(
+                    "flex flex-col items-end rounded-3xl transition-all",
+                    isHighlighted &&
+                      "ring-2 ring-warning-400 ring-offset-4 dark:ring-offset-gpt-canvas",
+                  )}
+                >
+                  {isHighlighted && (
+                    <span className="mb-1 text-xs font-semibold text-warning-600 dark:text-warning-400">
+                      {t("turnHighlightedNotice")}
+                    </span>
+                  )}
+                  <div className="max-w-4/5 rounded-3xl bg-gray-100 px-4 py-2.5 text-sm leading-6 break-words whitespace-pre-wrap text-gray-900 dark:bg-gpt-bubble dark:text-gray-100">
+                    {userMsg.content}
+                  </div>
                 </div>
-              </div>
+                {isTurnBranchPoint && renderLineageDivider()}
+              </Fragment>
             );
           }
 
@@ -649,6 +764,26 @@ export default function AiChatMessageList({
             }
           };
 
+          const handleOpenTurnSources = () => {
+            if (message.citations.length > 0) {
+              onInspectEvidence({
+                kind: "document",
+                citation: message.citations[0]!,
+                relatedCitations: message.citations,
+                focusTerms: turn.questionMessage?.content
+                  ? [turn.questionMessage.content]
+                  : undefined,
+              });
+              return;
+            }
+            if (message.sessionCitations.length > 0) {
+              onInspectEvidence({
+                kind: "session",
+                sessionCitation: message.sessionCitations[0]!,
+              });
+            }
+          };
+
           const isEmptyEvidenceScope =
             message.content.trim() ===
             "[Answer hidden because its evidence is unavailable in the current source scope.]";
@@ -668,9 +803,12 @@ export default function AiChatMessageList({
             return turn.questionMessage?.content?.trim() || undefined;
           })();
 
+          // Inherited prefix messages are immutable in-place; users can branch from them instead.
           const canRegenerateTurn =
-            (Boolean(onRegenerateMessage) && isPersistedMessageId(message.id)) ||
-            Boolean(effectiveRetryQuery);
+            !message.isInherited &&
+            ((Boolean(onRegenerateMessage) &&
+              isPersistedMessageId(message.id)) ||
+              Boolean(effectiveRetryQuery));
 
           const handleTriggerRegenerate = () => {
             stopSpeech();
@@ -686,352 +824,378 @@ export default function AiChatMessageList({
             : message;
 
           return (
-            <article
-              key={turn.groupKey}
-              id={`ai-chat-turn-${message.id}`}
-              aria-label={t("assistantRoleLabel")}
-              className={cn(
-                "space-y-3 rounded-2xl transition-all",
-                isHighlighted &&
-                  "p-2 ring-2 ring-warning-400 ring-offset-2 dark:ring-offset-gpt-canvas",
-              )}
-            >
-              {/* Subtle ChatGPT "Thought / Searched" Top Pill Row */}
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-0.5 text-xs font-medium text-brand-600 dark:text-brand-300">
-                  <ShootingStarIcon aria-hidden="true" className="size-3" />
-                  <span>{t("assistantRoleLabel")}</span>
-                </span>
-
-                {message.sessionCitations.length > 0 && (
-                  <span className="inline-flex items-center rounded-full border border-warning-500/30 bg-warning-500/10 px-2.5 py-0.5 text-xs font-medium text-warning-700 tabular-nums dark:text-warning-300">
-                    {t("ecceMemoryBadge", {
-                      count: message.sessionCitations.length,
-                    })}
-                  </span>
+            <Fragment key={turn.groupKey}>
+              <article
+                id={`ai-chat-turn-${message.id}`}
+                aria-label={t("assistantRoleLabel")}
+                className={cn(
+                  "space-y-3 rounded-2xl transition-all",
+                  isHighlighted &&
+                    "p-2 ring-2 ring-warning-400 ring-offset-2 dark:ring-offset-gpt-canvas",
                 )}
-
-                {message.status === "cancelled" && (
-                  <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
-                    {t("statusCancelled")}
+              >
+                {/* Subtle ChatGPT "Thought / Searched" Top Pill Row */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-500/25 bg-brand-500/10 px-2.5 py-0.5 text-xs font-medium text-brand-600 dark:text-brand-300">
+                    <ShootingStarIcon aria-hidden="true" className="size-3" />
+                    <span>{t("assistantRoleLabel")}</span>
                   </span>
-                )}
 
-                {message.status === "failed" && (
-                  <span className="rounded-full bg-error-50 px-2.5 py-0.5 text-xs font-medium text-error-700 dark:bg-error-500/15 dark:text-error-300">
-                    {t("statusFailed")}
-                  </span>
-                )}
-              </div>
-
-              <AiChatActivityProgress
-                isStreaming={Boolean(message.isStreaming)}
-                hasContent={Boolean(message.content)}
-                status={message.status}
-                steps={message.retrievalSteps}
-                startedAt={message.activityStartedAt}
-                finishedAt={message.activityFinishedAt}
-                defaultExpanded={mode === "work"}
-              />
-
-              {/* Borderless Answer Prose or Clean Empty-Evidence Scope Callout */}
-              {isEmptyEvidenceScope ? (
-                <div className="rounded-2xl border border-gray-200/80 bg-gray-50/80 p-4 dark:border-white/10 dark:bg-gpt-sidebar">
-                  <div className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600 dark:text-brand-300">
-                      <DocsIcon aria-hidden="true" className="size-4" />
+                  {message.sessionCitations.length > 0 && (
+                    <span className="inline-flex items-center rounded-full border border-warning-500/30 bg-warning-500/10 px-2.5 py-0.5 text-xs font-medium text-warning-700 tabular-nums dark:text-warning-300">
+                      {t("ecceMemoryBadge", {
+                        count: message.sessionCitations.length,
+                      })}
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
-                        {t("noEvidenceScopeTitle")}
-                      </h4>
-                      <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
-                        {t("noEvidenceScopeBody")}
-                      </p>
-                      <Link
-                        href={`/projects/${encodeURIComponent(
-                          projectId,
-                        )}/documents`}
-                        className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-gpt-composer dark:text-brand-300 dark:hover:bg-white/10"
-                      >
-                        <span>{t("manageDocumentsCta")}</span>
-                        <ArrowRightIcon
-                          aria-hidden="true"
-                          className="size-3.5"
-                        />
-                      </Link>
-                    </div>
-                  </div>
-                </div>
-              ) : isNoAnswer ? (
-                <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
-                  {t("noAnswerNotice")}
-                </p>
-              ) : (
-                message.content && (
-                  <FormattedAnswerProse
-                    content={message.content}
-                    citations={message.citations}
-                    sessionCitations={message.sessionCitations}
-                    citationJumpAria={(label) =>
-                      t("citationJumpAria", { label })
-                    }
-                    onClickToken={handleTokenClick}
-                  />
-                )
-              )}
+                  )}
 
-              {/* Failed Error Banner with Retry */}
-              {message.status === "failed" && (
-                <div
-                  role="alert"
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-error-200 bg-error-50 px-3.5 py-2.5 text-xs text-error-700 dark:border-error-800/60 dark:bg-error-500/10 dark:text-error-300"
-                >
-                  <div className="flex items-center gap-2">
-                    <AlertIcon aria-hidden="true" className="size-4 shrink-0" />
-                    <span>
-                      {resolveLocalizedErrorMessage(
-                        message.errorCode,
-                        message.errorMessage,
-                        (key) => t(key as Parameters<typeof t>[0]),
-                      )}
+                  {message.status === "cancelled" && (
+                    <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                      {t("statusCancelled")}
                     </span>
-                  </div>
-                  {canRegenerateTurn && (
-                    <button
-                      type="button"
-                      disabled={isThreadStreaming}
-                      onClick={handleTriggerRegenerate}
-                      className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 disabled:opacity-50 dark:bg-gpt-composer dark:text-error-300 dark:ring-error-700"
-                    >
-                      {t("retryTurn")}
-                    </button>
+                  )}
+
+                  {message.status === "failed" && (
+                    <span className="rounded-full bg-error-50 px-2.5 py-0.5 text-xs font-medium text-error-700 dark:bg-error-500/15 dark:text-error-300">
+                      {t("statusFailed")}
+                    </span>
                   )}
                 </div>
-              )}
 
-              {/* Verified Document Citations */}
-              {message.citations.length > 0 && (
-                <div className="pt-1">
-                  <div className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase tabular-nums dark:text-gray-500">
-                    {t("documentSourcesHeading", {
-                      count: message.citations.length,
-                    })}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {message.citations.map((cit) => {
-                      const title =
-                        cit.documentName ??
-                        cit.sourceName ??
-                        cit.label ??
-                        cit.documentId;
-                      const pageText =
-                        cit.pageFrom &&
-                        cit.pageTo &&
-                        cit.pageFrom !== cit.pageTo
-                          ? t("pageRangeLabel", {
-                              from: cit.pageFrom,
-                              to: cit.pageTo,
-                            })
-                          : cit.pageFrom
-                            ? t("pageSingleLabel", { page: cit.pageFrom })
-                            : null;
-                      const canDeepLink = isContinuumDocumentId(cit.documentId);
+                <AiChatActivityProgress
+                  isStreaming={Boolean(message.isStreaming)}
+                  hasContent={Boolean(message.content)}
+                  status={message.status}
+                  steps={message.retrievalSteps}
+                  startedAt={message.activityStartedAt}
+                  finishedAt={message.activityFinishedAt}
+                  defaultExpanded={mode === "work"}
+                />
 
-                      return (
-                        <div
-                          key={`${cit.number}-${cit.sourceId}-${cit.documentId}`}
-                          className="group flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-gray-50/70 p-3 transition-all hover:border-brand-500/40 hover:bg-white dark:border-white/10 dark:bg-gpt-sidebar dark:hover:border-brand-400/40 dark:hover:bg-gpt-composer"
+                {/* Borderless Answer Prose or Clean Empty-Evidence Scope Callout */}
+                {isEmptyEvidenceScope ? (
+                  <div className="rounded-2xl border border-gray-200/80 bg-gray-50/80 p-4 dark:border-white/10 dark:bg-gpt-sidebar">
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600 dark:text-brand-300">
+                        <DocsIcon aria-hidden="true" className="size-4" />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h4 className="text-xs font-semibold text-gray-900 dark:text-white">
+                          {t("noEvidenceScopeTitle")}
+                        </h4>
+                        <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                          {t("noEvidenceScopeBody")}
+                        </p>
+                        <Link
+                          href={`/projects/${encodeURIComponent(
+                            projectId,
+                          )}/documents`}
+                          className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-gpt-composer dark:text-brand-300 dark:hover:bg-white/10"
                         >
-                          <div>
-                            <div className="mb-1 flex items-center justify-between gap-2">
-                              <div className="flex min-w-0 items-center gap-1.5">
-                                <span className="inline-flex shrink-0 items-center rounded-md bg-brand-500/15 px-1.5 py-0.5 text-xs font-bold text-brand-600 tabular-nums dark:text-brand-300">
-                                  [{cit.number}]
-                                </span>
-                                <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">
-                                  {title}
-                                </span>
-                              </div>
-                              <div className="flex shrink-0 items-center gap-1 text-xs text-gray-400 tabular-nums">
-                                {cit.versionNo !== undefined && (
-                                  <span>
-                                    {t("versionBadge", {
-                                      version: cit.versionNo,
-                                    })}
+                          <span>{t("manageDocumentsCta")}</span>
+                          <ArrowRightIcon
+                            aria-hidden="true"
+                            className="size-3.5"
+                          />
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
+                ) : isNoAnswer ? (
+                  <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    {t("noAnswerNotice")}
+                  </p>
+                ) : (
+                  message.content && (
+                    <FormattedAnswerProse
+                      content={message.content}
+                      citations={message.citations}
+                      sessionCitations={message.sessionCitations}
+                      citationJumpAria={(label) =>
+                        t("citationJumpAria", { label })
+                      }
+                      onClickToken={handleTokenClick}
+                    />
+                  )
+                )}
+
+                {/* Failed Error Banner with Retry */}
+                {message.status === "failed" && (
+                  <div
+                    role="alert"
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-error-200 bg-error-50 px-3.5 py-2.5 text-xs text-error-700 dark:border-error-800/60 dark:bg-error-500/10 dark:text-error-300"
+                  >
+                    <div className="flex items-center gap-2">
+                      <AlertIcon
+                        aria-hidden="true"
+                        className="size-4 shrink-0"
+                      />
+                      <span>
+                        {resolveLocalizedErrorMessage(
+                          message.errorCode,
+                          message.errorMessage,
+                          (key) => t(key as Parameters<typeof t>[0]),
+                        )}
+                      </span>
+                    </div>
+                    {canRegenerateTurn && (
+                      <button
+                        type="button"
+                        disabled={isThreadStreaming}
+                        onClick={handleTriggerRegenerate}
+                        className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-error-700 ring-1 ring-error-200 hover:bg-error-50 disabled:opacity-50 dark:bg-gpt-composer dark:text-error-300 dark:ring-error-700"
+                      >
+                        {t("retryTurn")}
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                {/* Verified Document Citations */}
+                {message.citations.length > 0 && (
+                  <div className="pt-1">
+                    <div className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase tabular-nums dark:text-gray-500">
+                      {t("documentSourcesHeading", {
+                        count: message.citations.length,
+                      })}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {message.citations.map((cit) => {
+                        const title =
+                          cit.documentName ??
+                          cit.sourceName ??
+                          cit.label ??
+                          cit.documentId;
+                        const pageText =
+                          cit.pageFrom &&
+                          cit.pageTo &&
+                          cit.pageFrom !== cit.pageTo
+                            ? t("pageRangeLabel", {
+                                from: cit.pageFrom,
+                                to: cit.pageTo,
+                              })
+                            : cit.pageFrom
+                              ? t("pageSingleLabel", { page: cit.pageFrom })
+                              : null;
+                        const canDeepLink = isContinuumDocumentId(
+                          cit.documentId,
+                        );
+
+                        return (
+                          <div
+                            key={`${cit.number}-${cit.sourceId}-${cit.documentId}`}
+                            className="group flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-gray-50/70 p-3 transition-all hover:border-brand-500/40 hover:bg-white dark:border-white/10 dark:bg-gpt-sidebar dark:hover:border-brand-400/40 dark:hover:bg-gpt-composer"
+                          >
+                            <div>
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <div className="flex min-w-0 items-center gap-1.5">
+                                  <span className="inline-flex shrink-0 items-center rounded-md bg-brand-500/15 px-1.5 py-0.5 text-xs font-bold text-brand-600 tabular-nums dark:text-brand-300">
+                                    [{cit.number}]
                                   </span>
-                                )}
-                                {pageText && <span>{pageText}</span>}
+                                  <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">
+                                    {title}
+                                  </span>
+                                </div>
+                                <div className="flex shrink-0 items-center gap-1 text-xs text-gray-400 tabular-nums">
+                                  {cit.versionNo !== undefined && (
+                                    <span>
+                                      {t("versionBadge", {
+                                        version: cit.versionNo,
+                                      })}
+                                    </span>
+                                  )}
+                                  {pageText && <span>{pageText}</span>}
+                                </div>
                               </div>
+
+                              {cit.snippet && (
+                                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                                  {cit.snippet}
+                                </p>
+                              )}
                             </div>
 
-                            {cit.snippet && (
-                              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                                {cit.snippet}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onInspectEvidence({
-                                  kind: "document",
-                                  citation: cit,
-                                  relatedCitations: message.citations,
-                                  focusTerms: turn.questionMessage?.content
-                                    ? [turn.questionMessage.content]
-                                    : undefined,
-                                })
-                              }
-                              className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-                            >
-                              {t("previewExcerptAction")}
-                            </button>
-
-                            {canDeepLink && (
-                              <Link
-                                href={buildProjectDocumentHref(
-                                  projectId,
-                                  cit.documentId,
-                                )}
-                                className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                              >
-                                <span>{t("openDocumentLink")}</span>
-                                <ArrowRightIcon
-                                  aria-hidden="true"
-                                  className="size-3"
-                                />
-                              </Link>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ECCE Session Memory Citations */}
-              {message.sessionCitations.length > 0 && (
-                <div className="pt-1">
-                  <div className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase tabular-nums dark:text-gray-500">
-                    {t("sessionMemoryHeading", {
-                      count: message.sessionCitations.length,
-                    })}
-                  </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    {message.sessionCitations.map((sc) => {
-                      const firstTurnId = sc.turnIds[0];
-                      return (
-                        <div
-                          key={sc.ref}
-                          className="flex flex-col justify-between rounded-2xl border border-warning-500/25 bg-warning-50/40 p-3 dark:bg-gpt-sidebar"
-                        >
-                          <div>
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="inline-flex items-center rounded-md bg-warning-500/20 px-1.5 py-0.5 text-xs font-bold text-warning-700 tabular-nums dark:text-warning-300">
-                                [{sc.ref}]
-                              </span>
-                              <span className="text-xs font-medium text-warning-700 dark:text-warning-300">
-                                {sc.source === "selected_group"
-                                  ? t("sessionSelectedGroup")
-                                  : t("sessionRecentContinuity")}
-                              </span>
-                            </div>
-                            <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
-                              {resolveSessionCitationPreview(sc, messagesById)}
-                            </p>
-                          </div>
-
-                          <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
-                            <button
-                              type="button"
-                              onClick={() =>
-                                onInspectEvidence({
-                                  kind: "session",
-                                  sessionCitation: sc,
-                                })
-                              }
-                              className="font-medium text-warning-700 hover:underline dark:text-warning-300"
-                            >
-                              {t("previewExcerptAction")}
-                            </button>
-                            {firstTurnId && (
+                            <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
                               <button
                                 type="button"
-                                onClick={() => onJumpToTurn(firstTurnId, sc)}
-                                className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                onClick={() =>
+                                  onInspectEvidence({
+                                    kind: "document",
+                                    citation: cit,
+                                    relatedCitations: message.citations,
+                                    focusTerms: turn.questionMessage?.content
+                                      ? [turn.questionMessage.content]
+                                      : undefined,
+                                  })
+                                }
+                                className="font-medium text-brand-600 hover:underline dark:text-brand-400"
                               >
-                                <span>{t("jumpToTurnAction")}</span>
-                                <ArrowRightIcon
-                                  aria-hidden="true"
-                                  className="size-3"
-                                />
+                                {t("previewExcerptAction")}
                               </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
 
-              {/* Answer Action Bar (Copy, Like/Dislike, Read Aloud, Share, Try Again & Version Switcher) */}
-              {!message.isStreaming &&
-                !isEmptyEvidenceScope &&
-                (message.status !== "failed" ||
-                  Boolean(message.content) ||
-                  versionCount > 1) && (
-                  <AiChatAnswerActionBar
-                    organizationId={organizationId}
-                    projectId={projectId}
-                    projectName={projectName}
-                    threadId={threadId}
-                    message={effectiveDisplayMessage}
-                    questionText={turn.questionMessage?.content ?? ""}
-                    versionIndex={activeVersionIndex}
-                    versionCount={versionCount}
-                    isThreadStreaming={isThreadStreaming}
-                    isSpeaking={
-                      speakingMessageId === message.id ||
-                      preparingMessageId === message.id
-                    }
-                    speechError={
-                      speechError?.messageId === message.id
-                        ? speechError.kind
-                        : null
-                    }
-                    canRegenerate={
-                      canRegenerateTurn && message.status !== "failed"
-                    }
-                  onSelectVersionIndex={(nextIdx) => {
-                    if (
-                      speakingMessageId === message.id ||
-                      preparingMessageId === message.id
-                    ) {
-                      stopSpeech();
-                    }
-                    setSelectedVersionIndexByGroup((prev) => ({
-                      ...prev,
-                      [turn.groupKey]: {
-                        selectedIndex: nextIdx,
-                        knownVersionCount: versionCount,
-                      },
-                    }));
-                  }}
-                  onRegenerate={handleTriggerRegenerate}
-                  onToggleSpeak={() =>
-                    void toggleSpeak(
-                      message.id,
-                      effectiveDisplayMessage.content,
-                    )
-                  }
-                />
-              )}
-            </article>
+                              {canDeepLink && (
+                                <Link
+                                  href={buildProjectDocumentHref(
+                                    projectId,
+                                    cit.documentId,
+                                  )}
+                                  className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                >
+                                  <span>{t("openDocumentLink")}</span>
+                                  <ArrowRightIcon
+                                    aria-hidden="true"
+                                    className="size-3"
+                                  />
+                                </Link>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ECCE Session Memory Citations */}
+                {message.sessionCitations.length > 0 && (
+                  <div className="pt-1">
+                    <div className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase tabular-nums dark:text-gray-500">
+                      {t("sessionMemoryHeading", {
+                        count: message.sessionCitations.length,
+                      })}
+                    </div>
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                      {message.sessionCitations.map((sc) => {
+                        const firstTurnId = sc.turnIds[0];
+                        return (
+                          <div
+                            key={sc.ref}
+                            className="flex flex-col justify-between rounded-2xl border border-warning-500/25 bg-warning-50/40 p-3 dark:bg-gpt-sidebar"
+                          >
+                            <div>
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="inline-flex items-center rounded-md bg-warning-500/20 px-1.5 py-0.5 text-xs font-bold text-warning-700 tabular-nums dark:text-warning-300">
+                                  [{sc.ref}]
+                                </span>
+                                <span className="text-xs font-medium text-warning-700 dark:text-warning-300">
+                                  {sc.source === "selected_group"
+                                    ? t("sessionSelectedGroup")
+                                    : t("sessionRecentContinuity")}
+                                </span>
+                              </div>
+                              <p className="mt-1.5 line-clamp-2 text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                                {resolveSessionCitationPreview(
+                                  sc,
+                                  messagesById,
+                                )}
+                              </p>
+                            </div>
+
+                            <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onInspectEvidence({
+                                    kind: "session",
+                                    sessionCitation: sc,
+                                  })
+                                }
+                                className="font-medium text-warning-700 hover:underline dark:text-warning-300"
+                              >
+                                {t("previewExcerptAction")}
+                              </button>
+                              {firstTurnId && (
+                                <button
+                                  type="button"
+                                  onClick={() => onJumpToTurn(firstTurnId, sc)}
+                                  className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                                >
+                                  <span>{t("jumpToTurnAction")}</span>
+                                  <ArrowRightIcon
+                                    aria-hidden="true"
+                                    className="size-3"
+                                  />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Answer Action Bar (Copy, Like/Dislike, Read Aloud, Share, Try Again, More Actions & Version Switcher) */}
+                {!message.isStreaming &&
+                  !isEmptyEvidenceScope &&
+                  (message.status !== "failed" ||
+                    Boolean(message.content) ||
+                    versionCount > 1) && (
+                    <AiChatAnswerActionBar
+                      organizationId={organizationId}
+                      projectId={projectId}
+                      projectName={projectName}
+                      threadId={threadId}
+                      message={effectiveDisplayMessage}
+                      questionText={turn.questionMessage?.content ?? ""}
+                      versionIndex={activeVersionIndex}
+                      versionCount={versionCount}
+                      isThreadStreaming={isThreadStreaming}
+                      isSpeaking={
+                        speakingMessageId === message.id ||
+                        preparingMessageId === message.id
+                      }
+                      speechError={
+                        speechError?.messageId === message.id
+                          ? speechError.kind
+                          : null
+                      }
+                      canRegenerate={
+                        canRegenerateTurn && message.status !== "failed"
+                      }
+                      isBranching={branchingMessageId === message.id}
+                      onSelectVersionIndex={(nextIdx) => {
+                        if (
+                          speakingMessageId === message.id ||
+                          preparingMessageId === message.id
+                        ) {
+                          stopSpeech();
+                        }
+                        setSelectedVersionIndexByGroup((prev) => ({
+                          ...prev,
+                          [turn.groupKey]: {
+                            selectedIndex: nextIdx,
+                            knownVersionCount: versionCount,
+                          },
+                        }));
+                      }}
+                      onRegenerate={handleTriggerRegenerate}
+                      onToggleSpeak={() =>
+                        void toggleSpeak(
+                          message.id,
+                          effectiveDisplayMessage.content,
+                        )
+                      }
+                      onOpenSources={
+                        message.citations.length > 0 ||
+                        message.sessionCitations.length > 0
+                          ? handleOpenTurnSources
+                          : undefined
+                      }
+                      onBranchInNewChat={
+                        onBranchFromMessage && isPersistedMessageId(message.id)
+                          ? () => {
+                              stopSpeech();
+                              onBranchFromMessage(message);
+                            }
+                          : undefined
+                      }
+                    />
+                  )}
+              </article>
+
+              {isTurnBranchPoint && renderLineageDivider()}
+            </Fragment>
           );
         })}
       </div>

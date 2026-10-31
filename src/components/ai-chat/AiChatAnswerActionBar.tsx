@@ -1,13 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { useTranslations } from "next-intl";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
+import { createPortal } from "react-dom";
+import { useLocale, useTranslations } from "next-intl";
 import {
   AlertIcon,
+  BookOpenIcon,
+  BranchIcon,
   CheckLineIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
+  HorizontaLDots,
   RefreshIcon,
   ShareIcon,
   StopSquareIcon,
@@ -20,8 +31,8 @@ import {
   useAiAnswerFeedbackQuery,
   useCreateAiAnswerShareMutation,
   useDeleteAiAnswerFeedbackMutation,
-  useRevokeAiAnswerShareMutation,
   useUpsertAiAnswerFeedbackMutation,
+  useRevokeAiAnswerShareMutation,
 } from "@/lib/queries/ai-chat/useAiAnswerActions";
 import type {
   AiAnswerFeedbackInput,
@@ -37,6 +48,22 @@ import {
 } from "./answer-action-utils";
 import type { LocalSpeechErrorKind } from "./useLocalSpeech";
 
+function formatTurnTimestamp(iso: string, locale: string): string | null {
+  if (!iso) return null;
+  const parsed = Date.parse(iso);
+  if (!Number.isFinite(parsed)) return null;
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+    }).format(new Date(parsed));
+  } catch {
+    return null;
+  }
+}
+
 export interface AiChatAnswerActionBarProps {
   organizationId: string;
   projectId: string;
@@ -50,9 +77,12 @@ export interface AiChatAnswerActionBarProps {
   isSpeaking: boolean;
   speechError: LocalSpeechErrorKind | null;
   canRegenerate?: boolean;
+  isBranching?: boolean;
   onSelectVersionIndex: (nextIndex: number) => void;
   onRegenerate: () => void;
   onToggleSpeak: () => void;
+  onOpenSources?: () => void;
+  onBranchInNewChat?: () => void;
 }
 
 export default function AiChatAnswerActionBar({
@@ -68,17 +98,28 @@ export default function AiChatAnswerActionBar({
   isSpeaking,
   speechError,
   canRegenerate = true,
+  isBranching = false,
   onSelectVersionIndex,
   onRegenerate,
   onToggleSpeak,
+  onOpenSources,
+  onBranchInNewChat,
 }: AiChatAnswerActionBarProps) {
   const t = useTranslations("AiChat");
-  const isPersisted =
-    Boolean(threadId) && isPersistedMessageId(message.id);
+  const locale = useLocale();
+  const isPersisted = Boolean(threadId) && isPersistedMessageId(message.id);
   const isCompletedOk =
     message.status === "ok" &&
     Boolean(message.content.trim()) &&
     !isHiddenScopeMessage(message.content);
+
+  const hasSources =
+    Boolean(onOpenSources) &&
+    (message.citations.length > 0 || message.sessionCitations.length > 0);
+  const canBranch = isPersisted && Boolean(onBranchInNewChat);
+  const formattedTimestamp = formatTurnTimestamp(message.createdAt, locale);
+  const showMoreMenuTrigger =
+    isCompletedOk && (hasSources || canBranch || Boolean(formattedTimestamp));
 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [copyErrorState, setCopyErrorState] = useState<{
@@ -113,6 +154,13 @@ export default function AiChatAnswerActionBar({
     string | null
   >(null);
 
+  const [moreOpenMessageId, setMoreOpenMessageId] = useState<string | null>(
+    null,
+  );
+
+  const moreTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const moreMenuRef = useRef<HTMLDivElement | null>(null);
+
   const copied = copiedMessageId === message.id;
   const copyError =
     copyErrorState?.messageId === message.id ? copyErrorState.message : null;
@@ -131,13 +179,141 @@ export default function AiChatAnswerActionBar({
       ? shareModalErrorState.message
       : null;
   const shareRevokedNotice = shareRevokedMessageId === message.id;
+  const isMoreOpen = moreOpenMessageId === message.id;
+
+  const updateMoreMenuPosition = useCallback(() => {
+    const triggerEl = moreTriggerRef.current;
+    const menuEl = moreMenuRef.current;
+    if (!triggerEl || !menuEl || typeof window === "undefined") return;
+    const rect = triggerEl.getBoundingClientRect();
+    const menuWidth = menuEl.offsetWidth || 224;
+    const menuHeight = menuEl.offsetHeight || 118;
+    const viewportPadding = 12;
+    const gap = 6;
+    const isRtl =
+      typeof document !== "undefined" && document.documentElement.dir === "rtl";
+
+    const desiredLeft = isRtl ? rect.right - menuWidth : rect.left;
+    const maxLeft = Math.max(
+      viewportPadding,
+      window.innerWidth - menuWidth - viewportPadding,
+    );
+    const clampedLeft = Math.max(
+      viewportPadding,
+      Math.min(desiredLeft, maxLeft),
+    );
+
+    const canFitAbove = rect.top - menuHeight - gap >= viewportPadding;
+    const canFitBelow =
+      rect.bottom + gap + menuHeight <= window.innerHeight - viewportPadding;
+
+    let top = rect.top - menuHeight - gap;
+    if (!canFitAbove && canFitBelow) {
+      top = rect.bottom + gap;
+    } else if (!canFitAbove && !canFitBelow) {
+      top = Math.max(
+        viewportPadding,
+        Math.min(
+          rect.bottom + gap,
+          window.innerHeight - menuHeight - viewportPadding,
+        ),
+      );
+    }
+
+    menuEl.style.top = `${Math.round(top)}px`;
+    menuEl.style.left = `${Math.round(clampedLeft)}px`;
+    menuEl.style.opacity = "1";
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!isMoreOpen) return;
+    updateMoreMenuPosition();
+  }, [isMoreOpen, updateMoreMenuPosition, hasSources, canBranch]);
+
+  useEffect(() => {
+    if (!isMoreOpen) return;
+    const menuEl = moreMenuRef.current;
+    const firstItem = menuEl?.querySelector<HTMLButtonElement>(
+      '[role="menuitem"]:not(:disabled)',
+    );
+    firstItem?.focus();
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        moreTriggerRef.current?.contains(target) ||
+        moreMenuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setMoreOpenMessageId(null);
+    };
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.stopPropagation();
+        setMoreOpenMessageId(null);
+        moreTriggerRef.current?.focus();
+      }
+    };
+
+    const handleViewportChange = (event: Event) => {
+      if (
+        event.type === "scroll" &&
+        event.target instanceof Node &&
+        moreMenuRef.current?.contains(event.target)
+      ) {
+        return;
+      }
+      setMoreOpenMessageId(null);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleViewportChange);
+    window.addEventListener("scroll", handleViewportChange, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleViewportChange);
+      window.removeEventListener("scroll", handleViewportChange, true);
+    };
+  }, [isMoreOpen]);
+
+  const handleMoreMenuKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    const items = Array.from(
+      moreMenuRef.current?.querySelectorAll<HTMLButtonElement>(
+        '[role="menuitem"]:not(:disabled)',
+      ) ?? [],
+    );
+    if (items.length === 0) return;
+    const activeIndex = items.indexOf(
+      document.activeElement as HTMLButtonElement,
+    );
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      const nextIdx = activeIndex < 0 ? 0 : (activeIndex + 1) % items.length;
+      items[nextIdx]?.focus();
+    } else if (event.key === "ArrowUp") {
+      event.preventDefault();
+      const prevIdx =
+        activeIndex <= 0 ? items.length - 1 : activeIndex - 1;
+      items[prevIdx]?.focus();
+    } else if (event.key === "Home") {
+      event.preventDefault();
+      items[0]?.focus();
+    } else if (event.key === "End") {
+      event.preventDefault();
+      items[items.length - 1]?.focus();
+    }
+  };
 
   const feedbackQuery = useAiAnswerFeedbackQuery(
     organizationId,
     projectId,
     threadId,
     message.id,
-    { enabled: isPersisted && isCompletedOk },
+    { enabled: isPersisted && isCompletedOk && Boolean(message.content.trim()) },
   );
   const upsertFeedbackMutation = useUpsertAiAnswerFeedbackMutation(
     organizationId,
@@ -488,7 +664,103 @@ export default function AiChatAnswerActionBar({
             <RefreshIcon aria-hidden="true" className="size-4" />
           </button>
         )}
+
+        {/* 7. More Actions (⋯): Timestamp, View sources, Branch in new chat */}
+        {showMoreMenuTrigger && (
+          <button
+            ref={moreTriggerRef}
+            type="button"
+            data-testid={`ai-chat-more-actions-${message.id}`}
+            aria-label={t("moreActionsAria")}
+            title={t("moreActionsAria")}
+            aria-haspopup="menu"
+            aria-expanded={isMoreOpen}
+            aria-busy={isBranching || undefined}
+            onClick={() => {
+              setMoreOpenMessageId((prev) =>
+                prev === message.id ? null : message.id,
+              );
+            }}
+            className={cn(
+              actionButtonClass,
+              isMoreOpen &&
+                "bg-gray-100 text-gray-900 dark:bg-white/12 dark:text-white",
+            )}
+          >
+            <HorizontaLDots aria-hidden="true" className="size-4" />
+          </button>
+        )}
       </div>
+
+      {isMoreOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={moreMenuRef}
+            role="menu"
+            aria-label={t("moreActionsAria")}
+            data-testid="ai-chat-more-actions-menu"
+            onKeyDown={handleMoreMenuKeyDown}
+            style={{
+              top: "0px",
+              left: "0px",
+              opacity: 0,
+            }}
+            className="fixed z-99999 w-max max-w-[min(18.5rem,calc(100vw-1.5rem))] min-w-52 rounded-2xl border border-gray-200/90 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
+          >
+            {formattedTimestamp && (
+              <div
+                data-testid="ai-chat-more-actions-timestamp"
+                className="px-3 py-1.5 text-xs font-medium text-gray-500 tabular-nums select-none dark:text-gray-400"
+              >
+                {formattedTimestamp}
+              </div>
+            )}
+
+            {hasSources && onOpenSources && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMoreOpenMessageId(null);
+                  onOpenSources();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-start text-xs font-medium text-gray-800 transition-colors hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none sm:text-theme-sm dark:text-gray-100 dark:hover:bg-white/10 dark:focus-visible:bg-white/10"
+              >
+                <BookOpenIcon
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-gray-600 dark:text-gray-300"
+                />
+                <span>{t("viewSourcesAction")}</span>
+              </button>
+            )}
+
+            {canBranch && onBranchInNewChat && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={isThreadStreaming || isBranching}
+                aria-busy={isBranching || undefined}
+                onClick={() => {
+                  setMoreOpenMessageId(null);
+                  onBranchInNewChat();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-start text-xs font-medium text-gray-800 transition-colors hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50 sm:text-theme-sm dark:text-gray-100 dark:hover:bg-white/10 dark:focus-visible:bg-white/10"
+              >
+                <BranchIcon
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-gray-600 dark:text-gray-300"
+                />
+                <span>
+                  {isBranching
+                    ? t("branchingInNewChatStatus")
+                    : t("branchInNewChatAction")}
+                </span>
+              </button>
+            )}
+          </div>,
+          document.body,
+        )}
 
       {isSpeaking && (
         <p role="status" className="sr-only">

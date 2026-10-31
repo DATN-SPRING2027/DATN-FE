@@ -15,7 +15,9 @@ import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   AlertIcon,
   ArrowRightIcon,
+  BranchIcon,
   CheckLineIcon,
+  CloseLineIcon,
   ChevronDownIcon,
   ComposeChatIcon,
   LockIcon,
@@ -33,11 +35,13 @@ import type {
   AiChatMessagePage,
   AiChatRetrievalStep,
   AiChatSessionCitation,
+  AiChatThread,
 } from "@/lib/queries/ai-chat/ai-chat.types";
 import {
   aiChatKeys,
   useAiChatMessagesInfiniteQuery,
   useAiChatThreadsQuery,
+  useBranchAiChatThreadMutation,
   useCreateAiChatThreadMutation,
   useDeleteAiChatThreadMutation,
   useUpdateAiChatThreadMutation,
@@ -247,8 +251,20 @@ function AiChatWorkspaceContent() {
   );
   const [inspectedEvidence, setInspectedEvidence] =
     useState<InspectedEvidence | null>(null);
+  const [branchingMessageId, setBranchingMessageId] = useState<string | null>(
+    null,
+  );
+  const [localBranchedThreadsById, setLocalBranchedThreadsById] = useState<
+    Record<string, AiChatThread>
+  >({});
+  const [branchNotice, setBranchNotice] = useState<{
+    branchId: string;
+    parentThreadId: string | null;
+    parentTitle: string | null;
+  } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const engineMenuRef = useRef<HTMLDivElement | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -346,6 +362,38 @@ function AiChatWorkspaceContent() {
     organizationId,
     projectId,
   );
+  const branchThreadMutation = useBranchAiChatThreadMutation(
+    organizationId,
+    projectId,
+  );
+
+  useEffect(() => {
+    if (!branchNotice) return;
+    const timer = window.setTimeout(() => {
+      setBranchNotice((prev) =>
+        prev?.branchId === branchNotice.branchId ? null : prev,
+      );
+    }, 5000);
+    return () => window.clearTimeout(timer);
+  }, [branchNotice]);
+
+  const effectiveThreads: readonly AiChatThread[] = useMemo(() => {
+    const serverList = threadsQuery.data ?? [];
+    const serverIds = new Set(serverList.map((item) => item.id));
+    const localOnly = Object.values(localBranchedThreadsById).filter(
+      (item) => !serverIds.has(item.id),
+    );
+    return localOnly.length > 0 ? [...localOnly, ...serverList] : serverList;
+  }, [localBranchedThreadsById, threadsQuery.data]);
+
+  const activeThread: AiChatThread | null = useMemo(() => {
+    if (!activeThreadId) return null;
+    return (
+      effectiveThreads.find((item) => item.id === activeThreadId) ??
+      localBranchedThreadsById[activeThreadId] ??
+      null
+    );
+  }, [activeThreadId, effectiveThreads, localBranchedThreadsById]);
 
   const messagesQuery = useAiChatMessagesInfiniteQuery(
     organizationId,
@@ -442,6 +490,9 @@ function AiChatWorkspaceContent() {
       setIsStreaming(false);
       setManualProjectId(project.id);
       setActiveThreadId(null);
+      setLocalBranchedThreadsById({});
+      setBranchNotice(null);
+      setBranchingMessageId(null);
       setRetrievalStepsByMessageId({});
       setValidationError(null);
       setPermissionBanner(null);
@@ -462,6 +513,7 @@ function AiChatWorkspaceContent() {
     abortControllerRef.current = null;
     setIsStreaming(false);
     setActiveThreadId(null);
+    setBranchNotice(null);
     setValidationError(null);
     setPermissionBanner(null);
     setHighlightedTurnId(null);
@@ -495,6 +547,24 @@ function AiChatWorkspaceContent() {
         delete next[threadId];
         return next;
       });
+      setLocalBranchedThreadsById((prev) => {
+        const next: Record<string, AiChatThread> = {};
+        for (const [id, item] of Object.entries(prev)) {
+          if (id === threadId) continue;
+          next[id] =
+            item.parentThreadId === threadId
+              ? { ...item, parentThreadId: null, parentThreadTitle: null }
+              : item;
+        }
+        return next;
+      });
+      setBranchNotice((prev) =>
+        prev?.branchId === threadId
+          ? null
+          : prev?.parentThreadId === threadId
+            ? { ...prev, parentThreadId: null, parentTitle: null }
+            : prev,
+      );
       if (organizationId && projectId) {
         setPinnedIdsByScope((prev) => {
           const current =
@@ -1002,7 +1072,7 @@ function AiChatWorkspaceContent() {
         sessionCitations: [],
         retrievalSteps: [],
         createdAt: nowIso,
-        ...(targetMessage.replyToMessageId ?? questionMessage?.id
+        ...((targetMessage.replyToMessageId ?? questionMessage?.id)
           ? {
               replyToMessageId:
                 targetMessage.replyToMessageId ?? questionMessage?.id,
@@ -1267,6 +1337,75 @@ function AiChatWorkspaceContent() {
     ],
   );
 
+  const handleBranchFromMessage = useCallback(
+    async (targetMessage: DisplayAiChatMessage) => {
+      if (
+        !selectedProject ||
+        !activeThreadId ||
+        isStreaming ||
+        branchThreadMutation.isPending ||
+        !isPersistedMessageId(targetMessage.id)
+      ) {
+        return;
+      }
+
+      setBranchingMessageId(targetMessage.id);
+      setValidationError(null);
+      setPermissionBanner(null);
+
+      try {
+        const createdBranch = await branchThreadMutation.mutateAsync({
+          threadId: activeThreadId,
+          messageId: targetMessage.id,
+        });
+        setLocalBranchedThreadsById((prev) => ({
+          ...prev,
+          [createdBranch.id]: createdBranch,
+        }));
+        setActiveThreadId(createdBranch.id);
+        setHighlightedTurnId(null);
+        setIsMobileSidebarOpen(false);
+        setBranchNotice({
+          branchId: createdBranch.id,
+          parentThreadId: createdBranch.parentThreadId ?? null,
+          parentTitle: createdBranch.parentThreadTitle ?? null,
+        });
+        if (typeof window !== "undefined") {
+          window.requestAnimationFrame(() => {
+            composerTextareaRef.current?.focus();
+          });
+        }
+      } catch (error) {
+        if (isProjectOrAuthAccessError(error)) {
+          if (error.status === 401) {
+            revalidateCurrentUserSession(queryClient);
+          }
+          setPermissionBanner(
+            error.status === 401
+              ? t("sessionExpiredBody")
+              : t("permissionDeniedBody"),
+          );
+        } else {
+          setValidationError(
+            error instanceof ApiError ? error.message : t("branchErrorDefault"),
+          );
+        }
+      } finally {
+        setBranchingMessageId((prev) =>
+          prev === targetMessage.id ? null : prev,
+        );
+      }
+    },
+    [
+      activeThreadId,
+      branchThreadMutation,
+      isStreaming,
+      queryClient,
+      selectedProject,
+      t,
+    ],
+  );
+
   const handleJumpToTurn = useCallback(
     (turnId: string, fallback: AiChatSessionCitation) => {
       const targetEl =
@@ -1392,7 +1531,7 @@ function AiChatWorkspaceContent() {
         projectId={selectedProject.id}
         projectCode={selectedProject.code}
         projectName={selectedProject.name}
-        threads={threadsQuery.data ?? []}
+        threads={effectiveThreads}
         pinnedThreadIds={pinnedThreadIds}
         activeThreadId={activeThreadId}
         isLoading={threadsQuery.isLoading}
@@ -1629,6 +1768,57 @@ function AiChatWorkspaceContent() {
           </div>
         </header>
 
+        {/* Branched in New Chat Confirmation Notice */}
+        {branchNotice && (
+          <div className="shrink-0 px-3 pt-2.5 sm:px-6">
+            <div
+              role="status"
+              aria-live="polite"
+              data-testid="ai-chat-branch-toast"
+              className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-2xl border border-gray-200/90 bg-gray-50/90 px-3.5 py-2 shadow-theme-xs dark:border-white/12 dark:bg-gpt-popover"
+            >
+              <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600 dark:text-brand-300">
+                <BranchIcon aria-hidden="true" className="size-4" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">
+                  {t("branchCreatedToast")}
+                </p>
+                {branchNotice.parentTitle && (
+                  <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
+                    {t("branchCreatedToastFrom", {
+                      title: branchNotice.parentTitle,
+                    })}
+                  </p>
+                )}
+              </div>
+              {branchNotice.parentThreadId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const parentId = branchNotice.parentThreadId;
+                    setBranchNotice(null);
+                    if (parentId) {
+                      handleSelectThread(parentId);
+                    }
+                  }}
+                  className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50 dark:text-brand-300 dark:hover:bg-brand-500/15"
+                >
+                  {t("branchBackToOriginalAction")}
+                </button>
+              )}
+              <button
+                type="button"
+                aria-label={t("branchToastDismissAria")}
+                onClick={() => setBranchNotice(null)}
+                className="inline-flex size-6 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-white/10 dark:hover:text-gray-200"
+              >
+                <CloseLineIcon aria-hidden="true" className="size-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Permission Denied / Session Revoked Banner */}
         {accessBannerMessage && (
           <div
@@ -1704,6 +1894,8 @@ function AiChatWorkspaceContent() {
             projectId={selectedProject.id}
             projectName={selectedProject.name}
             threadId={activeThreadId}
+            activeThread={activeThread}
+            branchingMessageId={branchingMessageId}
             isThreadStreaming={isStreaming}
             mode="chat"
             messages={displayedMessages}
@@ -1724,6 +1916,11 @@ function AiChatWorkspaceContent() {
             onRegenerateMessage={(msg, qMsg) =>
               void regenerateAnswer(msg, qMsg)
             }
+            onBranchFromMessage={(msg) => void handleBranchFromMessage(msg)}
+            onSelectParentThread={(parentId) => {
+              setBranchNotice(null);
+              handleSelectThread(parentId);
+            }}
             onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
             onJumpToTurn={handleJumpToTurn}
           />
@@ -1733,6 +1930,7 @@ function AiChatWorkspaceContent() {
           variant="docked"
           mode="chat"
           value={composerValue}
+          inputRef={composerTextareaRef}
           projectId={selectedProject.id}
           projectCode={selectedProject.code}
           projectName={selectedProject.name}
