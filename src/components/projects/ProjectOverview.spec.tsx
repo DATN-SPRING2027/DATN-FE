@@ -62,11 +62,14 @@ it("hides Add member until the server grants member-add authority", () => {
   expect(screen.queryByRole("button", { name: "Open Add member form" })).not.toBeInTheDocument();
 });
 
-it("hides the Settings tab when the current Project grants no management access", () => {
+it("keeps Project section navigation in the sidebar instead of a duplicate tab bar", () => {
   management.canAccessSettings = false;
   membersQuery.mockReturnValue({ data: undefined, isPending: false, isError: true } as ReturnType<typeof useProjectMembersQuery>);
   renderOverview();
-  expect(screen.queryByRole("tab", { name: "Settings" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("navigation", { name: "Project sections" }),
+  ).not.toBeInTheDocument();
 });
 
 it("shows the live active Project member total on Overview", () => {
