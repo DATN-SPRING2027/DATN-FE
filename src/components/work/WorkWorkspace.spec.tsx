@@ -2808,4 +2808,166 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       ]);
     });
   });
+
+  it("transitions BLOCKED tasks using authoritative fromStatus='BLOCKED' with reason and renders Board without MAX 4 cap", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const blockedTaskId = "69e923c77859fd1c702d4cb1";
+    const transitionBodies: Array<{
+      fromStatus: string;
+      toStatus: string;
+      reason?: string;
+    }> = [];
+    let currentStatus = "BLOCKED";
+    let currentVersion = 1;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Manager",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: projectId,
+              organizationId: "69e923c77859fd1c702d4c01",
+              name: "Continuum Pulse",
+              code: "PULSE",
+              visibility: "PUBLIC",
+              status: "ACTIVE",
+              createdBy: "69e923c77859fd1c702d4c10",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${blockedTaskId}/transitions` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          fromStatus: string;
+          toStatus: string;
+          reason?: string;
+        };
+        if (body.fromStatus !== currentStatus) {
+          throw new Error(`TASK_STATUS_CONFLICT: expected ${currentStatus}, got ${body.fromStatus}`);
+        }
+        transitionBodies.push(body);
+        currentStatus = body.toStatus;
+        currentVersion += 1;
+        return {
+          id: blockedTaskId,
+          projectId,
+          key: "PULSE-13",
+          title: "Blocked webhook task",
+          description: null,
+          type: "TASK",
+          status: currentStatus,
+          priority: "HIGH",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        const extraInProgress = [1, 2, 3, 4, 5].map((n) => ({
+          id: `69e923c77859fd1c702d4cc${n}`,
+          projectId,
+          key: `PULSE-2${n}`,
+          title: `Active task ${n}`,
+          type: "TASK",
+          status: "IN_PROGRESS",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          dueDate: null,
+          startDate: null,
+          labels: [],
+          subtaskCounts: { total: 0, done: 0 },
+          version: 1,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+        }));
+        return {
+          items: [
+            {
+              id: blockedTaskId,
+              projectId,
+              key: "PULSE-13",
+              title: "Blocked webhook task",
+              type: "TASK",
+              status: currentStatus,
+              priority: "HIGH",
+              assigneeId: null,
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+            ...extraInProgress,
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace(projectId);
+    expect(await screen.findByText("Blocked webhook task")).toBeVisible();
+
+    // Switch to Board view and confirm MAX 4 badge is gone even with 6 items in IN PROGRESS
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(screen.queryByText(/MAX 4/i)).not.toBeInTheDocument();
+
+    // Transition PULSE-13 (backend status BLOCKED, shown in In progress) -> IN_REVIEW
+    fireEvent.click(screen.getByText("Blocked webhook task"));
+    const dialog = await screen.findByRole("dialog");
+    const statusSelect = within(dialog).getByLabelText("Update work item status");
+    fireEvent.change(statusSelect, { target: { value: "IN_REVIEW" } });
+
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        {
+          fromStatus: "BLOCKED",
+          toStatus: "IN_REVIEW",
+          reason: "Unblocked from workspace UI",
+        },
+      ]);
+    });
+  });
 });
