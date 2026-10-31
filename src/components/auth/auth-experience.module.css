@@ -144,7 +144,7 @@
   font-weight: 600;
   color: var(--auth-muted);
   text-transform: uppercase;
-  animation: authItemReveal 0.58s var(--auth-ease) 0.16s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.16s backwards;
 }
 .formHeading h1 {
   margin-block: 0.9rem 1.2rem;
@@ -153,7 +153,7 @@
   letter-spacing: -0.055em;
   font-weight: 600;
   text-wrap: balance;
-  animation: authItemReveal 0.6s var(--auth-ease) 0.23s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.23s backwards;
 }
 .formHeading h1 > span {
   color: var(--color-brand-500);
@@ -163,7 +163,7 @@
   font-size: 0.9rem;
   line-height: 1.85;
   color: var(--auth-muted);
-  animation: authItemReveal 0.6s var(--auth-ease) 0.3s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.3s backwards;
 }
 .introduction a {
   color: var(--color-brand-600);
@@ -183,22 +183,22 @@
   gap: 1rem;
 }
 .signinForm > :nth-child(1) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.36s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.36s backwards;
 }
 .signinForm > :nth-child(2) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.43s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.43s backwards;
 }
 .signinForm > :nth-child(3) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.5s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.5s backwards;
 }
 .signinForm > :nth-child(4) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.56s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.56s backwards;
 }
 .signinForm > :nth-child(5) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.62s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.62s backwards;
 }
 .signinForm > :nth-child(n + 6) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.66s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.66s backwards;
 }
 .formNote {
   margin-block-start: 1.5rem;
@@ -210,7 +210,7 @@
 }
 .signin > :global([role="alert"]) {
   margin-bottom: 1rem;
-  animation: authItemReveal 0.55s var(--auth-ease) 0.32s both;
+  animation: authItemReveal 0.55s var(--auth-ease) 0.32s backwards;
 }
 .field {
   position: relative;
@@ -320,16 +320,11 @@
   padding-inline: 1.5rem;
   box-shadow: var(--shadow-theme-sm);
   transition:
-    transform 0.22s var(--auth-ease),
     box-shadow 0.22s var(--auth-ease),
-    background-color 0.2s;
+    background-color 0.2s var(--auth-ease);
 }
 .primaryButton:hover:not(:disabled) {
-  transform: translateY(-1px) scale(1.015);
   box-shadow: var(--shadow-theme-md);
-}
-.primaryButton:active:not(:disabled) {
-  transform: translateY(0) scale(0.985);
 }
 .separator {
   position: relative;
@@ -340,7 +335,7 @@
   color: var(--auth-muted);
   font-size: 0.7rem;
   gap: 1rem;
-  animation: authItemReveal 0.6s var(--auth-ease) 0.62s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.62s backwards;
 }
 .separator::before,
 .separator::after {
@@ -350,7 +345,7 @@
   background: var(--auth-line);
 }
 .googleButton {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.68s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.68s backwards;
 }
 .googleButton button {
   width: 100%;
@@ -362,15 +357,12 @@
   font-size: 0.85rem;
   transition:
     background-color 0.2s var(--auth-ease),
-    transform 0.22s var(--auth-ease),
+    box-shadow 0.22s var(--auth-ease),
     border-color 0.2s var(--auth-ease);
 }
 .googleButton button:hover {
   background: var(--auth-soft);
-  transform: translateY(-1px);
-}
-.googleButton button:active {
-  transform: translateY(0) scale(0.99);
+  box-shadow: var(--shadow-theme-xs);
 }
 .footer {
   display: flex;
@@ -509,7 +501,7 @@
   display: flex;
   align-items: center;
   width: 100%;
-  animation: authItemReveal 0.5s var(--auth-ease) 0.15s both;
+  animation: authItemReveal 0.5s var(--auth-ease) 0.15s backwards;
 }
 .organizationContent {
   display: flex;
@@ -517,16 +509,16 @@
   gap: 1.15rem;
 }
 .organizationContent > :nth-child(1) {
-  animation: authItemReveal 0.58s var(--auth-ease) 0.18s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.18s backwards;
 }
 .organizationContent > :nth-child(2) {
-  animation: authItemReveal 0.58s var(--auth-ease) 0.26s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.26s backwards;
 }
 .organizationContent > :nth-child(3) {
-  animation: authItemReveal 0.58s var(--auth-ease) 0.34s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.34s backwards;
 }
 .organizationContent > :nth-child(n + 4) {
-  animation: authItemReveal 0.58s var(--auth-ease) 0.42s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.42s backwards;
 }
 .organizationContent .formHeading {
   margin: 0;
@@ -855,7 +847,7 @@
   border-radius: 1.5rem;
   background: var(--auth-surface);
   box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 0.08);
-  animation: authItemReveal 0.6s var(--auth-ease) 0.22s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.22s backwards;
 }
 .authConfirmationIcon {
   display: grid;
@@ -975,10 +967,10 @@
   gap: 1rem;
 }
 .resetForm > :nth-child(1) {
-  animation: authItemReveal 0.58s var(--auth-ease) 0.18s both;
+  animation: authItemReveal 0.58s var(--auth-ease) 0.18s backwards;
 }
 .resetForm > :nth-child(2) {
-  animation: authItemReveal 0.6s var(--auth-ease) 0.26s both;
+  animation: authItemReveal 0.6s var(--auth-ease) 0.26s backwards;
 }
 .resetForm > div {
   max-width: none;

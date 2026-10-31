@@ -1,20 +1,50 @@
 "use client";
 
+import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { useTheme } from "@/context/ThemeContext";
+import {
+  ANIMATE_UI_BUTTON_SPRING,
+  ButtonRippleLayer,
+  type ButtonRippleHandle,
+} from "@/components/ui/button/buttonMotion";
 
 export default function ThemeTogglerTwo() {
   const { toggleTheme } = useTheme();
   const t = useTranslations("authExperience");
+  const shouldReduceMotion = useReducedMotion();
+  const rippleRef = useRef<ButtonRippleHandle>(null);
+
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (shouldReduceMotion) return;
+      rippleRef.current?.spawn(event);
+    },
+    [shouldReduceMotion],
+  );
+
+  const motionStateProps = shouldReduceMotion
+    ? undefined
+    : {
+        whileHover: { scale: 1.06, y: -1 },
+        whileTap: { scale: 0.91, rotate: 12 },
+      };
+
   return (
-    <button
-      onClick={toggleTheme}
+    <motion.button
       type="button"
+      data-slot="button"
+      transition={ANIMATE_UI_BUTTON_SPRING}
+      {...motionStateProps}
+      onPointerDown={handlePointerDown}
+      onClick={toggleTheme}
       aria-label={t("toggleTheme")}
-      className="inline-flex size-14 items-center justify-center rounded-full bg-brand-500 text-white transition-colors hover:bg-brand-600"
+      className="relative inline-flex size-14 select-none items-center justify-center overflow-hidden rounded-full bg-brand-500 text-white transition-[background-color,box-shadow] duration-150 ease-out hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
     >
+      <ButtonRippleLayer ref={rippleRef} rippleClassName="bg-white/35" />
       <svg
-        className="hidden dark:block"
+        className="relative z-1 hidden dark:block"
         width="20"
         height="20"
         viewBox="0 0 20 20"
@@ -29,7 +59,7 @@ export default function ThemeTogglerTwo() {
         />
       </svg>
       <svg
-        className="dark:hidden"
+        className="relative z-1 dark:hidden"
         width="20"
         height="20"
         viewBox="0 0 20 20"
@@ -41,6 +71,6 @@ export default function ThemeTogglerTwo() {
           fill="currentColor"
         />
       </svg>
-    </button>
+    </motion.button>
   );
 }
