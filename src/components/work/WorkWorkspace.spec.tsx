@@ -2666,4 +2666,146 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
       screen.getByRole("button", { name: "Edit work item description" }),
     ).toBeVisible();
   });
+
+  it("chains 2-step TODO <-> IN_REVIEW transitions and keeps header Create button outside sr-only when hideProjectBanner is true", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const taskId = "69e923c77859fd1c702d4ca9";
+    const transitionBodies: Array<{ fromStatus: string; toStatus: string }> = [];
+    let currentStatus = "TODO";
+    let currentVersion = 1;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Manager",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: projectId,
+              organizationId: "69e923c77859fd1c702d4c01",
+              name: "Continuum Frontend Portal",
+              code: "CONT-FE",
+              visibility: "PUBLIC",
+              status: "ACTIVE",
+              createdBy: "69e923c77859fd1c702d4c10",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${taskId}/transitions` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          fromStatus: string;
+          toStatus: string;
+        };
+        transitionBodies.push(body);
+        currentStatus = body.toStatus;
+        currentVersion += 1;
+        return {
+          id: taskId,
+          projectId,
+          key: "CONT-FE-1",
+          title: "Verify 2-step review transition",
+          description: null,
+          type: "TASK",
+          status: currentStatus,
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: taskId,
+              projectId,
+              key: "CONT-FE-1",
+              title: "Verify 2-step review transition",
+              type: "TASK",
+              status: currentStatus,
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace(projectId);
+    expect(await screen.findByText("Verify 2-step review transition")).toBeVisible();
+
+    const headerCreateBtn = screen
+      .getAllByRole("button", { name: "Create" })
+      .find((btn) => btn.closest("header") !== null);
+    expect(headerCreateBtn).toBeDefined();
+    expect(headerCreateBtn?.closest(".sr-only")).toBeNull();
+
+    // Open CONT-FE-1 detail modal and transition TODO -> IN_REVIEW -> TODO
+    fireEvent.click(screen.getByText("Verify 2-step review transition"));
+    const dialog = await screen.findByRole("dialog");
+    const statusSelect = within(dialog).getByLabelText("Update work item status");
+
+    fireEvent.change(statusSelect, { target: { value: "IN_REVIEW" } });
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        { fromStatus: "TODO", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "IN_REVIEW" },
+      ]);
+    });
+
+    fireEvent.change(statusSelect, { target: { value: "TODO" } });
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        { fromStatus: "TODO", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "IN_REVIEW" },
+        { fromStatus: "IN_REVIEW", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "TODO" },
+      ]);
+    });
+  });
 });

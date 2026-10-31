@@ -205,4 +205,26 @@ describe("BFF AI Chat SSE streaming", () => {
       message: "AI Chat service is temporarily unavailable.",
     });
   });
+
+  it("returns 499 REQUEST_ABORTED without throwing unhandled ResponseAborted errors when a non-chat request is cancelled", async () => {
+    const abortError = new Error("ResponseAborted");
+    abortError.name = "ResponseAborted";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(abortError));
+
+    const controller = new AbortController();
+    controller.abort();
+    const path = ["tasks", "projects", "proj-1", "tasks"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+      { signal: controller.signal },
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(response.status).toBe(499);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "REQUEST_ABORTED",
+      message: "Backend request was cancelled.",
+    });
+  });
 });

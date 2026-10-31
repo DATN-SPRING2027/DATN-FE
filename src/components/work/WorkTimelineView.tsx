@@ -28,15 +28,38 @@ export default function WorkTimelineView({
   people,
   onOpenItem,
   onCreate,
+  activeSprintName = null,
+  isPreview = true,
+  onUpdateDates,
 }: {
   items: readonly WorkItem[];
   people?: readonly WorkPerson[];
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
   onCreate: () => void;
+  activeSprintName?: string | null;
+  isPreview?: boolean;
+  onUpdateDates?: (
+    itemId: string,
+    startDate: string | null,
+    dueDate: string | null,
+  ) => void;
 }) {
   const [epics, setEpics] = useState<WorkTimelineEpic[]>([
     ...INITIAL_TIMELINE_EPICS,
   ]);
+  const [collapsedEpicKeys, setCollapsedEpicKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [barOverrides, setBarOverrides] = useState<
+    Record<
+      string,
+      {
+        startDateRaw: string;
+        dueDateRaw: string;
+        barColor: WorkTimelineBarColor;
+      }
+    >
+  >({});
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedAssignee, setSelectedAssignee] = useState<string>("ALL");
   const [sortAsc, setSortAsc] = useState(true);
@@ -168,11 +191,39 @@ export default function WorkTimelineView({
           }),
         };
       });
-    return dynamicEpics.length > 0 &&
-      !items.some((i) => i.key.startsWith("KNW-"))
-      ? dynamicEpics
-      : [...dynamicEpics, ...epics];
-  }, [epics, items]);
+    const baseList =
+      dynamicEpics.length > 0 && !items.some((i) => i.key.startsWith("KNW-"))
+        ? dynamicEpics
+        : [...dynamicEpics, ...epics];
+
+    return baseList.map((epic) => {
+      const epicOverride = barOverrides[epic.key];
+      const startRaw = epicOverride?.startDateRaw ?? epic.startDateRaw;
+      const dueRaw = epicOverride?.dueDateRaw ?? epic.dueDateRaw;
+      return {
+        ...epic,
+        expanded: !collapsedEpicKeys.has(epic.key),
+        startDateRaw: startRaw,
+        dueDateRaw: dueRaw,
+        startLabel: formatShortDate(startRaw) || epic.startLabel,
+        endLabel: formatShortDate(dueRaw) || epic.endLabel,
+        barColor: epicOverride?.barColor ?? epic.barColor,
+        subtasks: epic.subtasks.map((sub) => {
+          const subOverride = barOverrides[sub.key];
+          if (!subOverride) return sub;
+          return {
+            ...sub,
+            startDateRaw: subOverride.startDateRaw,
+            dueDateRaw: subOverride.dueDateRaw,
+            startLabel:
+              formatShortDate(subOverride.startDateRaw) || sub.startLabel,
+            endLabel: formatShortDate(subOverride.dueDateRaw) || sub.endLabel,
+            barColor: subOverride.barColor,
+          };
+        }),
+      };
+    });
+  }, [barOverrides, collapsedEpicKeys, epics, items]);
 
   const filteredEpics = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();
@@ -212,22 +263,24 @@ export default function WorkTimelineView({
   }, [mergedEpics, searchTerm, selectedAssignee, sortAsc]);
 
   function toggleEpic(epicKey: string) {
-    setEpics((current) =>
-      current.map((epic) =>
-        epic.key === epicKey ? { ...epic, expanded: !epic.expanded } : epic,
-      ),
-    );
+    setCollapsedEpicKeys((current) => {
+      const next = new Set(current);
+      if (next.has(epicKey)) next.delete(epicKey);
+      else next.add(epicKey);
+      return next;
+    });
   }
 
   function toggleExpandAll() {
-    const anyCollapsed = epics.some(
-      (epic) => epic.subtasks.length > 0 && !epic.expanded,
+    const epicsWithChildren = mergedEpics.filter(
+      (epic) => epic.subtasks.length > 0,
     );
-    setEpics((current) =>
-      current.map((epic) =>
-        epic.subtasks.length > 0 ? { ...epic, expanded: anyCollapsed } : epic,
-      ),
-    );
+    const anyCollapsed = epicsWithChildren.some((epic) => !epic.expanded);
+    if (anyCollapsed) {
+      setCollapsedEpicKeys(new Set());
+    } else {
+      setCollapsedEpicKeys(new Set(epicsWithChildren.map((epic) => epic.key)));
+    }
   }
 
   function cycleSubtaskStatus(epicKey: string, subtaskKey: string) {
@@ -272,37 +325,38 @@ export default function WorkTimelineView({
       setDateError("Start date cannot be after due date.");
       return;
     }
-    const startLabel = formatShortDate(editStart);
-    const endLabel = formatShortDate(editDue);
-    setEpics((current) =>
-      current.map((epic) => {
-        if (epic.key === editingKey) {
-          return {
-            ...epic,
-            startDateRaw: editStart,
-            dueDateRaw: editDue,
-            startLabel: startLabel || epic.startLabel,
-            endLabel: endLabel || epic.endLabel,
-            barColor: editColor,
-          };
+    setBarOverrides((current) => ({
+      ...current,
+      [editingKey]: {
+        startDateRaw: editStart,
+        dueDateRaw: editDue,
+        barColor: editColor,
+      },
+    }));
+    if (onUpdateDates) {
+      const matchedParent = items.find((item) => item.key === editingKey);
+      if (matchedParent) {
+        onUpdateDates(
+          matchedParent.id,
+          editStart || null,
+          editDue || null,
+        );
+      } else {
+        for (const parent of items) {
+          const matchedSub = (parent.subtaskItems ?? []).find(
+            (sub) => sub.key === editingKey,
+          );
+          if (matchedSub) {
+            onUpdateDates(
+              matchedSub.id,
+              editStart || null,
+              editDue || null,
+            );
+            break;
+          }
         }
-        return {
-          ...epic,
-          subtasks: epic.subtasks.map((sub) =>
-            sub.key === editingKey
-              ? {
-                  ...sub,
-                  startDateRaw: editStart,
-                  dueDateRaw: editDue,
-                  startLabel: startLabel || sub.startLabel,
-                  endLabel: endLabel || sub.endLabel,
-                  barColor: editColor,
-                }
-              : sub,
-          ),
-        };
-      }),
-    );
+      }
+    }
     setEditingKey(null);
   }
 
@@ -621,7 +675,7 @@ export default function WorkTimelineView({
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {/* Jira Cloud Top Sprints Row (`35-timeline-with-epic-and-children.png`) */}
-              {showSprintsRow && (
+              {showSprintsRow && (activeSprintName || isPreview) && (
                 <div className="grid min-h-10 grid-cols-[minmax(0,1fr)_6.5rem_5.5rem] items-center gap-2 bg-gray-50/90 px-3 py-1.5 text-xs font-semibold text-gray-700 dark:bg-gray-800/60 dark:text-gray-200">
                   <div className="flex items-center gap-2">
                     <MonoIcon name="sync"size={13} className="text-gray-600 dark:text-gray-300"/>
@@ -630,7 +684,9 @@ export default function WorkTimelineView({
                   <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
                     Active
                   </span>
-                  <span className="text-[11px] text-gray-400">Sprint 1</span>
+                  <span className="truncate text-[11px] text-gray-400">
+                    {activeSprintName ?? "Sprint 1"}
+                  </span>
                 </div>
               )}
 
@@ -841,7 +897,7 @@ export default function WorkTimelineView({
                 </div>
 
                 {/* Top Sprint Gantt Bar Row */}
-                {showSprintsRow && (
+                {showSprintsRow && (activeSprintName || isPreview) && (
                   <div className="relative flex min-h-10 items-center bg-gray-50/90 px-2 py-1.5 dark:bg-gray-800/60">
                     <div
                       style={{ left:"24%", width:"36%"}}
@@ -849,7 +905,9 @@ export default function WorkTimelineView({
                     >
                       <span className="inline-flex items-center gap-1.5 truncate">
                         <MonoIcon name="sync"size={12} />
-                        <span>SCRUM Sprint 1 (Oct 15 – Oct 29)</span>
+                        <span>
+                          {activeSprintName ?? "SCRUM Sprint 1 (Oct 15 – Oct 29)"}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -874,6 +932,7 @@ export default function WorkTimelineView({
                             )
                           }
                           style={epicPos}
+                          aria-label={`Schedule bar for ${epic.key}`}
                           className={`relative z-1 flex h-7 cursor-pointer items-center justify-between border px-2.5 text-[11px] font-semibold shadow-theme-xs transition hover:brightness-105 ${
                             BAR_COLOR_STYLES[epic.barColor]
                           }`}

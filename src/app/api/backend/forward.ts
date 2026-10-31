@@ -73,18 +73,24 @@ export async function forwardBackendRequest(
       },
     );
   } catch (error) {
+    const isAborted =
+      Boolean(request.signal?.aborted) ||
+      (error instanceof Error &&
+        (error.name === "AbortError" || error.name === "ResponseAborted"));
+    if (isAborted) {
+      return Response.json(
+        {
+          code: "REQUEST_ABORTED",
+          message: isAiChatRequest
+            ? "AI Chat request was cancelled."
+            : "Backend request was cancelled.",
+          details: {},
+          requestId: headers.get("x-request-id"),
+        },
+        { status: 499, headers: { "cache-control": "no-store" } },
+      );
+    }
     if (isAiChatRequest) {
-      if (request.signal.aborted) {
-        return Response.json(
-          {
-            code: "REQUEST_ABORTED",
-            message: "AI Chat request was cancelled.",
-            details: {},
-            requestId: headers.get("x-request-id"),
-          },
-          { status: 499, headers: { "cache-control": "no-store" } },
-        );
-      }
       return Response.json(
         {
           code: "BACKEND_UNAVAILABLE",

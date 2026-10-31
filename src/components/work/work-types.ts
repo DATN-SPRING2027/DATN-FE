@@ -147,8 +147,13 @@ export type CreatePreviewWorkItem = Readonly<{
   priority: WorkPriority;
   assignee: WorkPerson;
   dueDate: string | null;
+  startDate?: string | null;
   description?: string;
   status?: WorkStatus;
+  parentId?: string | null;
+  labels?: readonly string[];
+  sprintId?: string | null;
+  keepDialogOpen?: boolean;
 }>;
 
 export type WorkItemGroup = Readonly<{

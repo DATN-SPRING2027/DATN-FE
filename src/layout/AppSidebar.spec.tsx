@@ -506,6 +506,23 @@ describe("AppSidebar navigation", () => {
     );
   });
 
+  it("keeps the user on /workspace?projectId=<id> when switching project from /workspace", () => {
+    routeState.pathname = "/workspace";
+    render(<AppSidebar />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
+    const projectDropdown = screen.getByRole("region", { name: "Projects" });
+    fireEvent.click(
+      within(projectDropdown).getByRole("button", {
+        name: /AI Knowledge Engine/,
+      }),
+    );
+
+    expect(replace).toHaveBeenCalledWith(
+      "/workspace?projectId=69e923c77859fd1c702d4c99",
+    );
+  });
+
   it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
     currentUser.data = {
       ...currentUser.data,
