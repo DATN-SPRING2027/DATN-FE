@@ -1386,6 +1386,13 @@ pre[class*="language-"].line-numbers {
 }
 
 
+/* Docked Mind Map panel responsive max-width guard */
+@media (min-width: 1280px) {
+  .continuum-mind-map-dock {
+    max-width: calc(100% - 31.25rem);
+  }
+}
+
 @keyframes continuumShimmer {
   0% {
     background-position: 200% 0;

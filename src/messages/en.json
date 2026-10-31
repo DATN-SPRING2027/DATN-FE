@@ -5366,6 +5366,7 @@
     "mindMapExpandInspector": "Show node details",
     "mindMapBreadcrumbRoot": "Root",
     "mindMapClearSelectionAria": "Clear branch selection",
+    "resizeMindMapAriaLabel": "Resize Mind Map panel",
     "mindMapInspectSourcesAria": "View supporting sources for {label}",
     "evidenceVerifiedBadge": "Verified source",
     "evidenceFocusContextLabel": "Focus: {label}",

@@ -5366,6 +5366,7 @@
     "mindMapExpandInspector": "Mở chi tiết nhánh",
     "mindMapBreadcrumbRoot": "Gốc",
     "mindMapClearSelectionAria": "Bỏ chọn nhánh",
+    "resizeMindMapAriaLabel": "Kéo thay đổi độ rộng bảng Bản đồ tư duy",
     "mindMapInspectSourcesAria": "Xem nguồn tài liệu của {label}",
     "evidenceVerifiedBadge": "Nguồn xác thực",
     "evidenceFocusContextLabel": "Đang đối chiếu: {label}",

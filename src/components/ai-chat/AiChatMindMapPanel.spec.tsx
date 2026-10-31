@@ -1,11 +1,22 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { ApiError } from "@/lib/api-client";
 import type { AiChatMindMapResponse } from "@/lib/queries/ai-chat/ai-chat.types";
-import AiChatMindMapPanel from "./AiChatMindMapPanel";
+import AiChatMindMapPanel, {
+  AI_CHAT_MIND_MAP_DEFAULT_WIDTH,
+  AI_CHAT_MIND_MAP_MAX_WIDTH,
+  AI_CHAT_MIND_MAP_MIN_WIDTH,
+  AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
+} from "./AiChatMindMapPanel";
 
 const { apiClientMock } = vi.hoisted(() => ({
   apiClientMock: vi.fn(),
@@ -72,6 +83,7 @@ function renderPanel(
 describe("AiChatMindMapPanel — clutter-free Studio UI, citations, revalidation & ChatAI handoff", () => {
   beforeEach(() => {
     apiClientMock.mockReset();
+    window.localStorage.clear();
   });
 
   it("renders clean canvas without fallback/subtitle/root-inspector clutter, supports direct source click + branch quickbar, and sends deep-dive prompt", async () => {
@@ -396,5 +408,106 @@ describe("AiChatMindMapPanel — clutter-free Studio UI, citations, revalidation
       method: "POST",
       body: JSON.stringify({ refresh: false }),
     });
+  });
+
+  it("supports dragging the docked panel wider/narrower, clamping, localStorage persistence, keyboard resize, double-click reset, and mid-drag cleanup", async () => {
+    apiClientMock.mockResolvedValue({
+      projectId: "proj-1",
+      topic: null,
+      status: "ready",
+      generationMode: "llm",
+      fallbackReason: null,
+      scopeFingerprint: "fp_resize_1234567890",
+      cached: true,
+      hasSourceUpdates: false,
+      coverage: {
+        accessibleReadyDocumentCount: 2,
+        usedDocumentCount: 2,
+        omittedDocumentCount: 0,
+        pendingDocumentCount: 0,
+        truncatedDocumentCount: 0,
+        evidenceUnitCount: 4,
+      },
+      tree: {
+        id: "root",
+        label: "Resizable Map",
+        summary: "Test resizable docked Mind Map.",
+        citationNumbers: [],
+        children: [],
+      },
+      citations: [],
+      generatedAt: "2026-10-31T08:00:00Z",
+    } satisfies AiChatMindMapResponse);
+
+    const { unmount } = renderPanel();
+    const dockedPanel = screen.getByTestId("mind-map-docked-panel");
+    const resizer = screen.getByRole("separator", {
+      name: "Resize Mind Map panel",
+    });
+
+    expect(dockedPanel).toHaveStyle({
+      width: `${AI_CHAT_MIND_MAP_DEFAULT_WIDTH}px`,
+    });
+
+    // Start dragging at X=800; moving left to X=640 (+160px) widens docked panel to 600px
+    fireEvent.mouseDown(resizer, { button: 0, clientX: 800 });
+    expect(document.body.style.cursor).toBe("col-resize");
+    act(() => {
+      fireEvent.mouseMove(window, { clientX: 640 });
+    });
+    expect(dockedPanel).toHaveStyle({ width: "600px" });
+
+    // Drag far left past max -> clamps to AI_CHAT_MIND_MAP_MAX_WIDTH
+    act(() => {
+      fireEvent.mouseMove(window, { clientX: 100 });
+    });
+    expect(dockedPanel).toHaveStyle({
+      width: `${AI_CHAT_MIND_MAP_MAX_WIDTH}px`,
+    });
+
+    // Drag far right past min -> clamps to AI_CHAT_MIND_MAP_MIN_WIDTH
+    act(() => {
+      fireEvent.mouseMove(window, { clientX: 1100 });
+    });
+    expect(dockedPanel).toHaveStyle({
+      width: `${AI_CHAT_MIND_MAP_MIN_WIDTH}px`,
+    });
+
+    // Settle at 580px (startX=800 -> clientX=660 => 440 + 140 = 580px) and release
+    act(() => {
+      fireEvent.mouseMove(window, { clientX: 660 });
+      fireEvent.mouseUp(window);
+    });
+    expect(dockedPanel).toHaveStyle({ width: "580px" });
+    expect(document.body.style.cursor).toBe("");
+    expect(
+      window.localStorage.getItem(AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY),
+    ).toBe("580");
+
+    // Remount restores persisted 580px width immediately
+    unmount();
+    const remounted = renderPanel();
+    const restoredPanel = screen.getByTestId("mind-map-docked-panel");
+    const restoredResizer = screen.getByRole("separator", {
+      name: "Resize Mind Map panel",
+    });
+    expect(restoredPanel).toHaveStyle({ width: "580px" });
+
+    // Keyboard ArrowLeft widens (+20px -> 600px), ArrowRight narrows (-20px -> 580px), double-click resets
+    fireEvent.keyDown(restoredResizer, { key: "ArrowLeft" });
+    expect(restoredPanel).toHaveStyle({ width: "600px" });
+    fireEvent.keyDown(restoredResizer, { key: "ArrowRight" });
+    expect(restoredPanel).toHaveStyle({ width: "580px" });
+    fireEvent.doubleClick(restoredResizer);
+    expect(restoredPanel).toHaveStyle({
+      width: `${AI_CHAT_MIND_MAP_DEFAULT_WIDTH}px`,
+    });
+
+    // Mid-drag unmount restores body styles cleanly
+    fireEvent.mouseDown(restoredResizer, { button: 0, clientX: 800 });
+    expect(document.body.style.cursor).toBe("col-resize");
+    remounted.unmount();
+    expect(document.body.style.cursor).toBe("");
+    expect(document.body.style.userSelect).toBe("");
   });
 });

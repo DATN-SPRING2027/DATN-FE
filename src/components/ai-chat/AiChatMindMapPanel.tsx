@@ -1,6 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -52,6 +61,72 @@ export type AiChatMindMapPanelProps = Readonly<{
   onInspectEvidence: (evidence: InspectedEvidence) => void;
   onAskBranch: (prompt: string) => void;
 }>;
+
+export const AI_CHAT_MIND_MAP_DEFAULT_WIDTH = 440;
+export const AI_CHAT_MIND_MAP_MIN_WIDTH = 340;
+export const AI_CHAT_MIND_MAP_MAX_WIDTH = 920;
+export const AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY =
+  "continuum.aiChat.mindMapWidth";
+const MIND_MAP_KEYBOARD_STEP = 20;
+const MIN_CHAT_COLUMN_WIDTH = 500;
+
+function resolveAvailableSplitWidth(panelEl: HTMLElement | null): number | null {
+  if (!panelEl) return null;
+  const chatSibling = panelEl.previousElementSibling;
+  if (chatSibling instanceof HTMLElement) {
+    const combined = chatSibling.clientWidth + panelEl.clientWidth;
+    if (combined > 0) return combined;
+  }
+  const parentWidth = panelEl.parentElement?.clientWidth ?? 0;
+  return parentWidth > 0 ? parentWidth : null;
+}
+
+function clampMindMapWidth(
+  rawWidth: number,
+  availableSplitWidth?: number | null,
+): number {
+  let maxAllowed = AI_CHAT_MIND_MAP_MAX_WIDTH;
+  if (typeof availableSplitWidth === "number" && availableSplitWidth > 0) {
+    maxAllowed = Math.max(
+      AI_CHAT_MIND_MAP_MIN_WIDTH,
+      Math.min(
+        AI_CHAT_MIND_MAP_MAX_WIDTH,
+        availableSplitWidth - MIN_CHAT_COLUMN_WIDTH,
+      ),
+    );
+  } else if (typeof window !== "undefined" && window.innerWidth >= 1280) {
+    maxAllowed = Math.max(
+      AI_CHAT_MIND_MAP_MIN_WIDTH,
+      Math.min(
+        AI_CHAT_MIND_MAP_MAX_WIDTH,
+        Math.floor(window.innerWidth * 0.65),
+      ),
+    );
+  }
+  return Math.round(
+    Math.min(maxAllowed, Math.max(AI_CHAT_MIND_MAP_MIN_WIDTH, rawWidth)),
+  );
+}
+
+function readStoredMindMapWidth(): number {
+  if (typeof window === "undefined") {
+    return AI_CHAT_MIND_MAP_DEFAULT_WIDTH;
+  }
+  try {
+    const saved = window.localStorage.getItem(
+      AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
+    );
+    if (saved !== null) {
+      const parsed = Number(saved);
+      if (Number.isFinite(parsed)) {
+        return clampMindMapWidth(parsed, null);
+      }
+    }
+  } catch {
+    // Ignore storage access errors
+  }
+  return AI_CHAT_MIND_MAP_DEFAULT_WIDTH;
+}
 
 function prefersSmoothMotion(): boolean {
   return (
@@ -129,6 +204,122 @@ export default function AiChatMindMapPanel({
   const [isClosingFullscreen, setIsClosingFullscreen] = useState(false);
   const fullscreenTimerRef = useRef<number | null>(null);
 
+  const [panelWidth, setPanelWidth] = useState<number>(readStoredMindMapWidth);
+  const [isResizing, setIsResizing] = useState(false);
+  const panelRef = useRef<HTMLElement | null>(null);
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+  const isDraggingRef = useRef(false);
+
+  const commitPanelWidth = useCallback((nextWidth: number) => {
+    const availableSplitWidth = resolveAvailableSplitWidth(panelRef.current);
+    const clamped = clampMindMapWidth(nextWidth, availableSplitWidth);
+    setPanelWidth(clamped);
+    try {
+      window.localStorage.setItem(
+        AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
+        String(clamped),
+      );
+    } catch {
+      // Ignore storage quota / private mode failures
+    }
+  }, []);
+
+  const startResizeAt = useCallback(
+    (startX: number) => {
+      dragCleanupRef.current?.();
+
+      const renderedWidth =
+        panelRef.current?.getBoundingClientRect().width ?? 0;
+      const startWidth =
+        renderedWidth > 0 ? Math.round(renderedWidth) : panelWidth;
+      const isRtl =
+        typeof document !== "undefined" &&
+        document.documentElement.dir === "rtl";
+
+      isDraggingRef.current = true;
+      setIsResizing(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const updateFromClientX = (clientX: number) => {
+        const delta = isRtl ? clientX - startX : startX - clientX;
+        commitPanelWidth(startWidth + delta);
+      };
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        updateFromClientX(moveEvent.clientX);
+      };
+
+      const handleMouseMove = (moveEvent: MouseEvent) => {
+        updateFromClientX(moveEvent.clientX);
+      };
+
+      const cleanup = () => {
+        window.removeEventListener("pointermove", handlePointerMove);
+        window.removeEventListener("pointerup", cleanup);
+        window.removeEventListener("pointercancel", cleanup);
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseup", cleanup);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        isDraggingRef.current = false;
+        setIsResizing(false);
+        dragCleanupRef.current = null;
+      };
+
+      dragCleanupRef.current = cleanup;
+      window.addEventListener("pointermove", handlePointerMove);
+      window.addEventListener("pointerup", cleanup);
+      window.addEventListener("pointercancel", cleanup);
+      window.addEventListener("mousemove", handleMouseMove);
+      window.addEventListener("mouseup", cleanup);
+    },
+    [commitPanelWidth, panelWidth],
+  );
+
+  const handleResizePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLDivElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      startResizeAt(event.clientX);
+    },
+    [startResizeAt],
+  );
+
+  const handleResizeMouseDown = useCallback(
+    (event: ReactMouseEvent<HTMLDivElement>) => {
+      if (event.button !== 0 || isDraggingRef.current) return;
+      event.preventDefault();
+      startResizeAt(event.clientX);
+    },
+    [startResizeAt],
+  );
+
+  const handleResizeKeyDown = useCallback(
+    (event: ReactKeyboardEvent<HTMLDivElement>) => {
+      const isRtl =
+        typeof document !== "undefined" &&
+        document.documentElement.dir === "rtl";
+      const growKey = isRtl ? "ArrowRight" : "ArrowLeft";
+      const shrinkKey = isRtl ? "ArrowLeft" : "ArrowRight";
+
+      if (event.key === growKey) {
+        event.preventDefault();
+        commitPanelWidth(panelWidth + MIND_MAP_KEYBOARD_STEP);
+      } else if (event.key === shrinkKey) {
+        event.preventDefault();
+        commitPanelWidth(panelWidth - MIND_MAP_KEYBOARD_STEP);
+      } else if (event.key === "Home") {
+        event.preventDefault();
+        commitPanelWidth(AI_CHAT_MIND_MAP_MIN_WIDTH);
+      } else if (event.key === "End") {
+        event.preventDefault();
+        commitPanelWidth(AI_CHAT_MIND_MAP_MAX_WIDTH);
+      }
+    },
+    [commitPanelWidth, panelWidth],
+  );
+
   const scopeKey = `${userId}:${organizationId}:${projectId}`;
   const [prevScopeKey, setPrevScopeKey] = useState(scopeKey);
   if (prevScopeKey !== scopeKey) {
@@ -151,6 +342,7 @@ export default function AiChatMindMapPanel({
 
   useEffect(() => {
     return () => {
+      dragCleanupRef.current?.();
       if (fullscreenTimerRef.current !== null) {
         window.clearTimeout(fullscreenTimerRef.current);
       }
@@ -952,10 +1144,64 @@ export default function AiChatMindMapPanel({
 
   return (
     <section
+      ref={panelRef}
       aria-label={t("mindMapTitle")}
       data-testid="mind-map-docked-panel"
-      className="continuum-docked-enter absolute inset-0 z-30 flex flex-col overflow-hidden bg-white xl:static xl:z-auto xl:h-full xl:w-104 xl:shrink-0 xl:border-s xl:border-gray-200/80 2xl:w-116 dark:bg-gpt-sidebar dark:xl:border-white/10"
+      style={{ width: `${panelWidth}px` }}
+      className="continuum-docked-enter continuum-mind-map-dock absolute inset-0 z-30 flex flex-col bg-white max-xl:w-auto! xl:relative xl:inset-auto xl:z-20 xl:h-full xl:shrink-0 xl:border-s xl:border-gray-200/80 dark:bg-gpt-sidebar dark:xl:border-white/10"
     >
+      {/* Desktop Interactive Resize Handle (Drag wider / narrower + Tactile Grip Pill & Brand Line) */}
+      <div
+        role="separator"
+        tabIndex={0}
+        data-testid="mind-map-resize-handle"
+        aria-orientation="vertical"
+        aria-label={t("resizeMindMapAriaLabel")}
+        aria-valuemin={AI_CHAT_MIND_MAP_MIN_WIDTH}
+        aria-valuemax={AI_CHAT_MIND_MAP_MAX_WIDTH}
+        aria-valuenow={panelWidth}
+        onPointerDown={handleResizePointerDown}
+        onMouseDown={handleResizeMouseDown}
+        onDoubleClick={() => commitPanelWidth(AI_CHAT_MIND_MAP_DEFAULT_WIDTH)}
+        onKeyDown={handleResizeKeyDown}
+        className="group/resizer absolute inset-y-0 -start-1.5 z-40 hidden w-3 cursor-col-resize touch-none select-none focus:outline-none xl:flex xl:items-center xl:justify-center"
+      >
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-y-0 start-1/2 -ms-px w-0.5 transition-colors duration-150",
+            isResizing
+              ? "bg-brand-500"
+              : "bg-transparent group-hover/resizer:bg-brand-500/85 group-focus-visible/resizer:bg-brand-500",
+          )}
+        />
+        <div
+          aria-hidden="true"
+          className={cn(
+            "pointer-events-none relative z-10 flex h-9 w-3 items-center justify-center gap-0.5 rounded-full border shadow-theme-xs transition-all duration-150",
+            isResizing
+              ? "scale-105 border-brand-500 bg-brand-50 ring-2 ring-brand-500/20 dark:border-brand-400 dark:bg-brand-500/25"
+              : "border-gray-200/90 bg-white group-hover/resizer:scale-105 group-hover/resizer:border-brand-300 group-hover/resizer:bg-brand-50 group-focus-visible/resizer:border-brand-500 dark:border-white/15 dark:bg-gpt-popover dark:group-hover/resizer:border-brand-400/50 dark:group-hover/resizer:bg-brand-500/20",
+          )}
+        >
+          <span
+            className={cn(
+              "h-3.5 w-px rounded-full transition-colors",
+              isResizing
+                ? "bg-brand-600 dark:bg-brand-200"
+                : "bg-gray-300 group-hover/resizer:bg-brand-500 dark:bg-gray-500 dark:group-hover/resizer:bg-brand-300",
+            )}
+          />
+          <span
+            className={cn(
+              "h-3.5 w-px rounded-full transition-colors",
+              isResizing
+                ? "bg-brand-600 dark:bg-brand-200"
+                : "bg-gray-300 group-hover/resizer:bg-brand-500 dark:bg-gray-500 dark:group-hover/resizer:bg-brand-300",
+            )}
+          />
+        </div>
+      </div>
+
       {panelBody}
     </section>
   );
