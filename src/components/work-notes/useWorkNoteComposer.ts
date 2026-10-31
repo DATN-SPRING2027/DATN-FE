@@ -39,6 +39,7 @@ export function useWorkNoteComposer(
   noteId: string | undefined,
   onSaved: (result?: unknown) => void,
   source?: EditorSourceIdentity,
+  initialFields?: Fields,
 ) {
   const t = useTranslations("workNotes.agent");
   const ta = useTranslations("workNotes.assessment");
@@ -69,8 +70,15 @@ export function useWorkNoteComposer(
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const [local, setLocal] = useState<Fields | null>(null);
-  const localRef = useRef<Fields | null>(null);
+  const [local, setLocal] = useState<Fields | null>(() =>
+    initialFields
+      ? {
+          title: initialFields.title,
+          contentMarkdown: initialFields.contentMarkdown,
+        }
+      : null,
+  );
+  const localRef = useRef<Fields | null>(local);
   const [saving, setSaving] = useState(false),
     [agentBusy, setAgentBusy] = useState(false),
     [pendingMessage, setPendingMessage] = useState<string | null>(null),
@@ -94,6 +102,7 @@ export function useWorkNoteComposer(
   const alive = useRef(true);
   const closedDraft = useRef(false);
   const discarding = useRef(false);
+  const committing = useRef(false);
   const autosaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const editEpoch = useRef(0);
   const assessmentPending = useRef(false);
@@ -110,11 +119,18 @@ export function useWorkNoteComposer(
     if (!d) throw Error("Draft unavailable");
     return d;
   }
-  const fields =
-    local ??
-    (query.data
-      ? { title: query.data.title, contentMarkdown: query.data.contentMarkdown }
-      : null);
+  function hasLocalDiff(d: AgentDraft) {
+    const v = localRef.current;
+    return (
+      !!v && (v.title !== d.title || v.contentMarkdown !== d.contentMarkdown)
+    );
+  }
+  const fields = query.data
+    ? (local ?? {
+        title: query.data.title,
+        contentMarkdown: query.data.contentMarkdown,
+      })
+    : null;
   const dirty =
     !!fields &&
     !!query.data &&
@@ -146,11 +162,12 @@ export function useWorkNoteComposer(
     }
     const d = server(),
       value = localRef.current;
-    if (
-      !value ||
-      (d.title === value.title && d.contentMarkdown === value.contentMarkdown)
-    )
+    if (!value) return d;
+    if (d.title === value.title && d.contentMarkdown === value.contentMarkdown) {
+      localRef.current = null;
+      if (alive.current) setLocal(null);
       return d;
+    }
     const signature = JSON.stringify([d.id, d.revision, value]);
     if (updateRequest.current?.signature !== signature)
       updateRequest.current = { signature, operationId: crypto.randomUUID() };
@@ -173,7 +190,7 @@ export function useWorkNoteComposer(
       })
       .finally(() => {
         pending.current = null;
-        if (alive.current) setSaving(false);
+        if (alive.current && !committing.current) setSaving(false);
       });
     pending.current = request;
     return request;
@@ -190,11 +207,8 @@ export function useWorkNoteComposer(
       client.removeQueries({ queryKey: key, exact: true });
       return;
     }
-    if (
-      !discarding.current &&
-      localRef.current &&
-      client.getQueryData<AgentDraft>(key)
-    ) {
+    const cached = client.getQueryData<AgentDraft>(key);
+    if (!discarding.current && cached && hasLocalDiff(cached)) {
       void flush().catch(() => undefined);
     }
   });
@@ -251,7 +265,7 @@ export function useWorkNoteComposer(
       });
       if (!alive.current) return;
       const current = server();
-      if (current.revision !== result.sourceRevision || localRef.current)
+      if (current.revision !== result.sourceRevision || hasLocalDiff(current))
         throw Error("The draft changed. Regenerate the proposal.");
       setResponse(result);
       cache({
@@ -289,21 +303,26 @@ export function useWorkNoteComposer(
   ) {
     setError("");
     const d = server();
-    if (localRef.current || suggestion.baseRevision !== d.revision)
+    if (hasLocalDiff(d) || suggestion.baseRevision !== d.revision)
       throw Error("The draft changed. Regenerate the proposal.");
     const previous = { title: d.title, contentMarkdown: d.contentMarkdown };
-    const next = await api.apply(projectId, d.id, suggestion.id, {
-      operationId: crypto.randomUUID(),
-      expectedRevision: d.revision,
-      action,
-      applyTitle,
-    });
-    undoRef.current.push(previous);
-    redoRef.current = [];
-    setHistoryCount((c) => c + 1);
-    cache(next);
-    setResponse(null);
-    return next;
+    committing.current = true;
+    try {
+      const next = await api.apply(projectId, d.id, suggestion.id, {
+        operationId: crypto.randomUUID(),
+        expectedRevision: d.revision,
+        action,
+        applyTitle,
+      });
+      undoRef.current.push(previous);
+      redoRef.current = [];
+      setHistoryCount((c) => c + 1);
+      cache(next);
+      setResponse(null);
+      return next;
+    } finally {
+      committing.current = false;
+    }
   }
   async function assessmentAction(
     input: AssessmentAction,
@@ -407,7 +426,7 @@ export function useWorkNoteComposer(
       const changed =
         current.revision !== result.sourceRevision ||
         (refreshed !== null && refreshed.revision !== result.sourceRevision) ||
-        !!localRef.current ||
+        hasLocalDiff(current) ||
         epoch !== editEpoch.current;
       const nextAssessment =
         "schemaVersion" in result ? result : refreshed?.assessment;
@@ -472,6 +491,7 @@ export function useWorkNoteComposer(
   }
   async function save(confirmed: boolean) {
     setError("");
+    committing.current = true;
     setSaving(true);
     try {
       const d = await flush();
@@ -495,6 +515,7 @@ export function useWorkNoteComposer(
       setError(e instanceof Error ? e.message : "Save failed");
       throw e;
     } finally {
+      committing.current = false;
       setSaving(false);
     }
   }
@@ -557,34 +578,47 @@ export function useWorkNoteComposer(
   }
   async function restore(versionNumber: number) {
     const d = server();
-    if (localRef.current || d.hasAppliedRewrite)
+    if (hasLocalDiff(d) || d.hasAppliedRewrite)
       throw Error("Save or discard draft changes before restoring history.");
-    const signature = JSON.stringify([
-      d.noteId,
-      d.baseNoteVersion,
-      versionNumber,
-    ]);
-    if (restoreRequest.current?.signature !== signature)
-      restoreRequest.current = { signature, operationId: crypto.randomUUID() };
-    await api.restore(projectId, taskId, d.noteId!, {
-      operationId: restoreRequest.current.operationId,
-      expectedVersion: d.baseNoteVersion,
-      versionNumber,
-      ...(source ? { expectedContentHash: d.baseContentHash } : {}),
-    });
-    closedDraft.current = true;
-    setClosed(true);
-    await client.cancelQueries({ queryKey: key, exact: true });
-    await api.discard(projectId, d.id, {
-      expectedRevision: d.revision,
-      discardConfirmed: true,
-    });
-    alive.current = false;
-    client.removeQueries({ queryKey: key, exact: true });
-    await client.invalidateQueries({ queryKey: ["work-notes", projectId] });
-    onSaved();
+    committing.current = true;
+    try {
+      const signature = JSON.stringify([
+        d.noteId,
+        d.baseNoteVersion,
+        versionNumber,
+      ]);
+      if (restoreRequest.current?.signature !== signature)
+        restoreRequest.current = { signature, operationId: crypto.randomUUID() };
+      await api.restore(projectId, taskId, d.noteId!, {
+        operationId: restoreRequest.current.operationId,
+        expectedVersion: d.baseNoteVersion,
+        versionNumber,
+        ...(source ? { expectedContentHash: d.baseContentHash } : {}),
+      });
+      closedDraft.current = true;
+      setClosed(true);
+      await client.cancelQueries({ queryKey: key, exact: true });
+      await api.discard(projectId, d.id, {
+        expectedRevision: d.revision,
+        discardConfirmed: true,
+      });
+      alive.current = false;
+      client.removeQueries({ queryKey: key, exact: true });
+      await client.invalidateQueries({ queryKey: ["work-notes", projectId] });
+      onSaved();
+    } finally {
+      committing.current = false;
+    }
   }
   function undo(redo = false) {
+    if (
+      saving ||
+      agentBusy ||
+      committing.current ||
+      closedDraft.current ||
+      discarding.current
+    )
+      return;
     const source = redo ? redoRef : undoRef,
       destination = redo ? undoRef : redoRef;
     const value = source.current.pop();
@@ -637,7 +671,15 @@ export function useWorkNoteComposer(
     feedbackAssessment: (category: AssessmentFeedbackCategory) =>
       assessmentAction({ kind: "feedback", category }),
     undo,
-    canUndo: historyCount >= 0 && undoRef.current.length > 0,
-    canRedo: historyCount >= 0 && redoRef.current.length > 0,
+    canUndo:
+      !saving &&
+      !agentBusy &&
+      historyCount >= 0 &&
+      undoRef.current.length > 0,
+    canRedo:
+      !saving &&
+      !agentBusy &&
+      historyCount >= 0 &&
+      redoRef.current.length > 0,
   };
 }

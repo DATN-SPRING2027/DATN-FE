@@ -12,6 +12,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import enMessages from "@/messages/en.json";
 import messages from "@/messages/vi.json";
+import { ApiError } from "@/lib/api-client";
 import {
   agentApi,
   type EditorSourceIdentity,
@@ -20,6 +21,7 @@ import {
 import WorkNoteComposer from "./WorkNoteComposer";
 import { useWorkNoteComposer } from "./useWorkNoteComposer";
 import { assessmentApi } from "@/lib/queries/work-notes/work-note-assessment.api";
+import { assessmentFixture } from "./assessment.test-fixture";
 vi.mock("@/lib/queries/work-notes/work-note-assessment.api", () => ({
   assessmentApi: {
     assess: vi.fn(),
@@ -56,22 +58,37 @@ function runToolbarTool(label: string) {
   fireEvent.click(screen.getByRole("button", { name: label }));
 }
 
-it("keeps the AI panel collapsed by default, omits the Task information check section, and runs no inference on opening", async () => {
+it("keeps the AI panel collapsed by default, runs no inference on opening, and gates Task information check on NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "false");
+  const first = mount();
+  await screen.findByLabelText("Nội dung");
+  expect(
+    screen.queryByRole("complementary", { name: "Trợ lý AI" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Trợ lý AI" }));
+  expect(
+    screen.getByRole("complementary", { name: "Trợ lý AI" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Kiểm tra thông tin" }),
+  ).not.toBeInTheDocument();
+  first.unmount();
+
   vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
-  try {
-    mount();
-    await screen.findByLabelText("Nội dung");
-    expect(
-      screen.queryByRole("complementary", { name: "Trợ lý AI" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Kiểm tra thông tin" }),
-    ).not.toBeInTheDocument();
-    expect(agentApi.message).not.toHaveBeenCalled();
-    expect(assessmentApi.assess).not.toHaveBeenCalled();
-  } finally {
-    vi.unstubAllEnvs();
-  }
+  mount();
+  await screen.findByLabelText("Nội dung");
+  expect(
+    screen.queryByRole("complementary", { name: "Trợ lý AI" }),
+  ).not.toBeInTheDocument();
+  expect(agentApi.message).not.toHaveBeenCalled();
+  expect(assessmentApi.assess).not.toHaveBeenCalled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Trợ lý AI" }));
+  expect(
+    screen.getByRole("button", { name: "Kiểm tra thông tin" }),
+  ).toBeEnabled();
+  expect(agentApi.message).not.toHaveBeenCalled();
+  expect(assessmentApi.assess).not.toHaveBeenCalled();
 });
 
 const base: AgentDraft = {
@@ -90,7 +107,16 @@ const base: AgentDraft = {
   suggestion: null,
 };
 
-function mount(source?: EditorSourceIdentity) {
+function mount(
+  source?: EditorSourceIdentity,
+  options?: {
+    locale?: "vi" | "en";
+    initialFields?: { title: string; contentMarkdown: string };
+    onSaved?: (result?: unknown) => void;
+    onClose?: (persisted?: { title: string; contentMarkdown: string }) => void;
+  },
+) {
+  const locale = options?.locale ?? "vi";
   return render(
     <QueryClientProvider
       client={
@@ -102,13 +128,17 @@ function mount(source?: EditorSourceIdentity) {
         })
       }
     >
-      <NextIntlClientProvider locale="vi" messages={messages}>
+      <NextIntlClientProvider
+        locale={locale}
+        messages={locale === "en" ? enMessages : messages}
+      >
         <WorkNoteComposer
           source={source}
+          initialFields={options?.initialFields}
           projectId="651a2b3c4d5e6f7a8b9c0d21"
           taskId={base.taskId}
-          onClose={vi.fn()}
-          onSaved={vi.fn()}
+          onClose={options?.onClose ?? vi.fn()}
+          onSaved={options?.onSaved ?? vi.fn()}
         />
       </NextIntlClientProvider>
     </QueryClientProvider>,
@@ -126,6 +156,9 @@ beforeEach(() => {
   vi.mocked(agentApi.save).mockResolvedValue({
     id: "751a2b3c4d5e6f7a8b9c0d21",
   } as Awaited<ReturnType<typeof agentApi.save>>);
+  vi.mocked(assessmentApi.assess).mockResolvedValue(
+    structuredClone(assessmentFixture),
+  );
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -1232,4 +1265,280 @@ it("applies edited proposal text to title instead of contentMarkdown for replace
   );
   expect(titleInput).toHaveValue("Custom Edited Queue Title");
   expect(body).toHaveValue(base.contentMarkdown);
+});
+
+it("wires WorkNoteAssessment inside AI Assistant for Task Notes when enabled, supporting assess, reply, correction, proposal rewrite, and independent Save", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
+  vi.mocked(assessmentApi.assess).mockResolvedValue({
+    ...structuredClone(assessmentFixture),
+    sourceRevision: 2,
+  });
+  vi.mocked(assessmentApi.reply).mockResolvedValue({
+    ...structuredClone(assessmentFixture),
+    revision: 2,
+    sourceRevision: 2,
+    state: "paused",
+    nextQuestion: null,
+    noteAdequacy: "UNDETERMINED",
+    gaps: [{ ...assessmentFixture.gaps[0], status: "unknown" }],
+    allowedActions: ["correct", "reset", "manual", "feedback"],
+  });
+  vi.mocked(assessmentApi.correct).mockResolvedValue({
+    ...structuredClone(assessmentFixture),
+    revision: 3,
+    sourceRevision: 2,
+    state: "ready_to_edit",
+    nextQuestion: null,
+    noteAdequacy: "ENOUGH_FOR_PURPOSE",
+    allowedActions: [
+      "rewrite",
+      "validate_author",
+      "correct",
+      "reset",
+      "manual",
+      "feedback",
+    ],
+  });
+
+  mount(undefined, { locale: "en" });
+  const contentInput = await screen.findByLabelText("Content");
+  fireEvent.change(contentInput, {
+    target: { value: "Changed note, still untested." },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "AI Assistant" }));
+  fireEvent.click(screen.getByRole("button", { name: "Check information" }));
+
+  await screen.findByText("Which retry behavior was implemented?");
+  expect(agentApi.update).toHaveBeenCalledWith(
+    expect.any(String),
+    base.id,
+    expect.objectContaining({
+      contentMarkdown: "Changed note, still untested.",
+    }),
+  );
+  expect(assessmentApi.assess).toHaveBeenCalledWith(
+    expect.any(String),
+    base.id,
+    expect.objectContaining({ expectedRevision: 2, purpose: "AUTO" }),
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "I do not know" }));
+  await waitFor(() =>
+    expect(assessmentApi.reply).toHaveBeenCalledWith(
+      expect.any(String),
+      base.id,
+      assessmentFixture.id,
+      expect.objectContaining({
+        expectedRevision: 2,
+        expectedAssessmentRevision: 1,
+        questionId: "question-one",
+        disposition: "unknown",
+      }),
+    ),
+  );
+  expect(vi.mocked(assessmentApi.reply).mock.calls[0][3]).not.toHaveProperty(
+    "answer",
+  );
+
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Correct statement: The queue has not been tested.",
+    }),
+  );
+  fireEvent.change(
+    screen.getByLabelText("Explain what the Agent understood incorrectly"),
+    {
+      target: { value: "Manual retry was added behind feature flag." },
+    },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Reassess with this correction" }),
+  );
+  await waitFor(() =>
+    expect(assessmentApi.correct).toHaveBeenCalledWith(
+      expect.any(String),
+      base.id,
+      assessmentFixture.id,
+      expect.objectContaining({
+        expectedRevision: 2,
+        expectedAssessmentRevision: 2,
+        targetClaimOrGapId: "claim-one",
+        correctionText: "Manual retry was added behind feature flag.",
+      }),
+    ),
+  );
+
+  expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+  await waitFor(() => expect(agentApi.save).toHaveBeenCalledOnce());
+});
+
+it("auto-reveals a resumed Task assessment, surfaces rewrite proposals in Chat without auto-applying, handles 409 staleness, and excludes Work Reports", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
+  const ready = {
+    ...structuredClone(assessmentFixture),
+    state: "ready_to_edit" as const,
+    nextQuestion: null,
+    noteAdequacy: "ENOUGH_FOR_PURPOSE" as const,
+    allowedActions: [
+      "rewrite",
+      "validate_author",
+      "feedback",
+      "reset",
+      "manual",
+    ],
+  };
+  const suggestion = {
+    id: "proposal-from-assessment",
+    scope: "whole_note" as const,
+    operation: "custom" as const,
+    baseRevision: 1,
+    replacementText: "The queue has not been tested yet.",
+    suggestedTitle: null,
+    changeSummary: ["Kept the testing limitation."],
+  };
+  vi.mocked(agentApi.resume)
+    .mockResolvedValueOnce({ ...base, assessment: ready })
+    .mockResolvedValue({
+      ...base,
+      suggestion,
+      assessment: { ...ready, revision: 2 },
+    });
+  vi.mocked(assessmentApi.rewrite).mockResolvedValue({
+    status: "SUGGESTION_READY",
+    message: "Review this proposal.",
+    suggestion,
+    questions: [],
+    uncertainties: [],
+    sourceRevision: 1,
+  });
+  vi.mocked(assessmentApi.validateAuthor).mockResolvedValue({
+    ...ready,
+    revision: 3,
+    authorValidated: true,
+    signals: { ...ready.signals, authorValidated: true },
+  });
+
+  const first = mount(undefined, { locale: "en" });
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Prepare a proposal from this assessment",
+    }),
+  );
+  await screen.findByRole("button", {
+    name: enMessages.workNotes.agent.apply,
+  });
+  expect(screen.getByLabelText("Content")).toHaveValue(base.contentMarkdown);
+
+  // Dismissing proposal then validating assessment must not reopen dismissed proposal
+  fireEvent.click(
+    screen.getByRole("button", { name: enMessages.workNotes.agent.dismiss }),
+  );
+  expect(
+    screen.queryByRole("button", { name: enMessages.workNotes.agent.apply }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "I confirm this reflects my note" }),
+  );
+  await waitFor(() =>
+    expect(
+      screen.getByRole("button", { name: "I confirm this reflects my note" }),
+    ).toBeDisabled(),
+  );
+  expect(
+    screen.queryByRole("button", { name: enMessages.workNotes.agent.apply }),
+  ).not.toBeInTheDocument();
+  expect(agentApi.apply).not.toHaveBeenCalled();
+  first.unmount();
+
+  // 409 ASSESSMENT_STALE marks assessment stale while keeping Save enabled
+  vi.mocked(agentApi.resume).mockResolvedValueOnce({
+    ...base,
+    assessment: ready,
+  });
+  vi.mocked(assessmentApi.rewrite).mockRejectedValueOnce(
+    new ApiError(409, "ASSESSMENT_STALE", "The Task context changed"),
+  );
+  const second = mount(undefined, { locale: "en" });
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Prepare a proposal from this assessment",
+    }),
+  );
+  await screen.findByText("The Task context changed");
+  expect(screen.getByText("stale", { exact: true })).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
+  second.unmount();
+
+  // WORK_REPORT never renders Task assessment even when flag is on
+  vi.mocked(agentApi.resume).mockResolvedValueOnce({
+    ...base,
+    workflow: "WORK_REPORT",
+    resourceId: "report-one",
+  });
+  mount({ workflow: "WORK_REPORT", resourceId: "report-one" }, { locale: "en" });
+  await screen.findByRole("dialog", { name: "Edit work report" });
+  fireEvent.click(screen.getByRole("button", { name: "AI Assistant" }));
+  expect(
+    screen.queryByRole("button", { name: "Check information" }),
+  ).not.toBeInTheDocument();
+});
+
+it("disables Undo/Redo and blocks undo() mutations while canonical Save is pending", async () => {
+  let rejectFirstSave!: (reason?: unknown) => void;
+  let resolveSecondSave!: (
+    value: Awaited<ReturnType<typeof agentApi.save>>,
+  ) => void;
+  vi.mocked(agentApi.save)
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFirstSave = reject;
+        }),
+    )
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveSecondSave = resolve;
+        }),
+    );
+
+  const onSaved = vi.fn();
+  mount(undefined, { onSaved });
+  const body = await screen.findByLabelText("Nội dung");
+
+  fireEvent.change(body, {
+    target: { value: "Edited body waiting to save." },
+  });
+  const undoButton = screen.getByRole("button", { name: "Hoàn tác" });
+  const redoButton = screen.getByRole("button", { name: "Làm lại" });
+  expect(undoButton).toBeEnabled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Lưu ghi chú" }));
+  await waitFor(() => expect(agentApi.save).toHaveBeenCalledTimes(1));
+
+  expect(undoButton).toBeDisabled();
+  expect(redoButton).toBeDisabled();
+  fireEvent.click(undoButton);
+  expect(body).toHaveValue("Edited body waiting to save.");
+
+  await act(async () => {
+    rejectFirstSave(new Error("Temporary save failure"));
+  });
+  await screen.findByText("Temporary save failure");
+  expect(body).toHaveValue("Edited body waiting to save.");
+  expect(undoButton).toBeEnabled();
+
+  fireEvent.click(screen.getByRole("button", { name: "Lưu ghi chú" }));
+  await waitFor(() => expect(agentApi.save).toHaveBeenCalledTimes(2));
+  expect(undoButton).toBeDisabled();
+
+  await act(async () => {
+    resolveSecondSave({
+      id: "751a2b3c4d5e6f7a8b9c0d21",
+    } as Awaited<ReturnType<typeof agentApi.save>>);
+  });
+  expect(onSaved).toHaveBeenCalledOnce();
 });

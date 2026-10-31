@@ -47,6 +47,7 @@ import type {
 } from "@/lib/queries/work-notes/work-note-agent.api";
 import { useWorkNoteComposer } from "./useWorkNoteComposer";
 import WorkNoteAgentChat from "./WorkNoteAgentChat";
+import WorkNoteAssessment from "./WorkNoteAssessment";
 import WorkNoteHistory from "./WorkNoteHistory";
 import WorkNoteContext from "./WorkNoteContext";
 import WorkNoteSelectionAssistant, {
@@ -64,6 +65,7 @@ export default function WorkNoteComposer({
   onClose,
   onSaved,
   source,
+  initialFields,
   variant = "modal",
   onPanelOpenChange,
   onConfirmationChange,
@@ -72,9 +74,13 @@ export default function WorkNoteComposer({
   projectId: string;
   taskId?: string;
   noteId?: string;
-  onClose: () => void;
+  onClose: (persistedFields?: {
+    title: string;
+    contentMarkdown: string;
+  }) => void;
   onSaved: (result?: unknown) => void;
   source?: EditorSourceIdentity;
+  initialFields?: { title: string; contentMarkdown: string };
   variant?: "modal" | "inline";
   onPanelOpenChange?: (open: boolean) => void;
   onConfirmationChange?: (open: boolean) => void;
@@ -87,6 +93,7 @@ export default function WorkNoteComposer({
     noteId,
     onSaved,
     source,
+    initialFields,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [panelToggle, setPanelToggle] = useState<boolean | null>(null);
@@ -165,8 +172,16 @@ export default function WorkNoteComposer({
 
   const activeSuggestion =
     suggestion && dismissed !== suggestion.id ? suggestion : null;
-  // Collapsed by default; automatically opens if resumed draft already has a waiting proposal or question.
-  const hasPendingAiOutput = Boolean(activeSuggestion || d?.pendingQuestion);
+  const assessmentEnabled =
+    !source &&
+    (!d || d.workflow === "TASK_NOTE") &&
+    process.env.NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED === "true";
+  // Collapsed by default; automatically opens if resumed draft already has a waiting proposal, question, or assessment.
+  const hasPendingAiOutput = Boolean(
+    activeSuggestion ||
+      d?.pendingQuestion ||
+      (assessmentEnabled && d?.assessment),
+  );
   const panelOpen = panelToggle ?? hasPendingAiOutput;
 
   useEffect(() => {
@@ -208,8 +223,35 @@ export default function WorkNoteComposer({
   }
 
   async function close() {
-    if (editor.draft) await editor.persist();
-    onClose();
+    const persisted = editor.draft ? await editor.persist() : null;
+    onClose(
+      persisted
+        ? {
+            title: persisted.title,
+            contentMarkdown: persisted.contentMarkdown,
+          }
+        : (fields ?? undefined),
+    );
+  }
+
+  async function requestAssessment(
+    action: () => Promise<unknown>,
+    revealProposal = false,
+  ) {
+    retryAction.current = null;
+    try {
+      await action();
+      if (revealProposal) {
+        setDismissed(null);
+        setPanelToggle(true);
+        setAssistantTab("chat");
+      }
+    } catch (error) {
+      retryAction.current = () => requestAssessment(action, revealProposal);
+      editor.setError(
+        error instanceof Error ? error.message : t("requestFailed"),
+      );
+    }
   }
 
   const dismissStepRef = useRef<() => void>(() => undefined);
@@ -661,7 +703,7 @@ export default function WorkNoteComposer({
     : editor.query.isError
       ? t("loadFailed")
       : editor.agentBusy
-        ? t("thinking")
+        ? t(editor.assessmentBusy ? "checkingInformation" : "thinking")
         : editor.saving
           ? t("saving")
           : editor.dirty
@@ -867,9 +909,25 @@ export default function WorkNoteComposer({
                         type="button"
                         aria-label={t("undo")}
                         title={t("undo")}
-                        disabled={!editor.canUndo || !!confirmation}
+                        disabled={
+                          !editor.canUndo ||
+                          !!confirmation ||
+                          busy ||
+                          editor.saving ||
+                          editor.agentBusy
+                        }
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.undo()}
+                        onClick={() => {
+                          if (
+                            busy ||
+                            editor.saving ||
+                            editor.agentBusy ||
+                            !!confirmation
+                          ) {
+                            return;
+                          }
+                          editor.undo();
+                        }}
                         className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200/70 disabled:cursor-not-allowed disabled:opacity-35 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <Undo2 className="size-4" aria-hidden="true" />
@@ -878,9 +936,25 @@ export default function WorkNoteComposer({
                         type="button"
                         aria-label={t("redo")}
                         title={t("redo")}
-                        disabled={!editor.canRedo || !!confirmation}
+                        disabled={
+                          !editor.canRedo ||
+                          !!confirmation ||
+                          busy ||
+                          editor.saving ||
+                          editor.agentBusy
+                        }
                         onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => editor.undo(true)}
+                        onClick={() => {
+                          if (
+                            busy ||
+                            editor.saving ||
+                            editor.agentBusy ||
+                            !!confirmation
+                          ) {
+                            return;
+                          }
+                          editor.undo(true);
+                        }}
                         className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-200/70 disabled:cursor-not-allowed disabled:opacity-35 dark:text-gray-300 dark:hover:bg-gray-700"
                       >
                         <Redo2 className="size-4" aria-hidden="true" />
@@ -1383,6 +1457,56 @@ export default function WorkNoteComposer({
                       </button>
                     ))}
                   </div>
+
+                  {assessmentEnabled && (
+                    <div className="max-h-[48%] shrink-0 overflow-y-auto border-b border-gray-100 px-4 pb-3 dark:border-gray-800">
+                      <WorkNoteAssessment
+                        key={d?.assessment?.id ?? "new-assessment"}
+                        value={d?.assessment}
+                        stale={
+                          editor.dirty ||
+                          (!!d?.assessment &&
+                            d.assessment.sourceRevision !== d.revision)
+                        }
+                        busy={
+                          busy ||
+                          editor.agentBusy ||
+                          editor.saving ||
+                          !!confirmation ||
+                          !d
+                        }
+                        onAssess={(purpose) =>
+                          void requestAssessment(() => editor.assess(purpose))
+                        }
+                        onReply={(disposition, answer) =>
+                          void requestAssessment(() =>
+                            editor.replyAssessment(disposition, answer),
+                          )
+                        }
+                        onRewrite={() =>
+                          void requestAssessment(editor.rewriteAssessment, true)
+                        }
+                        onCorrect={(target, text) =>
+                          void requestAssessment(() =>
+                            editor.correctAssessment(target, text),
+                          )
+                        }
+                        onReset={(purpose, carry) =>
+                          void requestAssessment(() =>
+                            editor.resetAssessment(purpose, carry),
+                          )
+                        }
+                        onValidate={() =>
+                          void requestAssessment(editor.validateAssessment)
+                        }
+                        onFeedback={(category) =>
+                          void requestAssessment(() =>
+                            editor.feedbackAssessment(category),
+                          )
+                        }
+                      />
+                    </div>
+                  )}
 
                   {/* TAB 1: TRÒ CHUYỆN (Regions 9, 10, 11) */}
                   {assistantTab === "chat" && (
