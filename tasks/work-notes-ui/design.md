@@ -2,7 +2,7 @@
 
 ## Scope
 
-Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`. Keep the global Organization sidebar unchanged. Use the current TailAdmin visual language, tokens, typography, buttons, borders, dark-mode classes, and responsive patterns. Reference screenshots guide information hierarchy and actions; they are not pixel targets.
+Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`. Keep the Project sidebar entry as the navigation path and avoid duplicating Project destinations in a horizontal header bar. Use the current TailAdmin visual language, tokens, typography, buttons, borders, dark-mode classes, and responsive patterns. Reference screenshots guide information hierarchy and actions; they are not pixel targets.
 
 ## Product model
 
@@ -15,7 +15,7 @@ Add a Project-scoped Work Notes workspace at `/projects/[projectId]/work-notes`.
 
 ## Navigation and page structure
 
-- Add Work Notes next to Work in the Project section row.
+- Add Work Notes under the active Project in `AppSidebar`, alongside Overview, Members, Workspace, Handover, and Settings. The Project header does not repeat this navigation in a second horizontal row.
 - Use a compact project breadcrumb/header, a non-interactive badge for the authenticated role, and the primary create-note action when the role is Member.
 - Shared workspace tabs: Activity, Weekly reports, Knowledge. Admin also gets a distinct Configuration tab.
 - Shared filters: search, member, task, note type, week, and attention-only. Keep controls wrap-safe on narrow screens.

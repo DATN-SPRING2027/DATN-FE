@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import ProjectMembers from "./members/ProjectMembers";
 import ProjectSettings from "./ProjectSettings";
 import { Link } from "@/i18n/navigation";
@@ -114,23 +114,10 @@ export default function ProjectOverview({
   const [internalTab, setInternalTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
-  const [tabDirection, setTabDirection] = useState<"left" | "right" | null>(
-    null,
-  );
-  const tabListRef = useRef<HTMLDivElement | null>(null);
-  const [indicatorStyle, setIndicatorStyle] = useState<{
-    left: number;
-    width: number;
-  }>({ left: 0, width: 0 });
   const currentTab = activeTab ?? internalTab;
   const tab: ProjectTab =
     currentTab === "teams" && !showTeams ? "overview" : currentTab;
   const setTab = (next: ProjectTab) => {
-    const prevIdx = VALID_TABS.indexOf(tab);
-    const nextIdx = VALID_TABS.indexOf(next);
-    if (prevIdx !== -1 && nextIdx !== -1 && prevIdx !== nextIdx) {
-      setTabDirection(nextIdx > prevIdx ? "right" : "left");
-    }
     setInternalTab(next);
     onTabChange?.(next);
     syncProjectTabUrl(project.id, next);
@@ -177,7 +164,6 @@ export default function ProjectOverview({
     };
   }, [project.id, onTabChange]);
   const [showAddModal, setShowAddModal] = useState(false);
-  const tabId = useId();
   const date = (value: string) =>
     format.dateTime(new Date(value), {
       dateStyle: "medium",
@@ -187,48 +173,6 @@ export default function ProjectOverview({
 
   const isPrivate = project.visibility === "PRIVATE";
   const isActive = project.status === "ACTIVE";
-
-  const tabs: ProjectTab[] = [
-    "overview",
-    "members",
-    ...(management.canAccessSettings ? ["settings" as const] : []),
-    ...(showTeams ? ["teams" as const] : []),
-  ];
-
-  const tabLabel = (value: ProjectTab) =>
-    value === "overview"
-      ? t("overview")
-      : value === "members"
-        ? memberLabels("title")
-        : value === "settings"
-          ? t("settings")
-          : t("teams");
-
-  const adjacentTab = (value: ProjectTab, direction: -1 | 1) => {
-    const index = tabs.indexOf(value);
-    return tabs[(index + direction + tabs.length) % tabs.length];
-  };
-
-  useLayoutEffect(() => {
-    const container = tabListRef.current;
-    if (!container) return;
-    const activeEl = container.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]',
-    );
-    if (activeEl && activeEl.offsetWidth > 0) {
-      setIndicatorStyle({
-        left: activeEl.offsetLeft,
-        width: activeEl.offsetWidth,
-      });
-    }
-  }, [tab, showTeams, management.canAccessSettings]);
-
-  const tabPanelSlideClass =
-    tabDirection === "right"
-      ? "continuum-tab-slide-right"
-      : tabDirection === "left"
-        ? "continuum-tab-slide-left"
-        : "continuum-stagger-2";
 
   if (tab === "settings" && !management.canAccessSettings) {
     return (
@@ -265,7 +209,7 @@ export default function ProjectOverview({
         </ol>
       </nav>
 
-      {/* Unified Swiss Modernism 2.0 Hero Card + Section Navigation */}
+      {/* Project header card */}
       <div className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
         <header className="flex flex-col justify-between gap-5 p-5 sm:p-6 lg:flex-row lg:items-center">
           <div className="flex min-w-0 items-start gap-4 sm:items-center">
@@ -389,168 +333,12 @@ export default function ProjectOverview({
           </div>
         </header>
 
-        {/* Left-aligned B2B Section Navigation Bar */}
-        <nav
-          aria-label={t("sections")}
-          className="min-w-0 overflow-x-auto border-t border-gray-100 bg-gray-50/50 px-4 sm:px-6 dark:border-gray-800/80 dark:bg-gray-800/30"
-        >
-          <div className="flex w-full min-w-max items-center justify-start gap-2">
-            <div
-              ref={tabListRef}
-              role="tablist"
-              aria-label={project.name}
-              className="relative flex items-stretch gap-1 sm:gap-2"
-            >
-              {tabs.map((value) => (
-                <button
-                  key={value}
-                  id={`${tabId}-${value}-tab`}
-                  role="tab"
-                  type="button"
-                  aria-selected={tab === value}
-                  aria-controls={`${tabId}-${value}-panel`}
-                  tabIndex={tab === value ? 0 : -1}
-                  onClick={() => setTab(value)}
-                  onKeyDown={(event) => {
-                    let next: (typeof tabs)[number];
-                    if (event.key === "ArrowLeft") next = adjacentTab(value, -1);
-                    else if (event.key === "ArrowRight")
-                      next = adjacentTab(value, 1);
-                    else if (event.key === "Home") next = tabs[0];
-                    else if (event.key === "End") next = tabs[tabs.length - 1];
-                    else return;
-                    event.preventDefault();
-                    setTab(next);
-                    document.getElementById(`${tabId}-${next}-tab`)?.focus();
-                  }}
-                  className={`cursor-pointer border-b-2 px-3 py-3 text-center text-sm font-medium whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
-                    tab === value
-                      ? "border-brand-500 text-brand-600 dark:text-brand-400"
-                      : "border-transparent text-gray-600 hover:border-gray-300 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white/90"
-                  }`}
-                >
-                  {tabLabel(value)}
-                </button>
-              ))}
-              {indicatorStyle.width > 0 && (
-                <span
-                  aria-hidden="true"
-                  style={{
-                    transform: `translateX(${indicatorStyle.left}px)`,
-                    width: `${indicatorStyle.width}px`,
-                  }}
-                  className="pointer-events-none absolute bottom-0 start-0 h-0.5 rounded-full bg-brand-500 transition-[transform,width] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] dark:bg-brand-400"
-                />
-              )}
-            </div>
-
-            <div className="flex items-stretch gap-1 sm:gap-2">
-              <span
-                aria-hidden="true"
-                className="mx-1 h-4 w-px self-center bg-gray-200 dark:bg-gray-700"
-              />
-              <Link
-                href={`/projects/${encodeURIComponent(project.id)}/work`}
-                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-              >
-                {t("work")}
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3 w-3 shrink-0 opacity-60"
-                >
-                  <path
-                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
-              <Link
-                href={`/projects/${encodeURIComponent(project.id)}/work-notes`}
-                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-              >
-                {t("workNotes")}
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3 w-3 shrink-0 opacity-60"
-                >
-                  <path
-                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
-              <Link
-                href={`/projects/${encodeURIComponent(project.id)}/handover`}
-                className="inline-flex cursor-pointer items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-brand-400"
-              >
-                {t("handover")}
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3 w-3 shrink-0 opacity-60"
-                >
-                  <path
-                    d="M5 11L11 5M11 5H6.5M11 5V9.5"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </Link>
-              <button
-                type="button"
-                disabled
-                aria-label={t("activity")}
-                title={t("comingSoon")}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-75 dark:text-gray-500"
-              >
-                <span>{t("activity")}</span>
-                <span
-                  aria-hidden="true"
-                  className="rounded bg-gray-200/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                >
-                  Soon
-                </span>
-              </button>
-              <button
-                type="button"
-                disabled
-                aria-label={t("knowledge")}
-                title={t("comingSoon")}
-                className="inline-flex cursor-not-allowed items-center gap-1.5 border-b-2 border-transparent px-3 py-3 text-center text-sm font-medium whitespace-nowrap text-gray-400 opacity-75 dark:text-gray-500"
-              >
-                <span>{t("knowledge")}</span>
-                <span
-                  aria-hidden="true"
-                  className="rounded bg-gray-200/70 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
-                >
-                  Soon
-                </span>
-              </button>
-            </div>
-          </div>
-        </nav>
       </div>
 
-      {/* Overview Tab Panel */}
-      <div
-        id={`${tabId}-overview-panel`}
-        role="tabpanel"
-        aria-labelledby={`${tabId}-overview-tab`}
+      <section
+        aria-label={t("overview")}
         hidden={tab !== "overview"}
-        className={`space-y-5 sm:space-y-6 ${tab === "overview" ? tabPanelSlideClass : ""}`}
+        className="space-y-5 sm:space-y-6"
       >
         {/* 4-Card B2B Metric Strip */}
         <dl className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 @3xl:grid-cols-4">
@@ -929,14 +717,10 @@ export default function ProjectOverview({
               </div>
             </ComponentCard>
         </div>
-      </div>
+      </section>
 
       {tab === "members" && (
-        <div
-          id={`${tabId}-members-panel`}
-          role="tabpanel"
-          aria-labelledby={`${tabId}-members-tab`}
-        >
+        <section aria-label={memberLabels("title")}>
           <ProjectMembers
             projectId={project.id}
             showAddButton={false}
@@ -944,13 +728,11 @@ export default function ProjectOverview({
             onOpenAdd={() => setShowAddModal(true)}
             onCloseAdd={() => setShowAddModal(false)}
           />
-        </div>
+        </section>
       )}
       {tab === "settings" && (
-        <div
-          id={`${tabId}-settings-panel`}
-          role="tabpanel"
-          aria-labelledby={`${tabId}-settings-tab`}
+        <section
+          aria-label={t("settings")}
           tabIndex={0}
           className="space-y-5"
         >
@@ -959,18 +741,16 @@ export default function ProjectOverview({
             canDeleteProject={canDeleteProject}
             onDeleted={onProjectDeleted}
           />
-        </div>
+        </section>
       )}
       {showTeams && tab === "teams" && (
-        <div
-          id={`${tabId}-teams-panel`}
-          role="tabpanel"
-          aria-labelledby={`${tabId}-teams-tab`}
+        <section
+          aria-label={t("teams")}
           tabIndex={0}
           className="min-w-0"
         >
           {teamPanel}
-        </div>
+        </section>
       )}
     </div>
   );

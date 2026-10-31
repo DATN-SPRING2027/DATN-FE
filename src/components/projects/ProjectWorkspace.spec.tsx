@@ -104,8 +104,10 @@ function mount(
     ),
   };
 }
-async function openSettingsTab() {
-  fireEvent.click(await screen.findByRole("tab", { name: "Setting" }));
+async function openSettingsPage() {
+  window.history.replaceState(null, "", "/projects/p1/settings");
+  fireEvent(window, new PopStateEvent("popstate"));
+  await screen.findByRole("region", { name: "Setting" });
 }
 beforeEach(() => {
   api.mockReset();
@@ -113,24 +115,25 @@ beforeEach(() => {
   useClientStateStore.setState({ activeProjectId: null });
 });
 it.each([true, false])(
-  "shows the Project Teams entry only when development opt-in is %s",
+  "keeps the optional Teams route without a duplicate tab bar when opt-in is %s",
   async (enabled) => {
     api.mockImplementation(async (path) =>
       path === "/auth/me" ? user : project,
     );
-    mount(<ProjectDetail projectId="p1" showTeams={enabled} />);
+    mount(
+      <ProjectDetail
+        projectId="p1"
+        showTeams={enabled}
+        initialTab={enabled ? "teams" : "overview"}
+      />,
+    );
     await screen.findByRole("heading", { name: "Apollo" });
-    const entry = screen.queryByRole("tab", { name: "Teams" });
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
+    const workspace = screen.queryByTestId("embedded-team-workspace");
     if (enabled) {
-      expect(entry).toBeVisible();
-      expect(screen.queryByTestId("embedded-team-workspace")).toBeNull();
-      fireEvent.click(entry!);
-      expect(
-        await screen.findByTestId("embedded-team-workspace"),
-      ).toHaveTextContent("p1:embedded");
-      expect(entry).toHaveAttribute("aria-selected", "true");
+      expect(workspace).toHaveTextContent("p1:embedded");
     } else {
-      expect(entry).not.toBeInTheDocument();
+      expect(workspace).not.toBeInTheDocument();
     }
   },
 );
@@ -311,41 +314,35 @@ it("loads project detail by the accepted ID path", async () => {
   expect(
     await screen.findByRole("heading", { level: 1, name: "Apollo" }),
   ).toBeVisible();
-  const sections = screen.getByRole("navigation", {
-    name: "Project sections",
-  });
-  const workLink = screen.getByRole("link", { name: "Work" });
-  expect(sections).toContainElement(
-    screen.getByRole("tab", { name: "Overview" }),
-  );
-  expect(sections).toContainElement(
-    screen.getByRole("tab", { name: "Project members" }),
-  );
-  expect(sections).toContainElement(workLink);
-  expect(workLink).toHaveAttribute("href", "/projects/p1/work");
-  expect(screen.getByRole("button", { name: "Activity" })).toBeDisabled();
-  expect(screen.getByRole("button", { name: "Knowledge" })).toBeDisabled();
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   expect(
-    screen.getByRole("heading", { level: 1, name: "Apollo" }).closest("header"),
-  ).not.toContainElement(workLink);
+    screen.queryByRole("navigation", { name: "Project sections" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Activity" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Knowledge" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("link", { name: "Work" }),
+  ).not.toBeInTheDocument();
   expect(screen.getByText("Private")).toBeVisible();
   expect(api).toHaveBeenCalledWith(
     "/iam/projects/p1",
     expect.objectContaining({ cache: "no-store" }),
   );
 });
-it("shows a text-only Setting tab in the Project section navigation", async () => {
+it("renders Project settings from its sidebar route without a local tab bar", async () => {
   api.mockImplementation(async (path) => {
     if (path.endsWith("/settings-access")) return { canUpdateProject: true };
     if (path.endsWith("/visibility")) return { canManageVisibility: true };
     return path === "/auth/me" ? user : project;
   });
-  mount(<ProjectDetail projectId="p1" />);
+  mount(<ProjectDetail projectId="p1" initialTab="settings" />);
 
-  const settingTab = await screen.findByRole("tab", { name: "Setting" });
+  const settingsSection = await screen.findByRole("region", {
+    name: "Setting",
+  });
 
-  expect(settingTab).toBeVisible();
-  expect(settingTab.querySelector('[data-testid="settings-icon"]')).toBeNull();
+  expect(settingsSection).toBeVisible();
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
 });
 it.each([401, 403, 404])(
   "hides detail on server denial %s even with cached project and selection",
@@ -626,9 +623,8 @@ it("switches member management inline without navigating away from Project detai
     return project;
   });
   mount(<ProjectDetail projectId="p1" />);
-  const overview = await screen.findByRole("tab", { name: "Overview" });
-  const members = screen.getByRole("tab", { name: "Project members" });
-  expect(overview).toHaveAttribute("aria-selected", "true");
+  await screen.findByRole("heading", { level: 1, name: "Apollo" });
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   await waitFor(() =>
     expect(api).toHaveBeenCalledWith(
       "/iam/projects/p1/memberships?page=1&pageSize=1&status=ACTIVE",
@@ -638,7 +634,12 @@ it("switches member management inline without navigating away from Project detai
   expect(
     api.mock.calls.some(([path]) => path.includes("pageSize=20")),
   ).toBe(false);
-  fireEvent.click(members);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Open Project members directory" }),
+  );
+  expect(
+    await screen.findByRole("region", { name: "Project members" }),
+  ).toBeVisible();
   await waitFor(() =>
     expect(
       screen.queryByRole("form", { name: "Add member" }),
@@ -647,7 +648,7 @@ it("switches member management inline without navigating away from Project detai
   fireEvent.click(screen.getByRole("button", { name: "Open Add member form" }));
   expect(await screen.findByRole("form", { name: "Add member" })).toBeVisible();
   expect(screen.getByRole("dialog", { name: "Add member" })).toBeVisible();
-  expect(members).toHaveAttribute("aria-selected", "true");
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   expect(
     screen.queryByRole("link", { name: "Project members" }),
   ).not.toBeInTheDocument();
@@ -659,8 +660,9 @@ it("switches member management inline without navigating away from Project detai
       expect.any(Object),
     ),
   );
-  fireEvent.keyDown(members, { key: "ArrowLeft" });
-  expect(overview).toHaveFocus();
+  window.history.replaceState(null, "", "/projects/p1/overview");
+  fireEvent(window, new PopStateEvent("popstate"));
+  await screen.findByRole("region", { name: "Overview" });
   expect(screen.getByText("Private")).toBeVisible();
   expect(
     screen.queryByRole("form", { name: "Add member" }),
@@ -689,7 +691,7 @@ it.each(["PUBLIC", "PRIVATE"] as const)(
       };
     });
     mount(<ProjectDetail projectId="p1" />);
-    await openSettingsTab();
+    await openSettingsPage();
     const label = target === "PUBLIC" ? "Make public" : "Make private";
     await waitFor(() =>
       expect(screen.getByRole("button", { name: label })).toBeEnabled(),
@@ -704,7 +706,7 @@ it.each(["PUBLIC", "PRIVATE"] as const)(
       }),
     );
     expect(
-      await within(screen.getByRole("tabpanel")).findByText(
+      await within(screen.getByRole("region", { name: "Setting" })).findByText(
         target === "PUBLIC" ? "Public" : "Private",
       ),
     ).toBeVisible();
@@ -746,7 +748,7 @@ it("reconciles stale visibility after conflict without false publication success
     return { ...project, visibility: changed ? "PUBLIC" : "PRIVATE" };
   });
   mount(<ProjectDetail projectId="p1" />);
-  await openSettingsTab();
+  await openSettingsPage();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
   );
@@ -755,7 +757,7 @@ it("reconciles stale visibility after conflict without false publication success
   expect(await screen.findByRole("alert")).toHaveTextContent("changed");
   fireEvent.click(screen.getByRole("button", { name: "Refresh project" }));
   expect(
-    await within(screen.getByRole("tabpanel")).findByText("Public"),
+    await within(screen.getByRole("region", { name: "Setting" })).findByText("Public"),
   ).toBeVisible();
   expect(screen.queryByText("Project is now public.")).not.toBeInTheDocument();
 });
@@ -773,7 +775,7 @@ it("hides metadata if making private removes the actor's PUBLIC-only read access
     return { ...project, visibility: "PUBLIC" };
   });
   mount(<ProjectDetail projectId="p1" />);
-  await openSettingsTab();
+  await openSettingsPage();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make private" })).toBeEnabled(),
   );
@@ -794,9 +796,11 @@ it("does not grant visibility management from ADMIN client roles", async () => {
       throw new ApiError(403, undefined, "Denied");
     return project;
   });
-  mount(<ProjectDetail projectId="p1" />);
-  await screen.findByRole("tab", { name: "Overview" });
-  expect(screen.queryByRole("tab", { name: "Setting" })).not.toBeInTheDocument();
+  mount(<ProjectDetail projectId="p1" initialTab="overview" />);
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Apollo" }),
+  ).toBeVisible();
+  expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Make public" })).not.toBeInTheDocument();
   expect(
     api.mock.calls.some(([, options]) => options?.method === "PATCH"),
@@ -818,7 +822,7 @@ it("keeps a late visibility response scoped to the original Project", async () =
       : project;
   });
   const { client, rerender } = mount(<ProjectDetail projectId="p1" />);
-  await openSettingsTab();
+  await openSettingsPage();
   await waitFor(() =>
     expect(screen.getByRole("button", { name: "Make public" })).toBeEnabled(),
   );
@@ -841,7 +845,7 @@ it("keeps a late visibility response scoped to the original Project", async () =
 });
 
 
-it("preserves the active tab across project refetches and syncs /overview, /members, /settings URL paths", async () => {
+it("preserves the selected Project section from its URL across refetches without a tab bar", async () => {
   window.history.replaceState(null, "", "/projects/p1");
   try {
     api.mockImplementation(async (path) => {
@@ -850,14 +854,16 @@ it("preserves the active tab across project refetches and syncs /overview, /memb
       return project;
     });
     const { client } = mount(<ProjectDetail projectId="p1" />);
-    const membersTab = await screen.findByRole("tab", {
-      name: "Project members",
-    });
+    await screen.findByRole("region", { name: "Overview" });
     expect(window.location.pathname).toBe("/projects/p1/overview");
 
-    fireEvent.click(membersTab);
-    expect(membersTab).toHaveAttribute("aria-selected", "true");
+    window.history.pushState(null, "", "/projects/p1/members");
+    fireEvent(window, new PopStateEvent("popstate"));
+    expect(
+      await screen.findByRole("region", { name: "Project members" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe("/projects/p1/members");
+    expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
 
     await act(async () => {
       await client.invalidateQueries({
@@ -865,10 +871,9 @@ it("preserves the active tab across project refetches and syncs /overview, /memb
       });
     });
 
-    const membersTabAfterRefetch = await screen.findByRole("tab", {
-      name: "Project members",
-    });
-    expect(membersTabAfterRefetch).toHaveAttribute("aria-selected", "true");
+    expect(
+      await screen.findByRole("region", { name: "Project members" }),
+    ).toBeVisible();
     expect(window.location.pathname).toBe("/projects/p1/members");
   } finally {
     window.history.replaceState(null, "", "/");
