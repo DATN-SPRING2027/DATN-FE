@@ -22,8 +22,8 @@ export type AiChatMindMapCanvasProps = Readonly<{
   onCollapseDefault: () => void;
 }>;
 
-function clampScale(value: number): number {
-  return Math.min(MAX_SCALE, Math.max(MIN_SCALE, Number(value.toFixed(2))));
+function clampScale(value: number, minimum = MIN_SCALE): number {
+  return Math.min(MAX_SCALE, Math.max(minimum, Number(value.toFixed(2))));
 }
 
 export default function AiChatMindMapCanvas({
@@ -90,11 +90,10 @@ export default function AiChatMindMapCanvas({
         pan: { x: 12, y: 12 },
       };
     }
-    const fitX = (containerSize.width - 20) / Math.max(1, layout.width);
-    const fitY = (containerSize.height - 54) / Math.max(1, layout.height);
-    const nextScale = clampScale(
-      Math.min(isFullscreen ? 1.05 : 0.96, fitX, fitY),
-    );
+    const fitX = Math.max(1, containerSize.width - 20) / Math.max(1, layout.width);
+    const fitY = Math.max(1, containerSize.height - 54) / Math.max(1, layout.height);
+    // Fit must include every node, even when a supported tree needs <40% zoom.
+    const nextScale = Math.min(isFullscreen ? 1.05 : 0.96, fitX, fitY);
     const offsetX = Math.max(
       8,
       Math.round((containerSize.width - layout.width * nextScale) / 2),
@@ -110,6 +109,7 @@ export default function AiChatMindMapCanvas({
   }, [containerSize, isFullscreen, layout.height, layout.width]);
 
   const activeCamera = userCamera ?? autoFitCamera;
+  const minimumScale = Math.min(MIN_SCALE, autoFitCamera.scale);
   const scale = activeCamera.scale;
   const pan = activeCamera.pan;
 
@@ -147,31 +147,31 @@ export default function AiChatMindMapCanvas({
     setUserCamera((prev) => {
       const base = prev ?? autoFitCamera;
       return {
-        scale: clampScale(base.scale + ZOOM_STEP),
+        scale: clampScale(base.scale + ZOOM_STEP, minimumScale),
         pan: base.pan,
       };
     });
-  }, [autoFitCamera]);
+  }, [autoFitCamera, minimumScale]);
 
   const handleZoomOut = useCallback(() => {
     setUserCamera((prev) => {
       const base = prev ?? autoFitCamera;
       return {
-        scale: clampScale(base.scale - ZOOM_STEP),
+        scale: clampScale(base.scale - ZOOM_STEP, minimumScale),
         pan: base.pan,
       };
     });
-  }, [autoFitCamera]);
+  }, [autoFitCamera, minimumScale]);
 
   const handleWheel = useCallback(
-    (event: React.WheelEvent<HTMLDivElement>) => {
+    (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
         const delta = event.deltaY < 0 ? 0.1 : -0.1;
         setUserCamera((prev) => {
           const base = prev ?? autoFitCamera;
           return {
-            scale: clampScale(base.scale + delta),
+            scale: clampScale(base.scale + delta, minimumScale),
             pan: base.pan,
           };
         });
@@ -188,8 +188,15 @@ export default function AiChatMindMapCanvas({
         };
       });
     },
-    [autoFitCamera],
+    [autoFitCamera, minimumScale],
   );
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    viewport.addEventListener("wheel", handleWheel, { passive: false });
+    return () => viewport.removeEventListener("wheel", handleWheel);
+  }, [handleWheel]);
 
   const handlePointerDown = useCallback(
     (event: React.PointerEvent<HTMLDivElement>) => {
@@ -423,7 +430,6 @@ export default function AiChatMindMapCanvas({
   return (
     <div
       ref={viewportRef}
-      onWheel={handleWheel}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}

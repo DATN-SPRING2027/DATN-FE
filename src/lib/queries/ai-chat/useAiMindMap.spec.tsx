@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
@@ -59,6 +59,92 @@ function sampleResponse(
 describe("useAiMindMap scope-bound cache & access revocation hygiene", () => {
   beforeEach(() => {
     apiClientMock.mockReset();
+  });
+
+  it.each(["logout", "access revoked"])(
+    "discards a generation that completes after %s removed its cache scope",
+    async (reason) => {
+      let resolveResponse!: (response: AiChatMindMapResponse) => void;
+      apiClientMock.mockImplementationOnce(
+        () =>
+          new Promise<AiChatMindMapResponse>((resolve) => {
+            resolveResponse = resolve;
+          }),
+      );
+      const queryClient = new QueryClient();
+      const wrapper = ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={queryClient}>
+          {children}
+        </QueryClientProvider>
+      );
+      const { result, unmount } = renderHook(
+        () =>
+          useAiMindMap({
+            userId: "user-1",
+            organizationId: "org-1",
+            projectId: "proj-1",
+          }),
+        { wrapper },
+      );
+      let generation!: Promise<AiChatMindMapResponse>;
+      act(() => {
+        generation = result.current.generate("");
+      });
+      await waitFor(() => expect(apiClientMock).toHaveBeenCalledOnce());
+      unmount();
+      if (reason === "logout") queryClient.clear();
+      else queryClient.removeQueries({ queryKey: aiMindMapKeys.all });
+
+      await act(async () => {
+        resolveResponse(sampleResponse());
+        await generation;
+      });
+      expect(
+        queryClient.getQueriesData({ queryKey: aiMindMapKeys.all }),
+      ).toEqual([]);
+      queryClient.clear();
+    },
+  );
+
+  it("does not let a previous session's failed generation purge the new session's maps", async () => {
+    let rejectResponse!: (error: Error) => void;
+    apiClientMock.mockImplementationOnce(
+      () =>
+        new Promise<AiChatMindMapResponse>((_resolve, reject) => {
+          rejectResponse = reject;
+        }),
+    );
+    const queryClient = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+    const { result, unmount } = renderHook(
+      () =>
+        useAiMindMap({
+          userId: "user-1",
+          organizationId: "org-1",
+          projectId: "proj-1",
+        }),
+      { wrapper },
+    );
+    let generation!: Promise<unknown>;
+    act(() => {
+      generation = result.current.generate("").catch(() => undefined);
+    });
+    await waitFor(() => expect(apiClientMock).toHaveBeenCalledOnce());
+    unmount();
+    queryClient.clear();
+    const key = aiMindMapKeys.byTopic("user-1", "org-1", "proj-1", "");
+    const freshMap = sampleResponse({
+      scopeFingerprint: "new_session_scope_1234",
+    });
+    queryClient.setQueryData(key, freshMap);
+    await act(async () => {
+      rejectResponse(new ApiError(401, "UNAUTHORIZED", "Old session ended"));
+      await generation;
+    });
+    expect(queryClient.getQueryData(key)).toEqual(freshMap);
+    queryClient.clear();
   });
 
   it("normalizes topic keys, isolates cache by userId/organizationId/projectId/topic, evicts stale scopeFingerprints, and purges cache on 403", async () => {

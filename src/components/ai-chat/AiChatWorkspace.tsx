@@ -1706,7 +1706,7 @@ function AiChatWorkspaceContent() {
         />
       </div>
 
-      {isMindMapOpen && userId && organizationId && (
+      {isMindMapOpen && !queryAccessError && userId && organizationId && (
         <AiChatMindMapPanel
           key={`${userId}:${organizationId}:${selectedProject.id}`}
           isOpen={isMindMapOpen}
