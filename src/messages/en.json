@@ -2679,6 +2679,23 @@
     "detail": {
       "splitResizeAria": "Drag to resize width between Task and Note",
       "splitResizeTitle": "Drag to resize width (double-click to reset)"
+    },
+    "inlineCreate": {
+      "placeholder": "What needs to be done?",
+      "typeAria": "New work item type",
+      "dueDateAria": "Inline due date",
+      "dueDateButton": "Set due date",
+      "assigneeAria": "Inline assignee",
+      "assigneeButton": "Assign person",
+      "assignToMe": "Assign to me",
+      "unassigned": "Unassigned",
+      "submit": "Create",
+      "cancel": "Cancel inline create"
+    },
+    "createdToast": {
+      "title": "Created {key}",
+      "viewAction": "View {key}",
+      "dismiss": "Dismiss notification"
     }
   },
   "organizationMembers": {

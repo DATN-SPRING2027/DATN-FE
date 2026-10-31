@@ -12,6 +12,7 @@ import {
 } from"@/icons";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon } from"./WorkMonoIcons";
+import { WorkPersonAvatar } from "./WorkPersonAvatar";
 import type { JiraImportProgress } from "./jira-import";
 import type {
   WorkFilterCondition,
@@ -338,7 +339,7 @@ export default function WorkToolbar({
 
         {/* Quick Assignee Avatars Stack */}
         <div
-          className="flex items-center -space-x-1"
+          className="flex items-center [&>*+*]:-ms-1.5"
           role="group"
           aria-label={t("quickAssigneeFilter")}
         >
@@ -354,13 +355,13 @@ export default function WorkToolbar({
                 onClick={() =>
                   onAssigneeChange(active ? "ALL" : person.id)
                 }
-                className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 text-[10px] font-semibold transition hover:z-10 hover:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                className={`relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-full transition hover:z-10 hover:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                   active
-                    ? "z-10 border-brand-500 bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                    : "border-white bg-gray-100 text-gray-700 dark:border-gray-900 dark:bg-gray-800 dark:text-gray-300"
+                    ? "z-10 ring-2 ring-brand-500 ring-offset-1 ring-offset-white dark:ring-offset-gray-900"
+                    : "ring-2 ring-white dark:ring-gray-900"
                 }`}
               >
-                {person.initials}
+                <WorkPersonAvatar person={person} size="md" />
               </button>
             );
           })}

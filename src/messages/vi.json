@@ -2679,6 +2679,23 @@
     "detail": {
       "splitResizeAria": "Kéo để thay đổi chiều ngang giữa Task và Ghi chú",
       "splitResizeTitle": "Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)"
+    },
+    "inlineCreate": {
+      "placeholder": "Cần thực hiện công việc gì?",
+      "typeAria": "Loại hạng mục công việc mới",
+      "dueDateAria": "Hạn chót tạo nhanh",
+      "dueDateButton": "Chọn hạn chót",
+      "assigneeAria": "Người phụ trách tạo nhanh",
+      "assigneeButton": "Giao người phụ trách",
+      "assignToMe": "Giao cho tôi",
+      "unassigned": "Chưa giao",
+      "submit": "Tạo mới",
+      "cancel": "Hủy tạo nhanh"
+    },
+    "createdToast": {
+      "title": "Đã tạo {key}",
+      "viewAction": "Xem {key}",
+      "dismiss": "Đóng thông báo"
     }
   },
   "organizationMembers": {

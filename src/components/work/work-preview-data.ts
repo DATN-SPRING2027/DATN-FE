@@ -10,7 +10,7 @@ import type {
 export const PREVIEW_PROJECT = "Internal Knowledge Hub";
 
 export const DEFAULT_WORK_LIST_COLUMNS: readonly WorkListColumn[] = [
-  { key: "work", label: "Work", category: "Core", visible: true, width: 360, minWidth: 240 },
+  { key: "work", label: "Work", category: "Core", visible: true, width: 390, minWidth: 240 },
   { key: "status", label: "Status", category: "Attributes", visible: true, width: 140, minWidth: 110 },
   { key: "assignee", label: "Assignee", category: "People", visible: true, width: 170, minWidth: 130 },
   { key: "priority", label: "Priority", category: "Attributes", visible: true, width: 136, minWidth: 110 },
