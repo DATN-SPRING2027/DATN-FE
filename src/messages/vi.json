@@ -5469,7 +5469,21 @@
     "evidenceShowPrevChunk": "Xem đoạn phía trước",
     "evidenceHidePrevChunk": "Ẩn đoạn phía trước",
     "evidenceShowNextChunk": "Xem đoạn tiếp theo",
-    "evidenceHideNextChunk": "Ẩn đoạn tiếp theo"
+    "evidenceHideNextChunk": "Ẩn đoạn tiếp theo",
+    "moreActionsAria": "Tác vụ khác",
+    "viewSourcesAction": "Xem nguồn trích dẫn",
+    "branchInNewChatAction": "Rẽ nhánh sang cuộc trò chuyện mới",
+    "branchingInNewChatStatus": "Đang rẽ nhánh…",
+    "branchedFromThread": "Rẽ nhánh từ {title}",
+    "branchedFromThreadAria": "Mở cuộc trò chuyện gốc: {title}",
+    "branchedFromDeletedChat": "Rẽ nhánh từ một cuộc trò chuyện trước đó",
+    "untitledThreadFallback": "Cuộc trò chuyện chưa đặt tên",
+    "branchCreatedToast": "Đã rẽ nhánh sang cuộc trò chuyện mới",
+    "branchCreatedToastFrom": "Giữ nguyên ngữ cảnh từ {title}",
+    "branchBackToOriginalAction": "Xem bản gốc",
+    "branchToastDismissAria": "Đóng thông báo rẽ nhánh",
+    "branchErrorDefault": "Không thể rẽ nhánh cuộc trò chuyện này. Vui lòng thử lại.",
+    "branchedThreadBadgeAria": "Cuộc trò chuyện rẽ nhánh"
   },
   "handover": {
     "aiCoverage": {

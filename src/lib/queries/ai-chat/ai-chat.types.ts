@@ -3,6 +3,10 @@ export type AiChatThread = Readonly<{
   title: string;
   createdAt: string;
   updatedAt: string;
+  isBranched?: boolean;
+  parentThreadId?: string | null;
+  parentThreadTitle?: string | null;
+  branchPointMessageId?: string | null;
 }>;
 
 export type AiChatCitation = Readonly<{
@@ -59,6 +63,7 @@ export type AiChatMessage = Readonly<{
   createdAt: string;
   replyToMessageId?: string;
   regeneratedFromMessageId?: string;
+  isInherited?: boolean;
 }>;
 
 export type AiChatMessagePage = Readonly<{

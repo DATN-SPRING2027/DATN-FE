@@ -180,4 +180,33 @@ describe("AiChatSidebar (Full-width fade-mask rows + Draggable resize handle)", 
     expect(document.body.style.cursor).toBe("");
     expect(document.body.style.userSelect).toBe("");
   });
+
+  it("renders subtle BranchIcon indicator on branched threads while preserving accessible button names", () => {
+    renderSidebar({
+      threads: [
+        ...sampleThreads,
+        {
+          id: "t-branch-1",
+          title: "Branch · Kiến trúc Zero-Mem ECCE",
+          createdAt: "2026-10-30T10:00:00Z",
+          updatedAt: "2026-10-30T10:05:00Z",
+          isBranched: true,
+          parentThreadId: "t-2",
+          parentThreadTitle: sampleThreads[1]!.title,
+          branchPointMessageId: "msg-a1",
+        },
+      ],
+    });
+
+    const branchTitleBtn = screen.getByRole("button", {
+      name: "Branch · Kiến trúc Zero-Mem ECCE",
+    });
+    expect(branchTitleBtn).toBeVisible();
+    expect(
+      screen.getByTestId("sidebar-branch-icon-t-branch-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("sidebar-branch-icon-t-1"),
+    ).not.toBeInTheDocument();
+  });
 });

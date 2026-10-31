@@ -449,4 +449,92 @@ describe("AiChatAnswerActionBar (Copy, Like/Dislike, Read Aloud, Share, Try Agai
     unmount();
     vi.unstubAllGlobals();
   });
+
+  it("opens More actions (⋯) popover with formatted timestamp, View sources, and Branch in new chat", () => {
+    const onOpenSources = vi.fn();
+    const onBranchInNewChat = vi.fn();
+
+    renderBar({
+      onOpenSources,
+      onBranchInNewChat,
+    });
+
+    const moreBtn = screen.getByRole("button", { name: "More actions" });
+    expect(moreBtn).toHaveAttribute("aria-haspopup", "menu");
+    expect(moreBtn).toHaveAttribute("aria-expanded", "false");
+
+    fireEvent.click(moreBtn);
+    expect(moreBtn).toHaveAttribute("aria-expanded", "true");
+
+    const menu = screen.getByRole("menu", { name: "More actions" });
+    expect(menu).toBeVisible();
+    expect(
+      within(menu).getByTestId("ai-chat-more-actions-timestamp"),
+    ).toHaveTextContent(/Oct/i);
+
+    const viewSourcesItem = within(menu).getByRole("menuitem", {
+      name: "View sources",
+    });
+    const branchItem = within(menu).getByRole("menuitem", {
+      name: "Branch in new chat",
+    });
+    expect(viewSourcesItem).toBeVisible();
+    expect(branchItem).toBeVisible();
+
+    // Keyboard ArrowDown / Escape support
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(document.activeElement).toBe(branchItem);
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByRole("menu", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+
+    // Reopen and trigger View sources
+    fireEvent.click(moreBtn);
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "View sources" }),
+    );
+    expect(onOpenSources).toHaveBeenCalledTimes(1);
+    expect(
+      screen.queryByRole("menu", { name: "More actions" }),
+    ).not.toBeInTheDocument();
+
+    // Reopen and trigger Branch in new chat
+    fireEvent.click(moreBtn);
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Branch in new chat" }),
+    );
+    expect(onBranchInNewChat).toHaveBeenCalledTimes(1);
+  });
+
+  it("hides View sources when the turn has no citations and disables Branch while streaming or branching", () => {
+    renderBar({
+      message: {
+        id: "msg-plain",
+        role: "assistant",
+        content: "Direct greeting response without document citations.",
+        status: "ok",
+        citations: [],
+        sessionCitations: [],
+        retrievalSteps: [],
+        createdAt: "2026-10-30T09:00:00Z",
+      },
+      isBranching: true,
+      onOpenSources: undefined,
+      onBranchInNewChat: vi.fn(),
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const menu = screen.getByRole("menu", { name: "More actions" });
+    expect(
+      within(menu).queryByRole("menuitem", { name: "View sources" }),
+    ).not.toBeInTheDocument();
+
+    const branchingItem = within(menu).getByRole("menuitem", {
+      name: "Branching…",
+    });
+    expect(branchingItem).toBeDisabled();
+    expect(branchingItem).toHaveAttribute("aria-busy", "true");
+  });
 });
