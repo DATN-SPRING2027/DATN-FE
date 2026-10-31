@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -20,7 +21,9 @@ import {
   TaskIcon,
   VoiceWaveIcon,
 } from "@/icons";
+import type { Project } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
+import AiChatProjectMenu from "./AiChatProjectMenu";
 
 export const AI_CHAT_MAX_QUERY_LENGTH = 4000;
 
@@ -31,13 +34,16 @@ export interface AiChatComposerProps {
   projectId: string;
   projectCode: string;
   projectName: string;
+  projects?: readonly Project[];
   isStreaming: boolean;
   disabled?: boolean;
   validationError: string | null;
+  isProjectMenuOpen?: boolean;
+  onProjectMenuOpenChange?: (nextOpen: boolean) => void;
+  onSelectProject?: (project: Project) => void;
   onChange: (nextValue: string) => void;
   onSubmit: () => void;
   onStopStreaming: () => void;
-  onOpenProjectMenu?: () => void;
 }
 
 export default function AiChatComposer({
@@ -47,18 +53,35 @@ export default function AiChatComposer({
   projectId,
   projectCode,
   projectName,
+  projects,
   isStreaming,
   disabled = false,
   validationError,
+  isProjectMenuOpen,
+  onProjectMenuOpenChange,
+  onSelectProject,
   onChange,
   onSubmit,
   onStopStreaming,
-  onOpenProjectMenu,
 }: AiChatComposerProps) {
   const t = useTranslations("AiChat");
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const plusMenuRef = useRef<HTMLDivElement | null>(null);
+  const projectMenuRef = useRef<HTMLDivElement | null>(null);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [uncontrolledProjectMenuOpen, setUncontrolledProjectMenuOpen] =
+    useState(false);
+
+  const projectMenuOpen = isProjectMenuOpen ?? uncontrolledProjectMenuOpen;
+  const setProjectMenuOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (isProjectMenuOpen === undefined) {
+        setUncontrolledProjectMenuOpen(nextOpen);
+      }
+      onProjectMenuOpenChange?.(nextOpen);
+    },
+    [isProjectMenuOpen, onProjectMenuOpenChange],
+  );
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -68,18 +91,28 @@ export default function AiChatComposer({
   }, [value]);
 
   useEffect(() => {
-    if (!isPlusMenuOpen) return;
+    if (!isPlusMenuOpen && !projectMenuOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node;
       if (
+        isPlusMenuOpen &&
         plusMenuRef.current &&
-        !plusMenuRef.current.contains(event.target as Node)
+        !plusMenuRef.current.contains(target)
       ) {
         setIsPlusMenuOpen(false);
+      }
+      if (
+        projectMenuOpen &&
+        projectMenuRef.current &&
+        !projectMenuRef.current.contains(target)
+      ) {
+        setProjectMenuOpen(false);
       }
     };
     const handleEscape = (event: globalThis.KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsPlusMenuOpen(false);
+        setProjectMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handlePointerDown);
@@ -88,7 +121,7 @@ export default function AiChatComposer({
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [isPlusMenuOpen]);
+  }, [isPlusMenuOpen, projectMenuOpen, setProjectMenuOpen]);
 
   const charCount = value.length;
   const isOverLimit = charCount > AI_CHAT_MAX_QUERY_LENGTH;
@@ -96,6 +129,10 @@ export default function AiChatComposer({
   const showCounter = charCount >= 3200 || isOverLimit;
   const hasText = value.trim().length > 0;
   const canSend = !disabled && !isStreaming && hasText && !isOverLimit;
+  const hasProjectSelector = Boolean(
+    projects && projects.length > 0 && onSelectProject,
+  );
+  const hasOpenPopover = isPlusMenuOpen || projectMenuOpen;
 
   const handleFormSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -151,8 +188,11 @@ export default function AiChatComposer({
               type="button"
               aria-label={t("plusMenuAriaLabel")}
               aria-expanded={isPlusMenuOpen}
-              onClick={() => setIsPlusMenuOpen((prev) => !prev)}
-              className="flex size-8 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200/80 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+              onClick={() => {
+                setProjectMenuOpen(false);
+                setIsPlusMenuOpen((prev) => !prev);
+              }}
+              className="flex size-8 cursor-pointer items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200/80 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
             >
               <PlusIcon aria-hidden="true" className="size-3.5" />
             </button>
@@ -204,7 +244,7 @@ export default function AiChatComposer({
                     setIsPlusMenuOpen(false);
                     textareaRef.current?.focus();
                   }}
-                  className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
                 >
                   <ShootingStarIcon
                     aria-hidden="true"
@@ -236,7 +276,7 @@ export default function AiChatComposer({
             )}
           />
 
-          {/* Right Controls: Counter (when near limit) + Project Code Pill + Blue Circle Action Button */}
+          {/* Right Controls: Counter (when near limit) + Inline Project Selector + Action Button */}
           <div className="flex shrink-0 items-center gap-1.5">
             {showCounter && (
               <span
@@ -254,19 +294,52 @@ export default function AiChatComposer({
               </span>
             )}
 
-            {onOpenProjectMenu && (
-              <button
-                type="button"
-                onClick={onOpenProjectMenu}
-                title={projectName}
-                className="hidden items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200/80 hover:text-gray-900 sm:inline-flex dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+            {hasProjectSelector && projects && onSelectProject && (
+              <div
+                ref={projectMenuRef}
+                className="relative hidden sm:inline-flex"
               >
-                <span>{projectCode}</span>
-                <ChevronDownIcon
-                  aria-hidden="true"
-                  className="size-3.5 opacity-70"
-                />
-              </button>
+                <button
+                  type="button"
+                  data-testid="ai-chat-composer-project-trigger"
+                  aria-label={t("composerProjectScopeAriaLabel")}
+                  aria-haspopup="listbox"
+                  aria-expanded={projectMenuOpen}
+                  onClick={() => {
+                    setIsPlusMenuOpen(false);
+                    setProjectMenuOpen(!projectMenuOpen);
+                  }}
+                  title={projectName}
+                  className={cn(
+                    "inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition-colors duration-150",
+                    projectMenuOpen
+                      ? "bg-gray-200/90 text-gray-900 dark:bg-white/15 dark:text-white"
+                      : "text-gray-600 hover:bg-gray-200/80 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white",
+                  )}
+                >
+                  <span>{projectCode}</span>
+                  <ChevronDownIcon
+                    aria-hidden="true"
+                    className={cn(
+                      "size-3.5 opacity-70 transition-transform duration-200",
+                      projectMenuOpen && "rotate-180",
+                    )}
+                  />
+                </button>
+
+                {projectMenuOpen && (
+                  <AiChatProjectMenu
+                    projects={projects}
+                    selectedProjectId={projectId}
+                    placement={variant === "docked" ? "top" : "bottom"}
+                    testId="ai-chat-composer-project-menu"
+                    onSelectProject={(proj) => {
+                      setProjectMenuOpen(false);
+                      onSelectProject(proj);
+                    }}
+                  />
+                )}
+              </div>
             )}
 
             {isStreaming ? (
@@ -274,7 +347,7 @@ export default function AiChatComposer({
                 type="button"
                 onClick={onStopStreaming}
                 aria-label={t("stopStreaming")}
-                className="flex size-8 items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
                 <StopSquareIcon aria-hidden="true" className="size-3.5" />
               </button>
@@ -285,7 +358,9 @@ export default function AiChatComposer({
                 aria-label={t("sendMessage")}
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-theme-xs transition-all hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
-                  !canSend && "cursor-not-allowed hover:bg-brand-500",
+                  canSend
+                    ? "cursor-pointer"
+                    : "cursor-not-allowed hover:bg-brand-500",
                   (isOverLimit || disabled) && "opacity-50",
                 )}
               >
@@ -307,7 +382,12 @@ export default function AiChatComposer({
   }
 
   return (
-    <div className="shrink-0 bg-white/95 px-4 pt-2 pb-3 backdrop-blur-xs dark:bg-gpt-canvas/95">
+    <div
+      className={cn(
+        "relative shrink-0 bg-white/95 px-4 pt-2 pb-3 backdrop-blur-xs dark:bg-gpt-canvas/95",
+        hasOpenPopover ? "z-30" : "z-20",
+      )}
+    >
       {formNode}
       <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
         {t("composerDisclaimer", { project: projectName })}
