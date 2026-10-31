@@ -7,7 +7,8 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 import { chatApi } from "@/lib/queries/chat/useChat";
@@ -255,6 +256,14 @@ export function useNotificationRealtimeSubscription(
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let delay = 2000;
+    let authRecheckAttempted = false;
+
+    const scheduleReconnect = () => {
+      reconnectTimer = setTimeout(() => {
+        void connect();
+      }, delay);
+      delay = Math.min(delay * 2, 30_000);
+    };
 
     const connect = async () => {
       try {
@@ -276,6 +285,7 @@ export function useNotificationRealtimeSubscription(
           }
           setConnectedIdentity(identityKey);
           delay = 2000;
+          authRecheckAttempted = false;
         };
 
         connection.onmessage = (event) => {
@@ -302,20 +312,29 @@ export function useNotificationRealtimeSubscription(
           setConnectedIdentity((current) =>
             current === identityKey ? null : current,
           );
-          reconnectTimer = setTimeout(() => {
-            void connect();
-          }, delay);
-          delay = Math.min(delay * 2, 30_000);
+          scheduleReconnect();
         };
-      } catch {
+      } catch (error) {
         if (stopped) return;
         setConnectedIdentity((current) =>
           current === identityKey ? null : current,
         );
-        reconnectTimer = setTimeout(() => {
-          void connect();
-        }, delay);
-        delay = Math.min(delay * 2, 30_000);
+
+        if (error instanceof ApiError && error.status === 401) {
+          if (authRecheckAttempted) return;
+          authRecheckAttempted = true;
+          await queryClient
+            .invalidateQueries({
+              queryKey: authKeys.currentUser(),
+              exact: true,
+            })
+            .catch(() => undefined);
+          if (stopped) return;
+        } else if (error instanceof ApiError && error.status === 403) {
+          return;
+        }
+
+        scheduleReconnect();
       }
     };
 

@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { ApiError } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type {
   AiChatMessagePage,
   AiChatStreamEvent,
@@ -580,6 +581,45 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     );
     expect(screen.getByRole("button", { name: "Send message" })).toBeDisabled();
     expect(streamAiChatAskMock).not.toHaveBeenCalled();
+  });
+
+  it("revalidates the login session after an AI ask returns 401 without replaying the ask", async () => {
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-2",
+      title: "Session expiry check",
+      createdAt: "2026-10-31T10:00:00Z",
+      updatedAt: "2026-10-31T10:00:00Z",
+    } satisfies AiChatThread);
+    streamAiChatAskMock.mockRejectedValueOnce(
+      new ApiError(401, "UNAUTHORIZED", "The login session expired."),
+    );
+
+    renderWorkspace();
+    const composer = screen.getByRole("textbox", {
+      name: "Ask Continuum SAG",
+    });
+    fireEvent.change(composer, { target: { value: "Check the session." } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(streamAiChatAskMock).toHaveBeenCalledTimes(1);
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({
+      queryKey: authKeys.currentUser(),
+      exact: true,
+    });
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((alert) =>
+          alert.textContent?.includes(
+            "Your login session expired or security token changed.",
+          ),
+        ),
+    ).toBe(true);
   });
 
   it("surfaces permission-denied banner on 403 access loss and opens/closes citation excerpt dialog", () => {

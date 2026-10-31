@@ -108,6 +108,74 @@ describe("streamAiChatAsk", () => {
     } satisfies Partial<ApiError>);
   });
 
+  it("rejects a clean EOF before a completed or failed event", async () => {
+    const encoder = new TextEncoder();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          streamFromChunks([
+            encoder.encode(
+              'event: started\ndata: {"runId":"r1","threadId":"t1","userMessageId":"u1"}\n\n' +
+                'event: delta\ndata: {"text":"partial answer"}\n\n',
+            ),
+          ]),
+          {
+            status: 200,
+            headers: { "content-type": "text/event-stream; charset=utf-8" },
+          },
+        ),
+      ),
+    );
+
+    await expect(
+      streamAiChatAsk({
+        projectId: "proj-1",
+        threadId: "t1",
+        query: "Hello",
+        onEvent: () => undefined,
+      }),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "STREAM_INTERRUPTED",
+    } satisfies Partial<ApiError>);
+  });
+
+  it("normalizes a network failure while reading SSE into a retryable stream error", async () => {
+    const encoder = new TextEncoder();
+    const brokenStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            'event: started\ndata: {"runId":"r1","threadId":"t1","userMessageId":"u1"}\n\n',
+          ),
+        );
+        controller.error(new TypeError("network error"));
+      },
+    });
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(brokenStream, {
+          status: 200,
+          headers: { "content-type": "text/event-stream; charset=utf-8" },
+        }),
+      ),
+    );
+
+    await expect(
+      streamAiChatAsk({
+        projectId: "proj-1",
+        threadId: "t1",
+        query: "Hello",
+        onEvent: () => undefined,
+      }),
+    ).rejects.toMatchObject({
+      status: 503,
+      code: "STREAM_INTERRUPTED",
+    } satisfies Partial<ApiError>);
+  });
+
   it("cancels the ReadableStream reader when consumption terminates before EOF", async () => {
     const cancelSpy = vi.fn();
     const encoder = new TextEncoder();
