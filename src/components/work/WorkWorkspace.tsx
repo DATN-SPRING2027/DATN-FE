@@ -464,6 +464,7 @@ export default function WorkWorkspace({
     ? (projectPeople[0] ?? UNASSIGNED_WORK_PERSON)
     : (projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON);
   const taskVersionsRef = useRef<Map<string, number>>(new Map());
+  const taskBackendStatusesRef = useRef<Map<string, BackendTaskStatus>>(new Map());
   const pendingIdPromisesRef = useRef<Map<string, Promise<string | null>>>(
     new Map(),
   );
@@ -547,101 +548,107 @@ export default function WorkWorkspace({
     fromStatus: WorkStatus,
     toStatus: WorkStatus | "CANCELLED",
   ): Promise<number> {
+    const actualFrom: BackendTaskStatus =
+      taskBackendStatusesRef.current.get(realId) ?? fromStatus;
+
+    const runStep = async (
+      stepVersion: number,
+      stepFrom: BackendTaskStatus,
+      stepTo: BackendTaskStatus,
+      reason?: string,
+    ): Promise<number> => {
+      const res = await transitionProjectTaskApi(projectId, realId, stepVersion, {
+        fromStatus: stepFrom,
+        toStatus: stepTo,
+        ...(reason ? { reason } : {}),
+      });
+      taskVersionsRef.current.set(realId, res.version);
+      taskBackendStatusesRef.current.set(realId, res.status ?? stepTo);
+      return res.version;
+    };
+
+    if (actualFrom === toStatus) return version;
+
     if (toStatus === "CANCELLED") {
       let currentVer = version;
-      let currentFrom: BackendTaskStatus = fromStatus;
-      if (fromStatus === "DONE") {
-        const reopened = await transitionProjectTaskApi(
-          projectId,
-          realId,
+      let currentFrom: BackendTaskStatus = actualFrom;
+      if (currentFrom === "DONE") {
+        currentVer = await runStep(
           currentVer,
-          {
-            fromStatus: "DONE",
-            toStatus: "IN_PROGRESS",
-            reason: "Reopened before cancellation",
-          },
+          "DONE",
+          "IN_PROGRESS",
+          "Reopened before cancellation",
         );
-        currentVer = reopened.version;
         currentFrom = "IN_PROGRESS";
       }
-      const cancelled = await transitionProjectTaskApi(
-        projectId,
-        realId,
+      return runStep(
         currentVer,
-        {
-          fromStatus: currentFrom,
-          toStatus: "CANCELLED",
-          reason: "Cancelled from workspace UI",
-        },
+        currentFrom,
+        "CANCELLED",
+        "Cancelled from workspace UI",
       );
-      return cancelled.version;
     }
 
-    if (fromStatus === toStatus) return version;
+    if (actualFrom === "BLOCKED") {
+      if (toStatus === "DONE") {
+        const v1 = await runStep(
+          version,
+          "BLOCKED",
+          "IN_PROGRESS",
+          "Unblocked from workspace UI",
+        );
+        return runStep(v1, "IN_PROGRESS", "DONE");
+      }
+      return runStep(
+        version,
+        "BLOCKED",
+        toStatus,
+        "Unblocked from workspace UI",
+      );
+    }
+
+    if (actualFrom === "CANCELLED") {
+      const v1 = await runStep(
+        version,
+        "CANCELLED",
+        "TODO",
+        "Restored from workspace UI",
+      );
+      if (toStatus === "TODO") return v1;
+      const v2 = await runStep(v1, "TODO", "IN_PROGRESS");
+      if (toStatus === "IN_PROGRESS") return v2;
+      return runStep(v2, "IN_PROGRESS", toStatus);
+    }
 
     if (
-      (fromStatus === "TODO" && toStatus === "IN_REVIEW") ||
-      (fromStatus === "IN_REVIEW" && toStatus === "TODO")
+      (actualFrom === "TODO" && toStatus === "IN_REVIEW") ||
+      (actualFrom === "IN_REVIEW" && toStatus === "TODO")
     ) {
-      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
-        fromStatus,
-        toStatus: "IN_PROGRESS",
-      });
-      const tr2 = await transitionProjectTaskApi(
-        projectId,
-        realId,
-        tr1.version,
-        {
-          fromStatus: "IN_PROGRESS",
-          toStatus,
-        },
-      );
-      return tr2.version;
+      const v1 = await runStep(version, actualFrom, "IN_PROGRESS");
+      return runStep(v1, "IN_PROGRESS", toStatus);
     }
 
-    if (fromStatus === "TODO" && toStatus === "DONE") {
-      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
-        fromStatus: "TODO",
-        toStatus: "IN_PROGRESS",
-      });
-      const tr2 = await transitionProjectTaskApi(
-        projectId,
-        realId,
-        tr1.version,
-        {
-          fromStatus: "IN_PROGRESS",
-          toStatus: "DONE",
-        },
-      );
-      return tr2.version;
+    if (actualFrom === "TODO" && toStatus === "DONE") {
+      const v1 = await runStep(version, "TODO", "IN_PROGRESS");
+      return runStep(v1, "IN_PROGRESS", "DONE");
     }
 
-    if (fromStatus === "DONE" && toStatus !== "IN_PROGRESS") {
-      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
-        fromStatus: "DONE",
-        toStatus: "IN_PROGRESS",
-        reason: "Reopened from workspace UI",
-      });
-      const tr2 = await transitionProjectTaskApi(
-        projectId,
-        realId,
-        tr1.version,
-        {
-          fromStatus: "IN_PROGRESS",
-          toStatus,
-        },
+    if (actualFrom === "DONE" && toStatus !== "IN_PROGRESS") {
+      const v1 = await runStep(
+        version,
+        "DONE",
+        "IN_PROGRESS",
+        "Reopened from workspace UI",
       );
-      return tr2.version;
+      return runStep(v1, "IN_PROGRESS", toStatus);
     }
 
-    const tr = await transitionProjectTaskApi(projectId, realId, version, {
-      fromStatus,
+    return runStep(
+      version,
+      actualFrom,
       toStatus,
-      ...(fromStatus === "DONE"
-        ? { reason: "Reopened from workspace UI" }
-        : {}),
-    });
-    return tr.version;
+      actualFrom === "DONE" ? "Reopened from workspace UI" : undefined,
+    );
   }
 
   useEffect(() => {
@@ -652,6 +659,7 @@ export default function WorkWorkspace({
 
     for (const t of rawTasks) {
       taskVersionsRef.current.set(t.id, t.version);
+      taskBackendStatusesRef.current.set(t.id, t.status);
     }
 
     const parentTasks = rawTasks.filter((t) => t.parentId === null);
@@ -972,6 +980,7 @@ export default function WorkWorkspace({
           setActivityError(null);
         }
         taskVersionsRef.current.set(detail.id, detail.version);
+        taskBackendStatusesRef.current.set(detail.id, detail.status);
         const liveComments = commentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
@@ -1093,6 +1102,7 @@ export default function WorkWorkspace({
           setActivityError(null);
         }
         taskVersionsRef.current.set(subDetail.id, subDetail.version);
+        taskBackendStatusesRef.current.set(subDetail.id, subDetail.status);
         const liveSubComments = subCommentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
@@ -1519,6 +1529,7 @@ export default function WorkWorkspace({
               : {}),
           });
           taskVersionsRef.current.set(created.id, created.version);
+          taskBackendStatusesRef.current.set(created.id, created.status ?? "TODO");
           resolvedIdsRef.current.set(tempId, created.id);
           setCreatedTaskToast({
             id: created.id,
@@ -1588,6 +1599,7 @@ export default function WorkWorkspace({
     const existing = items.find((item) => item.id === id);
     const prevStatus = existing?.status ?? "TODO";
     if (prevStatus === nextStatus) return;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id
@@ -1726,6 +1738,7 @@ export default function WorkWorkspace({
     const existing = items.find((item) => item.id === id);
     const prevPriority = existing?.priority ?? "MEDIUM";
     if (prevPriority === nextPriority) return;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, priority: nextPriority } : item,
@@ -1936,6 +1949,7 @@ export default function WorkWorkspace({
     const prevStatus = targetSub.status;
     const nextDone = !targetSub.done;
     const nextStatus: WorkStatus = nextDone ? "DONE" : "TODO";
+    setMutationError(null);
 
     setItems((current) =>
       current.map((item) => {
@@ -2069,6 +2083,7 @@ export default function WorkWorkspace({
               : {}),
           });
           taskVersionsRef.current.set(createdSub.id, createdSub.version);
+          taskBackendStatusesRef.current.set(createdSub.id, createdSub.status ?? "TODO");
           resolvedIdsRef.current.set(tempSubId, createdSub.id);
           updateProjectAnnotations((prev) => {
             const nextEstimates = { ...prev.estimates };
@@ -2190,6 +2205,7 @@ export default function WorkWorkspace({
             : "TODO"
           : prevStatus;
     const nextDone = nextStatus === "DONE";
+    setMutationError(null);
 
     if (patch.flagged !== undefined || patch.estimate !== undefined) {
       const persistedId = resolvedIdsRef.current.get(subtaskId) ?? subtaskId;

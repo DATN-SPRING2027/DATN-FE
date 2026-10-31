@@ -63,6 +63,171 @@ const UNASSIGNED_PERSON: WorkPerson = {
   initials: "UN",
 };
 
+async function copyCommandToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to execCommand below
+    }
+  }
+  if (typeof document !== "undefined") {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function DevelopmentGitCliCard({
+  workKey,
+  summary,
+  issueType,
+}: {
+  workKey: string;
+  summary: string;
+  issueType?: WorkItem["type"] | "SUBTASK";
+}) {
+  const t = useTranslations("work");
+  const [copiedTarget, setCopiedTarget] = useState<"branch" | "commit" | null>(
+    null,
+  );
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const branchPrefix = issueType === "BUG" ? "fix" : "feat";
+  const branchSlug = workKey.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const cleanSummary = summary
+    .replace(/[\r\n]+/g, " ")
+    .replace(/"/g, "'")
+    .trim();
+
+  const branchCommand = `git checkout -b ${branchPrefix}/${branchSlug}`;
+  const commitCommand = `git commit -m "${workKey}: ${cleanSummary}"`;
+
+  const handleCopy = (target: "branch" | "commit", command: string) => {
+    void copyCommandToClipboard(command);
+    setCopiedTarget(target);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setCopiedTarget((prev) => (prev === target ? null : prev));
+    }, 2200);
+  };
+
+  const branchLabel = tr(t, "quickUi.devBranchLabel", "Create Git branch");
+  const commitLabel = tr(t, "quickUi.devCommitLabel", "Create Git commit");
+  const copyText = tr(t, "quickUi.devCopyBtn", "Copy");
+  const copiedText = tr(t, "quickUi.devCopiedBtn", "Copied");
+
+  return (
+    <section
+      aria-label="Development git actions"
+      className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+          {tr(t, "quickUi.devGitTitle", "Development · Git CLI")}
+        </h3>
+        <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+          git
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+        {tr(
+          t,
+          "quickUi.devGitHint",
+          "Copy ready-to-use Git branch and commit commands for this work item to paste into your terminal.",
+        )}
+      </p>
+
+      <div className="mt-3 space-y-2.5 text-xs">
+        {/* 1. Branch CLI Helper */}
+        <div className="rounded-md border border-gray-200/80 bg-gray-50/70 p-2 dark:border-gray-800 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+              {branchLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleCopy("branch", branchCommand)}
+              aria-label={`${copyText} ${branchLabel}`}
+              title={branchCommand}
+              className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                copiedTarget === "branch"
+                  ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/15 dark:text-success-300"
+                  : "border-gray-200 bg-white text-brand-600 hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-brand-400 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+              }`}
+            >
+              <MonoIcon
+                name={copiedTarget === "branch" ? "check" : "copy"}
+                className="h-3 w-3 shrink-0"
+              />
+              <span>{copiedTarget === "branch" ? copiedText : copyText}</span>
+            </button>
+          </div>
+          <code
+            title={branchCommand}
+            className="mt-1.5 block truncate rounded bg-white px-2 py-1 font-mono text-[11px] text-gray-700 ring-1 ring-inset ring-gray-200/80 select-all dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700/80"
+          >
+            {branchCommand}
+          </code>
+        </div>
+
+        {/* 2. Commit CLI Helper */}
+        <div className="rounded-md border border-gray-200/80 bg-gray-50/70 p-2 dark:border-gray-800 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+              {commitLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleCopy("commit", commitCommand)}
+              aria-label={`${copyText} ${commitLabel}`}
+              title={commitCommand}
+              className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                copiedTarget === "commit"
+                  ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/15 dark:text-success-300"
+                  : "border-gray-200 bg-white text-brand-600 hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-brand-400 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+              }`}
+            >
+              <MonoIcon
+                name={copiedTarget === "commit" ? "check" : "copy"}
+                className="h-3 w-3 shrink-0"
+              />
+              <span>{copiedTarget === "commit" ? copiedText : copyText}</span>
+            </button>
+          </div>
+          <code
+            title={commitCommand}
+            className="mt-1.5 block truncate rounded bg-white px-2 py-1 font-mono text-[11px] text-gray-700 ring-1 ring-inset ring-gray-200/80 select-all dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700/80"
+          >
+            {commitCommand}
+          </code>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const WORKLOG_DURATION_PRESETS = ["15m", "30m", "1h", "2h", "4h", "1d"] as const;
 
 function parseWorklogDurationMinutes(input: string): number {
@@ -295,8 +460,6 @@ export default function WorkItemDetailDialog({
   const [subtaskDescDraft, setSubtaskDescDraft] = useState("");
   const [quickAddMenuOpen, setQuickAddMenuOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const [branchCreated, setBranchCreated] = useState(false);
-  const [commitCopied, setCommitCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
   const [internalWatching, setInternalWatching] = useState(true);
   const watching =
@@ -1127,16 +1290,70 @@ export default function WorkItemDetailDialog({
                   <span>{item.key}</span>
                 </button>
                 <span aria-hidden="true">/</span>
-                <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                  <MonoIssueTypeIcon
-                    type="SUBTASK"
-                    className="h-3 w-3 text-gray-700 dark:text-gray-300"
-                  />
-                  <span>{activeSubtask.key}</span>
-                </span>
+                {mode === "modal" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenFullPage) {
+                        onOpenFullPage(internalSubtaskId);
+                      } else {
+                        setIsMaximized((prev) => !prev);
+                      }
+                    }}
+                    title={
+                      onOpenFullPage
+                        ? "Open in full page view"
+                        : isMaximized
+                          ? "Restore modal size"
+                          : "Full page view"
+                    }
+                    className="inline-flex cursor-pointer items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 transition hover:border-brand-300 hover:text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:border-brand-500/50 dark:hover:text-brand-400"
+                  >
+                    <MonoIssueTypeIcon
+                      type="SUBTASK"
+                      className="h-3 w-3 text-gray-700 dark:text-gray-300"
+                    />
+                    <span>{activeSubtask.key}</span>
+                  </button>
+                ) : (
+                  <span
+                    aria-current="page"
+                    className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  >
+                    <MonoIssueTypeIcon
+                      type="SUBTASK"
+                      className="h-3 w-3 text-gray-700 dark:text-gray-300"
+                    />
+                    <span>{activeSubtask.key}</span>
+                  </span>
+                )}
               </>
+            ) : mode === "modal" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenFullPage) {
+                    onOpenFullPage(internalSubtaskId);
+                  } else {
+                    setIsMaximized((prev) => !prev);
+                  }
+                }}
+                title={
+                  onOpenFullPage
+                    ? "Open in full page view"
+                    : isMaximized
+                      ? "Restore modal size"
+                      : "Full page view"
+                }
+                className="cursor-pointer rounded px-1 py-0.5 font-mono font-semibold text-gray-900 transition hover:bg-gray-100 hover:text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-white dark:hover:bg-gray-800 dark:hover:text-brand-400"
+              >
+                {item.key}
+              </button>
             ) : (
-              <span className="font-mono font-semibold text-gray-900 dark:text-white">
+              <span
+                aria-current="page"
+                className="font-mono font-semibold text-gray-900 dark:text-white"
+              >
                 {item.key}
               </span>
             )}
@@ -2239,28 +2456,11 @@ export default function WorkItemDetailDialog({
                 </section>
 
                 {/* Subtask Development Git Card */}
-                <section className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
-                  <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Development
-                  </h3>
-                  <div className="mt-2.5 space-y-1.5 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setBranchCreated(true)}
-                      className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                    >
-                      <span className="truncate font-mono text-[11px]">
-                        {branchCreated
-                          ? `✓ feat/${activeSubtask.key.toLowerCase().replace(".", "-")}`
-                          : "Create branch"}
-                      </span>
-                      <MonoIcon
-                        name="arrowUpRight"
-                        className="h-3.5 w-3.5 shrink-0"
-                      />
-                    </button>
-                  </div>
-                </section>
+                <DevelopmentGitCliCard
+                  workKey={activeSubtask.key}
+                  summary={activeSubtask.summary}
+                  issueType="SUBTASK"
+                />
               </aside>
             </div>
           ) : (
@@ -4377,61 +4577,12 @@ export default function WorkItemDetailDialog({
                 )}
               </section>
 
-              {/* Development Accordion Card */}
-              <section
-                aria-label="Development git actions"
-                className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900"
-              >
-                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                  Development
-                </h3>
-                <div className="mt-2.5 space-y-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (typeof navigator !== "undefined") {
-                        void navigator.clipboard?.writeText(
-                          `git checkout -b feat/${item.key.toLowerCase()}`,
-                        );
-                      }
-                      setBranchCreated(true);
-                    }}
-                    className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                  >
-                    <span>
-                      {branchCreated
-                        ? `✓ Copied git checkout -b feat/${item.key.toLowerCase()}`
-                        : "Create branch"}
-                    </span>
-                    <MonoIcon
-                      name="arrowUpRight"
-                      className="h-3.5 w-3.5"
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (typeof navigator !== "undefined") {
-                        void navigator.clipboard?.writeText(
-                          `git commit -m "${item.key}: ${item.title.replace(/"/g, "'")}"`,
-                        );
-                      }
-                      setCommitCopied(true);
-                    }}
-                    className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                  >
-                    <span>
-                      {commitCopied
-                        ? `✓ Copied git commit -m "${item.key}: ..."`
-                        : "Create commit"}
-                    </span>
-                    <MonoIcon
-                      name="copy"
-                      className="h-3.5 w-3.5"
-                    />
-                  </button>
-                </div>
-              </section>
+              {/* Development Git CLI Card */}
+              <DevelopmentGitCliCard
+                workKey={item.key}
+                summary={item.title}
+                issueType={item.type}
+              />
 
               {/* Automation Accordion Card */}
               <section

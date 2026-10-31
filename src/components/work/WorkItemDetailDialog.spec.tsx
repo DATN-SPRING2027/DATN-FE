@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkItemDetailDialog from "./WorkItemDetailDialog";
 import type { WorkItem } from "./work-types";
@@ -497,5 +497,67 @@ describe("WorkItemDetailDialog", () => {
     expect(
       screen.getByPlaceholderText("Work description…"),
     ).toHaveValue("");
+  });
+
+  it("triggers Full view when clicking the breadcrumb work item key in modal mode", () => {
+    const onOpenFullPage = vi.fn();
+
+    render(
+      <WorkItemDetailDialog
+        mode="modal"
+        item={sampleItemWithSubtasks}
+        onOpenFullPage={onOpenFullPage}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const breadcrumbKeyBtn = screen.getByRole("button", {
+      name: sampleItemWithSubtasks.key,
+    });
+    fireEvent.click(breadcrumbKeyBtn);
+
+    expect(onOpenFullPage).toHaveBeenCalledTimes(1);
+    expect(onOpenFullPage).toHaveBeenCalledWith(null);
+  });
+
+  it("renders clear Git branch & commit commands in Development card and copies both reliably via their Copy buttons", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+
+    render(
+      <WorkItemDetailDialog
+        mode="modal"
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+      />,
+    );
+
+    const devSection = screen.getByRole("region", {
+      name: "Development git actions",
+    });
+    expect(within(devSection).getByText("Create Git branch")).toBeVisible();
+    expect(within(devSection).getByText("Create Git commit")).toBeVisible();
+
+    fireEvent.click(
+      within(devSection).getByRole("button", {
+        name: "Copy Create Git branch",
+      }),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      `git checkout -b feat/${sampleItemWithSubtasks.key.toLowerCase()}`,
+    );
+    expect(within(devSection).getByText("Copied")).toBeVisible();
+
+    fireEvent.click(
+      within(devSection).getByRole("button", {
+        name: "Copy Create Git commit",
+      }),
+    );
+    expect(writeText).toHaveBeenCalledWith(
+      `git commit -m "${sampleItemWithSubtasks.key}: ${sampleItemWithSubtasks.title}"`,
+    );
   });
 });
