@@ -95,6 +95,7 @@ export default function WorkListView({
   onConvertSubtaskToTask,
   onMoveSubtaskToParent,
   onInlineCreate,
+  onAddWorklog,
   onRefresh,
 }: {
   groups: readonly WorkItemGroup[];
@@ -169,6 +170,11 @@ export default function WorkListView({
     type?: WorkItemType,
     options?: { dueDate?: string | null; assignee?: WorkPerson },
   ) => void;
+  onAddWorklog?: (
+    itemId: string,
+    timeSpent: string,
+    note: string,
+  ) => void | Promise<boolean>;
   onRefresh?: () => void;
 }) {
   const t = useTranslations("work");
@@ -755,7 +761,7 @@ export default function WorkListView({
               {/* Rightmost Configure Columns Header [|||] */}
               <th
                 scope="col"
-                className="sticky top-0 z-20 w-11 border-b border-gray-200 bg-gray-50 px-2 py-2.5 text-center text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-900"
+                className="sticky top-0 end-0 z-30 w-11 border-b border-gray-200 bg-gray-50 px-2 py-2.5 text-center text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-900"
               >
                 <button
                   type="button"
@@ -922,7 +928,7 @@ export default function WorkListView({
                               ))}
 
                               {/* Rightmost Row Actions (···) */}
-                              <td className="relative border-b border-gray-200 px-2 py-1.5 text-center align-middle dark:border-gray-800">
+                              <td className="sticky end-0 z-10 border-b border-gray-200 bg-white px-2 py-1.5 text-center align-middle dark:border-gray-800 dark:bg-gray-900">
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -986,8 +992,13 @@ export default function WorkListView({
                                       onClick={() => {
                                         setActiveMenuRowId(null);
                                         if (typeof navigator !== "undefined") {
-                                          navigator.clipboard?.writeText(
-                                            `${window.location.origin}${window.location.pathname}#${item.key}`,
+                                          const url = new URL(
+                                            window.location.href,
+                                          );
+                                          url.hash = "";
+                                          url.searchParams.set("taskId", item.id);
+                                          void navigator.clipboard?.writeText(
+                                            url.toString(),
                                           );
                                         }
                                         showNotice(
@@ -1054,6 +1065,11 @@ export default function WorkListView({
                                       type="button"
                                       onClick={() => {
                                         setActiveMenuRowId(null);
+                                        void onAddWorklog?.(
+                                          item.id,
+                                          "2h",
+                                          "Logged from list view",
+                                        );
                                         showNotice(
                                           `Logged 2h work on ${item.key}`,
                                         );
@@ -1540,7 +1556,7 @@ export default function WorkListView({
                                           )}
                                         </td>
                                       ))}
-                                      <td className="relative border-b border-gray-200 px-2 py-2 text-center align-middle dark:border-gray-800">
+                                      <td className="sticky end-0 z-10 border-b border-gray-200 bg-white px-2 py-2 text-center align-middle dark:border-gray-800 dark:bg-gray-900">
                                         <div className="inline-flex items-center justify-center gap-0.5">
                                           <button
                                             type="button"
@@ -1681,8 +1697,16 @@ export default function WorkListView({
                                                   typeof navigator !==
                                                   "undefined"
                                                 ) {
-                                                  navigator.clipboard?.writeText(
-                                                    `${window.location.origin}${window.location.pathname}#${sub.key}`,
+                                                  const url = new URL(
+                                                    window.location.href,
+                                                  );
+                                                  url.hash = "";
+                                                  url.searchParams.set(
+                                                    "taskId",
+                                                    sub.id,
+                                                  );
+                                                  void navigator.clipboard?.writeText(
+                                                    url.toString(),
                                                   );
                                                 }
                                                 showNotice(
@@ -1772,6 +1796,19 @@ export default function WorkListView({
                                                       sub.id,
                                                       {
                                                         loggedTime: "2h",
+                                                        worklogs: [
+                                                          ...(sub.worklogs ??
+                                                            []),
+                                                          {
+                                                            id: `wl-${Date.now()}`,
+                                                            author:
+                                                              mePerson.name,
+                                                            timeSpent: "2h",
+                                                            note: "Logged from list view",
+                                                            createdAt:
+                                                              "Just now",
+                                                          },
+                                                        ],
                                                       },
                                                     );
                                                     showNotice(
@@ -3174,9 +3211,12 @@ function renderCellContent({
   }
 
   if (colKey === "labels") {
+    if (!item.labels || item.labels.length === 0) {
+      return <span className="text-xs text-gray-400">—</span>;
+    }
     return (
       <div className="flex flex-wrap gap-1">
-        {(item.labels ?? ["core-mvp"]).map((lbl) => (
+        {item.labels.map((lbl) => (
           <span
             key={lbl}
             className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300"
@@ -3189,17 +3229,23 @@ function renderCellContent({
   }
 
   if (colKey === "storyPoints") {
+    if (item.storyPoints === undefined || item.storyPoints === null) {
+      return <span className="text-xs text-gray-400">—</span>;
+    }
     return (
       <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[11px] font-semibold text-gray-700 tabular-nums dark:bg-gray-800 dark:text-gray-300">
-        {item.storyPoints ?? 3}
+        {item.storyPoints}
       </span>
     );
   }
 
   if (colKey === "team") {
+    if (!item.team) {
+      return <span className="text-xs text-gray-400">—</span>;
+    }
     return (
       <span className="text-xs text-gray-600 dark:text-gray-300">
-        {item.team ?? "Core Engineering"}
+        {item.team}
       </span>
     );
   }

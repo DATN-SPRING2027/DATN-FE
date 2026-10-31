@@ -452,4 +452,50 @@ describe("WorkItemDetailDialog", () => {
       screen.queryByTestId("work-note-split-workspace"),
     ).not.toBeInTheDocument();
   });
+
+  it("wires Quick Add Subtask to new subtask form, Linked work item to existing picker, keeps worklog note clean, and renders modal mutationError alerts", () => {
+    const otherTask: WorkItem = {
+      ...sampleItemWithSubtasks,
+      id: "work-2",
+      key: "KNW-199",
+      title: "Standalone candidate task",
+      subtasks: { completed: 0, total: 0 },
+      subtaskItems: [],
+    };
+
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        allItems={[sampleItemWithSubtasks, otherTask]}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        mutationError="Version conflict detected"
+        onDismissMutationError={vi.fn()}
+        onClose={vi.fn()}
+        onAddSubtask={vi.fn()}
+        onAddExistingTaskAsSubtask={vi.fn()}
+        onAddWorklog={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Version conflict detected",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add child or linked work" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Subtask" }));
+    expect(screen.getByLabelText("New subtask estimate")).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add child or linked work" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Linked work item" }));
+    expect(screen.getByText(/KNW-199/)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Work log" }));
+    expect(
+      screen.getByPlaceholderText("Work description…"),
+    ).toHaveValue("");
+  });
 });

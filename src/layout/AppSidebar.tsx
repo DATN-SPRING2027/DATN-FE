@@ -71,6 +71,9 @@ function resolveProjectSwitchDestination(
   nextProjectId: string,
 ): string {
   const encodedId = encodeURIComponent(nextProjectId);
+  if (pathname === "/workspace" || pathname.startsWith("/workspace/")) {
+    return `/workspace?projectId=${encodedId}`;
+  }
   const match = /^\/projects\/([^/]+)(?:\/([^/?#]+))?/.exec(pathname);
   const currentProjectId = match?.[1];
   const subSection = match?.[2];
@@ -284,6 +287,31 @@ const AppSidebar: React.FC = () => {
     ? resolvedExpandedWidth
     : COLLAPSED_WIDTH;
 
+  useEffect(() => {
+    const handleWorkspaceProjectSync = (event: Event) => {
+      const nextId = (
+        event as CustomEvent<{ projectId?: string }>
+      ).detail?.projectId;
+      if (nextId && organizationId) {
+        setSelectedProjectByOrg((prev) =>
+          prev[organizationId] === nextId
+            ? prev
+            : { ...prev, [organizationId]: nextId },
+        );
+      }
+    };
+    window.addEventListener(
+      "continuum:workspace-project-sync",
+      handleWorkspaceProjectSync,
+    );
+    return () => {
+      window.removeEventListener(
+        "continuum:workspace-project-sync",
+        handleWorkspaceProjectSync,
+      );
+    };
+  }, [organizationId]);
+
   const handleSelectProject = useCallback(
     (project: Project) => {
       if (organizationId) {
@@ -291,6 +319,16 @@ const AppSidebar: React.FC = () => {
           ...prev,
           [organizationId]: project.id,
         }));
+      }
+      if (
+        typeof window !== "undefined" &&
+        (pathname === "/workspace" || pathname.startsWith("/workspace/"))
+      ) {
+        window.dispatchEvent(
+          new CustomEvent("continuum:workspace-project-switch", {
+            detail: { projectId: project.id },
+          }),
+        );
       }
       const destination = resolveProjectSwitchDestination(pathname, project.id);
       if (typeof router.push === "function") {

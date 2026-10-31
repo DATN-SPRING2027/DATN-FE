@@ -11,6 +11,7 @@ import {
   type WorkPerson,
   type WorkStatus,
   type WorkSubtaskItem,
+  type WorkItemType,
 } from"./work-types";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 
@@ -69,13 +70,14 @@ export default function WorkBoardView({
   onDeleteSubtask?: (itemId: string, subtaskId: string) => void;
   onCloneSubtask?: (itemId: string, subtaskId: string) => void;
   onConvertSubtaskToTask?: (itemId: string, subtaskId: string) => void;
-  onQuickCreate?: (title: string, status: WorkStatus) => void;
+  onQuickCreate?: (title: string, status: WorkStatus, type?: WorkItemType) => void;
 }) {
   const t = useTranslations("work");
   const [dragOverColumn, setDragOverColumn] = useState<WorkStatus | null>(null);
   const [quickCreateColumn, setQuickCreateColumn] =
     useState<WorkStatus | null>(null);
   const [quickTitle, setQuickTitle] = useState("");
+  const [quickType, setQuickType] = useState<WorkItemType>("TASK");
   const [collapsedColumns, setCollapsedColumns] = useState<Set<WorkStatus>>(
     () => new Set(),
   );
@@ -138,8 +140,9 @@ export default function WorkBoardView({
     event.preventDefault();
     const trimmed = quickTitle.trim();
     if (!trimmed || !onQuickCreate) return;
-    onQuickCreate(trimmed, status);
+    onQuickCreate(trimmed, status, quickType);
     setQuickTitle("");
+    setQuickType("TASK");
     setQuickCreateColumn(null);
   }
 
@@ -341,7 +344,7 @@ export default function WorkBoardView({
         </div>
       )}
 
-      <div className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-1 items-start gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {WORK_STATUS_ORDER.map((status) => {
           const columnItems = items.filter((item) => item.status === status);
           const columnSubtasks = showSubtasks
@@ -572,10 +575,21 @@ export default function WorkBoardView({
                             className="h-8 w-full border border-gray-200 bg-white px-2 text-xs text-gray-900 outline-none focus:border-brand-400 dark:border-gray-700 dark:bg-gray-950 dark:text-white"
                           />
                           <div className="flex items-center justify-between gap-1.5">
-                            <span className="inline-flex items-center gap-1 border border-gray-300 bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                              <MonoIssueTypeIcon type="TASK"size={11} />
-                              <span>Task ▾</span>
-                            </span>
+                            <label className="inline-flex items-center gap-1 border border-gray-300 bg-gray-100 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                              <MonoIssueTypeIcon type={quickType} size={11} />
+                              <select
+                                aria-label="Quick create issue type"
+                                value={quickType}
+                                onChange={(e) =>
+                                  setQuickType(e.target.value as WorkItemType)
+                                }
+                                className="cursor-pointer bg-transparent text-[11px] font-semibold text-gray-700 outline-none dark:text-gray-300"
+                              >
+                                <option value="TASK">{t("types.TASK")}</option>
+                                <option value="BUG">{t("types.BUG")}</option>
+                                <option value="STORY">{t("types.STORY")}</option>
+                              </select>
+                            </label>
                             <div className="flex items-center gap-1.5">
                               <button
                                 type="button"

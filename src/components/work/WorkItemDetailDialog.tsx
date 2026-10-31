@@ -94,7 +94,12 @@ export default function WorkItemDetailDialog({
   allItems = [],
   people,
   currentUserPerson,
+  isPreview = true,
   activityError = null,
+  mutationError = null,
+  onDismissMutationError,
+  watching: controlledWatching,
+  onToggleWatching,
   initialSubtaskId = null,
   mode = "modal",
   isSkeletonLoading = false,
@@ -125,7 +130,12 @@ export default function WorkItemDetailDialog({
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
+  isPreview?: boolean;
   activityError?: string | null;
+  mutationError?: string | null;
+  onDismissMutationError?: () => void;
+  watching?: boolean;
+  onToggleWatching?: (id: string) => void;
   initialSubtaskId?: string | null;
   mode?: "modal" | "page";
   isSkeletonLoading?: boolean;
@@ -288,7 +298,9 @@ export default function WorkItemDetailDialog({
   const [branchCreated, setBranchCreated] = useState(false);
   const [commitCopied, setCommitCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [watching, setWatching] = useState(true);
+  const [internalWatching, setInternalWatching] = useState(true);
+  const watching =
+    controlledWatching !== undefined ? controlledWatching : internalWatching;
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
   const [titleEditState, setTitleEditState] = useState<{
     itemId: string;
@@ -1194,10 +1206,17 @@ export default function WorkItemDetailDialog({
               const targetKey = activeSubtask
                 ? activeSubtask.key
                 : item.key;
-              if (typeof navigator !== "undefined") {
-                navigator.clipboard?.writeText(
-                  `${window.location.origin}${window.location.pathname}#${targetKey}`,
-                );
+              const targetId = activeSubtask
+                ? activeSubtask.id
+                : item.id;
+              if (
+                typeof window !== "undefined" &&
+                typeof navigator !== "undefined"
+              ) {
+                const url = new URL(window.location.href);
+                url.hash = "";
+                url.searchParams.set("taskId", targetId);
+                void navigator.clipboard?.writeText(url.toString());
               }
               showSubtaskFeedback(`Copied link to ${targetKey}`);
             }}
@@ -1323,7 +1342,13 @@ export default function WorkItemDetailDialog({
           {/* Watch Counter Toggle */}
           <button
             type="button"
-            onClick={() => setWatching((prev) => !prev)}
+            onClick={() => {
+              if (onToggleWatching) {
+                onToggleWatching(item.id);
+              } else {
+                setInternalWatching((prev) => !prev);
+              }
+            }}
             title="Watch issue"
             className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition ${
               watching
@@ -1357,7 +1382,9 @@ export default function WorkItemDetailDialog({
               className="inline-flex h-8 cursor-pointer items-center gap-1 rounded border border-gray-200 px-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <MonoIcon name="maximize" className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Full view</span>
+              <span className="hidden sm:inline">
+                {tr(t, "quickUi.fullView", "Full view")}
+              </span>
             </button>
           )}
 
@@ -1377,6 +1404,27 @@ export default function WorkItemDetailDialog({
           </button>
         </div>
       </header>
+
+      {mutationError && (
+        <div
+          role="alert"
+          className="mx-5 mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 sm:mx-7 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">{t("mutationError.title")}</p>
+            <p className="break-words">{mutationError}</p>
+          </div>
+          {onDismissMutationError && (
+            <button
+              type="button"
+              onClick={onDismissMutationError}
+              className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+            >
+              {t("mutationError.dismiss")}
+            </button>
+          )}
+        </div>
+      )}
 
       {activeSubtask ? (
         /* =====================================================================
@@ -1716,15 +1764,15 @@ export default function WorkItemDetailDialog({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      ▾ Activity
+                      ▾ {tr(t, "quickUi.activity", "Activity")}
                     </h3>
                     <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                       {(
                         [
-                          { id: "all", label: "All" },
-                          { id: "comments", label: "Comments" },
-                          { id: "history", label: "History" },
-                          { id: "worklog", label: "Work log" },
+                          { id: "all", label: tr(t, "quickUi.tabAll", "All") },
+                          { id: "comments", label: tr(t, "quickUi.tabComments", "Comments") },
+                          { id: "history", label: tr(t, "quickUi.tabHistory", "History") },
+                          { id: "worklog", label: tr(t, "quickUi.tabWorkLog", "Work log") },
                           ...(projectId
                             ? [{ id: "notes" as const, label: workNotesT("title") }]
                             : []),
@@ -2255,7 +2303,7 @@ export default function WorkItemDetailDialog({
                     className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
                     <MonoIcon name="sparkle" className="h-3.5 w-3.5" />
-                    <span>Improve Task</span>
+                    <span>{tr(t, "quickUi.improveTask", "Improve Task")}</span>
                   </button>
                 )}
               </div>
@@ -2363,76 +2411,91 @@ export default function WorkItemDetailDialog({
               )}
 
               {/* Jira Cloud Quick Action Bar under Title (`19-task-detail-view-open.png`, `24a-task-detail-plus-add-dropdown.png`) */}
-              <div className="relative flex flex-wrap items-center gap-1.5">
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setQuickAddMenuOpen((prev) => !prev)}
-                    aria-label="Add child or linked work"
-                    title="Add subtask, linked work item, or web link"
-                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-                  >
-                    <span>+</span>
-                    <span>Add</span>
-                    <span className="text-[10px]">▾</span>
-                  </button>
-                  {quickAddMenuOpen && (
-                    <div
-                      role="menu"
-                      aria-label="Quick add menu"
-                      className="absolute start-0 top-full z-30 mt-1 w-48 border border-gray-200 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+              {(onAddSubtask || onAddExistingTaskAsSubtask || projectId) && (
+                <div className="relative flex flex-wrap items-center gap-1.5">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setQuickAddMenuOpen((prev) => !prev)}
+                      aria-label="Add child or linked work"
+                      title="Add subtask, linked work item, or task note"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
                     >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          openExistingSubtaskPicker();
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                      <span>+</span>
+                      <span>{tr(t, "quickUi.add", "Add")}</span>
+                      <span className="text-[10px]">▾</span>
+                    </button>
+                    {quickAddMenuOpen && (
+                      <div
+                        role="menu"
+                        aria-label="Quick add menu"
+                        className="absolute start-0 top-full z-30 mt-1 w-48 border border-gray-200 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
                       >
-                        <MonoIssueTypeIcon type="SUBTASK" size={12} />
-                        <span>Subtask</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          setAddingSubtask(true);
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <MonoIcon name="link" size={12} />
-                        <span>Linked work item</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          setWorklogNote("Attached Confluence specification");
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <MonoIcon name="document" size={12} />
-                        <span>Confluence page</span>
-                      </button>
-                    </div>
+                        {onAddSubtask && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setSubtasksSectionCollapsed(false);
+                              setSelectingExistingSubtask(false);
+                              setAddingSubtask(true);
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIssueTypeIcon type="SUBTASK" size={12} />
+                            <span>Subtask</span>
+                          </button>
+                        )}
+                        {onAddExistingTaskAsSubtask && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setSubtasksSectionCollapsed(false);
+                              openExistingSubtaskPicker();
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIcon name="link" size={12} />
+                            <span>Linked work item</span>
+                          </button>
+                        )}
+                        {projectId && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setActivityTab("notes");
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIcon name="document" size={12} />
+                            <span>{workNotesT("title")}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {onAddSubtask && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubtasksSectionCollapsed(false);
+                        setSelectingExistingSubtask(false);
+                        setAddingSubtask(true);
+                      }}
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    >
+                      <MonoIssueTypeIcon type="SUBTASK" size={12} />
+                      <span>+ {tr(t, "quickUi.addSubtask", "Add subtask")}</span>
+                    </button>
                   )}
                 </div>
-
-                {onAddSubtask && (
-                  <button
-                    type="button"
-                    onClick={openExistingSubtaskPicker}
-                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                  >
-                    <MonoIssueTypeIcon type="SUBTASK" size={12} />
-                    <span>+ Add subtask</span>
-                  </button>
-                )}
-              </div>
+              )}
 
               <section
                 aria-labelledby="work-detail-description-heading"
@@ -2798,7 +2861,8 @@ export default function WorkItemDetailDialog({
                         type="button"
                         onClick={() => {
                           setSubtasksSectionCollapsed(false);
-                          openExistingSubtaskPicker();
+                          setSelectingExistingSubtask(false);
+                          setAddingSubtask(true);
                         }}
                         title="Add subtask"
                         aria-label="Add subtask"
@@ -3794,6 +3858,18 @@ export default function WorkItemDetailDialog({
                           />
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {onAddExistingTaskAsSubtask && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingSubtask(false);
+                                openExistingSubtaskPicker();
+                              }}
+                              className="h-7 cursor-pointer px-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                            >
+                              {t("selectExistingTask")}
+                            </button>
+                          )}
                           <button
                             type="submit"
                             className="h-7 cursor-pointer bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
@@ -3816,7 +3892,10 @@ export default function WorkItemDetailDialog({
                   ) : (
                     <button
                       type="button"
-                      onClick={openExistingSubtaskPicker}
+                      onClick={() => {
+                        setSelectingExistingSubtask(false);
+                        setAddingSubtask(true);
+                      }}
                       className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                     >
                       <span>+</span>
@@ -3835,15 +3914,15 @@ export default function WorkItemDetailDialog({
                     id="work-detail-activity-heading"
                     className="text-sm font-semibold text-gray-800 dark:text-gray-200"
                   >
-                    Activity
+                    {tr(t, "quickUi.activity", "Activity")}
                   </h3>
                   <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                     {(
                       [
-                        { id:"all", label:"All"},
-                        { id:"comments", label:"Comments"},
-                        { id:"history", label:"History"},
-                        { id:"worklog", label:"Work log"},
+                        { id:"all", label: tr(t, "quickUi.tabAll", "All") },
+                        { id:"comments", label: tr(t, "quickUi.tabComments", "Comments") },
+                        { id:"history", label: tr(t, "quickUi.tabHistory", "History") },
+                        { id:"worklog", label: tr(t, "quickUi.tabWorkLog", "Work log") },
                         ...(projectId ? [{ id:"notes" as const, label: workNotesT("title") }] : []),
                       ] as const
                     ).map((tab) => (
@@ -4267,7 +4346,7 @@ export default function WorkItemDetailDialog({
 
                     <DetailField label="Team">
                       <span className="px-1.5 text-xs text-gray-700 dark:text-gray-300">
-                        {item.team ?? "Core Engineering"}
+                        {item.team ?? (isPreview ? "Core Engineering" : "—")}
                       </span>
                     </DetailField>
 
@@ -4309,12 +4388,19 @@ export default function WorkItemDetailDialog({
                 <div className="mt-2.5 space-y-1.5 text-xs">
                   <button
                     type="button"
-                    onClick={() => setBranchCreated(true)}
+                    onClick={() => {
+                      if (typeof navigator !== "undefined") {
+                        void navigator.clipboard?.writeText(
+                          `git checkout -b feat/${item.key.toLowerCase()}`,
+                        );
+                      }
+                      setBranchCreated(true);
+                    }}
                     className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
                   >
                     <span>
                       {branchCreated
-                        ? `✓ Branch feat/${item.key.toLowerCase()} ready`
+                        ? `✓ Copied git checkout -b feat/${item.key.toLowerCase()}`
                         : "Create branch"}
                     </span>
                     <MonoIcon
@@ -4324,7 +4410,14 @@ export default function WorkItemDetailDialog({
                   </button>
                   <button
                     type="button"
-                    onClick={() => setCommitCopied(true)}
+                    onClick={() => {
+                      if (typeof navigator !== "undefined") {
+                        void navigator.clipboard?.writeText(
+                          `git commit -m "${item.key}: ${item.title.replace(/"/g, "'")}"`,
+                        );
+                      }
+                      setCommitCopied(true);
+                    }}
                     className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
                   >
                     <span>

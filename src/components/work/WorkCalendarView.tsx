@@ -19,11 +19,15 @@ export default function WorkCalendarView({
   month,
   onMonthChange,
   onOpenItem,
+  activeSprintName = null,
+  isPreview = true,
 }: {
   items: readonly WorkItem[];
   month: Date;
   onMonthChange: (month: Date) => void;
   onOpenItem: (item: WorkItem, trigger: HTMLButtonElement) => void;
+  activeSprintName?: string | null;
+  isPreview?: boolean;
 }) {
   const locale = useLocale();
   const t = useTranslations("work");
@@ -215,11 +219,15 @@ export default function WorkCalendarView({
       </div>
 
       {/* Jira Horizontal Sprint Banner across Calendar (`36-tab-calendar.png`) */}
-      {showSprintBanner && (
+      {showSprintBanner && (activeSprintName || isPreview) && (
         <div className="flex items-center justify-between border border-gray-300 bg-gray-100/80 px-4 py-2 text-xs font-semibold text-gray-800 dark:border-gray-700 dark:bg-gray-800/70 dark:text-gray-200">
           <span className="inline-flex items-center gap-2">
             <MonoIcon name="sync"size={13} />
-            <span>SCRUM Sprint 1 • Active Sprint Window</span>
+            <span>
+              {activeSprintName
+                ? `${activeSprintName} • Active Sprint Window`
+                : "SCRUM Sprint 1 • Active Sprint Window"}
+            </span>
           </span>
           <span className="text-[11px] font-medium text-gray-600 dark:text-gray-300">
             {monthItems.length} scheduled items in {monthLabel}
