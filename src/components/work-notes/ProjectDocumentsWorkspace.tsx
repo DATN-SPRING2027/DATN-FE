@@ -58,6 +58,8 @@ import {
   UploadRowOpenIcon,
 } from "./UploadIcons";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
+import WorkNoteComposer from "./WorkNoteComposer";
+import type { EditorSourceIdentity } from "@/lib/queries/work-notes/work-note-agent.api";
 import {
   computeFileSha256,
   useDocumentKnowledgeChunksQuery,
@@ -608,6 +610,9 @@ export default function ProjectDocumentsWorkspace({
   const [filter, setFilter] = useState<DocumentStatus | "ALL">("ALL");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ProjectDocumentSummary | null>(null);
+  const [agentSource, setAgentSource] = useState<EditorSourceIdentity | null>(
+    null,
+  );
 
   // Unified Role-Aware File Upload / Upload Request Modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
@@ -1982,6 +1987,23 @@ export default function ProjectDocumentsWorkspace({
                     : t("memberRequestCta")}
               </Button>
             )}
+            {visibleList !== undefined &&
+              process.env.NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                "true" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-9 !py-0 px-3.5 text-xs whitespace-nowrap"
+                  onClick={() =>
+                    setAgentSource({
+                      workflow: "PROJECT_DOCUMENT",
+                      documentType: "OTHER",
+                    })
+                  }
+                >
+                  {common("agent.newDocument")}
+                </Button>
+              )}
           </div>
         </div>
 
@@ -4744,6 +4766,27 @@ export default function ProjectDocumentsWorkspace({
 
                     <div className="flex flex-wrap justify-end gap-2">
                       {current.permissions.canEdit &&
+                        !isViewingHistoricalVersion &&
+                        process.env
+                          .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                          "true" && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-9 !py-0 px-3.5 text-xs"
+                            onClick={() => {
+                              setAgentSource({
+                                workflow: "PROJECT_DOCUMENT",
+                                resourceId: current.id,
+                              });
+                              closeDetailModal();
+                            }}
+                          >
+                            {common("agent.openEditor")}
+                          </Button>
+                        )}
+                      {current.permissions.canEdit &&
                         !isViewingHistoricalVersion && (
                           <Button
                             type="button"
@@ -5172,6 +5215,14 @@ export default function ProjectDocumentsWorkspace({
             })()
           : null}
       </Modal>
+      {agentSource && (
+        <WorkNoteComposer
+          projectId={projectId}
+          source={agentSource}
+          onClose={() => setAgentSource(null)}
+          onSaved={() => setAgentSource(null)}
+        />
+      )}
     </main>
   );
 }

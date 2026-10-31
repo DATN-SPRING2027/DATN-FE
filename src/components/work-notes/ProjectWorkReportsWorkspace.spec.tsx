@@ -1,7 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { apiClient } from "@/lib/api-client";
 import ProjectWorkReportsWorkspace from "./ProjectWorkReportsWorkspace";
@@ -58,6 +64,98 @@ function mount() {
 
 beforeEach(() => {
   api.mockReset();
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
+
+it("keeps freeform canonical v2 Report content without wiping document links and surfaces submit errors", async () => {
+  const canonical = {
+    ...report,
+    title: "Investigation",
+    content: "",
+    contentSchemaVersion: 2 as const,
+    contentMarkdown: "Chưa xác định nguyên nhân.",
+    currentVersionNumber: 2,
+    documentIds: ["951a2b3c4d5e6f7a8b9c0d21"],
+  };
+  let shouldFailSubmit = true;
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        actorRole: "MEMBER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: false },
+      } as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [canonical],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith("/submit") && options?.method === "POST") {
+      if (shouldFailSubmit) {
+        shouldFailSubmit = false;
+        throw new Error("Submission temporarily unavailable");
+      }
+      return { ...canonical, status: "PENDING_REVIEW" } as never;
+    }
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  });
+
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+  expect(
+    screen.getByRole("heading", { name: "Investigation" }),
+  ).toBeVisible();
+  expect(
+    screen.getAllByText(canonical.contentMarkdown).length,
+  ).toBeGreaterThan(0);
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
+  expect(
+    screen.queryByRole("textbox", { name: /Title/i }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Save draft" }),
+  ).not.toBeInTheDocument();
+
+  // First submit rejects -> alert error is surfaced and editor stays open
+  fireEvent.click(screen.getByRole("button", { name: "Submit report" }));
+  await waitFor(() =>
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((el) =>
+          el.textContent?.includes("Submission temporarily unavailable"),
+        ),
+    ).toBe(true),
+  );
+
+  // Retry submit succeeds -> calls POST /submit without PUT /document-links or POST /work-reports
+  fireEvent.click(screen.getByRole("button", { name: "Submit report" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      expect.stringContaining("/submit"),
+      expect.objectContaining({ method: "POST" }),
+    ),
+  );
+  expect(
+    api.mock.calls.some(
+      ([path, options]) =>
+        (path.endsWith("/document-links") && options?.method === "PUT") ||
+        (path === `/capture/projects/${projectId}/work-reports` &&
+          options?.method === "POST"),
+    ),
+  ).toBe(false);
 });
 
 it("shows mandatory read-only schedule for a Member and saves the current Periodic Work Report through the Split-View editor", async () => {
@@ -488,4 +586,145 @@ it("allows a Reviewer to approve a submitted Pending Review report from the Spli
       }),
     ),
   );
+});
+
+it("carries unsaved ReportEditor title and content into WorkNoteComposer when switching to Edit text with Agent", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED", "true");
+  const draftId = "f081a006-489c-4a50-a0df-a54567fdc01b";
+  let currentReport = {
+    ...report,
+    title: "Original Title",
+    content: "Original body",
+  };
+  let serverDraft = {
+    id: draftId,
+    workflow: "WORK_REPORT" as const,
+    resourceId: reportId,
+    baseVersion: 1,
+    revision: 1,
+    title: currentReport.title,
+    contentMarkdown: currentReport.content,
+    expiresAt: "2026-11-01T00:00:00.000Z",
+    hasAppliedRewrite: false,
+    conversation: [],
+    pendingQuestion: null,
+    suggestion: null,
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        actorRole: "MEMBER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: false },
+      } as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [currentReport],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (
+      path ===
+        `/capture/projects/${projectId}/editor-drafts?workflow=WORK_REPORT&resourceId=${reportId}` &&
+      (!options?.method || options.method === "GET")
+    ) {
+      return serverDraft as never;
+    }
+    if (
+      path === `/capture/projects/${projectId}/editor-drafts/${draftId}` &&
+      options?.method === "PATCH"
+    ) {
+      const body = JSON.parse(String(options.body)) as {
+        title: string;
+        contentMarkdown: string;
+      };
+      serverDraft = {
+        ...serverDraft,
+        title: body.title,
+        contentMarkdown: body.contentMarkdown,
+        revision: serverDraft.revision + 1,
+      };
+      return serverDraft as never;
+    }
+    if (
+      path === `/capture/projects/${projectId}/editor-drafts/${draftId}/save` &&
+      options?.method === "POST"
+    ) {
+      currentReport = {
+        ...currentReport,
+        title: serverDraft.title,
+        content: "",
+        contentSchemaVersion: 2,
+        contentMarkdown: serverDraft.contentMarkdown,
+        updatedAt: "2026-10-25T11:00:00.000Z",
+      } as typeof currentReport;
+      return currentReport as never;
+    }
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  });
+
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
+  fireEvent.change(screen.getByLabelText(/Title/i), {
+    target: { value: "Unsaved Agent Report Title" },
+  });
+  fireEvent.change(screen.getByLabelText(/Content/i), {
+    target: { value: "New report text not saved yet" },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit text with Agent" }));
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "Edit work report",
+  });
+  const composerContent = await within(dialog).findByLabelText("Content");
+  const composerTitle = within(dialog).getByLabelText("Title");
+  expect(composerTitle).toHaveValue("Unsaved Agent Report Title");
+  expect(composerContent).toHaveValue("New report text not saved yet");
+
+  // Closing the composer keeps the latest draft synchronized back in ReportEditor
+  fireEvent.click(within(dialog).getByRole("button", { name: "Close editor" }));
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Edit work report" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(screen.getByLabelText(/Content/i)).toHaveValue(
+    "New report text not saved yet",
+  );
+
+  // Reopening Agent and saving commits the new report text instead of the stale Original body
+  fireEvent.click(screen.getByRole("button", { name: "Edit text with Agent" }));
+  const reopenedDialog = await screen.findByRole("dialog", {
+    name: "Edit work report",
+  });
+  expect(await within(reopenedDialog).findByLabelText("Content")).toHaveValue(
+    "New report text not saved yet",
+  );
+  fireEvent.click(
+    within(reopenedDialog).getByRole("button", { name: "Save draft" }),
+  );
+
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", { name: "Edit work report" }),
+    ).not.toBeInTheDocument(),
+  );
+  expect(serverDraft.contentMarkdown).toBe("New report text not saved yet");
+  expect(
+    (await screen.findAllByText("Unsaved Agent Report Title")).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("New report text not saved yet").length,
+  ).toBeGreaterThan(0);
 });

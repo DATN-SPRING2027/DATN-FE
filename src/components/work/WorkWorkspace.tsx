@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from"react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from"next-intl";
 import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
 import {
@@ -318,6 +319,7 @@ export default function WorkWorkspace({
 }) {
   const t = useTranslations("work");
   const common = useTranslations("common");
+  const queryClient = useQueryClient();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
   const visibleUser = userAccessLost ? undefined : user.data;
@@ -483,6 +485,9 @@ export default function WorkWorkspace({
             if (typeof updatedVersion === "number") {
               taskVersionsRef.current.set(realId, updatedVersion);
             }
+            void queryClient.invalidateQueries({
+              queryKey: ["worknote-task-context", projectId, realId],
+            });
             return true;
           } catch (error) {
             onRollback?.();
@@ -924,8 +929,10 @@ export default function WorkWorkspace({
             item.id === openedTaskId
               ? {
                   ...item,
-                  title: detail.title,
-                  description: detail.description ?? undefined,
+                  ...(detail.title !== undefined ? { title: detail.title } : {}),
+                  ...(detail.description !== undefined
+                    ? { description: detail.description ?? undefined }
+                    : {}),
                   ...(liveComments ? { comments: liveComments } : {}),
                   ...(liveWorklogs ? { worklogs: liveWorklogs } : {}),
                   ...(liveHistory ? { history: liveHistory } : {}),
@@ -1692,6 +1699,7 @@ export default function WorkWorkspace({
     }
   }
 
+
   function toggleSubtask(itemId: string, subtaskId: string) {
     const previousItems = items;
     const parentItem = items.find((item) => item.id === itemId);
@@ -2111,7 +2119,7 @@ export default function WorkWorkspace({
                       }
                     : {}),
                   ...(patch.description !== undefined
-                    ? { description: patch.description ?? null }
+                    ? { description: patch.description || null }
                     : {}),
                   ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
                   ...(patch.steps !== undefined ? { steps: patch.steps } : {}),

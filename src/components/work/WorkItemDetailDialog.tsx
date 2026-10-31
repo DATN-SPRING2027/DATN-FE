@@ -6,8 +6,10 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from"react";
 import { useLocale, useTranslations } from"next-intl";
@@ -18,7 +20,10 @@ import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { WorkDatePickerCell } from "./WorkDatePicker";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
-import TaskNotesPanel from "@/components/work-notes/TaskNotesPanel";
+import TaskNotesPanel, {
+  type TaskNotesSplitControl,
+} from "@/components/work-notes/TaskNotesPanel";
+import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -321,6 +326,149 @@ export default function WorkItemDetailDialog({
   );
   const [automationRan, setAutomationRan] = useState(false);
 
+  // Split-screen Task + Note (+ AI 3rd column) workspace state & horizontal resizer
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [splitComposerState, setSplitComposerState] = useState<{
+    parentItemId: string;
+    taskId: string;
+    noteId?: string;
+  } | null>(null);
+  const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
+    Record<string, number>
+  >({});
+  const [splitDismissSignal, setSplitDismissSignal] = useState(0);
+  const [twoColTaskPct, setTwoColTaskPct] = useState(48);
+  const [threeColTaskPct, setThreeColTaskPct] = useState(33);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  const resolvedLayerSubtask =
+    internalSubtaskId && item?.subtaskItems
+      ? (item.subtaskItems.find((s) => s.id === internalSubtaskId) ?? null)
+      : null;
+  const activeLayerTaskId = resolvedLayerSubtask?.id ?? item?.id ?? null;
+
+  const activeSplitComposer =
+    item &&
+    projectId &&
+    splitComposerState &&
+    splitComposerState.parentItemId === item.id &&
+    splitComposerState.taskId === activeLayerTaskId
+      ? splitComposerState
+      : null;
+  const isSplitOpen = Boolean(activeSplitComposer);
+  const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  function isSplitRtl(): boolean {
+    const container = splitContainerRef.current;
+    if (!container || typeof window === "undefined") return false;
+    return window.getComputedStyle(container).direction === "rtl";
+  }
+
+  function computeClampedTaskPct(clientX: number): number | null {
+    const container = splitContainerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const minTaskPx = 300;
+    const aiReservedPx = splitAiOpen ? 390 : 0;
+    const minNotePx = 360;
+    const splitterPx = 10;
+    const maxTaskPx = Math.max(
+      minTaskPx,
+      rect.width - aiReservedPx - minNotePx - splitterPx,
+    );
+    const inlineOffsetPx = isSplitRtl()
+      ? rect.right - clientX
+      : clientX - rect.left;
+    const clampedPx = Math.min(maxTaskPx, Math.max(minTaskPx, inlineOffsetPx));
+    return Math.round((clampedPx / rect.width) * 1000) / 10;
+  }
+
+  function handleSplitterPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setIsDraggingSplitter(true);
+  }
+
+  function handleSplitterPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    const nextPct = computeClampedTaskPct(event.clientX);
+    if (nextPct === null) return;
+    if (splitAiOpen) setThreeColTaskPct(nextPct);
+    else setTwoColTaskPct(nextPct);
+  }
+
+  function handleSplitterPointerUp(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+    setIsDraggingSplitter(false);
+  }
+
+  function handleSplitterKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const minPct = 22;
+    const maxPct = splitAiOpen ? 52 : 74;
+    const shrinkKey = isSplitRtl() ? "ArrowRight" : "ArrowLeft";
+    const growKey = isSplitRtl() ? "ArrowLeft" : "ArrowRight";
+    if (event.key === shrinkKey) {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.max(minPct, cur - 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.max(minPct, cur - 2));
+      }
+    } else if (event.key === growKey) {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      }
+    } else if (event.key === "Home" || event.key === "Enter") {
+      event.preventDefault();
+      if (splitAiOpen) setThreeColTaskPct(33);
+      else setTwoColTaskPct(48);
+    }
+  }
+
+  function buildSplitControl(targetTaskId: string): TaskNotesSplitControl {
+    const isTargetOpen =
+      Boolean(activeSplitComposer) &&
+      activeSplitComposer?.taskId === targetTaskId;
+    return {
+      isOpen: isTargetOpen,
+      editingNoteId: isTargetOpen
+        ? (activeSplitComposer?.noteId ?? null)
+        : null,
+      savedSignal: splitSavedSignalByTask[targetTaskId] ?? 0,
+      onOpen: (noteId) => {
+        if (!item) return;
+        setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
+        setSplitComposerState({
+          parentItemId: item.id,
+          taskId: targetTaskId,
+          noteId,
+        });
+      },
+      onClose: () => {
+        setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
+        setSplitComposerState(null);
+      },
+    };
+  }
+
   function showSubtaskFeedback(msg: string) {
     setSubtaskNotice(msg);
     setTimeout(() => {
@@ -334,7 +482,22 @@ export default function WorkItemDetailDialog({
     }
   }, [item, mode]);
 
+  useEffect(() => {
+    if (mode !== "page" || !isSplitOpen) return;
+    const handlePageKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeTitleEdit || activeDescEdit) return;
+      event.preventDefault();
+      setSplitDismissSignal((cur) => cur + 1);
+    };
+    window.addEventListener("keydown", handlePageKeyDown);
+    return () => window.removeEventListener("keydown", handlePageKeyDown);
+  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode]);
+
   function selectSubtaskLayer(nextSubtaskId: string | null) {
+    setSplitAiOpen(false);
+    setSplitConfirmOpen(false);
+    setSplitComposerState(null);
     setIsSubtaskTransitioning(true);
     setSubtaskIdOverride({
       itemId: item?.id,
@@ -419,8 +582,12 @@ export default function WorkItemDetailDialog({
   }
 
   function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !=="Tab") return;
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+    if (event.key !== "Tab") return;
+    const activeAlertDialog = dialogRef.current?.querySelector<HTMLElement>(
+      '[role="alertdialog"][aria-modal="true"]',
+    );
+    const scopeRoot = activeAlertDialog ?? dialogRef.current;
+    const focusable = scopeRoot?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
     );
     if (!focusable?.length) return;
@@ -698,6 +865,10 @@ export default function WorkItemDetailDialog({
       setDescEditState(null);
       return;
     }
+    if (isSplitOpen) {
+      setSplitDismissSignal((cur) => cur + 1);
+      return;
+    }
     onClose();
   }
 
@@ -806,16 +977,18 @@ export default function WorkItemDetailDialog({
 
   const detailContent = item ? (
     <div
-      ref={dialogRef}
-      role={mode === "modal" ? "dialog" : "region"}
-      aria-modal={mode === "modal" ? "true" : undefined}
-      aria-labelledby="work-detail-title"
-      aria-describedby="work-detail-description"
-      onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+      ref={isSplitOpen ? undefined : dialogRef}
+      role={isSplitOpen ? undefined : mode === "modal" ? "dialog" : "region"}
+      aria-modal={!isSplitOpen && mode === "modal" ? "true" : undefined}
+      aria-labelledby={isSplitOpen ? undefined : "work-detail-title"}
+      aria-describedby={isSplitOpen ? undefined : "work-detail-description"}
+      onKeyDown={!isSplitOpen && mode === "modal" ? trapDialogFocus : undefined}
       className={
-        mode === "page"
-          ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-          : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
+        isSplitOpen
+          ? "relative min-w-0 bg-white dark:bg-gray-900"
+          : mode === "page"
+            ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+            : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
       }
     >
       {/* 2-Column Jira Skeleton Loading Overlay */}
@@ -1209,10 +1382,18 @@ export default function WorkItemDetailDialog({
         /* =====================================================================
          * 4TH-LEVEL FULL SUBTASK DETAIL LAYER (DRILL-DOWN VIEW — IMAGE 4 STYLE)
          * ===================================================================== */
-        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div
+          className={
+            isSplitOpen
+              ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+              : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+          }
+        >
           <main
             className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-              mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              mode === "page" && !isSplitOpen
+                ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                : ""
             }`}
           >
                 {/* Subtask Status, Type & Parent Context Strip */}
@@ -1781,6 +1962,7 @@ export default function WorkItemDetailDialog({
                       <TaskNotesPanel
                         projectId={projectId}
                         taskId={activeSubtask.id}
+                        splitControl={buildSplitControl(activeSubtask.id)}
                       />
                     )}
                 </section>
@@ -1788,8 +1970,14 @@ export default function WorkItemDetailDialog({
 
               {/* Right Sidebar for Subtask Detail Layer (Image 4 Jira Cloud Details Card) */}
               <aside
-                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                  mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                  isSplitOpen
+                    ? "@3xl:border-s @3xl:border-t-0"
+                    : "lg:border-s lg:border-t-0"
+                } ${
+                  mode === "page" && !isSplitOpen
+                    ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                    : ""
                 }`}
               >
                 {/* Top Status Transition Selector (Image 4) */}
@@ -2028,11 +2216,19 @@ export default function WorkItemDetailDialog({
               </aside>
             </div>
           ) : (
-            <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+            <div
+              className={
+                isSplitOpen
+                  ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+                  : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+              }
+            >
             {/* Left Main Content */}
             <main
               className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -3874,15 +4070,25 @@ export default function WorkItemDetailDialog({
                   </div>
                 )}
                 {activityTab === "notes" && projectId && item && (
-                  <TaskNotesPanel projectId={projectId} taskId={item.id} />
+                  <TaskNotesPanel
+                    projectId={projectId}
+                    taskId={item.id}
+                    splitControl={buildSplitControl(item.id)}
+                  />
                 )}
               </section>
             </main>
 
             {/* Right Details & Integrations Column (Image 4 Jira Cloud Details Card) */}
             <aside
-              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                isSplitOpen
+                  ? "@3xl:border-s @3xl:border-t-0"
+                  : "lg:border-s lg:border-t-0"
+              } ${
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               {/* Top Status Transition Selector (Image 4) */}
@@ -4171,21 +4377,154 @@ export default function WorkItemDetailDialog({
     </div>
   ) : null;
 
+  const workspaceContent =
+    item && projectId && activeSplitComposer ? (
+      <div
+        ref={(node) => {
+          dialogRef.current = node;
+          splitContainerRef.current = node;
+        }}
+        data-testid="work-note-split-workspace"
+        role={mode === "modal" ? "dialog" : "region"}
+        aria-modal={mode === "modal" ? "true" : undefined}
+        aria-labelledby="work-detail-title"
+        aria-describedby="work-detail-description"
+        onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+        className={`${
+          mode === "page"
+            ? "flex h-[calc(100dvh-5.5rem)] min-h-[640px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-sm lg:flex-row dark:border-gray-800 dark:bg-gray-900"
+            : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
+        } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
+      >
+        {/* Column 1 (Left): Resizable Task Pane */}
+        <div
+          data-testid="work-note-split-task-pane"
+          inert={splitConfirmOpen || undefined}
+          style={
+            {
+              "--task-split-w": `${activeTaskWidthPct}%`,
+            } as CSSProperties
+          }
+          className="@container relative max-h-[45dvh] min-h-0 w-full min-w-0 shrink-0 overflow-y-auto border-b border-gray-200 bg-white lg:h-full lg:max-h-none lg:w-[var(--task-split-w)] lg:border-b-0 dark:border-gray-800 dark:bg-gray-900"
+        >
+          {detailContent}
+        </div>
+
+        {/* Draggable Vertical Splitter (ONLY between Task and Note Task) */}
+        <div
+          role="separator"
+          data-testid="task-note-resizer"
+          inert={splitConfirmOpen || undefined}
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label={tr(
+            t,
+            "splitResizeAria",
+            "Drag to resize width between Task and Note",
+          )}
+          aria-valuemin={22}
+          aria-valuemax={splitAiOpen ? 52 : 74}
+          aria-valuenow={Math.round(activeTaskWidthPct)}
+          title={tr(
+            t,
+            "splitResizeTitle",
+            "Drag to resize width (double-click to reset)",
+          )}
+          onPointerDown={handleSplitterPointerDown}
+          onPointerMove={handleSplitterPointerMove}
+          onPointerUp={handleSplitterPointerUp}
+          onPointerCancel={handleSplitterPointerUp}
+          onKeyDown={handleSplitterKeyDown}
+          onDoubleClick={() => {
+            if (splitAiOpen) setThreeColTaskPct(33);
+            else setTwoColTaskPct(48);
+          }}
+          className="group relative z-20 hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center bg-gray-50/70 transition-colors hover:bg-brand-50/80 focus-visible:bg-brand-50/80 focus-visible:outline-none lg:flex dark:bg-gray-950/60 dark:hover:bg-brand-500/15"
+        >
+          <div
+            aria-hidden="true"
+            className={`h-full w-px transition-colors ${
+              isDraggingSplitter
+                ? "w-0.5 bg-brand-500"
+                : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
+            }`}
+          />
+          <div
+            aria-hidden="true"
+            className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
+              isDraggingSplitter
+                ? "border-brand-500 bg-brand-500 text-white"
+                : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
+            }`}
+          >
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+          </div>
+        </div>
+
+        {/* Column 2 (& Column 3 when AI Assistant is opened): Note Task + Fixed-Width AI Panel */}
+        <div
+          data-testid="work-note-split-note-pane"
+          className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-900"
+        >
+          <WorkNoteComposer
+            key={`${projectId}:${activeSplitComposer.taskId}:${activeSplitComposer.noteId ?? "new"}`}
+            variant="inline"
+            projectId={projectId}
+            taskId={activeSplitComposer.taskId}
+            noteId={activeSplitComposer.noteId}
+            dismissSignal={splitDismissSignal}
+            onPanelOpenChange={setSplitAiOpen}
+            onConfirmationChange={setSplitConfirmOpen}
+            onClose={() => {
+              setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
+              setSplitComposerState(null);
+            }}
+            onSaved={() => {
+              const savedTaskId = activeSplitComposer.taskId;
+              setSplitSavedSignalByTask((prev) => ({
+                ...prev,
+                [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
+              }));
+              setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
+              setSplitComposerState(null);
+            }}
+          />
+        </div>
+      </div>
+    ) : (
+      detailContent
+    );
+
   if (mode === "page") {
-    return detailContent;
+    return workspaceContent;
   }
 
   return (
     <Modal
       isOpen={Boolean(item)}
       onClose={handleModalClose}
+      onBackdropClick={
+        activeTitleEdit || activeDescEdit
+          ? handleModalClose
+          : isSplitOpen
+            ? () => setSplitDismissSignal((cur) => cur + 1)
+            : undefined
+      }
       backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
-      className={`overflow-hidden rounded-lg p-0 shadow-theme-lg ${
-        isMaximized ? "max-h-[92vh] max-w-7xl" : "max-h-[88vh] max-w-6xl"
+      className={`overflow-hidden p-0 shadow-theme-lg ${
+        isSplitOpen
+          ? "w-[96vw] max-w-[1840px] rounded-2xl"
+          : isMaximized
+            ? "max-h-[92vh] max-w-7xl rounded-lg"
+            : "max-h-[88vh] max-w-6xl rounded-lg"
       }`}
     >
-      {detailContent}
+      {workspaceContent}
     </Modal>
   );
 }

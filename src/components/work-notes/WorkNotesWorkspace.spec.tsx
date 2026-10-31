@@ -281,4 +281,49 @@ describe("Project task notes", () => {
       });
     }
   });
+
+  it("searches canonical v2 Task Notes without crashing when legacy v1 fields are omitted", async () => {
+    const v2NoteWithoutLegacyFields = {
+      id: "751a2b3c4d5e6f7a8b9c0d99",
+      projectId,
+      taskId: "851a2b3c4d5e6f7a8b9c0d99",
+      taskKey: "BE-42",
+      taskTitle: "Session revocation",
+      authorId: "951a2b3c4d5e6f7a8b9c0d21",
+      authorName: "Jordan Lee",
+      type: "TASK_NOTE" as const,
+      status: "CONFIRMED" as const,
+      title: "Redis rate-limit notes",
+      contentSchemaVersion: 2 as const,
+      contentMarkdown: "Verified sliding-window counter with userFence.",
+      createdAt: "2026-10-25T10:00:00.000Z",
+      updatedAt: "2026-10-25T10:00:00.000Z",
+      permissions: note.permissions,
+    };
+
+    api.mockResolvedValue({
+      data: [v2NoteWithoutLegacyFields, secondNote],
+      pagination: { page: 1, pageSize: 50, totalItems: 2, totalPages: 1 },
+    });
+
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Redis rate-limit notes" }),
+    ).toBeVisible();
+
+    const searchInput = screen.getByRole("searchbox");
+    fireEvent.change(searchInput, { target: { value: "userFence" } });
+
+    expect(
+      screen.getByRole("heading", { name: "Redis rate-limit notes" }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole("heading", { name: "Refactored sidebar navigation" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(searchInput, { target: { value: "nonexistent-needle" } });
+    expect(
+      screen.queryByRole("heading", { name: "Redis rate-limit notes" }),
+    ).not.toBeInTheDocument();
+  });
 });

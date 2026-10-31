@@ -30,6 +30,7 @@ import {
   type WorkReportScope,
   type WorkReportStatus,
 } from "@/lib/queries/work-notes/useWorkNotes";
+import WorkNoteComposer from "./WorkNoteComposer";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import WorkReportCadencePopover from "./WorkReportCadencePopover";
 
@@ -79,16 +80,22 @@ function initialsFromName(name: string): string {
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
 }
 
+function reportBodyText(report: WorkReport): string {
+  return report.contentSchemaVersion === 2
+    ? (report.contentMarkdown ?? report.content ?? "")
+    : (report.content ?? report.contentMarkdown ?? "");
+}
+
 function hasReportContent(report: WorkReport): boolean {
   return Boolean(
-    (report.title ?? "").trim() || (report.content ?? "").trim(),
+    (report.title ?? "").trim() || reportBodyText(report).trim(),
   );
 }
 
 function countCoreFields(report: WorkReport): number {
   let filled = 0;
   if ((report.title ?? "").trim()) filled += 1;
-  if ((report.content ?? "").trim()) filled += 1;
+  if (reportBodyText(report).trim()) filled += 1;
   return filled;
 }
 
@@ -139,26 +146,32 @@ function MiniProgressDots({
 
 function ReportEditor({
   report,
+  initialDraft,
   isSaving,
   isSubmitting,
   error,
   onSave,
   onSubmit,
   onClose,
+  onAgent,
 }: {
   report: WorkReport;
+  initialDraft?: WorkReportInput;
   isSaving: boolean;
   isSubmitting: boolean;
   error: string;
   onSave: (input: WorkReportInput) => Promise<void>;
   onSubmit: (input: WorkReportInput) => Promise<void>;
   onClose?: () => void;
+  onAgent?: (draft?: { title: string; contentMarkdown: string }) => void;
 }) {
   const t = useTranslations("workNotes.reports");
   const format = useFormatter();
+  const baseTitle = initialDraft?.title ?? report.title ?? "";
+  const baseContent = initialDraft?.content ?? reportBodyText(report);
   const [form, setForm] = useState<WorkReportInput>({
-    title: report.title ?? "",
-    content: report.content ?? "",
+    title: baseTitle,
+    content: baseContent,
   });
   const [validationError, setValidationError] = useState("");
 
@@ -168,11 +181,20 @@ function ReportEditor({
   }
 
   async function persist(saveOnly: boolean) {
-    const cleaned: WorkReportInput = {
-      title: form.title.trim(),
-      content: form.content.trim(),
-    };
-    if (!cleaned.title || !cleaned.content) {
+    const cleaned: WorkReportInput =
+      report.contentSchemaVersion === 2
+        ? {
+            title: (report.title ?? "").trim(),
+            content: reportBodyText(report).trim(),
+          }
+        : {
+            title: form.title.trim(),
+            content: form.content.trim(),
+          };
+    if (
+      report.contentSchemaVersion !== 2 &&
+      (!cleaned.title || !cleaned.content)
+    ) {
       setValidationError(t("coreRequired"));
       return;
     }
@@ -218,47 +240,82 @@ function ReportEditor({
         )}
       </div>
 
-      <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-        <span>
-          {t("reportTitleLabel")}
-          <span className="ms-0.5 text-error-600">*</span>
-        </span>
-        <input
-          type="text"
-          required
-          maxLength={240}
-          placeholder={t("reportTitlePlaceholder")}
-          value={form.title}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              title: event.target.value,
-            }))
-          }
-          className={FIELD_CLASS}
-        />
-      </label>
+      {onAgent && (
+        <div>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              if (
+                report.contentSchemaVersion !== 2 &&
+                (form.title !== baseTitle || form.content !== baseContent)
+              ) {
+                onAgent({ title: form.title, contentMarkdown: form.content });
+              } else {
+                onAgent();
+              }
+            }}
+          >
+            {t("agentEdit")}
+          </Button>
+        </div>
+      )}
 
-      <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-        <span>
-          {t("reportContentLabel")}
-          <span className="ms-0.5 text-error-600">*</span>
-        </span>
-        <textarea
-          required
-          maxLength={100000}
-          rows={10}
-          placeholder={t("reportContentPlaceholder")}
-          value={form.content}
-          onChange={(event) =>
-            setForm((current) => ({
-              ...current,
-              content: event.target.value,
-            }))
-          }
-          className={`${FIELD_CLASS} resize-y leading-relaxed`}
-        />
-      </label>
+      {report.contentSchemaVersion === 2 ? (
+        <div className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/40 p-4 dark:border-gray-800 dark:bg-gray-950/40">
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">
+            {report.title}
+          </p>
+          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+            {reportBodyText(report)}
+          </p>
+        </div>
+      ) : (
+        <>
+          <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <span>
+              {t("reportTitleLabel")}
+              <span className="ms-0.5 text-error-600">*</span>
+            </span>
+            <input
+              type="text"
+              required
+              maxLength={240}
+              placeholder={t("reportTitlePlaceholder")}
+              value={form.title}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  title: event.target.value,
+                }))
+              }
+              className={FIELD_CLASS}
+            />
+          </label>
+
+          <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
+            <span>
+              {t("reportContentLabel")}
+              <span className="ms-0.5 text-error-600">*</span>
+            </span>
+            <textarea
+              required
+              maxLength={100000}
+              rows={10}
+              placeholder={t("reportContentPlaceholder")}
+              value={form.content}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  content: event.target.value,
+                }))
+              }
+              className={`${FIELD_CLASS} resize-y leading-relaxed`}
+            />
+          </label>
+        </>
+      )}
 
       {(validationError || error) && (
         <div
@@ -276,14 +333,16 @@ function ReportEditor({
             {t("closeEditor")}
           </Button>
         )}
-        <Button
-          type="submit"
-          variant="outline"
-          size="sm"
-          isLoading={isSaving}
-        >
-          {t("saveDraft")}
-        </Button>
+        {report.contentSchemaVersion !== 2 && (
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            isLoading={isSaving}
+          >
+            {t("saveDraft")}
+          </Button>
+        )}
         <Button
           type="button"
           size="sm"
@@ -389,6 +448,14 @@ export default function ProjectWorkReportsWorkspace({
   const common = useTranslations("workNotes");
   const format = useFormatter();
 
+  const [agentReportId, setAgentReportId] = useState<string | null>(null);
+  const [agentReportSeed, setAgentReportSeed] = useState<{
+    title: string;
+    contentMarkdown: string;
+  } | null>(null);
+  const [reportDraftOverrides, setReportDraftOverrides] = useState<
+    Record<string, { versionKey: string; seq: number; input: WorkReportInput }>
+  >({});
   const [activeScope, setActiveScope] = useState<WorkReportScope>("MEMBER");
   const [periodFilter, setPeriodFilter] = useState<string>("DEFAULT");
   const [statusFilter, setStatusFilter] = useState<WorkReportStatus | "ALL">(
@@ -549,7 +616,7 @@ export default function ProjectWorkReportsWorkspace({
         query &&
         !report.memberName.toLowerCase().includes(query) &&
         !(report.title ?? "").toLowerCase().includes(query) &&
-        !(report.content ?? "").toLowerCase().includes(query)
+        !reportBodyText(report).toLowerCase().includes(query)
       ) {
         return false;
       }
@@ -655,6 +722,9 @@ export default function ProjectWorkReportsWorkspace({
     saveReport.reset();
     updateReport.reset();
     reportAction.reset();
+    if (report.contentSchemaVersion === 2) {
+      return report;
+    }
     return report.id === editableCurrentReport?.id
       ? saveReport.mutateAsync(input)
       : updateReport.mutateAsync({ id: report.id, input });
@@ -662,7 +732,13 @@ export default function ProjectWorkReportsWorkspace({
 
   async function submitReport(report: WorkReport, input: WorkReportInput) {
     try {
-      const saved = await saveReportDraft(report, input);
+      saveReport.reset();
+      updateReport.reset();
+      reportAction.reset();
+      const saved =
+        report.contentSchemaVersion === 2
+          ? report
+          : await saveReportDraft(report, input);
       await reportAction.mutateAsync({ id: saved.id, action: "submit" });
       setEditingReportId("");
     } catch {
@@ -1398,26 +1474,69 @@ export default function ProjectWorkReportsWorkspace({
                         <div className="pt-5">
                           {isEditingSelected &&
                           selectedReport.permissions.canEdit ? (
-                            <ReportEditor
-                              key={`${selectedReport.id}-${selectedReport.updatedAt}`}
-                              report={selectedReport}
-                              isSaving={
-                                saveReport.isPending || updateReport.isPending
-                              }
-                              isSubmitting={reportAction.isPending}
-                              error={reportError}
-                              onSave={async (input) => {
-                                try {
-                                  await saveReportDraft(selectedReport, input);
-                                } catch {
-                                  /* form preserves draft */
-                                }
-                              }}
-                              onSubmit={(input) =>
-                                submitReport(selectedReport, input)
-                              }
-                              onClose={() => setEditingReportId("")}
-                            />
+                            (() => {
+                              const reportVersionKey = `${selectedReport.id}-${selectedReport.updatedAt}`;
+                              const overrideEntry =
+                                reportDraftOverrides[selectedReport.id];
+                              const activeOverride =
+                                overrideEntry?.versionKey === reportVersionKey
+                                  ? overrideEntry
+                                  : undefined;
+                              return (
+                                <ReportEditor
+                                  key={`${reportVersionKey}-${activeOverride?.seq ?? 0}`}
+                                  report={selectedReport}
+                                  initialDraft={activeOverride?.input}
+                                  onAgent={
+                                    process.env
+                                      .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
+                                      "true" ||
+                                    selectedReport.contentSchemaVersion === 2
+                                      ? (draft) => {
+                                          setAgentReportSeed(draft ?? null);
+                                          setAgentReportId(selectedReport.id);
+                                        }
+                                      : undefined
+                                  }
+                                  isSaving={
+                                    saveReport.isPending ||
+                                    updateReport.isPending
+                                  }
+                                  isSubmitting={reportAction.isPending}
+                                  error={reportError}
+                                  onSave={async (input) => {
+                                    try {
+                                      await saveReportDraft(
+                                        selectedReport,
+                                        input,
+                                      );
+                                      setReportDraftOverrides((prev) => {
+                                        if (!(selectedReport.id in prev))
+                                          return prev;
+                                        const next = { ...prev };
+                                        delete next[selectedReport.id];
+                                        return next;
+                                      });
+                                    } catch {
+                                      /* form preserves draft */
+                                    }
+                                  }}
+                                  onSubmit={(input) =>
+                                    submitReport(selectedReport, input)
+                                  }
+                                  onClose={() => {
+                                    setReportDraftOverrides((prev) => {
+                                      if (!(selectedReport.id in prev))
+                                        return prev;
+                                      const next = { ...prev };
+                                      delete next[selectedReport.id];
+                                      return next;
+                                    });
+                                    setEditingReportId("");
+                                  }}
+                                />
+                              );
+                            })()
                           ) : hasReportContent(selectedReport) ? (
                             <div className="space-y-4">
                               {Boolean(selectedReport.title?.trim()) && (
@@ -1518,7 +1637,8 @@ export default function ProjectWorkReportsWorkspace({
                               </div>
 
                               <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
-                                {selectedReport.content || common("noValue")}
+                                {reportBodyText(selectedReport) ||
+                                  common("noValue")}
                               </div>
 
                               {selectedReport.reviewComment && (
@@ -1602,6 +1722,49 @@ export default function ProjectWorkReportsWorkspace({
           </section>
         )}
       </div>
+      {agentReportId && (
+        <WorkNoteComposer
+          projectId={projectId}
+          source={{ workflow: "WORK_REPORT", resourceId: agentReportId }}
+          initialFields={agentReportSeed ?? undefined}
+          onClose={(persistedFields) => {
+            const closedId = agentReportId;
+            const targetReport = allScopeReports.find((r) => r.id === closedId);
+            setReportDraftOverrides((prev) => {
+              if (!persistedFields || !targetReport) {
+                if (!(closedId in prev)) return prev;
+                const next = { ...prev };
+                delete next[closedId];
+                return next;
+              }
+              return {
+                ...prev,
+                [closedId]: {
+                  versionKey: `${targetReport.id}-${targetReport.updatedAt}`,
+                  seq: (prev[closedId]?.seq ?? 0) + 1,
+                  input: {
+                    title: persistedFields.title,
+                    content: persistedFields.contentMarkdown,
+                  },
+                },
+              };
+            });
+            setAgentReportSeed(null);
+            setAgentReportId(null);
+          }}
+          onSaved={() => {
+            const savedId = agentReportId;
+            setReportDraftOverrides((prev) => {
+              if (!(savedId in prev)) return prev;
+              const next = { ...prev };
+              delete next[savedId];
+              return next;
+            });
+            setAgentReportSeed(null);
+            setAgentReportId(null);
+          }}
+        />
+      )}
     </main>
   );
 }

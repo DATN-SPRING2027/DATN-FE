@@ -9,11 +9,76 @@ vi.mock("next-intl", () => ({
 }));
 vi.mock("@/icons", () => ({
   CloseLineIcon: () => null,
+  CloseIcon: () => null,
   TaskIcon: () => null,
 }));
 vi.mock("@/components/work-notes/TaskNotesPanel", () => ({
-  default: ({ projectId, taskId }: { projectId: string; taskId: string }) => (
-    <div data-testid="subtask-notes-panel">{`${projectId}:${taskId}`}</div>
+  default: ({
+    projectId,
+    taskId,
+    splitControl,
+  }: {
+    projectId: string;
+    taskId: string;
+    splitControl?: {
+      isOpen: boolean;
+      editingNoteId: string | null;
+      savedSignal?: number;
+      onOpen: (noteId?: string) => void;
+      onClose: () => void;
+    };
+  }) => (
+    <div>
+      <div data-testid="subtask-notes-panel">{`${projectId}:${taskId}`}</div>
+      {splitControl && (
+        <div>
+          <button type="button" onClick={() => splitControl.onOpen()}>
+            Trigger split new note
+          </button>
+          <button type="button" onClick={() => splitControl.onOpen("note-42")}>
+            Trigger split edit note
+          </button>
+          <span data-testid="split-saved-signal">
+            {splitControl.savedSignal ?? 0}
+          </span>
+        </div>
+      )}
+    </div>
+  ),
+}));
+vi.mock("@/components/work-notes/WorkNoteComposer", () => ({
+  default: ({
+    variant,
+    taskId,
+    noteId,
+    dismissSignal,
+    onPanelOpenChange,
+    onClose,
+    onSaved,
+  }: {
+    variant?: string;
+    taskId?: string;
+    noteId?: string;
+    dismissSignal?: number;
+    onPanelOpenChange?: (open: boolean) => void;
+    onClose: () => void;
+    onSaved: () => void;
+  }) => (
+    <div data-testid="inline-work-note-composer">
+      <span>{`composer:${variant}:${taskId}:${noteId ?? "new"}:dismiss=${dismissSignal ?? 0}`}</span>
+      <button type="button" onClick={() => onPanelOpenChange?.(true)}>
+        Open AI 3rd column
+      </button>
+      <button type="button" onClick={() => onPanelOpenChange?.(false)}>
+        Collapse AI 3rd column
+      </button>
+      <button type="button" onClick={onSaved}>
+        Save split note
+      </button>
+      <button type="button" onClick={onClose}>
+        Close split note
+      </button>
+    </div>
   ),
 }));
 
@@ -167,6 +232,78 @@ describe("WorkItemDetailDialog", () => {
     );
   });
 
+  it("splits into 2 resizable panes (Task | Note) on New/Edit Note and 3 panes (Task | Note | AI) with only the Task-Note divider draggable", () => {
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        onClose={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId("work-note-split-workspace"),
+    ).not.toBeInTheDocument();
+
+    // Open Notes tab and click New Note -> 2-column split screen (no separate modal)
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+
+    const workspace = screen.getByTestId("work-note-split-workspace");
+    const taskPane = screen.getByTestId("work-note-split-task-pane");
+    const resizers = screen.getAllByRole("separator");
+
+    expect(resizers).toHaveLength(1);
+    expect(resizers[0]).toHaveAttribute("data-testid", "task-note-resizer");
+    expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("48%");
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=0",
+    );
+
+    // Drag the horizontal splitter between Task and Note
+    vi.spyOn(workspace, "getBoundingClientRect").mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      width: 1600,
+      height: 900,
+      right: 1600,
+      bottom: 900,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.pointerDown(resizers[0], { button: 0, pointerId: 1, clientX: 768 });
+    fireEvent.pointerMove(resizers[0], { pointerId: 1, clientX: 640 });
+    fireEvent.pointerUp(resizers[0], { pointerId: 1, clientX: 640 });
+    expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("40%");
+
+    // Open AI Assistant -> 3-column mode (Task auto-compacts to 33%, still only 1 draggable separator)
+    fireEvent.click(screen.getByRole("button", { name: "Open AI 3rd column" }));
+    expect(screen.getAllByRole("separator")).toHaveLength(1);
+    expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("33%");
+
+    // Dragging the Task-Note resizer still works freely in 3-column mode
+    fireEvent.keyDown(resizers[0], { key: "ArrowRight" });
+    expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("35%");
+
+    // Collapsing AI restores the user's 2-column Task ratio (40%)
+    fireEvent.click(
+      screen.getByRole("button", { name: "Collapse AI 3rd column" }),
+    );
+    expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("40%");
+
+    // Saving closes the split workspace and signals TaskNotesPanel
+    fireEvent.click(screen.getByRole("button", { name: "Save split note" }));
+    expect(
+      screen.queryByTestId("work-note-split-workspace"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("split-saved-signal")).toHaveTextContent("1");
+  });
+
+
   it("allows editing Task title and description when mutable callbacks are provided, validates empty title, and cancels on Escape without closing the modal", async () => {
     const onClose = vi.fn();
     const onTitleChange = vi.fn().mockResolvedValue(true);
@@ -280,5 +417,39 @@ describe("WorkItemDetailDialog", () => {
     ).not.toBeInTheDocument();
     expect(onTitleChange).not.toHaveBeenCalled();
     expect(onDescriptionChange).not.toHaveBeenCalled();
+  });
+
+  it("closes the inline split composer when navigating away from a subtask and forwards Escape in mode='page'", () => {
+    render(
+      <WorkItemDetailDialog
+        item={sampleItemWithSubtasks}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        initialSubtaskId="sub-1"
+        mode="page"
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:sub-1:new:dismiss=0",
+    );
+
+    // Escape in mode="page" forwards dismissSignal to inline WorkNoteComposer
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:sub-1:new:dismiss=1",
+    );
+
+    // Navigating back to parent task closes the subtask's split composer
+    fireEvent.click(
+      screen.getByRole("button", { name: /Back to KNW-142/ }),
+    );
+    expect(
+      screen.queryByTestId("work-note-split-workspace"),
+    ).not.toBeInTheDocument();
   });
 });

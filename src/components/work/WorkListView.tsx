@@ -267,11 +267,14 @@ export default function WorkListView({
     expandableIds.length > 0 &&
     expandableIds.every((id) => !collapsedParentIds.has(id));
 
+  useEffect(() => {
+    if (!toastNotice) return;
+    const timer = setTimeout(() => setToastNotice(""), 2800);
+    return () => clearTimeout(timer);
+  }, [toastNotice]);
+
   function showNotice(msg: string) {
     setToastNotice(msg);
-    setTimeout(() => {
-      setToastNotice((current) => (current === msg ? "" : current));
-    }, 2800);
   }
 
   function closeAllCellPopovers() {
