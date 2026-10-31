@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { ApiError } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type {
   AiChatMessagePage,
   AiChatStreamEvent,
@@ -582,6 +583,45 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(streamAiChatAskMock).not.toHaveBeenCalled();
   });
 
+  it("revalidates the login session after an AI ask returns 401 without replaying the ask", async () => {
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-2",
+      title: "Session expiry check",
+      createdAt: "2026-10-31T10:00:00Z",
+      updatedAt: "2026-10-31T10:00:00Z",
+    } satisfies AiChatThread);
+    streamAiChatAskMock.mockRejectedValueOnce(
+      new ApiError(401, "UNAUTHORIZED", "The login session expired."),
+    );
+
+    renderWorkspace();
+    const composer = screen.getByRole("textbox", {
+      name: "Ask Continuum SAG",
+    });
+    fireEvent.change(composer, { target: { value: "Check the session." } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(streamAiChatAskMock).toHaveBeenCalledTimes(1);
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({
+      queryKey: authKeys.currentUser(),
+      exact: true,
+    });
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((alert) =>
+          alert.textContent?.includes(
+            "Your login session expired or security token changed.",
+          ),
+        ),
+    ).toBe(true);
+  });
+
   it("surfaces permission-denied banner on 403 access loss and opens/closes citation excerpt dialog", () => {
     useThreadsMock.mockReturnValue({
       data: sampleThreads,
@@ -1018,5 +1058,153 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(
       screen.getByText("Synthesize & verify citations"),
     ).toBeVisible();
+  });
+
+  it("opens the composer project menu anchored at the composer instead of jumping to the top header", () => {
+    useActiveProjectsMock.mockReturnValue({
+      projects: [
+        {
+          id: "proj-core",
+          organizationId: "org-1",
+          name: "Continuum Core",
+          code: "CORE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-fe",
+          organizationId: "org-1",
+          name: "Frontend Portal",
+          code: "FE",
+          visibility: "PUBLIC",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-be",
+          organizationId: "org-1",
+          name: "Backend Services",
+          code: "BE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-docs",
+          organizationId: "org-1",
+          name: "Documentation",
+          code: "DOC",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-design",
+          organizationId: "org-1",
+          name: "Design System",
+          code: "DESIGN",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-db",
+          organizationId: "org-1",
+          name: "Database Cluster",
+          code: "DB",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    renderWorkspace();
+
+    const composerForm = screen.getByRole("form", {
+      name: "SAG AI Chat composer",
+    });
+    const composerTrigger = within(composerForm).getByRole("button", {
+      name: "Select project in composer",
+    });
+    const headerTrigger = screen.getByRole("button", {
+      name: "Select project scope",
+    });
+
+    expect(composerTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(headerTrigger).toHaveAttribute("aria-expanded", "false");
+
+    // Clicking the composer trigger opens ONLY the composer-anchored menu
+    fireEvent.click(composerTrigger);
+
+    const composerMenu = within(composerForm).getByTestId(
+      "ai-chat-composer-project-menu",
+    );
+    expect(composerMenu).toBeInTheDocument();
+    expect(composerMenu.className).toContain("bottom-11");
+    expect(composerTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(headerTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByTestId("ai-chat-header-project-menu"),
+    ).not.toBeInTheDocument();
+
+    // Opening header project menu closes composer project menu (mutual exclusion)
+    fireEvent.click(headerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-header-project-menu"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+
+    // Reopening composer project menu closes header project menu & supports >5 search + selection
+    fireEvent.click(composerTrigger);
+    const reopenedComposerMenu = within(composerForm).getByTestId(
+      "ai-chat-composer-project-menu",
+    );
+    expect(
+      screen.queryByTestId("ai-chat-header-project-menu"),
+    ).not.toBeInTheDocument();
+
+    const filterInput =
+      within(reopenedComposerMenu).getByPlaceholderText("Filter projects…");
+    fireEvent.change(filterInput, { target: { value: "zzz-none" } });
+    expect(
+      within(reopenedComposerMenu).getByText("No matching projects."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(filterInput, { target: { value: "FE" } });
+    fireEvent.click(
+      within(reopenedComposerMenu).getByRole("option", {
+        name: /Frontend Portal/i,
+      }),
+    );
+
+    expect(replaceMock).toHaveBeenCalledWith("/ai-chat?projectId=proj-fe");
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+    expect(composerTrigger).toHaveTextContent("FE");
+
+    // Pressing Enter in the composer filter input selects the match without submitting the chat form
+    fireEvent.click(composerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).toBeInTheDocument();
+    const filterOnReopen = within(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).getByPlaceholderText("Filter projects…");
+    fireEvent.change(filterOnReopen, { target: { value: "Backend" } });
+    fireEvent.keyDown(filterOnReopen, { key: "Enter" });
+    expect(replaceMock).toHaveBeenCalledWith("/ai-chat?projectId=proj-be");
+    expect(createThreadMutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Escape closes the composer project menu
+    fireEvent.click(composerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -93,6 +93,18 @@ function parseSseFrameBlock(rawBlock: string): AiChatStreamEvent | null {
   }
 }
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function streamInterruptedError(): ApiError {
+  return new ApiError(
+    503,
+    "STREAM_INTERRUPTED",
+    "The AI response stream ended before a final result was received.",
+  );
+}
+
 async function consumeAiChatSseStream(
   url: string,
   body: Record<string, unknown>,
@@ -105,14 +117,20 @@ async function consumeAiChatSseStream(
     ...aiChatCsrfHeaders(),
   });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers,
-    credentials: "include",
-    cache: "no-store",
-    signal,
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers,
+      credentials: "include",
+      cache: "no-store",
+      signal,
+      body: JSON.stringify(body),
+    });
+  } catch (error) {
+    if (signal?.aborted || isAbortError(error)) throw error;
+    throw streamInterruptedError();
+  }
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
@@ -155,10 +173,19 @@ async function consumeAiChatSseStream(
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
   let streamDone = false;
+  let receivedTerminalEvent = false;
 
   try {
     while (true) {
-      const { value, done } = await reader.read();
+      let chunk: ReadableStreamReadResult<Uint8Array>;
+      try {
+        chunk = await reader.read();
+      } catch (error) {
+        if (receivedTerminalEvent) break;
+        if (signal?.aborted || isAbortError(error)) throw error;
+        throw streamInterruptedError();
+      }
+      const { value, done } = chunk;
       if (done) {
         streamDone = true;
         break;
@@ -171,19 +198,27 @@ async function consumeAiChatSseStream(
         buffer = buffer.slice(match.index + match[0].length);
         const event = parseSseFrameBlock(rawBlock);
         if (event) {
+          receivedTerminalEvent ||=
+            event.event === "completed" || event.event === "failed";
           onEvent(event);
         }
         match = /\r?\n\r?\n/.exec(buffer);
       }
+      if (receivedTerminalEvent) break;
     }
 
-    buffer += decoder.decode();
-    if (buffer.trim()) {
-      const trailing = parseSseFrameBlock(buffer);
-      if (trailing) {
-        onEvent(trailing);
+    if (streamDone) {
+      buffer += decoder.decode();
+      if (buffer.trim()) {
+        const trailing = parseSseFrameBlock(buffer);
+        if (trailing) {
+          receivedTerminalEvent ||=
+            trailing.event === "completed" || trailing.event === "failed";
+          onEvent(trailing);
+        }
       }
     }
+    if (!receivedTerminalEvent) throw streamInterruptedError();
   } finally {
     if (!streamDone) {
       await reader.cancel().catch(() => undefined);

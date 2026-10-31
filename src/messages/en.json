@@ -5125,6 +5125,7 @@
     "renameCancel": "Cancel rename",
     "renameValidation": "Enter a title between 1 and 200 characters.",
     "projectScopeAriaLabel": "Select project scope",
+    "composerProjectScopeAriaLabel": "Select project in composer",
     "projectMenuAriaLabel": "Active projects",
     "projectSearchPlaceholder": "Filter projects…",
     "projectSearchEmpty": "No matching projects.",

@@ -5125,6 +5125,7 @@
     "renameCancel": "Hủy đổi tên",
     "renameValidation": "Nhập tiêu đề có độ dài từ 1 đến 200 ký tự.",
     "projectScopeAriaLabel": "Chọn phạm vi dự án",
+    "composerProjectScopeAriaLabel": "Chọn dự án tại khung nhập",
     "projectMenuAriaLabel": "Dự án đang hoạt động",
     "projectSearchPlaceholder": "Lọc dự án…",
     "projectSearchEmpty": "Không có dự án phù hợp.",
