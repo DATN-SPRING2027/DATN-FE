@@ -2,6 +2,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { chatApi } from "@/lib/queries/chat/useChat";
 import {
   useNotificationRealtimeSubscription,
@@ -58,6 +60,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 it("shares one ticket request across Strict Mode effect replay", async () => {
@@ -98,4 +101,42 @@ it("disables unread polling while realtime is connected", () => {
 
 it("keeps polling as a fallback while realtime is unavailable", () => {
   expect(unreadNotificationPollingInterval(false)).toBe(30_000);
+});
+
+it("rechecks authentication once for a rejected WebSocket ticket and stops repeated 401 retries", async () => {
+  vi.useFakeTimers();
+  const request = vi
+    .spyOn(chatApi, "wsTicket")
+    .mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "Expired"))
+    .mockRejectedValueOnce(new ApiError(401, "UNAUTHORIZED", "Expired"));
+  const client = new QueryClient();
+  const revalidateSession = vi.spyOn(client, "invalidateQueries");
+
+  const { unmount } = renderHook(
+    () => useNotificationRealtimeSubscription("user-1", "org-1"),
+    { wrapper: createWrapper(client) },
+  );
+
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+  expect(request).toHaveBeenCalledTimes(1);
+  expect(revalidateSession).toHaveBeenCalledWith({
+    queryKey: authKeys.currentUser(),
+    exact: true,
+  });
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(2_000);
+  });
+  expect(request).toHaveBeenCalledTimes(2);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60_000);
+  });
+  expect(request).toHaveBeenCalledTimes(2);
+
+  unmount();
+  client.clear();
 });

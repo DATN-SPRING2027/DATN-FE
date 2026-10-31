@@ -10,7 +10,7 @@ import {
 } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   AlertIcon,
@@ -44,6 +44,7 @@ import {
   useDeleteAiChatThreadMutation,
   useUpdateAiChatThreadMutation,
 } from "@/lib/queries/ai-chat/useAiChat";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import type { Project } from "@/lib/queries/projects/useProjects";
@@ -69,6 +70,15 @@ function isProjectOrAuthAccessError(error: unknown): error is ApiError {
     return false;
   }
   return true;
+}
+
+function revalidateCurrentUserSession(queryClient: QueryClient): void {
+  void queryClient
+    .invalidateQueries({
+      queryKey: authKeys.currentUser(),
+      exact: true,
+    })
+    .catch(() => undefined);
 }
 
 export function upsertRetrievalStep(
@@ -541,6 +551,65 @@ function AiChatWorkspaceContent() {
     [],
   );
 
+  const reconcileAfterInterruptedStream = useCallback(
+    async (
+      projectId: string,
+      threadId: string,
+      userMessageId: string,
+      assistantMessageId: string,
+    ) => {
+      const messagesKey = aiChatKeys.messages(
+        organizationId,
+        projectId,
+        threadId,
+      );
+      await Promise.allSettled([
+        queryClient.invalidateQueries({
+          queryKey: aiChatKeys.threads(organizationId, projectId),
+        }),
+        queryClient.invalidateQueries({ queryKey: messagesKey }),
+      ]);
+
+      if (typeof queryClient.getQueryData !== "function") return;
+      const refreshed = queryClient.getQueryData<{
+        pages?: readonly AiChatMessagePage[];
+      }>(messagesKey);
+      const messages = (refreshed?.pages ?? []).flatMap((page) => page.items);
+      const persistedIds = new Set(messages.map((message) => message.id));
+      const persistedAssistantReply = messages.some(
+        (message) =>
+          message.role === "assistant" &&
+          message.replyToMessageId === userMessageId,
+      );
+
+      setLocalTurnsByThread((prev) => {
+        const existing = prev[threadId];
+        if (!existing?.length) return prev;
+        const filtered = existing.filter((turn) => {
+          if (
+            turn.role === "user" &&
+            turn.id === userMessageId &&
+            persistedIds.has(userMessageId)
+          ) {
+            return false;
+          }
+          if (
+            turn.role === "assistant" &&
+            turn.id === assistantMessageId &&
+            persistedAssistantReply
+          ) {
+            return false;
+          }
+          return true;
+        });
+        return filtered.length === existing.length
+          ? prev
+          : { ...prev, [threadId]: filtered };
+      });
+    },
+    [organizationId, queryClient],
+  );
+
   const sendQuestion = useCallback(
     async (rawQuery: string) => {
       if (!selectedProject || isStreaming || createThreadMutation.isPending) {
@@ -591,6 +660,9 @@ function AiChatWorkspaceContent() {
             }
             setComposerValue(rawQuery);
             if (isProjectOrAuthAccessError(error)) {
+              if (error.status === 401) {
+                revalidateCurrentUserSession(queryClient);
+              }
               setPermissionBanner(
                 error.status === 401
                   ? t("sessionExpiredBody")
@@ -837,6 +909,9 @@ function AiChatWorkspaceContent() {
               activityFinishedAt: Date.now(),
             }));
           } else if (isProjectOrAuthAccessError(error)) {
+            if (error.status === 401) {
+              revalidateCurrentUserSession(queryClient);
+            }
             setPermissionBanner(
               error.status === 401
                 ? t("sessionExpiredBody")
@@ -848,18 +923,28 @@ function AiChatWorkspaceContent() {
               isStreaming: false,
               activityFinishedAt: Date.now(),
               retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
+              errorCode: error.code,
               errorMessage:
                 error instanceof ApiError
                   ? error.message
                   : t("permissionDeniedBody"),
             }));
           } else {
+            if (error instanceof ApiError && error.status >= 500) {
+              void reconcileAfterInterruptedStream(
+                requestProjectId,
+                targetThreadId,
+                activeUserTurnId,
+                activeAssistantTurnId,
+              );
+            }
             updateLocalTurn(targetThreadId, activeAssistantTurnId, (turn) => ({
               ...turn,
               status: "failed",
               isStreaming: false,
               activityFinishedAt: Date.now(),
               retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
+              errorCode: error instanceof ApiError ? error.code : undefined,
               errorMessage:
                 error instanceof Error
                   ? error.message
@@ -880,6 +965,7 @@ function AiChatWorkspaceContent() {
       isStreaming,
       organizationId,
       queryClient,
+      reconcileAfterInterruptedStream,
       selectedProject,
       serverMessages,
       t,
@@ -1119,6 +1205,9 @@ function AiChatWorkspaceContent() {
             activityFinishedAt: Date.now(),
           }));
         } else if (isProjectOrAuthAccessError(error)) {
+          if (error.status === 401) {
+            revalidateCurrentUserSession(queryClient);
+          }
           setPermissionBanner(
             error.status === 401
               ? t("sessionExpiredBody")
@@ -1130,18 +1219,34 @@ function AiChatWorkspaceContent() {
             isStreaming: false,
             activityFinishedAt: Date.now(),
             retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
+            errorCode: error.code,
             errorMessage:
               error instanceof ApiError
                 ? error.message
                 : t("permissionDeniedBody"),
           }));
         } else {
+          const replyToMessageId =
+            targetMessage.replyToMessageId ?? questionMessage?.id;
+          if (
+            error instanceof ApiError &&
+            error.status >= 500 &&
+            replyToMessageId
+          ) {
+            void reconcileAfterInterruptedStream(
+              requestProjectId,
+              targetThreadId,
+              replyToMessageId,
+              activeRegenTurnId,
+            );
+          }
           updateLocalTurn(targetThreadId, activeRegenTurnId, (turn) => ({
             ...turn,
             status: "failed",
             isStreaming: false,
             activityFinishedAt: Date.now(),
             retrievalSteps: settleRunningSteps(turn.retrievalSteps, "failed"),
+            errorCode: error instanceof ApiError ? error.code : undefined,
             errorMessage:
               error instanceof Error ? error.message : t("streamFailedDefault"),
           }));
@@ -1158,6 +1263,7 @@ function AiChatWorkspaceContent() {
       isStreaming,
       organizationId,
       queryClient,
+      reconcileAfterInterruptedStream,
       selectedProject,
       serverMessages,
       t,
