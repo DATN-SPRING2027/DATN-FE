@@ -13,6 +13,8 @@
     "delete": "Delete",
     "filter": "Filter",
     "seeAll": "See all",
+    "copy": "Copy to clipboard",
+    "copied": "Copied",
     "localeCode": "en"
   },
   "roleLabels": {

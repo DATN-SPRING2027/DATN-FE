@@ -1,29 +1,62 @@
 "use client";
 
-import { Modal } from "@/components/ui/modal";
-import { cn } from "@/utils";
+import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { Modal } from "@/components/ui/modal";
+import Button from "@/components/ui/button/Button";
+import {
+  ANIMATE_UI_BUTTON_SPRING,
+  ButtonRippleLayer,
+  type ButtonRippleHandle,
+} from "@/components/ui/button/buttonMotion";
+import { cn } from "@/utils";
 
 export default function HeaderUpdateButton() {
   const t = useTranslations("header");
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
+  const shouldReduceMotion = useReducedMotion();
+  const rippleRef = useRef<ButtonRippleHandle>(null);
 
   const handleClose = () => {
     setIsOpen(false);
     setSelectedPlan(null);
   };
 
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (shouldReduceMotion) return;
+      rippleRef.current?.spawn(event);
+    },
+    [shouldReduceMotion],
+  );
+
+  const triggerMotionProps = shouldReduceMotion
+    ? undefined
+    : {
+        whileHover: { scale: 1.025, y: -0.5 },
+        whileTap: { scale: 0.965, y: 0 },
+      };
+
   return (
     <>
-      <button
+      <motion.button
         type="button"
+        data-slot="button"
+        transition={ANIMATE_UI_BUTTON_SPRING}
+        {...triggerMotionProps}
+        onPointerDown={handlePointerDown}
         onClick={() => setIsOpen(true)}
-        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/60 px-3 text-theme-xs font-semibold text-brand-600 transition-colors hover:border-brand-300 hover:bg-brand-50 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/20"
+        className="relative inline-flex h-9 select-none items-center gap-1.5 overflow-hidden rounded-lg border border-brand-200 bg-brand-50/60 px-3 text-theme-xs font-semibold text-brand-600 transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:border-brand-300 hover:bg-brand-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:border-brand-500/50 dark:hover:bg-brand-500/20"
       >
+        <ButtonRippleLayer
+          ref={rippleRef}
+          rippleClassName="bg-brand-500/15 dark:bg-brand-400/25"
+        />
         <svg
           aria-hidden="true"
+          className="relative z-1 shrink-0"
           width="15"
           height="15"
           viewBox="0 0 24 24"
@@ -35,8 +68,8 @@ export default function HeaderUpdateButton() {
         >
           <path d="M12 3l1.912 5.813a2 2 0 0 0 1.275 1.275L21 12l-5.813 1.912a2 2 0 0 0-1.275 1.275L12 21l-1.912-5.813a2 2 0 0 0-1.275-1.275L3 12l5.813-1.912a2 2 0 0 0 1.275-1.275L12 3z" />
         </svg>
-        <span>{t("update")}</span>
-      </button>
+        <span className="relative z-1">{t("update")}</span>
+      </motion.button>
 
       <Modal
         isOpen={isOpen}
@@ -100,7 +133,7 @@ export default function HeaderUpdateButton() {
                   {t("upgradeModal.plans.free.description")}
                 </p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-title-md font-bold text-gray-900 dark:text-white">
+                  <span className="text-title-md font-bold text-gray-900 tabular-nums dark:text-white">
                     {t("upgradeModal.plans.free.price")}
                   </span>
                   <span className="text-theme-xs text-gray-500 dark:text-gray-400">
@@ -127,13 +160,15 @@ export default function HeaderUpdateButton() {
                   ))}
                 </ul>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 disabled
-                className="mt-6 w-full rounded-xl border border-gray-200 bg-gray-100 py-2.5 text-theme-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-400"
+                className="mt-6 w-full rounded-xl py-2.5 text-theme-xs font-semibold"
               >
                 {t("upgradeModal.currentPlan")}
-              </button>
+              </Button>
             </div>
 
             {/* Plus / Pro Plan */}
@@ -153,7 +188,7 @@ export default function HeaderUpdateButton() {
                   {t("upgradeModal.plans.pro.description")}
                 </p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-title-md font-bold text-gray-900 dark:text-white">
+                  <span className="text-title-md font-bold text-gray-900 tabular-nums dark:text-white">
                     {t("upgradeModal.plans.pro.price")}
                   </span>
                   <span className="text-theme-xs text-gray-500 dark:text-gray-400">
@@ -180,13 +215,15 @@ export default function HeaderUpdateButton() {
                   ))}
                 </ul>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="sm"
                 onClick={() => setSelectedPlan(t("upgradeModal.plans.pro.name"))}
-                className="mt-6 w-full rounded-xl bg-brand-500 py-2.5 text-theme-xs font-semibold text-white transition-colors hover:bg-brand-600"
+                className="mt-6 w-full rounded-xl py-2.5 text-theme-xs font-semibold"
               >
                 {t("upgradeModal.upgradeNow")}
-              </button>
+              </Button>
             </div>
 
             {/* Enterprise Plan */}
@@ -199,7 +236,7 @@ export default function HeaderUpdateButton() {
                   {t("upgradeModal.plans.enterprise.description")}
                 </p>
                 <div className="mt-4 flex items-baseline gap-1">
-                  <span className="text-title-md font-bold text-gray-900 dark:text-white">
+                  <span className="text-title-md font-bold text-gray-900 tabular-nums dark:text-white">
                     {t("upgradeModal.plans.enterprise.price")}
                   </span>
                 </div>
@@ -223,15 +260,17 @@ export default function HeaderUpdateButton() {
                   ))}
                 </ul>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="sm"
                 onClick={() =>
                   setSelectedPlan(t("upgradeModal.plans.enterprise.name"))
                 }
-                className="mt-6 w-full rounded-xl border border-gray-200 bg-white py-2.5 text-theme-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                className="mt-6 w-full rounded-xl py-2.5 text-theme-xs font-semibold"
               >
                 {t("upgradeModal.contactSales")}
-              </button>
+              </Button>
             </div>
           </div>
         </div>

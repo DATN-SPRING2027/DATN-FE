@@ -200,6 +200,22 @@
     cursor: pointer;
   }
 
+  @media (prefers-reduced-motion: no-preference) {
+    button:not(:disabled):not([data-slot="button"]):not([draggable="true"]):not(.inset-0):not(.fc *):not(.flatpickr-calendar *):not(.swiper-button-prev):not(.swiper-button-next) {
+      transition-property:
+        color, background-color, border-color, outline-color,
+        text-decoration-color, fill, stroke, opacity, box-shadow, transform,
+        translate, scale;
+      transition-duration: 180ms;
+      transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    button:not(:disabled):not([data-slot="button"]):not([draggable="true"]):not([aria-disabled="true"]):not(.inset-0):not(.fc *):not(.flatpickr-calendar *):not(.swiper-button-prev):not(.swiper-button-next):active {
+      scale: 0.975;
+      transition-duration: 90ms;
+    }
+  }
+
   body {
     @apply relative z-1 bg-gray-50 font-outfit font-normal;
   }

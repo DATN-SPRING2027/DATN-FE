@@ -13,6 +13,8 @@
     "delete": "Xóa",
     "filter": "Bộ lọc",
     "seeAll": "Xem tất cả",
+    "copy": "Sao chép",
+    "copied": "Đã sao chép",
     "localeCode": "vi"
   },
   "roleLabels": {
