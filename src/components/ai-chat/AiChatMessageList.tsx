@@ -127,7 +127,7 @@ function BranchLineageDivider({
           onClick={() => onSelectParentThread(parentThreadId)}
           aria-label={branchedFromAria(effectiveTitle)}
           title={branchedFromLabel(effectiveTitle)}
-          className="inline-flex max-w-[min(26rem,calc(100%-2rem))] min-w-0 items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/90 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-200"
+          className="inline-flex max-w-[min(26rem,calc(100%-2rem))] min-w-0 items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/90 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-300 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-200"
         >
           <BranchIcon
             aria-hidden="true"
@@ -548,17 +548,21 @@ export default function AiChatMessageList({
   const isBranchedThread = Boolean(
     activeThread?.isBranched || branchPointMessageId,
   );
-  const branchPointVisibleInTurns = useMemo(
-    () =>
-      Boolean(
-        isBranchedThread &&
-          branchPointMessageId &&
-          groupedTurns.some((turn) =>
-            turn.versions.some((ver) => ver.id === branchPointMessageId),
-          ),
-      ),
-    [branchPointMessageId, groupedTurns, isBranchedThread],
-  );
+  const branchDividerTurnIndex = useMemo(() => {
+    if (!isBranchedThread || groupedTurns.length === 0) return null;
+    if (branchPointMessageId) {
+      const exactIdx = groupedTurns.findIndex((turn) =>
+        turn.versions.some((ver) => ver.id === branchPointMessageId),
+      );
+      if (exactIdx >= 0) return exactIdx;
+    }
+    for (let idx = groupedTurns.length - 1; idx >= 0; idx -= 1) {
+      if (groupedTurns[idx]?.versions.some((ver) => Boolean(ver.isInherited))) {
+        return idx;
+      }
+    }
+    return -1;
+  }, [branchPointMessageId, groupedTurns, isBranchedThread]);
 
   const activeSpeechMessageId = speakingMessageId ?? preparingMessageId;
   useEffect(() => {
@@ -678,15 +682,12 @@ export default function AiChatMessageList({
         )}
 
         {isBranchedThread &&
-          !branchPointVisibleInTurns &&
-          groupedTurns.length > 0 &&
+          branchDividerTurnIndex === -1 &&
           renderLineageDivider()}
 
-        {groupedTurns.map((turn) => {
+        {groupedTurns.map((turn, turnIndex) => {
           const isTurnBranchPoint = Boolean(
-            isBranchedThread &&
-              branchPointMessageId &&
-              turn.versions.some((ver) => ver.id === branchPointMessageId),
+            isBranchedThread && turnIndex === branchDividerTurnIndex,
           );
 
           if (turn.message.role === "user") {

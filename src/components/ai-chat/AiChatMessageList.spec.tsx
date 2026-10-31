@@ -182,7 +182,8 @@ describe("AI Chat no-answer presentation", () => {
       id: "user-1",
       role: "user",
       status: "ok",
-      content: "Theo tài liệu 02_FRONTEND_NEXTJS.md, frontend dùng framework nào?",
+      content:
+        "Theo tài liệu 02_FRONTEND_NEXTJS.md, frontend dùng framework nào?",
       citations: [],
       sessionCitations: [],
       retrievalSteps: [],
@@ -313,7 +314,9 @@ describe("AI Chat no-answer presentation", () => {
       screen.getByRole("columnheader", { name: "Thành phần" }),
     ).toBeVisible();
     expect(screen.getByRole("cell", { name: /Next\.js/ })).toBeVisible();
-    expect(screen.getByText("Bước xác thực phiên").closest("ol")).not.toBeNull();
+    expect(
+      screen.getByText("Bước xác thực phiên").closest("ol"),
+    ).not.toBeNull();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -478,7 +481,13 @@ describe("AI Chat no-answer presentation", () => {
           branchPointMessageId: "assistant-1",
         }}
         mode="chat"
-        messages={[{ ...assistant, answerStatus: "answered", content: "Inherited turn." }]}
+        messages={[
+          {
+            ...assistant,
+            answerStatus: "answered",
+            content: "Inherited turn.",
+          },
+        ]}
         isLoadingMessages={false}
         isMessagesError={false}
         hasOlderMessages={false}
@@ -497,5 +506,87 @@ describe("AI Chat no-answer presentation", () => {
     const divider = screen.getByTestId("ai-chat-branch-divider");
     expect(divider).toHaveTextContent(en.AiChat.branchedFromDeletedChat);
     expect(divider.querySelector("button")).toBeNull();
+  });
+
+  it("places the Branched from divider after the last inherited turn when branchPointMessageId is redacted or absent", () => {
+    renderWithProviders(
+      <AiChatMessageList
+        organizationId="org-1"
+        projectId="project-1"
+        threadId="thread-redacted-branch"
+        activeThread={{
+          id: "thread-redacted-branch",
+          title: "Branch · Redacted Point",
+          createdAt: "2026-10-30T08:02:00Z",
+          updatedAt: "2026-10-30T08:05:00Z",
+          isBranched: true,
+          parentThreadId: "thread-parent",
+          parentThreadTitle: "Parent Chat",
+          branchPointMessageId: "msg-missing-redacted",
+        }}
+        mode="chat"
+        messages={[
+          {
+            id: "msg-inh-u1",
+            role: "user",
+            status: "ok",
+            content: "Inherited question",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:00:00Z",
+            isInherited: true,
+          },
+          {
+            id: "msg-inh-a1",
+            role: "assistant",
+            status: "ok",
+            answerStatus: "answered",
+            content: "Inherited answer before branch",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:00:03Z",
+            replyToMessageId: "msg-inh-u1",
+            isInherited: true,
+          },
+          {
+            id: "msg-own-u2",
+            role: "user",
+            status: "ok",
+            content: "New follow-up in branch",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+            createdAt: "2026-10-30T08:05:00Z",
+            isInherited: false,
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onSelectParentThread={vi.fn()}
+        onInspectEvidence={vi.fn()}
+        onJumpToTurn={vi.fn()}
+      />,
+      "en",
+    );
+
+    const inhTurn = document.getElementById("ai-chat-turn-msg-inh-a1")!;
+    const divider = screen.getByTestId("ai-chat-branch-divider");
+    const ownTurn = document.getElementById("ai-chat-turn-msg-own-u2")!;
+    expect(
+      inhTurn.compareDocumentPosition(divider) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      divider.compareDocumentPosition(ownTurn) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 });

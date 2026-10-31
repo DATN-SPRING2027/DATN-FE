@@ -7,6 +7,7 @@ import {
   aiChatKeys,
   useBranchAiChatThreadMutation,
   useDeleteAiChatThreadMutation,
+  useUpdateAiChatThreadMutation,
 } from "./useAiChat";
 
 const { apiClientMock } = vi.hoisted(() => ({
@@ -38,7 +39,10 @@ describe("useAiChat branch & delete cache lineage synchronization", () => {
 
   it("posts to the branch endpoint with CSRF headers and prepends the branched thread in cache", async () => {
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
     });
     const parentThread: AiChatThread = {
       id: "thread-parent",
@@ -96,7 +100,10 @@ describe("useAiChat branch & delete cache lineage synchronization", () => {
 
   it("clears parentThreadId and parentThreadTitle on child branches when the parent thread is deleted", async () => {
     const queryClient = new QueryClient({
-      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
     });
     const parentThread: AiChatThread = {
       id: "thread-parent",
@@ -138,6 +145,65 @@ describe("useAiChat branch & delete cache lineage synchronization", () => {
         parentThreadId: null,
         parentThreadTitle: null,
       },
+    ]);
+  });
+
+  it("propagates renamed parent title to cached child branches immediately", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const parentThread: AiChatThread = {
+      id: "thread-parent",
+      title: "Old Parent Title",
+      createdAt: "2026-10-30T08:00:00Z",
+      updatedAt: "2026-10-30T08:10:00Z",
+    };
+    const childThread: AiChatThread = {
+      id: "thread-branch-1",
+      title: "Branch · Old Parent Title",
+      createdAt: "2026-10-30T08:15:00Z",
+      updatedAt: "2026-10-30T08:15:00Z",
+      isBranched: true,
+      parentThreadId: "thread-parent",
+      parentThreadTitle: "Old Parent Title",
+      branchPointMessageId: "msg-a2",
+    };
+    queryClient.setQueryData<readonly AiChatThread[]>(
+      aiChatKeys.threads("org-1", "proj-1"),
+      [childThread, parentThread],
+    );
+
+    const renamedParent: AiChatThread = {
+      ...parentThread,
+      title: "New Security Architecture Title",
+      updatedAt: "2026-10-30T08:20:00Z",
+    };
+    apiClientMock.mockResolvedValueOnce(renamedParent);
+
+    const { result } = renderHook(
+      () => useUpdateAiChatThreadMutation("org-1", "proj-1"),
+      { wrapper: createWrapper(queryClient) },
+    );
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        threadId: "thread-parent",
+        title: "New Security Architecture Title",
+      });
+    });
+
+    const cached = queryClient.getQueryData<readonly AiChatThread[]>(
+      aiChatKeys.threads("org-1", "proj-1"),
+    );
+    expect(cached).toEqual([
+      {
+        ...childThread,
+        parentThreadTitle: "New Security Architecture Title",
+      },
+      renamedParent,
     ]);
   });
 });

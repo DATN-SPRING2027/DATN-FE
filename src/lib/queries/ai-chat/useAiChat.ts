@@ -102,9 +102,13 @@ export function useUpdateAiChatThreadMutation(
       queryClient.setQueryData<readonly AiChatThread[]>(
         aiChatKeys.threads(organizationId, projectId),
         (existing) =>
-          (existing ?? []).map((item) =>
-            item.id === updated.id ? updated : item,
-          ),
+          (existing ?? []).map((item) => {
+            if (item.id === updated.id) return updated;
+            if (item.parentThreadId === updated.id) {
+              return { ...item, parentThreadTitle: updated.title };
+            }
+            return item;
+          }),
       );
     },
   });

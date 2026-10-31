@@ -254,9 +254,8 @@ function AiChatWorkspaceContent() {
   const [branchingMessageId, setBranchingMessageId] = useState<string | null>(
     null,
   );
-  const [localBranchedThreadsById, setLocalBranchedThreadsById] = useState<
-    Record<string, AiChatThread>
-  >({});
+  const [localBranchedThreadsByScope, setLocalBranchedThreadsByScope] =
+    useState<Record<string, Record<string, AiChatThread>>>({});
   const [branchNotice, setBranchNotice] = useState<{
     branchId: string;
     parentThreadId: string | null;
@@ -264,6 +263,7 @@ function AiChatWorkspaceContent() {
   } | null>(null);
 
   const abortControllerRef = useRef<AbortController | null>(null);
+  const branchNavEpochRef = useRef(0);
   const composerTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const engineMenuRef = useRef<HTMLDivElement | null>(null);
   const projectMenuRef = useRef<HTMLDivElement | null>(null);
@@ -377,23 +377,28 @@ function AiChatWorkspaceContent() {
     return () => window.clearTimeout(timer);
   }, [branchNotice]);
 
+  const currentScopeBranchedThreads = useMemo(
+    () => localBranchedThreadsByScope[pinnedStorageKey] ?? {},
+    [localBranchedThreadsByScope, pinnedStorageKey],
+  );
+
   const effectiveThreads: readonly AiChatThread[] = useMemo(() => {
     const serverList = threadsQuery.data ?? [];
     const serverIds = new Set(serverList.map((item) => item.id));
-    const localOnly = Object.values(localBranchedThreadsById).filter(
+    const localOnly = Object.values(currentScopeBranchedThreads).filter(
       (item) => !serverIds.has(item.id),
     );
     return localOnly.length > 0 ? [...localOnly, ...serverList] : serverList;
-  }, [localBranchedThreadsById, threadsQuery.data]);
+  }, [currentScopeBranchedThreads, threadsQuery.data]);
 
   const activeThread: AiChatThread | null = useMemo(() => {
     if (!activeThreadId) return null;
     return (
       effectiveThreads.find((item) => item.id === activeThreadId) ??
-      localBranchedThreadsById[activeThreadId] ??
+      currentScopeBranchedThreads[activeThreadId] ??
       null
     );
-  }, [activeThreadId, effectiveThreads, localBranchedThreadsById]);
+  }, [activeThreadId, currentScopeBranchedThreads, effectiveThreads]);
 
   const messagesQuery = useAiChatMessagesInfiniteQuery(
     organizationId,
@@ -485,12 +490,12 @@ function AiChatWorkspaceContent() {
 
   const handleSelectProject = useCallback(
     (project: Project) => {
+      branchNavEpochRef.current += 1;
       abortControllerRef.current?.abort();
       abortControllerRef.current = null;
       setIsStreaming(false);
       setManualProjectId(project.id);
       setActiveThreadId(null);
-      setLocalBranchedThreadsById({});
       setBranchNotice(null);
       setBranchingMessageId(null);
       setRetrievalStepsByMessageId({});
@@ -509,11 +514,13 @@ function AiChatWorkspaceContent() {
   );
 
   const handleStartNewChat = useCallback(() => {
+    branchNavEpochRef.current += 1;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
     setActiveThreadId(null);
     setBranchNotice(null);
+    setBranchingMessageId(null);
     setValidationError(null);
     setPermissionBanner(null);
     setHighlightedTurnId(null);
@@ -523,10 +530,12 @@ function AiChatWorkspaceContent() {
   }, []);
 
   const handleSelectThread = useCallback((threadId: string) => {
+    branchNavEpochRef.current += 1;
     abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsStreaming(false);
     setActiveThreadId(threadId);
+    setBranchingMessageId(null);
     setValidationError(null);
     setPermissionBanner(null);
     setHighlightedTurnId(null);
@@ -534,9 +543,33 @@ function AiChatWorkspaceContent() {
 
   const handleRenameThread = useCallback(
     async (threadId: string, title: string) => {
-      await updateThreadMutation.mutateAsync({ threadId, title });
+      const updated = await updateThreadMutation.mutateAsync({
+        threadId,
+        title,
+      });
+      const resolvedTitle = updated?.title ?? title;
+      setLocalBranchedThreadsByScope((prev) => {
+        const scoped = prev[pinnedStorageKey];
+        if (!scoped) return prev;
+        const nextScoped: Record<string, AiChatThread> = {};
+        for (const [id, item] of Object.entries(scoped)) {
+          if (id === threadId) {
+            nextScoped[id] = { ...item, title: resolvedTitle };
+          } else if (item.parentThreadId === threadId) {
+            nextScoped[id] = { ...item, parentThreadTitle: resolvedTitle };
+          } else {
+            nextScoped[id] = item;
+          }
+        }
+        return { ...prev, [pinnedStorageKey]: nextScoped };
+      });
+      setBranchNotice((prev) =>
+        prev?.parentThreadId === threadId
+          ? { ...prev, parentTitle: resolvedTitle }
+          : prev,
+      );
     },
-    [updateThreadMutation],
+    [pinnedStorageKey, updateThreadMutation],
   );
 
   const handleDeleteThread = useCallback(
@@ -547,16 +580,18 @@ function AiChatWorkspaceContent() {
         delete next[threadId];
         return next;
       });
-      setLocalBranchedThreadsById((prev) => {
-        const next: Record<string, AiChatThread> = {};
-        for (const [id, item] of Object.entries(prev)) {
+      setLocalBranchedThreadsByScope((prev) => {
+        const scoped = prev[pinnedStorageKey];
+        if (!scoped) return prev;
+        const nextScoped: Record<string, AiChatThread> = {};
+        for (const [id, item] of Object.entries(scoped)) {
           if (id === threadId) continue;
-          next[id] =
+          nextScoped[id] =
             item.parentThreadId === threadId
               ? { ...item, parentThreadId: null, parentThreadTitle: null }
               : item;
         }
-        return next;
+        return { ...prev, [pinnedStorageKey]: nextScoped };
       });
       setBranchNotice((prev) =>
         prev?.branchId === threadId
@@ -1349,6 +1384,8 @@ function AiChatWorkspaceContent() {
         return;
       }
 
+      const requestEpoch = branchNavEpochRef.current;
+      const requestScopeKey = pinnedStorageKey;
       setBranchingMessageId(targetMessage.id);
       setValidationError(null);
       setPermissionBanner(null);
@@ -1358,10 +1395,16 @@ function AiChatWorkspaceContent() {
           threadId: activeThreadId,
           messageId: targetMessage.id,
         });
-        setLocalBranchedThreadsById((prev) => ({
+        setLocalBranchedThreadsByScope((prev) => ({
           ...prev,
-          [createdBranch.id]: createdBranch,
+          [requestScopeKey]: {
+            ...(prev[requestScopeKey] ?? {}),
+            [createdBranch.id]: createdBranch,
+          },
         }));
+        if (branchNavEpochRef.current !== requestEpoch) {
+          return;
+        }
         setActiveThreadId(createdBranch.id);
         setHighlightedTurnId(null);
         setIsMobileSidebarOpen(false);
@@ -1376,6 +1419,9 @@ function AiChatWorkspaceContent() {
           });
         }
       } catch (error) {
+        if (branchNavEpochRef.current !== requestEpoch) {
+          return;
+        }
         if (isProjectOrAuthAccessError(error)) {
           if (error.status === 401) {
             revalidateCurrentUserSession(queryClient);
@@ -1400,6 +1446,7 @@ function AiChatWorkspaceContent() {
       activeThreadId,
       branchThreadMutation,
       isStreaming,
+      pinnedStorageKey,
       queryClient,
       selectedProject,
       t,

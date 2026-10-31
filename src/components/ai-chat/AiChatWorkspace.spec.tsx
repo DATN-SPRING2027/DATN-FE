@@ -148,7 +148,9 @@ vi.mock("@/lib/queries/ai-chat/useAiAnswerActions", () => ({
 }));
 
 vi.mock("./AiChatMindMapPanel", () => ({
-  default: () => <aside data-testid="mind-map-workspace-panel">Cached map</aside>,
+  default: () => (
+    <aside data-testid="mind-map-workspace-panel">Cached map</aside>
+  ),
 }));
 
 function renderWorkspace() {
@@ -243,7 +245,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
         <AiChatWorkspace />
       </NextIntlClientProvider>,
     );
-    expect(screen.queryByTestId("mind-map-workspace-panel")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("mind-map-workspace-panel"),
+    ).not.toBeInTheDocument();
     expect(screen.getByTestId("ai-chat-mind-map-trigger")).toBeDisabled();
   });
 
@@ -282,12 +286,8 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(
       screen.queryAllByRole("group", { name: "Workspace mode" }),
     ).toHaveLength(0);
-    expect(
-      screen.queryAllByRole("button", { name: "Chat" }),
-    ).toHaveLength(0);
-    expect(
-      screen.queryAllByRole("button", { name: "Work" }),
-    ).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Chat" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Work" })).toHaveLength(0);
 
     fireEvent.click(
       within(sidebar).getByRole("button", {
@@ -297,9 +297,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(
       screen.queryAllByRole("group", { name: "Workspace mode" }),
     ).toHaveLength(0);
-    expect(
-      screen.queryAllByRole("button", { name: "Work" }),
-    ).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Work" })).toHaveLength(0);
   });
 
   it("keeps the focused composer mounted across Enter, thread creation, streaming and completion", async () => {
@@ -803,11 +801,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     });
 
     streamAiChatRegenerateMock.mockImplementationOnce(
-      async ({
-        onEvent,
-      }: {
-        onEvent: (event: AiChatStreamEvent) => void;
-      }) => {
+      async ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
         onEvent({
           event: "started",
           data: {
@@ -917,9 +911,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       });
     });
 
-    expect(
-      screen.getAllByText("Search project knowledge base"),
-    ).toHaveLength(1);
+    expect(screen.getAllByText("Search project knowledge base")).toHaveLength(
+      1,
+    );
     expect(screen.getByText("In progress…")).toBeVisible();
 
     await act(async () => {
@@ -936,9 +930,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       });
     });
 
-    expect(
-      screen.getAllByText("Search project knowledge base"),
-    ).toHaveLength(1);
+    expect(screen.getAllByText("Search project knowledge base")).toHaveLength(
+      1,
+    );
     expect(screen.queryByText("In progress…")).not.toBeInTheDocument();
     expect(screen.getByText("420ms")).toBeVisible();
     expect(screen.getByText("4 items")).toBeVisible();
@@ -1056,15 +1050,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     });
 
     fireEvent.click(screen.getByRole("button", { name: /Processed/i }));
-    expect(
-      screen.getByText("Analyzing question & planning"),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Search project knowledge base"),
-    ).toBeVisible();
-    expect(
-      screen.getByText("Synthesize & verify citations"),
-    ).toBeVisible();
+    expect(screen.getByText("Analyzing question & planning")).toBeVisible();
+    expect(screen.getByText("Search project knowledge base")).toBeVisible();
+    expect(screen.getByText("Synthesize & verify citations")).toBeVisible();
   });
 
   it("opens the composer project menu anchored at the composer instead of jumping to the top header", () => {
@@ -1327,9 +1315,9 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     ).toBeInTheDocument();
     const toast = screen.getByTestId("ai-chat-branch-toast");
     expect(toast).toHaveTextContent("Branched in new chat");
-    expect(
-      screen.getByTestId("ai-chat-branch-divider"),
-    ).toHaveTextContent("Branched from SAG BFF Security Review");
+    expect(screen.getByTestId("ai-chat-branch-divider")).toHaveTextContent(
+      "Branched from SAG BFF Security Review",
+    );
 
     // Clicking "View original" in the toast returns to parent thread-1
     fireEvent.click(
@@ -1337,6 +1325,98 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     );
     expect(
       screen.queryByTestId("ai-chat-branch-divider"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not hijack active thread or leak sidebar branches when switching projects during an in-flight branch request", async () => {
+    useMessagesInfiniteMock.mockReturnValue({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: "msg-u1",
+                role: "user",
+                content: "Initial prompt",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-28T10:00:00Z",
+              },
+              {
+                id: "msg-a1",
+                role: "assistant",
+                content: "Initial grounded answer.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-28T10:00:04Z",
+                replyToMessageId: "msg-u1",
+              },
+            ],
+            nextCursor: null,
+            hasMore: false,
+          } satisfies AiChatMessagePage,
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    let resolveBranch!: (value: AiChatThread) => void;
+    branchThreadMutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<AiChatThread>((resolve) => {
+          resolveBranch = resolve;
+        }),
+    );
+
+    renderWorkspace();
+    fireEvent.click(
+      screen.getByRole("button", { name: "SAG BFF Security Review" }),
+    );
+    fireEvent.click(screen.getByTestId("ai-chat-more-actions-msg-a1"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Branch in new chat" }),
+    );
+    expect(branchThreadMutateAsync).toHaveBeenCalledTimes(1);
+
+    // Switch project while branch creation is still in-flight
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select project scope" }),
+    );
+    fireEvent.click(screen.getByText("Architecture Docs"));
+    useThreadsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    await act(async () => {
+      resolveBranch({
+        id: "stale-branch-proj-core",
+        title: "Stale Branch From Core",
+        createdAt: "2026-10-28T10:15:00Z",
+        updatedAt: "2026-10-28T10:15:00Z",
+        isBranched: true,
+        parentThreadId: "thread-1",
+        parentThreadTitle: "SAG BFF Security Review",
+        branchPointMessageId: "msg-a1",
+      });
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Stale Branch From Core" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ai-chat-branch-toast"),
     ).not.toBeInTheDocument();
   });
 });
