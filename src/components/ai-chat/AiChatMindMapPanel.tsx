@@ -8,12 +8,8 @@ import {
   ArrowRightIcon,
   ChatIcon,
   CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronRightIcon,
-  ChevronUpIcon,
   CloseLineIcon,
   DocsIcon,
-  InfoIcon,
   LockIcon,
   MaximizeIcon,
   MindMapIcon,
@@ -56,6 +52,14 @@ export type AiChatMindMapPanelProps = Readonly<{
   onInspectEvidence: (evidence: InspectedEvidence) => void;
   onAskBranch: (prompt: string) => void;
 }>;
+
+function prefersSmoothMotion(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: no-preference)").matches
+  );
+}
 
 function findNodeAnywhere(
   node: AiChatMindMapNode | null,
@@ -104,7 +108,6 @@ export default function AiChatMindMapPanel({
   userId,
   organizationId,
   projectId,
-  projectName,
   isChatBusy,
   onClose,
   onInspectEvidence,
@@ -123,7 +126,8 @@ export default function AiChatMindMapPanel({
     string | null
   >(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [isInspectorCollapsed, setIsInspectorCollapsed] = useState(false);
+  const [isClosingFullscreen, setIsClosingFullscreen] = useState(false);
+  const fullscreenTimerRef = useRef<number | null>(null);
 
   const scopeKey = `${userId}:${organizationId}:${projectId}`;
   const [prevScopeKey, setPrevScopeKey] = useState(scopeKey);
@@ -134,6 +138,24 @@ export default function AiChatMindMapPanel({
     setManualSubmittedTopic(null);
     setTopicValidationError(null);
   }
+
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
+    setManualSubmittedTopic(null);
+    setIsClosingFullscreen(false);
+    if (!isOpen) {
+      setIsFullscreen(false);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (fullscreenTimerRef.current !== null) {
+        window.clearTimeout(fullscreenTimerRef.current);
+      }
+    };
+  }, []);
 
   const {
     mindMap,
@@ -148,7 +170,8 @@ export default function AiChatMindMapPanel({
     organizationId,
     projectId,
     topic: activeTopic,
-    enabled: isOpen && manualSubmittedTopic !== activeTopic,
+    enabled: isOpen,
+    skipAutoFetch: manualSubmittedTopic === activeTopic,
   });
 
   const autoInitializedRef = useRef<string | null>(null);
@@ -176,16 +199,48 @@ export default function AiChatMindMapPanel({
     userId,
   ]);
 
+  const handleExitFullscreenImmediate = useCallback(() => {
+    if (fullscreenTimerRef.current !== null) {
+      window.clearTimeout(fullscreenTimerRef.current);
+      fullscreenTimerRef.current = null;
+    }
+    setIsClosingFullscreen(false);
+    setIsFullscreen(false);
+  }, []);
+
+  const handleToggleFullscreen = useCallback(() => {
+    if (!isFullscreen) {
+      if (fullscreenTimerRef.current !== null) {
+        window.clearTimeout(fullscreenTimerRef.current);
+        fullscreenTimerRef.current = null;
+      }
+      setIsClosingFullscreen(false);
+      setIsFullscreen(true);
+      return;
+    }
+    if (!prefersSmoothMotion()) {
+      handleExitFullscreenImmediate();
+      return;
+    }
+    if (isClosingFullscreen) return;
+    setIsClosingFullscreen(true);
+    fullscreenTimerRef.current = window.setTimeout(() => {
+      fullscreenTimerRef.current = null;
+      setIsClosingFullscreen(false);
+      setIsFullscreen(false);
+    }, 170);
+  }, [handleExitFullscreenImmediate, isClosingFullscreen, isFullscreen]);
+
   useEffect(() => {
     if (!isFullscreen) return;
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        setIsFullscreen(false);
+        handleExitFullscreenImmediate();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [isFullscreen]);
+  }, [handleExitFullscreenImmediate, isFullscreen]);
 
   const tree = mindMap?.tree ?? null;
   const citations = mindMap?.citations;
@@ -248,15 +303,43 @@ export default function AiChatMindMapPanel({
     );
   }, [effectiveSelectedNodeId, layout, tree]);
 
-  const selectedNodeCitations = useMemo(() => {
-    if (!selectedPositionedNode) return [];
-    const items: AiChatCitation[] = [];
-    for (const num of selectedPositionedNode.node.citationNumbers) {
-      const match = citationsByNumber.get(num);
-      if (match) items.push(match);
-    }
-    return items;
-  }, [citationsByNumber, selectedPositionedNode]);
+  const resolveCitationsForNode = useCallback(
+    (item: PositionedMindMapNode | null): AiChatCitation[] => {
+      if (!item) return [];
+      const resolved: AiChatCitation[] = [];
+      for (const num of item.node.citationNumbers) {
+        const match = citationsByNumber.get(num);
+        if (match) resolved.push(match);
+      }
+      return resolved;
+    },
+    [citationsByNumber],
+  );
+
+  const selectedNodeCitations = useMemo(
+    () => resolveCitationsForNode(selectedPositionedNode),
+    [resolveCitationsForNode, selectedPositionedNode],
+  );
+
+  const openEvidenceForNode = useCallback(
+    (item: PositionedMindMapNode, preferredCitation?: AiChatCitation) => {
+      const nodeCitations = resolveCitationsForNode(item);
+      const primary = preferredCitation ?? nodeCitations[0];
+      if (!primary) return;
+      const focusTerms = [
+        item.node.label,
+        ...item.ancestorLabels.slice(1),
+      ].filter(Boolean);
+      onInspectEvidence({
+        kind: "document",
+        citation: primary,
+        focusLabel: item.depth > 0 ? item.node.label : undefined,
+        focusTerms,
+        relatedCitations: nodeCitations,
+      });
+    },
+    [onInspectEvidence, resolveCitationsForNode],
+  );
 
   const handleSelectNode = useCallback(
     (nodeId: string) => {
@@ -272,6 +355,18 @@ export default function AiChatMindMapPanel({
     },
     [tree, treeIdentity],
   );
+
+  const handleClearBranchSelection = useCallback(() => {
+    if (!tree) return;
+    setTreeInteraction((prev) => ({
+      identity: treeIdentity,
+      expandedIds:
+        prev.identity === treeIdentity
+          ? prev.expandedIds
+          : createDefaultExpandedIds(tree),
+      selectedNodeId: tree.id,
+    }));
+  }, [tree, treeIdentity]);
 
   const handleToggleNode = useCallback(
     (nodeId: string) => {
@@ -323,7 +418,10 @@ export default function AiChatMindMapPanel({
     (event: React.FormEvent<HTMLFormElement>) => {
       event.preventDefault();
       const normalized = normalizeMindMapTopic(topicInput);
-      if (normalized.length > AI_MIND_MAP_MAX_TOPIC_LENGTH) {
+      if (
+        normalized.length > AI_MIND_MAP_MAX_TOPIC_LENGTH ||
+        normalized.toUpperCase().length > AI_MIND_MAP_MAX_TOPIC_LENGTH
+      ) {
         setTopicValidationError(
           t("mindMapTopicValidationLength", {
             max: AI_MIND_MAP_MAX_TOPIC_LENGTH,
@@ -372,10 +470,16 @@ export default function AiChatMindMapPanel({
       promptLocale,
     );
     if (isFullscreen) {
-      setIsFullscreen(false);
+      handleExitFullscreenImmediate();
     }
     onAskBranch(prompt);
-  }, [isFullscreen, onAskBranch, promptLocale, selectedPositionedNode]);
+  }, [
+    handleExitFullscreenImmediate,
+    isFullscreen,
+    onAskBranch,
+    promptLocale,
+    selectedPositionedNode,
+  ]);
 
   if (!isOpen) {
     return null;
@@ -385,7 +489,8 @@ export default function AiChatMindMapPanel({
   const isServerFailure = isError && !isAccessDenied;
   const isSynthesizing =
     isGenerating || (!isError && mindMap?.status === "uninitialized");
-  const isInitialChecking = !mindMap && isCheckingSaved && !isGenerating && !isError;
+  const isInitialChecking =
+    !mindMap && isCheckingSaved && !isGenerating && !isError;
   const coverage = mindMap?.coverage;
   const normalizedInput = normalizeMindMapTopic(topicInput);
   const isSameActiveTopic =
@@ -394,27 +499,26 @@ export default function AiChatMindMapPanel({
   const selectedPalette = getMindMapBranchPalette(
     selectedPositionedNode?.branchIndex ?? -1,
   );
+  const activeBranchSelection =
+    selectedPositionedNode && selectedPositionedNode.depth > 0
+      ? selectedPositionedNode
+      : null;
 
   const panelBody = (
     <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gpt-sidebar">
-      {/* Compact Studio Header */}
+      {/* Clean Single-Line Studio Header */}
       <div className="flex shrink-0 items-center justify-between gap-2.5 border-b border-gray-200/80 px-3.5 py-2.5 dark:border-white/10">
         <div className="flex min-w-0 items-center gap-2.5">
           <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-200/70 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
             <MindMapIcon aria-hidden="true" className="size-4" />
           </span>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                {t("mindMapTitle")}
-              </h2>
-              <span className="inline-flex shrink-0 items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tracking-wide text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
-                {t("mindMapStudioBadge")}
-              </span>
-            </div>
-            <p className="line-clamp-1 text-xs text-gray-500 dark:text-gray-400">
-              {t("mindMapSubtitle", { project: projectName })}
-            </p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+              {t("mindMapTitle")}
+            </h2>
+            <span className="inline-flex shrink-0 items-center rounded-md bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tracking-wide text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
+              {t("mindMapStudioBadge")}
+            </span>
           </div>
         </div>
 
@@ -422,25 +526,31 @@ export default function AiChatMindMapPanel({
           <button
             type="button"
             data-testid="mind-map-fullscreen-toggle"
-            onClick={() => setIsFullscreen((prev) => !prev)}
+            onClick={handleToggleFullscreen}
             aria-label={
               isFullscreen
                 ? t("mindMapExitFullscreen")
                 : t("mindMapOpenFullscreen")
             }
-            className="inline-flex size-8 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            className="group inline-flex size-8 items-center justify-center rounded-xl text-gray-500 transition-all duration-200 hover:bg-brand-50 hover:text-brand-600 active:scale-92 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
           >
             {isFullscreen ? (
-              <MinimizeIcon aria-hidden="true" className="size-4" />
+              <MinimizeIcon
+                aria-hidden="true"
+                className="size-4 transition-transform duration-200 group-hover:scale-90"
+              />
             ) : (
-              <MaximizeIcon aria-hidden="true" className="size-4" />
+              <MaximizeIcon
+                aria-hidden="true"
+                className="size-4 transition-transform duration-200 group-hover:scale-110"
+              />
             )}
           </button>
 
           <button
             type="button"
             onClick={() => {
-              setIsFullscreen(false);
+              handleExitFullscreenImmediate();
               onClose();
             }}
             aria-label={t("mindMapClosePanel")}
@@ -625,141 +735,155 @@ export default function AiChatMindMapPanel({
       ) : (
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
           {/* Floating Glass Coverage & Saved Snapshot Strip */}
-          <div className="pointer-events-none absolute top-2.5 start-3 end-3 z-10 flex flex-col gap-1.5">
-            <div className="flex flex-wrap items-center gap-1.5 tabular-nums">
-              <span className="inline-flex items-center rounded-full border border-gray-200/90 bg-white/90 px-2.5 py-0.5 text-xs font-medium text-gray-700 shadow-theme-xs backdrop-blur-md dark:border-white/12 dark:bg-gpt-popover/90 dark:text-gray-200">
-                {mindMap.topic
-                  ? t("mindMapTopicActiveBadge", { topic: mindMap.topic })
-                  : t("mindMapOverviewBadge")}
-              </span>
+          <div className="pointer-events-none absolute top-2.5 start-3 end-3 z-10 flex flex-wrap items-center gap-1.5 tabular-nums">
+            <span className="inline-flex items-center rounded-full border border-gray-200/90 bg-white/90 px-2.5 py-0.5 text-xs font-medium text-gray-700 shadow-theme-xs backdrop-blur-md dark:border-white/12 dark:bg-gpt-popover/90 dark:text-gray-200">
+              {mindMap.topic
+                ? t("mindMapTopicActiveBadge", { topic: mindMap.topic })
+                : t("mindMapOverviewBadge")}
+            </span>
 
-              {coverage && (
-                <>
-                  <span className="inline-flex items-center rounded-full border border-success-200/90 bg-success-50/92 px-2.5 py-0.5 text-xs font-semibold text-success-700 shadow-theme-xs backdrop-blur-md dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-300">
-                    {t("mindMapCoverageUsed", {
-                      used: coverage.usedDocumentCount,
-                      total: coverage.accessibleReadyDocumentCount,
-                    })}
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-gray-200/90 bg-white/90 px-2.5 py-0.5 text-xs text-gray-600 shadow-theme-xs backdrop-blur-md dark:border-white/12 dark:bg-gpt-popover/90 dark:text-gray-300">
-                    {t("mindMapCoverageEvidence", {
-                      count: coverage.evidenceUnitCount,
-                    })}
-                  </span>
-                  {coverage.omittedDocumentCount > 0 && (
-                    <span className="inline-flex items-center rounded-full border border-warning-200/90 bg-warning-50/92 px-2.5 py-0.5 text-xs font-medium text-warning-800 shadow-theme-xs backdrop-blur-md dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
-                      {t("mindMapCoverageOmitted", {
-                        count: coverage.omittedDocumentCount,
-                      })}
-                    </span>
-                  )}
-                  {coverage.pendingDocumentCount > 0 && (
-                    <span className="inline-flex items-center rounded-full border border-blue-light-200/90 bg-blue-light-50/92 px-2.5 py-0.5 text-xs font-medium text-blue-light-700 shadow-theme-xs backdrop-blur-md dark:border-blue-light-500/30 dark:bg-blue-light-500/15 dark:text-blue-light-300">
-                      {t("mindMapCoveragePending", {
-                        count: coverage.pendingDocumentCount,
-                      })}
-                    </span>
-                  )}
-                </>
-              )}
-
-              {mindMap.hasSourceUpdates ? (
-                <button
-                  type="button"
-                  data-testid="mind-map-new-docs-refresh"
-                  onClick={handleForceRefresh}
-                  title={t("mindMapNewDocsHint")}
-                  className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-warning-300 bg-warning-50/95 px-2.5 py-0.5 text-xs font-semibold text-warning-800 shadow-theme-xs backdrop-blur-md transition-colors hover:bg-warning-100 dark:border-warning-500/40 dark:bg-warning-500/20 dark:text-warning-200 dark:hover:bg-warning-500/30"
-                >
-                  <RefreshIcon aria-hidden="true" className="size-3" />
-                  <span>{t("mindMapNewDocsBadge")}</span>
-                </button>
-              ) : mindMap.cached ? (
-                <span
-                  data-testid="mind-map-saved-badge"
-                  className="inline-flex items-center gap-1 rounded-full border border-brand-200/90 bg-brand-50/92 px-2.5 py-0.5 text-xs font-medium text-brand-700 shadow-theme-xs backdrop-blur-md dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
-                >
-                  <CheckCircleIcon aria-hidden="true" className="size-3.5" />
-                  <span>{t("mindMapSavedBadge")}</span>
+            {coverage && (
+              <>
+                <span className="inline-flex items-center rounded-full border border-success-200/90 bg-success-50/92 px-2.5 py-0.5 text-xs font-semibold text-success-700 shadow-theme-xs backdrop-blur-md dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-300">
+                  {t("mindMapCoverageUsed", {
+                    used: coverage.usedDocumentCount,
+                    total: coverage.accessibleReadyDocumentCount,
+                  })}
                 </span>
-              ) : null}
-            </div>
-
-            {mindMap.generationMode === "outline_fallback" && (
-              <div
-                data-testid="mind-map-fallback-badge"
-                className="pointer-events-auto flex max-w-xl items-start gap-2 rounded-xl border border-warning-200 bg-warning-50/95 px-3 py-2 text-xs text-warning-900 shadow-theme-xs backdrop-blur-md dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-200"
-              >
-                <AlertIcon
-                  aria-hidden="true"
-                  className="mt-0.5 size-4 shrink-0 text-warning-600 dark:text-warning-300"
-                />
-                <div className="min-w-0">
-                  <p className="font-semibold">{t("mindMapFallbackBadge")}</p>
-                  <p className="mt-0.5 text-xs opacity-90">
-                    {t("mindMapFallbackDesc")}
-                  </p>
-                </div>
-              </div>
+                <span className="inline-flex items-center rounded-full border border-gray-200/90 bg-white/90 px-2.5 py-0.5 text-xs text-gray-600 shadow-theme-xs backdrop-blur-md dark:border-white/12 dark:bg-gpt-popover/90 dark:text-gray-300">
+                  {t("mindMapCoverageEvidence", {
+                    count: coverage.evidenceUnitCount,
+                  })}
+                </span>
+                {coverage.omittedDocumentCount > 0 && (
+                  <span className="inline-flex items-center rounded-full border border-warning-200/90 bg-warning-50/92 px-2.5 py-0.5 text-xs font-medium text-warning-800 shadow-theme-xs backdrop-blur-md dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-300">
+                    {t("mindMapCoverageOmitted", {
+                      count: coverage.omittedDocumentCount,
+                    })}
+                  </span>
+                )}
+                {coverage.pendingDocumentCount > 0 && (
+                  <span className="inline-flex items-center rounded-full border border-blue-light-200/90 bg-blue-light-50/92 px-2.5 py-0.5 text-xs font-medium text-blue-light-700 shadow-theme-xs backdrop-blur-md dark:border-blue-light-500/30 dark:bg-blue-light-500/15 dark:text-blue-light-300">
+                    {t("mindMapCoveragePending", {
+                      count: coverage.pendingDocumentCount,
+                    })}
+                  </span>
+                )}
+              </>
             )}
+
+            {mindMap.hasSourceUpdates ? (
+              <button
+                type="button"
+                data-testid="mind-map-new-docs-refresh"
+                onClick={handleForceRefresh}
+                title={t("mindMapNewDocsHint")}
+                className="pointer-events-auto inline-flex items-center gap-1 rounded-full border border-warning-300 bg-warning-50/95 px-2.5 py-0.5 text-xs font-semibold text-warning-800 shadow-theme-xs backdrop-blur-md transition-colors hover:bg-warning-100 dark:border-warning-500/40 dark:bg-warning-500/20 dark:text-warning-200 dark:hover:bg-warning-500/30"
+              >
+                <RefreshIcon aria-hidden="true" className="size-3" />
+                <span>{t("mindMapNewDocsBadge")}</span>
+              </button>
+            ) : mindMap.cached ? (
+              <span
+                data-testid="mind-map-saved-badge"
+                className="inline-flex items-center gap-1 rounded-full border border-brand-200/90 bg-brand-50/92 px-2.5 py-0.5 text-xs font-medium text-brand-700 shadow-theme-xs backdrop-blur-md dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300"
+              >
+                <CheckCircleIcon aria-hidden="true" className="size-3.5" />
+                <span>{t("mindMapSavedBadge")}</span>
+              </span>
+            ) : null}
           </div>
 
-          {/* Full-Bleed Interactive SVG Canvas + Collapsible Floating Glass Inspector */}
+          {/* Full-Bleed Interactive SVG Canvas */}
           <div className="relative flex min-h-0 flex-1 flex-col">
             <AiChatMindMapCanvas
               key={isFullscreen ? "fullscreen" : "docked"}
               layout={layout}
               selectedNodeId={selectedPositionedNode?.node.id ?? null}
               isFullscreen={isFullscreen}
-              inspectorReserveWidth={
-                isFullscreen && !isInspectorCollapsed ? 388 : 0
-              }
+              inspectorReserveWidth={0}
               onSelectNode={handleSelectNode}
               onToggleNode={handleToggleNode}
+              onInspectNodeSources={(item) => openEvidenceForNode(item)}
               onExpandAll={handleExpandAll}
               onCollapseDefault={handleCollapseDefault}
             />
 
-            {selectedPositionedNode && (
-              <aside
+            {/* Minimal Quick-Action Bar — shown ONLY when a non-root branch node is selected */}
+            {activeBranchSelection && (
+              <div
+                key={activeBranchSelection.node.id}
+                data-testid="mind-map-branch-quickbar"
                 className={cn(
-                  "flex shrink-0 flex-col bg-white/95 backdrop-blur-md transition-all dark:bg-gpt-sidebar/95",
+                  "continuum-quickbar-enter shrink-0 bg-white/95 backdrop-blur-md dark:bg-gpt-sidebar/95",
                   isFullscreen
-                    ? cn(
-                        "border-t border-gray-200/80 lg:absolute lg:end-4 lg:z-20 lg:w-92 lg:rounded-2xl lg:border lg:shadow-theme-xl dark:border-white/12",
-                        isInspectorCollapsed
-                          ? "lg:top-14"
-                          : "max-h-64 lg:top-14 lg:max-h-[calc(100%-5rem)]",
-                      )
-                    : cn(
-                        "border-t border-gray-200/80 dark:border-white/10",
-                        isInspectorCollapsed ? "" : "max-h-56",
-                      ),
+                    ? "flex flex-col gap-2 border-t border-gray-200/80 px-3.5 py-2.5 lg:absolute lg:end-4 lg:bottom-3 lg:z-20 lg:max-w-2xl lg:flex-row lg:items-center lg:gap-2.5 lg:rounded-2xl lg:border lg:py-2 lg:shadow-theme-xl dark:border-white/12"
+                    : "flex flex-col gap-2 border-t border-gray-200/80 px-3.5 py-2.5 dark:border-white/10",
                 )}
               >
-                {/* Inspector Header Bar (Always visible, collapsible) */}
-                <div className="flex shrink-0 items-center justify-between gap-2 px-3.5 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div className="flex min-w-0 items-center justify-between gap-2 lg:flex-1">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
                     <span
                       aria-hidden="true"
                       className={cn(
                         "size-2.5 shrink-0 rounded-full",
-                        selectedPositionedNode.depth === 0
-                          ? "bg-brand-600 dark:bg-brand-400"
-                          : selectedPalette.dotBg,
+                        selectedPalette.dotBg,
                       )}
                     />
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-                        {t("mindMapInspectorBadge")}
-                      </p>
-                      <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                        {selectedPositionedNode.node.label}
-                      </h3>
-                    </div>
+                    <span
+                      title={activeBranchSelection.node.label}
+                      className="truncate text-xs font-bold text-gray-900 dark:text-white"
+                    >
+                      {activeBranchSelection.node.label}
+                    </span>
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-1.5">
+                  {!isFullscreen && (
+                    <button
+                      type="button"
+                      data-testid="mind-map-selection-clear"
+                      onClick={handleClearBranchSelection}
+                      aria-label={t("mindMapClearSelectionAria")}
+                      className="inline-flex size-6 shrink-0 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                    >
+                      <CloseLineIcon aria-hidden="true" className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div
+                  className={cn(
+                    "flex flex-wrap items-center gap-1.5",
+                    !isFullscreen && "justify-between",
+                  )}
+                >
+                  <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                    {selectedNodeCitations.map((citation) => (
+                      <button
+                        key={citation.number}
+                        type="button"
+                        data-testid={`mind-map-citation-${citation.number}`}
+                        onClick={() =>
+                          openEvidenceForNode(activeBranchSelection, citation)
+                        }
+                        className={cn(
+                          "inline-flex max-w-48 items-center gap-1 rounded-lg border border-gray-200/90 px-2 py-1 text-xs font-semibold transition-all hover:scale-102 active:scale-98 dark:border-white/12",
+                          selectedPalette.inspectorBadgeBg,
+                          selectedPalette.inspectorBadgeText,
+                        )}
+                      >
+                        <DocsIcon aria-hidden="true" className="size-3 shrink-0" />
+                        <span className="tabular-nums">[{citation.number}]</span>
+                        <span className="truncate font-medium">
+                          {citation.documentName ??
+                            citation.sourceName ??
+                            citation.documentId}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="ms-auto flex shrink-0 items-center gap-1.5">
                     <button
                       type="button"
                       data-testid="mind-map-ask-branch"
@@ -767,124 +891,26 @@ export default function AiChatMindMapPanel({
                       title={
                         isChatBusy ? t("mindMapAskInChatBusyHint") : undefined
                       }
-                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-theme-xs transition-colors hover:bg-brand-700 dark:bg-brand-500 dark:hover:bg-brand-600"
+                      className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-2.5 py-1.5 text-xs font-semibold text-white shadow-theme-xs transition-all hover:bg-brand-700 active:scale-98 dark:bg-brand-500 dark:hover:bg-brand-600"
                     >
                       <ChatIcon aria-hidden="true" className="size-3.5" />
                       <span>{t("mindMapAskInChatCta")}</span>
                     </button>
 
-                    <button
-                      type="button"
-                      data-testid="mind-map-inspector-toggle"
-                      aria-expanded={!isInspectorCollapsed}
-                      aria-label={
-                        isInspectorCollapsed
-                          ? t("mindMapExpandInspector")
-                          : t("mindMapCollapseInspector")
-                      }
-                      onClick={() => setIsInspectorCollapsed((prev) => !prev)}
-                      className="inline-flex size-7 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-                    >
-                      {isInspectorCollapsed ? (
-                        <ChevronUpIcon aria-hidden="true" className="size-4" />
-                      ) : (
-                        <ChevronDownIcon aria-hidden="true" className="size-4" />
-                      )}
-                    </button>
+                    {isFullscreen && (
+                      <button
+                        type="button"
+                        data-testid="mind-map-selection-clear"
+                        onClick={handleClearBranchSelection}
+                        aria-label={t("mindMapClearSelectionAria")}
+                        className="inline-flex size-7 items-center justify-center rounded-lg text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+                      >
+                        <CloseLineIcon aria-hidden="true" className="size-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
-
-                {/* Expanded Inspector Body */}
-                {!isInspectorCollapsed && (
-                  <div className="flex min-h-0 flex-1 flex-col justify-between gap-2.5 overflow-y-auto border-t border-gray-100 px-3.5 pt-2.5 pb-3 dark:border-white/10">
-                    <div className="space-y-2.5">
-                      {selectedPositionedNode.ancestorLabels.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-                          {selectedPositionedNode.ancestorLabels.map(
-                            (crumb, idx) => (
-                              <span
-                                key={`${crumb}-${idx}`}
-                                className="inline-flex max-w-44 items-center gap-1"
-                              >
-                                {idx > 0 && (
-                                  <ChevronRightIcon
-                                    aria-hidden="true"
-                                    className="size-3 shrink-0 text-gray-400 rtl:rotate-180"
-                                  />
-                                )}
-                                <span className="truncate">{crumb}</span>
-                              </span>
-                            ),
-                          )}
-                        </div>
-                      )}
-
-                      <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                        {selectedPositionedNode.node.summary ||
-                          t("mindMapNodeSummaryEmpty")}
-                      </p>
-
-                      <div>
-                        <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                          {t("mindMapNodeCitationsHeading")}
-                        </p>
-                        {selectedNodeCitations.length === 0 ? (
-                          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                            {t("mindMapNodeNoCitations")}
-                          </p>
-                        ) : (
-                          <div className="mt-1.5 flex flex-wrap gap-1.5">
-                            {selectedNodeCitations.map((citation) => (
-                              <button
-                                key={citation.number}
-                                type="button"
-                                data-testid={`mind-map-citation-${citation.number}`}
-                                onClick={() =>
-                                  onInspectEvidence({
-                                    kind: "document",
-                                    citation,
-                                  })
-                                }
-                                className={cn(
-                                  "inline-flex max-w-full items-center gap-1.5 rounded-lg border px-2.5 py-1 text-start text-xs font-medium transition-colors",
-                                  selectedPositionedNode.depth === 0
-                                    ? "border-brand-200 bg-brand-50/80 text-brand-700 hover:bg-brand-100 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
-                                    : cn(
-                                        "border-gray-200/90 hover:opacity-90 dark:border-white/12",
-                                        selectedPalette.inspectorBadgeBg,
-                                        selectedPalette.inspectorBadgeText,
-                                      ),
-                                )}
-                              >
-                                <DocsIcon
-                                  aria-hidden="true"
-                                  className="size-3.5 shrink-0"
-                                />
-                                <span className="font-semibold tabular-nums">
-                                  [{citation.number}]
-                                </span>
-                                <span className="max-w-44 truncate">
-                                  {citation.documentName ??
-                                    citation.sourceName ??
-                                    citation.documentId}
-                                </span>
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-1.5 border-t border-gray-100 pt-2 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                      <InfoIcon
-                        aria-hidden="true"
-                        className="mt-0.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500"
-                      />
-                      <span>{t("mindMapHonestyNote")}</span>
-                    </div>
-                  </div>
-                )}
-              </aside>
+              </div>
             )}
           </div>
         </div>
@@ -898,15 +924,25 @@ export default function AiChatMindMapPanel({
         <button
           type="button"
           aria-label={t("mindMapExitFullscreen")}
-          onClick={() => setIsFullscreen(false)}
-          className="fixed inset-0 bg-gray-950/70 backdrop-blur-xs"
+          onClick={handleToggleFullscreen}
+          className={cn(
+            "fixed inset-0 bg-gray-950/70 backdrop-blur-xs",
+            isClosingFullscreen
+              ? "continuum-backdrop-exit"
+              : "continuum-backdrop-enter",
+          )}
         />
         <div
           role="dialog"
           aria-modal="true"
           aria-label={t("mindMapTitle")}
           data-testid="mind-map-fullscreen-dialog"
-          className="relative z-10 flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-white/10 dark:bg-gpt-sidebar"
+          className={cn(
+            "relative z-10 flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-white/10 dark:bg-gpt-sidebar",
+            isClosingFullscreen
+              ? "continuum-fullscreen-exit"
+              : "continuum-fullscreen-enter",
+          )}
         >
           {panelBody}
         </div>
@@ -918,7 +954,7 @@ export default function AiChatMindMapPanel({
     <section
       aria-label={t("mindMapTitle")}
       data-testid="mind-map-docked-panel"
-      className="absolute inset-0 z-30 flex flex-col overflow-hidden bg-white xl:static xl:z-auto xl:h-full xl:w-104 xl:shrink-0 xl:border-s xl:border-gray-200/80 2xl:w-116 dark:bg-gpt-sidebar dark:xl:border-white/10"
+      className="continuum-docked-enter absolute inset-0 z-30 flex flex-col overflow-hidden bg-white xl:static xl:z-auto xl:h-full xl:w-104 xl:shrink-0 xl:border-s xl:border-gray-200/80 2xl:w-116 dark:bg-gpt-sidebar dark:xl:border-white/10"
     >
       {panelBody}
     </section>

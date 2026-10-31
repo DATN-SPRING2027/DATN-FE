@@ -17,9 +17,7 @@ import {
   ArrowRightIcon,
   CheckLineIcon,
   ChevronDownIcon,
-  CloseLineIcon,
   ComposeChatIcon,
-  DocsIcon,
   LockIcon,
   MindMapIcon,
   PlatformProjectsIcon,
@@ -59,10 +57,8 @@ import AiChatSidebar from "./AiChatSidebar";
 import AiChatMindMapPanel from "./AiChatMindMapPanel";
 import { aiMindMapKeys } from "@/lib/queries/ai-chat/useAiMindMap";
 import { isPersistedMessageId } from "./answer-action-utils";
-import {
-  isContinuumDocumentId,
-  resolveSessionCitationPreview,
-} from "./citation-utils";
+import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
+import { resolveSessionCitationPreview } from "./citation-utils";
 
 function isProjectOrAuthAccessError(error: unknown): error is ApiError {
   if (!isAccessOrResourceUnavailableError(error)) return false;
@@ -1786,155 +1782,20 @@ function AiChatWorkspaceContent() {
         />
       )}
 
-      {/* Evidence Excerpt Inspector Modal */}
-      {inspectedEvidence && (
-        <div className="fixed inset-0 z-999999 flex items-center justify-center p-4">
-          <button
-            type="button"
-            aria-label={t("closeDialog")}
-            onClick={() => setInspectedEvidence(null)}
-            className="fixed inset-0 bg-gray-950/65 backdrop-blur-xs"
-          />
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-label={t("citationDialogAriaLabel")}
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-white/10 dark:bg-gpt-popover"
-          >
-            <div className="flex items-start justify-between gap-3 border-b border-gray-200 pb-3.5 dark:border-white/10">
-              <div className="flex min-w-0 items-center gap-2">
-                <span
-                  className={cn(
-                    "inline-flex shrink-0 items-center rounded-md px-2 py-0.5 text-xs font-semibold tabular-nums",
-                    inspectedEvidence.kind === "document"
-                      ? "bg-brand-500/15 text-brand-600 dark:text-brand-300"
-                      : "bg-warning-500/20 text-warning-800 dark:text-warning-300",
-                  )}
-                >
-                  [
-                  {inspectedEvidence.kind === "document"
-                    ? inspectedEvidence.citation.number
-                    : inspectedEvidence.sessionCitation.ref}
-                  ]
-                </span>
-                <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                  {inspectedEvidence.kind === "document"
-                    ? (inspectedEvidence.citation.documentName ??
-                      inspectedEvidence.citation.sourceName ??
-                      inspectedEvidence.citation.documentId)
-                    : inspectedEvidence.sessionCitation.source ===
-                        "selected_group"
-                      ? t("sessionSelectedGroup")
-                      : t("sessionRecentContinuity")}
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setInspectedEvidence(null)}
-                aria-label={t("closeDialog")}
-                className="inline-flex size-7 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
-              >
-                <CloseLineIcon aria-hidden="true" className="size-4" />
-              </button>
-            </div>
-
-            {inspectedEvidence.kind === "document" ? (
-              <div className="mt-4 space-y-3 text-xs">
-                <div className="flex flex-wrap items-center gap-2 text-gray-500 tabular-nums dark:text-gray-400">
-                  <DocsIcon aria-hidden="true" className="size-3.5" />
-                  {inspectedEvidence.citation.versionNo !== undefined && (
-                    <span>
-                      {t("versionBadge", {
-                        version: inspectedEvidence.citation.versionNo,
-                      })}
-                    </span>
-                  )}
-                  {inspectedEvidence.citation.pageFrom && (
-                    <span>
-                      {inspectedEvidence.citation.pageTo &&
-                      inspectedEvidence.citation.pageTo !==
-                        inspectedEvidence.citation.pageFrom
-                        ? t("pageRangeLabel", {
-                            from: inspectedEvidence.citation.pageFrom,
-                            to: inspectedEvidence.citation.pageTo,
-                          })
-                        : t("pageSingleLabel", {
-                            page: inspectedEvidence.citation.pageFrom,
-                          })}
-                    </span>
-                  )}
-                </div>
-
-                {inspectedEvidence.citation.heading && (
-                  <div>
-                    <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                      {t("excerptHeadingLabel")}
-                    </p>
-                    <p className="mt-0.5 font-medium text-gray-800 dark:text-gray-200">
-                      {inspectedEvidence.citation.heading}
-                    </p>
-                  </div>
-                )}
-
-                <div>
-                  <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                    {t("excerptContentLabel")}
-                  </p>
-                  <div className="mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-gray-200 bg-gray-50 p-3.5 text-xs leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-200">
-                    {inspectedEvidence.citation.snippet ??
-                      t("excerptNoSnippet")}
-                  </div>
-                </div>
-
-                {isContinuumDocumentId(
-                  inspectedEvidence.citation.documentId,
-                ) && (
-                  <div className="flex justify-end pt-2">
-                    <Link
-                      href={`/projects/${encodeURIComponent(
-                        selectedProject.id,
-                      )}/documents/${encodeURIComponent(
-                        inspectedEvidence.citation.documentId,
-                      )}`}
-                      onClick={() => setInspectedEvidence(null)}
-                      className="inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-600"
-                    >
-                      <span>{t("openDocumentLink")}</span>
-                      <ArrowRightIcon aria-hidden="true" className="size-3.5" />
-                    </Link>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="mt-4 space-y-3 text-xs">
-                <div>
-                  <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                    {t("excerptContentLabel")}
-                  </p>
-                  <div className="mt-1.5 max-h-60 overflow-y-auto rounded-xl border border-warning-500/25 bg-warning-50/40 p-3.5 text-xs leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:bg-gpt-sidebar dark:text-gray-200">
-                    {resolveSessionCitationPreview(
-                      inspectedEvidence.sessionCitation,
-                      displayedMessagesById,
-                    )}
-                  </div>
-                </div>
-
-                {inspectedEvidence.sessionCitation.turnIds.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
-                      {t("turnReferenceIdsLabel")}
-                    </p>
-                    <p className="font-mono mt-1 text-xs text-gray-600 dark:text-gray-300">
-                      {inspectedEvidence.sessionCitation.turnIds.join(", ")}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
+      {/* Animated Source Evidence Sheet */}
+      <AiChatEvidenceSheet
+        evidence={inspectedEvidence}
+        projectId={selectedProject.id}
+        sessionPreviewText={
+          inspectedEvidence?.kind === "session"
+            ? resolveSessionCitationPreview(
+                inspectedEvidence.sessionCitation,
+                displayedMessagesById,
+              )
+            : undefined
+        }
+        onClose={() => setInspectedEvidence(null)}
+      />
     </div>
   );
 }

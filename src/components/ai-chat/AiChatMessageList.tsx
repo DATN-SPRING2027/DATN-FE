@@ -51,7 +51,13 @@ export type DisplayAiChatMessage = AiChatMessage & {
 };
 
 export type InspectedEvidence =
-  | Readonly<{ kind: "document"; citation: AiChatCitation }>
+  | Readonly<{
+      kind: "document";
+      citation: AiChatCitation;
+      focusLabel?: string;
+      focusTerms?: readonly string[];
+      relatedCitations?: readonly AiChatCitation[];
+    }>
   | Readonly<{ kind: "session"; sessionCitation: AiChatSessionCitation }>;
 
 export interface AiChatMessageListProps {

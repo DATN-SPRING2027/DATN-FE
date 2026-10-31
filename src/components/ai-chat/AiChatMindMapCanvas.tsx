@@ -27,6 +27,7 @@ export type AiChatMindMapCanvasProps = Readonly<{
   inspectorReserveWidth?: number;
   onSelectNode: (nodeId: string) => void;
   onToggleNode: (nodeId: string) => void;
+  onInspectNodeSources?: (item: PositionedMindMapNode) => void;
   onExpandAll: () => void;
   onCollapseDefault: () => void;
 }>;
@@ -42,6 +43,7 @@ export default function AiChatMindMapCanvas({
   inspectorReserveWidth = 0,
   onSelectNode,
   onToggleNode,
+  onInspectNodeSources,
   onExpandAll,
   onCollapseDefault,
 }: AiChatMindMapCanvasProps) {
@@ -384,36 +386,69 @@ export default function AiChatMindMapCanvas({
               </tspan>
             )}
           </text>
-
-          {citeCount > 0 && (
-            <g>
-              <rect
-                x={textStartX}
-                y={item.y + item.height - 23}
-                width={sourcePillWidth}
-                height={16}
-                rx={8}
-                className={
-                  isRoot
-                    ? "fill-white/18"
-                    : palette.sourcePillFill
-                }
-              />
-              <text
-                x={textStartX + sourcePillWidth / 2}
-                y={item.y + item.height - 11.5}
-                textAnchor="middle"
-                className={cn(
-                  "select-none text-xs font-semibold tabular-nums",
-                  isRoot ? "fill-white" : palette.sourcePillText,
-                )}
-                style={{ fontSize: "10px" }}
-              >
-                {sourceLabel}
-              </text>
-            </g>
-          )}
         </g>
+
+        {citeCount > 0 && (
+          <g
+            data-testid={`mind-map-node-sources-${item.node.id}`}
+            data-mind-map-interactive="true"
+            role={onInspectNodeSources ? "button" : undefined}
+            tabIndex={onInspectNodeSources ? 0 : undefined}
+            aria-label={
+              onInspectNodeSources
+                ? t("mindMapInspectSourcesAria", { label: item.node.label })
+                : undefined
+            }
+            onClick={(event) => {
+              event.stopPropagation();
+              onSelectNode(item.node.id);
+              onInspectNodeSources?.(item);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                event.stopPropagation();
+                onSelectNode(item.node.id);
+                onInspectNodeSources?.(item);
+              }
+            }}
+            className={cn(
+              onInspectNodeSources
+                ? "cursor-pointer focus:outline-none"
+                : "pointer-events-none",
+            )}
+          >
+            <rect
+              x={textStartX}
+              y={item.y + item.height - 23}
+              width={sourcePillWidth}
+              height={16}
+              rx={8}
+              strokeWidth={1}
+              className={cn(
+                "transition-all duration-150",
+                isRoot
+                  ? "fill-white/18 stroke-white/25 hover:fill-white/28"
+                  : cn(
+                      palette.sourcePillFill,
+                      "stroke-transparent hover:stroke-brand-400/70",
+                    ),
+              )}
+            />
+            <text
+              x={textStartX + sourcePillWidth / 2}
+              y={item.y + item.height - 11.5}
+              textAnchor="middle"
+              className={cn(
+                "select-none text-xs font-semibold tabular-nums",
+                isRoot ? "fill-white" : palette.sourcePillText,
+              )}
+              style={{ fontSize: "10px" }}
+            >
+              {sourceLabel}
+            </text>
+          </g>
+        )}
 
         {item.hasChildren && (
           <g

@@ -5364,7 +5364,15 @@
     "mindMapLoadingStep3": "Dựng cấu trúc các nhánh Bản đồ tư duy",
     "mindMapCollapseInspector": "Thu gọn chi tiết",
     "mindMapExpandInspector": "Mở chi tiết nhánh",
-    "mindMapBreadcrumbRoot": "Gốc"
+    "mindMapBreadcrumbRoot": "Gốc",
+    "mindMapClearSelectionAria": "Bỏ chọn nhánh",
+    "mindMapInspectSourcesAria": "Xem nguồn tài liệu của {label}",
+    "evidenceVerifiedBadge": "Nguồn xác thực",
+    "evidenceFocusContextLabel": "Đang đối chiếu: {label}",
+    "evidenceCopyExcerpt": "Sao chép đoạn trích",
+    "evidenceCopiedExcerpt": "Đã sao chép",
+    "evidenceCloseAction": "Đóng",
+    "evidenceSourceSwitcherAria": "Các nguồn tài liệu của nhánh này"
   },
   "handover": {
     "aiCoverage": {

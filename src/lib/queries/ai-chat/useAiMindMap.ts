@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
@@ -79,15 +79,20 @@ export function useAiMindMap({
   projectId,
   topic,
   enabled = false,
+  skipAutoFetch = false,
 }: {
   userId: string;
   organizationId: string;
   projectId: string;
   topic?: string | null;
   enabled?: boolean;
+  skipAutoFetch?: boolean;
 }) {
   const queryClient = useQueryClient();
   const normalizedTopic = normalizeMindMapTopic(topic);
+  const hasScope = Boolean(userId && organizationId && projectId);
+  const isOpenSession = Boolean(enabled && hasScope);
+  const scopeTopicId = `${userId}\0${organizationId}\0${projectId}\0${normalizedTopic}`;
   const activeKey = aiMindMapKeys.byTopic(
     userId,
     organizationId,
@@ -95,11 +100,66 @@ export function useAiMindMap({
     normalizedTopic,
   );
 
+  // Revalidate permissions and document-freshness on every panel open or scope/topic
+  // change while open. Cached snapshots are never rendered until the live server check resolves.
+  const [sessionGate, setSessionGate] = useState<{
+    wasOpen: boolean;
+    scopeTopicId: string;
+    openSeq: number;
+    verifiedTag: string;
+  }>(() => ({
+    wasOpen: isOpenSession,
+    scopeTopicId,
+    openSeq: isOpenSession ? 1 : 0,
+    verifiedTag: "",
+  }));
+
+  let effectiveOpenSeq = sessionGate.openSeq;
+  let effectiveVerifiedTag = sessionGate.verifiedTag;
+  if (
+    sessionGate.wasOpen !== isOpenSession ||
+    sessionGate.scopeTopicId !== scopeTopicId
+  ) {
+    effectiveOpenSeq = isOpenSession
+      ? sessionGate.openSeq + 1
+      : sessionGate.openSeq;
+    effectiveVerifiedTag = isOpenSession ? sessionGate.verifiedTag : "";
+    setSessionGate({
+      wasOpen: isOpenSession,
+      scopeTopicId,
+      openSeq: effectiveOpenSeq,
+      verifiedTag: effectiveVerifiedTag,
+    });
+  }
+
+  const expectedVerifiedTag = `${effectiveOpenSeq}:${scopeTopicId}`;
+  const isAwaitingOpenVerification =
+    isOpenSession && effectiveVerifiedTag !== expectedVerifiedTag;
+
+  useEffect(() => {
+    if (!isOpenSession) return;
+    return () => {
+      queryClient.removeQueries({
+        queryKey: aiMindMapKeys.scope(userId, organizationId, projectId),
+      });
+    };
+  }, [isOpenSession, organizationId, projectId, queryClient, userId]);
+
   const purgeScopeOnAccessError = useCallback(
-    (error: unknown) => {
+    (error: unknown, preserveKey?: readonly unknown[]) => {
       if (!isAccessOrResourceUnavailableError(error)) return;
+      const preserveSerialized = preserveKey
+        ? JSON.stringify(preserveKey)
+        : null;
+      const shouldRemove = (query: { queryKey: readonly unknown[] }) =>
+        preserveSerialized === null ||
+        JSON.stringify(query.queryKey) !== preserveSerialized;
+
       if (error instanceof ApiError && error.status === 401) {
-        queryClient.removeQueries({ queryKey: aiMindMapKeys.all });
+        queryClient.removeQueries({
+          queryKey: aiMindMapKeys.all,
+          predicate: shouldRemove,
+        });
         void queryClient
           .invalidateQueries({
             queryKey: authKeys.currentUser(),
@@ -109,6 +169,7 @@ export function useAiMindMap({
       } else {
         queryClient.removeQueries({
           queryKey: aiMindMapKeys.scope(userId, organizationId, projectId),
+          predicate: shouldRemove,
         });
       }
     },
@@ -119,22 +180,30 @@ export function useAiMindMap({
     queryKey: activeKey,
     queryFn: async () => {
       try {
-        return await apiClient<AiChatMindMapResponse>(
+        const response = await apiClient<AiChatMindMapResponse>(
           projectMindMapPath(projectId, normalizedTopic || undefined),
           {
             method: "GET",
             cache: "no-store",
           },
         );
+        setSessionGate((prev) =>
+          prev.wasOpen && prev.scopeTopicId === scopeTopicId
+            ? { ...prev, verifiedTag: `${prev.openSeq}:${scopeTopicId}` }
+            : prev,
+        );
+        return response;
       } catch (error) {
-        purgeScopeOnAccessError(error);
+        purgeScopeOnAccessError(error, activeKey);
         throw error;
       }
     },
-    enabled: Boolean(enabled && userId && organizationId && projectId),
+    enabled: Boolean(
+      isOpenSession && !skipAutoFetch && isAwaitingOpenVerification,
+    ),
     retry: false,
-    staleTime: Number.POSITIVE_INFINITY,
-    gcTime: 30 * 60_000,
+    staleTime: 0,
+    refetchOnMount: "always",
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
@@ -207,6 +276,12 @@ export function useAiMindMap({
         projectId,
         requestedTopic,
       );
+      const targetScopeTopicId = `${userId}\0${organizationId}\0${projectId}\0${requestedTopic}`;
+      setSessionGate((prev) =>
+        prev.wasOpen && prev.scopeTopicId === targetScopeTopicId
+          ? { ...prev, verifiedTag: `${prev.openSeq}:${targetScopeTopicId}` }
+          : prev,
+      );
       queryClient.setQueryData<AiChatMindMapResponse>(targetKey, response);
     },
     onError: (error, _input, context) => {
@@ -228,8 +303,14 @@ export function useAiMindMap({
   }, [mutation]);
 
   return {
-    mindMap: savedQuery.data,
-    isCheckingSaved: savedQuery.isLoading || savedQuery.isFetching,
+    mindMap: isAwaitingOpenVerification ? undefined : savedQuery.data,
+    isCheckingSaved:
+      savedQuery.isLoading ||
+      savedQuery.isFetching ||
+      (isAwaitingOpenVerification &&
+        !skipAutoFetch &&
+        !savedQuery.isError &&
+        !mutation.isError),
     isGenerating: mutation.isPending,
     error: mutation.error ?? savedQuery.error,
     isError: mutation.isError || savedQuery.isError,

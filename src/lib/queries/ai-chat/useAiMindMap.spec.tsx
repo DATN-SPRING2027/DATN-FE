@@ -334,4 +334,81 @@ describe("useAiMindMap scope-bound cache & access revocation hygiene", () => {
       ),
     ).toBeUndefined();
   });
+
+  it("revalidates on every panel reopen without exposing stale snapshot while GET check is pending (revocation & new-docs detection)", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const open1Snapshot = sampleResponse({
+      cached: true,
+      hasSourceUpdates: false,
+      tree: {
+        id: "root",
+        label: "Confidential Project Snapshot",
+        summary: "Authorized during first open.",
+        citationNumbers: [],
+        children: [],
+      },
+    });
+
+    let rejectReopenCheck!: (err: Error) => void;
+    apiClientMock
+      .mockResolvedValueOnce(open1Snapshot)
+      .mockImplementationOnce(
+        () =>
+          new Promise<AiChatMindMapResponse>((_resolve, reject) => {
+            rejectReopenCheck = reject;
+          }),
+      );
+
+    const { result, rerender } = renderHook(
+      ({ isOpen }: { isOpen: boolean }) =>
+        useAiMindMap({
+          userId: "user-1",
+          organizationId: "org-1",
+          projectId: "proj-1",
+          enabled: isOpen,
+        }),
+      {
+        wrapper,
+        initialProps: { isOpen: true },
+      },
+    );
+
+    await waitFor(() =>
+      expect(result.current.mindMap?.tree?.label).toBe(
+        "Confidential Project Snapshot",
+      ),
+    );
+    expect(apiClientMock).toHaveBeenCalledTimes(1);
+
+    // Close panel -> scope snapshot data is purged from QueryCache
+    rerender({ isOpen: false });
+    expect(
+      queryClient.getQueryData(
+        aiMindMapKeys.byTopic("user-1", "org-1", "proj-1", ""),
+      ),
+    ).toBeUndefined();
+
+    // Reopen panel -> must NOT expose previous snapshot while GET revalidation is pending
+    rerender({ isOpen: true });
+    expect(result.current.mindMap).toBeUndefined();
+    expect(result.current.isCheckingSaved).toBe(true);
+    await waitFor(() => expect(apiClientMock).toHaveBeenCalledTimes(2));
+    expect(result.current.mindMap).toBeUndefined();
+
+    // Access was revoked between the two opens -> surfaces 403 without ever flashing old map
+    await act(async () => {
+      rejectReopenCheck(new ApiError(403, "FORBIDDEN", "Access revoked"));
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.mindMap).toBeUndefined();
+  });
 });

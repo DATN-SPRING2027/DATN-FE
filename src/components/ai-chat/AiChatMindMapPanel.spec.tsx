@@ -66,15 +66,15 @@ function renderPanel(
     </QueryClientProvider>,
   );
 
-  return { ...view, onClose, onInspectEvidence, onAskBranch };
+  return { ...view, queryClient, onClose, onInspectEvidence, onAskBranch };
 }
 
-describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI handoff", () => {
+describe("AiChatMindMapPanel — clutter-free Studio UI, citations, revalidation & ChatAI handoff", () => {
   beforeEach(() => {
     apiClientMock.mockReset();
   });
 
-  it("auto-generates overview map on open, renders coverage + outline_fallback badge, opens source excerpt, and sends deep-dive prompt to ChatAI", async () => {
+  it("renders clean canvas without fallback/subtitle/root-inspector clutter, supports direct source click + branch quickbar, and sends deep-dive prompt", async () => {
     const response: AiChatMindMapResponse = {
       projectId: "proj-1",
       topic: null,
@@ -131,26 +131,42 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
 
     const { onInspectEvidence, onAskBranch } = renderPanel();
 
-    // Depth 2 ("Readiness Gate") is collapsed initially; depth 1 ("Handover Governance") is visible
     expect(await screen.findByText("Handover Governance")).toBeTruthy();
     expect(screen.queryByText("Readiness Gate")).toBeNull();
 
-    // Explicit outline fallback badge is rendered
-    expect(screen.getByTestId("mind-map-fallback-badge")).toBeTruthy();
+    // Redundant banners & root Selected Node boilerplate are omitted
+    expect(screen.queryByTestId("mind-map-fallback-badge")).toBeNull();
+    expect(
+      screen.queryByText(/Synthesized strictly from authorized ready/i),
+    ).toBeNull();
+    expect(screen.queryByTestId("mind-map-branch-quickbar")).toBeNull();
+    expect(
+      screen.queryByText(/Structural grouping node/i),
+    ).toBeNull();
 
-    // Select "Handover Governance" node -> inspect citation [1] + click Ask in ChatAI
-    fireEvent.click(screen.getByTestId("mind-map-node-doc_1"));
-
-    const citeButton = await screen.findByTestId("mind-map-citation-1");
-    fireEvent.click(citeButton);
+    // Direct click on SVG "1 source" pill opens Evidence Sheet with focusTerms
+    fireEvent.click(screen.getByTestId("mind-map-node-sources-doc_1"));
     expect(onInspectEvidence).toHaveBeenCalledWith({
       kind: "document",
       citation: response.citations[0],
+      focusLabel: "Handover Governance",
+      focusTerms: ["Handover Governance"],
+      relatedCitations: [response.citations[0]],
     });
+
+    // Selecting non-root branch surfaces minimal quick-action bar with citation + Ask in ChatAI
+    expect(screen.getByTestId("mind-map-branch-quickbar")).toBeTruthy();
+    const citeButton = await screen.findByTestId("mind-map-citation-1");
+    fireEvent.click(citeButton);
+    expect(onInspectEvidence).toHaveBeenCalledTimes(2);
 
     fireEvent.click(screen.getByTestId("mind-map-ask-branch"));
     expect(onAskBranch).toHaveBeenCalledTimes(1);
     expect(onAskBranch.mock.calls[0]?.[0]).toContain("Handover Governance");
+
+    // Dismissing branch selection hides quickbar cleanly
+    fireEvent.click(screen.getByTestId("mind-map-selection-clear"));
+    expect(screen.queryByTestId("mind-map-branch-quickbar")).toBeNull();
 
     // Expand branch to reveal depth 2 ("Readiness Gate")
     fireEvent.click(screen.getByTestId("mind-map-toggle-doc_1"));
@@ -159,10 +175,11 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     // Toggle Fullscreen modal open & close
     fireEvent.click(screen.getByTestId("mind-map-fullscreen-toggle"));
     expect(screen.getByTestId("mind-map-fullscreen-dialog")).toBeTruthy();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByTestId("mind-map-fullscreen-dialog")).toBeNull();
   });
 
-  it("handles empty state, topic >200 validation error, 503 server error (without fake fallback), and 403 permission denied", async () => {
-    // 1. Empty project (0 ready documents, 2 pending)
+  it("handles empty state, casefold-expanding topic >200 validation error, 503 server error, and 403 permission denied", async () => {
     apiClientMock.mockResolvedValueOnce({
       projectId: "proj-1",
       topic: null,
@@ -186,15 +203,15 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     renderPanel();
     expect(await screen.findByTestId("mind-map-empty-state")).toBeTruthy();
 
-    // 2. Topic > 200 chars -> client validation error without calling API
+    // Topic with 101 'ß' chars expands to 202 chars (>200) -> client validation error without calling API
     apiClientMock.mockClear();
     const input = screen.getByTestId("mind-map-topic-input");
-    fireEvent.change(input, { target: { value: "a".repeat(205) } });
+    fireEvent.change(input, { target: { value: "ß".repeat(101) } });
     fireEvent.submit(input.closest("form")!);
     expect(await screen.findByTestId("mind-map-validation-error")).toBeTruthy();
     expect(apiClientMock).not.toHaveBeenCalled();
 
-    // 3. Valid topic triggers 503 server error -> surfaces error alert even after prior empty state!
+    // Valid topic triggers 503 server error -> surfaces error alert
     apiClientMock.mockRejectedValueOnce(
       new ApiError(503, "AI_ENGINE_UNAVAILABLE", "Engine unavailable"),
     );
@@ -203,9 +220,8 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     await waitFor(() => {
       expect(screen.getByTestId("mind-map-server-error")).toBeTruthy();
     });
-    expect(screen.queryByTestId("mind-map-fallback-badge")).toBeNull();
 
-    // 4. Retry returns 403 -> surfaces permission denied state
+    // Retry returns 403 -> surfaces permission denied state
     apiClientMock.mockRejectedValueOnce(
       new ApiError(403, "FORBIDDEN", "No project access"),
     );
@@ -215,7 +231,7 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     });
   });
 
-  it("opens saved Project snapshot in 0s without POST, auto-initializes when uninitialized, supports collapsible inspector, and refreshes on explicit user request", async () => {
+  it("revalidates permissions on reopen without flashing revoked snapshot, auto-initializes when uninitialized, and refreshes on user request", async () => {
     const savedMap: AiChatMindMapResponse = {
       projectId: "proj-1",
       topic: null,
@@ -235,7 +251,7 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
       },
       tree: {
         id: "root",
-        label: "Saved Continuum Overview",
+        label: "Saved Overview",
         summary: "Loaded immediately from server snapshot.",
         citationNumbers: [],
         children: [],
@@ -245,28 +261,13 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     };
     apiClientMock.mockResolvedValueOnce(savedMap);
 
-    const firstView = renderPanel();
+    const { rerender, queryClient, unmount } = renderPanel();
     expect(
-      (await screen.findAllByText("Saved Continuum Overview")).length,
+      (await screen.findAllByText("Saved Overview")).length,
     ).toBeGreaterThanOrEqual(1);
     expect(apiClientMock).toHaveBeenCalledTimes(1);
-    expect(apiClientMock).toHaveBeenCalledWith(
-      "/ai-chat/projects/proj-1/mind-map",
-      expect.objectContaining({ method: "GET" }),
-    );
 
-    expect(
-      screen.getByText("Loaded immediately from server snapshot."),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByTestId("mind-map-inspector-toggle"));
-    expect(
-      screen.queryByText("Loaded immediately from server snapshot."),
-    ).toBeNull();
-    fireEvent.click(screen.getByTestId("mind-map-inspector-toggle"));
-    expect(
-      screen.getByText("Loaded immediately from server snapshot."),
-    ).toBeTruthy();
-
+    // Explicit refresh via "New docs · Refresh" badge
     const refreshedMap: AiChatMindMapResponse = {
       ...savedMap,
       cached: false,
@@ -274,7 +275,7 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
       scopeFingerprint: "fp_refreshed_9999999999",
       tree: {
         id: "root",
-        label: "Refreshed Continuum Overview",
+        label: "Refreshed Overview",
         summary: "Updated with newly indexed docs.",
         citationNumbers: [],
         children: [],
@@ -283,7 +284,7 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
     apiClientMock.mockResolvedValueOnce(refreshedMap);
     fireEvent.click(screen.getByTestId("mind-map-new-docs-refresh"));
     expect(
-      (await screen.findAllByText("Refreshed Continuum Overview")).length,
+      (await screen.findAllByText("Refreshed Overview")).length,
     ).toBeGreaterThanOrEqual(1);
     expect(apiClientMock).toHaveBeenLastCalledWith(
       "/ai-chat/projects/proj-1/mind-map",
@@ -292,8 +293,62 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
         body: JSON.stringify({ refresh: true }),
       }),
     );
-    firstView.unmount();
 
+    // Close panel -> reopen after permission revocation: must NOT render old snapshot while GET is pending!
+    let rejectReopen!: (error: Error) => void;
+    apiClientMock.mockImplementationOnce(
+      () =>
+        new Promise<AiChatMindMapResponse>((_resolve, reject) => {
+          rejectReopen = reject;
+        }),
+    );
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <AiChatMindMapPanel
+            isOpen={false}
+            userId="user-1"
+            organizationId="org-1"
+            projectId="proj-1"
+            projectName="Continuum Core"
+            isChatBusy={false}
+            onClose={vi.fn()}
+            onInspectEvidence={vi.fn()}
+            onAskBranch={vi.fn()}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    rerender(
+      <QueryClientProvider client={queryClient}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <AiChatMindMapPanel
+            isOpen
+            userId="user-1"
+            organizationId="org-1"
+            projectId="proj-1"
+            projectName="Continuum Core"
+            isChatBusy={false}
+            onClose={vi.fn()}
+            onInspectEvidence={vi.fn()}
+            onAskBranch={vi.fn()}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    // Old snapshot is NOT rendered while server revalidation is pending
+    expect(screen.queryByText("Refreshed Overview")).toBeNull();
+    expect(screen.getByTestId("mind-map-checking-state")).toBeTruthy();
+
+    rejectReopen(new ApiError(403, "FORBIDDEN", "Revoked"));
+    expect(await screen.findByTestId("mind-map-permission-error")).toBeTruthy();
+    expect(screen.queryByText("Refreshed Overview")).toBeNull();
+    unmount();
+
+    // Uninitialized project auto-synthesizes and persists once
     apiClientMock.mockClear();
     apiClientMock
       .mockResolvedValueOnce({
@@ -324,7 +379,7 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
         hasSourceUpdates: false,
         tree: {
           id: "root",
-          label: "First-Time Generated Overview",
+          label: "Initial Overview",
           summary: "Persisted on server for project.",
           citationNumbers: [],
           children: [],
@@ -333,16 +388,13 @@ describe("AiChatMindMapPanel — 8 states, citations, fallback badge & ChatAI ha
 
     renderPanel({ projectId: "proj-2" });
     expect(
-      (await screen.findAllByText("First-Time Generated Overview")).length,
+      (await screen.findAllByText("Initial Overview")).length,
     ).toBeGreaterThanOrEqual(1);
     expect(apiClientMock).toHaveBeenCalledTimes(2);
     expect(apiClientMock.mock.calls[0]?.[1]).toMatchObject({ method: "GET" });
     expect(apiClientMock.mock.calls[1]?.[1]).toMatchObject({
       method: "POST",
       body: JSON.stringify({ refresh: false }),
-    });
-    await waitFor(() => {
-    expect(screen.queryByTestId("mind-map-loading-state")).toBeNull();
     });
   });
 });
