@@ -34,6 +34,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "_worktrees/**",
+    ".worknote-agent-preview/**",
+    ".worknote-agent-preview-evidence/**",
   ]),
 ]);
 

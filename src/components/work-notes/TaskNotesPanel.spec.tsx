@@ -271,3 +271,78 @@ it("preserves unsaved drafts across tab switches or modal close for the same tas
   expect(screen.getByLabelText("What was done")).toHaveValue("In-progress work");
   expect(screen.getByText("Unsaved draft")).toBeVisible();
 });
+
+it("delegates New note and Edit to splitControl without opening a modal when hosted in split-screen mode", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_EDITOR_ENABLED", "true");
+  try {
+    const editableNote = {
+      ...note,
+      permissions: { ...note.permissions, canEdit: true },
+    };
+    api.mockResolvedValue({
+      data: [editableNote],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+    } as never);
+
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+
+    const { rerender } = render(
+      <QueryClientProvider client={client}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <TaskNotesPanel
+            projectId={projectId}
+            taskId={taskId}
+            splitControl={{
+              isOpen: false,
+              editingNoteId: null,
+              savedSignal: 0,
+              onOpen,
+              onClose,
+            }}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    await screen.findByRole("heading", { name: editableNote.title });
+
+    fireEvent.click(screen.getByRole("button", { name: "New note" }));
+    expect(onOpen).toHaveBeenCalledWith(undefined);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: `More actions for ${editableNote.title}`,
+      }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit" }));
+    expect(onOpen).toHaveBeenCalledWith(editableNote.id);
+
+    rerender(
+      <QueryClientProvider client={client}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <TaskNotesPanel
+            projectId={projectId}
+            taskId={taskId}
+            splitControl={{
+              isOpen: true,
+              editingNoteId: editableNote.id,
+              savedSignal: 1,
+              onOpen,
+              onClose,
+            }}
+          />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    expect(screen.getByText("Editing")).toBeVisible();
+    expect(await screen.findByText("Task note saved.")).toBeVisible();
+  } finally {
+    vi.unstubAllEnvs();
+  }
+});

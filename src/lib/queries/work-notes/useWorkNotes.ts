@@ -29,21 +29,27 @@ export type TaskNoteInput = Readonly<{
   reason: string;
 }>;
 
-export type TaskNote = TaskNoteInput &
-  Readonly<{
-    id: string;
-    projectId: string;
-    taskId: string;
-    taskKey?: string;
-    taskTitle?: string;
-    authorId: string;
-    authorName: string;
-    type: "TASK_NOTE";
-    status: "CONFIRMED";
-    createdAt: string;
-    updatedAt: string;
-    permissions: WorkNotePermissions;
-  }>;
+export type TaskNote = Readonly<{
+  title: string;
+  accomplishments?: string;
+  approach?: string;
+  reason?: string;
+  contentMarkdown?: string;
+  contentSchemaVersion?: 2;
+  currentVersionNumber?: number;
+  id: string;
+  projectId: string;
+  taskId: string;
+  taskKey?: string;
+  taskTitle?: string;
+  authorId: string;
+  authorName: string;
+  type: "TASK_NOTE";
+  status: "CONFIRMED";
+  createdAt: string;
+  updatedAt: string;
+  permissions: WorkNotePermissions;
+}>;
 
 export const DOCUMENT_TYPES = [
   "MVP",
@@ -282,6 +288,10 @@ export type WorkReportInput = Readonly<{
 }>;
 export type WorkReport = WorkReportInput &
   Readonly<{
+    title?: string;
+    contentMarkdown?: string;
+    contentSchemaVersion?: 2;
+    currentVersionNumber?: number;
     id: string;
     projectId: string;
     memberId: string;
@@ -332,15 +342,10 @@ export type WorkReportSettings = Readonly<{
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
 type DocumentAction =
-  | "submit"
-  | "comment"
-  | "approve"
-  | "request-changes"
-  | "reject"
-  | "archive";
+  "submit" | "comment" | "approve" | "request-changes" | "reject" | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
-function csrfHeaders(): HeadersInit {
+export function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
   const parts = document.cookie.split(";").map((part) => part.trim());
   for (const prefix of [

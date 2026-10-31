@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { useLocale, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
+import WorkNoteComposer from "./WorkNoteComposer";
 import {
   BackgroundRefreshError,
   UpdatingStatus,
@@ -57,18 +58,15 @@ function getDraftMap(client: QueryClient): Map<string, TaskNoteDraftSnapshot> {
 
 function hasDraftContent(input: TaskNoteInput): boolean {
   return Boolean(
-    input.title.trim() ||
-      input.accomplishments.trim() ||
-      input.approach.trim() ||
-      input.reason.trim(),
+    (input.title ?? "").trim() ||
+    (input.accomplishments ?? "").trim() ||
+    (input.approach ?? "").trim() ||
+    (input.reason ?? "").trim(),
   );
 }
 
 function getAuthorInitials(name: string): string {
-  const parts = name
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean);
+  const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "U";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0] ?? ""}${parts[parts.length - 1][0] ?? ""}`.toUpperCase();
@@ -90,18 +88,29 @@ function formatNoteTimestamp(value: string, locale: string): string {
 const FIELD_CLASS =
   "w-full min-w-0 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500";
 
+export type TaskNotesSplitControl = {
+  isOpen: boolean;
+  editingNoteId: string | null;
+  savedSignal?: number;
+  onOpen: (noteId?: string) => void;
+  onClose: () => void;
+};
+
 export default function TaskNotesPanel({
   projectId,
   taskId,
+  splitControl,
 }: {
   projectId: string;
   taskId: string;
+  splitControl?: TaskNotesSplitControl;
 }) {
   return (
     <TaskNotesContent
       key={`${projectId}:${taskId}`}
       projectId={projectId}
       taskId={taskId}
+      splitControl={splitControl}
     />
   );
 }
@@ -109,9 +118,11 @@ export default function TaskNotesPanel({
 function TaskNotesContent({
   projectId,
   taskId,
+  splitControl,
 }: {
   projectId: string;
   taskId: string;
+  splitControl?: TaskNotesSplitControl;
 }) {
   const t = useTranslations("workNotes.taskNotes");
   const locale = useLocale();
@@ -142,16 +153,25 @@ function TaskNotesContent({
 
   const create = useWorkNotesMutation(
     workNotesApi.createTaskNote.bind(null, projectId, taskId),
-    [workNoteKeys.taskNotes(projectId, taskId), workNoteKeys.project(projectId)],
+    [
+      workNoteKeys.taskNotes(projectId, taskId),
+      workNoteKeys.project(projectId),
+    ],
   );
   const update = useWorkNotesMutation(
     ({ noteId, value }: { noteId: string; value: TaskNoteInput }) =>
       workNotesApi.updateTaskNote(projectId, taskId, noteId, value),
-    [workNoteKeys.taskNotes(projectId, taskId), workNoteKeys.project(projectId)],
+    [
+      workNoteKeys.taskNotes(projectId, taskId),
+      workNoteKeys.project(projectId),
+    ],
   );
   const remove = useWorkNotesMutation(
     (noteId: string) => workNotesApi.deleteTaskNote(projectId, taskId, noteId),
-    [workNoteKeys.taskNotes(projectId, taskId), workNoteKeys.project(projectId)],
+    [
+      workNoteKeys.taskNotes(projectId, taskId),
+      workNoteKeys.project(projectId),
+    ],
   );
 
   useEffect(() => {
@@ -189,7 +209,25 @@ function TaskNotesContent({
   const notes = visibleNotes?.data ?? [];
   const notesCount = visibleNotes?.pagination.totalItems ?? notes.length;
   const showComposer = isComposerOpen || editingId !== null;
+  const envAgentEditorEnabled =
+    process.env.NEXT_PUBLIC_WORKNOTE_EDITOR_ENABLED === "true";
+  const agentEditorEnabled =
+    envAgentEditorEnabled ||
+    notes.some(
+      (note) => note.id === editingId && note.contentSchemaVersion === 2,
+    );
   const isDraftDirty = hasDraftContent(input);
+  const isNewNoteActive =
+    (showComposer && !editingId) ||
+    Boolean(splitControl?.isOpen && !splitControl.editingNoteId);
+
+  const [dismissedSplitSignal, setDismissedSplitSignal] = useState(
+    splitControl?.savedSignal ?? 0,
+  );
+  const currentSplitSignal = splitControl?.savedSignal ?? 0;
+  const effectiveSavedBanner =
+    showSavedBanner ||
+    (currentSplitSignal > 0 && currentSplitSignal !== dismissedSplitSignal);
 
   function resetFeedback() {
     create.reset();
@@ -197,11 +235,22 @@ function TaskNotesContent({
     remove.reset();
     setValidationError("");
     setShowSavedBanner(false);
+    setDismissedSplitSignal(currentSplitSignal);
   }
 
   function handleOpenNewNote() {
     resetFeedback();
     setOpenMenuId(null);
+    if (splitControl && envAgentEditorEnabled) {
+      if (editingId !== null || isComposerOpen) {
+        setEditingId(null);
+        setIsComposerOpen(false);
+        setInput(EMPTY_INPUT);
+        getDraftMap(queryClient).delete(draftKey);
+      }
+      splitControl.onOpen(undefined);
+      return;
+    }
     if (editingId !== null) {
       setEditingId(null);
       setInput(EMPTY_INPUT);
@@ -223,13 +272,26 @@ function TaskNotesContent({
   function handleStartEdit(note: (typeof notes)[number]) {
     resetFeedback();
     setOpenMenuId(null);
+    if (
+      splitControl &&
+      (envAgentEditorEnabled || note.contentSchemaVersion === 2)
+    ) {
+      if (editingId !== null || isComposerOpen) {
+        setEditingId(null);
+        setIsComposerOpen(false);
+        setInput(EMPTY_INPUT);
+        getDraftMap(queryClient).delete(draftKey);
+      }
+      splitControl.onOpen(note.id);
+      return;
+    }
     setEditingId(note.id);
     setIsComposerOpen(true);
     setInput({
-      title: note.title,
-      accomplishments: note.accomplishments,
-      approach: note.approach,
-      reason: note.reason,
+      title: note.title ?? "",
+      accomplishments: note.accomplishments ?? "",
+      approach: note.approach ?? "",
+      reason: note.reason ?? "",
     });
     setTimeout(() => {
       titleInputRef.current?.focus();
@@ -249,6 +311,9 @@ function TaskNotesContent({
           setIsComposerOpen(false);
           setInput(EMPTY_INPUT);
           getDraftMap(queryClient).delete(draftKey);
+        }
+        if (splitControl?.isOpen && splitControl.editingNoteId === noteId) {
+          splitControl.onClose();
         }
       },
       onError: () => {
@@ -315,7 +380,7 @@ function TaskNotesContent({
               {t("title")}
             </h4>
             {!query.isLoading && (
-              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium tabular-nums text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                 {t("count", { count: notesCount })}
               </span>
             )}
@@ -328,7 +393,7 @@ function TaskNotesContent({
         <Button
           type="button"
           size="sm"
-          variant={showComposer && !editingId ? "outline" : "primary"}
+          variant={isNewNoteActive ? "outline" : "primary"}
           startIcon={<PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
           onClick={handleOpenNewNote}
         >
@@ -355,7 +420,7 @@ function TaskNotesContent({
         )}
 
       {/* Saved Status Banner */}
-      {showSavedBanner && !validationError && !hasMutationError && (
+      {effectiveSavedBanner && !validationError && !hasMutationError && (
         <div
           role="status"
           className="flex items-center justify-between gap-3 rounded-lg border border-success-200 bg-success-50/80 px-3.5 py-2.5 text-xs font-medium text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
@@ -370,10 +435,16 @@ function TaskNotesContent({
           <button
             type="button"
             aria-label={t("dismissNotice")}
-            onClick={() => setShowSavedBanner(false)}
+            onClick={() => {
+              setShowSavedBanner(false);
+              setDismissedSplitSignal(currentSplitSignal);
+            }}
             className="cursor-pointer rounded p-1 text-success-700/80 transition-colors hover:bg-success-100 hover:text-success-800 dark:text-success-300 dark:hover:bg-success-500/20"
           >
-            <CloseIcon className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+            <CloseIcon
+              className="h-3.5 w-3.5 fill-current"
+              aria-hidden="true"
+            />
           </button>
         </div>
       )}
@@ -394,7 +465,20 @@ function TaskNotesContent({
       )}
 
       {/* Collapsible Composer */}
-      {showComposer && (
+      {showComposer && agentEditorEnabled && (
+        <WorkNoteComposer
+          key={`${projectId}:${taskId}:${editingId ?? "new"}`}
+          projectId={projectId}
+          taskId={taskId}
+          noteId={editingId ?? undefined}
+          onClose={handleCloseComposer}
+          onSaved={() => {
+            handleCloseComposer();
+            setShowSavedBanner(true);
+          }}
+        />
+      )}
+      {showComposer && !agentEditorEnabled && (
         <form
           onSubmit={submit}
           noValidate
@@ -421,7 +505,10 @@ function TaskNotesContent({
               onClick={handleCloseComposer}
               className="inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded text-gray-400 transition-colors hover:bg-gray-200/60 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
             >
-              <CloseIcon className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+              <CloseIcon
+                className="h-3.5 w-3.5 fill-current"
+                aria-hidden="true"
+              />
             </button>
           </div>
 
@@ -588,11 +675,15 @@ function TaskNotesContent({
         /* Timeline Notes Feed */
         <ol
           aria-label={t("title")}
-          className="relative space-y-3 before:absolute before:top-4 before:bottom-4 before:start-3.5 before:w-px before:bg-gray-200 dark:before:bg-gray-800"
+          className="relative space-y-3 before:absolute before:start-3.5 before:top-4 before:bottom-4 before:w-px before:bg-gray-200 dark:before:bg-gray-800"
         >
           {notes.map((note) => {
             const isExpanded = expandedIds.has(note.id);
-            const isBeingEdited = editingId === note.id;
+            const isBeingEdited =
+              editingId === note.id ||
+              Boolean(
+                splitControl?.isOpen && splitControl.editingNoteId === note.id,
+              );
             const isRemovingThis =
               remove.isPending && removingNoteId === note.id;
             const hasActions =
@@ -634,7 +725,7 @@ function TaskNotesContent({
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h5 className="min-w-0 break-words text-sm font-semibold text-gray-900 dark:text-white/90">
+                        <h5 className="min-w-0 text-sm font-semibold break-words text-gray-900 dark:text-white/90">
                           {note.title}
                         </h5>
                         {isBeingEdited && (
@@ -656,7 +747,7 @@ function TaskNotesContent({
                         </span>
                         <span aria-hidden="true">·</span>
                         <time
-                          className="shrink-0 tabular-nums text-xs text-gray-500 dark:text-gray-400"
+                          className="shrink-0 text-xs text-gray-500 tabular-nums dark:text-gray-400"
                           dateTime={note.createdAt}
                         >
                           {formatNoteTimestamp(note.createdAt, locale)}
@@ -682,10 +773,7 @@ function TaskNotesContent({
                           }
                           className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-md border border-transparent text-gray-500 transition-colors hover:border-gray-200 hover:bg-gray-50 hover:text-gray-800 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:border-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                         >
-                          <MoreDotIcon
-                            className="h-4 w-4"
-                            aria-hidden="true"
-                          />
+                          <MoreDotIcon className="h-4 w-4" aria-hidden="true" />
                         </button>
 
                         {isMenuOpen && (
@@ -731,36 +819,41 @@ function TaskNotesContent({
 
                   {/* Summary Preview when collapsed */}
                   {!isExpanded && (
-                    <p className="mt-2.5 line-clamp-2 break-words text-xs leading-5 text-gray-600 dark:text-gray-300">
-                      {note.accomplishments}
+                    <p className="mt-2.5 line-clamp-2 text-xs leading-5 break-words text-gray-600 dark:text-gray-300">
+                      {note.contentMarkdown ?? note.accomplishments}
                     </p>
                   )}
 
                   {/* Expandable Structured What / How / Why Details */}
-                  {isExpanded && (
+                  {isExpanded && note.contentMarkdown !== undefined && (
+                    <div className="mt-3 rounded-md border border-gray-100 p-3 text-sm leading-6 break-words whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:text-gray-200">
+                      {note.contentMarkdown}
+                    </div>
+                  )}
+                  {isExpanded && note.contentMarkdown === undefined && (
                     <dl className="mt-3 space-y-3 rounded-md border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/50">
                       <div className="min-w-0">
-                        <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                        <dt className="text-[11px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
                           {t("accomplishments")}
                         </dt>
-                        <dd className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-gray-700 dark:text-gray-200">
+                        <dd className="mt-1 text-xs leading-5 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-200">
                           {note.accomplishments}
                         </dd>
                       </div>
                       <div className="grid gap-3 border-t border-gray-200/70 pt-3 sm:grid-cols-2 dark:border-gray-800">
                         <div className="min-w-0">
-                          <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                          <dt className="text-[11px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
                             {t("approach")}
                           </dt>
-                          <dd className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-gray-700 dark:text-gray-200">
+                          <dd className="mt-1 text-xs leading-5 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-200">
                             {note.approach}
                           </dd>
                         </div>
                         <div className="min-w-0">
-                          <dt className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                          <dt className="text-[11px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
                             {t("reason")}
                           </dt>
-                          <dd className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-gray-700 dark:text-gray-200">
+                          <dd className="mt-1 text-xs leading-5 break-words whitespace-pre-wrap text-gray-700 dark:text-gray-200">
                             {note.reason}
                           </dd>
                         </div>
@@ -809,7 +902,9 @@ function TaskNotesContent({
               type="button"
               size="sm"
               variant="outline"
-              startIcon={<PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />}
+              startIcon={
+                <PlusIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              }
               onClick={handleOpenNewNote}
             >
               {t("addFirstNote")}

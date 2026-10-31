@@ -5,6 +5,8 @@ import path from "path";
 export default defineConfig({
   plugins: [react()],
   test: {
+    // Bound jsdom workers while local Next/MongoDB/Redis fixtures run together.
+    maxWorkers: 2,
     environment: "jsdom",
     globals: true,
     setupFiles: ["./vitest.setup.ts"],
