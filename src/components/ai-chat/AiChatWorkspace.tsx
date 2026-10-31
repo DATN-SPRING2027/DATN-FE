@@ -23,7 +23,6 @@ import {
   LockIcon,
   MindMapIcon,
   PlatformProjectsIcon,
-  SearchIcon,
   ShootingStarIcon,
   SidebarPanelIcon,
 } from "@/icons";
@@ -50,6 +49,7 @@ import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveO
 import type { Project } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 import AiChatComposer, { AI_CHAT_MAX_QUERY_LENGTH } from "./AiChatComposer";
+import AiChatProjectMenu from "./AiChatProjectMenu";
 import AiChatMessageList, {
   type DisplayAiChatMessage,
   type InspectedEvidence,
@@ -209,8 +209,9 @@ function AiChatWorkspaceContent() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isEngineMenuOpen, setIsEngineMenuOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const [isComposerProjectMenuOpen, setIsComposerProjectMenuOpen] =
+    useState(false);
   const [isMindMapOpen, setIsMindMapOpen] = useState(false);
-  const [projectFilter, setProjectFilter] = useState("");
   const [pinnedIdsByScope, setPinnedIdsByScope] = useState<
     Record<string, readonly string[]>
   >({});
@@ -440,8 +441,8 @@ function AiChatWorkspaceContent() {
       setPermissionBanner(null);
       setInspectedEvidence(null);
       setIsProjectMenuOpen(false);
+      setIsComposerProjectMenuOpen(false);
       setIsEngineMenuOpen(false);
-      setProjectFilter("");
 
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("projectId", project.id);
@@ -460,6 +461,7 @@ function AiChatWorkspaceContent() {
     setHighlightedTurnId(null);
     setIsEngineMenuOpen(false);
     setIsProjectMenuOpen(false);
+    setIsComposerProjectMenuOpen(false);
   }, []);
 
   const handleSelectThread = useCallback((threadId: string) => {
@@ -1263,16 +1265,6 @@ function AiChatWorkspaceContent() {
     );
   }
 
-  const filteredProjects = projectFilter.trim()
-    ? projects.filter(
-        (proj) =>
-          proj.name
-            .toLowerCase()
-            .includes(projectFilter.trim().toLowerCase()) ||
-          proj.code.toLowerCase().includes(projectFilter.trim().toLowerCase()),
-      )
-    : projects;
-
   const accessBannerMessage =
     permissionBanner ??
     (queryAccessError
@@ -1319,7 +1311,12 @@ function AiChatWorkspaceContent() {
       {/* Right Main ChatGPT Canvas */}
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Floating Minimal ChatGPT Top Header Bar */}
-        <header className="relative flex h-13 shrink-0 items-center justify-between gap-2 px-3 sm:px-4">
+        <header
+          className={cn(
+            "relative flex h-13 shrink-0 items-center justify-between gap-2 px-3 sm:px-4",
+            isEngineMenuOpen || isProjectMenuOpen ? "z-30" : "z-20",
+          )}
+        >
           {/* Top-Left: Sidebar Toggle + Engine Popover ("Continuum SAG v") */}
           <div className="flex min-w-0 items-center gap-1">
             <button
@@ -1368,6 +1365,7 @@ function AiChatWorkspaceContent() {
                 aria-expanded={isEngineMenuOpen}
                 onClick={() => {
                   setIsProjectMenuOpen(false);
+                  setIsComposerProjectMenuOpen(false);
                   setIsEngineMenuOpen((prev) => !prev);
                 }}
                 className="inline-flex max-w-full min-w-0 items-center gap-1 rounded-lg px-2 py-1.5 text-sm font-semibold text-gray-900 transition-colors hover:bg-gray-100 sm:px-2.5 dark:text-gray-100 dark:hover:bg-white/10"
@@ -1456,6 +1454,7 @@ function AiChatWorkspaceContent() {
               onClick={() => {
                 setIsEngineMenuOpen(false);
                 setIsProjectMenuOpen(false);
+                setIsComposerProjectMenuOpen(false);
                 setIsMindMapOpen((prev) => {
                   const next = !prev;
                   if (
@@ -1486,103 +1485,45 @@ function AiChatWorkspaceContent() {
               />
               <span className="hidden xsm:inline">{t("mindMapButton")}</span>
             </button>
-          <div
-            ref={projectMenuRef}
-            className="relative flex shrink-0 items-center"
-          >
-            <button
-              type="button"
-              aria-label={t("projectScopeAriaLabel")}
-              aria-haspopup="listbox"
-              aria-expanded={isProjectMenuOpen}
-              onClick={() => {
-                setIsEngineMenuOpen(false);
-                setIsProjectMenuOpen((prev) => !prev);
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:px-3 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10"
+            <div
+              ref={projectMenuRef}
+              className="relative flex shrink-0 items-center"
             >
-              <span className="size-1.5 shrink-0 rounded-full bg-success-500" />
-              <span className="max-w-24 truncate sm:max-w-36 2xl:max-w-48">
-                {selectedProject.name}
-              </span>
-              <ChevronDownIcon
-                aria-hidden="true"
-                className="size-3.5 shrink-0 opacity-70"
-              />
-            </button>
-
-            {isProjectMenuOpen && (
-              <div
-                role="listbox"
-                aria-label={t("projectMenuAriaLabel")}
-                className="absolute end-0 top-10 z-40 w-68 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
+              <button
+                type="button"
+                aria-label={t("projectScopeAriaLabel")}
+                aria-haspopup="listbox"
+                aria-expanded={isProjectMenuOpen}
+                onClick={() => {
+                  setIsEngineMenuOpen(false);
+                  setIsComposerProjectMenuOpen(false);
+                  setIsProjectMenuOpen((prev) => !prev);
+                }}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:px-3 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10"
               >
-                {projects.length > 5 && (
-                  <div className="relative mb-1.5 flex items-center p-1">
-                    <SearchIcon
-                      aria-hidden="true"
-                      className="pointer-events-none absolute start-3 size-3.5 text-gray-400"
-                    />
-                    <input
-                      type="search"
-                      value={projectFilter}
-                      onChange={(event) => setProjectFilter(event.target.value)}
-                      placeholder={t("projectSearchPlaceholder")}
-                      className="h-8 w-full rounded-xl border border-gray-200 bg-gray-50 ps-8 pe-2 text-xs text-gray-900 focus:border-brand-500 focus:outline-none dark:border-white/10 dark:bg-gpt-composer dark:text-gray-100"
-                    />
-                  </div>
-                )}
-
-                <div className="max-h-64 space-y-0.5 overflow-y-auto">
-                  {filteredProjects.length === 0 ? (
-                    <p className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
-                      {t("projectSearchEmpty")}
-                    </p>
-                  ) : (
-                    filteredProjects.map((proj) => {
-                      const isSelected = proj.id === selectedProject.id;
-                      return (
-                        <button
-                          key={proj.id}
-                          type="button"
-                          role="option"
-                          aria-selected={isSelected}
-                          onClick={() => handleSelectProject(proj)}
-                          className={cn(
-                            "flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-start text-xs transition-colors",
-                            isSelected
-                              ? "bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-                              : "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10",
-                          )}
-                        >
-                          <div className="min-w-0 flex-1">
-                            <div className="truncate font-semibold">
-                              {proj.name}
-                            </div>
-                            <div className="mt-0.5 flex items-center gap-1.5 text-xs opacity-65">
-                              <span>{proj.code}</span>
-                              <span>·</span>
-                              <span>
-                                {proj.visibility === "PRIVATE"
-                                  ? t("visibilityPrivate")
-                                  : t("visibilityPublic")}
-                              </span>
-                            </div>
-                          </div>
-                          {isSelected && (
-                            <CheckLineIcon
-                              aria-hidden="true"
-                              className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-                            />
-                          )}
-                        </button>
-                      );
-                    })
+                <span className="size-1.5 shrink-0 rounded-full bg-success-500" />
+                <span className="max-w-24 truncate sm:max-w-36 2xl:max-w-48">
+                  {selectedProject.name}
+                </span>
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-3.5 shrink-0 opacity-70 transition-transform duration-200",
+                    isProjectMenuOpen && "rotate-180",
                   )}
-                </div>
-              </div>
-            )}
-          </div>
+                />
+              </button>
+
+              {isProjectMenuOpen && (
+                <AiChatProjectMenu
+                  projects={projects}
+                  selectedProjectId={selectedProject.id}
+                  placement="bottom"
+                  testId="ai-chat-header-project-menu"
+                  onSelectProject={handleSelectProject}
+                />
+              )}
+            </div>
           </div>
         </header>
 
@@ -1693,16 +1634,25 @@ function AiChatWorkspaceContent() {
           projectId={selectedProject.id}
           projectCode={selectedProject.code}
           projectName={selectedProject.name}
+          projects={projects}
           isStreaming={isStreaming}
           disabled={Boolean(queryAccessError)}
           validationError={validationError}
+          isProjectMenuOpen={isComposerProjectMenuOpen}
+          onProjectMenuOpenChange={(nextOpen) => {
+            if (nextOpen) {
+              setIsProjectMenuOpen(false);
+              setIsEngineMenuOpen(false);
+            }
+            setIsComposerProjectMenuOpen(nextOpen);
+          }}
+          onSelectProject={handleSelectProject}
           onChange={(next) => {
             setComposerValue(next);
             if (validationError) setValidationError(null);
           }}
           onSubmit={() => void sendQuestion(composerValue)}
           onStopStreaming={handleStopStreaming}
-          onOpenProjectMenu={() => setIsProjectMenuOpen(true)}
         />
       </div>
 
