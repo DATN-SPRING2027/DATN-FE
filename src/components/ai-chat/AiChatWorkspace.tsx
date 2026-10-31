@@ -21,6 +21,7 @@ import {
   ComposeChatIcon,
   DocsIcon,
   LockIcon,
+  MindMapIcon,
   PlatformProjectsIcon,
   SearchIcon,
   ShootingStarIcon,
@@ -54,6 +55,8 @@ import AiChatMessageList, {
   type InspectedEvidence,
 } from "./AiChatMessageList";
 import AiChatSidebar from "./AiChatSidebar";
+import AiChatMindMapPanel from "./AiChatMindMapPanel";
+import { aiMindMapKeys } from "@/lib/queries/ai-chat/useAiMindMap";
 import { isPersistedMessageId } from "./answer-action-utils";
 import {
   isContinuumDocumentId,
@@ -173,6 +176,7 @@ function AiChatWorkspaceContent() {
   const queryClient = useQueryClient();
 
   const currentUserQuery = useCurrentUserQuery();
+  const userId = currentUserQuery.data?.id ?? "";
   const organizationId = currentUserQuery.data?.organizationId ?? "";
 
   const activeProjectsQuery = useActiveOrganizationProjects(
@@ -205,6 +209,7 @@ function AiChatWorkspaceContent() {
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isEngineMenuOpen, setIsEngineMenuOpen] = useState(false);
   const [isProjectMenuOpen, setIsProjectMenuOpen] = useState(false);
+  const [isMindMapOpen, setIsMindMapOpen] = useState(false);
   const [projectFilter, setProjectFilter] = useState("");
   const [pinnedIdsByScope, setPinnedIdsByScope] = useState<
     Record<string, readonly string[]>
@@ -417,6 +422,11 @@ function AiChatWorkspaceContent() {
     }
     return null;
   }, [threadsQuery.error, messagesQuery.error]);
+
+  useEffect(() => {
+    if (!queryAccessError) return;
+    queryClient.removeQueries?.({ queryKey: aiMindMapKeys.all });
+  }, [queryAccessError, queryClient]);
 
   const handleSelectProject = useCallback(
     (project: Project) => {
@@ -1435,7 +1445,47 @@ function AiChatWorkspaceContent() {
             </div>
           </div>
 
-          {/* Top-Right: Strict Single-Project Scope Pill */}
+          {/* Top-Right: Studio Mind Map Toggle + Strict Single-Project Scope Pill */}
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              data-testid="ai-chat-mind-map-trigger"
+              aria-label={t("mindMapButtonAria")}
+              aria-pressed={isMindMapOpen}
+              disabled={Boolean(queryAccessError)}
+              onClick={() => {
+                setIsEngineMenuOpen(false);
+                setIsProjectMenuOpen(false);
+                setIsMindMapOpen((prev) => {
+                  const next = !prev;
+                  if (
+                    next &&
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 1536
+                  ) {
+                    setIsDesktopSidebarOpen(false);
+                  }
+                  return next;
+                });
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:px-3",
+                isMindMapOpen
+                  ? "border-brand-300 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-500/20 dark:text-brand-200 dark:hover:bg-brand-500/30"
+                  : "border-gray-200/80 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10",
+              )}
+            >
+              <MindMapIcon
+                aria-hidden="true"
+                className={cn(
+                  "size-3.5 shrink-0",
+                  isMindMapOpen
+                    ? "text-brand-600 dark:text-brand-300"
+                    : "text-brand-500 dark:text-brand-400",
+                )}
+              />
+              <span className="hidden xsm:inline">{t("mindMapButton")}</span>
+            </button>
           <div
             ref={projectMenuRef}
             className="relative flex shrink-0 items-center"
@@ -1452,7 +1502,7 @@ function AiChatWorkspaceContent() {
               className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 sm:px-3 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10"
             >
               <span className="size-1.5 shrink-0 rounded-full bg-success-500" />
-              <span className="max-w-24 truncate sm:max-w-44">
+              <span className="max-w-24 truncate sm:max-w-36 2xl:max-w-48">
                 {selectedProject.name}
               </span>
               <ChevronDownIcon
@@ -1533,6 +1583,7 @@ function AiChatWorkspaceContent() {
               </div>
             )}
           </div>
+          </div>
         </header>
 
         {/* Permission Denied / Session Revoked Banner */}
@@ -1574,6 +1625,23 @@ function AiChatWorkspaceContent() {
               {t("heroHeading")}
             </h1>
             <div className="flex max-w-2xl flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                disabled={Boolean(queryAccessError)}
+                onClick={() => {
+                  if (
+                    typeof window !== "undefined" &&
+                    window.innerWidth < 1536
+                  ) {
+                    setIsDesktopSidebarOpen(false);
+                  }
+                  setIsMindMapOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50/80 px-3.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-500/35 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
+              >
+                <MindMapIcon aria-hidden="true" className="size-3.5 shrink-0" />
+                <span>{t("mindMapHeroChip")}</span>
+              </button>
               {quickPromptChips.map((chip) => (
                 <button
                   key={chip.label}
@@ -1638,9 +1706,33 @@ function AiChatWorkspaceContent() {
         />
       </div>
 
+      {isMindMapOpen && !queryAccessError && userId && organizationId && (
+        <AiChatMindMapPanel
+          key={`${userId}:${organizationId}:${selectedProject.id}`}
+          isOpen={isMindMapOpen}
+          userId={userId}
+          organizationId={organizationId}
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          isChatBusy={isStreaming}
+          onClose={() => setIsMindMapOpen(false)}
+          onInspectEvidence={(evidence) => setInspectedEvidence(evidence)}
+          onAskBranch={(prompt) => {
+            if (typeof window !== "undefined" && window.innerWidth < 1280) {
+              setIsMindMapOpen(false);
+            }
+            if (isStreaming) {
+              setComposerValue(prompt);
+              return;
+            }
+            void sendQuestion(prompt);
+          }}
+        />
+      )}
+
       {/* Evidence Excerpt Inspector Modal */}
       {inspectedEvidence && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-999999 flex items-center justify-center p-4">
           <button
             type="button"
             aria-label={t("closeDialog")}

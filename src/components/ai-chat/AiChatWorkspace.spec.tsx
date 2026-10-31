@@ -140,6 +140,10 @@ vi.mock("@/lib/queries/ai-chat/useAiAnswerActions", () => ({
   }),
 }));
 
+vi.mock("./AiChatMindMapPanel", () => ({
+  default: () => <aside data-testid="mind-map-workspace-panel">Cached map</aside>,
+}));
+
 function renderWorkspace() {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
@@ -213,6 +217,26 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     deleteThreadMutateAsync.mockReset();
     streamAiChatAskMock.mockReset();
     streamAiChatRegenerateMock.mockReset();
+  });
+
+  it("unmounts an open Mind Map immediately when Project access is revoked", () => {
+    const view = renderWorkspace();
+    fireEvent.click(screen.getByTestId("ai-chat-mind-map-trigger"));
+    expect(screen.getByTestId("mind-map-workspace-panel")).toBeInTheDocument();
+    useThreadsMock.mockReturnValue({
+      data: sampleThreads,
+      isLoading: false,
+      isError: true,
+      error: new ApiError(403, "FORBIDDEN", "Project access revoked"),
+      refetch: vi.fn(),
+    });
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatWorkspace />
+      </NextIntlClientProvider>,
+    );
+    expect(screen.queryByTestId("mind-map-workspace-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("ai-chat-mind-map-trigger")).toBeDisabled();
   });
 
   it("renders the welcome state without a Chat/Work switch and auto-selects the first ACTIVE project", () => {
