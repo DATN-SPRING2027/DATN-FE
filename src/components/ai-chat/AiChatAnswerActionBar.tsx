@@ -83,6 +83,7 @@ export interface AiChatAnswerActionBarProps {
   onToggleSpeak: () => void;
   onOpenSources?: () => void;
   onBranchInNewChat?: () => void;
+  onSaveToTaskNote?: () => void;
 }
 
 export default function AiChatAnswerActionBar({
@@ -104,6 +105,7 @@ export default function AiChatAnswerActionBar({
   onToggleSpeak,
   onOpenSources,
   onBranchInNewChat,
+  onSaveToTaskNote,
 }: AiChatAnswerActionBarProps) {
   const t = useTranslations("AiChat");
   const locale = useLocale();
@@ -117,9 +119,11 @@ export default function AiChatAnswerActionBar({
     Boolean(onOpenSources) &&
     (message.citations.length > 0 || message.sessionCitations.length > 0);
   const canBranch = isPersisted && Boolean(onBranchInNewChat);
+  const canSaveToTaskNote = isPersisted && Boolean(onSaveToTaskNote);
   const formattedTimestamp = formatTurnTimestamp(message.createdAt, locale);
   const showMoreMenuTrigger =
-    isCompletedOk && (hasSources || canBranch || Boolean(formattedTimestamp));
+    isCompletedOk &&
+    (hasSources || canBranch || canSaveToTaskNote || Boolean(formattedTimestamp));
 
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
   const [copyErrorState, setCopyErrorState] = useState<{
@@ -228,7 +232,7 @@ export default function AiChatAnswerActionBar({
   useLayoutEffect(() => {
     if (!isMoreOpen) return;
     updateMoreMenuPosition();
-  }, [isMoreOpen, updateMoreMenuPosition, hasSources, canBranch]);
+  }, [isMoreOpen, updateMoreMenuPosition, hasSources, canBranch, canSaveToTaskNote]);
 
   useEffect(() => {
     if (!isMoreOpen) return;
@@ -665,7 +669,7 @@ export default function AiChatAnswerActionBar({
           </button>
         )}
 
-        {/* 7. More Actions (⋯): Timestamp, View sources, Branch in new chat */}
+        {/* 7. More Actions (⋯): Timestamp, sources, Task Note, branch */}
         {showMoreMenuTrigger && (
           <button
             ref={moreTriggerRef}
@@ -732,6 +736,24 @@ export default function AiChatAnswerActionBar({
                   className="size-4 shrink-0 text-gray-600 dark:text-gray-300"
                 />
                 <span>{t("viewSourcesAction")}</span>
+              </button>
+            )}
+
+            {canSaveToTaskNote && onSaveToTaskNote && (
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMoreOpenMessageId(null);
+                  onSaveToTaskNote();
+                }}
+                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-start text-xs font-medium text-gray-800 transition-colors hover:bg-gray-100 focus-visible:bg-gray-100 focus-visible:outline-none sm:text-theme-sm dark:text-gray-100 dark:hover:bg-white/10 dark:focus-visible:bg-white/10"
+              >
+                <CheckLineIcon
+                  aria-hidden="true"
+                  className="size-4 shrink-0 text-gray-600 dark:text-gray-300"
+                />
+                <span>{t("saveAsTaskNoteAction")}</span>
               </button>
             )}
 

@@ -29,6 +29,39 @@ export type TaskNoteInput = Readonly<{
   reason: string;
 }>;
 
+export type TaskNoteAiChatCitation = Readonly<{
+  number: number;
+  sourceLabel: string;
+  documentId?: string;
+  documentName?: string;
+  versionNo?: number;
+  chunkId?: string;
+  heading?: string;
+  sectionPath?: string;
+  pageFrom?: number;
+  pageTo?: number;
+}>;
+
+export type TaskNoteAiChatSessionCitation = Readonly<{
+  ref: string;
+  groupId?: string;
+  turnIds: readonly string[];
+}>;
+
+export type TaskNoteAiChatSource = Readonly<{
+  threadId: string;
+  messageId: string;
+  citations: readonly TaskNoteAiChatCitation[];
+  sessionCitations: readonly TaskNoteAiChatSessionCitation[];
+}>;
+
+export type TaskNoteAiChatSourceInput = Omit<
+  TaskNoteAiChatSource,
+  "citations"
+> & {
+  citations: readonly Omit<TaskNoteAiChatCitation, "documentName">[];
+};
+
 export type TaskNote = Readonly<{
   title: string;
   accomplishments?: string;
@@ -37,6 +70,7 @@ export type TaskNote = Readonly<{
   contentMarkdown?: string;
   contentSchemaVersion?: 2;
   currentVersionNumber?: number;
+  aiChatSource?: TaskNoteAiChatSource;
   id: string;
   projectId: string;
   taskId: string;

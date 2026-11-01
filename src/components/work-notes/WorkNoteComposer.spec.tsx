@@ -112,6 +112,7 @@ function mount(
   options?: {
     locale?: "vi" | "en";
     initialFields?: { title: string; contentMarkdown: string };
+    startFreshDraft?: boolean;
     onSaved?: (result?: unknown) => void;
     onClose?: (persisted?: { title: string; contentMarkdown: string }) => void;
   },
@@ -135,6 +136,7 @@ function mount(
         <WorkNoteComposer
           source={source}
           initialFields={options?.initialFields}
+          startFreshDraft={options?.startFreshDraft}
           projectId="651a2b3c4d5e6f7a8b9c0d21"
           taskId={base.taskId}
           onClose={options?.onClose ?? vi.fn()}
@@ -169,6 +171,19 @@ it("uses two fields and saves ordinary text without an Agent call", async () => 
   await waitFor(() => expect(agentApi.save).toHaveBeenCalled());
   expect(agentApi.message).not.toHaveBeenCalled();
   expect(screen.queryByLabelText("Approach")).not.toBeInTheDocument();
+});
+
+it("creates an isolated Task Note draft for imported AI Chat answers instead of resuming an existing task draft", async () => {
+  vi.mocked(agentApi.create).mockResolvedValue(structuredClone(base));
+  mount(undefined, { startFreshDraft: true });
+
+  await screen.findByDisplayValue(base.contentMarkdown);
+
+  expect(agentApi.resume).not.toHaveBeenCalled();
+  expect(agentApi.create).toHaveBeenCalledWith(
+    "651a2b3c4d5e6f7a8b9c0d21",
+    expect.objectContaining({ taskId: base.taskId }),
+  );
 });
 
 it("requires an in-app confirmation before restoring a version and supports cancellation", async () => {

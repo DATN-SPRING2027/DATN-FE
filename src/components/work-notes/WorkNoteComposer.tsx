@@ -45,6 +45,7 @@ import type {
   SelectionAnchor,
   EditorSourceIdentity,
 } from "@/lib/queries/work-notes/work-note-agent.api";
+import type { TaskNoteAiChatSourceInput } from "@/lib/queries/work-notes/useWorkNotes";
 import { useWorkNoteComposer } from "./useWorkNoteComposer";
 import WorkNoteAgentChat from "./WorkNoteAgentChat";
 import WorkNoteAssessment from "./WorkNoteAssessment";
@@ -66,6 +67,8 @@ export default function WorkNoteComposer({
   onSaved,
   source,
   initialFields,
+  aiChatSource,
+  startFreshDraft = false,
   variant = "modal",
   onPanelOpenChange,
   onConfirmationChange,
@@ -81,6 +84,8 @@ export default function WorkNoteComposer({
   onSaved: (result?: unknown) => void;
   source?: EditorSourceIdentity;
   initialFields?: { title: string; contentMarkdown: string };
+  aiChatSource?: TaskNoteAiChatSourceInput;
+  startFreshDraft?: boolean;
   variant?: "modal" | "inline";
   onPanelOpenChange?: (open: boolean) => void;
   onConfirmationChange?: (open: boolean) => void;
@@ -94,6 +99,8 @@ export default function WorkNoteComposer({
     onSaved,
     source,
     initialFields,
+    aiChatSource,
+    startFreshDraft,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [panelToggle, setPanelToggle] = useState<boolean | null>(null);
