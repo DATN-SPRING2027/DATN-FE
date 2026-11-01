@@ -102,4 +102,40 @@ describe("AiChatMindMapCanvas viewport controls", () => {
     viewport.dispatchEvent(afterUnmount);
     expect(afterUnmount.defaultPrevented).toBe(false);
   });
+
+  it("enables smooth camera transform transition on dock button clicks and disables it during drag or wheel pan", () => {
+    const { svg, viewport } = renderCanvas();
+    const cameraGroup = svg.querySelector("g[transform]")!;
+    expect(cameraGroup.getAttribute("class") ?? "").not.toContain(
+      "continuum-mind-map-camera",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: messages.AiChat.mindMapZoomIn }),
+    );
+    expect(cameraGroup.getAttribute("class")).toContain(
+      "continuum-mind-map-camera",
+    );
+
+    act(() => {
+      viewport.dispatchEvent(
+        new WheelEvent("wheel", {
+          bubbles: true,
+          cancelable: true,
+          deltaX: 10,
+          deltaY: 10,
+        }),
+      );
+    });
+    expect(cameraGroup.getAttribute("class") ?? "").not.toContain(
+      "continuum-mind-map-camera",
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: messages.AiChat.mindMapFitView }),
+    );
+    expect(cameraGroup.getAttribute("class")).toContain(
+      "continuum-mind-map-camera",
+    );
+  });
 });

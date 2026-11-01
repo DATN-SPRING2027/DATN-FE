@@ -510,4 +510,53 @@ describe("AiChatMindMapPanel — clutter-free Studio UI, citations, revalidation
     expect(document.body.style.cursor).toBe("");
     expect(document.body.style.userSelect).toBe("");
   });
+
+  it("plays docked exit animation when smooth motion is enabled and closes immediately under reduced motion", () => {
+    vi.useFakeTimers();
+    const originalMatchMedia = window.matchMedia;
+    try {
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: query.includes("prefers-reduced-motion: no-preference"),
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      apiClientMock.mockReturnValue(new Promise(() => {}));
+      const { onClose, unmount } = renderPanel();
+      const dockedPanel = screen.getByTestId("mind-map-docked-panel");
+
+      fireEvent.click(screen.getByRole("button", { name: "Close Mind Map panel" }));
+      expect(dockedPanel.className).toContain("continuum-docked-exit");
+      expect(onClose).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(190);
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+      unmount();
+
+      window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+        matches: false,
+        media: query,
+        onchange: null,
+        addListener: vi.fn(),
+        removeListener: vi.fn(),
+        addEventListener: vi.fn(),
+        removeEventListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+      }));
+
+      const reduced = renderPanel();
+      fireEvent.click(screen.getByRole("button", { name: "Close Mind Map panel" }));
+      expect(reduced.onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      window.matchMedia = originalMatchMedia;
+      vi.useRealTimers();
+    }
+  });
 });

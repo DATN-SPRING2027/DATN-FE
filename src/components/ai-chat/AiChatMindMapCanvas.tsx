@@ -69,6 +69,7 @@ export default function AiChatMindMapCanvas({
     pan: { x: number; y: number };
   } | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [isCameraAnimating, setIsCameraAnimating] = useState(false);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -172,10 +173,12 @@ export default function AiChatMindMapCanvas({
         setContainerSize({ width, height });
       }
     }
+    setIsCameraAnimating(true);
     setUserCamera(null);
   }, []);
 
   const handleZoomIn = useCallback(() => {
+    setIsCameraAnimating(true);
     setUserCamera((prev) => {
       const base = prev ?? autoFitCamera;
       return {
@@ -186,6 +189,7 @@ export default function AiChatMindMapCanvas({
   }, [autoFitCamera, minimumScale]);
 
   const handleZoomOut = useCallback(() => {
+    setIsCameraAnimating(true);
     setUserCamera((prev) => {
       const base = prev ?? autoFitCamera;
       return {
@@ -197,6 +201,7 @@ export default function AiChatMindMapCanvas({
 
   const handleWheel = useCallback(
     (event: WheelEvent) => {
+      setIsCameraAnimating(false);
       if (event.ctrlKey || event.metaKey) {
         event.preventDefault();
         const delta = event.deltaY < 0 ? 0.1 : -0.1;
@@ -246,6 +251,7 @@ export default function AiChatMindMapCanvas({
         originScale: scale,
         moved: false,
       };
+      setIsCameraAnimating(false);
       setIsDragging(true);
       event.currentTarget.setPointerCapture?.(event.pointerId);
     },
@@ -579,7 +585,12 @@ export default function AiChatMindMapCanvas({
           fill={`url(#mindmap-grid-${patternId})`}
         />
 
-        <g transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}>
+        <g
+          transform={`translate(${pan.x}, ${pan.y}) scale(${scale})`}
+          className={cn(
+            isCameraAnimating && !isDragging && "continuum-mind-map-camera",
+          )}
+        >
           {layout.edges.map((edge) => {
             const isHighlighted =
               selectedPathIds.has(edge.sourceId) &&
@@ -613,14 +624,14 @@ export default function AiChatMindMapCanvas({
           <button
             type="button"
             onClick={onCollapseDefault}
-            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 active:scale-94 dark:text-gray-200 dark:hover:bg-white/10"
           >
             {t("mindMapCollapseDefault")}
           </button>
           <button
             type="button"
             onClick={onExpandAll}
-            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="rounded-xl px-2 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 active:scale-94 dark:text-gray-200 dark:hover:bg-white/10"
           >
             {t("mindMapExpandAll")}
           </button>
@@ -644,7 +655,7 @@ export default function AiChatMindMapCanvas({
             type="button"
             onClick={handleZoomOut}
             aria-label={t("mindMapZoomOut")}
-            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 active:scale-90 dark:text-gray-200 dark:hover:bg-white/10"
           >
             −
           </button>
@@ -655,14 +666,14 @@ export default function AiChatMindMapCanvas({
             type="button"
             onClick={handleZoomIn}
             aria-label={t("mindMapZoomIn")}
-            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
+            className="inline-flex size-6.5 items-center justify-center rounded-xl text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-100 active:scale-90 dark:text-gray-200 dark:hover:bg-white/10"
           >
             +
           </button>
           <button
             type="button"
             onClick={handleFitView}
-            className="ms-0.5 rounded-xl bg-brand-50/80 px-2 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
+            className="ms-0.5 rounded-xl bg-brand-50/80 px-2 py-1 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 active:scale-94 dark:bg-brand-500/15 dark:text-brand-300 dark:hover:bg-brand-500/25"
           >
             {t("mindMapFitView")}
           </button>

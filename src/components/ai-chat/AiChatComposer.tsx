@@ -205,9 +205,19 @@ export default function AiChatComposer({
                 setProjectMenuOpen(false);
                 setIsPlusMenuOpen((prev) => !prev);
               }}
-              className="flex size-8 cursor-pointer items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200/80 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+              className={cn(
+                "flex size-8 cursor-pointer items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-200/80 hover:text-gray-900 active:scale-92 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white",
+                isPlusMenuOpen &&
+                  "bg-gray-200/90 text-gray-900 dark:bg-white/15 dark:text-white",
+              )}
             >
-              <PlusIcon aria-hidden="true" className="size-3.5" />
+              <PlusIcon
+                aria-hidden="true"
+                className={cn(
+                  "size-3.5 transition-transform duration-200 ease-out",
+                  isPlusMenuOpen && "rotate-45",
+                )}
+              />
             </button>
 
             {isPlusMenuOpen && (
@@ -216,7 +226,9 @@ export default function AiChatComposer({
                 aria-label={t("plusMenuAriaLabel")}
                 className={cn(
                   "absolute start-0 z-50 w-64 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover",
-                  variant === "docked" ? "bottom-11" : "top-11",
+                  variant === "docked"
+                    ? "bottom-11 continuum-popover-up-enter"
+                    : "top-11 continuum-popover-enter",
                 )}
               >
                 <div className="px-2.5 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500">
@@ -360,9 +372,12 @@ export default function AiChatComposer({
                 type="button"
                 onClick={onStopStreaming}
                 aria-label={t("stopStreaming")}
-                className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                className="flex size-8 cursor-pointer items-center justify-center rounded-full bg-gray-900 text-white transition-colors hover:scale-105 hover:bg-gray-700 active:scale-92 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
               >
-                <StopSquareIcon aria-hidden="true" className="size-3.5" />
+                <StopSquareIcon
+                  aria-hidden="true"
+                  className="continuum-send-icon-enter size-3.5"
+                />
               </button>
             ) : (
               <button
@@ -372,15 +387,23 @@ export default function AiChatComposer({
                 className={cn(
                   "flex size-8 items-center justify-center rounded-full bg-brand-500 text-white shadow-theme-xs transition-all hover:bg-brand-600 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none",
                   canSend
-                    ? "cursor-pointer"
+                    ? "cursor-pointer hover:scale-105 active:scale-92"
                     : "cursor-not-allowed hover:bg-brand-500",
                   (isOverLimit || disabled) && "opacity-50",
                 )}
               >
                 {hasText ? (
-                  <ArrowUpIcon aria-hidden="true" className="size-3.5" />
+                  <ArrowUpIcon
+                    key="send"
+                    aria-hidden="true"
+                    className="continuum-send-icon-enter size-3.5"
+                  />
                 ) : (
-                  <VoiceWaveIcon aria-hidden="true" className="size-4" />
+                  <VoiceWaveIcon
+                    key="voice"
+                    aria-hidden="true"
+                    className="continuum-send-icon-enter size-4"
+                  />
                 )}
               </button>
             )}
