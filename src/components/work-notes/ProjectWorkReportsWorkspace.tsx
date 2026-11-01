@@ -888,176 +888,183 @@ export default function ProjectWorkReportsWorkspace({
       <WorkNotesPageHeader projectId={projectId} active="reports" />
 
       <div className="space-y-4">
-        {/* MINIMAL TOP TOOLBAR: Scope Tabs + Period Selector + Cadence Popover */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {settings.isPending && !settingsData && !memberSettingsData ? (
-            <div className="h-9 w-60 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          ) : canSwitchLeaderTier ? (
-            <nav
-              aria-label={t("title")}
-              className="inline-flex flex-wrap items-center gap-1 rounded-sm border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScope("MEMBER");
-                  setPeriodFilter("DEFAULT");
-                  setStatusFilter("ALL");
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                  setPage(1);
-                }}
-                className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
-                  activeScope === "MEMBER"
-                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                }`}
+        {/* SETTINGS CARD: Scope Tabs + Period Selector + Cadence Popover + Reminder */}
+        <section
+          aria-label={t("title")}
+          className="rounded-sm border border-gray-200 bg-white px-3.5 py-3 sm:px-4 dark:border-gray-800 dark:bg-gray-900"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {settings.isPending && !settingsData && !memberSettingsData ? (
+              <div className="h-8 w-60 animate-pulse rounded-sm bg-gray-100 dark:bg-gray-800" />
+            ) : canSwitchLeaderTier ? (
+              <nav
+                aria-label={t("title")}
+                className="inline-flex flex-wrap items-center gap-1 rounded-sm border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800"
               >
-                <GroupIcon
-                  className={`h-3.5 w-3.5 shrink-0 ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("MEMBER");
+                    setPeriodFilter("DEFAULT");
+                    setStatusFilter("ALL");
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                    setPage(1);
+                  }}
+                  className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
                     activeScope === "MEMBER"
-                      ? "text-gray-700 dark:text-gray-200"
-                      : "text-gray-400"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                   }`}
-                />
-                <span>{t("tabs.memberReports")}</span>
-                {(memberSettingsData?.frequency ??
-                  (activeScope === "MEMBER"
-                    ? settingsData?.frequency
-                    : undefined)) && (
-                  <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
-                    {t(
-                      `daysShort.${
-                        (activeScope === "MEMBER"
-                          ? settingsData?.frequency
-                          : undefined) ?? memberSettingsData!.frequency
-                      }`,
-                    )}
-                  </span>
-                )}
-              </button>
+                >
+                  <GroupIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "MEMBER"
+                        ? "text-gray-700 dark:text-gray-200"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>{t("tabs.memberReports")}</span>
+                  {(memberSettingsData?.frequency ??
+                    (activeScope === "MEMBER"
+                      ? settingsData?.frequency
+                      : undefined)) && (
+                    <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
+                      {t(
+                        `daysShort.${
+                          (activeScope === "MEMBER"
+                            ? settingsData?.frequency
+                            : undefined) ?? memberSettingsData!.frequency
+                        }`,
+                      )}
+                    </span>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScope("LEADER");
-                  setPeriodFilter("DEFAULT");
-                  setStatusFilter("ALL");
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                  setPage(1);
-                }}
-                className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
-                  activeScope === "LEADER"
-                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                }`}
-              >
-                <UserCircleIcon
-                  className={`h-3.5 w-3.5 shrink-0 ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("LEADER");
+                    setPeriodFilter("DEFAULT");
+                    setStatusFilter("ALL");
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                    setPage(1);
+                  }}
+                  className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
                     activeScope === "LEADER"
-                      ? "text-gray-700 dark:text-gray-200"
-                      : "text-gray-400"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                   }`}
-                />
-                <span>
-                  {actorRole === "MANAGER"
-                    ? t("tabs.managerLeaderReports")
-                    : t("tabs.leaderMyReport")}
-                </span>
-                {((activeScope === "LEADER"
-                  ? settingsData?.frequency
-                  : undefined) ??
-                  settingsData?.leaderSettings?.frequency ??
-                  memberSettingsData?.leaderSettings?.frequency) && (
-                  <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
-                    {t(
-                      `daysShort.${
-                        (activeScope === "LEADER"
-                          ? settingsData?.frequency
-                          : undefined) ??
-                        settingsData?.leaderSettings?.frequency ??
-                        memberSettingsData!.leaderSettings!.frequency
-                      }`,
-                    )}
+                >
+                  <UserCircleIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "LEADER"
+                        ? "text-gray-700 dark:text-gray-200"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>
+                    {actorRole === "MANAGER"
+                      ? t("tabs.managerLeaderReports")
+                      : t("tabs.leaderMyReport")}
                   </span>
-                )}
-              </button>
-            </nav>
-          ) : (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-              <LockIcon className="h-3.5 w-3.5 shrink-0 text-gray-700 dark:text-gray-200" />
-              <span>{t("mandatoryScheduleLabel")}</span>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {!reportsQuery.isPending &&
-              !reportsQuery.isError &&
-              allScopeReports.length > 0 &&
-              activePeriodReports.length === 0 && (
-                <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-                  <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  <span>{t("noActiveCycleArchive")}</span>
+                  {((activeScope === "LEADER"
+                    ? settingsData?.frequency
+                    : undefined) ??
+                    settingsData?.leaderSettings?.frequency ??
+                    memberSettingsData?.leaderSettings?.frequency) && (
+                    <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
+                      {t(
+                        `daysShort.${
+                          (activeScope === "LEADER"
+                            ? settingsData?.frequency
+                            : undefined) ??
+                          settingsData?.leaderSettings?.frequency ??
+                          memberSettingsData!.leaderSettings!.frequency
+                        }`,
+                      )}
+                    </span>
+                  )}
+                </button>
+              </nav>
+            ) : (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <LockIcon className="h-3.5 w-3.5" />
                 </span>
-              )}
-
-            {periods.length > 0 && (
-              <select
-                aria-label={t("periodSelectLabel")}
-                value={effectivePeriod}
-                onChange={(event) => {
-                  setPeriodFilter(event.target.value);
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                }}
-                className="h-8 rounded-sm border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-800 tabular-nums transition outline-none hover:border-gray-300 focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              >
-                {periods.map((item) => (
-                  <option key={item.key} value={item.key}>
-                    {t("period", {
-                      start: format.dateTime(new Date(item.start), {
-                        dateStyle: "medium",
-                        timeZone: "UTC",
-                      }),
-                      end: format.dateTime(new Date(item.end), {
-                        dateStyle: "medium",
-                        timeZone: "UTC",
-                      }),
-                    })}
-                  </option>
-                ))}
-                {periods.length > 1 && (
-                  <option value="ALL">
-                    {t("allPeriods", { count: totalReportsCount })}
-                  </option>
-                )}
-              </select>
+                <span className="text-xs font-semibold text-gray-900 dark:text-white/90">
+                  {t("mandatoryScheduleLabel")}
+                </span>
+              </div>
             )}
 
-            <WorkReportCadencePopover
-              activeScope={activeScope}
-              actorRole={actorRole}
-              settingsData={settingsData}
-              isPending={settings.isPending}
-              isError={settings.isError}
-              error={settings.error}
-              isFetching={settings.isFetching}
-              isRefetchError={settings.isRefetchError}
-              accessLost={settingsAccessLost}
-              onRetry={() => void settings.refetch()}
-              isSaving={settingsMutation.isPending}
-              saveError={settingsMutation.error}
-              saveSuccess={settingsMutation.isSuccess}
-              onApplyFrequency={async (nextFreq) => {
-                await settingsMutation.mutateAsync(nextFreq);
-              }}
-            />
-          </div>
-        </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!reportsQuery.isPending &&
+                !reportsQuery.isError &&
+                allScopeReports.length > 0 &&
+                activePeriodReports.length === 0 && (
+                  <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+                    <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <span>{t("noActiveCycleArchive")}</span>
+                  </span>
+                )}
 
-        {settingsData && (
-          <section className="rounded-sm border border-gray-200 bg-white px-3.5 py-3 dark:border-gray-800 dark:bg-gray-900">
+              {periods.length > 0 && (
+                <select
+                  aria-label={t("periodSelectLabel")}
+                  value={effectivePeriod}
+                  onChange={(event) => {
+                    setPeriodFilter(event.target.value);
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                  }}
+                  className="h-8 rounded-sm border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-800 tabular-nums transition outline-none hover:border-gray-300 focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  {periods.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {t("period", {
+                        start: format.dateTime(new Date(item.start), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }),
+                        end: format.dateTime(new Date(item.end), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }),
+                      })}
+                    </option>
+                  ))}
+                  {periods.length > 1 && (
+                    <option value="ALL">
+                      {t("allPeriods", { count: totalReportsCount })}
+                    </option>
+                  )}
+                </select>
+              )}
+
+              <WorkReportCadencePopover
+                activeScope={activeScope}
+                actorRole={actorRole}
+                settingsData={settingsData}
+                isPending={settings.isPending}
+                isError={settings.isError}
+                error={settings.error}
+                isFetching={settings.isFetching}
+                isRefetchError={settings.isRefetchError}
+                accessLost={settingsAccessLost}
+                onRetry={() => void settings.refetch()}
+                isSaving={settingsMutation.isPending}
+                saveError={settingsMutation.error}
+                saveSuccess={settingsMutation.isSuccess}
+                onApplyFrequency={async (nextFreq) => {
+                  await settingsMutation.mutateAsync(nextFreq);
+                }}
+              />
+            </div>
+          </div>
+
+          {settingsData && (
             <WorkReportReminderSettings
               key={`${activeScope}:${settingsData.reminderLeadMinutes ?? "off"}`}
               projectId={projectId}
@@ -1065,8 +1072,8 @@ export default function ProjectWorkReportsWorkspace({
               leadMinutes={settingsData.reminderLeadMinutes ?? null}
               canConfigure={settingsData.permissions.canConfigure}
             />
-          </section>
-        )}
+          )}
+        </section>
 
         {/* SUBTLE PAST-OVERDUE ALERT STRIP */}
         {hiddenPastOverdueReports.length > 0 && (
