@@ -13,7 +13,6 @@ export async function forwardBackendRequest(
   options: {
     redirect?: RequestRedirect;
     requestId?: string;
-    streamBody?: boolean;
   } = {},
 ): Promise<Response> {
   let headers: Headers;
@@ -52,12 +51,8 @@ export async function forwardBackendRequest(
 
   const isAiChatRequest =
     path[0] === "ai-chat" || (path[0] === "platform" && path[1] === "ai");
-  const streamBody = options.streamBody && !["GET", "HEAD"].includes(request.method);
-  const body = ["GET", "HEAD"].includes(request.method)
-    ? undefined
-    : streamBody
-      ? request.body
-      : await request.arrayBuffer();
+  const streamBody = !["GET", "HEAD"].includes(request.method) && request.body !== null;
+  const body = streamBody ? request.body : undefined;
   let backendResponse: Response;
   try {
     backendResponse = await fetch(
