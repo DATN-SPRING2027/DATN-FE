@@ -2,6 +2,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authKeys } from "./auth.keys";
 import { loadSignInSession, loginFromSharedForm } from "./sign-in-session";
+import { notifyAuthSessionChanged } from "./session-sync";
 
 export function useSignInSessionQuery() {
   return useQuery({
@@ -33,6 +34,7 @@ export function useSharedLoginMutation() {
             query.queryKey[1] === "session"
           ),
       });
+      notifyAuthSessionChanged();
     },
   });
 }

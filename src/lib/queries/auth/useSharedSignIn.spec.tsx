@@ -9,6 +9,7 @@ import {
   useSignInSessionQuery,
 } from "./useSharedSignIn";
 import { authKeys } from "./auth.keys";
+import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "./session-sync";
 vi.mock("./sign-in-session", () => ({
   loadSignInSession: vi.fn(),
   loginFromSharedForm: vi.fn(),
@@ -42,6 +43,7 @@ function ParentSessionGate() {
 describe("shared sign-in hooks", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    window.localStorage.removeItem(AUTH_SESSION_CHANGE_STORAGE_KEY);
   });
   it("loads the actual cookie context when the sign-in page opens", async () => {
     vi.mocked(loadSignInSession).mockResolvedValue({
@@ -113,5 +115,6 @@ describe("shared sign-in hooks", () => {
       client.getQueryData(["platform-console", "session"]),
     ).toBeUndefined();
     expect(client.getQueryData(authKeys.session())).toBeNull();
+    expect(window.localStorage.getItem(AUTH_SESSION_CHANGE_STORAGE_KEY)).toBeTruthy();
   });
 });

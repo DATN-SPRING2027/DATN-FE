@@ -2,10 +2,11 @@
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import InputFocusPolicy from "@/components/form/InputFocusPolicy";
-import { useInsertionEffect, useState } from "react";
+import { useEffect, useInsertionEffect, useState } from "react";
 import { installBrowserExtensionHydrationGuard } from "@/lib/browser-extension-hydration-guard";
 import { ApiError } from "@/lib/api-client";
 import { currentSessionIdentityKey, handleSessionError } from "@/lib/queries/auth/session-errors";
+import { subscribeToAuthSessionChanges } from "@/lib/queries/auth/session-sync";
 
 if (typeof window !== "undefined") {
   installBrowserExtensionHydrationGuard();
@@ -49,8 +50,17 @@ export function AppProviders({ children }: AppProvidersProps) {
       });
     return client;
   });
+  const [sessionGeneration, setSessionGeneration] = useState(0);
+
+  useEffect(
+    () => subscribeToAuthSessionChanges(() => {
+      queryClient.clear();
+      setSessionGeneration((generation) => generation + 1);
+    }),
+    [queryClient],
+  );
 
   return (
-    <QueryClientProvider client={queryClient}><InputFocusPolicy />{children}</QueryClientProvider>
+    <QueryClientProvider key={sessionGeneration} client={queryClient}><InputFocusPolicy />{children}</QueryClientProvider>
   );
 }

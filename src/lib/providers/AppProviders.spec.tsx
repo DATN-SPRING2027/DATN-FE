@@ -1,10 +1,11 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { focusManager, onlineManager } from "@tanstack/react-query";
+import { focusManager, onlineManager, useQuery } from "@tanstack/react-query";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useUpdateUserMutation, useUsersQuery } from "@/lib/queries/users/useUsers";
 import { AppProviders } from "./AppProviders";
 import { usePlatformOrganizationsQuery, usePlatformSessionQuery } from "@/lib/queries/platform/usePlatformConsole";
+import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "@/lib/queries/auth/session-sync";
 
 function ProtectedScreen() {
   const currentUser = useCurrentUserQuery();
@@ -42,8 +43,115 @@ function PlatformDirectoryScreen() {
   return <span>{session.isError ? "platform-session-error" : organizations.isError ? "platform-directory-error" : "platform-directory-loading"}</span>;
 }
 
+function CachedPrivateScreen() {
+  const currentUser = useCurrentUserQuery();
+  const privateData = useQuery({
+    queryKey: ["private-directory", currentUser.data?.id],
+    queryFn: async () => {
+      const response = await fetch("/api/private-directory");
+      return (await response.json() as { value: string }).value;
+    },
+    enabled: Boolean(currentUser.data),
+  });
+  return <span>{privateData.data ?? "private-loading"}</span>;
+}
+
 describe("AppProviders", () => {
-  afterEach(() => { vi.restoreAllMocks(); focusManager.setFocused(undefined); onlineManager.setOnline(true); });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    focusManager.setFocused(undefined);
+    onlineManager.setOnline(true);
+    window.localStorage.removeItem(AUTH_SESSION_CHANGE_STORAGE_KEY);
+  });
+
+  it("drops private query data when another tab changes the authenticated account", async () => {
+    let identity = "account-a";
+    vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/auth/me")) {
+        return Response.json({
+          id: identity,
+          name: identity,
+          email: `${identity}@example.test`,
+          organizationId: `${identity}-org`,
+          roles: ["USER"],
+        });
+      }
+      return Response.json({ value: `${identity}-private-data` });
+    });
+
+    render(<AppProviders><CachedPrivateScreen /></AppProviders>);
+    await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
+
+    identity = "account-b";
+    await act(async () => {
+      window.dispatchEvent(new StorageEvent("storage", {
+        key: AUTH_SESSION_CHANGE_STORAGE_KEY,
+        newValue: "session-changed",
+      }));
+    });
+
+    await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
+    expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+  });
+
+  it("rechecks the cookie session after an OAuth login changes the shared CSRF cookie", async () => {
+    let identity = "account-a";
+    let csrfCookie = "__Host-csrf=csrf-a";
+    vi.spyOn(document, "cookie", "get").mockImplementation(() => csrfCookie);
+    vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/auth/me")) {
+        return Response.json({
+          id: identity,
+          name: identity,
+          email: `${identity}@example.test`,
+          organizationId: `${identity}-org`,
+          roles: ["USER"],
+        });
+      }
+      return Response.json({ value: `${identity}-private-data` });
+    });
+
+    render(<AppProviders><CachedPrivateScreen /></AppProviders>);
+    await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
+
+    identity = "account-b";
+    csrfCookie = "__Host-csrf=csrf-b";
+    await act(async () => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
+    expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+  });
+
+  it("clears private data after another tab logs out when browser storage is unavailable", async () => {
+    let identity = "account-a";
+    let csrfCookie = "__Host-csrf=csrf-a";
+    vi.spyOn(document, "cookie", "get").mockImplementation(() => csrfCookie);
+    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new DOMException("Storage is disabled", "SecurityError");
+    });
+    vi.spyOn(global, "fetch").mockImplementation(async (input) => {
+      if (String(input).endsWith("/auth/me")) {
+        return Response.json({
+          id: identity,
+          name: identity,
+          email: `${identity}@example.test`,
+          organizationId: `${identity}-org`,
+          roles: ["USER"],
+        });
+      }
+      return Response.json({ value: `${identity}-private-data` });
+    });
+
+    render(<AppProviders><CachedPrivateScreen /></AppProviders>);
+    await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
+
+    identity = "account-b";
+    csrfCookie = "";
+    await act(async () => window.dispatchEvent(new Event("focus")));
+
+    await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
+    expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+  });
 
   it("does not restart failed recovery on window focus or reconnect", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url) =>

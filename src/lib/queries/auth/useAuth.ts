@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { apiClient, logoutSession } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
+import { notifyAuthSessionChanged } from "./session-sync";
 
 export type LoginInput = Readonly<{
   email: string;
@@ -91,6 +92,7 @@ export function useLoginMutation(
       // Tenant-scoped cached data may belong to a different account using the
       // same browser. Drop it before the protected shell loads for this login.
       queryClient.removeQueries();
+      notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },
   });
@@ -198,6 +200,7 @@ export function useLogoutMutation(
     },
     onSuccess: (...args) => {
       queryClient.clear();
+      notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },
   });

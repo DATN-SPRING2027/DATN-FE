@@ -31,11 +31,13 @@ describe("apiClient", () => {
   });
 
   it("uses the public auth BFF path when an endpoint starts with /api/v1", async () => {
-    global.fetch = vi.fn().mockResolvedValue({
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    const fetchMock = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: () => Promise.resolve({ status: "logged_out" }),
     } as Response);
+    global.fetch = fetchMock;
 
     await apiClient("/api/v1/auth/logout", { method: "POST" });
 
@@ -43,6 +45,7 @@ describe("apiClient", () => {
       "/api/v1/auth/logout",
       expect.objectContaining({ method: "POST", credentials: "include" }),
     );
+    expect((fetchMock.mock.calls[0][1]?.headers as Headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 
   it("performs GET request and parses JSON response", async () => {
@@ -79,6 +82,30 @@ describe("apiClient", () => {
     expect((options.headers as Headers).get("X-CSRF-Token")).toBe("csrf-value");
     expect(options.credentials).toBe("include");
     expect(options.body).toBeUndefined();
+  });
+
+  it("sends the readable CSRF cookie on unsafe API requests", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("other=value; __Host-csrf=csrf-value");
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "left" }), { status: 200 }),
+    );
+
+    await apiClient("/api/v1/chat/conversations/room-1/leave", { method: "POST" });
+
+    const options = fetchMock.mock.calls[0][1]!;
+    expect((options.headers as Headers).get("X-CSRF-Token")).toBe("csrf-value");
+    expect(options.credentials).toBe("include");
+  });
+
+  it("does not add the CSRF header to safe API requests", async () => {
+    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 }),
+    );
+
+    await apiClient("/api/v1/chat/conversations", { method: "GET" });
+
+    expect((fetchMock.mock.calls[0][1]!.headers as Headers).has("X-CSRF-Token")).toBe(false);
   });
 
   it("leaves missing CSRF validation to NestJS without retrying rejection", async () => {
