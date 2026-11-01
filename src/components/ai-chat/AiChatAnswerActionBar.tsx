@@ -512,7 +512,7 @@ export default function AiChatAnswerActionBar({
   };
 
   const actionButtonClass =
-    "inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white";
+    "group/action inline-flex size-8 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 active:scale-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40 disabled:cursor-not-allowed disabled:opacity-45 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white";
   const copyLabel = copied ? t("copiedAnswer") : t("copyAnswer");
   const speechLabel = isSpeaking
     ? t("stopReadingAction")
@@ -575,10 +575,13 @@ export default function AiChatAnswerActionBar({
               {copied ? (
                 <CheckLineIcon
                   aria-hidden="true"
-                  className="size-4 text-success-500"
+                  className="continuum-icon-swap-enter size-4 text-success-500"
                 />
               ) : (
-                <CopyIcon aria-hidden="true" className="size-4" />
+                <CopyIcon
+                  aria-hidden="true"
+                  className="size-4 transition-transform duration-150 group-hover/action:scale-110"
+                />
               )}
             </button>
 
@@ -597,7 +600,13 @@ export default function AiChatAnswerActionBar({
                     "bg-success-500/15 text-success-700 hover:bg-success-500/20 dark:text-success-300",
                 )}
               >
-                <ThumbUpIcon aria-hidden="true" className="size-4" />
+                <ThumbUpIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-4 transition-transform duration-150 group-hover/action:-translate-y-0.5 group-hover/action:-rotate-6",
+                    currentRating === "LIKE" && "continuum-thumb-pop",
+                  )}
+                />
               </button>
             )}
 
@@ -616,7 +625,13 @@ export default function AiChatAnswerActionBar({
                     "bg-error-500/15 text-error-700 hover:bg-error-500/20 dark:text-error-300",
                 )}
               >
-                <ThumbDownIcon aria-hidden="true" className="size-4" />
+                <ThumbDownIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-4 transition-transform duration-150 group-hover/action:translate-y-0.5 group-hover/action:rotate-6",
+                    currentRating === "DISLIKE" && "continuum-thumb-pop",
+                  )}
+                />
               </button>
             )}
 
@@ -634,9 +649,15 @@ export default function AiChatAnswerActionBar({
               )}
             >
               {isSpeaking ? (
-                <StopSquareIcon aria-hidden="true" className="size-4" />
+                <StopSquareIcon
+                  aria-hidden="true"
+                  className="continuum-icon-swap-enter size-4"
+                />
               ) : (
-                <VolumeUpIcon aria-hidden="true" className="size-4" />
+                <VolumeUpIcon
+                  aria-hidden="true"
+                  className="size-4 transition-transform duration-150 group-hover/action:scale-110"
+                />
               )}
             </button>
 
@@ -649,7 +670,10 @@ export default function AiChatAnswerActionBar({
                 onClick={handleOpenShare}
                 className={actionButtonClass}
               >
-                <ShareIcon aria-hidden="true" className="size-4" />
+                <ShareIcon
+                  aria-hidden="true"
+                  className="size-4 transition-transform duration-150 group-hover/action:-translate-y-0.5 group-hover/action:scale-105"
+                />
               </button>
             )}
           </>
@@ -665,7 +689,10 @@ export default function AiChatAnswerActionBar({
             onClick={onRegenerate}
             className={actionButtonClass}
           >
-            <RefreshIcon aria-hidden="true" className="size-4" />
+            <RefreshIcon
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 ease-out group-hover/action:rotate-45 group-active/action:rotate-180"
+            />
           </button>
         )}
 
@@ -691,7 +718,10 @@ export default function AiChatAnswerActionBar({
                 "bg-gray-100 text-gray-900 dark:bg-white/12 dark:text-white",
             )}
           >
-            <HorizontaLDots aria-hidden="true" className="size-4" />
+            <HorizontaLDots
+              aria-hidden="true"
+              className="size-4 transition-transform duration-150 group-hover/action:scale-110"
+            />
           </button>
         )}
       </div>
@@ -710,7 +740,7 @@ export default function AiChatAnswerActionBar({
               left: "0px",
               opacity: 0,
             }}
-            className="fixed z-99999 w-max max-w-[min(18.5rem,calc(100vw-1.5rem))] min-w-52 rounded-2xl border border-gray-200/90 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
+            className="continuum-popover-enter fixed z-99999 w-max max-w-[min(18.5rem,calc(100vw-1.5rem))] min-w-52 rounded-2xl border border-gray-200/90 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
           >
             {formattedTimestamp && (
               <div

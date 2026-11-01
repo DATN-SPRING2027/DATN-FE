@@ -40,7 +40,9 @@ export default function AiChatProjectMenu({
       data-testid={testId}
       className={cn(
         "absolute end-0 z-50 w-68 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover",
-        placement === "top" ? "bottom-11" : "top-10",
+        placement === "top"
+          ? "bottom-11 continuum-popover-up-enter"
+          : "top-10 continuum-popover-enter",
       )}
     >
       {projects.length > 5 && (

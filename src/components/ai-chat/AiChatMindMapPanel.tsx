@@ -204,6 +204,8 @@ export default function AiChatMindMapPanel({
   const [hasToggledFullscreen, setHasToggledFullscreen] = useState(false);
   const [isClosingFullscreen, setIsClosingFullscreen] = useState(false);
   const fullscreenTimerRef = useRef<number | null>(null);
+  const dockedCloseTimerRef = useRef<number | null>(null);
+  const [isClosingDocked, setIsClosingDocked] = useState(false);
 
   const [panelWidth, setPanelWidth] = useState<number>(readStoredMindMapWidth);
   const [isResizing, setIsResizing] = useState(false);
@@ -228,6 +230,9 @@ export default function AiChatMindMapPanel({
   const startResizeAt = useCallback(
     (startX: number) => {
       dragCleanupRef.current?.();
+      if (dockedCloseTimerRef.current !== null) {
+        window.clearTimeout(dockedCloseTimerRef.current);
+      }
 
       const renderedWidth =
         panelRef.current?.getBoundingClientRect().width ?? 0;
@@ -336,6 +341,7 @@ export default function AiChatMindMapPanel({
     setPrevIsOpen(isOpen);
     setManualSubmittedTopic(null);
     setIsClosingFullscreen(false);
+    setIsClosingDocked(false);
     if (!isOpen) {
       setIsFullscreen(false);
     }
@@ -344,6 +350,9 @@ export default function AiChatMindMapPanel({
   useEffect(() => {
     return () => {
       dragCleanupRef.current?.();
+      if (dockedCloseTimerRef.current !== null) {
+        window.clearTimeout(dockedCloseTimerRef.current);
+      }
       if (fullscreenTimerRef.current !== null) {
         window.clearTimeout(fullscreenTimerRef.current);
       }
@@ -398,8 +407,29 @@ export default function AiChatMindMapPanel({
       fullscreenTimerRef.current = null;
     }
     setIsClosingFullscreen(false);
+    setIsClosingDocked(false);
     setIsFullscreen(false);
   }, []);
+
+  const handleClosePanel = useCallback(() => {
+    if (isFullscreen || !prefersSmoothMotion()) {
+      if (dockedCloseTimerRef.current !== null) {
+        window.clearTimeout(dockedCloseTimerRef.current);
+        dockedCloseTimerRef.current = null;
+      }
+      setIsClosingDocked(false);
+      handleExitFullscreenImmediate();
+      onClose();
+      return;
+    }
+    if (isClosingDocked) return;
+    setIsClosingDocked(true);
+    dockedCloseTimerRef.current = window.setTimeout(() => {
+      dockedCloseTimerRef.current = null;
+      setIsClosingDocked(false);
+      onClose();
+    }, 170);
+  }, [handleExitFullscreenImmediate, isClosingDocked, isFullscreen, onClose]);
 
   const handleToggleFullscreen = useCallback(() => {
     setHasToggledFullscreen(true);
@@ -409,6 +439,7 @@ export default function AiChatMindMapPanel({
         fullscreenTimerRef.current = null;
       }
       setIsClosingFullscreen(false);
+    setIsClosingDocked(false);
       setIsFullscreen(true);
       return;
     }
@@ -421,6 +452,7 @@ export default function AiChatMindMapPanel({
     fullscreenTimerRef.current = window.setTimeout(() => {
       fullscreenTimerRef.current = null;
       setIsClosingFullscreen(false);
+    setIsClosingDocked(false);
       setIsFullscreen(false);
     }, 170);
   }, [handleExitFullscreenImmediate, isClosingFullscreen, isFullscreen]);
@@ -761,13 +793,16 @@ export default function AiChatMindMapPanel({
           <button
             type="button"
             onClick={() => {
-              handleExitFullscreenImmediate();
-              onClose();
+              handleClosePanel();
+
             }}
             aria-label={t("mindMapClosePanel")}
-            className="inline-flex size-8 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            className="group inline-flex size-8 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 active:scale-92 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
           >
-            <CloseLineIcon aria-hidden="true" className="size-4" />
+            <CloseLineIcon
+              aria-hidden="true"
+              className="size-4 transition-transform duration-200 ease-out group-hover:rotate-90"
+            />
           </button>
         </div>
       </div>
@@ -826,12 +861,12 @@ export default function AiChatMindMapPanel({
             type="submit"
             data-testid="mind-map-submit-button"
             disabled={isSynthesizing || isInitialChecking}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-3 text-xs font-semibold text-white shadow-theme-xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-600"
+            className="group/gen inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-3 text-xs font-semibold text-white shadow-theme-xs transition-colors hover:bg-brand-700 active:scale-96 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-brand-500 dark:hover:bg-brand-600"
           >
             <RefreshIcon
               aria-hidden="true"
               className={cn(
-                "size-3.5",
+                "size-3.5 transition-transform duration-200 ease-out group-hover/gen:rotate-45",
                 isSynthesizing && "animate-spin motion-reduce:animate-none",
               )}
             />
@@ -1169,7 +1204,10 @@ export default function AiChatMindMapPanel({
       aria-label={t("mindMapTitle")}
       data-testid="mind-map-docked-panel"
       style={{ width: `${panelWidth}px` }}
-      className="continuum-docked-enter continuum-mind-map-dock absolute inset-0 z-30 flex flex-col bg-white max-xl:w-auto! xl:relative xl:inset-auto xl:z-20 xl:h-full xl:shrink-0 xl:border-s xl:border-gray-200/80 dark:bg-gpt-sidebar dark:xl:border-white/10"
+      className={cn(
+        "continuum-mind-map-dock absolute inset-0 z-30 flex flex-col bg-white max-xl:w-auto! xl:relative xl:inset-auto xl:z-20 xl:h-full xl:shrink-0 xl:border-s xl:border-gray-200/80 dark:bg-gpt-sidebar dark:xl:border-white/10",
+        isClosingDocked ? "continuum-docked-exit" : "continuum-docked-enter",
+      )}
     >
       {/* Desktop Interactive Resize Handle (Drag wider / narrower + Tactile Grip Pill & Brand Line) */}
       <div

@@ -1670,7 +1670,10 @@ function AiChatWorkspaceContent() {
                 <span className="truncate">{t("engineTitle")}</span>
                 <ChevronDownIcon
                   aria-hidden="true"
-                  className="size-4 shrink-0 opacity-70"
+                  className={cn(
+                    "size-4 shrink-0 opacity-70 transition-transform duration-200",
+                    isEngineMenuOpen && "rotate-180",
+                  )}
                 />
               </button>
 
@@ -1678,7 +1681,7 @@ function AiChatWorkspaceContent() {
                 <div
                   role="dialog"
                   aria-label={t("engineSelectorAriaLabel")}
-                  className="absolute start-0 top-11 z-40 w-72 rounded-2xl border border-gray-200 bg-white p-2.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
+                  className="continuum-popover-enter absolute start-0 top-11 z-40 w-72 rounded-2xl border border-gray-200 bg-white p-2.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover"
                 >
                   <div className="px-2 py-1 text-xs font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
                     {t("engineMenuHeading")}
@@ -1765,7 +1768,7 @@ function AiChatWorkspaceContent() {
                 });
               }}
               className={cn(
-                "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:px-3",
+                "group/mm inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-all duration-200 hover:-translate-y-0.5 hover:shadow-theme-xs active:translate-y-0 active:scale-96 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3",
                 isMindMapOpen
                   ? "border-brand-300 bg-brand-50 text-brand-700 hover:bg-brand-100 dark:border-brand-500/40 dark:bg-brand-500/20 dark:text-brand-200 dark:hover:bg-brand-500/30"
                   : "border-gray-200/80 bg-gray-50 text-gray-700 hover:bg-gray-100 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10",
@@ -1774,7 +1777,7 @@ function AiChatWorkspaceContent() {
               <MindMapIcon
                 aria-hidden="true"
                 className={cn(
-                  "size-3.5 shrink-0",
+                  "size-3.5 shrink-0 transition-transform duration-200 group-hover/mm:scale-110",
                   isMindMapOpen
                     ? "text-brand-600 dark:text-brand-300"
                     : "text-brand-500 dark:text-brand-400",
@@ -1932,10 +1935,10 @@ function AiChatWorkspaceContent() {
 
         {isHeroStage ? (
           <div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 py-8">
-            <h1 className="mb-7 text-center text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl dark:text-white">
+            <h1 className="continuum-stagger-1 mb-7 text-center text-2xl font-medium tracking-tight text-gray-900 sm:text-3xl dark:text-white">
               {t("heroHeading")}
             </h1>
-            <div className="flex max-w-2xl flex-wrap items-center justify-center gap-2">
+            <div className="continuum-stagger-2 flex max-w-2xl flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
                 disabled={Boolean(queryAccessError)}
@@ -1948,7 +1951,7 @@ function AiChatWorkspaceContent() {
                   }
                   setIsMindMapOpen(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50/80 px-3.5 py-1.5 text-xs font-medium text-brand-700 transition-colors hover:border-brand-300 hover:bg-brand-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-500/35 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
+                className="group/chip inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-brand-50/80 px-3.5 py-1.5 text-xs font-medium text-brand-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:bg-brand-100 hover:shadow-theme-xs active:translate-y-0 active:scale-96 disabled:cursor-not-allowed disabled:opacity-50 dark:border-brand-500/35 dark:bg-brand-500/15 dark:text-brand-200 dark:hover:bg-brand-500/25"
               >
                 <MindMapIcon aria-hidden="true" className="size-3.5 shrink-0" />
                 <span>{t("mindMapHeroChip")}</span>
@@ -1959,7 +1962,7 @@ function AiChatWorkspaceContent() {
                   type="button"
                   disabled={isStreaming || Boolean(queryAccessError)}
                   onClick={() => void sendQuestion(chip.prompt)}
-                  className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3.5 py-1.5 text-xs text-gray-600 transition-colors hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/4 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
+                  className="rounded-full border border-gray-200/80 bg-gray-50/70 px-3.5 py-1.5 text-xs text-gray-600 transition-all duration-200 hover:-translate-y-0.5 hover:border-gray-300 hover:bg-gray-100 hover:text-gray-900 hover:shadow-theme-xs active:translate-y-0 active:scale-96 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/4 dark:text-gray-300 dark:hover:bg-white/10 dark:hover:text-white"
                 >
                   {chip.label}
                 </button>
