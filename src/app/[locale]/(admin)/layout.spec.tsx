@@ -5,6 +5,7 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
+import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import AdminLayout from "./layout";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -61,6 +62,51 @@ describe("protected dashboard layout", () => {
       viewport.dispatchEvent(new Event("resize"));
     });
     expect(shell).toHaveStyle({ height: "430px" });
+  });
+
+  it("replays the chat content entrance when navigating between chat routes", () => {
+    path.value = "/chat";
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "user", organizationId: "organization" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+
+    const onMount = vi.fn();
+    function ChatContent() {
+      useEffect(() => {
+        onMount();
+      }, []);
+      return <div>Chat content</div>;
+    }
+
+    const { rerender } = render(
+      <AdminLayout>
+        <ChatContent />
+      </AdminLayout>,
+    );
+    const header = screen.getByText("header");
+    const sidebar = screen.getByText("sidebar");
+
+    expect(screen.getByText("Chat content").parentElement).toHaveClass(
+      "continuum-page-enter",
+    );
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    path.value = "/ai-chat";
+    rerender(
+      <AdminLayout>
+        <ChatContent />
+      </AdminLayout>,
+    );
+
+    expect(onMount).toHaveBeenCalledTimes(2);
+    expect(screen.getByText("Chat content").parentElement).toHaveClass(
+      "continuum-page-enter",
+    );
+    expect(screen.getByText("header")).toBe(header);
+    expect(screen.getByText("sidebar")).toBe(sidebar);
   });
 
   it("keeps the error card and Trying again button when an explicit retry becomes pending", async () => {
