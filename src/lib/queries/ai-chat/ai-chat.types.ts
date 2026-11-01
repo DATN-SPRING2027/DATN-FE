@@ -3,6 +3,10 @@ export type AiChatThread = Readonly<{
   title: string;
   createdAt: string;
   updatedAt: string;
+  isBranched?: boolean;
+  parentThreadId?: string | null;
+  parentThreadTitle?: string | null;
+  branchPointMessageId?: string | null;
 }>;
 
 export type AiChatCitation = Readonly<{
@@ -10,9 +14,12 @@ export type AiChatCitation = Readonly<{
   sourceId: string;
   sourceName?: string;
   documentId: string;
+  sagDocumentId?: string;
   documentName?: string;
   versionNo?: number;
+  chunkId?: string;
   heading?: string;
+  sectionPath?: string;
   snippet?: string;
   label?: string;
   pageFrom?: number;
@@ -32,7 +39,11 @@ export type AiChatSessionCitation = Readonly<{
   claimLevel?: "claim" | "run";
 }>;
 
+export type AiChatStepStatus = "running" | "completed" | "failed";
+
 export type AiChatRetrievalStep = Readonly<{
+  id?: string;
+  status?: AiChatStepStatus;
   kind: "session_context" | "tool" | "thinking" | "answer";
   label: string;
   durationMs: number;
@@ -45,10 +56,14 @@ export type AiChatMessage = Readonly<{
   role: "user" | "assistant";
   content: string;
   status: "ok" | "failed" | "cancelled";
+  errorCode?: string;
   citations: readonly AiChatCitation[];
   sessionCitations: readonly AiChatSessionCitation[];
   retrievalSteps: readonly AiChatRetrievalStep[];
   createdAt: string;
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
+  isInherited?: boolean;
 }>;
 
 export type AiChatMessagePage = Readonly<{
@@ -74,6 +89,8 @@ export type AiChatCompletedEventData = Readonly<{
   citations: readonly AiChatCitation[];
   sessionCitations: readonly AiChatSessionCitation[];
   retrievalSteps: readonly AiChatRetrievalStep[];
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
 }>;
 
 export type AiChatFailedEventData = Readonly<{
@@ -81,6 +98,8 @@ export type AiChatFailedEventData = Readonly<{
   message: string;
   retryable: boolean;
   messageId?: string;
+  replyToMessageId?: string;
+  regeneratedFromMessageId?: string;
 }>;
 
 export type AiChatStreamEvent =
@@ -89,3 +108,100 @@ export type AiChatStreamEvent =
   | Readonly<{ event: "delta"; data: AiChatDeltaEventData }>
   | Readonly<{ event: "completed"; data: AiChatCompletedEventData }>
   | Readonly<{ event: "failed"; data: AiChatFailedEventData }>;
+
+export type AiAnswerRating = "LIKE" | "DISLIKE";
+
+export type AiDislikeReasonCategory =
+  | "INACCURATE"
+  | "OUTDATED"
+  | "IRRELEVANT_CITATION"
+  | "INCOMPLETE"
+  | "OTHER";
+
+export type AiAnswerFeedbackInput =
+  | Readonly<{
+      rating: "LIKE";
+    }>
+  | Readonly<{
+      rating: "DISLIKE";
+      reasonCategory: AiDislikeReasonCategory;
+      reasonText?: string;
+    }>;
+
+export type AiAnswerFeedback = Readonly<{
+  messageId: string;
+  rating: AiAnswerRating;
+  reasonCategory?: AiDislikeReasonCategory;
+  reasonText?: string;
+  updatedAt: string;
+}>;
+
+export type AiOwnAnswerFeedback = Readonly<{
+  feedback: AiAnswerFeedback | null;
+}>;
+
+export type AiAnswerShare = Readonly<{
+  id: string;
+  projectId: string;
+  messageId: string;
+  createdAt: string;
+}>;
+
+export type AiPublicAnswer = Readonly<{
+  id: string;
+  content: string;
+  citations: readonly AiChatCitation[];
+}>;
+
+export type AiSharedQuestion = Readonly<{
+  content: string;
+}>;
+
+export type AiSharedAnswer = Readonly<{
+  share: AiAnswerShare;
+  question: AiSharedQuestion;
+  answer: AiPublicAnswer;
+}>;
+
+export type AiChatMindMapStatus = "ready" | "empty" | "uninitialized";
+
+export type AiChatMindMapGenerationMode =
+  | "llm"
+  | "outline_fallback"
+  | "none";
+
+export type AiChatMindMapFallbackReason =
+  | "LLM_UNAVAILABLE"
+  | "LLM_INVALID_OUTPUT";
+
+export type AiChatMindMapCoverage = Readonly<{
+  accessibleReadyDocumentCount: number;
+  usedDocumentCount: number;
+  omittedDocumentCount: number;
+  pendingDocumentCount: number;
+  truncatedDocumentCount: number;
+  evidenceUnitCount: number;
+}>;
+
+export type AiChatMindMapNode = Readonly<{
+  id: string;
+  label: string;
+  summary: string | null;
+  citationNumbers: readonly number[];
+  children: readonly AiChatMindMapNode[];
+}>;
+
+export type AiChatMindMapResponse = Readonly<{
+  projectId: string;
+  topic: string | null;
+  status: AiChatMindMapStatus;
+  generationMode: AiChatMindMapGenerationMode;
+  fallbackReason: AiChatMindMapFallbackReason | null;
+  scopeFingerprint: string;
+  cached?: boolean;
+  hasSourceUpdates?: boolean;
+  coverage: AiChatMindMapCoverage;
+  tree: AiChatMindMapNode | null;
+  citations: readonly AiChatCitation[];
+  generatedAt: string;
+}>;

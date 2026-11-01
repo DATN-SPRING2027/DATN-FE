@@ -116,6 +116,8 @@
   align-items: center;
 }
 .button {
+  position: relative;
+  overflow: hidden;
   min-height: 52px;
   display: inline-flex;
   width: fit-content;
@@ -130,11 +132,22 @@
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: var(--shadow-theme-xs);
+  transition:
+    background-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    translate 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    scale 0.16s cubic-bezier(0.22, 1, 0.36, 1);
 }
 .button:hover {
   background: var(--color-brand-600);
   border-color: var(--color-brand-600);
   box-shadow: var(--shadow-theme-md);
+  translate: 0 -1px;
+}
+.button:active {
+  translate: 0 0;
+  scale: 0.975;
 }
 .arrow {
   width: 1.25rem;

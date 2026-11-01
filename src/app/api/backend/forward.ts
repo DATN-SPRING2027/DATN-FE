@@ -13,7 +13,6 @@ export async function forwardBackendRequest(
   options: {
     redirect?: RequestRedirect;
     requestId?: string;
-    streamBody?: boolean;
   } = {},
 ): Promise<Response> {
   let headers: Headers;
@@ -50,13 +49,10 @@ export async function forwardBackendRequest(
     );
   }
 
-  const isAiChatRequest = path[0] === "ai-chat";
-  const streamBody = options.streamBody && !["GET", "HEAD"].includes(request.method);
-  const body = ["GET", "HEAD"].includes(request.method)
-    ? undefined
-    : streamBody
-      ? request.body
-      : await request.arrayBuffer();
+  const isAiChatRequest =
+    path[0] === "ai-chat" || (path[0] === "platform" && path[1] === "ai");
+  const streamBody = !["GET", "HEAD"].includes(request.method) && request.body !== null;
+  const body = streamBody ? request.body : undefined;
   let backendResponse: Response;
   try {
     backendResponse = await fetch(
@@ -72,18 +68,24 @@ export async function forwardBackendRequest(
       },
     );
   } catch (error) {
+    const isAborted =
+      Boolean(request.signal?.aborted) ||
+      (error instanceof Error &&
+        (error.name === "AbortError" || error.name === "ResponseAborted"));
+    if (isAborted) {
+      return Response.json(
+        {
+          code: "REQUEST_ABORTED",
+          message: isAiChatRequest
+            ? "AI Chat request was cancelled."
+            : "Backend request was cancelled.",
+          details: {},
+          requestId: headers.get("x-request-id"),
+        },
+        { status: 499, headers: { "cache-control": "no-store" } },
+      );
+    }
     if (isAiChatRequest) {
-      if (request.signal.aborted) {
-        return Response.json(
-          {
-            code: "REQUEST_ABORTED",
-            message: "AI Chat request was cancelled.",
-            details: {},
-            requestId: headers.get("x-request-id"),
-          },
-          { status: 499, headers: { "cache-control": "no-store" } },
-        );
-      }
       return Response.json(
         {
           code: "BACKEND_UNAVAILABLE",
@@ -129,7 +131,7 @@ export async function forwardBackendRequest(
   for (const cookie of backendResponse.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
-  if (isTeamPath(path) || path[0] === "ai-chat") {
+  if (isTeamPath(path) || isAiChatRequest) {
     responseHeaders.set("cache-control", "no-store");
   }
   return new Response(backendResponse.body, {

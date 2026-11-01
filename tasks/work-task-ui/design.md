@@ -2,8 +2,8 @@
 
 ## Scope and product boundary
 
-- Primary Member navigation entry: **`Workspace`** (`/workspace`) in the global Organization sidebar (`AppSidebar`), replacing the former disabled `Work Notes` sidebar entry.
-- Secondary direct entry: `/projects/{projectId}/work`, linked from `/projects/{projectId}` without changing the core Project management tabs (`Overview`, `Project members`, `Setting`).
+- Cross-project Member workspace: **`Workspace`** (`/workspace`) remains in the global Organization sidebar (`AppSidebar`).
+- Project-scoped work entry: **`Workspace`** in the active Project sidebar section links to `/projects/{projectId}/work`. Project destinations (`Overview`, `Members`, `Workspace`, `Work Notes`, `Handover`, and `Settings`) use that sidebar; Project detail no longer repeats them in a horizontal header bar.
 - Jira's "Space" concept is mapped to **Projects** inside the Workspace (`MemberWorkspace` + `WorkWorkspace`), where a Member selects an active Project they have access to (`GET /api/v1/iam/projects`) and works across all 10 Jira Space views (`Overview`, `List`, `Board`, `Calendar`, `Timeline`, `Development`, `Forms`, `Docs`, `Reports`, and `Work Notes`).
 - Data source: frontend-only preview fixtures initialized into component state for task views and Work Notes. The current backend `origin/main` has D-03 Task persistence internals (`TaskDocument`, `TaskEventDocument`, repository and schema), while HTTP controllers are gated under D-05 contracts.
 - Trust boundary: the page loads the signed-in user and organization context first, then loads the accessible Project(s) through the existing Project query hooks. Sample work items and work notes are labeled as preview data and never presented as saved backend records.

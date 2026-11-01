@@ -367,6 +367,42 @@ describe("account onboarding invitations", () => {
     expect(screen.getByRole("button", { name: /North Star/ })).toHaveAttribute("aria-busy", "false");
   });
 
+  it("displays the Neural Signature transition immediately, blocks duplicate clicks, and dismisses the overlay on API failure", async () => {
+    let rejectSelect!: (reason?: unknown) => void;
+    select.mockImplementation(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSelect = reject;
+        }),
+    );
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: [{ id: "org-1", name: "Continuum AI Labs" }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+
+    render(<AccountOnboarding />);
+    const orgButton = screen.getByRole("button", { name: /Continuum AI Labs/ });
+
+    fireEvent.click(orgButton);
+    fireEvent.click(orgButton);
+
+    expect(select).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByTestId("organization-neural-transition"),
+    ).toBeInTheDocument();
+
+    rejectSelect(new ApiError(500, "INTERNAL_ERROR", "Switch failed"));
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("organization-neural-transition"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("creates an organization, selects it, then enters its workspace", async () => {
     createOrganization.mockResolvedValue({ id: "org-created", name: "New Organization" });
     select.mockResolvedValue({ user: { organizationId: "org-created" } });

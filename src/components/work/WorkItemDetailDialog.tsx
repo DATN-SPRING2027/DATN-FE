@@ -6,18 +6,24 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FormEvent,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from"react";
 import { useLocale, useTranslations } from"next-intl";
+import { tr } from "@/i18n/tr";
 import { CloseLineIcon, TaskIcon } from"@/icons";
 import { Modal } from"@/components/ui/modal";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { WorkDatePickerCell } from "./WorkDatePicker";
 import { MonoIcon, MonoIssueTypeIcon } from"./WorkMonoIcons";
 import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
-import TaskNotesPanel from "@/components/work-notes/TaskNotesPanel";
+import TaskNotesPanel, {
+  type TaskNotesSplitControl,
+} from "@/components/work-notes/TaskNotesPanel";
+import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -57,6 +63,171 @@ const UNASSIGNED_PERSON: WorkPerson = {
   initials: "UN",
 };
 
+async function copyCommandToClipboard(text: string): Promise<boolean> {
+  if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall back to execCommand below
+    }
+  }
+  if (typeof document !== "undefined") {
+    try {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.setAttribute("readonly", "true");
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      const copied = document.execCommand("copy");
+      document.body.removeChild(textarea);
+      return copied;
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+function DevelopmentGitCliCard({
+  workKey,
+  summary,
+  issueType,
+}: {
+  workKey: string;
+  summary: string;
+  issueType?: WorkItem["type"] | "SUBTASK";
+}) {
+  const t = useTranslations("work");
+  const [copiedTarget, setCopiedTarget] = useState<"branch" | "commit" | null>(
+    null,
+  );
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
+  const branchPrefix = issueType === "BUG" ? "fix" : "feat";
+  const branchSlug = workKey.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-");
+  const cleanSummary = summary
+    .replace(/[\r\n]+/g, " ")
+    .replace(/"/g, "'")
+    .trim();
+
+  const branchCommand = `git checkout -b ${branchPrefix}/${branchSlug}`;
+  const commitCommand = `git commit -m "${workKey}: ${cleanSummary}"`;
+
+  const handleCopy = (target: "branch" | "commit", command: string) => {
+    void copyCommandToClipboard(command);
+    setCopiedTarget(target);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setCopiedTarget((prev) => (prev === target ? null : prev));
+    }, 2200);
+  };
+
+  const branchLabel = tr(t, "quickUi.devBranchLabel", "Create Git branch");
+  const commitLabel = tr(t, "quickUi.devCommitLabel", "Create Git commit");
+  const copyText = tr(t, "quickUi.devCopyBtn", "Copy");
+  const copiedText = tr(t, "quickUi.devCopiedBtn", "Copied");
+
+  return (
+    <section
+      aria-label="Development git actions"
+      className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+          {tr(t, "quickUi.devGitTitle", "Development · Git CLI")}
+        </h3>
+        <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+          git
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+        {tr(
+          t,
+          "quickUi.devGitHint",
+          "Copy ready-to-use Git branch and commit commands for this work item to paste into your terminal.",
+        )}
+      </p>
+
+      <div className="mt-3 space-y-2.5 text-xs">
+        {/* 1. Branch CLI Helper */}
+        <div className="rounded-md border border-gray-200/80 bg-gray-50/70 p-2 dark:border-gray-800 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+              {branchLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleCopy("branch", branchCommand)}
+              aria-label={`${copyText} ${branchLabel}`}
+              title={branchCommand}
+              className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                copiedTarget === "branch"
+                  ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/15 dark:text-success-300"
+                  : "border-gray-200 bg-white text-brand-600 hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-brand-400 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+              }`}
+            >
+              <MonoIcon
+                name={copiedTarget === "branch" ? "check" : "copy"}
+                className="h-3 w-3 shrink-0"
+              />
+              <span>{copiedTarget === "branch" ? copiedText : copyText}</span>
+            </button>
+          </div>
+          <code
+            title={branchCommand}
+            className="mt-1.5 block truncate rounded bg-white px-2 py-1 font-mono text-[11px] text-gray-700 ring-1 ring-inset ring-gray-200/80 select-all dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700/80"
+          >
+            {branchCommand}
+          </code>
+        </div>
+
+        {/* 2. Commit CLI Helper */}
+        <div className="rounded-md border border-gray-200/80 bg-gray-50/70 p-2 dark:border-gray-800 dark:bg-gray-800/50">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+              {commitLabel}
+            </span>
+            <button
+              type="button"
+              onClick={() => handleCopy("commit", commitCommand)}
+              aria-label={`${copyText} ${commitLabel}`}
+              title={commitCommand}
+              className={`inline-flex cursor-pointer items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                copiedTarget === "commit"
+                  ? "border-success-300 bg-success-50 text-success-700 dark:border-success-500/40 dark:bg-success-500/15 dark:text-success-300"
+                  : "border-gray-200 bg-white text-brand-600 hover:border-brand-300 hover:bg-brand-50/50 dark:border-gray-700 dark:bg-gray-900 dark:text-brand-400 dark:hover:border-brand-500/40 dark:hover:bg-gray-800"
+              }`}
+            >
+              <MonoIcon
+                name={copiedTarget === "commit" ? "check" : "copy"}
+                className="h-3 w-3 shrink-0"
+              />
+              <span>{copiedTarget === "commit" ? copiedText : copyText}</span>
+            </button>
+          </div>
+          <code
+            title={commitCommand}
+            className="mt-1.5 block truncate rounded bg-white px-2 py-1 font-mono text-[11px] text-gray-700 ring-1 ring-inset ring-gray-200/80 select-all dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700/80"
+          >
+            {commitCommand}
+          </code>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const WORKLOG_DURATION_PRESETS = ["15m", "30m", "1h", "2h", "4h", "1d"] as const;
 
 function parseWorklogDurationMinutes(input: string): number {
@@ -88,13 +259,20 @@ export default function WorkItemDetailDialog({
   allItems = [],
   people,
   currentUserPerson,
+  isPreview = true,
   activityError = null,
+  mutationError = null,
+  onDismissMutationError,
+  watching: controlledWatching,
+  onToggleWatching,
   initialSubtaskId = null,
   mode = "modal",
   isSkeletonLoading = false,
   onOpenFullPage,
   onSelectSubtask,
   onClose,
+  onTitleChange,
+  onDescriptionChange,
   onStatusChange,
   onPriorityChange,
   onAssigneeChange,
@@ -117,13 +295,26 @@ export default function WorkItemDetailDialog({
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
+  isPreview?: boolean;
   activityError?: string | null;
+  mutationError?: string | null;
+  onDismissMutationError?: () => void;
+  watching?: boolean;
+  onToggleWatching?: (id: string) => void;
   initialSubtaskId?: string | null;
   mode?: "modal" | "page";
   isSkeletonLoading?: boolean;
   onOpenFullPage?: (subtaskId?: string | null) => void;
   onSelectSubtask?: (subtaskId: string | null) => void;
   onClose: () => void;
+  onTitleChange?: (
+    id: string,
+    title: string,
+  ) => Promise<boolean> | boolean | void;
+  onDescriptionChange?: (
+    id: string,
+    description: string | null,
+  ) => Promise<boolean> | boolean | void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onAssigneeChange?: (id: string, assignee: WorkPerson) => void;
@@ -173,6 +364,8 @@ export default function WorkItemDetailDialog({
   ) => Promise<boolean> | boolean | void;
 }) {
   if (item?.readOnly) {
+    onTitleChange = undefined;
+    onDescriptionChange = undefined;
     onAddSubtask = undefined;
     onAddExistingTaskAsSubtask = undefined;
     onStatusChange = undefined;
@@ -193,6 +386,12 @@ export default function WorkItemDetailDialog({
       : availablePeople;
   const defaultAssignee = availablePeople[0] ?? UNASSIGNED_PERSON;
   const mePerson = currentUserPerson ?? defaultAssignee;
+  const canAssignToMe =
+    people === undefined ||
+    Boolean(
+      currentUserPerson &&
+        availablePeople.some((p) => p.id === currentUserPerson.id),
+    );
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const [subtaskInput, setSubtaskInput] = useState("");
@@ -261,12 +460,39 @@ export default function WorkItemDetailDialog({
   const [subtaskDescDraft, setSubtaskDescDraft] = useState("");
   const [quickAddMenuOpen, setQuickAddMenuOpen] = useState(false);
   const [commentInput, setCommentInput] = useState("");
-  const [branchCreated, setBranchCreated] = useState(false);
-  const [commitCopied, setCommitCopied] = useState(false);
   const [isMaximized, setIsMaximized] = useState(false);
-  const [watching, setWatching] = useState(true);
+  const [internalWatching, setInternalWatching] = useState(true);
+  const watching =
+    controlledWatching !== undefined ? controlledWatching : internalWatching;
   const [activityTab, setActivityTab] = useState<ActivityTab>("all");
-  const [aiEnhancedDesc, setAiEnhancedDesc] = useState<string | null>(null);
+  const [titleEditState, setTitleEditState] = useState<{
+    itemId: string;
+    draft: string;
+    error: string | null;
+    saving: boolean;
+  } | null>(null);
+  const [descEditState, setDescEditState] = useState<{
+    itemId: string;
+    draft: string;
+    error: string | null;
+    saving: boolean;
+  } | null>(null);
+  const [aiEnhancedByItem, setAiEnhancedByItem] = useState<{
+    itemId: string;
+    text: string;
+  } | null>(null);
+  const activeTitleEdit =
+    item && titleEditState?.itemId === item.id && Boolean(onTitleChange)
+      ? titleEditState
+      : null;
+  const activeDescEdit =
+    item && descEditState?.itemId === item.id && Boolean(onDescriptionChange)
+      ? descEditState
+      : null;
+  const aiEnhancedDesc =
+    item && aiEnhancedByItem?.itemId === item.id
+      ? aiEnhancedByItem.text
+      : null;
   const [worklogTime, setWorklogTime] = useState("");
   const [worklogNote, setWorklogNote] = useState("");
   const [worklogError, setWorklogError] = useState<string | null>(null);
@@ -274,6 +500,149 @@ export default function WorkItemDetailDialog({
     null,
   );
   const [automationRan, setAutomationRan] = useState(false);
+
+  // Split-screen Task + Note (+ AI 3rd column) workspace state & horizontal resizer
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+  const [splitComposerState, setSplitComposerState] = useState<{
+    parentItemId: string;
+    taskId: string;
+    noteId?: string;
+  } | null>(null);
+  const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
+    Record<string, number>
+  >({});
+  const [splitDismissSignal, setSplitDismissSignal] = useState(0);
+  const [twoColTaskPct, setTwoColTaskPct] = useState(48);
+  const [threeColTaskPct, setThreeColTaskPct] = useState(33);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+
+  const resolvedLayerSubtask =
+    internalSubtaskId && item?.subtaskItems
+      ? (item.subtaskItems.find((s) => s.id === internalSubtaskId) ?? null)
+      : null;
+  const activeLayerTaskId = resolvedLayerSubtask?.id ?? item?.id ?? null;
+
+  const activeSplitComposer =
+    item &&
+    projectId &&
+    splitComposerState &&
+    splitComposerState.parentItemId === item.id &&
+    splitComposerState.taskId === activeLayerTaskId
+      ? splitComposerState
+      : null;
+  const isSplitOpen = Boolean(activeSplitComposer);
+  const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  function isSplitRtl(): boolean {
+    const container = splitContainerRef.current;
+    if (!container || typeof window === "undefined") return false;
+    return window.getComputedStyle(container).direction === "rtl";
+  }
+
+  function computeClampedTaskPct(clientX: number): number | null {
+    const container = splitContainerRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const minTaskPx = 300;
+    const aiReservedPx = splitAiOpen ? 390 : 0;
+    const minNotePx = 360;
+    const splitterPx = 10;
+    const maxTaskPx = Math.max(
+      minTaskPx,
+      rect.width - aiReservedPx - minNotePx - splitterPx,
+    );
+    const inlineOffsetPx = isSplitRtl()
+      ? rect.right - clientX
+      : clientX - rect.left;
+    const clampedPx = Math.min(maxTaskPx, Math.max(minTaskPx, inlineOffsetPx));
+    return Math.round((clampedPx / rect.width) * 1000) / 10;
+  }
+
+  function handleSplitterPointerDown(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    setIsDraggingSplitter(true);
+  }
+
+  function handleSplitterPointerMove(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    const nextPct = computeClampedTaskPct(event.clientX);
+    if (nextPct === null) return;
+    if (splitAiOpen) setThreeColTaskPct(nextPct);
+    else setTwoColTaskPct(nextPct);
+  }
+
+  function handleSplitterPointerUp(
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) {
+    if (!isDraggingSplitter) return;
+    if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    }
+    setIsDraggingSplitter(false);
+  }
+
+  function handleSplitterKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    const minPct = 22;
+    const maxPct = splitAiOpen ? 52 : 74;
+    const shrinkKey = isSplitRtl() ? "ArrowRight" : "ArrowLeft";
+    const growKey = isSplitRtl() ? "ArrowLeft" : "ArrowRight";
+    if (event.key === shrinkKey) {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.max(minPct, cur - 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.max(minPct, cur - 2));
+      }
+    } else if (event.key === growKey) {
+      event.preventDefault();
+      if (splitAiOpen) {
+        setThreeColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      } else {
+        setTwoColTaskPct((cur) => Math.min(maxPct, cur + 2));
+      }
+    } else if (event.key === "Home" || event.key === "Enter") {
+      event.preventDefault();
+      if (splitAiOpen) setThreeColTaskPct(33);
+      else setTwoColTaskPct(48);
+    }
+  }
+
+  function buildSplitControl(targetTaskId: string): TaskNotesSplitControl {
+    const isTargetOpen =
+      Boolean(activeSplitComposer) &&
+      activeSplitComposer?.taskId === targetTaskId;
+    return {
+      isOpen: isTargetOpen,
+      editingNoteId: isTargetOpen
+        ? (activeSplitComposer?.noteId ?? null)
+        : null,
+      savedSignal: splitSavedSignalByTask[targetTaskId] ?? 0,
+      onOpen: (noteId) => {
+        if (!item) return;
+        setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
+        setSplitComposerState({
+          parentItemId: item.id,
+          taskId: targetTaskId,
+          noteId,
+        });
+      },
+      onClose: () => {
+        setSplitAiOpen(false);
+        setSplitConfirmOpen(false);
+        setSplitComposerState(null);
+      },
+    };
+  }
 
   function showSubtaskFeedback(msg: string) {
     setSubtaskNotice(msg);
@@ -288,7 +657,22 @@ export default function WorkItemDetailDialog({
     }
   }, [item, mode]);
 
+  useEffect(() => {
+    if (mode !== "page" || !isSplitOpen) return;
+    const handlePageKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (activeTitleEdit || activeDescEdit) return;
+      event.preventDefault();
+      setSplitDismissSignal((cur) => cur + 1);
+    };
+    window.addEventListener("keydown", handlePageKeyDown);
+    return () => window.removeEventListener("keydown", handlePageKeyDown);
+  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode]);
+
   function selectSubtaskLayer(nextSubtaskId: string | null) {
+    setSplitAiOpen(false);
+    setSplitConfirmOpen(false);
+    setSplitComposerState(null);
     setIsSubtaskTransitioning(true);
     setSubtaskIdOverride({
       itemId: item?.id,
@@ -373,8 +757,12 @@ export default function WorkItemDetailDialog({
   }
 
   function trapDialogFocus(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key !=="Tab") return;
-    const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+    if (event.key !== "Tab") return;
+    const activeAlertDialog = dialogRef.current?.querySelector<HTMLElement>(
+      '[role="alertdialog"][aria-modal="true"]',
+    );
+    const scopeRoot = activeAlertDialog ?? dialogRef.current;
+    const focusable = scopeRoot?.querySelectorAll<HTMLElement>(
       'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
     );
     if (!focusable?.length) return;
@@ -510,12 +898,153 @@ export default function WorkItemDetailDialog({
     setWorklogNote("");
   }
 
+  function startTitleEdit() {
+    if (!item || !onTitleChange) return;
+    setTitleEditState({
+      itemId: item.id,
+      draft: item.title,
+      error: null,
+      saving: false,
+    });
+  }
+
+  async function handleSaveTitle(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (!item || !onTitleChange || !activeTitleEdit || activeTitleEdit.saving) {
+      return;
+    }
+    const normalized = activeTitleEdit.draft.trim();
+    if (!normalized) {
+      setTitleEditState({
+        ...activeTitleEdit,
+        error: t("titleRequired"),
+      });
+      return;
+    }
+    if (normalized === item.title) {
+      setTitleEditState(null);
+      return;
+    }
+    setTitleEditState({ ...activeTitleEdit, error: null, saving: true });
+    try {
+      const ok = await onTitleChange(item.id, normalized);
+      if (ok === false) {
+        setTitleEditState({
+          itemId: item.id,
+          draft: normalized,
+          error: tr(
+            t,
+            "quickUi.saveFailed",
+            "Could not save changes. Please try again.",
+          ),
+          saving: false,
+        });
+        return;
+      }
+      setTitleEditState(null);
+    } catch {
+      setTitleEditState({
+        itemId: item.id,
+        draft: normalized,
+        error: tr(
+          t,
+          "quickUi.saveFailed",
+          "Could not save changes. Please try again.",
+        ),
+        saving: false,
+      });
+    }
+  }
+
+  function startDescriptionEdit(seedText?: string) {
+    if (!item || !onDescriptionChange) return;
+    setDescSectionCollapsed(false);
+    setDescEditState({
+      itemId: item.id,
+      draft: seedText ?? aiEnhancedDesc ?? item.description ?? "",
+      error: null,
+      saving: false,
+    });
+  }
+
+  async function handleSaveDescription(event?: FormEvent<HTMLFormElement>) {
+    event?.preventDefault();
+    if (
+      !item ||
+      !onDescriptionChange ||
+      !activeDescEdit ||
+      activeDescEdit.saving
+    ) {
+      return;
+    }
+    const raw = activeDescEdit.draft;
+    const nextDescription = raw.trim().length > 0 ? raw.trim() : null;
+    const currentNormalized =
+      item.description && item.description.trim().length > 0
+        ? item.description.trim()
+        : null;
+    if (nextDescription === currentNormalized && !aiEnhancedDesc) {
+      setDescEditState(null);
+      return;
+    }
+    setDescEditState({ ...activeDescEdit, error: null, saving: true });
+    try {
+      const ok = await onDescriptionChange(item.id, nextDescription);
+      if (ok === false) {
+        setDescEditState({
+          itemId: item.id,
+          draft: raw,
+          error: tr(
+            t,
+            "quickUi.saveFailed",
+            "Could not save changes. Please try again.",
+          ),
+          saving: false,
+        });
+        return;
+      }
+      setAiEnhancedByItem(null);
+      setDescEditState(null);
+    } catch {
+      setDescEditState({
+        itemId: item.id,
+        draft: raw,
+        error: tr(
+          t,
+          "quickUi.saveFailed",
+          "Could not save changes. Please try again.",
+        ),
+        saving: false,
+      });
+    }
+  }
+
   function handleImproveTaskWithAi() {
-    if (!item) return;
-    const base = item.description ?? t("noDescription");
-    setAiEnhancedDesc(
-      `${base}\n\n[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated MEMBER in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`,
-    );
+    if (!item || item.readOnly) return;
+    const base = item.description?.trim() ? item.description.trim() : "";
+    const criteriaBlock = `[AI Copilot Acceptance Criteria (Given/When/Then)]:\n• Given an authenticated actor in project ${item.projectName}\n• When executing ${item.key} (${item.title})\n• Then RBAC permissions, source citations, and RFC-7807 error contracts are strictly verified.`;
+    const enhanced = base ? `${base}\n\n${criteriaBlock}` : criteriaBlock;
+    if (onDescriptionChange) {
+      startDescriptionEdit(enhanced);
+      return;
+    }
+    setAiEnhancedByItem({ itemId: item.id, text: enhanced });
+  }
+
+  function handleModalClose() {
+    if (activeTitleEdit) {
+      setTitleEditState(null);
+      return;
+    }
+    if (activeDescEdit) {
+      setDescEditState(null);
+      return;
+    }
+    if (isSplitOpen) {
+      setSplitDismissSignal((cur) => cur + 1);
+      return;
+    }
+    onClose();
   }
 
   const subtaskList = item?.subtaskItems ?? [];
@@ -623,16 +1152,18 @@ export default function WorkItemDetailDialog({
 
   const detailContent = item ? (
     <div
-      ref={dialogRef}
-      role={mode === "modal" ? "dialog" : "region"}
-      aria-modal={mode === "modal" ? "true" : undefined}
-      aria-labelledby="work-detail-title"
-      aria-describedby="work-detail-description"
-      onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+      ref={isSplitOpen ? undefined : dialogRef}
+      role={isSplitOpen ? undefined : mode === "modal" ? "dialog" : "region"}
+      aria-modal={!isSplitOpen && mode === "modal" ? "true" : undefined}
+      aria-labelledby={isSplitOpen ? undefined : "work-detail-title"}
+      aria-describedby={isSplitOpen ? undefined : "work-detail-description"}
+      onKeyDown={!isSplitOpen && mode === "modal" ? trapDialogFocus : undefined}
       className={
-        mode === "page"
-          ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-          : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
+        isSplitOpen
+          ? "relative min-w-0 bg-white dark:bg-gray-900"
+          : mode === "page"
+            ? "relative min-w-0 rounded-md border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+            : "relative max-h-[88vh] overflow-y-auto bg-white dark:bg-gray-900"
       }
     >
       {/* 2-Column Jira Skeleton Loading Overlay */}
@@ -759,16 +1290,70 @@ export default function WorkItemDetailDialog({
                   <span>{item.key}</span>
                 </button>
                 <span aria-hidden="true">/</span>
-                <span className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white">
-                  <MonoIssueTypeIcon
-                    type="SUBTASK"
-                    className="h-3 w-3 text-gray-700 dark:text-gray-300"
-                  />
-                  <span>{activeSubtask.key}</span>
-                </span>
+                {mode === "modal" ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (onOpenFullPage) {
+                        onOpenFullPage(internalSubtaskId);
+                      } else {
+                        setIsMaximized((prev) => !prev);
+                      }
+                    }}
+                    title={
+                      onOpenFullPage
+                        ? "Open in full page view"
+                        : isMaximized
+                          ? "Restore modal size"
+                          : "Full page view"
+                    }
+                    className="inline-flex cursor-pointer items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 transition hover:border-brand-300 hover:text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:border-brand-500/50 dark:hover:text-brand-400"
+                  >
+                    <MonoIssueTypeIcon
+                      type="SUBTASK"
+                      className="h-3 w-3 text-gray-700 dark:text-gray-300"
+                    />
+                    <span>{activeSubtask.key}</span>
+                  </button>
+                ) : (
+                  <span
+                    aria-current="page"
+                    className="inline-flex items-center gap-1 rounded border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono font-semibold text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+                  >
+                    <MonoIssueTypeIcon
+                      type="SUBTASK"
+                      className="h-3 w-3 text-gray-700 dark:text-gray-300"
+                    />
+                    <span>{activeSubtask.key}</span>
+                  </span>
+                )}
               </>
+            ) : mode === "modal" ? (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onOpenFullPage) {
+                    onOpenFullPage(internalSubtaskId);
+                  } else {
+                    setIsMaximized((prev) => !prev);
+                  }
+                }}
+                title={
+                  onOpenFullPage
+                    ? "Open in full page view"
+                    : isMaximized
+                      ? "Restore modal size"
+                      : "Full page view"
+                }
+                className="cursor-pointer rounded px-1 py-0.5 font-mono font-semibold text-gray-900 transition hover:bg-gray-100 hover:text-brand-600 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-white dark:hover:bg-gray-800 dark:hover:text-brand-400"
+              >
+                {item.key}
+              </button>
             ) : (
-              <span className="font-mono font-semibold text-gray-900 dark:text-white">
+              <span
+                aria-current="page"
+                className="font-mono font-semibold text-gray-900 dark:text-white"
+              >
                 {item.key}
               </span>
             )}
@@ -838,10 +1423,17 @@ export default function WorkItemDetailDialog({
               const targetKey = activeSubtask
                 ? activeSubtask.key
                 : item.key;
-              if (typeof navigator !== "undefined") {
-                navigator.clipboard?.writeText(
-                  `${window.location.origin}${window.location.pathname}#${targetKey}`,
-                );
+              const targetId = activeSubtask
+                ? activeSubtask.id
+                : item.id;
+              if (
+                typeof window !== "undefined" &&
+                typeof navigator !== "undefined"
+              ) {
+                const url = new URL(window.location.href);
+                url.hash = "";
+                url.searchParams.set("taskId", targetId);
+                void navigator.clipboard?.writeText(url.toString());
               }
               showSubtaskFeedback(`Copied link to ${targetKey}`);
             }}
@@ -870,7 +1462,7 @@ export default function WorkItemDetailDialog({
                   aria-label="Subtask header actions"
                   className="absolute end-0 top-full z-40 mt-1 w-52 rounded-md border border-gray-200 bg-white py-1.5 text-xs shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
                 >
-                  {onUpdateSubtask && (
+                  {onUpdateSubtask && canAssignToMe && (
                     <button
                       type="button"
                       onClick={() => {
@@ -967,7 +1559,13 @@ export default function WorkItemDetailDialog({
           {/* Watch Counter Toggle */}
           <button
             type="button"
-            onClick={() => setWatching((prev) => !prev)}
+            onClick={() => {
+              if (onToggleWatching) {
+                onToggleWatching(item.id);
+              } else {
+                setInternalWatching((prev) => !prev);
+              }
+            }}
             title="Watch issue"
             className={`inline-flex h-8 cursor-pointer items-center gap-1.5 rounded border px-2.5 text-xs font-semibold transition ${
               watching
@@ -1001,7 +1599,9 @@ export default function WorkItemDetailDialog({
               className="inline-flex h-8 cursor-pointer items-center gap-1 rounded border border-gray-200 px-2 text-xs font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
             >
               <MonoIcon name="maximize" className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">Full view</span>
+              <span className="hidden sm:inline">
+                {tr(t, "quickUi.fullView", "Full view")}
+              </span>
             </button>
           )}
 
@@ -1022,14 +1622,43 @@ export default function WorkItemDetailDialog({
         </div>
       </header>
 
+      {mutationError && (
+        <div
+          role="alert"
+          className="mx-5 mt-3 flex flex-wrap items-start justify-between gap-x-4 gap-y-1 rounded border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800 sm:mx-7 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-200"
+        >
+          <div className="min-w-0">
+            <p className="font-semibold">{t("mutationError.title")}</p>
+            <p className="break-words">{mutationError}</p>
+          </div>
+          {onDismissMutationError && (
+            <button
+              type="button"
+              onClick={onDismissMutationError}
+              className="shrink-0 cursor-pointer font-medium underline underline-offset-2"
+            >
+              {t("mutationError.dismiss")}
+            </button>
+          )}
+        </div>
+      )}
+
       {activeSubtask ? (
         /* =====================================================================
          * 4TH-LEVEL FULL SUBTASK DETAIL LAYER (DRILL-DOWN VIEW — IMAGE 4 STYLE)
          * ===================================================================== */
-        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+        <div
+          className={
+            isSplitOpen
+              ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+              : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+          }
+        >
           <main
             className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-              mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              mode === "page" && !isSplitOpen
+                ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                : ""
             }`}
           >
                 {/* Subtask Status, Type & Parent Context Strip */}
@@ -1352,15 +1981,15 @@ export default function WorkItemDetailDialog({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">
-                      ▾ Activity
+                      ▾ {tr(t, "quickUi.activity", "Activity")}
                     </h3>
                     <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                       {(
                         [
-                          { id: "all", label: "All" },
-                          { id: "comments", label: "Comments" },
-                          { id: "history", label: "History" },
-                          { id: "worklog", label: "Work log" },
+                          { id: "all", label: tr(t, "quickUi.tabAll", "All") },
+                          { id: "comments", label: tr(t, "quickUi.tabComments", "Comments") },
+                          { id: "history", label: tr(t, "quickUi.tabHistory", "History") },
+                          { id: "worklog", label: tr(t, "quickUi.tabWorkLog", "Work log") },
                           ...(projectId
                             ? [{ id: "notes" as const, label: workNotesT("title") }]
                             : []),
@@ -1598,6 +2227,7 @@ export default function WorkItemDetailDialog({
                       <TaskNotesPanel
                         projectId={projectId}
                         taskId={activeSubtask.id}
+                        splitControl={buildSplitControl(activeSubtask.id)}
                       />
                     )}
                 </section>
@@ -1605,8 +2235,14 @@ export default function WorkItemDetailDialog({
 
               {/* Right Sidebar for Subtask Detail Layer (Image 4 Jira Cloud Details Card) */}
               <aside
-                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                  mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                  isSplitOpen
+                    ? "@3xl:border-s @3xl:border-t-0"
+                    : "lg:border-s lg:border-t-0"
+                } ${
+                  mode === "page" && !isSplitOpen
+                    ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                    : ""
                 }`}
               >
                 {/* Top Status Transition Selector (Image 4) */}
@@ -1691,7 +2327,7 @@ export default function WorkItemDetailDialog({
                               </select>
                             )}
                           </label>
-                          {onUpdateSubtask && (
+                          {onUpdateSubtask && canAssignToMe && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1820,36 +2456,27 @@ export default function WorkItemDetailDialog({
                 </section>
 
                 {/* Subtask Development Git Card */}
-                <section className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
-                  <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                    Development
-                  </h3>
-                  <div className="mt-2.5 space-y-1.5 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setBranchCreated(true)}
-                      className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                    >
-                      <span className="truncate font-mono text-[11px]">
-                        {branchCreated
-                          ? `✓ feat/${activeSubtask.key.toLowerCase().replace(".", "-")}`
-                          : "Create branch"}
-                      </span>
-                      <MonoIcon
-                        name="arrowUpRight"
-                        className="h-3.5 w-3.5 shrink-0"
-                      />
-                    </button>
-                  </div>
-                </section>
+                <DevelopmentGitCliCard
+                  workKey={activeSubtask.key}
+                  summary={activeSubtask.summary}
+                  issueType="SUBTASK"
+                />
               </aside>
             </div>
           ) : (
-            <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]">
+            <div
+              className={
+                isSplitOpen
+                  ? "grid min-w-0 grid-cols-1 @3xl:grid-cols-[minmax(0,1fr)_20rem] @5xl:grid-cols-[minmax(0,1fr)_23rem]"
+                  : "grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+              }
+            >
             {/* Left Main Content */}
             <main
               className={`min-w-0 space-y-5 px-5 py-5 sm:px-7 sm:py-6 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -1869,117 +2496,349 @@ export default function WorkItemDetailDialog({
                 </div>
 
                 {/* Improve Task AI Copilot Button */}
-                <button
-                  type="button"
-                  onClick={handleImproveTaskWithAi}
-                  className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                >
-                  <MonoIcon name="sparkle"className="h-3.5 w-3.5"/>
-                  <span>Improve Task</span>
-                </button>
-              </div>
-
-              <h2
-                id="work-detail-title"
-                className="text-xl font-semibold leading-7 text-gray-900 sm:text-2xl dark:text-white/90"
-              >
-                {item.title}
-              </h2>
-
-              {/* Jira Cloud Quick Action Bar under Title (`19-task-detail-view-open.png`, `24a-task-detail-plus-add-dropdown.png`) */}
-              <div className="relative flex flex-wrap items-center gap-1.5">
-                <div className="relative">
+                {!item.readOnly && (
                   <button
                     type="button"
-                    onClick={() => setQuickAddMenuOpen((prev) => !prev)}
-                    aria-label="Add child or linked work"
-                    title="Add subtask, linked work item, or web link"
-                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                    onClick={handleImproveTaskWithAi}
+                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-3 text-xs font-semibold text-gray-700 transition hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                   >
-                    <span>+</span>
-                    <span>Add</span>
-                    <span className="text-[10px]">▾</span>
-                  </button>
-                  {quickAddMenuOpen && (
-                    <div
-                      role="menu"
-                      aria-label="Quick add menu"
-                      className="absolute start-0 top-full z-30 mt-1 w-48 border border-gray-200 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
-                    >
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          openExistingSubtaskPicker();
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <MonoIssueTypeIcon type="SUBTASK" size={12} />
-                        <span>Subtask</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          setAddingSubtask(true);
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <MonoIcon name="link" size={12} />
-                        <span>Linked work item</span>
-                      </button>
-                      <button
-                        type="button"
-                        role="menuitem"
-                        onClick={() => {
-                          setQuickAddMenuOpen(false);
-                          setWorklogNote("Attached Confluence specification");
-                        }}
-                        className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                      >
-                        <MonoIcon name="document" size={12} />
-                        <span>Confluence page</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {onAddSubtask && (
-                  <button
-                    type="button"
-                    onClick={openExistingSubtaskPicker}
-                    className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                  >
-                    <MonoIssueTypeIcon type="SUBTASK" size={12} />
-                    <span>+ Add subtask</span>
+                    <MonoIcon name="sparkle" className="h-3.5 w-3.5" />
+                    <span>{tr(t, "quickUi.improveTask", "Improve Task")}</span>
                   </button>
                 )}
               </div>
+
+              {activeTitleEdit ? (
+                <div className="space-y-2">
+                  <h2 id="work-detail-title" className="sr-only">
+                    {item.title}
+                  </h2>
+                  <form onSubmit={handleSaveTitle} className="space-y-2">
+                    <textarea
+                      autoFocus
+                      rows={2}
+                      value={activeTitleEdit.draft}
+                      maxLength={255}
+                      disabled={activeTitleEdit.saving}
+                      aria-label={tr(
+                        t,
+                        "quickUi.editTitleAria",
+                        "Edit work item title",
+                      )}
+                      aria-invalid={Boolean(activeTitleEdit.error)}
+                      onChange={(event) =>
+                        setTitleEditState({
+                          ...activeTitleEdit,
+                          draft: event.target.value.replace(/[\r\n]+/g, " "),
+                          error: event.target.value.trim()
+                            ? null
+                            : activeTitleEdit.error,
+                        })
+                      }
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          event.nativeEvent.stopImmediatePropagation?.();
+                          setTitleEditState(null);
+                        } else if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void handleSaveTitle();
+                        }
+                      }}
+                      className="w-full resize-none rounded border border-brand-400 bg-white px-3 py-2 text-lg font-semibold leading-7 text-gray-900 outline-none ring-3 ring-brand-500/15 sm:text-xl dark:border-brand-500 dark:bg-gray-950 dark:text-white/90"
+                    />
+                    {activeTitleEdit.error && (
+                      <p
+                        role="alert"
+                        className="text-xs font-medium text-error-600 dark:text-error-400"
+                      >
+                        {activeTitleEdit.error}
+                      </p>
+                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        type="submit"
+                        disabled={activeTitleEdit.saving}
+                        aria-busy={activeTitleEdit.saving}
+                        className="inline-flex h-8 cursor-pointer items-center justify-center rounded bg-brand-600 px-3 text-xs font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {activeTitleEdit.saving
+                          ? tr(t, "quickUi.saving", "Saving…")
+                          : tr(t, "quickUi.save", "Save")}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={activeTitleEdit.saving}
+                        onClick={() => setTitleEditState(null)}
+                        className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                      >
+                        {t("cancel")}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              ) : onTitleChange ? (
+                <div className="flex items-start justify-between gap-3">
+                  <h2
+                    id="work-detail-title"
+                    onClick={startTitleEdit}
+                    className="-mx-1.5 min-w-0 flex-1 cursor-text rounded px-1.5 py-0.5 text-xl font-semibold leading-7 break-words text-gray-900 transition hover:bg-gray-100 sm:text-2xl dark:text-white/90 dark:hover:bg-gray-800/70"
+                  >
+                    {item.title}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={startTitleEdit}
+                    aria-label={tr(
+                      t,
+                      "quickUi.editTitleAria",
+                      "Edit work item title",
+                    )}
+                    className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                  >
+                    <MonoIcon name="edit" size={12} />
+                    <span>{tr(t, "quickUi.edit", "Edit")}</span>
+                  </button>
+                </div>
+              ) : (
+                <h2
+                  id="work-detail-title"
+                  className="text-xl font-semibold leading-7 break-words text-gray-900 sm:text-2xl dark:text-white/90"
+                >
+                  {item.title}
+                </h2>
+              )}
+
+              {/* Jira Cloud Quick Action Bar under Title (`19-task-detail-view-open.png`, `24a-task-detail-plus-add-dropdown.png`) */}
+              {(onAddSubtask || onAddExistingTaskAsSubtask || projectId) && (
+                <div className="relative flex flex-wrap items-center gap-1.5">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setQuickAddMenuOpen((prev) => !prev)}
+                      aria-label="Add child or linked work"
+                      title="Add subtask, linked work item, or task note"
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+                    >
+                      <span>+</span>
+                      <span>{tr(t, "quickUi.add", "Add")}</span>
+                      <span className="text-[10px]">▾</span>
+                    </button>
+                    {quickAddMenuOpen && (
+                      <div
+                        role="menu"
+                        aria-label="Quick add menu"
+                        className="absolute start-0 top-full z-30 mt-1 w-48 border border-gray-200 bg-white py-1 shadow-theme-lg dark:border-gray-700 dark:bg-gray-900"
+                      >
+                        {onAddSubtask && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setSubtasksSectionCollapsed(false);
+                              setSelectingExistingSubtask(false);
+                              setAddingSubtask(true);
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIssueTypeIcon type="SUBTASK" size={12} />
+                            <span>Subtask</span>
+                          </button>
+                        )}
+                        {onAddExistingTaskAsSubtask && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setSubtasksSectionCollapsed(false);
+                              openExistingSubtaskPicker();
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIcon name="link" size={12} />
+                            <span>Linked work item</span>
+                          </button>
+                        )}
+                        {projectId && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={() => {
+                              setQuickAddMenuOpen(false);
+                              setActivityTab("notes");
+                            }}
+                            className="flex w-full cursor-pointer items-center gap-2 px-3 py-1.5 text-start text-xs font-medium text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
+                          >
+                            <MonoIcon name="document" size={12} />
+                            <span>{workNotesT("title")}</span>
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {onAddSubtask && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubtasksSectionCollapsed(false);
+                        setSelectingExistingSubtask(false);
+                        setAddingSubtask(true);
+                      }}
+                      className="inline-flex h-8 cursor-pointer items-center gap-1.5 border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    >
+                      <MonoIssueTypeIcon type="SUBTASK" size={12} />
+                      <span>+ {tr(t, "quickUi.addSubtask", "Add subtask")}</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               <section
                 aria-labelledby="work-detail-description-heading"
                 className="space-y-2"
               >
-                <button
-                  type="button"
-                  onClick={() => setDescSectionCollapsed((prev) => !prev)}
-                  aria-expanded={!descSectionCollapsed}
-                  className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
-                >
-                  <span aria-hidden="true" className="text-xs">
-                    {descSectionCollapsed ? "▸" : "▾"}
-                  </span>
-                  <span id="work-detail-description-heading">
-                    {t("description")}
-                  </span>
-                </button>
-                {!descSectionCollapsed && (
-                  <p className="whitespace-pre-line rounded px-4 py-2 text-sm leading-6 text-gray-700 transition hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800/40">
-                    {aiEnhancedDesc ?? item.description ?? t("noDescription")}
-                  </p>
-                )}
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setDescSectionCollapsed((prev) => !prev)}
+                    aria-expanded={!descSectionCollapsed}
+                    className="inline-flex cursor-pointer items-center gap-1.5 text-sm font-semibold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
+                  >
+                    <span aria-hidden="true" className="text-xs">
+                      {descSectionCollapsed ? "▸" : "▾"}
+                    </span>
+                    <span id="work-detail-description-heading">
+                      {t("description")}
+                    </span>
+                  </button>
+                  {onDescriptionChange && !activeDescEdit && (
+                    <button
+                      type="button"
+                      onClick={() => startDescriptionEdit()}
+                      aria-label={tr(
+                        t,
+                        "quickUi.editDescriptionAria",
+                        "Edit work item description",
+                      )}
+                      className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                    >
+                      <MonoIcon name="edit" size={11} />
+                      <span>{tr(t, "quickUi.edit", "Edit")}</span>
+                    </button>
+                  )}
+                </div>
+                {!descSectionCollapsed &&
+                  (activeDescEdit ? (
+                    <form
+                      onSubmit={handleSaveDescription}
+                      className="space-y-2.5"
+                    >
+                      <textarea
+                        autoFocus
+                        rows={8}
+                        maxLength={20000}
+                        disabled={activeDescEdit.saving}
+                        value={activeDescEdit.draft}
+                        aria-label={tr(
+                          t,
+                          "quickUi.editDescriptionAria",
+                          "Edit work item description",
+                        )}
+                        placeholder={tr(
+                          t,
+                          "quickUi.descriptionPlaceholder",
+                          "Add acceptance criteria or engineering context…",
+                        )}
+                        onChange={(event) =>
+                          setDescEditState({
+                            ...activeDescEdit,
+                            draft: event.target.value,
+                            error: null,
+                          })
+                        }
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            event.nativeEvent.stopImmediatePropagation?.();
+                            setDescEditState(null);
+                          } else if (
+                            (event.metaKey || event.ctrlKey) &&
+                            event.key === "Enter"
+                          ) {
+                            event.preventDefault();
+                            void handleSaveDescription();
+                          }
+                        }}
+                        className="w-full rounded border border-brand-400 bg-white px-3.5 py-2.5 text-sm leading-6 text-gray-800 outline-none ring-3 ring-brand-500/15 placeholder:text-gray-400 dark:border-brand-500 dark:bg-gray-950 dark:text-gray-200 dark:placeholder:text-gray-500"
+                      />
+                      {activeDescEdit.error && (
+                        <p
+                          role="alert"
+                          className="text-xs font-medium text-error-600 dark:text-error-400"
+                        >
+                          {activeDescEdit.error}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        <button
+                          type="submit"
+                          disabled={activeDescEdit.saving}
+                          aria-busy={activeDescEdit.saving}
+                          className="inline-flex h-8 cursor-pointer items-center justify-center rounded bg-brand-600 px-3 text-xs font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {activeDescEdit.saving
+                            ? tr(t, "quickUi.saving", "Saving…")
+                            : tr(t, "quickUi.save", "Save")}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={activeDescEdit.saving}
+                          onClick={() => setDescEditState(null)}
+                          className="inline-flex h-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+                        >
+                          {t("cancel")}
+                        </button>
+                      </div>
+                    </form>
+                  ) : onDescriptionChange ? (
+                    <div
+                      onClick={() => startDescriptionEdit()}
+                      className="cursor-text rounded border border-transparent px-3 py-2 text-sm leading-6 transition hover:border-gray-200 hover:bg-gray-50 dark:hover:border-gray-700 dark:hover:bg-gray-800/50"
+                    >
+                      {aiEnhancedDesc ||
+                      (item.description && item.description.trim().length > 0) ? (
+                        <p className="whitespace-pre-line break-words text-gray-700 dark:text-gray-300">
+                          {aiEnhancedDesc ?? item.description}
+                        </p>
+                      ) : (
+                        <p className="italic text-gray-500 dark:text-gray-400">
+                          {tr(
+                            t,
+                            "quickUi.addDescriptionPrompt",
+                            "Click to add a description…",
+                          )}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-line break-words rounded px-3 py-2 text-sm leading-6 text-gray-700 dark:text-gray-300">
+                      {aiEnhancedDesc ??
+                        (item.description && item.description.trim().length > 0
+                          ? item.description
+                          : projectId
+                            ? tr(
+                                t,
+                                "quickUi.noDescriptionReal",
+                                "No description provided.",
+                              )
+                            : t("noDescription"))}
+                    </p>
+                  ))}
               </section>
 
               {/* Child Work Items / Subtasks Section (Jira Cloud Subtasks Table + Expandable Subtask Detail Layer + Full Drill-Down) */}
@@ -2202,7 +3061,8 @@ export default function WorkItemDetailDialog({
                         type="button"
                         onClick={() => {
                           setSubtasksSectionCollapsed(false);
-                          openExistingSubtaskPicker();
+                          setSelectingExistingSubtask(false);
+                          setAddingSubtask(true);
                         }}
                         title="Add subtask"
                         aria-label="Add subtask"
@@ -2701,7 +3561,7 @@ export default function WorkItemDetailDialog({
                                           <span>Edit summary</span>
                                         </button>
                                       )}
-                                      {!sub.readOnly && onUpdateSubtask && (
+                                      {!sub.readOnly && onUpdateSubtask && canAssignToMe && (
                                         <button
                                           type="button"
                                           onClick={() => {
@@ -3198,6 +4058,18 @@ export default function WorkItemDetailDialog({
                           />
                         </div>
                         <div className="flex items-center gap-1.5">
+                          {onAddExistingTaskAsSubtask && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setAddingSubtask(false);
+                                openExistingSubtaskPicker();
+                              }}
+                              className="h-7 cursor-pointer px-2 text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
+                            >
+                              {t("selectExistingTask")}
+                            </button>
+                          )}
                           <button
                             type="submit"
                             className="h-7 cursor-pointer bg-brand-600 px-3 text-xs font-semibold text-white hover:bg-brand-700"
@@ -3220,7 +4092,10 @@ export default function WorkItemDetailDialog({
                   ) : (
                     <button
                       type="button"
-                      onClick={openExistingSubtaskPicker}
+                      onClick={() => {
+                        setSelectingExistingSubtask(false);
+                        setAddingSubtask(true);
+                      }}
                       className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                     >
                       <span>+</span>
@@ -3239,15 +4114,15 @@ export default function WorkItemDetailDialog({
                     id="work-detail-activity-heading"
                     className="text-sm font-semibold text-gray-800 dark:text-gray-200"
                   >
-                    Activity
+                    {tr(t, "quickUi.activity", "Activity")}
                   </h3>
                   <div className="inline-flex flex-wrap items-center gap-0.5 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs dark:border-gray-800 dark:bg-gray-950">
                     {(
                       [
-                        { id:"all", label:"All"},
-                        { id:"comments", label:"Comments"},
-                        { id:"history", label:"History"},
-                        { id:"worklog", label:"Work log"},
+                        { id:"all", label: tr(t, "quickUi.tabAll", "All") },
+                        { id:"comments", label: tr(t, "quickUi.tabComments", "Comments") },
+                        { id:"history", label: tr(t, "quickUi.tabHistory", "History") },
+                        { id:"worklog", label: tr(t, "quickUi.tabWorkLog", "Work log") },
                         ...(projectId ? [{ id:"notes" as const, label: workNotesT("title") }] : []),
                       ] as const
                     ).map((tab) => (
@@ -3474,15 +4349,25 @@ export default function WorkItemDetailDialog({
                   </div>
                 )}
                 {activityTab === "notes" && projectId && item && (
-                  <TaskNotesPanel projectId={projectId} taskId={item.id} />
+                  <TaskNotesPanel
+                    projectId={projectId}
+                    taskId={item.id}
+                    splitControl={buildSplitControl(item.id)}
+                  />
                 )}
               </section>
             </main>
 
             {/* Right Details & Integrations Column (Image 4 Jira Cloud Details Card) */}
             <aside
-              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 lg:border-s lg:border-t-0 dark:border-gray-800 dark:bg-gray-900 ${
-                mode === "page" ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto" : ""
+              className={`min-w-0 space-y-4 border-t border-gray-200 bg-white px-5 py-5 sm:px-6 dark:border-gray-800 dark:bg-gray-900 ${
+                isSplitOpen
+                  ? "@3xl:border-s @3xl:border-t-0"
+                  : "lg:border-s lg:border-t-0"
+              } ${
+                mode === "page" && !isSplitOpen
+                  ? "lg:max-h-[calc(100vh-8rem)] lg:overflow-y-auto"
+                  : ""
               }`}
             >
               {/* Top Status Transition Selector (Image 4) */}
@@ -3566,7 +4451,7 @@ export default function WorkItemDetailDialog({
                             </select>
                           )}
                         </label>
-                        {onAssigneeChange && (
+                        {onAssigneeChange && canAssignToMe && (
                           <button
                             type="button"
                             onClick={() => {
@@ -3661,7 +4546,7 @@ export default function WorkItemDetailDialog({
 
                     <DetailField label="Team">
                       <span className="px-1.5 text-xs text-gray-700 dark:text-gray-300">
-                        {item.team ?? "Core Engineering"}
+                        {item.team ?? (isPreview ? "Core Engineering" : "—")}
                       </span>
                     </DetailField>
 
@@ -3692,47 +4577,12 @@ export default function WorkItemDetailDialog({
                 )}
               </section>
 
-              {/* Development Accordion Card */}
-              <section
-                aria-label="Development git actions"
-                className="rounded-md border border-gray-200 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900"
-              >
-                <h3 className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                  Development
-                </h3>
-                <div className="mt-2.5 space-y-1.5 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => setBranchCreated(true)}
-                    className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                  >
-                    <span>
-                      {branchCreated
-                        ? `✓ Branch feat/${item.key.toLowerCase()} ready`
-                        : "Create branch"}
-                    </span>
-                    <MonoIcon
-                      name="arrowUpRight"
-                      className="h-3.5 w-3.5"
-                    />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setCommitCopied(true)}
-                    className="flex w-full cursor-pointer items-center justify-between rounded px-2 py-1.5 font-medium text-brand-600 hover:bg-gray-50 dark:text-brand-400 dark:hover:bg-gray-800"
-                  >
-                    <span>
-                      {commitCopied
-                        ? `✓ Copied git commit -m "${item.key}: ..."`
-                        : "Create commit"}
-                    </span>
-                    <MonoIcon
-                      name="copy"
-                      className="h-3.5 w-3.5"
-                    />
-                  </button>
-                </div>
-              </section>
+              {/* Development Git CLI Card */}
+              <DevelopmentGitCliCard
+                workKey={item.key}
+                summary={item.title}
+                issueType={item.type}
+              />
 
               {/* Automation Accordion Card */}
               <section
@@ -3771,21 +4621,154 @@ export default function WorkItemDetailDialog({
     </div>
   ) : null;
 
+  const workspaceContent =
+    item && projectId && activeSplitComposer ? (
+      <div
+        ref={(node) => {
+          dialogRef.current = node;
+          splitContainerRef.current = node;
+        }}
+        data-testid="work-note-split-workspace"
+        role={mode === "modal" ? "dialog" : "region"}
+        aria-modal={mode === "modal" ? "true" : undefined}
+        aria-labelledby="work-detail-title"
+        aria-describedby="work-detail-description"
+        onKeyDown={mode === "modal" ? trapDialogFocus : undefined}
+        className={`${
+          mode === "page"
+            ? "flex h-[calc(100dvh-5.5rem)] min-h-[640px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-sm lg:flex-row dark:border-gray-800 dark:bg-gray-900"
+            : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
+        } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
+      >
+        {/* Column 1 (Left): Resizable Task Pane */}
+        <div
+          data-testid="work-note-split-task-pane"
+          inert={splitConfirmOpen || undefined}
+          style={
+            {
+              "--task-split-w": `${activeTaskWidthPct}%`,
+            } as CSSProperties
+          }
+          className="@container relative max-h-[45dvh] min-h-0 w-full min-w-0 shrink-0 overflow-y-auto border-b border-gray-200 bg-white lg:h-full lg:max-h-none lg:w-[var(--task-split-w)] lg:border-b-0 dark:border-gray-800 dark:bg-gray-900"
+        >
+          {detailContent}
+        </div>
+
+        {/* Draggable Vertical Splitter (ONLY between Task and Note Task) */}
+        <div
+          role="separator"
+          data-testid="task-note-resizer"
+          inert={splitConfirmOpen || undefined}
+          tabIndex={0}
+          aria-orientation="vertical"
+          aria-label={tr(
+            t,
+            "splitResizeAria",
+            "Drag to resize width between Task and Note",
+          )}
+          aria-valuemin={22}
+          aria-valuemax={splitAiOpen ? 52 : 74}
+          aria-valuenow={Math.round(activeTaskWidthPct)}
+          title={tr(
+            t,
+            "splitResizeTitle",
+            "Drag to resize width (double-click to reset)",
+          )}
+          onPointerDown={handleSplitterPointerDown}
+          onPointerMove={handleSplitterPointerMove}
+          onPointerUp={handleSplitterPointerUp}
+          onPointerCancel={handleSplitterPointerUp}
+          onKeyDown={handleSplitterKeyDown}
+          onDoubleClick={() => {
+            if (splitAiOpen) setThreeColTaskPct(33);
+            else setTwoColTaskPct(48);
+          }}
+          className="group relative z-20 hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center bg-gray-50/70 transition-colors hover:bg-brand-50/80 focus-visible:bg-brand-50/80 focus-visible:outline-none lg:flex dark:bg-gray-950/60 dark:hover:bg-brand-500/15"
+        >
+          <div
+            aria-hidden="true"
+            className={`h-full w-px transition-colors ${
+              isDraggingSplitter
+                ? "w-0.5 bg-brand-500"
+                : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
+            }`}
+          />
+          <div
+            aria-hidden="true"
+            className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
+              isDraggingSplitter
+                ? "border-brand-500 bg-brand-500 text-white"
+                : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
+            }`}
+          >
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+            <span className="size-0.5 rounded-full bg-current" />
+          </div>
+        </div>
+
+        {/* Column 2 (& Column 3 when AI Assistant is opened): Note Task + Fixed-Width AI Panel */}
+        <div
+          data-testid="work-note-split-note-pane"
+          className="flex min-h-0 min-w-0 flex-1 overflow-hidden bg-white dark:bg-gray-900"
+        >
+          <WorkNoteComposer
+            key={`${projectId}:${activeSplitComposer.taskId}:${activeSplitComposer.noteId ?? "new"}`}
+            variant="inline"
+            projectId={projectId}
+            taskId={activeSplitComposer.taskId}
+            noteId={activeSplitComposer.noteId}
+            dismissSignal={splitDismissSignal}
+            onPanelOpenChange={setSplitAiOpen}
+            onConfirmationChange={setSplitConfirmOpen}
+            onClose={() => {
+              setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
+              setSplitComposerState(null);
+            }}
+            onSaved={() => {
+              const savedTaskId = activeSplitComposer.taskId;
+              setSplitSavedSignalByTask((prev) => ({
+                ...prev,
+                [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
+              }));
+              setSplitAiOpen(false);
+              setSplitConfirmOpen(false);
+              setSplitComposerState(null);
+            }}
+          />
+        </div>
+      </div>
+    ) : (
+      detailContent
+    );
+
   if (mode === "page") {
-    return detailContent;
+    return workspaceContent;
   }
 
   return (
     <Modal
       isOpen={Boolean(item)}
-      onClose={onClose}
+      onClose={handleModalClose}
+      onBackdropClick={
+        activeTitleEdit || activeDescEdit
+          ? handleModalClose
+          : isSplitOpen
+            ? () => setSplitDismissSignal((cur) => cur + 1)
+            : undefined
+      }
       backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
-      className={`overflow-hidden rounded-lg p-0 shadow-theme-lg ${
-        isMaximized ? "max-h-[92vh] max-w-7xl" : "max-h-[88vh] max-w-6xl"
+      className={`overflow-hidden p-0 shadow-theme-lg ${
+        isSplitOpen
+          ? "w-[96vw] max-w-[1840px] rounded-2xl"
+          : isMaximized
+            ? "max-h-[92vh] max-w-7xl rounded-lg"
+            : "max-h-[88vh] max-w-6xl rounded-lg"
       }`}
     >
-      {detailContent}
+      {workspaceContent}
     </Modal>
   );
 }

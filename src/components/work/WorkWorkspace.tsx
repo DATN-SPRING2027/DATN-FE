@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from"react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from"next-intl";
 import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
 import {
@@ -16,6 +17,7 @@ import { BackgroundRefreshError, UpdatingStatus } from"@/components/ui/loading/A
 import { PlusIcon } from"@/icons";
 import WorkBoardView from"./WorkBoardView";
 import WorkCalendarView from"./WorkCalendarView";
+import { WorkCreatedTaskToast, type CreatedTaskToastData } from "./WorkCreatedTaskToast";
 import WorkItemCreateDialog from"./WorkItemCreateDialog";
 import WorkItemDetailDialog from"./WorkItemDetailDialog";
 import WorkListView from"./WorkListView";
@@ -318,6 +320,7 @@ export default function WorkWorkspace({
 }) {
   const t = useTranslations("work");
   const common = useTranslations("common");
+  const queryClient = useQueryClient();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
   const visibleUser = userAccessLost ? undefined : user.data;
@@ -356,6 +359,7 @@ export default function WorkWorkspace({
   const [highlightDoneRows, setHighlightDoneRows] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [createOpen, setCreateOpen] = useState(false);
+  const [createdTaskToast, setCreatedTaskToast] = useState<CreatedTaskToastData | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [activeWorkItemId, setActiveWorkItemId] = useState<string | null>(null);
   const [activeSubtaskId, setActiveSubtaskId] = useState<string | null>(null);
@@ -365,6 +369,39 @@ export default function WorkWorkspace({
   const [unavailableTaskNotice, setUnavailableTaskNotice] = useState<string | null>(null);
   const [deepLinkOverrideTaskId, setDeepLinkOverrideTaskId] = useState<string | null>(null);
   const handledDeepLinkTaskRef = useRef<string | null>(null);
+  const [annotationsByProject, setAnnotationsByProject] = useState<
+    Record<
+      string,
+      {
+        flagged: Record<string, boolean>;
+        watching: Record<string, boolean>;
+        estimates: Record<string, string>;
+      }
+    >
+  >(() => ({
+    [projectId]: readProjectWorkAnnotations(projectId),
+  }));
+  const projectAnnotations =
+    annotationsByProject[projectId] ?? readProjectWorkAnnotations(projectId);
+  function updateProjectAnnotations(
+    updater: (prev: {
+      flagged: Record<string, boolean>;
+      watching: Record<string, boolean>;
+      estimates: Record<string, string>;
+    }) => {
+      flagged: Record<string, boolean>;
+      watching: Record<string, boolean>;
+      estimates: Record<string, string>;
+    },
+  ) {
+    setAnnotationsByProject((all) => {
+      const current =
+        all[projectId] ?? readProjectWorkAnnotations(projectId);
+      const next = updater(current);
+      writeProjectWorkAnnotations(projectId, next);
+      return { ...all, [projectId]: next };
+    });
+  }
   const createButtonRef = useRef<HTMLButtonElement>(null);
   const detailTriggerRef = useRef<HTMLElement | null>(null);
   const dialogWasOpenRef = useRef(false);
@@ -417,18 +454,17 @@ export default function WorkWorkspace({
         initials: toPersonInitials(displayName),
       });
     }
-    if (list.length === 0 && currentUserPerson) {
-      return [currentUserPerson];
-    }
     return list;
   }, [currentUserPerson, isRealProject, visibleProjectMembers]);
   const projectPeopleById = useMemo(
     () => new Map(projectPeople.map((person) => [person.id, person])),
     [projectPeople],
   );
-  const defaultAssigneePerson =
-    projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON;
+  const defaultAssigneePerson = isRealProject
+    ? (projectPeople[0] ?? UNASSIGNED_WORK_PERSON)
+    : (projectPeople[0] ?? currentUserPerson ?? UNASSIGNED_WORK_PERSON);
   const taskVersionsRef = useRef<Map<string, number>>(new Map());
+  const taskBackendStatusesRef = useRef<Map<string, BackendTaskStatus>>(new Map());
   const pendingIdPromisesRef = useRef<Map<string, Promise<string | null>>>(
     new Map(),
   );
@@ -485,6 +521,9 @@ export default function WorkWorkspace({
             if (typeof updatedVersion === "number") {
               taskVersionsRef.current.set(realId, updatedVersion);
             }
+            void queryClient.invalidateQueries({
+              queryKey: ["worknote-task-context", projectId, realId],
+            });
             return true;
           } catch (error) {
             onRollback?.();
@@ -509,81 +548,107 @@ export default function WorkWorkspace({
     fromStatus: WorkStatus,
     toStatus: WorkStatus | "CANCELLED",
   ): Promise<number> {
+    const actualFrom: BackendTaskStatus =
+      taskBackendStatusesRef.current.get(realId) ?? fromStatus;
+
+    const runStep = async (
+      stepVersion: number,
+      stepFrom: BackendTaskStatus,
+      stepTo: BackendTaskStatus,
+      reason?: string,
+    ): Promise<number> => {
+      const res = await transitionProjectTaskApi(projectId, realId, stepVersion, {
+        fromStatus: stepFrom,
+        toStatus: stepTo,
+        ...(reason ? { reason } : {}),
+      });
+      taskVersionsRef.current.set(realId, res.version);
+      taskBackendStatusesRef.current.set(realId, res.status ?? stepTo);
+      return res.version;
+    };
+
+    if (actualFrom === toStatus) return version;
+
     if (toStatus === "CANCELLED") {
       let currentVer = version;
-      let currentFrom: BackendTaskStatus = fromStatus;
-      if (fromStatus === "DONE") {
-        const reopened = await transitionProjectTaskApi(
-          projectId,
-          realId,
+      let currentFrom: BackendTaskStatus = actualFrom;
+      if (currentFrom === "DONE") {
+        currentVer = await runStep(
           currentVer,
-          {
-            fromStatus: "DONE",
-            toStatus: "IN_PROGRESS",
-            reason: "Reopened before cancellation",
-          },
+          "DONE",
+          "IN_PROGRESS",
+          "Reopened before cancellation",
         );
-        currentVer = reopened.version;
         currentFrom = "IN_PROGRESS";
       }
-      const cancelled = await transitionProjectTaskApi(
-        projectId,
-        realId,
+      return runStep(
         currentVer,
-        {
-          fromStatus: currentFrom,
-          toStatus: "CANCELLED",
-          reason: "Cancelled from workspace UI",
-        },
+        currentFrom,
+        "CANCELLED",
+        "Cancelled from workspace UI",
       );
-      return cancelled.version;
     }
 
-    if (fromStatus === toStatus) return version;
-
-    if (fromStatus === "TODO" && toStatus === "DONE") {
-      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
-        fromStatus: "TODO",
-        toStatus: "IN_PROGRESS",
-      });
-      const tr2 = await transitionProjectTaskApi(
-        projectId,
-        realId,
-        tr1.version,
-        {
-          fromStatus: "IN_PROGRESS",
-          toStatus: "DONE",
-        },
+    if (actualFrom === "BLOCKED") {
+      if (toStatus === "DONE") {
+        const v1 = await runStep(
+          version,
+          "BLOCKED",
+          "IN_PROGRESS",
+          "Unblocked from workspace UI",
+        );
+        return runStep(v1, "IN_PROGRESS", "DONE");
+      }
+      return runStep(
+        version,
+        "BLOCKED",
+        toStatus,
+        "Unblocked from workspace UI",
       );
-      return tr2.version;
     }
 
-    if (fromStatus === "DONE" && toStatus !== "IN_PROGRESS") {
-      const tr1 = await transitionProjectTaskApi(projectId, realId, version, {
-        fromStatus: "DONE",
-        toStatus: "IN_PROGRESS",
-        reason: "Reopened from workspace UI",
-      });
-      const tr2 = await transitionProjectTaskApi(
-        projectId,
-        realId,
-        tr1.version,
-        {
-          fromStatus: "IN_PROGRESS",
-          toStatus,
-        },
+    if (actualFrom === "CANCELLED") {
+      const v1 = await runStep(
+        version,
+        "CANCELLED",
+        "TODO",
+        "Restored from workspace UI",
       );
-      return tr2.version;
+      if (toStatus === "TODO") return v1;
+      const v2 = await runStep(v1, "TODO", "IN_PROGRESS");
+      if (toStatus === "IN_PROGRESS") return v2;
+      return runStep(v2, "IN_PROGRESS", toStatus);
     }
 
-    const tr = await transitionProjectTaskApi(projectId, realId, version, {
-      fromStatus,
+    if (
+      (actualFrom === "TODO" && toStatus === "IN_REVIEW") ||
+      (actualFrom === "IN_REVIEW" && toStatus === "TODO")
+    ) {
+      const v1 = await runStep(version, actualFrom, "IN_PROGRESS");
+      return runStep(v1, "IN_PROGRESS", toStatus);
+    }
+
+    if (actualFrom === "TODO" && toStatus === "DONE") {
+      const v1 = await runStep(version, "TODO", "IN_PROGRESS");
+      return runStep(v1, "IN_PROGRESS", "DONE");
+    }
+
+    if (actualFrom === "DONE" && toStatus !== "IN_PROGRESS") {
+      const v1 = await runStep(
+        version,
+        "DONE",
+        "IN_PROGRESS",
+        "Reopened from workspace UI",
+      );
+      return runStep(v1, "IN_PROGRESS", toStatus);
+    }
+
+    return runStep(
+      version,
+      actualFrom,
       toStatus,
-      ...(fromStatus === "DONE"
-        ? { reason: "Reopened from workspace UI" }
-        : {}),
-    });
-    return tr.version;
+      actualFrom === "DONE" ? "Reopened from workspace UI" : undefined,
+    );
   }
 
   useEffect(() => {
@@ -594,6 +659,7 @@ export default function WorkWorkspace({
 
     for (const t of rawTasks) {
       taskVersionsRef.current.set(t.id, t.version);
+      taskBackendStatusesRef.current.set(t.id, t.status);
     }
 
     const parentTasks = rawTasks.filter((t) => t.parentId === null);
@@ -606,6 +672,7 @@ export default function WorkWorkspace({
       }
     }
 
+    const storedAnnotations = readProjectWorkAnnotations(projectId);
     const currentProjectName = resolvedProject?.name ?? "";
     const mapped: WorkItem[] = parentTasks.map((t) => {
       const childTasks = childrenByParent.get(t.id) ?? [];
@@ -635,6 +702,10 @@ export default function WorkWorkspace({
           createdAt: sub.createdAt,
           updatedAt: sub.updatedAt,
           labels: sub.labels,
+          ...(storedAnnotations.flagged[sub.id] ? { flagged: true } : {}),
+          ...(storedAnnotations.estimates[sub.id]
+            ? { estimate: storedAnnotations.estimates[sub.id] }
+            : {}),
         };
       });
 
@@ -679,6 +750,7 @@ export default function WorkWorkspace({
         startDate: t.startDate ? t.startDate.slice(0, 10) : null,
         projectName: currentProjectName || "Workspace",
         labels: t.labels,
+        ...(storedAnnotations.flagged[t.id] ? { flagged: true } : {}),
         subtasks: { completed: completedSubtasks, total: totalSubtasks },
         subtaskItems,
         comments: [],
@@ -700,6 +772,12 @@ export default function WorkWorkspace({
             if (!prevSub) return sub;
             return {
               ...sub,
+              ...(sub.flagged === undefined && prevSub.flagged !== undefined
+                ? { flagged: prevSub.flagged }
+                : {}),
+              ...(sub.estimate === undefined && prevSub.estimate !== undefined
+                ? { estimate: prevSub.estimate }
+                : {}),
               ...(prevSub.description !== undefined
                 ? { description: prevSub.description }
                 : {}),
@@ -719,6 +797,9 @@ export default function WorkWorkspace({
           });
           return {
             ...item,
+            ...(item.flagged === undefined && prev.flagged !== undefined
+              ? { flagged: prev.flagged }
+              : {}),
             ...(prev.description !== undefined
               ? { description: prev.description }
               : {}),
@@ -777,8 +858,13 @@ export default function WorkWorkspace({
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams(window.location.search);
+    const hashTarget = window.location.hash.startsWith("#")
+      ? decodeURIComponent(window.location.hash.slice(1)).trim()
+      : "";
     const deepLinkTaskId =
-      deepLinkOverrideTaskId ?? params.get("taskId")?.trim() ?? null;
+      deepLinkOverrideTaskId ??
+      params.get("taskId")?.trim() ??
+      (hashTarget || null);
     if (!deepLinkTaskId) return;
     if (handledDeepLinkTaskRef.current === deepLinkTaskId) return;
 
@@ -786,7 +872,12 @@ export default function WorkWorkspace({
       return;
     }
 
-    const directItem = items.find((item) => item.id === deepLinkTaskId);
+    const normalizedTarget = deepLinkTaskId.toUpperCase();
+    const directItem = items.find(
+      (item) =>
+        item.id === deepLinkTaskId ||
+        item.key.toUpperCase() === normalizedTarget,
+    );
     if (directItem) {
       handledDeepLinkTaskRef.current = deepLinkTaskId;
       queueMicrotask(() => {
@@ -797,22 +888,36 @@ export default function WorkWorkspace({
       return;
     }
 
+    let matchedSubtaskId: string | null = null;
     const parentWithSubtask = items.find((item) =>
-      (item.subtaskItems ?? []).some((sub) => sub.id === deepLinkTaskId),
+      (item.subtaskItems ?? []).some((sub) => {
+        if (
+          sub.id === deepLinkTaskId ||
+          sub.key.toUpperCase() === normalizedTarget
+        ) {
+          matchedSubtaskId = sub.id;
+          return true;
+        }
+        return false;
+      }),
     );
-    if (parentWithSubtask) {
+    if (parentWithSubtask && matchedSubtaskId) {
+      const resolvedSubId = matchedSubtaskId;
       handledDeepLinkTaskRef.current = deepLinkTaskId;
       queueMicrotask(() => {
         setUnavailableTaskNotice(null);
         setActiveWorkItemId(parentWithSubtask.id);
-        setActiveSubtaskId(deepLinkTaskId);
+        setActiveSubtaskId(resolvedSubId);
       });
       return;
     }
 
     if (isRealProject && visibleTasks) {
       const rawMatched = visibleTasks.items.find(
-        (t) => t.id === deepLinkTaskId && t.status !== "CANCELLED",
+        (t) =>
+          (t.id === deepLinkTaskId ||
+            t.key.toUpperCase() === normalizedTarget) &&
+          t.status !== "CANCELLED",
       );
       if (rawMatched) {
         // Wait for items state sync effect to populate `items`
@@ -875,6 +980,7 @@ export default function WorkWorkspace({
           setActivityError(null);
         }
         taskVersionsRef.current.set(detail.id, detail.version);
+        taskBackendStatusesRef.current.set(detail.id, detail.status);
         const liveComments = commentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
@@ -926,7 +1032,10 @@ export default function WorkWorkspace({
             item.id === openedTaskId
               ? {
                   ...item,
-                  ...(detail.description ? { description: detail.description } : {}),
+                  ...(detail.title !== undefined ? { title: detail.title } : {}),
+                  ...(detail.description !== undefined
+                    ? { description: detail.description ?? undefined }
+                    : {}),
                   ...(liveComments ? { comments: liveComments } : {}),
                   ...(liveWorklogs ? { worklogs: liveWorklogs } : {}),
                   ...(liveHistory ? { history: liveHistory } : {}),
@@ -993,6 +1102,7 @@ export default function WorkWorkspace({
           setActivityError(null);
         }
         taskVersionsRef.current.set(subDetail.id, subDetail.version);
+        taskBackendStatusesRef.current.set(subDetail.id, subDetail.status);
         const liveSubComments = subCommentItems?.map((c) => {
           const authorPerson = resolvePersonById(
             c.authorId,
@@ -1052,9 +1162,8 @@ export default function WorkWorkspace({
                 sub.id === openedSubtaskId
                   ? {
                       ...sub,
-                      ...(subDetail.description
-                        ? { description: subDetail.description }
-                        : {}),
+                      summary: subDetail.title,
+                      description: subDetail.description ?? undefined,
                       ...(liveSubComments ? { comments: liveSubComments } : {}),
                       ...(liveSubWorklogs ? { worklogs: liveSubWorklogs } : {}),
                       ...(liveSubHistory ? { history: liveSubHistory } : {}),
@@ -1277,11 +1386,30 @@ export default function WorkWorkspace({
   }
 
   function toggleItemFlag(id: string) {
+    const existing = items.find((item) => item.id === id);
+    const nextFlagged = !(existing?.flagged ?? false);
     setItems((current) =>
       current.map((item) =>
-        item.id === id ? { ...item, flagged: !item.flagged } : item,
+        item.id === id ? { ...item, flagged: nextFlagged } : item,
       ),
     );
+    updateProjectAnnotations((prev) => ({
+      ...prev,
+      flagged: {
+        ...prev.flagged,
+        [id]: nextFlagged,
+      },
+    }));
+  }
+
+  function toggleItemWatching(id: string) {
+    updateProjectAnnotations((prev) => ({
+      ...prev,
+      watching: {
+        ...prev.watching,
+        [id]: !prev.watching[id],
+      },
+    }));
   }
 
   function deleteSingleItem(id: string) {
@@ -1290,6 +1418,7 @@ export default function WorkWorkspace({
     const previousSelected = new Set(selectedIds);
     const existing = items.find((item) => item.id === id);
     const fromStatus = existing?.status ?? "TODO";
+    setCreatedTaskToast((curr) => (curr?.id === id ? null : curr));
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -1316,7 +1445,36 @@ export default function WorkWorkspace({
 
   function addPreviewItem(input: CreatePreviewWorkItem) {
     const targetStatus = input.status ?? "TODO";
+    const normalizedLabels = (input.labels ?? [])
+      .map((lbl) => lbl.trim().slice(0, 40))
+      .filter(Boolean)
+      .slice(0, 20);
+    if (!input.keepDialogOpen) {
+      setCreateOpen(false);
+    }
+    if (input.parentId) {
+      addSubtask(input.parentId, input.title, {
+        assignee: input.assignee,
+        priority: input.priority,
+        status: targetStatus,
+        dueDate: input.dueDate,
+        startDate: input.startDate ?? null,
+        description: input.description,
+        type: input.type,
+        labels: normalizedLabels,
+      });
+      setAnnouncement(t("createAdded"));
+      return;
+    }
     const tempId = `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const previewSequence =
+      items.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
+    if (!isRealProject) {
+      setCreatedTaskToast({
+        id: tempId,
+        key: `PREVIEW-${previewSequence}`,
+      });
+    }
     setItems((current) => {
       const sequence =
         current.filter((item) => item.key.startsWith("PREVIEW-")).length + 1;
@@ -1334,6 +1492,8 @@ export default function WorkWorkspace({
         resolution: targetStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
         createdAt: new Date().toISOString(),
         dueDate: input.dueDate,
+        ...(input.startDate ? { startDate: input.startDate } : {}),
+        ...(normalizedLabels.length > 0 ? { labels: normalizedLabels } : {}),
         projectName,
         description: input.description,
         subtasks: { completed: 0, total: 0 },
@@ -1343,7 +1503,6 @@ export default function WorkWorkspace({
       return [item, ...current];
     });
     setAnnouncement(t("createAdded"));
-    setCreateOpen(false);
 
     if (isRealProject) {
       const creationPromise = (async (): Promise<string | null> => {
@@ -1359,9 +1518,23 @@ export default function WorkWorkspace({
             dueDate: input.dueDate
               ? new Date(input.dueDate).toISOString()
               : null,
+            ...(input.startDate
+              ? { startDate: new Date(input.startDate).toISOString() }
+              : {}),
+            ...(normalizedLabels.length > 0
+              ? { labels: normalizedLabels }
+              : {}),
+            ...(input.sprintId && OBJECT_ID_PATTERN.test(input.sprintId)
+              ? { sprintId: input.sprintId }
+              : {}),
           });
           taskVersionsRef.current.set(created.id, created.version);
+          taskBackendStatusesRef.current.set(created.id, created.status ?? "TODO");
           resolvedIdsRef.current.set(tempId, created.id);
+          setCreatedTaskToast({
+            id: created.id,
+            key: created.key,
+          });
           setItems((current) =>
             current.map((item) =>
               item.id === tempId
@@ -1406,10 +1579,12 @@ export default function WorkWorkspace({
             setAnnouncement(t("createStatusFailed"));
           }
           return created.id;
-        } catch {
+        } catch (error) {
           setItems((current) => current.filter((item) => item.id !== tempId));
           void tasksQuery.refetch();
-          setAnnouncement("Unable to create work item. Changes reverted.");
+          const message = describeMutationError(error);
+          setMutationError(message);
+          setAnnouncement(`Unable to create work item. ${message}`);
           return null;
         } finally {
           pendingIdPromisesRef.current.delete(tempId);
@@ -1424,6 +1599,7 @@ export default function WorkWorkspace({
     const existing = items.find((item) => item.id === id);
     const prevStatus = existing?.status ?? "TODO";
     if (prevStatus === nextStatus) return;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id
@@ -1463,11 +1639,106 @@ export default function WorkWorkspace({
     }
   }
 
+  function updateItemTitle(
+    id: string,
+    nextTitle: string,
+  ): Promise<boolean> | boolean {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) {
+      return false;
+    }
+    const normalized = nextTitle.trim();
+    if (!normalized) return false;
+    const existing = items.find((item) => item.id === id);
+    const prevTitle = existing?.title ?? "";
+    if (prevTitle === normalized) return true;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, title: normalized } : item,
+      ),
+    );
+    if (isRealProject) {
+      return enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              title: normalized,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, title: prevTitle }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+    return true;
+  }
+
+  function updateItemDescription(
+    id: string,
+    nextDescription: string | null,
+  ): Promise<boolean> | boolean {
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) {
+      return false;
+    }
+    const normalized =
+      nextDescription && nextDescription.trim().length > 0
+        ? nextDescription.trim()
+        : undefined;
+    const existing = items.find((item) => item.id === id);
+    const prevDescription = existing?.description;
+    if ((prevDescription ?? undefined) === normalized) return true;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id ? { ...item, description: normalized } : item,
+      ),
+    );
+    if (isRealProject) {
+      return enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              description: normalized ?? null,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? { ...item, description: prevDescription }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+    return true;
+  }
+
   function updateItemPriority(id: string, nextPriority: WorkPriority) {
     if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
     const existing = items.find((item) => item.id === id);
     const prevPriority = existing?.priority ?? "MEDIUM";
     if (prevPriority === nextPriority) return;
+    setMutationError(null);
     setItems((current) =>
       current.map((item) =>
         item.id === id ? { ...item, priority: nextPriority } : item,
@@ -1598,6 +1869,76 @@ export default function WorkWorkspace({
     }
   }
 
+  function updateItemDates(
+    id: string,
+    nextStartDate: string | null,
+    nextDueDate: string | null,
+  ) {
+    const parentOfSub = items.find((item) =>
+      (item.subtaskItems ?? []).some((sub) => sub.id === id),
+    );
+    if (parentOfSub) {
+      updateSubtask(parentOfSub.id, id, {
+        startDate: nextStartDate,
+        dueDate: nextDueDate,
+      });
+      return;
+    }
+    if (itemsWithPermissions.find((item) => item.id === id)?.readOnly) return;
+    const existing = items.find((item) => item.id === id);
+    if (!existing) return;
+    const prevStartDate = existing.startDate;
+    const prevDueDate = existing.dueDate;
+    setMutationError(null);
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id
+          ? {
+              ...item,
+              startDate: nextStartDate ?? undefined,
+              dueDate: nextDueDate,
+            }
+          : item,
+      ),
+    );
+    if (isRealProject) {
+      enqueueTaskMutation(
+        id,
+        async (realId, version) => {
+          const isoStart = nextStartDate
+            ? new Date(`${nextStartDate}T00:00:00.000Z`).toISOString()
+            : null;
+          const isoDue = nextDueDate
+            ? new Date(`${nextDueDate}T00:00:00.000Z`).toISOString()
+            : null;
+          const updated = await updateProjectTaskApi(
+            projectId,
+            realId,
+            version,
+            {
+              startDate: isoStart,
+              dueDate: isoDue,
+            },
+          );
+          return updated.version;
+        },
+        () => {
+          setItems((current) =>
+            current.map((item) =>
+              item.id === id || item.id === resolvedIdsRef.current.get(id)
+                ? {
+                    ...item,
+                    startDate: prevStartDate,
+                    dueDate: prevDueDate,
+                  }
+                : item,
+            ),
+          );
+        },
+      );
+    }
+  }
+
   function toggleSubtask(itemId: string, subtaskId: string) {
     const previousItems = items;
     const parentItem = items.find((item) => item.id === itemId);
@@ -1608,6 +1949,7 @@ export default function WorkWorkspace({
     const prevStatus = targetSub.status;
     const nextDone = !targetSub.done;
     const nextStatus: WorkStatus = nextDone ? "DONE" : "TODO";
+    setMutationError(null);
 
     setItems((current) =>
       current.map((item) => {
@@ -1655,13 +1997,24 @@ export default function WorkWorkspace({
       priority?: WorkPriority;
       status?: WorkStatus;
       dueDate?: string | null;
+      startDate?: string | null;
       description?: string;
       estimate?: string;
+      type?: WorkItem["type"];
+      labels?: readonly string[];
     },
   ) {
     if (isRealProject && !itemsWithPermissions.some((item) => item.id === itemId && !item.readOnly)) return;
     const tempSubId = `sub-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const nextStatus = options?.status ?? ("TODO" as WorkStatus);
+    const initialEstimate = options?.estimate?.trim() || "2h";
+    updateProjectAnnotations((prev) => ({
+      ...prev,
+      estimates: {
+        ...prev.estimates,
+        [tempSubId]: initialEstimate,
+      },
+    }));
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId) return item;
@@ -1713,6 +2066,10 @@ export default function WorkWorkspace({
             title: summary,
             parentId: realParentId,
             priority: options?.priority ?? "MEDIUM",
+            ...(options?.type ? { type: options.type } : {}),
+            ...(options?.labels && options.labels.length > 0
+              ? { labels: [...options.labels] }
+              : {}),
             description: options?.description ?? null,
             assigneeId:
               options?.assignee && OBJECT_ID_PATTERN.test(options.assignee.id)
@@ -1721,9 +2078,30 @@ export default function WorkWorkspace({
             dueDate: options?.dueDate
               ? new Date(options.dueDate).toISOString()
               : null,
+            ...(options?.startDate
+              ? { startDate: new Date(options.startDate).toISOString() }
+              : {}),
           });
           taskVersionsRef.current.set(createdSub.id, createdSub.version);
+          taskBackendStatusesRef.current.set(createdSub.id, createdSub.status ?? "TODO");
           resolvedIdsRef.current.set(tempSubId, createdSub.id);
+          updateProjectAnnotations((prev) => {
+            const nextEstimates = { ...prev.estimates };
+            if (nextEstimates[tempSubId] !== undefined) {
+              nextEstimates[createdSub.id] = nextEstimates[tempSubId];
+              delete nextEstimates[tempSubId];
+            }
+            const nextFlagged = { ...prev.flagged };
+            if (nextFlagged[tempSubId] !== undefined) {
+              nextFlagged[createdSub.id] = nextFlagged[tempSubId];
+              delete nextFlagged[tempSubId];
+            }
+            return {
+              ...prev,
+              estimates: nextEstimates,
+              flagged: nextFlagged,
+            };
+          });
           setItems((current) =>
             current.map((item) => {
               if (item.id !== itemId && item.id !== realParentId) return item;
@@ -1827,7 +2205,22 @@ export default function WorkWorkspace({
             : "TODO"
           : prevStatus;
     const nextDone = nextStatus === "DONE";
+    setMutationError(null);
 
+    if (patch.flagged !== undefined || patch.estimate !== undefined) {
+      const persistedId = resolvedIdsRef.current.get(subtaskId) ?? subtaskId;
+      updateProjectAnnotations((prev) => ({
+        ...prev,
+        flagged:
+          patch.flagged !== undefined
+            ? { ...prev.flagged, [persistedId]: Boolean(patch.flagged) }
+            : prev.flagged,
+        estimates:
+          patch.estimate !== undefined
+            ? { ...prev.estimates, [persistedId]: patch.estimate }
+            : prev.estimates,
+      }));
+    }
     setItems((current) =>
       current.map((item) => {
         if (item.id !== itemId || !item.subtaskItems) return item;
@@ -2017,7 +2410,7 @@ export default function WorkWorkspace({
                       }
                     : {}),
                   ...(patch.description !== undefined
-                    ? { description: patch.description ?? null }
+                    ? { description: patch.description || null }
                     : {}),
                   ...(patch.labels !== undefined ? { labels: patch.labels } : {}),
                   ...(patch.steps !== undefined ? { steps: patch.steps } : {}),
@@ -2661,6 +3054,9 @@ export default function WorkWorkspace({
     const previousSelected = new Set(selectedIds);
     const affectedItems = itemsWithPermissions.filter((item) => !item.readOnly && selectedIds.has(item.id));
     const affectedIds = new Set(affectedItems.map((item) => item.id));
+    setCreatedTaskToast((curr) =>
+      curr && affectedIds.has(curr.id) ? null : curr,
+    );
     setItems((current) =>
       current.filter((item) => !affectedIds.has(item.id)),
     );
@@ -2828,6 +3224,7 @@ export default function WorkWorkspace({
           projectId={projectId}
           projectName={projectName}
           projectCode={projectCode}
+          isPreview={!isRealProject}
           projects={projects}
           onProjectChange={onProjectChange}
           hasMoreProjects={hasMoreProjects}
@@ -2929,17 +3326,28 @@ export default function WorkWorkspace({
         <WorkItemDetailDialog
           mode="page"
           projectId={projectId}
+          isPreview={!isRealProject}
           item={fullPageWorkItem}
           allItems={itemsWithPermissions}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           activityError={activityError}
+          mutationError={mutationError}
+          onDismissMutationError={() => setMutationError(null)}
+          watching={
+            isRealProject
+              ? Boolean(projectAnnotations.watching[fullPageWorkItem.id])
+              : (projectAnnotations.watching[fullPageWorkItem.id] ?? true)
+          }
+          onToggleWatching={toggleItemWatching}
           initialSubtaskId={fullPageSubtaskId}
           onSelectSubtask={setFullPageSubtaskId}
           onClose={() => {
             setFullPageSubtaskId(null);
             setFullPageWorkItemId(null);
           }}
+          onTitleChange={updateItemTitle}
+          onDescriptionChange={updateItemDescription}
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
@@ -3080,8 +3488,11 @@ export default function WorkWorkspace({
             <WorkTimelineView
               items={visibleItems}
               people={projectPeople}
+              activeSprintName={activeSprint?.name ?? null}
+              isPreview={!isRealProject}
               onOpenItem={openWorkItem}
               onCreate={() => setCreateOpen(true)}
+              onUpdateDates={updateItemDates}
             />
           ) : view ==="reports"? (
             <WorkReportsView
@@ -3151,12 +3562,17 @@ export default function WorkWorkspace({
               onInlineCreate={(title, type, options) =>
                 addPreviewItem({
                   title,
-                  type: type ??"TASK",
-                  priority:"MEDIUM",
-                  assignee: options?.assignee ?? defaultAssigneePerson,
+                  type: type ?? "TASK",
+                  priority: "MEDIUM",
+                  assignee:
+                    options?.assignee ??
+                    (isRealProject
+                      ? UNASSIGNED_WORK_PERSON
+                      : defaultAssigneePerson),
                   dueDate: options?.dueDate ?? null,
                 })
               }
+              onAddWorklog={addWorklog}
               onRefresh={() => {
                 void project.refetch();
                 if (isRealProject) {
@@ -3192,12 +3608,14 @@ export default function WorkWorkspace({
               onDeleteSubtask={deleteSubtask}
               onCloneSubtask={cloneSubtask}
               onConvertSubtaskToTask={convertSubtaskToTask}
-              onQuickCreate={(title, targetStatus) =>
+              onQuickCreate={(title, targetStatus, quickType) =>
                 addPreviewItem({
                   title,
-                  type:"TASK",
+                  type: quickType ?? "TASK",
                   priority:"MEDIUM",
-                  assignee: defaultAssigneePerson,
+                  assignee: isRealProject
+                    ? UNASSIGNED_WORK_PERSON
+                    : defaultAssigneePerson,
                   dueDate: null,
                   status: targetStatus,
                 })
@@ -3207,6 +3625,8 @@ export default function WorkWorkspace({
             <WorkCalendarView
               items={visibleItems}
               month={calendarMonth}
+              activeSprintName={activeSprint?.name ?? null}
+              isPreview={!isRealProject}
               onMonthChange={setCalendarMonth}
               onOpenItem={openWorkItem}
             />
@@ -3219,19 +3639,53 @@ export default function WorkWorkspace({
       </p>
       <WorkItemCreateDialog
         isOpen={createOpen}
+        isPreview={!isRealProject}
+        projectId={projectId}
+        projectName={projectName}
+        projectCode={projectCode}
+        projects={projects}
+        onProjectChange={onProjectChange}
         people={projectPeople}
+        currentUserPerson={currentUserPerson}
+        parentCandidates={itemsWithPermissions.filter((it) => !it.readOnly)}
+        existingLabels={Array.from(
+          new Set(items.flatMap((it) => it.labels ?? [])),
+        )}
+        sprints={(visibleSprints?.items ?? [])
+          .filter((sp) => sp.status !== "COMPLETED")
+          .map((sp) => ({ id: sp.id, name: sp.name }))}
         onClose={() => setCreateOpen(false)}
         onCreate={addPreviewItem}
+      />
+      <WorkCreatedTaskToast
+        toast={createdTaskToast}
+        onDismiss={() => setCreatedTaskToast(null)}
+        onViewTask={(taskId) => {
+          setCreatedTaskToast(null);
+          setActiveWorkItemId(null);
+          setActiveSubtaskId(null);
+          setFullPageSubtaskId(null);
+          setFullPageWorkItemId(taskId);
+        }}
       />
       {activeWorkItem && (
         <WorkItemDetailDialog
           mode="modal"
           projectId={projectId}
+          isPreview={!isRealProject}
           item={activeWorkItem}
           allItems={itemsWithPermissions}
           people={projectPeople}
           currentUserPerson={currentUserPerson}
           activityError={activityError}
+          mutationError={mutationError}
+          onDismissMutationError={() => setMutationError(null)}
+          watching={
+            isRealProject
+              ? Boolean(projectAnnotations.watching[activeWorkItem.id])
+              : (projectAnnotations.watching[activeWorkItem.id] ?? true)
+          }
+          onToggleWatching={toggleItemWatching}
           initialSubtaskId={activeSubtaskId}
           onSelectSubtask={setActiveSubtaskId}
           onOpenFullPage={(subId) => openFullPageWorkItem(activeWorkItem, subId)}
@@ -3239,6 +3693,8 @@ export default function WorkWorkspace({
             setActiveSubtaskId(null);
             setActiveWorkItemId(null);
           }}
+          onTitleChange={updateItemTitle}
+          onDescriptionChange={updateItemDescription}
           onStatusChange={updateItemStatus}
           onPriorityChange={updateItemPriority}
           onAssigneeChange={updateItemAssignee}
@@ -3326,4 +3782,62 @@ function normalizeSearch(value: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
     .toLocaleLowerCase();
+}
+
+function readProjectWorkAnnotations(projectId: string): {
+  flagged: Record<string, boolean>;
+  watching: Record<string, boolean>;
+  estimates: Record<string, string>;
+} {
+  if (typeof window === "undefined" || !projectId) {
+    return { flagged: {}, watching: {}, estimates: {} };
+  }
+  try {
+    const raw = window.localStorage.getItem(
+      `continuum:work-annotations:${projectId}`,
+    );
+    if (!raw) {
+      return { flagged: {}, watching: {}, estimates: {} };
+    }
+    const parsed = JSON.parse(raw) as {
+      flagged?: Record<string, boolean>;
+      watching?: Record<string, boolean>;
+      estimates?: Record<string, string>;
+    };
+    return {
+      flagged:
+        parsed.flagged && typeof parsed.flagged === "object"
+          ? parsed.flagged
+          : {},
+      watching:
+        parsed.watching && typeof parsed.watching === "object"
+          ? parsed.watching
+          : {},
+      estimates:
+        parsed.estimates && typeof parsed.estimates === "object"
+          ? parsed.estimates
+          : {},
+    };
+  } catch {
+    return { flagged: {}, watching: {}, estimates: {} };
+  }
+}
+
+function writeProjectWorkAnnotations(
+  projectId: string,
+  next: {
+    flagged: Record<string, boolean>;
+    watching: Record<string, boolean>;
+    estimates: Record<string, string>;
+  },
+): void {
+  if (typeof window === "undefined" || !projectId) return;
+  try {
+    window.localStorage.setItem(
+      `continuum:work-annotations:${projectId}`,
+      JSON.stringify(next),
+    );
+  } catch {
+    // Ignore storage quota or private-mode restrictions
+  }
 }

@@ -159,3 +159,87 @@ export const BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT = `(function(){
     });
   }
 })();`;
+
+declare global {
+  interface Window {
+    __continuumExtHydrationGuardInstalled?: boolean;
+  }
+}
+
+export function installBrowserExtensionHydrationGuard(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  sanitizeSubtreeExtensionAttributes(document.documentElement);
+  if (window.__continuumExtHydrationGuardInstalled) return;
+  window.__continuumExtHydrationGuardInstalled = true;
+
+  window.addEventListener(
+    "error",
+    (event: ErrorEvent) => {
+      if (
+        isBrowserExtensionError({
+          filename: event.filename,
+          stack: event.error instanceof Error ? event.error.stack : undefined,
+          message: event.message,
+        })
+      ) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    true,
+  );
+
+  window.addEventListener(
+    "unhandledrejection",
+    (event: PromiseRejectionEvent) => {
+      const reason = event.reason as { stack?: string; message?: string } | undefined;
+      if (
+        isBrowserExtensionError({
+          filename: "",
+          stack: reason?.stack,
+          message: reason?.message ?? String(reason ?? ""),
+        })
+      ) {
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    true,
+  );
+
+  try {
+    const origSetAttribute = Element.prototype.setAttribute;
+    Element.prototype.setAttribute = function (name: string, value: string) {
+      if (isExtensionInjectedAttribute(name)) return;
+      origSetAttribute.call(this, name, value);
+    };
+  } catch {
+    // Ignore read-only prototype environments
+  }
+
+  if (typeof MutationObserver !== "undefined" && document.documentElement) {
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (
+          mutation.type === "attributes" &&
+          mutation.attributeName &&
+          isExtensionInjectedAttribute(mutation.attributeName) &&
+          mutation.target instanceof Element
+        ) {
+          sanitizeElementExtensionAttributes(mutation.target);
+        } else if (mutation.type === "childList") {
+          for (const node of mutation.addedNodes) {
+            if (node instanceof Element) {
+              sanitizeSubtreeExtensionAttributes(node);
+            }
+          }
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      childList: true,
+      subtree: true,
+    });
+  }
+}

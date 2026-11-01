@@ -345,7 +345,7 @@ export default function LegalCenterView({ initialTab }: LegalCenterViewProps) {
               <span className="shrink-0 font-medium text-gray-500 dark:text-gray-400">
                 {currentDoc.operatorLabel}:
               </span>
-              <span className="truncate font-medium text-gray-800 dark:text-gray-200">
+              <span className="min-w-0 break-words font-medium text-gray-800 dark:text-gray-200">
                 {currentDoc.operatorValue}
               </span>
             </div>

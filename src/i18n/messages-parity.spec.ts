@@ -1,3 +1,5 @@
+import fs from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { createTranslator } from "next-intl";
 import enMessages from "@/messages/en.json";
@@ -31,6 +33,35 @@ function collectLeaves(
   if (node && typeof node === "object") {
     for (const [key, value] of Object.entries(node)) {
       collectLeaves(value, prefix ? `${prefix}.${key}` : key, out);
+    }
+  }
+  return out;
+}
+
+function hasPath(obj: unknown, dotPath: string): boolean {
+  return (
+    dotPath
+      .split(".")
+      .reduce<unknown>(
+        (acc, part) =>
+          acc && typeof acc === "object"
+            ? (acc as Record<string, unknown>)[part]
+            : undefined,
+        obj,
+      ) !== undefined
+  );
+}
+
+function walkSourceFiles(dir: string, out: string[] = []): string[] {
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const full = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      walkSourceFiles(full, out);
+    } else if (
+      /\.(ts|tsx)$/.test(entry.name) &&
+      !/\.spec\.(ts|tsx)$/.test(entry.name)
+    ) {
+      out.push(full);
     }
   }
   return out;
@@ -124,5 +155,60 @@ describe("English (en) and Vietnamese (vi) i18n message parity", () => {
       namespace: "handover",
     });
     expect(tHandover("createCta")).toBe(viMessages.handover.createCta);
+    expect(tHandover("list.loadingTitle")).toBe(
+      viMessages.handover.list.loadingTitle,
+    );
+    expect(tHandover("detail.loadingTitle")).toBe(
+      viMessages.handover.detail.loadingTitle,
+    );
+  });
+
+  it("resolves every static useTranslations and getTranslations key referenced across src", () => {
+    const srcRoot = path.resolve(process.cwd(), "src");
+    const unresolved: string[] = [];
+    const bindRe =
+      /const\s+(\w+)\s*=\s*(?:await\s+)?(?:useTranslations|getTranslations)\(\s*(?:\{\s*[^}]*namespace:\s*["']([^"']+)["'][^}]*\}|["']([^"']+)["'])\s*\)/g;
+
+    for (const file of walkSourceFiles(srcRoot)) {
+      const content = fs.readFileSync(file, "utf8");
+      const bindings: Array<{ index: number; varName: string; ns: string }> =
+        [];
+      let m: RegExpExecArray | null;
+      while ((m = bindRe.exec(content)) !== null) {
+        bindings.push({
+          index: m.index,
+          varName: m[1],
+          ns: m[2] || m[3],
+        });
+      }
+      if (bindings.length === 0) continue;
+
+      const varNames = [...new Set(bindings.map((b) => b.varName))];
+      for (const varName of varNames) {
+        const callRe = new RegExp(
+          `(?<![.\\w])${varName}\\(\\s*["']([a-zA-Z0-9_.-]+)["']`,
+          "g",
+        );
+        let cm: RegExpExecArray | null;
+        while ((cm = callRe.exec(content)) !== null) {
+          const callIndex = cm.index;
+          const preceding = bindings.filter(
+            (b) => b.varName === varName && b.index < callIndex,
+          );
+          const active =
+            preceding[preceding.length - 1] ??
+            bindings.find((b) => b.varName === varName);
+          if (!active) continue;
+
+          const fullKey = `${active.ns}.${cm[1]}`;
+          if (!hasPath(enMessages, fullKey) || !hasPath(viMessages, fullKey)) {
+            const relFile = path.relative(srcRoot, file).replace(/\\/g, "/");
+            unresolved.push(`${relFile} -> ${fullKey}`);
+          }
+        }
+      }
+    }
+
+    expect(unresolved).toEqual([]);
   });
 });

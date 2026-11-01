@@ -3,6 +3,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { ApiError } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type {
   AiChatMessagePage,
   AiChatStreamEvent,
@@ -18,8 +19,10 @@ const {
   createThreadMutateAsync,
   updateThreadMutateAsync,
   deleteThreadMutateAsync,
+  branchThreadMutateAsync,
   useMessagesInfiniteMock,
   streamAiChatAskMock,
+  streamAiChatRegenerateMock,
   invalidateQueriesMock,
 } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
@@ -29,8 +32,10 @@ const {
   createThreadMutateAsync: vi.fn(),
   updateThreadMutateAsync: vi.fn(),
   deleteThreadMutateAsync: vi.fn(),
+  branchThreadMutateAsync: vi.fn(),
   useMessagesInfiniteMock: vi.fn(),
   streamAiChatAskMock: vi.fn(),
+  streamAiChatRegenerateMock: vi.fn(),
   invalidateQueriesMock: vi.fn(),
 }));
 
@@ -104,12 +109,48 @@ vi.mock("@/lib/queries/ai-chat/useAiChat", () => ({
     mutateAsync: deleteThreadMutateAsync,
     isPending: false,
   }),
+  useBranchAiChatThreadMutation: () => ({
+    mutateAsync: branchThreadMutateAsync,
+    isPending: false,
+  }),
   useAiChatMessagesInfiniteQuery: (...args: unknown[]) =>
     useMessagesInfiniteMock(...args),
 }));
 
 vi.mock("@/lib/queries/ai-chat/ai-chat-stream", () => ({
   streamAiChatAsk: (...args: unknown[]) => streamAiChatAskMock(...args),
+  streamAiChatRegenerate: (...args: unknown[]) =>
+    streamAiChatRegenerateMock(...args),
+}));
+
+vi.mock("@/lib/queries/ai-chat/useAiAnswerActions", () => ({
+  useAiAnswerFeedbackQuery: () => ({
+    data: { feedback: null },
+    isLoading: false,
+    isError: false,
+  }),
+  useUpsertAiAnswerFeedbackMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useDeleteAiAnswerFeedbackMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useCreateAiAnswerShareMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+  useRevokeAiAnswerShareMutation: () => ({
+    mutateAsync: vi.fn(),
+    isPending: false,
+  }),
+}));
+
+vi.mock("./AiChatMindMapPanel", () => ({
+  default: () => (
+    <aside data-testid="mind-map-workspace-panel">Cached map</aside>
+  ),
 }));
 
 function renderWorkspace() {
@@ -133,6 +174,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
   beforeEach(() => {
     window.localStorage.clear();
     replaceMock.mockReset();
+    branchThreadMutateAsync.mockReset();
     invalidateQueriesMock.mockReset().mockResolvedValue(undefined);
     useSearchParamsMock.mockReturnValue(new URLSearchParams());
     useActiveProjectsMock.mockReset().mockReturnValue({
@@ -184,9 +226,32 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     updateThreadMutateAsync.mockReset();
     deleteThreadMutateAsync.mockReset();
     streamAiChatAskMock.mockReset();
+    streamAiChatRegenerateMock.mockReset();
   });
 
-  it("renders ChatGPT-style hero ('Ready when you are.'), Chat | Work pill, and auto-selects first ACTIVE project without 'All Projects'", () => {
+  it("unmounts an open Mind Map immediately when Project access is revoked", () => {
+    const view = renderWorkspace();
+    fireEvent.click(screen.getByTestId("ai-chat-mind-map-trigger"));
+    expect(screen.getByTestId("mind-map-workspace-panel")).toBeInTheDocument();
+    useThreadsMock.mockReturnValue({
+      data: sampleThreads,
+      isLoading: false,
+      isError: true,
+      error: new ApiError(403, "FORBIDDEN", "Project access revoked"),
+      refetch: vi.fn(),
+    });
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatWorkspace />
+      </NextIntlClientProvider>,
+    );
+    expect(
+      screen.queryByTestId("mind-map-workspace-panel"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("ai-chat-mind-map-trigger")).toBeDisabled();
+  });
+
+  it("renders the welcome state without a Chat/Work switch and auto-selects the first ACTIVE project", () => {
     renderWorkspace();
 
     expect(
@@ -218,12 +283,105 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     );
     expect(within(sidebar).getByText("Pinned")).toBeInTheDocument();
 
-    // Switch Chat -> Work mode updates hero heading
-    const workButtons = screen.getAllByRole("button", { name: "Work" });
-    fireEvent.click(workButtons[0]!);
     expect(
-      screen.getByRole("heading", { name: "Ready to synthesize CORE." }),
-    ).toBeInTheDocument();
+      screen.queryAllByRole("group", { name: "Workspace mode" }),
+    ).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Chat" })).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Work" })).toHaveLength(0);
+
+    fireEvent.click(
+      within(sidebar).getByRole("button", {
+        name: "SAG BFF Security Review",
+      }),
+    );
+    expect(
+      screen.queryAllByRole("group", { name: "Workspace mode" }),
+    ).toHaveLength(0);
+    expect(screen.queryAllByRole("button", { name: "Work" })).toHaveLength(0);
+  });
+
+  it("keeps the focused composer mounted across Enter, thread creation, streaming and completion", async () => {
+    let resolveCreateThread!: (thread: AiChatThread) => void;
+    let emitEvent!: (event: AiChatStreamEvent) => void;
+    let finishStream: (() => void) | undefined;
+    createThreadMutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<AiChatThread>((resolve) => {
+          resolveCreateThread = resolve;
+        }),
+    );
+    streamAiChatAskMock.mockImplementationOnce(
+      ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        emitEvent = onEvent;
+        return new Promise<void>((resolve) => {
+          finishStream = resolve;
+        });
+      },
+    );
+
+    renderWorkspace();
+    const composer = screen.getByRole("textbox", { name: "Ask Continuum SAG" });
+    composer.focus();
+    fireEvent.change(composer, {
+      target: { value: "Which framework does this project use?" },
+    });
+    fireEvent.keyDown(composer, { key: "Enter", code: "Enter" });
+    expect(createThreadMutateAsync).toHaveBeenCalledTimes(1);
+    expect(composer).toHaveFocus();
+
+    await act(async () => {
+      resolveCreateThread({
+        id: "thread-stable-composer",
+        title: "Which framework does this project use?",
+        createdAt: "2026-10-30T08:00:00Z",
+        updatedAt: "2026-10-30T08:00:00Z",
+      });
+    });
+
+    try {
+      expect(streamAiChatAskMock).toHaveBeenCalledTimes(1);
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Stop generating" }),
+      ).toBeInTheDocument();
+
+      act(() =>
+        emitEvent({ event: "delta", data: { text: "Next.js is used." } }),
+      );
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+
+      await act(async () => {
+        emitEvent({
+          event: "completed",
+          data: {
+            messageId: "answer-stable-composer",
+            content: "Next.js is used.",
+            answerStatus: "answered",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+          },
+        });
+        finishStream?.();
+      });
+      expect(screen.getByRole("textbox", { name: "Ask Continuum SAG" })).toBe(
+        composer,
+      );
+      expect(composer).toHaveFocus();
+      expect(
+        screen.getByRole("button", { name: "Send message" }),
+      ).toBeDisabled();
+    } finally {
+      await act(async () => {
+        finishStream?.();
+      });
+    }
   });
 
   it("creates a thread on first question, docks composer, streams SAG delta chunks, and renders verified [1] & [S1] citations", async () => {
@@ -434,6 +592,45 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(streamAiChatAskMock).not.toHaveBeenCalled();
   });
 
+  it("revalidates the login session after an AI ask returns 401 without replaying the ask", async () => {
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-2",
+      title: "Session expiry check",
+      createdAt: "2026-10-31T10:00:00Z",
+      updatedAt: "2026-10-31T10:00:00Z",
+    } satisfies AiChatThread);
+    streamAiChatAskMock.mockRejectedValueOnce(
+      new ApiError(401, "UNAUTHORIZED", "The login session expired."),
+    );
+
+    renderWorkspace();
+    const composer = screen.getByRole("textbox", {
+      name: "Ask Continuum SAG",
+    });
+    fireEvent.change(composer, { target: { value: "Check the session." } });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(streamAiChatAskMock).toHaveBeenCalledTimes(1);
+    expect(invalidateQueriesMock).toHaveBeenCalledWith({
+      queryKey: authKeys.currentUser(),
+      exact: true,
+    });
+    expect(
+      screen
+        .getAllByRole("alert")
+        .some((alert) =>
+          alert.textContent?.includes(
+            "Your login session expired or security token changed.",
+          ),
+        ),
+    ).toBe(true);
+  });
+
   it("surfaces permission-denied banner on 403 access loss and opens/closes citation excerpt dialog", () => {
     useThreadsMock.mockReturnValue({
       data: sampleThreads,
@@ -564,5 +761,666 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     });
 
     expect(streamAiChatAskMock).not.toHaveBeenCalled();
+  });
+
+  it("regenerates an existing answer via Try again without duplicating the user bubble and switches versions", async () => {
+    useMessagesInfiniteMock.mockReturnValue({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: "msg-user-1",
+                role: "user",
+                content: "Explain Continuum SAG ACL.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-30T08:00:00Z",
+              },
+              {
+                id: "msg-assistant-1",
+                role: "assistant",
+                content: "First answer version.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-30T08:00:05Z",
+                replyToMessageId: "msg-user-1",
+              },
+            ],
+            nextCursor: null,
+            hasMore: false,
+          } satisfies AiChatMessagePage,
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    streamAiChatRegenerateMock.mockImplementationOnce(
+      async ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        onEvent({
+          event: "started",
+          data: {
+            runId: "run-regen-1",
+            threadId: "thread-1",
+            userMessageId: "msg-user-1",
+          },
+        });
+        onEvent({
+          event: "delta",
+          data: { text: "Second regenerated answer version." },
+        });
+        onEvent({
+          event: "completed",
+          data: {
+            messageId: "msg-assistant-2",
+            replyToMessageId: "msg-user-1",
+            regeneratedFromMessageId: "msg-assistant-1",
+            content: "Second regenerated answer version.",
+            answerStatus: "answered",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [],
+          },
+        });
+      },
+    );
+
+    renderWorkspace();
+    fireEvent.click(screen.getByText("SAG BFF Security Review"));
+
+    expect(screen.getByText("First answer version.")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    });
+
+    expect(streamAiChatRegenerateMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: "proj-core",
+        threadId: "thread-1",
+        messageId: "msg-assistant-1",
+      }),
+    );
+
+    expect(screen.getAllByText("Explain Continuum SAG ACL.")).toHaveLength(1);
+    expect(
+      screen.getByText("Second regenerated answer version."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Previous answer version" }),
+    );
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+    expect(screen.getByText("First answer version.")).toBeInTheDocument();
+  });
+
+  it("upserts streaming execution trace steps in place by id without duplicating rows", async () => {
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-trace",
+      title: "Trace test",
+      createdAt: "2026-10-30T10:00:00Z",
+      updatedAt: "2026-10-30T10:00:00Z",
+    });
+
+    let emitEvent!: (event: AiChatStreamEvent) => void;
+    let finishStream!: () => void;
+    streamAiChatAskMock.mockImplementationOnce(
+      ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        emitEvent = onEvent;
+        return new Promise<void>((resolve) => {
+          finishStream = resolve;
+        });
+      },
+    );
+
+    renderWorkspace();
+    const textarea = screen.getByRole("textbox", {
+      name: /Ask Continuum SAG/i,
+    });
+    fireEvent.change(textarea, {
+      target: { value: "Check execution trace upsert" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    });
+
+    await act(async () => {
+      emitEvent({
+        event: "started",
+        data: {
+          runId: "run-trace-1",
+          threadId: "thread-trace",
+          userMessageId: "msg-u-trace",
+        },
+      });
+      emitEvent({
+        event: "step",
+        data: {
+          id: "tool-call-42",
+          status: "running",
+          kind: "tool",
+          label: "Tìm trong kho tri thức",
+          durationMs: 0,
+        },
+      });
+    });
+
+    expect(screen.getAllByText("Search project knowledge base")).toHaveLength(
+      1,
+    );
+    expect(screen.getByText("In progress…")).toBeVisible();
+
+    await act(async () => {
+      emitEvent({
+        event: "step",
+        data: {
+          id: "tool-call-42",
+          status: "completed",
+          kind: "tool",
+          label: "Tìm trong kho tri thức",
+          durationMs: 420,
+          count: 4,
+        },
+      });
+    });
+
+    expect(screen.getAllByText("Search project knowledge base")).toHaveLength(
+      1,
+    );
+    expect(screen.queryByText("In progress…")).not.toBeInTheDocument();
+    expect(screen.getByText("420ms")).toBeVisible();
+    expect(screen.getByText("4 items")).toBeVisible();
+
+    await act(async () => {
+      emitEvent({
+        event: "completed",
+        data: {
+          messageId: "msg-a-trace",
+          replyToMessageId: "msg-u-trace",
+          content: "Verified answer.",
+          answerStatus: "answered",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+        },
+      });
+      finishStream();
+    });
+
+    expect(screen.getByText("Verified answer.")).toBeInTheDocument();
+  });
+
+  it("preserves completed execution trace steps in session memory when refetched empty-scope history omits steps", async () => {
+    let serverItems: AiChatMessagePage["items"] = [];
+    useMessagesInfiniteMock.mockImplementation(() => ({
+      data: {
+        pages: [{ items: serverItems, nextCursor: null, hasMore: false }],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    }));
+
+    createThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-empty-scope",
+      title: "Empty scope trace",
+      createdAt: "2026-10-30T10:05:00Z",
+      updatedAt: "2026-10-30T10:05:00Z",
+    });
+
+    invalidateQueriesMock.mockImplementation(async () => {
+      serverItems = [
+        {
+          id: "msg-u-empty",
+          role: "user",
+          content: "Summarize empty project",
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: "2026-10-30T10:05:01Z",
+        },
+        {
+          id: "msg-a-empty",
+          replyToMessageId: "msg-u-empty",
+          role: "assistant",
+          content:
+            "[Answer hidden because its evidence is unavailable in the current source scope.]",
+          status: "ok",
+          citations: [],
+          sessionCitations: [],
+          retrievalSteps: [],
+          createdAt: "2026-10-30T10:05:05Z",
+        },
+      ];
+    });
+
+    streamAiChatAskMock.mockImplementationOnce(
+      async ({ onEvent }: { onEvent: (event: AiChatStreamEvent) => void }) => {
+        onEvent({
+          event: "started",
+          data: {
+            runId: "run-empty-1",
+            threadId: "thread-empty-scope",
+            userMessageId: "msg-u-empty",
+          },
+        });
+        onEvent({
+          event: "completed",
+          data: {
+            messageId: "msg-a-empty",
+            replyToMessageId: "msg-u-empty",
+            content: "No indexed docs.",
+            answerStatus: "no_answer",
+            citations: [],
+            sessionCitations: [],
+            retrievalSteps: [
+              { kind: "thinking", label: "Reasoning", durationMs: 320 },
+              {
+                kind: "tool",
+                label: "Tìm trong kho tri thức",
+                durationMs: 45,
+                count: 0,
+              },
+              { kind: "answer", label: "Answer Synthesis", durationMs: 290 },
+            ],
+          },
+        });
+      },
+    );
+
+    renderWorkspace();
+    const textarea = screen.getByRole("textbox", {
+      name: /Ask Continuum SAG/i,
+    });
+    fireEvent.change(textarea, {
+      target: { value: "Summarize empty project" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: /Processed/i }));
+    expect(screen.getByText("Analyzing question & planning")).toBeVisible();
+    expect(screen.getByText("Search project knowledge base")).toBeVisible();
+    expect(screen.getByText("Synthesize & verify citations")).toBeVisible();
+  });
+
+  it("opens the composer project menu anchored at the composer instead of jumping to the top header", () => {
+    useActiveProjectsMock.mockReturnValue({
+      projects: [
+        {
+          id: "proj-core",
+          organizationId: "org-1",
+          name: "Continuum Core",
+          code: "CORE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-fe",
+          organizationId: "org-1",
+          name: "Frontend Portal",
+          code: "FE",
+          visibility: "PUBLIC",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-be",
+          organizationId: "org-1",
+          name: "Backend Services",
+          code: "BE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-docs",
+          organizationId: "org-1",
+          name: "Documentation",
+          code: "DOC",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-design",
+          organizationId: "org-1",
+          name: "Design System",
+          code: "DESIGN",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+        {
+          id: "proj-db",
+          organizationId: "org-1",
+          name: "Database Cluster",
+          code: "DB",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+        },
+      ],
+      isLoading: false,
+      isError: false,
+    });
+
+    renderWorkspace();
+
+    const composerForm = screen.getByRole("form", {
+      name: "SAG AI Chat composer",
+    });
+    const composerTrigger = within(composerForm).getByRole("button", {
+      name: "Select project in composer",
+    });
+    const headerTrigger = screen.getByRole("button", {
+      name: "Select project scope",
+    });
+
+    expect(composerTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(headerTrigger).toHaveAttribute("aria-expanded", "false");
+
+    // Clicking the composer trigger opens ONLY the composer-anchored menu
+    fireEvent.click(composerTrigger);
+
+    const composerMenu = within(composerForm).getByTestId(
+      "ai-chat-composer-project-menu",
+    );
+    expect(composerMenu).toBeInTheDocument();
+    expect(composerMenu.className).toContain("bottom-11");
+    expect(composerTrigger).toHaveAttribute("aria-expanded", "true");
+    expect(headerTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(
+      screen.queryByTestId("ai-chat-header-project-menu"),
+    ).not.toBeInTheDocument();
+
+    // Opening header project menu closes composer project menu (mutual exclusion)
+    fireEvent.click(headerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-header-project-menu"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+
+    // Reopening composer project menu closes header project menu & supports >5 search + selection
+    fireEvent.click(composerTrigger);
+    const reopenedComposerMenu = within(composerForm).getByTestId(
+      "ai-chat-composer-project-menu",
+    );
+    expect(
+      screen.queryByTestId("ai-chat-header-project-menu"),
+    ).not.toBeInTheDocument();
+
+    const filterInput =
+      within(reopenedComposerMenu).getByPlaceholderText("Filter projects…");
+    fireEvent.change(filterInput, { target: { value: "zzz-none" } });
+    expect(
+      within(reopenedComposerMenu).getByText("No matching projects."),
+    ).toBeInTheDocument();
+
+    fireEvent.change(filterInput, { target: { value: "FE" } });
+    fireEvent.click(
+      within(reopenedComposerMenu).getByRole("option", {
+        name: /Frontend Portal/i,
+      }),
+    );
+
+    expect(replaceMock).toHaveBeenCalledWith("/ai-chat?projectId=proj-fe");
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+    expect(composerTrigger).toHaveTextContent("FE");
+
+    // Pressing Enter in the composer filter input selects the match without submitting the chat form
+    fireEvent.click(composerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).toBeInTheDocument();
+    const filterOnReopen = within(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).getByPlaceholderText("Filter projects…");
+    fireEvent.change(filterOnReopen, { target: { value: "Backend" } });
+    fireEvent.keyDown(filterOnReopen, { key: "Enter" });
+    expect(replaceMock).toHaveBeenCalledWith("/ai-chat?projectId=proj-be");
+    expect(createThreadMutateAsync).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    // Escape closes the composer project menu
+    fireEvent.click(composerTrigger);
+    expect(
+      screen.getByTestId("ai-chat-composer-project-menu"),
+    ).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(
+      screen.queryByTestId("ai-chat-composer-project-menu"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("branches from an assistant turn via More actions (⋯), switches to the new chat, shows toast, and navigates back to original", async () => {
+    useMessagesInfiniteMock.mockImplementation(
+      (_orgId: string, _projId: string, threadId: string | null) => ({
+        data: {
+          pages: [
+            {
+              items:
+                threadId === "thread-branch-99"
+                  ? [
+                      {
+                        id: "msg-u1",
+                        role: "user",
+                        content: "How does SAG isolate private projects?",
+                        status: "ok",
+                        citations: [],
+                        sessionCitations: [],
+                        retrievalSteps: [],
+                        createdAt: "2026-10-28T10:00:00Z",
+                        isInherited: true,
+                      },
+                      {
+                        id: "msg-a1",
+                        role: "assistant",
+                        content: "Live ACL is checked per turn [1].",
+                        status: "ok",
+                        citations: [],
+                        sessionCitations: [],
+                        retrievalSteps: [],
+                        createdAt: "2026-10-28T10:00:04Z",
+                        replyToMessageId: "msg-u1",
+                        isInherited: true,
+                      },
+                    ]
+                  : threadId === "thread-1"
+                    ? [
+                        {
+                          id: "msg-u1",
+                          role: "user",
+                          content: "How does SAG isolate private projects?",
+                          status: "ok",
+                          citations: [],
+                          sessionCitations: [],
+                          retrievalSteps: [],
+                          createdAt: "2026-10-28T10:00:00Z",
+                        },
+                        {
+                          id: "msg-a1",
+                          role: "assistant",
+                          content: "Live ACL is checked per turn [1].",
+                          status: "ok",
+                          citations: [],
+                          sessionCitations: [],
+                          retrievalSteps: [],
+                          createdAt: "2026-10-28T10:00:04Z",
+                          replyToMessageId: "msg-u1",
+                        },
+                      ]
+                    : [],
+              nextCursor: null,
+              hasMore: false,
+            } satisfies AiChatMessagePage,
+          ],
+        },
+        isLoading: false,
+        isError: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+        refetch: vi.fn(),
+      }),
+    );
+
+    branchThreadMutateAsync.mockResolvedValueOnce({
+      id: "thread-branch-99",
+      title: "Branch · SAG BFF Security Review",
+      createdAt: "2026-10-28T10:12:00Z",
+      updatedAt: "2026-10-28T10:12:00Z",
+      isBranched: true,
+      parentThreadId: "thread-1",
+      parentThreadTitle: "SAG BFF Security Review",
+      branchPointMessageId: "msg-a1",
+    } satisfies AiChatThread);
+
+    renderWorkspace();
+
+    // Open original thread-1
+    fireEvent.click(
+      screen.getByRole("button", { name: "SAG BFF Security Review" }),
+    );
+    expect(
+      screen.getByText(/Live ACL is checked per turn/),
+    ).toBeInTheDocument();
+
+    // Click More actions (⋯) -> Branch in new chat
+    fireEvent.click(screen.getByTestId("ai-chat-more-actions-msg-a1"));
+    await act(async () => {
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Branch in new chat" }),
+      );
+    });
+
+    expect(branchThreadMutateAsync).toHaveBeenCalledWith({
+      threadId: "thread-1",
+      messageId: "msg-a1",
+    });
+
+    // Switched to branched thread: sidebar shows branched row, toast appears, inline divider renders
+    expect(
+      screen.getByRole("button", { name: "Branch · SAG BFF Security Review" }),
+    ).toBeInTheDocument();
+    const toast = screen.getByTestId("ai-chat-branch-toast");
+    expect(toast).toHaveTextContent("Branched in new chat");
+    expect(screen.getByTestId("ai-chat-branch-divider")).toHaveTextContent(
+      "Branched from SAG BFF Security Review",
+    );
+
+    // Clicking "View original" in the toast returns to parent thread-1
+    fireEvent.click(
+      within(toast).getByRole("button", { name: "View original" }),
+    );
+    expect(
+      screen.queryByTestId("ai-chat-branch-divider"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not hijack active thread or leak sidebar branches when switching projects during an in-flight branch request", async () => {
+    useMessagesInfiniteMock.mockReturnValue({
+      data: {
+        pages: [
+          {
+            items: [
+              {
+                id: "msg-u1",
+                role: "user",
+                content: "Initial prompt",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-28T10:00:00Z",
+              },
+              {
+                id: "msg-a1",
+                role: "assistant",
+                content: "Initial grounded answer.",
+                status: "ok",
+                citations: [],
+                sessionCitations: [],
+                retrievalSteps: [],
+                createdAt: "2026-10-28T10:00:04Z",
+                replyToMessageId: "msg-u1",
+              },
+            ],
+            nextCursor: null,
+            hasMore: false,
+          } satisfies AiChatMessagePage,
+        ],
+      },
+      isLoading: false,
+      isError: false,
+      hasNextPage: false,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    });
+
+    let resolveBranch!: (value: AiChatThread) => void;
+    branchThreadMutateAsync.mockImplementationOnce(
+      () =>
+        new Promise<AiChatThread>((resolve) => {
+          resolveBranch = resolve;
+        }),
+    );
+
+    renderWorkspace();
+    fireEvent.click(
+      screen.getByRole("button", { name: "SAG BFF Security Review" }),
+    );
+    fireEvent.click(screen.getByTestId("ai-chat-more-actions-msg-a1"));
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Branch in new chat" }),
+    );
+    expect(branchThreadMutateAsync).toHaveBeenCalledTimes(1);
+
+    // Switch project while branch creation is still in-flight
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select project scope" }),
+    );
+    fireEvent.click(screen.getByText("Architecture Docs"));
+    useThreadsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
+
+    await act(async () => {
+      resolveBranch({
+        id: "stale-branch-proj-core",
+        title: "Stale Branch From Core",
+        createdAt: "2026-10-28T10:15:00Z",
+        updatedAt: "2026-10-28T10:15:00Z",
+        isBranched: true,
+        parentThreadId: "thread-1",
+        parentThreadTitle: "SAG BFF Security Review",
+        branchPointMessageId: "msg-a1",
+      });
+    });
+
+    expect(
+      screen.queryByRole("button", { name: "Stale Branch From Core" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("ai-chat-branch-toast"),
+    ).not.toBeInTheDocument();
   });
 });

@@ -100,6 +100,49 @@ describe("Work Notes API client", () => {
     expect(new Headers(options.headers).get("X-CSRF-Token")).toBe("csrf-value");
   });
 
+  it("saves a free-form Work Report draft with user title and content only", async () => {
+    const projectId = "651a2b3c4d5e6f7a8b9c0d21";
+    const response = {
+      id: "751a2b3c4d5e6f7a8b9c0d21",
+      projectId,
+      memberId: "951a2b3c4d5e6f7a8b9c0d21",
+      memberName: "Jordan Lee",
+      frequency: "WEEKLY",
+      periodStart: "2026-10-26T00:00:00.000Z",
+      periodEnd: "2026-11-02T00:00:00.000Z",
+      dueAt: "2026-11-02T00:00:00.000Z",
+      status: "DRAFT",
+      title: "Sprint 14 Weekly Note",
+      content: "Free-form summary of engineering tasks and observations.",
+      createdAt: "2026-10-26T09:00:00.000Z",
+      updatedAt: "2026-10-26T09:15:00.000Z",
+      reviewHistory: [],
+      permissions: {
+        canCreate: true,
+        canEdit: true,
+        canSubmit: true,
+        canReview: false,
+        canConfigure: false,
+      },
+    };
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify(response), { status: 200 }),
+    );
+
+    const saved = await workNotesApi.saveCurrentReport(projectId, {
+      title: response.title,
+      content: response.content,
+    });
+
+    expect(saved.title).toBe(response.title);
+    expect(saved.content).toBe(response.content);
+    const options = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(JSON.parse(String(options.body))).toEqual({
+      title: "Sprint 14 Weekly Note",
+      content: "Free-form summary of engineering tasks and observations.",
+    });
+  });
+
   it("uploads directly to R2 via upload-intent -> presigned XHR PUT -> confirm-upload without buffering through BFF", async () => {
     const projectId = "651a2b3c4d5e6f7a8b9c0d21";
     const documentId = "751a2b3c4d5e6f7a8b9c0d22";

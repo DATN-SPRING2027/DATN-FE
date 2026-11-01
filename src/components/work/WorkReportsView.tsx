@@ -54,29 +54,36 @@ export default function WorkReportsView({
   const [directoryOpen, setDirectoryOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isEditingWidgets, setIsEditingWidgets] = useState(false);
+  const [reportFilterOpen, setReportFilterOpen] = useState(false);
+  const [reportPriorityFilter, setReportPriorityFilter] = useState<string>("ALL");
   const [page, setPage] = useState(1);
 
   const activeReport =
     REPORT_TYPES.find((r) => r.id === activeReportId) ?? REPORT_TYPES[0];
 
-  const total = items.length;
-  const doneCount = items.filter((item) => item.status ==="DONE").length;
-  const inProgressCount = items.filter(
+  const reportItems =
+    reportPriorityFilter === "ALL"
+      ? items
+      : items.filter((item) => item.priority === reportPriorityFilter);
+
+  const total = reportItems.length;
+  const doneCount = reportItems.filter((item) => item.status ==="DONE").length;
+  const inProgressCount = reportItems.filter(
     (item) => item.status ==="IN_PROGRESS",
   ).length;
-  const inReviewCount = items.filter(
+  const inReviewCount = reportItems.filter(
     (item) => item.status ==="IN_REVIEW",
   ).length;
-  const todoCount = items.filter((item) => item.status ==="TODO").length;
-  const dueSoonCount = items.filter((item) => Boolean(item.dueDate)).length;
+  const todoCount = reportItems.filter((item) => item.status ==="TODO").length;
+  const dueSoonCount = reportItems.filter((item) => Boolean(item.dueDate)).length;
 
-  const taskCount = items.filter((item) => item.type ==="TASK").length;
-  const storyCount = items.filter((item) => item.type ==="STORY").length;
-  const bugCount = items.filter((item) => item.type ==="BUG").length;
+  const taskCount = reportItems.filter((item) => item.type ==="TASK").length;
+  const storyCount = reportItems.filter((item) => item.type ==="STORY").length;
+  const bugCount = reportItems.filter((item) => item.type ==="BUG").length;
 
   const assigneeRows = (people ?? PREVIEW_PEOPLE).map((person, index) => {
     const colors = ["#0C66E4","#22A06B","#8270DB","#E56910","#E2483D"];
-    const count = items.filter((item) => item.assignee.id === person.id).length;
+    const count = reportItems.filter((item) => item.assignee.id === person.id).length;
     return {
       label: person.name,
       count,
@@ -86,7 +93,7 @@ export default function WorkReportsView({
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const safePage = Math.min(page, totalPages);
-  const pageItems = items.slice(
+  const pageItems = reportItems.slice(
     (safePage - 1) * PAGE_SIZE,
     safePage * PAGE_SIZE,
   );
@@ -129,9 +136,30 @@ export default function WorkReportsView({
               >
                 + Add widget
               </button>
-              <span className="border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
+              <button
+                type="button"
+                onClick={() => setReportFilterOpen((prev) => !prev)}
+                aria-expanded={reportFilterOpen}
+                className="h-8 cursor-pointer border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+              >
                 + Add filter
-              </span>
+              </button>
+              {reportFilterOpen && (
+                <select
+                  aria-label="Filter report by priority"
+                  value={reportPriorityFilter}
+                  onChange={(e) => {
+                    setReportPriorityFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  className="h-8 cursor-pointer border border-gray-200 bg-white px-2 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  <option value="ALL">All priorities</option>
+                  <option value="HIGH">High priority</option>
+                  <option value="MEDIUM">Medium priority</option>
+                  <option value="LOW">Low priority</option>
+                </select>
+              )}
             </>
           )}
           <button

@@ -2021,4 +2021,953 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
     expect(header?.className).toContain("top-0");
     expect(within(dialog).getByRole("button", { name: "Close work item details" })).toBeVisible();
   });
+
+  it("allows an Organization Manager (ADMIN) to create tasks without direct project membership and edit Task title and description with ETag CAS and rollback", async () => {
+    const orgId = "6ad76c7d938f3bf53df7335e";
+    const projectId = "6addb4e1601e4bc926ed4602";
+    const managerId = "6acbab2449b08a24945ccb6e";
+    const otherCreatorId = "6ae3e59a2dee7f772d44cfaa";
+    const existingTaskId = "6addbc84601e4bc926ed6b71";
+    const createdTaskId = "6addbc84601e4bc926ed6b99";
+
+    let currentTitle = "[DATN-289] [AUTH] Google OAuth đăng nhập và tự động tạo tài khoản";
+    let currentDescription: string | null = "Original Jira specification";
+    let currentVersion = 3;
+    let failNextPatch = false;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: managerId,
+          name: "KeyT Xin Chàoo",
+          organizationId: orgId,
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: orgId,
+          name: "General",
+          code: "GENERAL",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          leaders: [],
+          createdBy: otherCreatorId,
+          createdAt: "2026-10-25T00:00:00Z",
+          updatedAt: "2026-10-25T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          title: string;
+          description: string | null;
+          assigneeId: string | null;
+        };
+        if (body.assigneeId !== null) {
+          throw new ApiError(
+            422,
+            "ASSIGNEE_NOT_IN_PROJECT",
+            "assigneeId must be an active member of the project.",
+          );
+        }
+        return {
+          id: createdTaskId,
+          projectId,
+          key: "GENERAL-99",
+          title: body.title,
+          description: body.description,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: managerId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-30T10:00:00.000Z",
+          updatedAt: "2026-10-30T10:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${existingTaskId}` &&
+        init?.method === "PATCH"
+      ) {
+        if (failNextPatch) {
+          throw new ApiError(
+            409,
+            "TASK_VERSION_CONFLICT",
+            "Task was modified by another request.",
+          );
+        }
+        const headers = new Headers(init.headers);
+        expect(headers.get("If-Match")).toBe(
+          `"task:${existingTaskId}:${currentVersion}"`,
+        );
+        const patchBody = JSON.parse(String(init.body ?? "{}")) as {
+          title?: string;
+          description?: string | null;
+        };
+        if (patchBody.title !== undefined) {
+          currentTitle = patchBody.title;
+        }
+        if (patchBody.description !== undefined) {
+          currentDescription = patchBody.description;
+        }
+        currentVersion += 1;
+        return {
+          id: existingTaskId,
+          projectId,
+          key: "GENERAL-2",
+          title: currentTitle,
+          description: currentDescription,
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: otherCreatorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: "2026-10-25T10:00:00.000Z",
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T10:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/tasks/${existingTaskId}`) {
+        return {
+          id: existingTaskId,
+          projectId,
+          key: "GENERAL-2",
+          title: currentTitle,
+          description: currentDescription,
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: otherCreatorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: "2026-10-25T10:00:00.000Z",
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${projectId}/tasks/${existingTaskId}/history`,
+        )
+      ) {
+        return {
+          data: [],
+          pagination: { page: 1, limit: 50, hasNext: false },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: existingTaskId,
+              projectId,
+              key: "GENERAL-2",
+              title: currentTitle,
+              type: "TASK",
+              status: "DONE",
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: otherCreatorId,
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+
+    // 1. Manager creates a task via top Create dialog without hitting ASSIGNEE_NOT_IN_PROJECT
+    expect(await screen.findByText(currentTitle)).toBeVisible();
+    fireEvent.click(screen.getAllByRole("button", { name: "Create" })[0]);
+    const createDialog = await screen.findByRole("dialog", {
+      name: "Create work item",
+    });
+    fireEvent.change(
+      within(createDialog).getByPlaceholderText("Describe the work item"),
+      { target: { value: "Manager roadmap review task" } },
+    );
+    fireEvent.change(
+      within(createDialog).getByPlaceholderText(
+        /Add acceptance criteria or engineering context/i,
+      ),
+      { target: { value: "Created by Organization Manager" } },
+    );
+    fireEvent.submit(within(createDialog).getByRole("textbox", { name: /Summary/i }).closest("form")!);
+
+    expect(await screen.findByText("GENERAL-99")).toBeVisible();
+    expect(screen.getByText("Manager roadmap review task")).toBeVisible();
+
+    // 2. Manager opens GENERAL-2 (created by another user) and edits Title + Description
+    fireEvent.click(screen.getByText(currentTitle));
+    const detailDialog = await screen.findByRole("dialog");
+    expect(
+      await within(detailDialog).findByText("Original Jira specification"),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item title",
+      }),
+    );
+    const titleInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(titleInput, {
+      target: {
+        value: "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+      },
+    });
+    fireEvent.submit(titleInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(
+        within(detailDialog).getByRole("heading", {
+          name: "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+        }),
+      ).toBeVisible();
+    });
+
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item description",
+      }),
+    );
+    const descInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item description",
+    });
+    fireEvent.change(descInput, {
+      target: { value: "Updated description by Manager in General workspace" },
+    });
+    fireEvent.submit(descInput.closest("form")!);
+
+    await waitFor(() => {
+      expect(
+        within(detailDialog).getByText(
+          "Updated description by Manager in General workspace",
+        ),
+      ).toBeVisible();
+    });
+    expect(currentVersion).toBe(5);
+
+    // 3. Simulate version conflict on next Title PATCH -> rolls back optimistic state & shows alert
+    failNextPatch = true;
+    fireEvent.click(
+      within(detailDialog).getByRole("button", {
+        name: "Edit work item title",
+      }),
+    );
+    const failingTitleInput = within(detailDialog).getByRole("textbox", {
+      name: "Edit work item title",
+    });
+    fireEvent.change(failingTitleInput, {
+      target: { value: "Conflicting title edit" },
+    });
+    fireEvent.submit(failingTitleInput.closest("form")!);
+
+    expect(await screen.findAllByRole("alert")).not.toHaveLength(0);
+    await waitFor(() => {
+      expect(
+        screen.getAllByText(
+          "[DATN-289] [AUTH] Google OAuth đăng nhập (Manager Updated)",
+        ).length,
+      ).toBeGreaterThan(0);
+    });
+  });
+
+  it("supports Jira-style docked inline quick-create popovers (Type, Due date calendar, and Assignee) and sends exact POST payload", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const createdTaskId = "69e923c77859fd1c702d4cb8";
+    let capturedCreateBody: Record<string, unknown> | null = null;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: actorId,
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [
+            {
+              id: "membership-1",
+              organizationId: "69e923c77859fd1c702d4c01",
+              projectId: realProjectId,
+              userId: actorId,
+              role: "TEAM_LEADER",
+              status: "ACTIVE",
+              joinedAt: "2026-10-05T00:00:00Z",
+              version: 1,
+              user: {
+                id: actorId,
+                email: "keyt@example.com",
+                fullName: "KeyT Xin Chàoo",
+                status: "ACTIVE",
+              },
+            },
+          ],
+          pagination: {
+            page: 1,
+            pageSize: 100,
+            totalItems: 1,
+            totalPages: 1,
+          },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/sprints`)) {
+        return { items: [], nextCursor: null };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        capturedCreateBody = JSON.parse(String(init.body));
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-78",
+          title: String(capturedCreateBody?.title ?? ""),
+          description: null,
+          type: String(capturedCreateBody?.type ?? "TASK"),
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: (capturedCreateBody?.assigneeId as string | null) ?? null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: (capturedCreateBody?.dueDate as string | null) ?? null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: "69e923c77859fd1c702d4ca1",
+              projectId: realProjectId,
+              key: "FE-1",
+              title: "Existing workspace item",
+              type: "TASK",
+              status: "TODO",
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: actorId,
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-20T00:00:00.000Z",
+              updatedAt: "2026-10-20T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+    expect(await screen.findByText("Existing workspace item")).toBeVisible();
+
+    // Open docked inline quick-create composer
+    fireEvent.click(screen.getByTestId("work-list-inline-create-trigger"));
+    expect(screen.getByTestId("work-list-inline-composer")).toBeVisible();
+
+    // 1. Select BUG via interactive Issue Type popover
+    fireEvent.click(screen.getByTestId("inline-create-type-trigger"));
+    fireEvent.click(screen.getByTestId("inline-create-type-option-BUG"));
+
+    // 2. Select 2026-12-20 via interactive Calendar Due Date popover
+    const dueWrapper = screen.getByTestId("inline-create-due-date-wrapper");
+    fireEvent.click(within(dueWrapper).getByRole("button"));
+    const calendarDialog = screen.getByRole("dialog", {
+      name: /Select due date for new work item/i,
+    });
+    fireEvent.change(
+      within(calendarDialog).getByRole("combobox", {
+        name: /Year for new work item/i,
+      }),
+      { target: { value: "2026" } },
+    );
+    fireEvent.change(
+      within(calendarDialog).getByRole("combobox", {
+        name: /Month for new work item/i,
+      }),
+      { target: { value: "11" } },
+    );
+    fireEvent.click(
+      within(calendarDialog).getByRole("button", {
+        name: "Set due date 2026-12-20",
+      }),
+    );
+
+    // 3. Assign to current user via interactive Assignee popover
+    fireEvent.click(screen.getByTestId("inline-create-assignee-trigger"));
+    fireEvent.click(screen.getByTestId("inline-create-assign-to-me"));
+
+    // 4. Enter summary & submit
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Fix docked composer keyboard focus" },
+    });
+    fireEvent.click(screen.getByTestId("inline-create-submit"));
+
+    await waitFor(() => {
+      expect(capturedCreateBody).toMatchObject({
+        title: "Fix docked composer keyboard focus",
+        type: "BUG",
+        assigneeId: actorId,
+        dueDate: "2026-12-20T00:00:00.000Z",
+      });
+    });
+    expect(await screen.findByText("FE-78")).toBeVisible();
+  });
+
+  it("shows an actionable Created <KEY> / View <KEY> toast after task creation and opens the full-page task editor when clicking View", async () => {
+    const realProjectId = "69e923c77859fd1c702d4c21";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const createdTaskId = "69e923c77859fd1c702d4cb9";
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["TEAM_LEADER"],
+        };
+      }
+      if (path === `/iam/projects/${realProjectId}`) {
+        return {
+          id: realProjectId,
+          organizationId: "69e923c77859fd1c702d4c01",
+          name: "Front End",
+          code: "FE",
+          visibility: "PRIVATE",
+          status: "ACTIVE",
+          createdBy: actorId,
+          createdAt: "2026-10-05T00:00:00Z",
+          updatedAt: "2026-10-05T00:00:00Z",
+        };
+      }
+      if (path.startsWith(`/iam/projects/${realProjectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/sprints`)) {
+        return { items: [], nextCursor: null };
+      }
+      if (
+        path === `/tasks/projects/${realProjectId}/tasks` &&
+        init?.method === "POST"
+      ) {
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-79",
+          title: "Upgrade Jira toast experience",
+          description: null,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path === `/tasks/projects/${realProjectId}/tasks/${createdTaskId}`) {
+        return {
+          id: createdTaskId,
+          projectId: realProjectId,
+          key: "FE-79",
+          title: "Upgrade Jira toast experience",
+          description: null,
+          type: "TASK",
+          status: "TODO",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-31T00:00:00.000Z",
+          updatedAt: "2026-10-31T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/comments`,
+        )
+      ) {
+        return { items: [], nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/worklogs`,
+        )
+      ) {
+        return { items: [], totalMinutes: 0, nextAfterId: null };
+      }
+      if (
+        path.startsWith(
+          `/tasks/projects/${realProjectId}/tasks/${createdTaskId}/history`,
+        )
+      ) {
+        return {
+          data: [],
+          pagination: { page: 1, limit: 50, hasNext: false },
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${realProjectId}/tasks`)) {
+        return { items: [], nextAfterId: null, nextCursor: null };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(realProjectId);
+    expect(
+      await screen.findByTestId("work-list-inline-create-trigger"),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByTestId("work-list-inline-create-trigger"));
+    fireEvent.change(screen.getByPlaceholderText("What needs to be done?"), {
+      target: { value: "Upgrade Jira toast experience" },
+    });
+    fireEvent.click(screen.getByTestId("inline-create-submit"));
+
+    // Verify Jira-style Created FE-79 / View FE-79 toast notification
+    const toast = await screen.findByTestId("created-task-toast");
+    await waitFor(() => {
+      expect(toast).toBeVisible();
+    });
+    expect(within(toast).getByText("Created FE-79")).toBeVisible();
+    const viewBtn = within(toast).getByRole("button", { name: "View FE-79" });
+    expect(viewBtn).toBeVisible();
+
+    // Clicking View FE-79 dismisses the toast and opens the full-page task detail editor
+    fireEvent.click(viewBtn);
+
+    await waitFor(() => {
+      expect(screen.queryByTestId("created-task-toast")).not.toBeInTheDocument();
+    });
+    expect(
+      await screen.findByRole("heading", {
+        name: "Upgrade Jira toast experience",
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    ).toBeVisible();
+  });
+
+  it("chains 2-step TODO <-> IN_REVIEW transitions and keeps header Create button outside sr-only when hideProjectBanner is true", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const taskId = "69e923c77859fd1c702d4ca9";
+    const transitionBodies: Array<{ fromStatus: string; toStatus: string }> = [];
+    let currentStatus = "TODO";
+    let currentVersion = 1;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Manager",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: projectId,
+              organizationId: "69e923c77859fd1c702d4c01",
+              name: "Continuum Frontend Portal",
+              code: "CONT-FE",
+              visibility: "PUBLIC",
+              status: "ACTIVE",
+              createdBy: "69e923c77859fd1c702d4c10",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${taskId}/transitions` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          fromStatus: string;
+          toStatus: string;
+        };
+        transitionBodies.push(body);
+        currentStatus = body.toStatus;
+        currentVersion += 1;
+        return {
+          id: taskId,
+          projectId,
+          key: "CONT-FE-1",
+          title: "Verify 2-step review transition",
+          description: null,
+          type: "TASK",
+          status: currentStatus,
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: taskId,
+              projectId,
+              key: "CONT-FE-1",
+              title: "Verify 2-step review transition",
+              type: "TASK",
+              status: currentStatus,
+              priority: "MEDIUM",
+              assigneeId: null,
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace(projectId);
+    expect(await screen.findByText("Verify 2-step review transition")).toBeVisible();
+
+    const headerCreateBtn = screen
+      .getAllByRole("button", { name: "Create" })
+      .find((btn) => btn.closest("header") !== null);
+    expect(headerCreateBtn).toBeDefined();
+    expect(headerCreateBtn?.closest(".sr-only")).toBeNull();
+
+    // Open CONT-FE-1 detail modal and transition TODO -> IN_REVIEW -> TODO
+    fireEvent.click(screen.getByText("Verify 2-step review transition"));
+    const dialog = await screen.findByRole("dialog");
+    const statusSelect = within(dialog).getByLabelText("Update work item status");
+
+    fireEvent.change(statusSelect, { target: { value: "IN_REVIEW" } });
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        { fromStatus: "TODO", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "IN_REVIEW" },
+      ]);
+    });
+
+    fireEvent.change(statusSelect, { target: { value: "TODO" } });
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        { fromStatus: "TODO", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "IN_REVIEW" },
+        { fromStatus: "IN_REVIEW", toStatus: "IN_PROGRESS" },
+        { fromStatus: "IN_PROGRESS", toStatus: "TODO" },
+      ]);
+    });
+  });
+
+  it("transitions BLOCKED tasks using authoritative fromStatus='BLOCKED' with reason and renders Board without MAX 4 cap", async () => {
+    const projectId = "69e923c77859fd1c702d4c21";
+    const blockedTaskId = "69e923c77859fd1c702d4cb1";
+    const transitionBodies: Array<{
+      fromStatus: string;
+      toStatus: string;
+      reason?: string;
+    }> = [];
+    let currentStatus = "BLOCKED";
+    let currentVersion = 1;
+
+    api.mockImplementation(async (path, init) => {
+      if (path === "/auth/me") {
+        return {
+          id: "69e923c77859fd1c702d4c10",
+          name: "Minh Manager",
+          organizationId: "69e923c77859fd1c702d4c01",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path.startsWith("/iam/projects?")) {
+        return {
+          data: [
+            {
+              id: projectId,
+              organizationId: "69e923c77859fd1c702d4c01",
+              name: "Continuum Pulse",
+              code: "PULSE",
+              visibility: "PUBLIC",
+              status: "ACTIVE",
+              createdBy: "69e923c77859fd1c702d4c10",
+              createdAt: "2026-10-05T00:00:00Z",
+              updatedAt: "2026-10-05T00:00:00Z",
+            },
+          ],
+          pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+        };
+      }
+      if (path.startsWith(`/iam/projects/${projectId}/memberships`)) {
+        return {
+          data: [],
+          pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+        };
+      }
+      if (path === `/tasks/projects/${projectId}/sprints`) {
+        return { items: [] };
+      }
+      if (
+        path === `/tasks/projects/${projectId}/tasks/${blockedTaskId}/transitions` &&
+        init?.method === "POST"
+      ) {
+        const body = JSON.parse(String(init.body ?? "{}")) as {
+          fromStatus: string;
+          toStatus: string;
+          reason?: string;
+        };
+        if (body.fromStatus !== currentStatus) {
+          throw new Error(`TASK_STATUS_CONFLICT: expected ${currentStatus}, got ${body.fromStatus}`);
+        }
+        transitionBodies.push(body);
+        currentStatus = body.toStatus;
+        currentVersion += 1;
+        return {
+          id: blockedTaskId,
+          projectId,
+          key: "PULSE-13",
+          title: "Blocked webhook task",
+          description: null,
+          type: "TASK",
+          status: currentStatus,
+          priority: "HIGH",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-30T00:00:00.000Z",
+          version: currentVersion,
+        };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        const extraInProgress = [1, 2, 3, 4, 5].map((n) => ({
+          id: `69e923c77859fd1c702d4cc${n}`,
+          projectId,
+          key: `PULSE-2${n}`,
+          title: `Active task ${n}`,
+          type: "TASK",
+          status: "IN_PROGRESS",
+          priority: "MEDIUM",
+          assigneeId: null,
+          createdBy: "69e923c77859fd1c702d4c10",
+          parentId: null,
+          sprintId: null,
+          dueDate: null,
+          startDate: null,
+          labels: [],
+          subtaskCounts: { total: 0, done: 0 },
+          version: 1,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+        }));
+        return {
+          items: [
+            {
+              id: blockedTaskId,
+              projectId,
+              key: "PULSE-13",
+              title: "Blocked webhook task",
+              type: "TASK",
+              status: currentStatus,
+              priority: "HIGH",
+              assigneeId: null,
+              createdBy: "69e923c77859fd1c702d4c10",
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: currentVersion,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+            ...extraInProgress,
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mountMemberWorkspace(projectId);
+    expect(await screen.findByText("Blocked webhook task")).toBeVisible();
+
+    // Switch to Board view and confirm MAX 4 badge is gone even with 6 items in IN PROGRESS
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(screen.queryByText(/MAX 4/i)).not.toBeInTheDocument();
+
+    // Transition PULSE-13 (backend status BLOCKED, shown in In progress) -> IN_REVIEW
+    fireEvent.click(screen.getByText("Blocked webhook task"));
+    const dialog = await screen.findByRole("dialog");
+    const statusSelect = within(dialog).getByLabelText("Update work item status");
+    fireEvent.change(statusSelect, { target: { value: "IN_REVIEW" } });
+
+    await waitFor(() => {
+      expect(transitionBodies).toEqual([
+        {
+          fromStatus: "BLOCKED",
+          toStatus: "IN_REVIEW",
+          reason: "Unblocked from workspace UI",
+        },
+      ]);
+    });
+  });
 });

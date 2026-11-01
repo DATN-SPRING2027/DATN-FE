@@ -205,4 +205,80 @@ describe("AI Chat activity progress", () => {
     expect(screen.getByRole("button")).toHaveTextContent("Activity");
     expect(screen.getByRole("button")).not.toHaveTextContent(/\d+s/);
   });
+
+  it("renders real-time running, completed, and failed step states and localizes canonical SAG tool labels", () => {
+    const { rerender } = render(
+      ui({
+        ...defaults,
+        steps: [
+          {
+            id: "session-context",
+            status: "completed",
+            kind: "session_context",
+            label: "Session Memory (ECCE)",
+            durationMs: 38,
+            mode: "on",
+          },
+          {
+            id: "model-turn-1",
+            status: "completed",
+            kind: "thinking",
+            label: "Reasoning",
+            durationMs: 210,
+          },
+          {
+            id: "tool-call-1",
+            status: "running",
+            kind: "tool",
+            label: "Tìm trong kho tri thức",
+            durationMs: 0,
+          },
+        ],
+      }),
+    );
+
+    expect(screen.getByText("Session memory (ECCE)")).toBeVisible();
+    expect(screen.getByText("Analyzing question & planning")).toBeVisible();
+    expect(screen.getByText("Search project knowledge base")).toBeVisible();
+    expect(screen.getByText("In progress…")).toBeVisible();
+    expect(screen.queryByText("0ms")).not.toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Running: Search project knowledge base…",
+    );
+
+    rerender(
+      ui(
+        {
+          ...defaults,
+          steps: [
+            {
+              id: "tool-call-1",
+              status: "failed",
+              kind: "tool",
+              label: "Tra cứu thực thể",
+              durationMs: 65,
+            },
+            {
+              id: "model-turn-2",
+              status: "running",
+              kind: "answer",
+              label: "Answer Synthesis",
+              durationMs: 0,
+            },
+          ],
+        },
+        "vi",
+      ),
+    );
+
+    expect(screen.getByText("Tra cứu thực thể tri thức")).toBeVisible();
+    expect(screen.getByText("Thất bại")).toBeVisible();
+    expect(screen.getByText("65ms")).toBeVisible();
+    expect(
+      screen.getByText("Tổng hợp & đối chiếu trích dẫn"),
+    ).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Đang tổng hợp câu trả lời và đối chiếu trích dẫn…",
+    );
+  });
 });

@@ -29,21 +29,61 @@ export type TaskNoteInput = Readonly<{
   reason: string;
 }>;
 
-export type TaskNote = TaskNoteInput &
-  Readonly<{
-    id: string;
-    projectId: string;
-    taskId: string;
-    taskKey?: string;
-    taskTitle?: string;
-    authorId: string;
-    authorName: string;
-    type: "TASK_NOTE";
-    status: "CONFIRMED";
-    createdAt: string;
-    updatedAt: string;
-    permissions: WorkNotePermissions;
-  }>;
+export type TaskNoteAiChatCitation = Readonly<{
+  number: number;
+  sourceLabel: string;
+  documentId?: string;
+  documentName?: string;
+  versionNo?: number;
+  chunkId?: string;
+  heading?: string;
+  sectionPath?: string;
+  pageFrom?: number;
+  pageTo?: number;
+}>;
+
+export type TaskNoteAiChatSessionCitation = Readonly<{
+  ref: string;
+  groupId?: string;
+  turnIds: readonly string[];
+}>;
+
+export type TaskNoteAiChatSource = Readonly<{
+  threadId: string;
+  messageId: string;
+  citations: readonly TaskNoteAiChatCitation[];
+  sessionCitations: readonly TaskNoteAiChatSessionCitation[];
+}>;
+
+export type TaskNoteAiChatSourceInput = Omit<
+  TaskNoteAiChatSource,
+  "citations"
+> & {
+  citations: readonly Omit<TaskNoteAiChatCitation, "documentName">[];
+};
+
+export type TaskNote = Readonly<{
+  title: string;
+  accomplishments?: string;
+  approach?: string;
+  reason?: string;
+  contentMarkdown?: string;
+  contentSchemaVersion?: 2;
+  currentVersionNumber?: number;
+  aiChatSource?: TaskNoteAiChatSource;
+  id: string;
+  projectId: string;
+  taskId: string;
+  taskKey?: string;
+  taskTitle?: string;
+  authorId: string;
+  authorName: string;
+  type: "TASK_NOTE";
+  status: "CONFIRMED";
+  createdAt: string;
+  updatedAt: string;
+  permissions: WorkNotePermissions;
+}>;
 
 export const DOCUMENT_TYPES = [
   "MVP",
@@ -277,15 +317,15 @@ export type WorkReportStatus =
   | "REJECTED"
   | "OVERDUE";
 export type WorkReportInput = Readonly<{
-  accomplishments: string;
-  approach: string;
-  reason: string;
-  blockers?: string;
-  nextSteps?: string;
-  documentIds?: readonly string[];
+  title: string;
+  content: string;
 }>;
 export type WorkReport = WorkReportInput &
   Readonly<{
+    title?: string;
+    contentMarkdown?: string;
+    contentSchemaVersion?: 2;
+    currentVersionNumber?: number;
     id: string;
     projectId: string;
     memberId: string;
@@ -296,8 +336,6 @@ export type WorkReport = WorkReportInput &
     periodEnd: string;
     dueAt: string;
     status: WorkReportStatus;
-    file?: Readonly<{ name: string; contentType: string; size: number }>;
-    documentIds?: readonly string[];
     createdAt: string;
     updatedAt: string;
     submittedAt?: string;
@@ -339,15 +377,10 @@ export type WorkReportSettings = Readonly<{
 
 type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
 type DocumentAction =
-  | "submit"
-  | "comment"
-  | "approve"
-  | "request-changes"
-  | "reject"
-  | "archive";
+  "submit" | "comment" | "approve" | "request-changes" | "reject" | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
 
-function csrfHeaders(): HeadersInit {
+export function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
   const parts = document.cookie.split(";").map((part) => part.trim());
   for (const prefix of [
@@ -836,29 +869,6 @@ export const workNotesApi = {
         body: JSON.stringify(input),
       },
     );
-  },
-  uploadReportFile(projectId: string, reportId: string, file: File) {
-    const headers = new Headers(csrfHeaders());
-    headers.set("Content-Type", file.type || "application/octet-stream");
-    headers.set("X-File-Name", encodeURIComponent(file.name));
-    return apiClient<WorkReport>(
-      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`,
-      {
-        method: "PUT",
-        headers,
-        body: file,
-      },
-    );
-  },
-  async downloadReportFile(projectId: string, reportId: string) {
-    const path = `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`;
-    const response = await fetch(`/api/backend${path}`, {
-      credentials: "include",
-      cache: "no-store",
-    });
-    if (!response.ok)
-      throw new Error(`Could not download report file (${response.status}).`);
-    return response.blob();
   },
   reportAction(
     projectId: string,

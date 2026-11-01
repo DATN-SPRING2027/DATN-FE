@@ -123,10 +123,14 @@ export async function apiClient<T>(
 
   const headers = new Headers(options?.headers);
   if (!headers.has("Content-Type")) headers.set("Content-Type", "application/json");
-  if (normalizedEndpoint === "/api/v1/auth/refresh" && typeof document !== "undefined") {
+  const method = (options?.method ?? "GET").toUpperCase();
+  const safeMethod = ["GET", "HEAD", "OPTIONS", "TRACE"].includes(method);
+  if (!safeMethod && typeof document !== "undefined") {
     const csrfCookie = document.cookie.split(";").map((cookie) => cookie.trim())
       .find((cookie) => cookie.startsWith("__Host-csrf="));
-    if (csrfCookie) headers.set("X-CSRF-Token", csrfCookie.slice("__Host-csrf=".length));
+    if (csrfCookie && (normalizedEndpoint === "/api/v1/auth/refresh" || !headers.has("X-CSRF-Token"))) {
+      headers.set("X-CSRF-Token", csrfCookie.slice("__Host-csrf=".length));
+    }
   }
 
   const { onResponseHeaders, ...fetchOptions } = options ?? {};

@@ -12,6 +12,7 @@ import {
 } from"@/icons";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import { MonoIcon } from"./WorkMonoIcons";
+import { WorkPersonAvatar } from "./WorkPersonAvatar";
 import type { JiraImportProgress } from "./jira-import";
 import type {
   WorkFilterCondition,
@@ -113,6 +114,29 @@ export default function WorkToolbar({
 }) {
   const t = useTranslations("work");
   const availablePeople = people ?? PREVIEW_PEOPLE;
+  const filterDetailsRef = useRef<HTMLDetailsElement | null>(null);
+
+  useEffect(() => {
+    const handlePointerDown = (event: MouseEvent) => {
+      const detailsEl = filterDetailsRef.current;
+      if (!detailsEl || !detailsEl.open) return;
+      if (event.target instanceof Node && !detailsEl.contains(event.target)) {
+        detailsEl.open = false;
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const detailsEl = filterDetailsRef.current;
+      if (event.key === "Escape" && detailsEl?.open) {
+        detailsEl.open = false;
+      }
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
   const valueSuggestions: Record<WorkFilterField, readonly string[]> = {
     status: ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"],
     priority: ["HIGH", "MEDIUM", "LOW"],
@@ -338,7 +362,7 @@ export default function WorkToolbar({
 
         {/* Quick Assignee Avatars Stack */}
         <div
-          className="flex items-center -space-x-1"
+          className="flex items-center [&>*+*]:-ms-1.5"
           role="group"
           aria-label={t("quickAssigneeFilter")}
         >
@@ -354,13 +378,13 @@ export default function WorkToolbar({
                 onClick={() =>
                   onAssigneeChange(active ? "ALL" : person.id)
                 }
-                className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border-2 text-[10px] font-semibold transition hover:z-10 hover:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+                className={`relative flex h-7 w-7 cursor-pointer items-center justify-center rounded-full transition hover:z-10 hover:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                   active
-                    ? "z-10 border-brand-500 bg-gray-900 text-white dark:bg-white dark:text-gray-900"
-                    : "border-white bg-gray-100 text-gray-700 dark:border-gray-900 dark:bg-gray-800 dark:text-gray-300"
+                    ? "z-10 ring-2 ring-brand-500 ring-offset-1 ring-offset-white dark:ring-offset-gray-900"
+                    : "ring-2 ring-white dark:ring-gray-900"
                 }`}
               >
-                {person.initials}
+                <WorkPersonAvatar person={person} size="md" />
               </button>
             );
           })}
@@ -368,7 +392,7 @@ export default function WorkToolbar({
 
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 ms-auto">
           {/* Jira Filter Popover + Multi-Condition Filter Builder */}
-          <details className="group relative">
+          <details ref={filterDetailsRef} className="group relative">
             <summary
               className={`inline-flex h-8 cursor-pointer list-none items-center gap-1.5 rounded border px-2.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
                 activeFilterCount > 0
@@ -398,7 +422,7 @@ export default function WorkToolbar({
                       [
                         {
                           id:"status",
-                          label:"Status",
+                          label: tr(t, "quickUi.filterCategoryStatus", "Status"),
                           active: status !=="ALL",
                         },
                         {
@@ -413,7 +437,7 @@ export default function WorkToolbar({
                         },
                         {
                           id:"builder",
-                          label:"+ Add field",
+                          label: tr(t, "quickUi.filterAddField", "+ Add field"),
                           active: filterConditions.length > 0,
                         },
                       ] as const
@@ -440,7 +464,7 @@ export default function WorkToolbar({
                     onClick={onClearFilters}
                     className="mt-3 w-full cursor-pointer px-2.5 py-1.5 text-start text-xs font-semibold text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800"
                   >
-                    Clear all
+                    {tr(t, "quickUi.clearAll", "Clear all")}
                   </button>
                 </div>
 
@@ -449,12 +473,12 @@ export default function WorkToolbar({
                   <div className="flex items-center justify-between border-b border-gray-100 pb-2 dark:border-gray-800">
                     <span className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       {filterPanelCategory ==="status"
-                        ?"Filter by Status"
+                        ? tr(t, "quickUi.filterByStatus", "Filter by Status")
                         : filterPanelCategory ==="priority"
-                          ?"Filter by Priority"
+                          ? tr(t, "quickUi.filterByPriority", "Filter by Priority")
                           : filterPanelCategory ==="assignee"
-                            ?"Filter by Assignee"
-                            :"Condition Builder"}
+                            ? tr(t, "quickUi.filterByAssignee", "Filter by Assignee")
+                            : tr(t, "quickUi.conditionBuilder", "Condition Builder")}
                     </span>
                   </div>
 

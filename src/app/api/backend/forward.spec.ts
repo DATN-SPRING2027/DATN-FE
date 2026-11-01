@@ -7,6 +7,31 @@ import { GET, POST } from "./[...path]/route";
 describe("BFF file downloads", () => {
   afterEach(() => vi.unstubAllGlobals());
 
+  it("streams generic mutation bodies through the BFF without buffering them in memory", async () => {
+    const payload = JSON.stringify({ note: "a normal JSON mutation" });
+    const fetchMock = vi.fn().mockResolvedValue(Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const path = ["iam", "users", "user-1"];
+    const request = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: payload,
+      },
+    );
+    const arrayBuffer = vi.spyOn(request, "arrayBuffer");
+
+    const response = await POST(request, { params: Promise.resolve({ path }) });
+
+    const forwarded = fetchMock.mock.calls[0]?.[1] as RequestInit & { duplex?: string };
+    expect(response.status).toBe(200);
+    expect(arrayBuffer).not.toHaveBeenCalled();
+    expect(forwarded.body).toBe(request.body);
+    expect(forwarded.duplex).toBe("half");
+    expect(await new Response(forwarded.body).text()).toBe(payload);
+  });
+
   it("preserves the attachment filename and PDF bytes from the backend", async () => {
     const disposition = "attachment; filename*=UTF-8''project-design.pdf";
     vi.stubGlobal(
@@ -203,6 +228,28 @@ describe("BFF AI Chat SSE streaming", () => {
     expect(await response.json()).toMatchObject({
       code: "BACKEND_UNAVAILABLE",
       message: "AI Chat service is temporarily unavailable.",
+    });
+  });
+
+  it("returns 499 REQUEST_ABORTED without throwing unhandled ResponseAborted errors when a non-chat request is cancelled", async () => {
+    const abortError = new Error("ResponseAborted");
+    abortError.name = "ResponseAborted";
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValueOnce(abortError));
+
+    const controller = new AbortController();
+    controller.abort();
+    const path = ["tasks", "projects", "proj-1", "tasks"];
+    const req = new NextRequest(
+      `http://localhost:3000/api/backend/${path.join("/")}`,
+      { signal: controller.signal },
+    );
+    const response = await GET(req, { params: Promise.resolve({ path }) });
+
+    expect(response.status).toBe(499);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toMatchObject({
+      code: "REQUEST_ABORTED",
+      message: "Backend request was cancelled.",
     });
   });
 });

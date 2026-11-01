@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { notifyAuthSessionChanged } from "@/lib/queries/auth/session-sync";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { platformSessionQueryKey } from "./platform-session.key";
 
@@ -684,6 +685,9 @@ export function usePlatformLogoutMutation() {
         method: "POST",
         cache: "no-store",
       }),
-    onSuccess: () => client.clear(),
+    onSuccess: () => {
+      client.clear();
+      notifyAuthSessionChanged();
+    },
   });
 }

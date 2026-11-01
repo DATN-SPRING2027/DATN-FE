@@ -42,8 +42,45 @@ export default function MemberWorkspace({
     setSelectedProjectId(initialProjectId);
   }, [initialProjectId]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onSidebarProjectSwitch = (event: Event) => {
+      const nextId = (
+        event as CustomEvent<{ projectId?: string }>
+      ).detail?.projectId;
+      if (nextId) {
+        setSelectedProjectId(nextId);
+      }
+    };
+    const onPopState = () => {
+      const nextId =
+        new URLSearchParams(window.location.search).get("projectId")?.trim() ||
+        undefined;
+      setSelectedProjectId(nextId);
+    };
+    window.addEventListener(
+      "continuum:workspace-project-switch",
+      onSidebarProjectSwitch,
+    );
+    window.addEventListener("popstate", onPopState);
+    return () => {
+      window.removeEventListener(
+        "continuum:workspace-project-switch",
+        onSidebarProjectSwitch,
+      );
+      window.removeEventListener("popstate", onPopState);
+    };
+  }, []);
+
   function handleProjectChange(nextProjectId: string) {
     setSelectedProjectId(nextProjectId);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("continuum:workspace-project-sync", {
+          detail: { projectId: nextProjectId },
+        }),
+      );
+    }
     const params = new URLSearchParams(
       typeof window !== "undefined" ? window.location.search : "",
     );
@@ -72,6 +109,21 @@ export default function MemberWorkspace({
     organizationId,
     needsDirectProjectFetch ? (selectedProjectId ?? "") : "",
   );
+  const directProjectAccessLost = isAccessOrResourceUnavailableError(directProject.error);
+  const visibleDirectProject = directProjectAccessLost ? undefined : directProject.data;
+  const resolvedActiveProjectId = (
+    matchedFromPage ?? visibleDirectProject ?? loadedProjects[0]
+  )?.id;
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && resolvedActiveProjectId) {
+      window.dispatchEvent(
+        new CustomEvent("continuum:workspace-project-sync", {
+          detail: { projectId: resolvedActiveProjectId },
+        }),
+      );
+    }
+  }, [resolvedActiveProjectId]);
 
   if (
       (user.isPending && !visibleUser) ||
@@ -92,8 +144,6 @@ export default function MemberWorkspace({
       />
     );
   }
-  const directProjectAccessLost = isAccessOrResourceUnavailableError(directProject.error);
-  const visibleDirectProject = directProjectAccessLost ? undefined : directProject.data;
   if (needsDirectProjectFetch && directProject.isError && !visibleDirectProject) {
     return (
       <ProjectState

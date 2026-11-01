@@ -157,10 +157,10 @@ export default function AdminLayout({
         >
           {/* Page Content */}
           <div
-            key={isChat ? "chat" : pathname}
+            key={pathname}
             className={
               isChat
-                ? "flex min-h-0 flex-1 flex-col overflow-hidden"
+                ? "continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden"
                 : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
             }
           >

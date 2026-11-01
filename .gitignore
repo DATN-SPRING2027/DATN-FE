@@ -42,3 +42,7 @@ next-env.d.ts
 
 .serena/
 /_worktrees/
+# Disposable Agent WorkNote browser fixture and screenshots.
+.worknote-agent-preview/
+.worknote-agent-preview-evidence/
+/ContinuumAI_NeuralSignature_React/

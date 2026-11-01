@@ -1,13 +1,29 @@
-import { useTheme } from "@/context/ThemeContext";
+"use client";
+
 import React from "react";
+import { motion, useReducedMotion } from "motion/react";
+import { useTheme } from "@/context/ThemeContext";
+import { ANIMATE_UI_BUTTON_SPRING } from "@/components/ui/button/buttonMotion";
 
 export const ThemeToggleButton: React.FC = () => {
   const { toggleTheme } = useTheme();
+  const shouldReduceMotion = useReducedMotion();
+
+  const motionStateProps = shouldReduceMotion
+    ? undefined
+    : {
+        whileHover: { scale: 1.06, y: -1 },
+        whileTap: { scale: 0.91, rotate: 12 },
+      };
 
   return (
-    <button
+    <motion.button
+      type="button"
+      data-slot="button"
       onClick={toggleTheme}
-      className="hover:text-dark-900 relative flex h-11 w-11 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
+      transition={ANIMATE_UI_BUTTON_SPRING}
+      {...motionStateProps}
+      className="hover:text-dark-900 relative flex h-11 w-11 select-none items-center justify-center rounded-full border border-gray-200 bg-white text-gray-500 transition-[background-color,border-color,color,box-shadow] duration-150 ease-out hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
     >
       <svg
         className="hidden dark:block"
@@ -37,6 +53,6 @@ export const ThemeToggleButton: React.FC = () => {
           fill="currentColor"
         />
       </svg>
-    </button>
+    </motion.button>
   );
 };
