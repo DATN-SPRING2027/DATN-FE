@@ -9,6 +9,7 @@ import {
   SearchIcon,
 } from "@/icons/index";
 import type { Project } from "@/lib/queries/projects/useProjects";
+import { motion, useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
 
@@ -54,6 +55,7 @@ export default function SidebarProjectSwitcher({
   onOpenChange,
 }: SidebarProjectSwitcherProps) {
   const t = useTranslations("sidebar");
+  const prefersReducedMotion = useReducedMotion();
   const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isOpen = controlledOpen ?? internalOpen;
@@ -136,16 +138,18 @@ export default function SidebarProjectSwitcher({
         title={!isExpandedView ? label : undefined}
         onClick={() => setIsOpen((open) => !open)}
         className={cn(
-          "group flex min-h-8.5 w-full cursor-pointer items-center gap-2 rounded-md border border-gray-200/75 bg-white px-2 py-1 text-start transition-colors hover:border-gray-300 hover:bg-gray-50/90 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-gray-700 dark:hover:bg-white/[0.04]",
+          "group flex min-h-8.5 w-full cursor-pointer items-center gap-2 rounded-md border border-gray-200/75 bg-white px-2 py-1 text-start transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-gray-300 hover:bg-gray-50/90 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none active:scale-[0.985] dark:border-gray-800 dark:bg-gray-900/70 dark:hover:border-gray-700 dark:hover:bg-white/[0.04]",
+          isOpen &&
+            "border-brand-300/80 bg-brand-50/35 ring-2 ring-brand-500/15 dark:border-brand-500/40 dark:bg-brand-500/[0.08] dark:ring-brand-400/15",
           !isExpandedView && "justify-center px-1.5",
         )}
       >
         {activeProject ? (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-brand-200/80 bg-brand-50/80 font-mono text-[10px] font-bold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-brand-200/80 bg-brand-50/80 font-mono text-[10px] font-bold text-brand-700 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300">
             {getProjectBadgeCode(activeProject)}
           </span>
         ) : (
-          <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+          <span className="flex size-5 shrink-0 items-center justify-center rounded-[4px] border border-gray-200 bg-gray-50 text-gray-500 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
             <FolderIcon
               viewBox="-2 -3 24 24"
               aria-hidden="true"
@@ -158,7 +162,7 @@ export default function SidebarProjectSwitcher({
             <span className="block text-[9px] leading-3 font-medium tracking-wider text-gray-400 uppercase dark:text-gray-500">
               {t("projectLabel")}
             </span>
-            <span className="block truncate text-xs leading-4 font-semibold text-gray-800 group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">
+            <span className="block truncate text-xs leading-4 font-semibold text-gray-800 transition-colors group-hover:text-gray-900 dark:text-gray-100 dark:group-hover:text-white">
               {displayName}
             </span>
           </span>
@@ -168,18 +172,29 @@ export default function SidebarProjectSwitcher({
             viewBox="0 0 20 20"
             aria-hidden="true"
             className={cn(
-              "size-3.5 shrink-0 text-gray-400 transition-transform group-hover:text-gray-600 dark:group-hover:text-gray-300",
-              isOpen && "rotate-180",
+              "size-3.5 shrink-0 text-gray-400 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:text-gray-600 dark:group-hover:text-gray-300",
+              isOpen && "rotate-180 text-brand-600 dark:text-brand-400",
             )}
           />
         )}
       </button>
 
       {isOpen && (
-        <section
+        <motion.section
           id="sidebar-project-options"
           aria-label={t("projectListLabel")}
-          className="absolute start-0 top-[calc(100%+0.375rem)] z-[60] w-full min-w-56 rounded-lg border border-gray-200 bg-white p-1.5 shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900"
+          initial={
+            prefersReducedMotion
+              ? false
+              : { opacity: 0, y: -6, scale: 0.96, filter: "blur(4px)" }
+          }
+          animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 460, damping: 32, mass: 0.6 }
+          }
+          className="absolute start-0 top-[calc(100%+0.375rem)] z-[60] w-full min-w-56 origin-top rounded-lg border border-gray-200 bg-white/95 p-1.5 shadow-lg ring-1 ring-black/5 backdrop-blur-md dark:border-gray-700 dark:bg-gray-900/95"
         >
           <div className="flex items-center justify-between gap-2 px-2 pt-1 pb-1.5">
             <span className="text-xs font-semibold text-gray-900 dark:text-white">
@@ -253,7 +268,7 @@ export default function SidebarProjectSwitcher({
                           aria-pressed={isCurrent}
                           onClick={() => handleSelect(project)}
                           className={cn(
-                            "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500",
+                            "group/option flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] hover:translate-x-0.5 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 active:scale-[0.985]",
                             isCurrent
                               ? "bg-brand-50/90 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
                               : "text-gray-700 hover:bg-gray-100/80 dark:text-gray-200 dark:hover:bg-white/[0.06]",
@@ -261,7 +276,7 @@ export default function SidebarProjectSwitcher({
                         >
                           <span
                             className={cn(
-                              "flex size-5 shrink-0 items-center justify-center rounded-[4px] border font-mono text-[10px] font-semibold",
+                              "flex size-5 shrink-0 items-center justify-center rounded-[4px] border font-mono text-[10px] font-semibold transition-transform duration-150 group-hover/option:scale-105",
                               isCurrent
                                 ? "border-brand-200 bg-white text-brand-700 dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300"
                                 : "border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300",
@@ -303,7 +318,7 @@ export default function SidebarProjectSwitcher({
             <Link
               href="/projects/new"
               onClick={() => setIsOpen(false)}
-              className="flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-brand-50/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-brand-500/10"
+              className="flex min-h-8 w-full items-center gap-2 rounded-[5px] px-2 py-1.5 text-xs font-semibold text-brand-600 transition-[color,background-color,transform] duration-150 hover:translate-x-0.5 hover:bg-brand-50/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 active:scale-[0.985] dark:text-brand-400 dark:hover:bg-brand-500/10"
             >
               <span
                 aria-hidden="true"
@@ -316,12 +331,12 @@ export default function SidebarProjectSwitcher({
             <Link
               href="/projects"
               onClick={() => setIsOpen(false)}
-              className="flex min-h-7 w-full items-center rounded-[5px] px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100/80 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
+              className="flex min-h-7 w-full items-center rounded-[5px] px-2 py-1 text-[11px] font-medium text-gray-500 transition-[color,background-color,transform] duration-150 hover:translate-x-0.5 hover:bg-gray-100/80 hover:text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 active:scale-[0.985] dark:text-gray-400 dark:hover:bg-white/[0.06] dark:hover:text-gray-200"
             >
               <span className="truncate">{t("viewAllProjects")}</span>
             </Link>
           </div>
-        </section>
+        </motion.section>
       )}
     </div>
   );

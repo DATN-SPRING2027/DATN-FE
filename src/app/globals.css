@@ -222,27 +222,56 @@
 }
 
 @utility menu-item {
-  @apply relative flex w-full items-center gap-2.5 rounded-[5px] px-2.5 py-1.5 text-[13px] leading-5 font-medium transition-colors duration-100;
+  @apply relative flex w-full items-center gap-2.5 rounded-[6px] px-2.5 py-1.5 text-[13px] leading-5 font-medium transition-[color,background-color,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100;
 }
 
 @utility menu-item-active {
-  @apply bg-brand-50/90 text-brand-600 before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-r-full before:bg-brand-600 dark:bg-brand-500/[0.14] dark:text-brand-300 dark:before:bg-brand-400;
+  @apply bg-brand-50/90 text-brand-600 before:absolute before:inset-y-1.5 before:start-0 before:w-[3px] before:rounded-r-full before:bg-brand-600 data-[motion-indicator=true]:bg-transparent data-[motion-indicator=true]:before:hidden dark:bg-brand-500/[0.14] dark:text-brand-300 dark:before:bg-brand-400 dark:data-[motion-indicator=true]:bg-transparent;
 }
 
 @utility menu-item-inactive {
-  @apply text-gray-700 group-hover:text-gray-900 hover:bg-gray-100/80 dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-gray-100;
+  @apply text-gray-700 group-hover:text-gray-900 hover:bg-gray-100/80 data-[motion-indicator=true]:hover:bg-transparent dark:text-gray-300 dark:hover:bg-white/[0.06] dark:hover:text-gray-100 dark:data-[motion-indicator=true]:hover:bg-transparent;
 }
 
 @utility menu-item-icon {
-  @apply flex size-5 shrink-0 items-center justify-center text-gray-500 group-hover:text-gray-700 dark:text-gray-400;
+  @apply flex size-5 shrink-0 items-center justify-center text-gray-500 transition-[color,transform,filter] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:translate-x-[1.5px] group-hover:scale-[1.06] group-hover:text-gray-700 group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0 motion-reduce:group-hover:scale-100 dark:text-gray-400;
 }
 
 @utility menu-item-icon-active {
-  @apply text-brand-600 dark:text-brand-300;
+  @apply text-brand-600 drop-shadow-[0_0_6px_rgba(70,95,255,0.28)] dark:text-brand-300 dark:drop-shadow-[0_0_8px_rgba(117,217,255,0.32)];
 }
 
 @utility menu-item-icon-inactive {
   @apply text-gray-500 group-hover:text-gray-700 dark:text-gray-400 dark:group-hover:text-gray-200;
+}
+
+@keyframes sidebar-pending-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.sidebar-item-pending-shimmer::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(117, 217, 255, 0.22) 50%,
+    transparent 100%
+  );
+  animation: sidebar-pending-shimmer 1.05s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar-item-pending-shimmer::after {
+    animation: none;
+  }
 }
 
 @utility menu-item-arrow {

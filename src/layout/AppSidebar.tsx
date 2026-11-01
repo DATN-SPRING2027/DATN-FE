@@ -8,6 +8,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { LayoutGroup, motion, useReducedMotion } from "motion/react";
 import { useOrganizationOptionsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -123,6 +124,7 @@ const AppSidebar: React.FC = () => {
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations("sidebar");
+  const prefersReducedMotion = useReducedMotion();
   const currentUser = useCurrentUserQuery();
   const visibleUser = isAccessOrResourceUnavailableError(currentUser.error)
     ? undefined
@@ -137,6 +139,17 @@ const AppSidebar: React.FC = () => {
   const [openSelector, setOpenSelector] = useState<
     "organization" | "project" | null
   >(null);
+
+  // Smooth hover pill + optimistic active indicator state
+  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
+  const [pendingNav, setPendingNav] = useState<{
+    fromPathname: string;
+    itemId: string;
+  } | null>(null);
+  const activePendingItemId =
+    pendingNav && pendingNav.fromPathname === pathname
+      ? pendingNav.itemId
+      : null;
 
   const projectRouteMatch = /^\/projects\/([^/]+)/.exec(pathname);
   const rawProjectSegment = projectRouteMatch?.[1]
@@ -569,6 +582,58 @@ const AppSidebar: React.FC = () => {
     ];
   }, [activeProject, activeProjectIdFromPath, pathname, syncedProjectTab, t]);
 
+  const renderMotionIndicators = (
+    itemId: string,
+    isVisualActive: boolean,
+    isPendingActive: boolean,
+    isHovered: boolean,
+  ) => (
+    <>
+      {isHovered && (
+        <motion.span
+          layoutId="sidebar-hover-pill"
+          data-testid={`sidebar-hover-pill-${itemId}`}
+          aria-hidden="true"
+          transition={
+            prefersReducedMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 520, damping: 36, mass: 0.45 }
+          }
+          className="pointer-events-none absolute inset-0 z-0 rounded-[6px] bg-gray-100/90 dark:bg-white/[0.06]"
+        />
+      )}
+      {isVisualActive && (
+        <>
+          <motion.span
+            layoutId="sidebar-active-pill"
+            data-testid="sidebar-active-pill"
+            aria-hidden="true"
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 420, damping: 32, mass: 0.6 }
+            }
+            className={cn(
+              "pointer-events-none absolute inset-0 z-0 overflow-hidden rounded-[6px] bg-brand-50/95 shadow-[inset_0_1px_0_0_rgba(255,255,255,0.65)] dark:bg-brand-500/[0.15] dark:shadow-[inset_0_1px_0_0_rgba(117,217,255,0.14)]",
+              isPendingActive && "sidebar-item-pending-shimmer",
+            )}
+          />
+          <motion.span
+            layoutId="sidebar-active-bar"
+            data-testid="sidebar-active-bar"
+            aria-hidden="true"
+            transition={
+              prefersReducedMotion
+                ? { duration: 0 }
+                : { type: "spring", stiffness: 420, damping: 32, mass: 0.6 }
+            }
+            className="pointer-events-none absolute inset-y-1.5 start-0 z-10 w-[3px] rounded-e-full bg-brand-600 shadow-[0_0_8px_rgba(70,95,255,0.55)] dark:bg-brand-400 dark:shadow-[0_0_10px_rgba(117,217,255,0.5)]"
+          />
+        </>
+      )}
+    </>
+  );
+
   const renderItem = (
     item: (typeof primaryItems)[number] | (typeof administrationItems)[number],
   ) => {
@@ -576,12 +641,18 @@ const AppSidebar: React.FC = () => {
       item.key === "overview" ? t("items.dashboard") : t(`items.${item.key}`);
     const Icon = item.icon;
     const iconViewBox = item.viewBox;
+    const itemId = `org:${item.key}`;
     const isItemActive =
       "path" in item
         ? item.key === "projects"
-          ? pathname === "/projects" || pathname === "/projects/new"
+           ? pathname === "/projects" || pathname === "/projects/new"
           : isSidebarPathActive(item.path, pathname)
         : false;
+    const isVisualActive = activePendingItemId
+      ? activePendingItemId === itemId
+      : isItemActive;
+    const isPendingActive = activePendingItemId === itemId && !isItemActive;
+    const isHovered = hoveredItemId === itemId && !isVisualActive;
 
     return (
       <li key={item.key}>
@@ -590,19 +661,35 @@ const AppSidebar: React.FC = () => {
             href={item.path}
             aria-label={label}
             aria-current={isItemActive ? "page" : undefined}
+            data-motion-indicator="true"
+            data-active={isVisualActive ? "true" : undefined}
+            data-pending={isPendingActive ? "true" : undefined}
             title={!isExpandedView ? label : undefined}
-            onClick={() => setOpenSelector(null)}
+            onMouseEnter={() => setHoveredItemId(itemId)}
+            onFocus={() => setHoveredItemId(itemId)}
+            onClick={() => {
+              setOpenSelector(null);
+              if (!isItemActive) {
+                setPendingNav({ fromPathname: pathname, itemId });
+              }
+            }}
             className={cn(
               "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
-              isItemActive ? "menu-item-active" : "menu-item-inactive",
+              isVisualActive ? "menu-item-active" : "menu-item-inactive",
               !isExpandedView && "justify-center px-1.5",
             )}
           >
+            {renderMotionIndicators(
+              itemId,
+              isVisualActive,
+              isPendingActive,
+              isHovered,
+            )}
             <span
               aria-hidden="true"
               className={cn(
-                "menu-item-icon",
-                isItemActive
+                "relative z-10 menu-item-icon",
+                isVisualActive
                   ? "menu-item-icon-active"
                   : "menu-item-icon-inactive",
               )}
@@ -610,11 +697,18 @@ const AppSidebar: React.FC = () => {
               <Icon
                 viewBox={iconViewBox}
                 preserveAspectRatio="xMidYMid meet"
-                className="size-[18px] shrink-0"
+                className={cn(
+                  "size-[18px] shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                  item.key === "settings" && "group-hover:rotate-12",
+                  item.key === "aiSearch" &&
+                    "group-hover:-rotate-6 group-hover:scale-110",
+                )}
               />
             </span>
             {isExpandedView && (
-              <span className="menu-item-text flex-1 truncate">{label}</span>
+              <span className="relative z-10 menu-item-text flex-1 truncate">
+                {label}
+              </span>
             )}
           </Link>
         ) : (
@@ -661,7 +755,7 @@ const AppSidebar: React.FC = () => {
           : "transition-all duration-200 ease-in-out",
         isMobileOpen
           ? "translate-x-0"
-          : "-translate-x-full rtl:translate-x-full",
+          : "-translate-x-full rtl:translate-x-full max-xl:pointer-events-none max-xl:invisible",
         "xl:translate-x-0 xl:rtl:translate-x-0",
       )}
     >
@@ -700,141 +794,187 @@ const AppSidebar: React.FC = () => {
         />
       </div>
 
-      <div className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {/* Current Project Navigation (Only renders for the currently selected project) */}
-        {activeProject && (
-          <nav
-            aria-label={t("projectNavigation")}
-            className="mb-2.5 border-b border-gray-200/80 pb-2.5 dark:border-gray-800/80"
-          >
-            <h2
-              id="sidebar-project-group"
-              className={cn(
-                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
-                !isExpandedView && "sr-only",
-              )}
+      <LayoutGroup id="app-sidebar-nav">
+        <div
+          onMouseLeave={() => setHoveredItemId(null)}
+          className="no-scrollbar flex min-h-0 flex-1 flex-col overflow-y-auto"
+        >
+          {/* Current Project Navigation (Only renders for the currently selected project) */}
+          {activeProject && (
+            <nav
+              aria-label={t("projectNavigation")}
+              className="mb-2.5 border-b border-gray-200/80 pb-2.5 dark:border-gray-800/80"
             >
-              {t("groups.project")}
-            </h2>
-            <ul
-              role="group"
-              aria-label={t("projectActionsLabel", {
-                name: activeProject.name,
-              })}
-              className="flex flex-col gap-0.5"
-            >
-              {projectSubItems.map((subItem) => {
-                const SubIcon = subItem.icon;
-                const navigationItem = (
-                  <li key={subItem.key}>
-                    <Link
-                      href={subItem.href}
-                      aria-label={subItem.label}
-                      aria-current={subItem.isActive ? "page" : undefined}
-                      title={!isExpandedView ? subItem.label : undefined}
-                      onClick={() => {
-                        setOpenSelector(null);
-                        if (subItem.tab) {
-                          setSyncedProjectTab({
-                            pathnameAtSync: pathname,
-                            projectId: activeProject.id,
-                            tab: subItem.tab,
-                          });
-                          window.dispatchEvent(
-                            new CustomEvent("continuum:project-tab-change", {
-                              detail: {
-                                projectId: activeProject.id,
-                                tab: subItem.tab,
-                              },
-                            }),
-                          );
-                        }
-                      }}
-                      className={cn(
-                        "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
-                        subItem.isActive
-                          ? "menu-item-active"
-                          : "menu-item-inactive",
-                        !isExpandedView && "justify-center px-1.5",
-                      )}
-                    >
-                      <span
-                        aria-hidden="true"
+              <h2
+                id="sidebar-project-group"
+                className={cn(
+                  "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                  !isExpandedView && "sr-only",
+                )}
+              >
+                {t("groups.project")}
+              </h2>
+              <motion.ul
+                key={activeProject.id}
+                role="group"
+                aria-label={t("projectActionsLabel", {
+                  name: activeProject.name,
+                })}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 3 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={
+                  prefersReducedMotion
+                    ? { duration: 0 }
+                    : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                }
+                className="flex flex-col gap-0.5"
+              >
+                {projectSubItems.map((subItem) => {
+                  const SubIcon = subItem.icon;
+                  const itemId = `project:${subItem.key}`;
+                  const isVisualActive = activePendingItemId
+                    ? activePendingItemId === itemId
+                    : subItem.isActive;
+                  const isPendingActive =
+                    activePendingItemId === itemId && !subItem.isActive;
+                  const isHovered =
+                    hoveredItemId === itemId && !isVisualActive;
+
+                  const navigationItem = (
+                    <li key={subItem.key}>
+                      <Link
+                        href={subItem.href}
+                        aria-label={subItem.label}
+                        aria-current={subItem.isActive ? "page" : undefined}
+                        data-motion-indicator="true"
+                        data-active={isVisualActive ? "true" : undefined}
+                        data-pending={isPendingActive ? "true" : undefined}
+                        title={!isExpandedView ? subItem.label : undefined}
+                        onMouseEnter={() => setHoveredItemId(itemId)}
+                        onFocus={() => setHoveredItemId(itemId)}
+                        onClick={() => {
+                          setOpenSelector(null);
+                          if (!subItem.isActive) {
+                            setPendingNav({ fromPathname: pathname, itemId });
+                          }
+                          if (subItem.tab) {
+                            setSyncedProjectTab({
+                              pathnameAtSync: pathname,
+                              projectId: activeProject.id,
+                              tab: subItem.tab,
+                            });
+                            window.dispatchEvent(
+                              new CustomEvent("continuum:project-tab-change", {
+                                detail: {
+                                  projectId: activeProject.id,
+                                  tab: subItem.tab,
+                                },
+                              }),
+                            );
+                          }
+                        }}
                         className={cn(
-                          "menu-item-icon",
-                          subItem.isActive
-                            ? "menu-item-icon-active"
-                            : "menu-item-icon-inactive",
+                          "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
+                          isVisualActive
+                            ? "menu-item-active"
+                            : "menu-item-inactive",
+                          !isExpandedView && "justify-center px-1.5",
                         )}
                       >
-                        <SubIcon
-                          viewBox={subItem.viewBox}
-                          preserveAspectRatio="xMidYMid meet"
-                          className="size-[18px] shrink-0"
-                        />
-                      </span>
-                      {isExpandedView && (
-                        <span className="menu-item-text flex-1 truncate">
-                          {subItem.label}
+                        {renderMotionIndicators(
+                          itemId,
+                          isVisualActive,
+                          isPendingActive,
+                          isHovered,
+                        )}
+                        <span
+                          aria-hidden="true"
+                          className={cn(
+                            "relative z-10 menu-item-icon",
+                            isVisualActive
+                              ? "menu-item-icon-active"
+                              : "menu-item-icon-inactive",
+                          )}
+                        >
+                          <SubIcon
+                            viewBox={subItem.viewBox}
+                            preserveAspectRatio="xMidYMid meet"
+                            className={cn(
+                              "size-[18px] shrink-0 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                              subItem.key === "settings" &&
+                                "group-hover:rotate-12",
+                              subItem.key === "handover" &&
+                                "group-hover:-translate-y-[0.5px] group-hover:scale-105",
+                            )}
+                          />
                         </span>
-                      )}
-                    </Link>
-                  </li>
-                );
+                        {isExpandedView && (
+                          <span className="relative z-10 menu-item-text flex-1 truncate">
+                            {subItem.label}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
 
-                return subItem.key === "settings" ? (
-                  <ProjectSettingsNavigation
-                    key={subItem.key}
-                    organizationId={organizationId ?? ""}
-                    projectId={activeProject.id}
-                    active={
-                      activeProject.status === "ACTIVE" && Boolean(visibleUser)
-                    }
-                  >
-                    {navigationItem}
-                  </ProjectSettingsNavigation>
-                ) : (
-                  navigationItem
-                );
-              })}
-            </ul>
-          </nav>
-        )}
+                  return subItem.key === "settings" ? (
+                    <ProjectSettingsNavigation
+                      key={subItem.key}
+                      organizationId={organizationId ?? ""}
+                      projectId={activeProject.id}
+                      active={
+                        activeProject.status === "ACTIVE" &&
+                        Boolean(visibleUser)
+                      }
+                    >
+                      {navigationItem}
+                    </ProjectSettingsNavigation>
+                  ) : (
+                    navigationItem
+                  );
+                })}
+              </motion.ul>
+            </nav>
+          )}
 
-        <nav aria-label={t("navigation")} className="flex flex-col gap-3 pb-3">
-          <section aria-labelledby="sidebar-organization">
-            <h2
-              id="sidebar-organization"
-              className={cn(
-                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
-                !isExpandedView && "sr-only",
-              )}
-            >
-              {t("groups.organization")}
-            </h2>
-            <ul className="flex flex-col gap-0.5">
-              {visiblePrimaryItems.map(renderItem)}
-            </ul>
-          </section>
-          <section
-            aria-labelledby="sidebar-administration"
-            className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"
+          <nav
+            aria-label={t("navigation")}
+            className="flex flex-col gap-3 pb-3"
           >
-            <h2
-              id="sidebar-administration"
-              className={cn(
-                "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
-                !isExpandedView && "sr-only",
-              )}
+            <section aria-labelledby="sidebar-organization">
+              <h2
+                id="sidebar-organization"
+                className={cn(
+                  "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                  !isExpandedView && "sr-only",
+                )}
+              >
+                {t("groups.organization")}
+              </h2>
+              <ul className="flex flex-col gap-0.5">
+                {visiblePrimaryItems.map(renderItem)}
+              </ul>
+            </section>
+            <section
+              aria-labelledby="sidebar-administration"
+              className="border-t border-gray-200/80 pt-2.5 dark:border-gray-800/80"
             >
-              {t("groups.administration")}
-            </h2>
-            <ul className="flex flex-col gap-0.5">
-              {visibleAdministrationItems.map(renderItem)}
-            </ul>
-          </section>
-        </nav>
-      </div>
+              <h2
+                id="sidebar-administration"
+                className={cn(
+                  "mb-1 px-2.5 text-[11px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500",
+                  !isExpandedView && "sr-only",
+                )}
+              >
+                {t("groups.administration")}
+              </h2>
+              <ul className="flex flex-col gap-0.5">
+                {visibleAdministrationItems.map(renderItem)}
+              </ul>
+            </section>
+          </nav>
+        </div>
+      </LayoutGroup>
 
       <SidebarAccountFooter isExpandedView={isExpandedView} />
 
