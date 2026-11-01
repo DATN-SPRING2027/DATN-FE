@@ -45,3 +45,4 @@ next-env.d.ts
 # Disposable Agent WorkNote browser fixture and screenshots.
 .worknote-agent-preview/
 .worknote-agent-preview-evidence/
+/ContinuumAI_NeuralSignature_React/

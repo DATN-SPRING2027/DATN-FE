@@ -360,6 +360,48 @@ describe("AppSidebar navigation", () => {
     await vi.waitFor(() => expect(replace).toHaveBeenCalledWith("/projects"));
   });
 
+  it("renders the Neural Signature transition overlay while switching organizations and cleans it up if the switch fails", async () => {
+    let rejectSwitch!: (reason?: unknown) => void;
+    selectAsync.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectSwitch = reject;
+        }),
+    );
+    organizations.data = [
+      { id: "org-1", name: "North Star Company" },
+      { id: "org-2", name: "Sunrise Institute" },
+    ];
+    render(<AppSidebar />);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Choose organization" }),
+    );
+    const list = screen.getByRole("region", { name: "Organizations" });
+    const targetBtn = within(list).getByRole("button", {
+      name: /Sunrise Institute/,
+    });
+
+    fireEvent.click(targetBtn);
+    fireEvent.click(targetBtn);
+
+    expect(selectAsync).toHaveBeenCalledTimes(1);
+    expect(
+      screen.getByTestId("organization-neural-transition"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      rejectSwitch(new ApiError(500, "INTERNAL_ERROR", "Switch failed"));
+    });
+
+    expect(
+      screen.queryByTestId("organization-neural-transition"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Organizations" }),
+    ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
+  });
+
   it("routes to /dashboard when switching from /organization/members to an organization without ADMIN access", async () => {
     routeState.pathname = "/organization/members";
     organizations.data = [

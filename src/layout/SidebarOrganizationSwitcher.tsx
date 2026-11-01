@@ -5,6 +5,7 @@ import type {
   SelectOrganizationResponse,
 } from "@/lib/queries/auth/useAccountOnboarding";
 import { useSelectOrganizationMutation } from "@/lib/queries/auth/useAccountOnboarding";
+import OrganizationTransition from "@/components/auth/OrganizationTransition";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { CheckCircleIcon, ChevronDownIcon } from "@/icons/index";
 import { useTranslations } from "next-intl";
@@ -29,7 +30,11 @@ function resolveSwitchDestination(
     }
     return pathname;
   }
-  if (pathname === "/dashboard" || pathname === "/calendar" || pathname === "/profile") {
+  if (
+    pathname === "/dashboard" ||
+    pathname === "/calendar" ||
+    pathname === "/profile"
+  ) {
     return pathname;
   }
   return "/dashboard";
@@ -86,6 +91,12 @@ export default function SidebarOrganizationSwitcher({
     [isOpen, onOpenChange],
   );
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [transitionOrg, setTransitionOrg] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [transitionReady, setTransitionReady] = useState(false);
+  const pendingDestinationRef = useRef<string>("/dashboard");
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const name = organizationName || t("organizationUnavailable");
@@ -113,22 +124,48 @@ export default function SidebarOrganizationSwitcher({
   }, [isOpen, setIsOpen]);
 
   const handleSelect = async (nextOrganizationId: string) => {
-    if (nextOrganizationId === organizationId || select.isPending) {
+    if (
+      nextOrganizationId === organizationId ||
+      select.isPending ||
+      switchingId !== null
+    ) {
       setIsOpen(false);
       return;
     }
 
+    const targetOrganization = organizations.find(
+      (item) => item.id === nextOrganizationId,
+    );
     select.reset();
     setSwitchingId(nextOrganizationId);
+    setTransitionReady(false);
+    setTransitionOrg({
+      id: nextOrganizationId,
+      name: targetOrganization?.name?.trim() || "Continuum AI",
+    });
     try {
       const result = await select.mutateAsync(nextOrganizationId);
-      setIsOpen(false);
-      router.replace(resolveSwitchDestination(pathname, result?.user));
+      const destination = resolveSwitchDestination(pathname, result?.user);
+      pendingDestinationRef.current = destination;
+      if ("prefetch" in router && typeof router.prefetch === "function") {
+        router.prefetch(destination);
+      }
+      setTransitionReady(true);
     } catch {
       // Keep the menu open so the switch failure and retry choice remain visible.
-    } finally {
+      setTransitionOrg(null);
+      setTransitionReady(false);
       setSwitchingId(null);
     }
+  };
+
+  const handleTransitionComplete = () => {
+    const destination = pendingDestinationRef.current;
+    setIsOpen(false);
+    setSwitchingId(null);
+    setTransitionOrg(null);
+    setTransitionReady(false);
+    router.replace(destination);
   };
 
   return (
@@ -206,14 +243,17 @@ export default function SidebarOrganizationSwitcher({
                 {organizations.map((organization) => {
                   const isCurrent = organization.id === organizationId;
                   const isSwitchingTarget =
-                    select.isPending && switchingId === organization.id;
+                    (select.isPending || switchingId !== null) &&
+                    switchingId === organization.id;
                   return (
                     <li key={organization.id}>
                       <button
                         type="button"
                         aria-pressed={isCurrent}
                         aria-busy={isSwitchingTarget}
-                        disabled={select.isPending || isCurrent}
+                        disabled={
+                          select.isPending || switchingId !== null || isCurrent
+                        }
                         onClick={() => void handleSelect(organization.id)}
                         className={cn(
                           "flex min-h-8 w-full cursor-pointer items-center gap-2 rounded-[5px] px-2 py-1.5 text-start transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-default",
@@ -288,6 +328,15 @@ export default function SidebarOrganizationSwitcher({
             </p>
           )}
         </section>
+      )}
+
+      {transitionOrg && (
+        <OrganizationTransition
+          key={transitionOrg.id}
+          organizationName={transitionOrg.name}
+          ready={transitionReady}
+          onComplete={handleTransitionComplete}
+        />
       )}
     </div>
   );
