@@ -347,6 +347,7 @@ export type WorkReport = WorkReportInput &
   }>;
 
 export type WorkReportSettings = Readonly<{
+  reminderLeadMinutes?: number | null;
   projectId: string;
   scope?: WorkReportScope;
   actorRole?: "MANAGER" | "LEADER" | "MEMBER";
@@ -793,6 +794,20 @@ export const workNotesApi = {
       {
         signal,
         cache: "no-store",
+      },
+    );
+  },
+  updateReportReminder(
+    projectId: string,
+    reminderLeadMinutes: number | null,
+    scope: WorkReportScope,
+  ) {
+    return apiClient<WorkReportSettings>(
+      `${projectPath(projectId)}/work-report-settings`,
+      {
+        method: "PATCH",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ reminderLeadMinutes, scope }),
       },
     );
   },

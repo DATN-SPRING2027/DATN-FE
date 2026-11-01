@@ -385,6 +385,8 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
   });
 
   it("creates a thread on first question, docks composer, streams SAG delta chunks, and renders verified [1] & [S1] citations", async () => {
+    const completion = vi.fn();
+    window.addEventListener("continuum:ai-chat-completed", completion);
     createThreadMutateAsync.mockResolvedValueOnce({
       id: "thread-new",
       title: "New chat",
@@ -474,6 +476,8 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       fireEvent.click(screen.getByRole("button", { name: "Send message" }));
     });
 
+    expect(completion).toHaveBeenCalledTimes(1);
+    window.removeEventListener("continuum:ai-chat-completed", completion);
     expect(createThreadMutateAsync).toHaveBeenCalledTimes(1);
     expect(streamAiChatAskMock).toHaveBeenCalledWith(
       expect.objectContaining({

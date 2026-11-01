@@ -42,6 +42,7 @@ export type NotificationTarget = Readonly<{
   projectId?: string | null;
   taskId?: string | null;
   noteId?: string | null;
+  reportId?: string | null;
   conversationId?: string | null;
   messageId?: string | null;
 }>;

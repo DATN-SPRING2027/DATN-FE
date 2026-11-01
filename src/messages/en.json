@@ -1,4 +1,36 @@
 {
+  "aiCompanionNotifications": {
+    "projectLabel": "Project for this conversation",
+    "projectsLoading": "Loading projects…",
+    "chooseProject": "Choose a project",
+    "chooseProjectHelp": "Choose a project above, then send your question. I use that project’s AI Chat and permitted knowledge to answer.",
+    "projectsError": "Could not load your projects.",
+    "retry": "Try again",
+    "noProjects": "No accessible active projects. Select an organization or ask your Manager for project access.",
+    "openAiChat": "Open AI Chat",
+    "notConfigured": "The AI engine is not configured. Ask your administrator to configure the SAG connection, then try again.",
+    "accessDenied": "Your session or access to this project is unavailable. Sign in again or choose another project.",
+    "aiUnavailable": "The AI service could not finish your answer. Your question is kept below; please try again.",
+
+    "reminderBody": "Your Work Report is due {remaining}. Please complete and submit it.",
+    "chatCompleted": "Your AI Chat answer is ready.",
+    "settingsTitle": "AI bot reminders",
+    "settingsHelp": "Remind report authors in the AI bot and by email, even when the app is closed. Applies to this project and reporting tier. Reminders stop after submission.",
+    "leadTime": "Remind before deadline",
+    "leadTimes": {
+      "off": "Off",
+      "60": "1 hour",
+      "120": "2 hours",
+      "1440": "1 day",
+      "2880": "2 days"
+    },
+    "save": "Save reminder",
+    "saved": "Reminder saved.",
+    "saveError": "Could not save the reminder. Please try again.",
+    "reminderTitle": "Your Work Report is due soon",
+    "openReport": "Open Work Reports",
+    "dismiss": "Dismiss reminder"
+  },
   "common": {
     "home": "Home",
     "loading": "Loading…",

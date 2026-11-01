@@ -1,8 +1,21 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CompanionChatClient } from "./companion-chat-client";
 import ContinuumAiCompanion from "./ContinuumAiCompanion";
-import { workNotesApi } from "@/lib/queries/work-notes/useWorkNotes";
-import { apiClient } from "@/lib/api-client";
+
+vi.mock("next-intl", () => ({
+  useTranslations: () => (key: string) =>
+    key === "chatCompleted" ? "Your AI Chat answer is ready." : key,
+}));
+vi.mock("./WorkReportReminderNotice", () => ({ default: () => null }));
+
+vi.mock("./CompanionProjectPicker", () => ({ default: () => <div>Project picker</div> }));
 
 const routeState = vi.hoisted(() => ({
   pathname: "/projects/6ad88b72ed7cd148fcd0e621/work-notes",
@@ -21,9 +34,9 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 
-vi.mock("@/lib/api-client", () => ({
+vi.mock("@/lib/api-client", async (original) => ({
+  ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
-  isAccessOrResourceUnavailableError: () => false,
 }));
 
 vi.mock("@/lib/queries/work-notes/useWorkNotes", () => ({
@@ -61,9 +74,9 @@ describe("ContinuumAiCompanion", () => {
     expect(
       screen.getByRole("dialog", { name: "Continuum AI Companion" }),
     ).toBeVisible();
-    expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Sẵn sàng");
+    expect(screen.getByTestId("ai-companion-status-badge")).toHaveTextContent(
+      "Sẵn sàng",
+    );
     expect(screen.getByTestId("robot-3d-stage")).toHaveAttribute(
       "data-status",
       "idle",
@@ -105,76 +118,62 @@ describe("ContinuumAiCompanion", () => {
     ).toBeVisible();
   });
 
-  it("queries real project Task Notes, Documents, and Work Reports and transitions automatically through thinking -> speaking -> happy", async () => {
-    vi.mocked(workNotesApi.listProjectTaskNotes).mockResolvedValue({
-      data: [
-        {
-          id: "note-1",
-          projectId: "6ad88b72ed7cd148fcd0e621",
-          taskId: "task-1",
-          taskKey: "FE-12",
-          taskTitle: "Authentication & session handling",
-          authorId: "user-1",
-          authorName: "Developer A",
-          type: "TASK_NOTE",
-          title: "Improved token validation",
-          accomplishments: "Added checks for expired tokens.",
-          approach: "Updated authentication middleware.",
-          reason: "Prevent inconsistent session state.",
-          status: "CONFIRMED",
-          createdAt: "2026-10-25T01:00:00.000Z",
-          updatedAt: "2026-10-25T01:00:00.000Z",
-          permissions: {
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canSubmit: false,
-            canReview: false,
-            canConfigure: false,
-          },
-        },
-      ],
-      pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1 },
+  it("streams the actual AI answer instead of a canned workspace summary", async () => {
+    const ask = vi.spyOn(CompanionChatClient.prototype, "ask").mockImplementation(async (_project, query, _signal, onText) => {
+      onText(`Real AI response to: ${query}`);
+      return { content: `Real AI response to: ${query}`, threadId: "thread-1" };
     });
-
-    vi.mocked(workNotesApi.listDocuments).mockResolvedValue({
-      data: [],
-      pagination: { page: 1, pageSize: 20, totalItems: 2, totalPages: 1 },
-    });
-
-    vi.mocked(workNotesApi.listReports).mockResolvedValue({
-      data: [],
-      pagination: { page: 1, pageSize: 20, totalItems: 6, totalPages: 1 },
-    });
-
-    vi.mocked(apiClient).mockResolvedValue({ id: "user-1" } as never);
-
     render(<ContinuumAiCompanion />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Continuum AI Companion" }));
+    fireEvent.click(screen.getByRole("button", { name: /Tóm tắt dự án/i }));
+    expect(await screen.findByText(/Real AI response to:/)).toBeVisible();
+    expect(ask).toHaveBeenCalledWith(routeState.pathname.split("/")[2], expect.any(String), expect.any(AbortSignal), expect.any(Function));
+    ask.mockRestore();
+  });
 
-    await act(async () => {
-      window.dispatchEvent(new CustomEvent("continuum:open-ai-companion"));
-    });
+  it("shows an AI outage and retains the question for retry instead of repeating the introduction", async () => {
+    const ask = vi.spyOn(CompanionChatClient.prototype, "ask").mockRejectedValue(new Error("Offline"));
+    render(<ContinuumAiCompanion />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Continuum AI Companion" }));
+    fireEvent.click(screen.getByRole("button", { name: /Tóm tắt dự án/i }));
+    expect(await screen.findByText("aiUnavailable")).toBeVisible();
+    expect(screen.getByRole("textbox")).not.toHaveValue("");
+    ask.mockRestore();
+  });
 
-    expect(
-      screen.getByRole("dialog", { name: "Continuum AI Companion" }),
-    ).toBeVisible();
+  it("asks for a project instead of calling the obsolete organizations project URL", async () => {
+    routeState.pathname = "/dashboard";
+    const ask = vi.spyOn(CompanionChatClient.prototype, "ask");
+    render(<ContinuumAiCompanion />);
+    fireEvent.click(screen.getByRole("button", { name: "Open Continuum AI Companion" }));
+    fireEvent.click(screen.getByRole("button", { name: /Tóm tắt dự án/i }));
+    expect(screen.getByText("chooseProjectHelp")).toBeVisible();
+    expect(ask).not.toHaveBeenCalled();
+    ask.mockRestore();
+  });
 
+  it("shows a completion bubble after AI Chat completes, including when the bot was minimized", () => {
+    vi.useFakeTimers();
+    render(<ContinuumAiCompanion locale="en" />);
     fireEvent.click(
-      screen.getByRole("button", { name: /Tóm tắt dự án/i }),
+      screen.getByRole("button", { name: "Minimize AI Companion" }),
     );
-
+    act(() =>
+      window.dispatchEvent(
+        new CustomEvent("continuum:ai-chat-completed", {
+          detail: { projectId: "project-1", threadId: "thread-1" },
+        }),
+      ),
+    );
+    expect(screen.getByText("Your AI Chat answer is ready.")).toBeVisible();
+    act(() => vi.advanceTimersByTime(8000));
     expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Đang phân tích...");
-
-    await waitFor(
-      () => {
-        expect(
-          screen.getByText(/Improved token validation/i),
-        ).toBeInTheDocument();
-      },
-      { timeout: 4000 },
-    );
+      screen.queryByText("Your AI Chat answer is ready."),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Hi! Need a quick project summary?"),
+    ).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
   it("renders English labels and greetings when locale is 'en'", () => {
@@ -188,9 +187,9 @@ describe("ContinuumAiCompanion", () => {
       screen.getByRole("button", { name: "Open Continuum AI Companion" }),
     );
 
-    expect(
-      screen.getByTestId("ai-companion-status-badge"),
-    ).toHaveTextContent("Ready");
+    expect(screen.getByTestId("ai-companion-status-badge")).toHaveTextContent(
+      "Ready",
+    );
     expect(
       screen.getByRole("button", { name: /Summarize project/i }),
     ).toBeInTheDocument();

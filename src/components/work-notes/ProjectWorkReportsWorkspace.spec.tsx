@@ -113,12 +113,10 @@ it("keeps freeform canonical v2 Report content without wiping document links and
   expect(
     await screen.findByRole("heading", { name: "Jordan Lee" }),
   ).toBeVisible();
-  expect(
-    screen.getByRole("heading", { name: "Investigation" }),
-  ).toBeVisible();
-  expect(
-    screen.getAllByText(canonical.contentMarkdown).length,
-  ).toBeGreaterThan(0);
+  expect(screen.getByRole("heading", { name: "Investigation" })).toBeVisible();
+  expect(screen.getAllByText(canonical.contentMarkdown).length).toBeGreaterThan(
+    0,
+  );
 
   fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
   expect(
@@ -188,9 +186,7 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
   });
 
   mount();
-  expect(
-    await screen.findByText("Mandatory reporting cadence"),
-  ).toBeVisible();
+  expect(await screen.findByText("Mandatory reporting cadence")).toBeVisible();
   expect(
     await screen.findByRole("heading", { name: "Jordan Lee" }),
   ).toBeVisible();
@@ -198,14 +194,18 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
     screen.getByRole("heading", { name: "Sprint 10 Invitation Flow" }),
   ).toBeVisible();
   expect(
-    screen.getByText(/Completed the invitation route using an outbox transaction/),
+    screen.getByText(
+      /Completed the invitation route using an outbox transaction/,
+    ),
   ).toBeVisible();
   expect(screen.getByText("Author: Jordan Lee")).toBeVisible();
   expect(screen.queryByText("What was done")).not.toBeInTheDocument();
   expect(screen.queryByText("Attach file")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
-  expect(screen.queryByRole("button", { name: /Attach file/i })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: /Attach file/i }),
+  ).not.toBeInTheDocument();
   expect(screen.queryByText("What was done")).not.toBeInTheDocument();
 
   fireEvent.change(screen.getByLabelText(/Title/i), {
@@ -232,10 +232,7 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
 
 it("supports all 1-7 day reporting frequencies in the cadence popover and asks a Leader to confirm a schedule change before saving it", async () => {
   api.mockImplementation(async (path, options) => {
-    if (
-      path.endsWith("/work-report-settings") &&
-      options?.method === "PATCH"
-    ) {
+    if (path.endsWith("/work-report-settings") && options?.method === "PATCH") {
       return {
         projectId,
         actorRole: "LEADER",
@@ -277,9 +274,7 @@ it("supports all 1-7 day reporting frequencies in the cadence popover and asks a
   const select = (await screen.findByLabelText(
     "Reporting frequency",
   )) as HTMLSelectElement;
-  expect(
-    Array.from(select.options).map((option) => option.value),
-  ).toEqual([
+  expect(Array.from(select.options).map((option) => option.value)).toEqual([
     "DAILY",
     "EVERY_2_DAYS",
     "EVERY_3_DAYS",
@@ -316,7 +311,7 @@ it("supports all 1-7 day reporting frequencies in the cadence popover and asks a
   );
 });
 
-it("allows an Organization Manager to switch to the Leader Reports & Schedule tab and configure a separate Leader cadence", async () => {
+it("allows a Manager to configure Leader cadence and reminders without losing the tier scope", async () => {
   api.mockImplementation(async (path, options) => {
     if (
       path === `/capture/projects/${projectId}/work-report-settings` &&
@@ -411,6 +406,20 @@ it("allows an Organization Manager to switch to the Leader Reports & Schedule ta
       }),
     ),
   );
+
+  fireEvent.change(await screen.findByLabelText("Remind before deadline"), {
+    target: { value: "120" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save reminder" }));
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-report-settings`,
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ reminderLeadMinutes: 120, scope: "LEADER" }),
+      }),
+    ),
+  );
 });
 
 it("never shows the false no-report-obligation alert for a Manager viewing active in-period Draft member reports, separates Draft from Overdue, and switches members in the Split-View roster", async () => {
@@ -481,9 +490,7 @@ it("never shows the false no-report-obligation alert for a Manager viewing activ
   expect(
     await screen.findByRole("heading", { name: "Le Hoang Member 1" }),
   ).toBeVisible();
-  expect(
-    screen.getByText("Implemented OAuth callback handler."),
-  ).toBeVisible();
+  expect(screen.getByText("Implemented OAuth callback handler.")).toBeVisible();
 
   // Regression check 1: No contradictory "no report obligation" alert when active period reports exist
   expect(
@@ -494,18 +501,12 @@ it("never shows the false no-report-obligation alert for a Manager viewing activ
 
   // Regression check 2: "Draft / Overdue" merged label is gone; Draft (2) and Overdue (0) are separated
   expect(screen.queryByText(/Draft \/ Overdue/i)).not.toBeInTheDocument();
-  expect(
-    screen.getByRole("tab", { name: /Draft\s+2/i }),
-  ).toBeVisible();
-  expect(
-    screen.getByRole("tab", { name: /Overdue\s+0/i }),
-  ).toBeVisible();
+  expect(screen.getByRole("tab", { name: /Draft\s+2/i })).toBeVisible();
+  expect(screen.getByRole("tab", { name: /Overdue\s+0/i })).toBeVisible();
 
   // Unstarted draft is grouped cleanly in the left roster and selectable
   expect(screen.getByText("Not started (1)")).toBeVisible();
-  fireEvent.click(
-    screen.getByRole("button", { name: /Vo Khoa Member 2/i }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /Vo Khoa Member 2/i }));
   expect(
     await screen.findByRole("heading", { name: "Vo Khoa Member 2" }),
   ).toBeVisible();
@@ -547,7 +548,8 @@ it("allows a Reviewer to approve a submitted Pending Review report from the Spli
       } as never;
     }
     if (
-      path === `/capture/projects/${projectId}/work-reports/${reportId}/approve` &&
+      path ===
+        `/capture/projects/${projectId}/work-reports/${reportId}/approve` &&
       options?.method === "POST"
     ) {
       return {

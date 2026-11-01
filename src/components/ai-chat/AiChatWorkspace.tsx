@@ -942,6 +942,15 @@ function AiChatWorkspaceContent() {
                         : settleRunningSteps(turn.retrievalSteps, "completed"),
                   }),
                 );
+                window.dispatchEvent(
+                  new CustomEvent("continuum:ai-chat-completed", {
+                    detail: {
+                      projectId: requestProjectId,
+                      threadId: targetThreadId,
+                      messageId: finalId,
+                    },
+                  }),
+                );
                 activeAssistantTurnId = finalId;
                 return;
               }

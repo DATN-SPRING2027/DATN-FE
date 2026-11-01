@@ -31,6 +31,7 @@ import {
   type WorkReportStatus,
 } from "@/lib/queries/work-notes/useWorkNotes";
 import WorkNoteComposer from "./WorkNoteComposer";
+import WorkReportReminderSettings from "./WorkReportReminderSettings";
 import WorkNotesPageHeader from "./WorkNotesPageHeader";
 import WorkReportCadencePopover from "./WorkReportCadencePopover";
 
@@ -54,7 +55,10 @@ function statusBadgeClasses(status: WorkReportStatus): string {
   }
 }
 
-function statusDotClasses(status: WorkReportStatus, hasContent: boolean): string {
+function statusDotClasses(
+  status: WorkReportStatus,
+  hasContent: boolean,
+): string {
   switch (status) {
     case "APPROVED":
       return "bg-emerald-500";
@@ -87,9 +91,7 @@ function reportBodyText(report: WorkReport): string {
 }
 
 function hasReportContent(report: WorkReport): boolean {
-  return Boolean(
-    (report.title ?? "").trim() || reportBodyText(report).trim(),
-  );
+  return Boolean((report.title ?? "").trim() || reportBodyText(report).trim());
 }
 
 function countCoreFields(report: WorkReport): number {
@@ -203,11 +205,8 @@ function ReportEditor({
   }
 
   return (
-    <form
-      onSubmit={(event) => void submit(event, true)}
-      className="space-y-4"
-    >
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-2.5 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
+    <form onSubmit={(event) => void submit(event, true)} className="space-y-4">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-200 bg-gray-50/70 px-3.5 py-2.5 text-xs text-gray-600 tabular-nums dark:border-gray-800 dark:bg-gray-950/60 dark:text-gray-400">
         <span className="font-semibold text-gray-800 dark:text-gray-200">
           {t("authorMeta", { author: report.memberName })}
         </span>
@@ -267,7 +266,7 @@ function ReportEditor({
           <p className="text-sm font-semibold text-gray-900 dark:text-white">
             {report.title}
           </p>
-          <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+          <p className="text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
             {reportBodyText(report)}
           </p>
         </div>
@@ -401,7 +400,7 @@ function InlineReportReviewBar({
             setComment(event.target.value);
             setError("");
           }}
-          className="h-9 min-w-48 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 outline-none transition focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+          className="h-9 min-w-48 flex-1 rounded-lg border border-gray-200 bg-white px-3 text-xs text-gray-800 transition outline-none focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
         />
         <Button
           size="sm"
@@ -489,7 +488,7 @@ export default function ProjectWorkReportsWorkspace({
     actorRole === "MANAGER" ||
     Boolean(
       settingsData?.permissions.canConfigure ??
-        memberSettingsData?.permissions.canConfigure,
+      memberSettingsData?.permissions.canConfigure,
     );
 
   const allScopeReports = useMemo(
@@ -773,7 +772,8 @@ export default function ProjectWorkReportsWorkspace({
           ? reportAction.error.message
           : "";
 
-  const submittedInPeriod = periodMetrics.approved + periodMetrics.pendingReview;
+  const submittedInPeriod =
+    periodMetrics.approved + periodMetrics.pendingReview;
   const activePeriodObj =
     effectivePeriod !== "ALL"
       ? periods.find((item) => item.key === effectivePeriod)
@@ -785,8 +785,8 @@ export default function ProjectWorkReportsWorkspace({
 
   const isEditingSelected = Boolean(
     selectedReport &&
-      selectedReport.permissions.canEdit &&
-      editingReportId === selectedReport.id,
+    selectedReport.permissions.canEdit &&
+    editingReportId === selectedReport.id,
   );
 
   function renderRosterItem(item: WorkReport) {
@@ -838,7 +838,7 @@ export default function ProjectWorkReportsWorkspace({
               {item.permissions.canEdit ? ` ${t("youSuffix")}` : ""}
             </div>
             {(reportTitle || effectivePeriod === "ALL") && (
-              <div className="truncate text-xs tabular-nums text-gray-400 dark:text-gray-500">
+              <div className="truncate text-xs text-gray-400 tabular-nums dark:text-gray-500">
                 {effectivePeriod === "ALL"
                   ? `${format.dateTime(new Date(item.periodStart), {
                       dateStyle: "short",
@@ -888,173 +888,192 @@ export default function ProjectWorkReportsWorkspace({
       <WorkNotesPageHeader projectId={projectId} active="reports" />
 
       <div className="space-y-4">
-        {/* MINIMAL TOP TOOLBAR: Scope Tabs + Period Selector + Cadence Popover */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          {settings.isPending && !settingsData && !memberSettingsData ? (
-            <div className="h-9 w-60 animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800" />
-          ) : canSwitchLeaderTier ? (
-            <nav
-              aria-label={t("title")}
-              className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-gray-100 p-1 dark:bg-gray-800"
-            >
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScope("MEMBER");
-                  setPeriodFilter("DEFAULT");
-                  setStatusFilter("ALL");
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                  setPage(1);
-                }}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                  activeScope === "MEMBER"
-                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                }`}
+        {/* SETTINGS CARD: Scope Tabs + Period Selector + Cadence Popover + Reminder */}
+        <section
+          aria-label={t("title")}
+          className="rounded-sm border border-gray-200 bg-white px-3.5 py-3 sm:px-4 dark:border-gray-800 dark:bg-gray-900"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            {settings.isPending && !settingsData && !memberSettingsData ? (
+              <div className="h-8 w-60 animate-pulse rounded-sm bg-gray-100 dark:bg-gray-800" />
+            ) : canSwitchLeaderTier ? (
+              <nav
+                aria-label={t("title")}
+                className="inline-flex flex-wrap items-center gap-1 rounded-sm border border-gray-200 bg-gray-50 p-0.5 dark:border-gray-700 dark:bg-gray-800"
               >
-                <GroupIcon
-                  className={`h-3.5 w-3.5 shrink-0 ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("MEMBER");
+                    setPeriodFilter("DEFAULT");
+                    setStatusFilter("ALL");
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                    setPage(1);
+                  }}
+                  className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
                     activeScope === "MEMBER"
-                      ? "text-brand-600 dark:text-brand-400"
-                      : "text-gray-400"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                   }`}
-                />
-                <span>{t("tabs.memberReports")}</span>
-                {(memberSettingsData?.frequency ??
-                  (activeScope === "MEMBER"
-                    ? settingsData?.frequency
-                    : undefined)) && (
-                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                    {t(
-                      `daysShort.${
-                        (activeScope === "MEMBER"
-                          ? settingsData?.frequency
-                          : undefined) ?? memberSettingsData!.frequency
-                      }`,
-                    )}
-                  </span>
-                )}
-              </button>
+                >
+                  <GroupIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "MEMBER"
+                        ? "text-gray-700 dark:text-gray-200"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>{t("tabs.memberReports")}</span>
+                  {(memberSettingsData?.frequency ??
+                    (activeScope === "MEMBER"
+                      ? settingsData?.frequency
+                      : undefined)) && (
+                    <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
+                      {t(
+                        `daysShort.${
+                          (activeScope === "MEMBER"
+                            ? settingsData?.frequency
+                            : undefined) ?? memberSettingsData!.frequency
+                        }`,
+                      )}
+                    </span>
+                  )}
+                </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveScope("LEADER");
-                  setPeriodFilter("DEFAULT");
-                  setStatusFilter("ALL");
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                  setPage(1);
-                }}
-                className={`inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
-                  activeScope === "LEADER"
-                    ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
-                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                }`}
-              >
-                <UserCircleIcon
-                  className={`h-3.5 w-3.5 shrink-0 ${
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveScope("LEADER");
+                    setPeriodFilter("DEFAULT");
+                    setStatusFilter("ALL");
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                    setPage(1);
+                  }}
+                  className={`inline-flex min-h-8 items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gray-500 pointer-coarse:min-h-11 ${
                     activeScope === "LEADER"
-                      ? "text-brand-600 dark:text-brand-400"
-                      : "text-gray-400"
+                      ? "bg-white text-gray-900 shadow-2xs dark:bg-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                   }`}
-                />
-                <span>
-                  {actorRole === "MANAGER"
-                    ? t("tabs.managerLeaderReports")
-                    : t("tabs.leaderMyReport")}
-                </span>
-                {((activeScope === "LEADER"
-                  ? settingsData?.frequency
-                  : undefined) ??
-                  settingsData?.leaderSettings?.frequency ??
-                  memberSettingsData?.leaderSettings?.frequency) && (
-                  <span className="rounded bg-brand-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
-                    {t(
-                      `daysShort.${
-                        (activeScope === "LEADER"
-                          ? settingsData?.frequency
-                          : undefined) ??
-                        settingsData?.leaderSettings?.frequency ??
-                        memberSettingsData!.leaderSettings!.frequency
-                      }`,
-                    )}
+                >
+                  <UserCircleIcon
+                    className={`h-3.5 w-3.5 shrink-0 ${
+                      activeScope === "LEADER"
+                        ? "text-gray-700 dark:text-gray-200"
+                        : "text-gray-400"
+                    }`}
+                  />
+                  <span>
+                    {actorRole === "MANAGER"
+                      ? t("tabs.managerLeaderReports")
+                      : t("tabs.leaderMyReport")}
                   </span>
-                )}
-              </button>
-            </nav>
-          ) : (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-              <LockIcon className="h-3.5 w-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
-              <span>{t("mandatoryScheduleLabel")}</span>
-            </div>
-          )}
-
-          <div className="flex flex-wrap items-center gap-2">
-            {!reportsQuery.isPending &&
-              !reportsQuery.isError &&
-              allScopeReports.length > 0 &&
-              activePeriodReports.length === 0 && (
-                <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
-                  <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
-                  <span>{t("noActiveCycleArchive")}</span>
+                  {((activeScope === "LEADER"
+                    ? settingsData?.frequency
+                    : undefined) ??
+                    settingsData?.leaderSettings?.frequency ??
+                    memberSettingsData?.leaderSettings?.frequency) && (
+                    <span className="rounded-sm border border-gray-200 px-1 py-0.5 text-xs font-medium text-gray-600 tabular-nums dark:border-gray-600 dark:text-gray-300">
+                      {t(
+                        `daysShort.${
+                          (activeScope === "LEADER"
+                            ? settingsData?.frequency
+                            : undefined) ??
+                          settingsData?.leaderSettings?.frequency ??
+                          memberSettingsData!.leaderSettings!.frequency
+                        }`,
+                      )}
+                    </span>
+                  )}
+                </button>
+              </nav>
+            ) : (
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                  <LockIcon className="h-3.5 w-3.5" />
                 </span>
-              )}
-
-            {periods.length > 0 && (
-              <select
-                aria-label={t("periodSelectLabel")}
-                value={effectivePeriod}
-                onChange={(event) => {
-                  setPeriodFilter(event.target.value);
-                  setSelectedReportId("");
-                  setEditingReportId("");
-                }}
-                className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold tabular-nums text-gray-800 outline-none transition hover:border-gray-300 focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-              >
-                {periods.map((item) => (
-                  <option key={item.key} value={item.key}>
-                    {t("period", {
-                      start: format.dateTime(new Date(item.start), {
-                        dateStyle: "medium",
-                        timeZone: "UTC",
-                      }),
-                      end: format.dateTime(new Date(item.end), {
-                        dateStyle: "medium",
-                        timeZone: "UTC",
-                      }),
-                    })}
-                  </option>
-                ))}
-                {periods.length > 1 && (
-                  <option value="ALL">
-                    {t("allPeriods", { count: totalReportsCount })}
-                  </option>
-                )}
-              </select>
+                <span className="text-xs font-semibold text-gray-900 dark:text-white/90">
+                  {t("mandatoryScheduleLabel")}
+                </span>
+              </div>
             )}
 
-            <WorkReportCadencePopover
-              activeScope={activeScope}
-              actorRole={actorRole}
-              settingsData={settingsData}
-              isPending={settings.isPending}
-              isError={settings.isError}
-              error={settings.error}
-              isFetching={settings.isFetching}
-              isRefetchError={settings.isRefetchError}
-              accessLost={settingsAccessLost}
-              onRetry={() => void settings.refetch()}
-              isSaving={settingsMutation.isPending}
-              saveError={settingsMutation.error}
-              saveSuccess={settingsMutation.isSuccess}
-              onApplyFrequency={async (nextFreq) => {
-                await settingsMutation.mutateAsync(nextFreq);
-              }}
-            />
+            <div className="flex flex-wrap items-center gap-2">
+              {!reportsQuery.isPending &&
+                !reportsQuery.isError &&
+                allScopeReports.length > 0 &&
+                activePeriodReports.length === 0 && (
+                  <span className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 text-xs font-medium text-gray-600 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-400">
+                    <CalenderIcon className="h-3.5 w-3.5 shrink-0 text-gray-400" />
+                    <span>{t("noActiveCycleArchive")}</span>
+                  </span>
+                )}
+
+              {periods.length > 0 && (
+                <select
+                  aria-label={t("periodSelectLabel")}
+                  value={effectivePeriod}
+                  onChange={(event) => {
+                    setPeriodFilter(event.target.value);
+                    setSelectedReportId("");
+                    setEditingReportId("");
+                  }}
+                  className="h-8 rounded-sm border border-gray-200 bg-white px-2.5 text-xs font-semibold text-gray-800 tabular-nums transition outline-none hover:border-gray-300 focus:border-brand-400 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                >
+                  {periods.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {t("period", {
+                        start: format.dateTime(new Date(item.start), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }),
+                        end: format.dateTime(new Date(item.end), {
+                          dateStyle: "medium",
+                          timeZone: "UTC",
+                        }),
+                      })}
+                    </option>
+                  ))}
+                  {periods.length > 1 && (
+                    <option value="ALL">
+                      {t("allPeriods", { count: totalReportsCount })}
+                    </option>
+                  )}
+                </select>
+              )}
+
+              <WorkReportCadencePopover
+                activeScope={activeScope}
+                actorRole={actorRole}
+                settingsData={settingsData}
+                isPending={settings.isPending}
+                isError={settings.isError}
+                error={settings.error}
+                isFetching={settings.isFetching}
+                isRefetchError={settings.isRefetchError}
+                accessLost={settingsAccessLost}
+                onRetry={() => void settings.refetch()}
+                isSaving={settingsMutation.isPending}
+                saveError={settingsMutation.error}
+                saveSuccess={settingsMutation.isSuccess}
+                onApplyFrequency={async (nextFreq) => {
+                  await settingsMutation.mutateAsync(nextFreq);
+                }}
+              />
+            </div>
           </div>
-        </div>
+
+          {settingsData && (
+            <WorkReportReminderSettings
+              key={`${activeScope}:${settingsData.reminderLeadMinutes ?? "off"}`}
+              projectId={projectId}
+              scope={activeScope}
+              leadMinutes={settingsData.reminderLeadMinutes ?? null}
+              canConfigure={settingsData.permissions.canConfigure}
+            />
+          )}
+        </section>
 
         {/* SUBTLE PAST-OVERDUE ALERT STRIP */}
         {hiddenPastOverdueReports.length > 0 && (
@@ -1139,7 +1158,7 @@ export default function ProjectWorkReportsWorkspace({
             aria-label={common("loading")}
             className="grid min-h-96 grid-cols-1 overflow-hidden rounded-2xl border border-gray-200 bg-white md:grid-cols-12 dark:border-gray-800 dark:bg-gray-900"
           >
-            <div className="space-y-2 border-b border-gray-200 bg-gray-50/60 p-3 md:col-span-4 md:border-b-0 md:border-e dark:border-gray-800 dark:bg-gray-950/40">
+            <div className="space-y-2 border-b border-gray-200 bg-gray-50/60 p-3 md:col-span-4 md:border-e md:border-b-0 dark:border-gray-800 dark:bg-gray-950/40">
               {[0, 1, 2, 3].map((idx) => (
                 <div
                   key={idx}
@@ -1267,7 +1286,7 @@ export default function ProjectWorkReportsWorkspace({
 
               <div className="flex flex-wrap items-center gap-3">
                 {activePeriodObj && periodMetrics.total > 0 && (
-                  <div className="inline-flex items-center gap-2 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                  <div className="inline-flex items-center gap-2 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                     <span>
                       {t("due", {
                         date: format.dateTime(new Date(activePeriodObj.dueAt), {
@@ -1303,7 +1322,7 @@ export default function ProjectWorkReportsWorkspace({
                     placeholder={t("searchMemberPlaceholder")}
                     value={searchQuery}
                     onChange={(event) => setSearchQuery(event.target.value)}
-                    className="h-7 w-36 rounded-lg border border-gray-200 bg-gray-50 ps-8 pe-2.5 text-xs text-gray-800 outline-none transition placeholder:text-gray-400 focus:border-brand-400 focus:bg-white sm:w-44 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                    className="h-7 w-36 rounded-lg border border-gray-200 bg-gray-50 ps-8 pe-2.5 text-xs text-gray-800 transition outline-none placeholder:text-gray-400 focus:border-brand-400 focus:bg-white sm:w-44 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                   />
                 </div>
               </div>
@@ -1320,7 +1339,7 @@ export default function ProjectWorkReportsWorkspace({
             ) : (
               <div className="flex min-h-96 flex-col md:flex-row">
                 {/* LEFT PANE: CLEAN MEMBER ROSTER (w-72 = 288px, zero paragraph clutter) */}
-                <div className="flex w-full flex-col justify-between border-b border-gray-200 bg-gray-50/50 md:w-72 md:shrink-0 md:border-b-0 md:border-e dark:border-gray-800 dark:bg-gray-950/40">
+                <div className="flex w-full flex-col justify-between border-b border-gray-200 bg-gray-50/50 md:w-72 md:shrink-0 md:border-e md:border-b-0 dark:border-gray-800 dark:bg-gray-950/40">
                   <div className="max-h-60 space-y-1 overflow-y-auto p-2 md:max-h-none">
                     {sortedReports.length === 0 ? (
                       <p className="px-3 py-8 text-center text-xs text-gray-400 dark:text-gray-500">
@@ -1346,7 +1365,7 @@ export default function ProjectWorkReportsWorkspace({
 
                   {reportsData && reportsData.pagination.totalPages > 1 && (
                     <div className="flex items-center justify-between gap-2 border-t border-gray-200 px-3 py-2 text-xs dark:border-gray-800">
-                      <span className="tabular-nums text-gray-500 dark:text-gray-400">
+                      <span className="text-gray-500 tabular-nums dark:text-gray-400">
                         {common("pagination.total", {
                           count: reportsData.pagination.totalItems,
                         })}
@@ -1394,7 +1413,7 @@ export default function ProjectWorkReportsWorkspace({
                             </span>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <h2 className="break-words text-base font-bold text-gray-900 dark:text-white">
+                                <h2 className="text-base font-bold break-words text-gray-900 dark:text-white">
                                   {selectedReport.memberName}
                                 </h2>
                                 <span
@@ -1418,7 +1437,7 @@ export default function ProjectWorkReportsWorkspace({
                                     : t("memberReportBadge")}
                                 </span>
                               </div>
-                              <p className="mt-1 text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                              <p className="mt-1 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                                 {t("period", {
                                   start: format.dateTime(
                                     new Date(selectedReport.periodStart),
@@ -1448,7 +1467,9 @@ export default function ProjectWorkReportsWorkspace({
                           {selectedReport.permissions.canEdit && (
                             <Button
                               type="button"
-                              variant={isEditingSelected ? "outline" : "primary"}
+                              variant={
+                                isEditingSelected ? "outline" : "primary"
+                              }
                               size="sm"
                               onClick={() =>
                                 setEditingReportId((current) =>
@@ -1540,14 +1561,14 @@ export default function ProjectWorkReportsWorkspace({
                           ) : hasReportContent(selectedReport) ? (
                             <div className="space-y-4">
                               {Boolean(selectedReport.title?.trim()) && (
-                                <h3 className="break-words text-lg font-bold tracking-tight text-gray-900 dark:text-white">
+                                <h3 className="text-lg font-bold tracking-tight break-words text-gray-900 dark:text-white">
                                   {selectedReport.title}
                                 </h3>
                               )}
 
                               <div
                                 aria-label={t("systemMetadataLabel")}
-                                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2 text-xs tabular-nums text-gray-600 dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-400"
+                                className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-gray-100 bg-gray-50/70 px-3.5 py-2 text-xs text-gray-600 tabular-nums dark:border-gray-800 dark:bg-gray-950/50 dark:text-gray-400"
                               >
                                 <span className="font-semibold text-gray-800 dark:text-gray-200">
                                   {t("authorMeta", {
@@ -1636,7 +1657,7 @@ export default function ProjectWorkReportsWorkspace({
                                   )}
                               </div>
 
-                              <div className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                              <div className="text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-800 dark:text-gray-200">
                                 {reportBodyText(selectedReport) ||
                                   common("noValue")}
                               </div>
@@ -1670,7 +1691,7 @@ export default function ProjectWorkReportsWorkspace({
                                     ? t("yourReportEmptyTitle")
                                     : t("emptyReportContent")}
                               </p>
-                              <p className="mt-1 text-xs tabular-nums text-gray-400 dark:text-gray-500">
+                              <p className="mt-1 text-xs text-gray-400 tabular-nums dark:text-gray-500">
                                 {t("due", {
                                   date: format.dateTime(
                                     new Date(selectedReport.dueAt),
