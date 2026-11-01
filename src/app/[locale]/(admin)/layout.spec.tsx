@@ -10,6 +10,10 @@ import AdminLayout from "./layout";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { ApiError } from "@/lib/api-client";
 
+vi.mock("@/components/ai-companion/WorkReportReminderNotice", () => ({ default: () => null }));
+
+vi.mock("@/components/ai-companion/CompanionProjectPicker", () => ({ default: () => null }));
+
 const replace = vi.fn();
 const path = vi.hoisted(() => ({ value: "/dashboard" }));
 vi.mock("@/context/SidebarContext", () => ({

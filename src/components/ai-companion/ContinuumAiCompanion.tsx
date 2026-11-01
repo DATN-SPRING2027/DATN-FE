@@ -10,8 +10,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
-import { workNotesApi } from "@/lib/queries/work-notes/useWorkNotes";
-import { apiClient } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
+import { CompanionChatClient } from "./companion-chat-client";
+import CompanionProjectPicker from "./CompanionProjectPicker";
+import { useTranslations } from "next-intl";
+import WorkReportReminderNotice from "./WorkReportReminderNotice";
 import Robot3D, { type RobotStatus } from "./Robot3D";
 
 type CompanionActionLink = {
@@ -111,259 +114,20 @@ function extractProjectId(pathname: string): string | null {
   return decodeURIComponent(match[1]);
 }
 
-async function buildContextualReply(
-  query: string,
-  projectId: string | null,
-  isEn: boolean,
-): Promise<{ text: string; links: CompanionActionLink[] }> {
-  const normalized = query.toLowerCase().trim();
-
-  if (
-    normalized.includes("what") ||
-    normalized.includes("how") ||
-    normalized.includes("soạn") ||
-    normalized.includes("viết báo cáo") ||
-    normalized.includes("draft")
-  ) {
-    if (projectId) {
-      try {
-        const notesPage = await workNotesApi.listProjectTaskNotes(projectId, 1);
-        const latest = notesPage.data[0];
-        if (latest) {
-          return {
-            text: isEn
-              ? `Based on the latest task note (${latest.taskKey ? `${latest.taskKey} · ` : ""}${latest.title}), here is a structured 3-part draft for your Work Report:\n\n` +
-                `• What was done: ${latest.accomplishments}\n` +
-                `• How it was done: ${latest.approach}\n` +
-                `• Why this approach: ${latest.reason}`
-              : `Dựa trên ghi chú công việc gần nhất (${latest.taskKey ? `${latest.taskKey} · ` : ""}${latest.title}), đây là bản nháp chuẩn cấu trúc 3 phần để bạn đưa vào Báo cáo công việc:\n\n` +
-                `• Việc đã làm: ${latest.accomplishments}\n` +
-                `• Cách thực hiện: ${latest.approach}\n` +
-                `• Lý do chọn hướng này: ${latest.reason}`,
-            links: [
-              {
-                label: isEn ? "Open Work Reports" : "Mở Báo cáo công việc",
-                href: `/projects/${projectId}/work-reports`,
-              },
-              {
-                label: isEn ? "Open Task Notes" : "Mở Ghi chú công việc",
-                href: `/projects/${projectId}/work-notes`,
-              },
-            ],
-          };
-        }
-      } catch {
-        // Fallback to template below
-      }
-    }
-
-    return {
-      text: isEn
-        ? `Continuum AI structured note & report template (What / How / Why):\n\n` +
-          `• What was done: Summarize completed items and concrete deliverables.\n` +
-          `• How it was done: Describe technical implementation, APIs/components, or workflow.\n` +
-          `• Why this approach: Explain the rationale so handover recipients understand the context.`
-        : `Gợi ý khung ghi chú & báo cáo chuẩn Continuum AI (Việc đã làm / Cách thực hiện / Lý do):\n\n` +
-          `• Việc đã làm: Tóm tắt hạng mục đã hoàn thành và kết quả đầu ra rõ ràng.\n` +
-          `• Cách thực hiện: Nêu giải pháp kỹ thuật, API/thành phần hoặc quy trình đã áp dụng.\n` +
-          `• Lý do chọn hướng này: Giải thích bối cảnh để người tiếp nhận bàn giao hiểu rõ quyết định.`,
-      links: projectId
-        ? [
-            {
-              label: isEn ? "Open Work Reports" : "Mở Báo cáo công việc",
-              href: `/projects/${projectId}/work-reports`,
-            },
-          ]
-        : [
-            {
-              label: isEn ? "All Projects" : "Danh sách Dự án",
-              href: "/projects",
-            },
-          ],
-    };
-  }
-
-  if (
-    normalized.includes("handover") ||
-    normalized.includes("bàn giao") ||
-    normalized.includes("quyết định") ||
-    normalized.includes("decision")
-  ) {
-    if (projectId) {
-      const [notesRes, docsRes] = await Promise.allSettled([
-        workNotesApi.listProjectTaskNotes(projectId, 1),
-        workNotesApi.listDocuments(projectId, "ALL", 1),
-      ]);
-      if (notesRes.status === "fulfilled" || docsRes.status === "fulfilled") {
-        const notesPage =
-          notesRes.status === "fulfilled" ? notesRes.value : null;
-        const docsPage = docsRes.status === "fulfilled" ? docsRes.value : null;
-        const decisions = (notesPage?.data ?? [])
-          .slice(0, 3)
-          .map((n) =>
-            isEn
-              ? `• [${n.taskKey ?? "Task"}] ${n.title}: ${n.reason} (by ${n.authorName})`
-              : `• [${n.taskKey ?? "Công việc"}] ${n.title}: ${n.reason} (Thực hiện bởi ${n.authorName})`,
-          )
-          .join("\n");
-        const docTitles = (docsPage?.data ?? [])
-          .slice(0, 3)
-          .map((d) => `• ${d.title} (${d.type} · v${d.version})`)
-          .join("\n");
-
-        return {
-          text: isEn
-            ? `Handover Brief for the current project:\n\n` +
-              `1. Recent technical decisions (${notesPage?.pagination.totalItems ?? 0} Task Notes):\n` +
-              `${decisions || "• No task notes recorded yet."}\n\n` +
-              `2. Reference documentation (${docsPage?.pagination.totalItems ?? 0} Project Documents):\n` +
-              `${docTitles || "• No documents uploaded yet."}`
-            : `Bản tóm tắt Bàn giao tri thức của dự án hiện tại:\n\n` +
-              `1. Quyết định kỹ thuật gần đây (${notesPage?.pagination.totalItems ?? 0} ghi chú công việc):\n` +
-              `${decisions || "• Chưa có ghi chú công việc nào được ghi nhận."}\n\n` +
-              `2. Tài liệu nền tảng (${docsPage?.pagination.totalItems ?? 0} tài liệu dự án):\n` +
-              `${docTitles || "• Chưa có tài liệu nào."}`,
-          links: [
-            {
-              label: isEn ? "View Task Notes" : "Xem Ghi chú công việc",
-              href: `/projects/${projectId}/work-notes`,
-            },
-            {
-              label: isEn ? "View Project Documents" : "Xem Tài liệu dự án",
-              href: `/projects/${projectId}/documents`,
-            },
-          ],
-        };
-      }
-    }
-  }
-
-  if (projectId) {
-    const [notesRes, docsRes, reportsRes] = await Promise.allSettled([
-      workNotesApi.listProjectTaskNotes(projectId, 1),
-      workNotesApi.listDocuments(projectId, "ALL", 1),
-      workNotesApi.listReports(projectId, "ALL", 1),
-    ]);
-
-    if (
-      notesRes.status === "fulfilled" ||
-      docsRes.status === "fulfilled" ||
-      reportsRes.status === "fulfilled"
-    ) {
-      const notesPage = notesRes.status === "fulfilled" ? notesRes.value : null;
-      const docsPage = docsRes.status === "fulfilled" ? docsRes.value : null;
-      const reportsPage =
-        reportsRes.status === "fulfilled" ? reportsRes.value : null;
-
-      const pendingReports = (reportsPage?.data ?? []).filter(
-        (r) => r.status === "PENDING_REVIEW",
-      ).length;
-      const overdueOrDraft = (reportsPage?.data ?? []).filter(
-        (r) => r.status === "OVERDUE" || r.status === "DRAFT",
-      ).length;
-      const latestNote = notesPage?.data[0];
-
-      return {
-        text: isEn
-          ? `Quick overview of the current project:\n\n` +
-            `• Task Notes: ${notesPage?.pagination.totalItems ?? 0} notes${latestNote ? ` (Latest: "${latestNote.title}" by ${latestNote.authorName})` : ""}.\n` +
-            `• Project Documents: ${docsPage?.pagination.totalItems ?? 0} technical documents.\n` +
-            `• Work Reports: ${reportsPage?.pagination.totalItems ?? 0} reports (${pendingReports} pending review, ${overdueOrDraft} draft/overdue).`
-          : `Tổng quan nhanh dữ liệu dự án hiện tại:\n\n` +
-            `• Ghi chú công việc: ${notesPage?.pagination.totalItems ?? 0} ghi chú${latestNote ? ` (Mới nhất: "${latestNote.title}" bởi ${latestNote.authorName})` : ""}.\n` +
-            `• Tài liệu dự án: ${docsPage?.pagination.totalItems ?? 0} tài liệu kỹ thuật.\n` +
-            `• Báo cáo công việc: ${reportsPage?.pagination.totalItems ?? 0} báo cáo (${pendingReports} chờ duyệt, ${overdueOrDraft} bản nháp/quá hạn).`,
-        links: [
-          {
-            label: isEn ? "Task Notes" : "Ghi chú công việc",
-            href: `/projects/${projectId}/work-notes`,
-          },
-          {
-            label: isEn ? "Documents" : "Tài liệu",
-            href: `/projects/${projectId}/documents`,
-          },
-          {
-            label: isEn ? "Work Reports" : "Báo cáo công việc",
-            href: `/projects/${projectId}/work-reports`,
-          },
-          {
-            label: isEn ? "Workspace Tasks" : "Công việc dự án",
-            href: `/projects/${projectId}/work`,
-          },
-        ],
-      };
-    }
-  }
-
-  try {
-    const me = await apiClient<{
-      id: string;
-      organizationId?: string;
-    }>("/auth/me");
-    if (me?.organizationId) {
-      const projectsRes = await apiClient<{
-        data?: Array<{ id: string; name: string; code: string }>;
-      }>(
-        `/organizations/${encodeURIComponent(me.organizationId)}/projects?page=1&pageSize=5&status=ACTIVE`,
-      );
-      const list = projectsRes?.data ?? [];
-      if (list.length > 0) {
-        const summary = list
-          .map((p) => `• ${p.name} (${p.code})`)
-          .join("\n");
-        return {
-          text: isEn
-            ? `I checked your Workspace. There are ${list.length} active projects:\n\n${summary}\n\n` +
-              `Open any project so I can summarize its Task Notes, Documents, and Work Reports in detail!`
-            : `Mình đã kiểm tra Không gian làm việc của bạn. Hiện có ${list.length} dự án đang hoạt động:\n\n${summary}\n\n` +
-              `Bạn có thể mở một dự án bất kỳ để mình tóm tắt Ghi chú công việc, Tài liệu và Báo cáo chi tiết!`,
-          links: [
-            ...list.slice(0, 2).map((p) => ({
-              label: isEn ? `Open ${p.code}` : `Mở ${p.code}`,
-              href: `/projects/${p.id}/work-notes`,
-            })),
-            {
-              label: isEn ? "All Projects" : "Tất cả Dự án",
-              href: "/projects",
-            },
-            { label: isEn ? "Open Chat" : "Mở Trò chuyện", href: "/chat" },
-          ],
-        };
-      }
-    }
-  } catch {
-    // Ignore and return general helpful response
-  }
-
-  return {
-    text: isEn
-      ? `I am Continuum AI's 3D Companion. I can help you:\n` +
-        `• Summarize Task Notes, Project Documents, and Work Reports.\n` +
-        `• Synthesize Handover Briefs from recent technical decisions.\n` +
-        `• Draft structured reports using the What / How / Why format.`
-      : `Mình là Trợ lý AI 3D của Continuum AI. Mình có thể giúp bạn:\n` +
-        `• Tóm tắt tiến độ Ghi chú công việc, Tài liệu dự án và Báo cáo công việc.\n` +
-        `• Tổng hợp bản tin Bàn giao tri thức từ các quyết định kỹ thuật.\n` +
-        `• Gợi ý viết báo cáo theo cấu trúc chuẩn Việc đã làm / Cách thực hiện / Lý do.`,
-    links: [
-      {
-        label: isEn ? "All Projects" : "Danh sách Dự án",
-        href: "/projects",
-      },
-      { label: isEn ? "Open Chat" : "Trò chuyện", href: "/chat" },
-    ],
-  };
-}
-
 export default function ContinuumAiCompanion({
   locale = "vi",
 }: {
   locale?: string;
 } = {}) {
+  const t = useTranslations("aiCompanionNotifications");
+  const [chatNotice, setChatNotice] = useState(false);
   const isEn = locale === "en";
   const pathname = usePathname();
   const activeProjectId = useMemo(() => extractProjectId(pathname), [pathname]);
 
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const chatClient = useRef(new CompanionChatClient());
+  const requestController = useRef<AbortController | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
@@ -383,15 +147,10 @@ export default function ContinuumAiCompanion({
   const dockRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLElement | null>(null);
   const suppressNextClickRef = useRef(false);
-  const streamTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
 
   const clearTimers = useCallback(() => {
-    if (streamTimerRef.current) {
-      clearInterval(streamTimerRef.current);
-      streamTimerRef.current = null;
-    }
     if (transitionTimerRef.current) {
       clearTimeout(transitionTimerRef.current);
       transitionTimerRef.current = null;
@@ -399,8 +158,30 @@ export default function ContinuumAiCompanion({
   }, []);
 
   useEffect(() => {
-    return () => clearTimers();
+    return () => { clearTimers(); requestController.current?.abort(); };
   }, [clearTimers]);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const handleCompleted = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ projectId: string; threadId: string }>
+      ).detail;
+      if (!detail?.projectId || !detail.threadId) return;
+      setChatNotice(true);
+      setIsMinimized(false);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setChatNotice(false), 8000);
+    };
+    window.addEventListener("continuum:ai-chat-completed", handleCompleted);
+    return () => {
+      window.removeEventListener(
+        "continuum:ai-chat-completed",
+        handleCompleted,
+      );
+      if (timer) clearTimeout(timer);
+    };
+  }, []);
 
   useEffect(() => {
     const handleOpenEvent = () => {
@@ -417,91 +198,61 @@ export default function ContinuumAiCompanion({
   }, []);
 
   useEffect(() => {
-    if (isOpen && typeof messagesEndRef.current?.scrollIntoView === "function") {
+    if (
+      isOpen &&
+      typeof messagesEndRef.current?.scrollIntoView === "function"
+    ) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
   }, [messages, isOpen]);
 
+  useEffect(() => () => { requestController.current?.abort(); }, [activeProjectId]);
+
   const runPrompt = useCallback(
     async (promptText: string) => {
       const trimmed = promptText.trim();
-      if (!trimmed || robotStatus === "thinking") return;
-
+      if (!trimmed || requestController.current) return;
+      const projectId = activeProjectId ?? selectedProjectId;
+      if (!projectId) {
+        setMessages((previous) => [...previous, { id: `context-${Date.now()}`, role: "assistant", content: t("chooseProjectHelp") }]);
+        return;
+      }
       clearTimers();
-      const userMsgId = `user-${Date.now()}`;
-      const assistantMsgId = `assistant-${Date.now() + 1}`;
-
-      setMessages((prev) => [
-        ...prev,
-        { id: userMsgId, role: "user", content: trimmed },
+      const controller = new AbortController();
+      requestController.current = controller;
+      const assistantMsgId = `assistant-${Date.now()}`;
+      setMessages((previous) => [...previous,
+        { id: `user-${Date.now()}`, role: "user", content: trimmed },
+        { id: assistantMsgId, role: "assistant", content: "" },
       ]);
       setInput("");
       setRobotStatus("thinking");
-
-      let reply: { text: string; links: CompanionActionLink[] };
       try {
-        const resolvedProjectId =
-          activeProjectId ??
-          extractProjectId(
-            typeof window !== "undefined" ? window.location.pathname : "",
-          );
-        const [built] = await Promise.all([
-          buildContextualReply(trimmed, resolvedProjectId, isEn),
-          new Promise((resolve) => setTimeout(resolve, 500)),
-        ]);
-        reply = built;
-      } catch {
-        reply = {
-          text: isEn
-            ? "Could not connect to workspace data right now. Please try again!"
-            : "Mình chưa thể kết nối dữ liệu lúc này. Bạn vui lòng thử lại nhé!",
-          links: [],
-        };
+        const reply = await chatClient.current.ask(projectId, trimmed, controller.signal, (content) => {
+          if (controller.signal.aborted) return;
+          setRobotStatus("speaking");
+          setMessages((previous) => previous.map((message) => message.id === assistantMsgId ? { ...message, content } : message));
+        });
+        if (controller.signal.aborted) return;
+        setMessages((previous) => previous.map((message) => message.id === assistantMsgId ? {
+          ...message, content: reply.content, links: [{ label: t("openAiChat"), href: `/ai-chat?projectId=${encodeURIComponent(projectId)}` }],
+        } : message));
+        setRobotStatus("happy");
+        setChatNotice(true);
+        transitionTimerRef.current = setTimeout(() => { setRobotStatus("idle"); setChatNotice(false); }, 8000);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        const message = error instanceof ApiError && error.code === "AI_ENGINE_NOT_CONFIGURED"
+          ? t("notConfigured") : error instanceof ApiError && [401, 403, 404].includes(error.status)
+            ? t("accessDenied") : t("aiUnavailable");
+        setMessages((previous) => previous.map((item) => item.id === assistantMsgId ? { ...item, content: message } : item));
+        setRobotStatus("idle");
+        setInput(trimmed);
+      } finally {
+        if (controller.signal.aborted) setRobotStatus("idle");
+        if (requestController.current === controller) requestController.current = null;
       }
-
-      setRobotStatus("speaking");
-      const words = reply.text.split(" ");
-      let index = 0;
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: assistantMsgId,
-          role: "assistant",
-          content: words.slice(0, 3).join(" "),
-          links: reply.links,
-        },
-      ]);
-      index = 3;
-
-      streamTimerRef.current = setInterval(() => {
-        index += 4;
-        if (index >= words.length) {
-          if (streamTimerRef.current) {
-            clearInterval(streamTimerRef.current);
-            streamTimerRef.current = null;
-          }
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsgId ? { ...m, content: reply.text } : m,
-            ),
-          );
-          setRobotStatus("happy");
-          transitionTimerRef.current = setTimeout(() => {
-            setRobotStatus("idle");
-          }, 1500);
-          return;
-        }
-
-        const partial = words.slice(0, index).join(" ");
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === assistantMsgId ? { ...m, content: partial } : m,
-          ),
-        );
-      }, 65);
-    },
-    [activeProjectId, clearTimers, isEn, robotStatus],
+    }, [activeProjectId, selectedProjectId, clearTimers, t],
   );
 
   useEffect(() => {
@@ -521,10 +272,7 @@ export default function ContinuumAiCompanion({
   }, []);
 
   const startDrag = useCallback(
-    (
-      event: ReactPointerEvent<HTMLElement>,
-      targetType: "dock" | "panel",
-    ) => {
+    (event: ReactPointerEvent<HTMLElement>, targetType: "dock" | "panel") => {
       if (event.button !== 0) return;
       const targetEl = event.target as HTMLElement | null;
       if (targetEl?.closest('[data-no-drag="true"]')) return;
@@ -640,8 +388,14 @@ export default function ContinuumAiCompanion({
       typeof window !== "undefined" && window.innerHeight > 0
         ? window.innerHeight
         : 900;
-    const left = Math.min(Math.max(12, position.x), Math.max(12, viewportW - 412));
-    const top = Math.min(Math.max(12, position.y), Math.max(12, viewportH - 510));
+    const left = Math.min(
+      Math.max(12, position.x),
+      Math.max(12, viewportW - 412),
+    );
+    const top = Math.min(
+      Math.max(12, position.y),
+      Math.max(12, viewportH - 510),
+    );
     return { left: `${left}px`, top: `${top}px` };
   }, [position]);
 
@@ -659,12 +413,13 @@ export default function ContinuumAiCompanion({
               ? { left: `${position.x}px`, top: `${position.y}px` }
               : undefined
           }
-          className={`fixed z-40 flex flex-col select-none touch-none ${
+          className={`fixed z-40 flex touch-none flex-col select-none ${
             isDragging ? "cursor-grabbing" : "cursor-grab"
           } ${isOnLeftHalf ? "items-start" : "items-end"} ${
             position ? "" : "end-4 bottom-4 sm:end-6 sm:bottom-5"
           }`}
         >
+          <WorkReportReminderNotice visible={!isOpen} />
           {isMinimized ? (
             <button
               type="button"
@@ -697,10 +452,14 @@ export default function ContinuumAiCompanion({
                 }`}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <span>
-                  {isEn
-                    ? "Hi! Need a quick project summary?"
-                    : "Xin chào! Cần mình tóm tắt dự án không?"}
+                <span role="status" aria-live="polite">
+                  {chatNotice ? (
+                    t("chatCompleted")
+                  ) : isEn ? (
+                    "Hi! Need a quick project summary?"
+                  ) : (
+                    "Xin chào! Cần mình tóm tắt dự án không?"
+                  )}
                 </span>
                 <button
                   type="button"
@@ -770,7 +529,7 @@ export default function ContinuumAiCompanion({
           <header
             data-testid="ai-companion-drag-handle"
             onPointerDown={(event) => startDrag(event, "panel")}
-            className={`relative flex items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-50/60 via-white to-gray-50/40 px-3.5 py-2.5 select-none touch-none dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-900 ${
+            className={`relative flex touch-none items-center gap-3 border-b border-gray-100 bg-gradient-to-b from-brand-50/60 via-white to-gray-50/40 px-3.5 py-2.5 select-none dark:border-gray-800 dark:from-brand-500/10 dark:via-gray-900 dark:to-gray-900 ${
               isDragging ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
@@ -827,6 +586,7 @@ export default function ContinuumAiCompanion({
               </button>
             </div>
           </header>
+          {!activeProjectId && <CompanionProjectPicker value={selectedProjectId} onChange={setSelectedProjectId} disabled={robotStatus === "thinking" || robotStatus === "speaking"} />}
 
           {/* Spacious Conversation Feed */}
           <div className="max-h-80 min-h-56 flex-1 space-y-3 overflow-y-auto px-4 py-3.5">
@@ -845,7 +605,9 @@ export default function ContinuumAiCompanion({
                       : "rounded-es-xs border border-gray-200/80 bg-gray-50/90 text-gray-800 dark:border-gray-800 dark:bg-gray-800/80 dark:text-gray-100"
                   }`}
                 >
-                  {message.id === "welcome" ? getWelcomeText(isEn) : message.content}
+                  {message.id === "welcome"
+                    ? getWelcomeText(isEn)
+                    : message.content}
                 </div>
 
                 {message.links && message.links.length > 0 && (
@@ -871,7 +633,7 @@ export default function ContinuumAiCompanion({
           <div className="flex flex-wrap gap-1.5 border-t border-gray-100 bg-gray-50/60 px-3.5 py-2 dark:border-gray-800 dark:bg-gray-900/60">
             <button
               type="button"
-              disabled={robotStatus === "thinking"}
+              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -889,7 +651,7 @@ export default function ContinuumAiCompanion({
             </button>
             <button
               type="button"
-              disabled={robotStatus === "thinking"}
+              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -903,7 +665,7 @@ export default function ContinuumAiCompanion({
             </button>
             <button
               type="button"
-              disabled={robotStatus === "thinking"}
+              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -937,7 +699,7 @@ export default function ContinuumAiCompanion({
               />
               <button
                 type="submit"
-                disabled={!input.trim() || robotStatus === "thinking"}
+                disabled={!input.trim() || (robotStatus === "thinking" || robotStatus === "speaking")}
                 className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 px-3.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isEn ? "Send" : "Gửi"}

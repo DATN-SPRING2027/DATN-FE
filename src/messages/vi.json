@@ -1,4 +1,36 @@
 {
+  "aiCompanionNotifications": {
+    "projectLabel": "Dự án cho cuộc trò chuyện",
+    "projectsLoading": "Đang tải dự án…",
+    "chooseProject": "Chọn dự án",
+    "chooseProjectHelp": "Bạn hãy chọn dự án phía trên rồi gửi câu hỏi. Mình sẽ trả lời qua AI Chat và tri thức dự án mà bạn được phép truy cập.",
+    "projectsError": "Không thể tải danh sách dự án.",
+    "retry": "Thử lại",
+    "noProjects": "Chưa có dự án đang hoạt động mà bạn được truy cập. Hãy chọn tổ chức hoặc liên hệ Manager để được cấp quyền.",
+    "openAiChat": "Mở AI Chat",
+    "notConfigured": "Hệ thống chưa cấu hình kết nối AI. Hãy nhờ quản trị viên cấu hình kết nối SAG rồi thử lại.",
+    "accessDenied": "Phiên đăng nhập hoặc quyền truy cập dự án không còn khả dụng. Hãy đăng nhập lại hoặc chọn dự án khác.",
+    "aiUnavailable": "Dịch vụ AI chưa thể hoàn tất câu trả lời. Câu hỏi được giữ trong ô nhập để bạn thử lại.",
+
+    "reminderBody": "Báo cáo công việc của bạn đến hạn {remaining}. Hãy hoàn thành và nộp báo cáo nhé.",
+    "chatCompleted": "AI Chat đã trả lời xong câu hỏi của bạn.",
+    "settingsTitle": "Nhắc báo cáo qua bot AI",
+    "settingsHelp": "Nhắc người viết báo cáo qua bot AI và Email, kể cả khi đóng ứng dụng. Áp dụng riêng cho dự án và tầng báo cáo này. Ngừng nhắc sau khi nộp.",
+    "leadTime": "Nhắc trước hạn nộp",
+    "leadTimes": {
+      "off": "Tắt",
+      "60": "1 giờ",
+      "120": "2 giờ",
+      "1440": "1 ngày",
+      "2880": "2 ngày"
+    },
+    "save": "Lưu nhắc báo cáo",
+    "saved": "Đã lưu cài đặt nhắc.",
+    "saveError": "Không thể lưu cài đặt nhắc. Vui lòng thử lại.",
+    "reminderTitle": "Sắp đến hạn nộp Work Report",
+    "openReport": "Mở Báo cáo công việc",
+    "dismiss": "Đóng lời nhắc"
+  },
   "common": {
     "home": "Trang chủ",
     "loading": "Đang tải…",
