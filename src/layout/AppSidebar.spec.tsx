@@ -706,4 +706,38 @@ describe("AppSidebar navigation", () => {
     expect(aside).toHaveStyle({ width: "240px" });
     expect(screen.getByText("Projects")).toBeInTheDocument();
   });
+
+  it("glides the floating hover pill across items and optimistically moves the active indicator on click", () => {
+    routeState.pathname = "/dashboard";
+    render(<AppSidebar />);
+
+    const mainNav = screen.getByRole("navigation", { name: "Main navigation" });
+    const projectNav = screen.getByRole("navigation", {
+      name: "Project navigation",
+    });
+    const dashboardLink = within(mainNav).getByRole("link", {
+      name: "Dashboard",
+    });
+    const handoverLink = within(projectNav).getByRole("link", {
+      name: "Handover",
+    });
+
+    expect(dashboardLink).toHaveAttribute("data-active", "true");
+    expect(within(dashboardLink).getByTestId("sidebar-active-pill")).toBeInTheDocument();
+    expect(within(dashboardLink).getByTestId("sidebar-active-bar")).toBeInTheDocument();
+
+    fireEvent.mouseEnter(handoverLink);
+    expect(
+      within(handoverLink).getByTestId("sidebar-hover-pill-project:handover"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(handoverLink);
+    expect(handoverLink).toHaveAttribute("data-active", "true");
+    expect(handoverLink).toHaveAttribute("data-pending", "true");
+    expect(dashboardLink).not.toHaveAttribute("data-active");
+    expect(within(handoverLink).getByTestId("sidebar-active-pill")).toHaveClass(
+      "sidebar-item-pending-shimmer",
+    );
+    expect(within(handoverLink).getByTestId("sidebar-active-bar")).toBeInTheDocument();
+  });
 });
