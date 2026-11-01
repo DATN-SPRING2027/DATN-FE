@@ -6,6 +6,22 @@ import messages from "@/messages/en.json";
 import { apiClient } from "@/lib/api-client";
 import TaskNotesPanel from "./TaskNotesPanel";
 
+vi.mock("@/i18n/navigation", () => ({
+  Link: ({
+    href,
+    children,
+    ...props
+  }: {
+    href: string;
+    children: React.ReactNode;
+    [key: string]: unknown;
+  }) => (
+    <a href={href} {...props}>
+      {children}
+    </a>
+  ),
+}));
+
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
   apiClient: vi.fn(),
@@ -117,6 +133,47 @@ it("keeps composer collapsed initially, creates a persisted structured note, and
     `/capture/projects/${projectId}/tasks/${taskId}/notes`,
     expect.objectContaining({ method: "POST" }),
   );
+});
+
+it("shows internal AI Chat citation links and session references in note details", async () => {
+  const sourcedNote = {
+    ...note,
+    contentMarkdown: "Decision recorded from the runbook [1] and context [S1].",
+    aiChatSource: {
+      threadId: "thread-1",
+      messageId: "message-1",
+      citations: [
+        {
+          number: 1,
+          sourceLabel: "Runbook",
+          documentId: "507f1f77bcf86cd799439088",
+          documentName: "Architecture Runbook",
+          heading: "Release process",
+          pageFrom: 2,
+          pageTo: 3,
+        },
+      ],
+      sessionCitations: [{ ref: "S1", groupId: "group-1", turnIds: ["turn-1"] }],
+    },
+  };
+  api.mockResolvedValue({
+    data: [sourcedNote],
+    pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+  } as never);
+  mount();
+
+  await screen.findByRole("heading", { name: note.title });
+  expect(screen.queryByText("AI Chat sources")).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "View details" }));
+
+  const sourceLink = await screen.findByRole("link", {
+    name: "Architecture Runbook",
+  });
+  expect(sourceLink).toHaveAttribute(
+    "href",
+    `/projects/${projectId}/documents?documentId=507f1f77bcf86cd799439088`,
+  );
+  expect(screen.getByText("Conversation context")).toBeVisible();
 });
 
 it("edits and archives a permitted Task Note through the actions menu and API", async () => {

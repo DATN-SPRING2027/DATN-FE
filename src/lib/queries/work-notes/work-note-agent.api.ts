@@ -1,5 +1,10 @@
 import { apiClient } from "@/lib/api-client";
-import { csrfHeaders, type TaskNote, type WorkNotesPage } from "./useWorkNotes";
+import {
+  csrfHeaders,
+  type TaskNote,
+  type TaskNoteAiChatSourceInput,
+  type WorkNotesPage,
+} from "./useWorkNotes";
 import type { AssessmentView } from "./work-note-assessment.types";
 export type AgentOperation =
   | "grammar"
@@ -119,7 +124,10 @@ export const agentApi = {
   save: (
     p: string,
     id: string,
-    value: RevisionOperation & { discardOriginalConfirmed: boolean },
+    value: RevisionOperation & {
+      discardOriginalConfirmed: boolean;
+      aiChatSource?: TaskNoteAiChatSourceInput;
+    },
   ) =>
     mutate<Omit<TaskNote, "accomplishments" | "approach" | "reason">>(
       `${draftPath(p, id)}/save`,

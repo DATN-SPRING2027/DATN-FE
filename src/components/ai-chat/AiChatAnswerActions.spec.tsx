@@ -508,6 +508,21 @@ describe("AiChatAnswerActionBar (Copy, Like/Dislike, Read Aloud, Share, Try Agai
     expect(onBranchInNewChat).toHaveBeenCalledTimes(1);
   });
 
+  it("offers saving a completed persisted answer as a Task Note", () => {
+    const onSaveToTaskNote = vi.fn();
+    renderBar({ onSaveToTaskNote });
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const menu = screen.getByRole("menu", { name: "More actions" });
+    const saveItem = within(menu).getByRole("menuitem", {
+      name: "Save to Task Note",
+    });
+    expect(saveItem).toBeVisible();
+
+    fireEvent.click(saveItem);
+    expect(onSaveToTaskNote).toHaveBeenCalledTimes(1);
+  });
+
   it("hides View sources when the turn has no citations and disables Branch while streaming or branching", () => {
     renderBar({
       message: {

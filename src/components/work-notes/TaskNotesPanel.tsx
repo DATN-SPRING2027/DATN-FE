@@ -28,6 +28,7 @@ import {
   workNotesApi,
   type TaskNoteInput,
 } from "@/lib/queries/work-notes/useWorkNotes";
+import WorkNoteAiChatSources from "./WorkNoteAiChatSources";
 
 const EMPTY_INPUT: TaskNoteInput = {
   title: "",
@@ -829,6 +830,12 @@ function TaskNotesContent({
                     <div className="mt-3 rounded-md border border-gray-100 p-3 text-sm leading-6 break-words whitespace-pre-wrap text-gray-700 dark:border-gray-800 dark:text-gray-200">
                       {note.contentMarkdown}
                     </div>
+                  )}
+                  {isExpanded && note.aiChatSource && (
+                    <WorkNoteAiChatSources
+                      projectId={projectId}
+                      source={note.aiChatSource}
+                    />
                   )}
                   {isExpanded && note.contentMarkdown === undefined && (
                     <dl className="mt-3 space-y-3 rounded-md border border-gray-100 bg-gray-50/70 p-3 dark:border-gray-800 dark:bg-gray-950/50">

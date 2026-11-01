@@ -25,6 +25,7 @@ import {
   useProjectTaskNoteQuery,
   useProjectTaskNotesQuery,
 } from "@/lib/queries/work-notes/useWorkNotes";
+import WorkNoteAiChatSources from "./WorkNoteAiChatSources";
 
 type SortOrder = "recent" | "oldest";
 
@@ -196,6 +197,12 @@ function TaskNoteExplorerCard({
         >
           {note.contentMarkdown}
         </div>
+      )}
+      {isExpanded && note.aiChatSource && (
+        <WorkNoteAiChatSources
+          projectId={projectId}
+          source={note.aiChatSource}
+        />
       )}
       {isExpanded && note.contentMarkdown === undefined && (
         <dl

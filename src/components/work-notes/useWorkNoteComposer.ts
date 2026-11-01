@@ -20,6 +20,7 @@ import {
   type AgentResponse,
   type AgentSuggestion,
 } from "@/lib/queries/work-notes/work-note-agent.api";
+import type { TaskNoteAiChatSourceInput } from "@/lib/queries/work-notes/useWorkNotes";
 
 type Fields = { title: string; contentMarkdown: string };
 type AssessmentAction =
@@ -40,11 +41,14 @@ export function useWorkNoteComposer(
   onSaved: (result?: unknown) => void,
   source?: EditorSourceIdentity,
   initialFields?: Fields,
+  aiChatSource?: TaskNoteAiChatSourceInput,
+  startFreshDraft = false,
 ) {
   const t = useTranslations("workNotes.agent");
   const ta = useTranslations("workNotes.assessment");
   const client = useQueryClient();
   const api = source ? editorAgentApi(source) : agentApi;
+  const [createOperation] = useState(() => crypto.randomUUID());
   const key = [
     "worknote-agent-draft",
     projectId,
@@ -54,13 +58,15 @@ export function useWorkNoteComposer(
         ? (source.documentType ?? "OTHER")
         : taskId),
     noteId ?? "new",
+    ...(startFreshDraft ? [createOperation] : []),
   ];
-  const [createOperation] = useState(() => crypto.randomUUID());
   const [closed, setClosed] = useState(false);
   const query = useQuery({
     queryKey: key,
     queryFn: async ({ signal }) =>
-      (await api.resume(projectId, taskId, noteId, signal)) ??
+      (startFreshDraft
+        ? null
+        : await api.resume(projectId, taskId, noteId, signal)) ??
       api.create(projectId, {
         operationId: createOperation,
         taskId,
@@ -496,13 +502,19 @@ export function useWorkNoteComposer(
     try {
       const d = await flush();
       setSaving(true);
-      const signature = JSON.stringify([d.id, d.revision, confirmed]);
+      const signature = JSON.stringify([
+        d.id,
+        d.revision,
+        confirmed,
+        aiChatSource ?? null,
+      ]);
       if (saveRequest.current?.signature !== signature)
         saveRequest.current = { signature, operationId: crypto.randomUUID() };
       const saved = await api.save(projectId, d.id, {
         operationId: saveRequest.current.operationId,
         expectedRevision: d.revision,
         discardOriginalConfirmed: confirmed,
+        ...(aiChatSource ? { aiChatSource } : {}),
       });
       closedDraft.current = true;
       alive.current = false;

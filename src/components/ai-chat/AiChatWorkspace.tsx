@@ -32,6 +32,7 @@ import {
   streamAiChatRegenerate,
 } from "@/lib/queries/ai-chat/ai-chat-stream";
 import type {
+  AiChatMessage,
   AiChatMessagePage,
   AiChatRetrievalStep,
   AiChatSessionCitation,
@@ -62,6 +63,7 @@ import AiChatMindMapPanel from "./AiChatMindMapPanel";
 import { aiMindMapKeys } from "@/lib/queries/ai-chat/useAiMindMap";
 import { isPersistedMessageId } from "./answer-action-utils";
 import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
+import AiChatSaveTaskNoteDialog from "./AiChatSaveTaskNoteDialog";
 import { resolveSessionCitationPreview } from "./citation-utils";
 
 function isProjectOrAuthAccessError(error: unknown): error is ApiError {
@@ -261,6 +263,13 @@ function AiChatWorkspaceContent() {
     parentThreadId: string | null;
     parentTitle: string | null;
   } | null>(null);
+  const [taskNoteSaveTarget, setTaskNoteSaveTarget] = useState<{
+    projectId: string;
+    threadId: string;
+    message: AiChatMessage;
+    questionText: string;
+  } | null>(null);
+  const [taskNoteSavedNotice, setTaskNoteSavedNotice] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const branchNavEpochRef = useRef(0);
@@ -1866,6 +1875,28 @@ function AiChatWorkspaceContent() {
           </div>
         )}
 
+        {taskNoteSavedNotice && (
+          <div className="shrink-0 px-3 pt-2.5 sm:px-6">
+            <div
+              role="status"
+              aria-live="polite"
+              className="mx-auto flex max-w-3xl items-center gap-2.5 rounded-2xl border border-success-200 bg-success-50 px-3.5 py-2 text-success-800 shadow-theme-xs dark:border-success-500/25 dark:bg-success-500/10 dark:text-success-200"
+            >
+              <span className="min-w-0 flex-1 text-xs font-semibold">
+                {t("taskNoteSavedToast")}
+              </span>
+              <button
+                type="button"
+                aria-label={t("taskNoteClose")}
+                onClick={() => setTaskNoteSavedNotice(false)}
+                className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-success-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success-600"
+              >
+                <CloseLineIcon aria-hidden="true" className="size-4" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Permission Denied / Session Revoked Banner */}
         {accessBannerMessage && (
           <div
@@ -1964,6 +1995,14 @@ function AiChatWorkspaceContent() {
               void regenerateAnswer(msg, qMsg)
             }
             onBranchFromMessage={(msg) => void handleBranchFromMessage(msg)}
+            onSaveAnswerToTaskNote={(message, questionText, threadId) =>
+              setTaskNoteSaveTarget({
+                projectId: selectedProject.id,
+                threadId,
+                message,
+                questionText,
+              })
+            }
             onSelectParentThread={(parentId) => {
               setBranchNotice(null);
               handleSelectThread(parentId);
@@ -2041,6 +2080,20 @@ function AiChatWorkspaceContent() {
         }
         onClose={() => setInspectedEvidence(null)}
       />
+      {taskNoteSaveTarget && (
+        <AiChatSaveTaskNoteDialog
+          key={`${taskNoteSaveTarget.projectId}:${taskNoteSaveTarget.threadId}:${taskNoteSaveTarget.message.id}`}
+          projectId={taskNoteSaveTarget.projectId}
+          threadId={taskNoteSaveTarget.threadId}
+          message={taskNoteSaveTarget.message}
+          questionText={taskNoteSaveTarget.questionText}
+          onClose={() => setTaskNoteSaveTarget(null)}
+          onSaved={() => {
+            setTaskNoteSaveTarget(null);
+            setTaskNoteSavedNotice(true);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -86,6 +86,11 @@ export interface AiChatMessageListProps {
     questionMessage?: DisplayAiChatMessage,
   ) => void;
   onBranchFromMessage?: (targetMessage: DisplayAiChatMessage) => void;
+  onSaveAnswerToTaskNote?: (
+    targetMessage: AiChatMessage,
+    questionText: string,
+    threadId: string,
+  ) => void;
   onSelectParentThread?: (parentThreadId: string) => void;
   onInspectEvidence: (evidence: InspectedEvidence) => void;
   onJumpToTurn: (turnId: string, fallback: AiChatSessionCitation) => void;
@@ -512,6 +517,7 @@ export default function AiChatMessageList({
   onRetryTurn,
   onRegenerateMessage,
   onBranchFromMessage,
+  onSaveAnswerToTaskNote,
   onSelectParentThread,
   onInspectEvidence,
   onJumpToTurn,
@@ -1189,6 +1195,18 @@ export default function AiChatMessageList({
                               stopSpeech();
                               onBranchFromMessage(message);
                             }
+                          : undefined
+                      }
+                      onSaveToTaskNote={
+                        onSaveAnswerToTaskNote &&
+                        threadId &&
+                        isPersistedMessageId(message.id)
+                          ? () =>
+                              onSaveAnswerToTaskNote(
+                                effectiveDisplayMessage,
+                                turn.questionMessage?.content ?? "",
+                                threadId,
+                              )
                           : undefined
                       }
                     />
