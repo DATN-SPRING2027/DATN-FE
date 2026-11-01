@@ -1287,22 +1287,77 @@ pre[class*="language-"].line-numbers {
 @keyframes continuumFullscreenEnter {
   from {
     opacity: 0;
-    transform: translateY(14px) scale(0.955);
+    transform: translateX(18px) scale(0.985);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes continuumFullscreenEnterRtl {
+  from {
+    opacity: 0;
+    transform: translateX(-18px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0) scale(1);
   }
 }
 
 @keyframes continuumFullscreenExit {
   from {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateX(0) scale(1);
   }
   to {
     opacity: 0;
-    transform: translateY(10px) scale(0.965);
+    transform: translateX(14px) scale(0.99);
+  }
+}
+
+@keyframes continuumFullscreenExitRtl {
+  from {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.99);
+  }
+}
+
+@keyframes continuumFullscreenContentEnter {
+  from {
+    opacity: 0.96;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes continuumFullscreenMinimizeIconEnter {
+  from {
+    opacity: 0;
+    transform: rotate(90deg) scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
+  }
+}
+
+@keyframes continuumFullscreenMaximizeIconEnter {
+  from {
+    opacity: 0;
+    transform: rotate(-90deg) scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0deg) scale(1);
   }
 }
 
@@ -1433,6 +1488,30 @@ pre[class*="language-"].line-numbers {
   }
   .continuum-fullscreen-exit {
     animation: continuumFullscreenExit 175ms cubic-bezier(0.4, 0, 1, 1) both;
+  }
+  .continuum-fullscreen-dialog {
+    transform-origin: right center;
+  }
+  [dir="rtl"] .continuum-fullscreen-dialog {
+    transform-origin: left center;
+  }
+  [dir="rtl"] .continuum-fullscreen-enter {
+    animation-name: continuumFullscreenEnterRtl;
+  }
+  [dir="rtl"] .continuum-fullscreen-exit {
+    animation-name: continuumFullscreenExitRtl;
+  }
+  .continuum-fullscreen-content-enter {
+    animation: continuumFullscreenContentEnter 170ms cubic-bezier(0.22, 1, 0.36, 1) 55ms both;
+  }
+  .continuum-mind-map-fullscreen-icon {
+    transition: opacity 180ms ease-out, transform 180ms ease-out;
+  }
+  .continuum-fullscreen-minimize-icon-enter {
+    animation: continuumFullscreenMinimizeIconEnter 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .continuum-fullscreen-maximize-icon-enter {
+    animation: continuumFullscreenMaximizeIconEnter 180ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .continuum-docked-enter {
     animation: continuumDockedEnter 280ms cubic-bezier(0.16, 1, 0.3, 1) both;

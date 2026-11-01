@@ -201,6 +201,7 @@ export default function AiChatMindMapPanel({
     string | null
   >(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasToggledFullscreen, setHasToggledFullscreen] = useState(false);
   const [isClosingFullscreen, setIsClosingFullscreen] = useState(false);
   const fullscreenTimerRef = useRef<number | null>(null);
 
@@ -401,6 +402,7 @@ export default function AiChatMindMapPanel({
   }, []);
 
   const handleToggleFullscreen = useCallback(() => {
+    setHasToggledFullscreen(true);
     if (!isFullscreen) {
       if (fullscreenTimerRef.current !== null) {
         window.clearTimeout(fullscreenTimerRef.current);
@@ -726,17 +728,34 @@ export default function AiChatMindMapPanel({
             }
             className="group inline-flex size-8 items-center justify-center rounded-xl text-gray-500 transition-all duration-200 hover:bg-brand-50 hover:text-brand-600 active:scale-92 dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
           >
-            {isFullscreen ? (
-              <MinimizeIcon
-                aria-hidden="true"
-                className="size-4 transition-transform duration-200 group-hover:scale-90"
-              />
-            ) : (
+            <span className="relative inline-flex size-4 items-center justify-center">
               <MaximizeIcon
                 aria-hidden="true"
-                className="size-4 transition-transform duration-200 group-hover:scale-110"
+                className={cn(
+                  "continuum-mind-map-fullscreen-icon absolute inset-0 size-4",
+                  isFullscreen
+                    ? "rotate-90 scale-75 opacity-0"
+                    : cn(
+                        "scale-100 opacity-100 group-hover:scale-110",
+                        hasToggledFullscreen &&
+                          "continuum-fullscreen-maximize-icon-enter",
+                      ),
+                )}
               />
-            )}
+              <MinimizeIcon
+                aria-hidden="true"
+                className={cn(
+                  "continuum-mind-map-fullscreen-icon absolute inset-0 size-4",
+                  isFullscreen
+                    ? cn(
+                        "scale-100 opacity-100 group-hover:scale-90",
+                        hasToggledFullscreen &&
+                          "continuum-fullscreen-minimize-icon-enter",
+                      )
+                    : "-rotate-90 scale-75 opacity-0",
+                )}
+              />
+            </span>
           </button>
 
           <button
@@ -1130,13 +1149,15 @@ export default function AiChatMindMapPanel({
           aria-label={t("mindMapTitle")}
           data-testid="mind-map-fullscreen-dialog"
           className={cn(
-            "relative z-10 flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-white/10 dark:bg-gpt-sidebar",
+            "continuum-fullscreen-dialog relative z-10 flex h-full max-h-[92vh] w-full max-w-7xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl dark:border-white/10 dark:bg-gpt-sidebar",
             isClosingFullscreen
               ? "continuum-fullscreen-exit"
               : "continuum-fullscreen-enter",
           )}
         >
-          {panelBody}
+          <div className="continuum-fullscreen-content-enter flex h-full min-h-0 flex-col">
+            {panelBody}
+          </div>
         </div>
       </div>
     );
