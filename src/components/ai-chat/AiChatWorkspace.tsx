@@ -1887,7 +1887,7 @@ function AiChatWorkspaceContent() {
               </span>
               <button
                 type="button"
-                aria-label={t("taskNoteClose")}
+                aria-label={t("taskNoteDismissNotice")}
                 onClick={() => setTaskNoteSavedNotice(false)}
                 className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-success-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-success-600"
               >

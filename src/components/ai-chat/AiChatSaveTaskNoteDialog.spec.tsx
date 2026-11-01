@@ -119,6 +119,12 @@ describe("AiChatSaveTaskNoteDialog", () => {
     );
     expect(continueButton).toBeEnabled();
     fireEvent.click(continueButton);
+    expect(
+      screen.getByRole("dialog").contains(document.activeElement),
+    ).toBe(true);
+    expect(
+      screen.getByRole("button", { name: "Close Task Note dialog" }),
+    ).toHaveFocus();
 
     const props = composerPropsMock.mock.calls[0]?.[0] as {
       taskId: string;

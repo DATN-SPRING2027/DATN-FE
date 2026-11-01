@@ -5480,6 +5480,7 @@
     "taskNoteDialogTitle": "Lưu câu trả lời thành Ghi chú công việc",
     "taskNoteDialogDescription": "Chọn công việc và xem lại câu trả lời trước khi lưu cùng các nguồn tham chiếu.",
     "taskNoteClose": "Đóng hộp thoại Ghi chú công việc",
+    "taskNoteDismissNotice": "Đóng thông báo đã lưu Ghi chú công việc",
     "taskNoteTaskLabel": "Công việc",
     "taskNoteChooseTask": "Chọn một công việc",
     "taskNoteLoadingTasks": "Đang tải công việc của dự án…",

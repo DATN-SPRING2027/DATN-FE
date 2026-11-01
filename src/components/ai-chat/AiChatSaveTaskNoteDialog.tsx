@@ -91,6 +91,7 @@ export default function AiChatSaveTaskNoteDialog({
   const [contentMarkdown, setContentMarkdown] = useState(message.content);
   const [editing, setEditing] = useState(false);
   const dialogRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const source = useMemo(
     () => makeSource(threadId, message),
     [threadId, message],
@@ -122,6 +123,10 @@ export default function AiChatSaveTaskNoteDialog({
       (previousFocus?.isConnected ? previousFocus : fallback)?.focus();
     };
   }, [message.id]);
+
+  useEffect(() => {
+    if (editing) closeButtonRef.current?.focus();
+  }, [editing]);
 
   function trapDialogFocus(event: KeyboardEvent<HTMLElement>) {
     if (event.key !== "Tab") return;
@@ -170,6 +175,7 @@ export default function AiChatSaveTaskNoteDialog({
             </p>
           </div>
           <button
+            ref={closeButtonRef}
             type="button"
             aria-label={t("taskNoteClose")}
             onClick={onClose}
