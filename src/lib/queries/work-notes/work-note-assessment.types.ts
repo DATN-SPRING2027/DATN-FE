@@ -1,3 +1,9 @@
+import type {
+  AgentQuestionHistoryRef,
+  HistoryFactStatus,
+  HistoryRelation,
+} from "./work-note-agent.api";
+
 // Wire contract: task-note-assessment/v1. Kept in sync with the Capture API.
 export const ASSESSMENT_PURPOSES = [
   "AUTO",
@@ -20,23 +26,48 @@ export type AssessmentState =
   | "paused"
   | "error";
 export type SourceRef = { sourceId: string; quote: string };
+export type AssessmentHistoryMetadata = {
+  factId: string;
+  noteId: string | null;
+  noteTitle: string;
+  date: string;
+  relation: HistoryRelation;
+  taskKey?: string;
+  factStatus: HistoryFactStatus;
+  factKind?: string;
+  factPolarity?: "POSITIVE" | "NEGATIVE" | "UNCERTAIN";
+  sourceType?: "TASK_NOTE" | "CLARIFICATION_LEDGER";
+};
+export type AssessmentClaimHistoryMeta = {
+  relation: HistoryRelation;
+  taskKey?: string;
+  date: string;
+  noteTitle: string;
+  factStatus: HistoryFactStatus;
+};
 export type AssessmentSource = {
   id: string;
-  kind: "TASK" | "NOTE" | "ANSWER";
+  kind: "TASK" | "NOTE" | "ANSWER" | "HISTORY";
   label: string;
   text: string;
   version: string;
   loadStatus: "LOADED" | "INVALID" | "UNAVAILABLE";
   includedInRequest: boolean;
+  history?: AssessmentHistoryMetadata;
 };
 export type AssessmentClaim = {
   id: string;
   text: string;
   sourceRefs: SourceRef[];
-  originKind: "TASK_REQUIREMENT" | "AUTHOR_REPORT";
+  originKind: "TASK_REQUIREMENT" | "AUTHOR_REPORT" | "HISTORICAL_REPORT";
   supportRelation:
-    "FULL" | "PARTIAL" | "CONTRADICTED" | "RELATED_ONLY" | "INSUFFICIENT";
+    | "FULL"
+    | "PARTIAL"
+    | "CONTRADICTED"
+    | "RELATED_ONLY"
+    | "INSUFFICIENT";
   verificationStatus: "AUTHOR_REPORTED" | "NOT_INDEPENDENTLY_VERIFIED";
+  history?: AssessmentClaimHistoryMeta;
 };
 export type AssessmentRequirement = {
   id: string;
@@ -51,6 +82,8 @@ export type AssessmentGap = {
     | "RESULT"
     | "EVIDENCE"
     | "CONTRADICTION"
+    | "HISTORICAL_CONFLICT"
+    | "OUTDATED_INFO"
     | "PURPOSE";
   target: string;
   impact: "BLOCKING" | "OPTIONAL";
@@ -64,6 +97,8 @@ export type AssessmentQuestion = {
   text: string;
   reason: string;
   options: string[];
+  /** Present when the question confirms information from a previous note/answer. */
+  historyRef?: AgentQuestionHistoryRef;
 };
 export type AssessmentAnswer = {
   id: string;
@@ -98,7 +133,11 @@ export type AssessmentView = {
   coverage: {
     requirementId: string;
     status:
-      "SUPPORTED" | "PARTIAL" | "NOT_REPORTED" | "CONTRADICTORY" | "UNKNOWN";
+      | "SUPPORTED"
+      | "PARTIAL"
+      | "NOT_REPORTED"
+      | "CONTRADICTORY"
+      | "UNKNOWN";
     sourceRefs: SourceRef[];
   }[];
   gaps: AssessmentGap[];

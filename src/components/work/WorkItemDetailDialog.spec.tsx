@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkItemDetailDialog from "./WorkItemDetailDialog";
 import type { WorkItem } from "./work-types";
@@ -232,7 +232,7 @@ describe("WorkItemDetailDialog", () => {
     );
   });
 
-  it("splits into 2 resizable panes (Task | Note) on New/Edit Note and 3 panes (Task | Note | AI) with only the Task-Note divider draggable", () => {
+  it("splits into resizable Task | Note | AI panes on New/Edit Note and renders the focused Task Reference view by default with a Full/Compact toggle", () => {
     render(
       <WorkItemDetailDialog
         item={sampleItemWithSubtasks}
@@ -258,6 +258,24 @@ describe("WorkItemDetailDialog", () => {
     expect(resizers).toHaveLength(1);
     expect(resizers[0]).toHaveAttribute("data-testid", "task-note-resizer");
     expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("48%");
+    // Focused Task Reference View is shown by default (no noisy Git CLI card or horizontal 7-col table)
+    expect(screen.getByTestId("split-task-reference-view")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Development git actions" }),
+    ).not.toBeInTheDocument();
+    expect(within(taskPane).getByText("Minh Anh")).toBeInTheDocument();
+    expect(within(taskPane).getByText("Thiết kế schema citation")).toBeInTheDocument();
+
+    // User can toggle to Full Task view and back to Compact Reference view
+    fireEvent.click(screen.getByTestId("split-task-view-mode-toggle"));
+    expect(
+      screen.queryByTestId("split-task-reference-view"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Development git actions" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("split-task-view-mode-toggle"));
+    expect(screen.getByTestId("split-task-reference-view")).toBeInTheDocument();
     expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
       "composer:inline:work-1:new:dismiss=0",
     );
@@ -558,6 +576,136 @@ describe("WorkItemDetailDialog", () => {
     );
     expect(writeText).toHaveBeenCalledWith(
       `git commit -m "${sampleItemWithSubtasks.key}: ${sampleItemWithSubtasks.title}"`,
+    );
+  });
+
+  it("cancels inline description edit on Escape in split view without dismissing the split composer", () => {
+    const onDescriptionChange = vi.fn().mockResolvedValue(true);
+
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          description: "Initial task description",
+        }}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        mode="page"
+        onClose={vi.fn()}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=0",
+    );
+
+    // Start inline description edit inside WorkItemSplitReferencePane
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const descInput = screen.getByRole("textbox", { name: "description" });
+    fireEvent.change(descInput, { target: { value: "Edited draft text" } });
+
+    // First Escape cancels inline description edit ONLY (dismiss remains 0)
+    fireEvent.keyDown(descInput, { key: "Escape" });
+    expect(
+      screen.queryByRole("textbox", { name: "description" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Initial task description")).toBeInTheDocument();
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=0",
+    );
+
+    // Subsequent Escape now forwards dismissSignal=1 to the split composer
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=1",
+    );
+  });
+
+  it("clears subtask description with empty string and surfaces inline error alert without losing draft when task description save fails", async () => {
+    const onUpdateSubtask = vi.fn();
+    const onDescriptionChange = vi
+      .fn<(id: string, description: string | null) => Promise<boolean>>()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error("Server rejected description"));
+
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          description: "Parent description",
+          subtaskItems: [
+            {
+              ...sampleItemWithSubtasks.subtaskItems![0],
+              description: "Subtask initial description",
+            },
+          ],
+        }}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        mode="page"
+        onClose={vi.fn()}
+        onUpdateSubtask={onUpdateSubtask}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    // Enter split mode
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+
+    // 1) Parent task description save returning false keeps editor + draft and shows alert
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const parentTextbox = screen.getByRole("textbox", { name: "description" });
+    fireEvent.change(parentTextbox, { target: { value: "Unsaved draft 1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save description. Please try again.",
+    );
+    expect(screen.getByRole("textbox", { name: "description" })).toHaveValue(
+      "Unsaved draft 1",
+    );
+
+    // 2) Parent task description save rejecting surfaces error message without unhandled rejection
+    fireEvent.change(screen.getByRole("textbox", { name: "description" }), {
+      target: { value: "Unsaved draft 2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Server rejected description",
+    );
+    expect(screen.getByRole("textbox", { name: "description" })).toHaveValue(
+      "Unsaved draft 2",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "cancel" }));
+
+    // 3) Switch to subtask layer, re-open split pane on subtask, and clear subtask description -> sends "" (not undefined)
+    fireEvent.click(screen.getByRole("button", { name: "KNW-142.1" }));
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const subTextbox = screen.getByRole("textbox", { name: "description" });
+    expect(subTextbox).toHaveValue("Subtask initial description");
+    fireEvent.change(subTextbox, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onUpdateSubtask).toHaveBeenCalledWith("work-1", "sub-1", {
+        description: "",
+      }),
     );
   });
 });

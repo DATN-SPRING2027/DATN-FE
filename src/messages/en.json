@@ -2792,6 +2792,41 @@
       "title": "Created {key}",
       "viewAction": "View {key}",
       "dismiss": "Dismiss notification"
+    },
+    "splitResizeAria": "Drag to resize width between Task and Note",
+    "splitResizeTitle": "Drag to resize width (double-click to reset)",
+    "splitTask": {
+      "referenceBadge": "Quick reference",
+      "expandFullView": "Full view",
+      "collapseCompactView": "Compact view",
+      "expandFullViewHint": "Switch to full Task management view",
+      "collapseCompactViewHint": "Switch to compact Task reference view while editing notes",
+      "parentTask": "Parent",
+      "stepsHeading": "Implementation steps",
+      "donePercent": "{percent}% Done",
+      "tabNotes": "Notes",
+      "tabComments": "Comments",
+      "tabWorklog": "Work log",
+      "tabMore": "More info",
+      "noComments": "No comments on this work item yet.",
+      "noWorklogs": "No work logged on this work item yet.",
+      "quickCommentPlaceholder": "Add a quick comment…",
+      "sendComment": "Send",
+      "teamLabel": "Team",
+      "labelsLabel": "Labels",
+      "noLabels": "None",
+      "backToParent": "Back to {key}",
+      "backToList": "Back to task list",
+      "prevSubtask": "Previous subtask",
+      "nextSubtask": "Next subtask",
+      "openFullPage": "Open in full page view",
+      "restoreModalSize": "Restore modal size",
+      "maximizeModal": "Full page view",
+      "subtaskLayerHint": "Subtask detail layer • Child of {key} ({title})",
+      "updateStatusAria": "Update work item status",
+      "updatePriorityAria": "Update work item priority",
+      "completeSubtaskAria": "Complete subtask {key}",
+      "saveDescriptionError": "Could not save description. Please try again."
     }
   },
   "organizationMembers": {
@@ -4074,13 +4109,77 @@
       "thinking": "Agent is preparing a proposal…",
       "skip": "Continue without adding information",
       "unknown": "I do not know",
-      "clarificationBadge": "Needs your clarification",
+      "clarificationBadge": "Needs clarification",
+      "clarificationOtherOption": "Other (specify details)",
+      "clarificationOtherPlaceholder": "Enter details...",
+      "clarificationHintText": "You can also reply in text or select \"Skip\" if you don't have this info yet.",
+      "clarificationSkipBtn": "Skip",
+      "clarificationConfirmBtn": "Confirm",
+      "clarificationNextBtn": "Next",
+      "clarificationBackBtn": "Back",
+      "clarificationStep": "{current}/{total}",
       "clarificationMatrixHint": "Select the status for each item below:",
       "clarificationMultiSelectHint": "Select one or more matching options:",
       "clarificationSingleSelectHint": "Pick a quick matching answer:",
       "clarificationOpenHint": "Enter your answer below or skip if unavailable:",
       "clarificationSubmitSelected": "Submit selection",
       "clarificationFallbackLabel": "Or if the information is not available yet:",
+      "historyRefLabel": "From previous note “{title}” on {date}",
+      "historyRefRelatedLabel": "From note “{title}” of {relation} on {date}",
+      "historyContext": {
+        "title": "Previous notes used by AI ({count})",
+        "subtitle": "Read-only. Taken from saved notes of the same Task and related parent/child Tasks, with sensitive data masked and freshness checked before sending to the AI.",
+        "reload": "Reload previous notes",
+        "loadFailed": "Could not load previous notes. The AI Assistant still works.",
+        "empty": "No previous notes for this Task yet.",
+        "ledgerSource": "Earlier clarification answer",
+        "warningsTitle": "{count} older facts need attention",
+        "relation": {
+          "PARENT": "Parent Task",
+          "CHILD": "Child Task",
+          "LINKED": "Linked Task"
+        },
+        "status": {
+          "CURRENT": "Current",
+          "SUPERSEDED": "Superseded by newer note",
+          "OUTDATED": "May be outdated",
+          "CONFLICT_CURRENT": "Conflicts with the current note",
+          "CONFLICT_TASK": "Conflicts with Task status",
+          "CONFLICT_HISTORY": "Contradicts itself"
+        },
+        "masked": {
+          "PASSWORD": "password",
+          "API_KEY": "API key",
+          "TOKEN": "token",
+          "EMAIL": "email",
+          "PHONE": "phone number",
+          "CREDENTIAL": "credential",
+          "PRIVATE_KEY": "private key",
+          "CLOUD_KEY": "cloud key",
+          "CONNECTION_STRING": "connection password",
+          "HIGH_ENTROPY_SECRET": "secret",
+          "NATIONAL_ID": "national ID",
+          "BANK_CARD": "card number",
+          "BANK_ACCOUNT": "bank account"
+        }
+      },
+      "securityMaskedLabel": "{category} masked",
+      "securityMaskedTooltip": "Sensitive data was masked before being sent to the AI Assistant. The real value stays in your note.",
+      "securityCategory": {
+        "PRIVATE_KEY": "Private key",
+        "CLOUD_KEY": "Cloud key",
+        "API_KEY": "API key",
+        "TOKEN": "Token",
+        "PASSWORD": "Password",
+        "CONNECTION_STRING": "Connection password",
+        "CREDENTIAL": "Credential",
+        "HIGH_ENTROPY_SECRET": "Secret",
+        "EMAIL": "Email",
+        "PHONE": "Phone number",
+        "NATIONAL_ID": "National ID",
+        "BANK_CARD": "Card number",
+        "BANK_ACCOUNT": "Bank account"
+      },
       "fullContext": "Include the whole note for this selection request",
       "instruction": "Message to Agent",
       "send": "Send",
@@ -4264,7 +4363,22 @@
       "taskChecklistHeading": "Checklist progress",
       "taskChecklistProgress": "{done}/{total} completed",
       "taskDuePrefix": "Due: {date}",
-      "aiScopeSummaryBadge": "{count} sources"
+      "aiScopeSummaryBadge": "{count} sources",
+      "securityShield": {
+        "maskedTitle": "Masked {count} sensitive item(s) before sending to AI ({categories})",
+        "restoredLocallyHint": "The AI only received anonymous [[WN_SEC:...]] placeholders and never saw raw secrets. Values in the proposal below were restored locally on the server after safety validation so applying it will not lose note data.",
+        "keptMaskedHint": "The AI only received anonymous [[WN_SEC:...]] placeholders and never saw raw values.",
+        "preSendMaskTitle": "Sensitive data protection active ({categories})",
+        "preSendMaskHint": "These sensitive values will be automatically replaced with anonymous [[WN_SEC:...]] placeholders on the server before reaching AI.",
+        "preSendBlockTitle": "Private Key detected — AI requests will be blocked",
+        "preSendBlockHint": "For security, AI requests are rejected while a Private Key is present. You can still Save your note normally."
+      },
+      "tabAssessment": "Check",
+      "tabTaskContextShort": "Context",
+      "assistantAssessmentSubtitle": "Compare your note against Task requirements to spot missing or conflicting details.",
+      "quickCheckBarLabel": "Compare note against Task requirements",
+      "resizeNoteAiAria": "Drag to resize width between Note and AI Assistant",
+      "resizeNoteAiTitle": "Drag to resize width (double-click to reset)"
     },
     "assessment": {
       "title": "Task information check",
@@ -4380,7 +4494,8 @@
       },
       "origin": {
         "TASK_REQUIREMENT": "Task requirement",
-        "AUTHOR_REPORT": "Author-reported statement"
+        "AUTHOR_REPORT": "Author-reported statement",
+        "HISTORICAL_REPORT": "Historical record (not current evidence)"
       },
       "support": {
         "FULL": "Fully supported by the cited text",
@@ -4413,7 +4528,46 @@
         "WRONG_SOURCE": "Wrong or unsupported source",
         "FALSE_SUFFICIENT": "Incorrectly judged sufficient"
       },
-      "sourceVersion": "Source version: {version}"
+      "sourceVersion": "Source version: {version}",
+      "gapKind": {
+        "SCOPE": "Scope",
+        "IMPLEMENTATION": "Implementation",
+        "RESULT": "Result",
+        "EVIDENCE": "Evidence",
+        "CONTRADICTION": "Current contradiction",
+        "HISTORICAL_CONFLICT": "Historical conflict",
+        "OUTDATED_INFO": "Outdated historical info",
+        "PURPOSE": "Purpose"
+      },
+      "historySource": {
+        "badge": "Historical source",
+        "sameTask": "Same Task",
+        "dateLabel": "Date {date}",
+        "notCurrentEvidence": "Context reference only; never used as proof of current completion."
+      },
+      "introShort": "Check whether your note is clear, aligned with Task requirements, or missing key details.",
+      "recheck": "Recheck",
+      "questionBadge": "Clarification needed",
+      "answerPlaceholder": "Type a brief clarification…",
+      "correctShort": "Correct",
+      "importantBadge": "Important",
+      "summaryHeading": "Summary",
+      "openGapsHeading": "Points to review ({count})",
+      "detailsAccordion": "Comparison details ({count})",
+      "sourcesAccordion": "Referenced sources ({count})",
+      "moreActionsAccordion": "More options & Feedback",
+      "readyBannerTitle": "This note has enough detail for {purpose}.",
+      "readyBannerHint": "You can generate a cleaner draft proposal from these confirmed facts, or Save your note directly.",
+      "stateLabels": {
+        "analyzing": "Checking…",
+        "waiting_for_answer": "Needs clarification",
+        "missing_context": "Missing Task context",
+        "contradiction": "Conflict found",
+        "ready_to_edit": "Ready",
+        "stale": "Needs recheck",
+        "paused": "Questions paused",
+        "error": "Check failed"
+      }
     }
   },
   "projectVisibility": {

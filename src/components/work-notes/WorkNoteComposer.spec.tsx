@@ -999,25 +999,27 @@ it("parses embedded Markdown checkboxes and numbered items in clarification ques
   const aiPanel = screen.getByRole("complementary", { name: "Trợ lý AI" });
   expect(aiPanel).not.toHaveTextContent("- [ ]");
 
-  const item1Group = screen.getByRole("group", {
-    name: "1. Xác định tính cách (mục 1.2)",
-  });
-  const item2Group = screen.getByRole("group", {
-    name: "2. Xác định âm thanh (mục 1.3)",
-  });
+  // Step 1: 1. Xác định tính cách (mục 1.2)
+  expect(screen.getByTestId("clarification-step-badge")).toHaveTextContent("1/2");
+  await screen.findByText(/1\. Xác định tính cách/);
 
-  const submitBtn = screen.getByRole("button", { name: "Gửi lựa chọn" });
-  expect(submitBtn).toBeDisabled();
+  const nextBtn = screen.getByRole("button", { name: "Tiếp theo" });
+  expect(nextBtn).toBeDisabled();
 
-  fireEvent.click(
-    within(item1Group).getByRole("button", { name: "Đang tiến hành" }),
-  );
-  fireEvent.click(
-    within(item2Group).getByRole("button", { name: "Chưa bắt đầu" }),
-  );
-  expect(submitBtn).toBeEnabled();
+  fireEvent.click(screen.getByRole("radio", { name: /Đang tiến hành/ }));
+  expect(nextBtn).toBeEnabled();
+  fireEvent.click(nextBtn);
 
-  fireEvent.click(submitBtn);
+  // Step 2: 2. Xác định âm thanh (mục 1.3)
+  expect(screen.getByTestId("clarification-step-badge")).toHaveTextContent("2/2");
+  await screen.findByText(/2\. Xác định âm thanh/);
+
+  const confirmBtn = screen.getByRole("button", { name: "Xác nhận" });
+  expect(confirmBtn).toBeDisabled();
+
+  fireEvent.click(screen.getByRole("radio", { name: /Chưa bắt đầu/ }));
+  expect(confirmBtn).toBeEnabled();
+  fireEvent.click(confirmBtn);
 
   await waitFor(() =>
     expect(agentApi.message).toHaveBeenNthCalledWith(
@@ -1052,6 +1054,153 @@ it("parses embedded Markdown checkboxes and numbered items in clarification ques
     ),
   );
   await screen.findByText("Đã ghi nhận đầy đủ tiến độ và môi trường kiểm thử.");
+});
+
+it("renders clarification question with single-select radio options, reveals custom text input when 'Khác' is selected, and confirms custom text", async () => {
+  const radioQuestion = {
+    id: "clarify-radio-q3",
+    text: "Bạn đã test module cốt lõi ở trạng thái nào?",
+    reason:
+      "Thông tin này giúp xác nhận kết quả kiểm thử và mức độ hoàn thành của yêu cầu trong Task.",
+    options: [
+      "Đã test module cốt lõi",
+      "Đang tiến hành test module cốt lõi",
+      "Chưa test module cốt lõi",
+    ],
+  };
+
+  vi.mocked(agentApi.message)
+    .mockResolvedValueOnce({
+      status: "CLARIFICATION_REQUIRED",
+      message:
+        "Mình đã xem nội dung và phát hiện một số thông tin còn thiếu so với yêu cầu của Task.",
+      suggestion: null,
+      questions: [radioQuestion],
+      uncertainties: [],
+      sourceRevision: 1,
+    })
+    .mockResolvedValueOnce({
+      status: "ANSWER",
+      message: "Đã cập nhật thông tin kiểm thử.",
+      suggestion: null,
+      questions: [],
+      uncertainties: [],
+      sourceRevision: 1,
+    });
+
+  mount();
+  await screen.findByLabelText("Nội dung");
+  runToolbarTool("Làm rõ nghĩa");
+
+  // Verify header and question card
+  await screen.findByText("Cần làm rõ thêm");
+  await screen.findByText(radioQuestion.text);
+  await screen.findByText(radioQuestion.reason);
+
+  // Verify radio choices including "Khác (nhập chi tiết)"
+  expect(
+    screen.getByRole("radio", { name: /Đã test module cốt lõi/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("radio", { name: /Đang tiến hành test module cốt lõi/ }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("radio", { name: /Chưa test module cốt lõi/ }),
+  ).toBeInTheDocument();
+  const otherRadio = screen.getByRole("radio", {
+    name: /Khác \(nhập chi tiết\)/,
+  });
+  expect(otherRadio).toBeInTheDocument();
+
+  // Confirm button is initially disabled
+  const confirmBtn = screen.getByRole("button", { name: "Xác nhận" });
+  expect(confirmBtn).toBeDisabled();
+
+  // Click "Khác (nhập chi tiết)"
+  fireEvent.click(otherRadio);
+
+  // Input text box appears immediately below
+  const otherInput = screen.getByPlaceholderText("Nhập chi tiết...");
+  expect(otherInput).toBeInTheDocument();
+  expect(confirmBtn).toBeDisabled();
+
+  // Type details
+  fireEvent.change(otherInput, {
+    target: { value: "Đã test 80% luồng chính và viết unit test" },
+  });
+  expect(confirmBtn).toBeEnabled();
+
+  // Click Confirm
+  fireEvent.click(confirmBtn);
+
+  await waitFor(() =>
+    expect(agentApi.message).toHaveBeenNthCalledWith(
+      2,
+      expect.any(String),
+      base.id,
+      expect.objectContaining({
+        replyToQuestionId: radioQuestion.id,
+        questionDisposition: "answered",
+        instruction: "Đã test 80% luồng chính và viết unit test",
+      }),
+    ),
+  );
+  await screen.findByText("Đã cập nhật thông tin kiểm thử.");
+});
+
+it("labels a clarification that confirms information from a previous note instead of re-asking", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "CLARIFICATION_REQUIRED",
+    message: "Cần xác nhận thông tin kiểm thử.",
+    suggestion: null,
+    questions: [
+      {
+        id: "q-history-1",
+        text: 'Ghi chú ngày 31/10/2026: "Đã test module cốt lõi trên staging.". Thông tin này còn đúng không?',
+        reason: "Không hỏi lại từ đầu vì thông tin đã có trong ghi chú “Tiến độ tuần 43”.",
+        options: ["Vẫn đúng như ghi chú cũ", "Đã thay đổi"],
+        historyRef: {
+          factId: "n1#0",
+          noteId: "n1",
+          noteTitle: "Tiến độ tuần 43",
+          date: "2026-10-31",
+          status: "OUTDATED",
+        },
+      },
+    ],
+    uncertainties: [],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByLabelText("Nội dung");
+  runToolbarTool("Làm rõ nghĩa");
+
+  const ref = await screen.findByTestId("clarification-history-ref");
+  expect(ref).toHaveTextContent("Từ ghi chú cũ “Tiến độ tuần 43” ngày 31/10/2026");
+  expect(ref).toHaveTextContent("Có thể đã lỗi thời");
+  expect(screen.getByRole("radio", { name: /Vẫn đúng như ghi chú cũ/ })).toBeInTheDocument();
+});
+
+it("renders server-masked sensitive placeholders in AI chat as a lock chip instead of raw tokens", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "ANSWER",
+    message:
+      "Mật khẩu DB đang là [[WN_SEC:PASSWORD:0a1b2c3d4e]], nên chuyển vào secret manager.",
+    suggestion: null,
+    questions: [],
+    uncertainties: [],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByLabelText("Nội dung");
+  runToolbarTool("Làm rõ nghĩa");
+
+  const chip = await screen.findByTestId("masked-sensitive-chip");
+  expect(chip).toHaveTextContent("Đã che mật khẩu");
+  const aiPanel = screen.getByRole("complementary", { name: "Trợ lý AI" });
+  expect(aiPanel).not.toHaveTextContent("WN_SEC");
 });
 
 it("renders inline without a Modal wrapper when variant='inline' and notifies parent when the AI 3rd column toggles", async () => {
@@ -1356,6 +1505,7 @@ it("wires WorkNoteAssessment inside AI Assistant for Task Notes when enabled, su
     "answer",
   );
 
+  fireEvent.click(await screen.findByText(/Comparison details/));
   fireEvent.click(
     screen.getByRole("button", {
       name: "Correct statement: The queue has not been tested.",
@@ -1454,6 +1604,7 @@ it("auto-reveals a resumed Task assessment, surfaces rewrite proposals in Chat w
     screen.queryByRole("button", { name: enMessages.workNotes.agent.apply }),
   ).not.toBeInTheDocument();
 
+  fireEvent.click(screen.getByText("More options & Feedback"));
   fireEvent.click(
     screen.getByRole("button", { name: "I confirm this reflects my note" }),
   );
@@ -1483,7 +1634,7 @@ it("auto-reveals a resumed Task assessment, surfaces rewrite proposals in Chat w
     }),
   );
   await screen.findByText("The Task context changed");
-  expect(screen.getByText("stale", { exact: true })).toBeInTheDocument();
+  expect(screen.getByText("Needs recheck", { exact: true })).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
   second.unmount();
 
@@ -1556,4 +1707,268 @@ it("disables Undo/Redo and blocks undo() mutations while canonical Save is pendi
     } as Awaited<ReturnType<typeof agentApi.save>>);
   });
   expect(onSaved).toHaveBeenCalledOnce();
+});
+
+it("attributes related-Task confirmations with the source Task relation and key", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "CLARIFICATION_REQUIRED",
+    message: "Cần xác nhận phạm vi áp dụng.",
+    suggestion: null,
+    questions: [
+      {
+        id: "f081a006-489c-4a50-a0df-a54567fdc09b",
+        text: 'Ghi chú ngày 30/10/2026 của Task cha OPS-10: "Chốt dùng Redis Cluster.". Thông tin này có áp dụng cho Task hiện tại không?',
+        reason: "Không hỏi lại từ đầu.",
+        options: ["Áp dụng cho Task này"],
+        historyRef: {
+          factId: "p1#0",
+          noteId: "p1",
+          noteTitle: "Kiến trúc tổng thể",
+          date: "2026-10-30",
+          status: "CURRENT",
+          quote: "Chốt dùng Redis Cluster.",
+          relation: "PARENT",
+          taskKey: "OPS-10",
+        },
+      },
+    ],
+    uncertainties: [],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByDisplayValue(base.contentMarkdown);
+  runToolbarTool("Làm rõ nghĩa");
+
+  const refBanner = await screen.findByTestId("clarification-history-ref");
+  expect(refBanner).toHaveTextContent(
+    "Từ ghi chú “Kiến trúc tổng thể” của Task cha OPS-10 ngày 30/10/2026",
+  );
+  expect(
+    screen.getByRole("radio", { name: "Áp dụng cho Task này" }),
+  ).toBeInTheDocument();
+});
+
+it("shows live pre-send security protection, server-verified security shield on Rewrite proposals, and inline Private Key block errors while keeping Save enabled", async () => {
+  const fakeOpenAiKey = ["sk-proj-", "AbCdEfGhIjKlMnOpQrStUvWxYz123456"].join(
+    "",
+  );
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "SUGGESTION_READY",
+    message: "Đề xuất viết lại ghi chú, giữ nguyên dữ liệu.",
+    suggestion: {
+      id: "f081a006-489c-4a50-a0df-a54567fdc0aa",
+      scope: "whole_note",
+      operation: "grammar",
+      baseRevision: 2,
+      replacementText: `- DB_PASSWORD=SuperSecretStage2026!\n- OpenAI key: ${fakeOpenAiKey}`,
+      suggestedTitle: null,
+      changeSummary: ["Chuẩn hóa gạch đầu dòng."],
+    },
+    questions: [],
+    uncertainties: [],
+    sourceRevision: 2,
+    security: {
+      mode: "enforce",
+      input: {
+        decision: "MASKED",
+        maskedValues: 2,
+        findings: [
+          {
+            ruleId: "openai-anthropic-key",
+            category: "API_KEY",
+            severity: "CRITICAL",
+            count: 1,
+          },
+          {
+            ruleId: "password-assignment",
+            category: "PASSWORD",
+            severity: "HIGH",
+            count: 1,
+          },
+        ],
+      },
+      output: {
+        decision: "PASS",
+        issues: [],
+        unmasked: 2,
+      },
+    },
+  });
+
+  mount();
+  const body = await screen.findByLabelText("Nội dung");
+
+  // 1) Immediately upon pasting maskable secrets (even while AI panel is collapsed), show pre-send shield
+  fireEvent.change(body, {
+    target: {
+      value: `DB_PASSWORD=SuperSecretStage2026!\nOpenAI key: ${fakeOpenAiKey}`,
+    },
+  });
+
+  const preSendMask = screen.getByTestId("agent-presend-security-notice");
+  expect(preSendMask).toHaveAttribute("data-security-level", "mask");
+  expect(preSendMask).toHaveTextContent(
+    "Bảo vệ dữ liệu nhạy cảm đang bật (API key, mật khẩu)",
+  );
+
+  // 2) Run Rewrite -> Proposal card renders server-verified Security Shield explaining local server-side unmasking
+  runToolbarTool("Sửa chính tả & ngữ pháp");
+  const shield = await screen.findByTestId("agent-security-shield");
+  expect(shield).toHaveTextContent(
+    "Đã che 2 dữ liệu nhạy cảm trước khi gửi AI (API key, mật khẩu)",
+  );
+  expect(shield).toHaveTextContent(
+    "AI chỉ nhận mã ẩn danh [[WN_SEC:...]], tuyệt đối không thấy giá trị thật.",
+  );
+
+  // 3) Paste Private Key -> Pre-send switches to BLOCK warning; AI error shows inside panel while Save stays enabled
+  const pemHeader = ["-----BEGIN RSA ", "PRIVATE KEY-----"].join("");
+  const pemFooter = ["-----END RSA ", "PRIVATE KEY-----"].join("");
+  fireEvent.change(body, {
+    target: {
+      value: `${pemHeader}\nMIIEpAIBAAKCAQEA0123456789\n${pemFooter}`,
+    },
+  });
+  const preSendBlock = screen.getByTestId("agent-presend-security-notice");
+  expect(preSendBlock).toHaveAttribute("data-security-level", "block");
+  expect(preSendBlock).toHaveTextContent(
+    "Phát hiện khóa bí mật (Private Key) — Trợ lý AI sẽ chặn gửi đi",
+  );
+
+  vi.mocked(agentApi.message).mockRejectedValueOnce(
+    new ApiError(
+      422,
+      "SENSITIVE_DATA_BLOCKED",
+      "Nội dung chứa dữ liệu bí mật không thể gửi tới Trợ lý AI (ví dụ Private Key).",
+    ),
+  );
+  const chatInput = screen.getByPlaceholderText("Nhập yêu cầu của bạn...");
+  fireEvent.change(chatInput, { target: { value: "Tóm tắt ghi chú này" } });
+  fireEvent.click(screen.getByRole("button", { name: "Gửi yêu cầu" }));
+
+  const alertBanner = await screen.findByRole("alert");
+  expect(alertBanner).toHaveTextContent("Private Key");
+  expect(screen.getByRole("button", { name: "Lưu ghi chú" })).toBeEnabled();
+});
+
+it("isolates Task Assessment in its own Kiểm tra tab without crowding Ngữ cảnh công việc or showing raw enum states", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
+  vi.mocked(agentApi.resume).mockResolvedValueOnce({
+    ...base,
+    assessment: structuredClone(assessmentFixture),
+  });
+
+  mount();
+  // Resuming with an active assessment opens the dedicated Kiểm tra tab directly
+  const badge = await screen.findByTestId("assessment-state-badge");
+  expect(badge).toHaveTextContent("Cần làm rõ thêm");
+  expect(screen.queryByText("waiting_for_answer")).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("region", { name: "Kiểm tra thông tin theo Task" }),
+  ).toBeInTheDocument();
+
+  // Switching to Ngữ cảnh công việc gives Task Context full height without Assessment crowding above it
+  fireEvent.click(screen.getByRole("button", { name: "Ngữ cảnh công việc" }));
+  expect(
+    screen.queryByRole("region", { name: "Kiểm tra thông tin theo Task" }),
+  ).not.toBeInTheDocument();
+
+  // Switching back to Kiểm tra restores the Assessment workspace
+  fireEvent.click(screen.getByRole("button", { name: "Kiểm tra" }));
+  expect(
+    screen.getByRole("region", { name: "Kiểm tra thông tin theo Task" }),
+  ).toBeInTheDocument();
+});
+
+it("supports dragging, keyboard resizing, and double-click reset on the Note-AI splitter", async () => {
+  const onAiPanelWidthChange = vi.fn();
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <NextIntlClientProvider locale="vi" messages={messages}>
+        <WorkNoteComposer
+          variant="inline"
+          initialPanelOpen={true}
+          projectId="651a2b3c4d5e6f7a8b9c0d21"
+          taskId="651a2b3c4d5e6f7a8b9c0d22"
+          onAiPanelWidthChange={onAiPanelWidthChange}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+
+  await screen.findByLabelText("Nội dung");
+  const splitContainer = screen.getByTestId("work-note-editor-ai-split");
+  const resizer = screen.getByTestId("note-ai-resizer");
+  const aiPanel = screen.getByRole("complementary", { name: "Trợ lý AI" });
+
+  expect(resizer).toHaveAttribute(
+    "aria-label",
+    "Kéo để thay đổi chiều rộng giữa Ghi chú và Trợ lý AI",
+  );
+  expect(aiPanel.style.getPropertyValue("--ai-panel-w")).toBe("390px");
+
+  vi.spyOn(splitContainer, "getBoundingClientRect").mockReturnValue({
+    x: 400,
+    y: 0,
+    left: 400,
+    top: 0,
+    width: 1100,
+    height: 850,
+    right: 1500,
+    bottom: 850,
+    toJSON: () => ({}),
+  });
+
+  // Dragging splitter left to clientX = 980 makes AI width = 1500 - 980 = 520px
+  fireEvent.pointerDown(resizer, { button: 0, pointerId: 2, clientX: 1110 });
+  fireEvent.pointerMove(resizer, { pointerId: 2, clientX: 980 });
+  fireEvent.pointerUp(resizer, { pointerId: 2, clientX: 980 });
+  expect(aiPanel.style.getPropertyValue("--ai-panel-w")).toBe("520px");
+  expect(onAiPanelWidthChange).toHaveBeenLastCalledWith(520);
+
+  // Keyboard ArrowRight narrows AI panel by 24px (520 -> 496)
+  fireEvent.keyDown(resizer, { key: "ArrowRight" });
+  expect(aiPanel.style.getPropertyValue("--ai-panel-w")).toBe("496px");
+
+  // Double-clicking resets AI panel width back to default 390px
+  fireEvent.doubleClick(resizer);
+  expect(aiPanel.style.getPropertyValue("--ai-panel-w")).toBe("390px");
+
+  // Losing pointer capture mid-drag clears cursor-col-resize select-none
+  fireEvent.pointerDown(resizer, { button: 0, pointerId: 3, clientX: 1110 });
+  expect(splitContainer.className).toContain("cursor-col-resize");
+  fireEvent.lostPointerCapture(resizer, { pointerId: 3 });
+  expect(splitContainer.className).not.toContain("cursor-col-resize");
+});
+
+it("renders open-ended numbered clarification items as an ordered list and formats masked tokens in uncertainties", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "CLARIFICATION_REQUIRED",
+    message: "Cần làm rõ thêm hai điểm.",
+    suggestion: null,
+    questions: [
+      {
+        id: "open-num-q1",
+        text: "Vui lòng mô tả rõ:\n1. Nguyên nhân lỗi ở [[WN_SEC:API_KEY:0123456789ab]]\n2. Cách kiểm chứng sau khi sửa",
+        reason: "Bổ sung cho Task",
+        options: [],
+      },
+    ],
+    uncertainties: ["Chưa xác minh [[WN_SEC:PASSWORD:abcdef012345]] trên staging."],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByLabelText("Nội dung");
+  runToolbarTool("Làm rõ nghĩa");
+
+  const card = await screen.findByTestId("clarification-question-card");
+  expect(card).toHaveTextContent("Vui lòng mô tả rõ:");
+  expect(card).toHaveTextContent("Nguyên nhân lỗi ở 🔒 API key");
+  expect(card).toHaveTextContent("Cách kiểm chứng sau khi sửa");
+  expect(card).not.toHaveTextContent("WN_SEC");
+  expect(screen.getByText(/Chưa xác minh 🔒 mật khẩu/)).toBeInTheDocument();
 });

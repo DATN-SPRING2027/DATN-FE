@@ -23,7 +23,9 @@ import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
 import TaskNotesPanel, {
   type TaskNotesSplitControl,
 } from "@/components/work-notes/TaskNotesPanel";
+import { Minimize2 } from "lucide-react";
 import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
+import WorkItemSplitReferencePane from "./WorkItemSplitReferencePane";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -509,7 +511,10 @@ export default function WorkItemDetailDialog({
     noteId?: string;
   } | null>(null);
   const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitAiWidthPx, setSplitAiWidthPx] = useState(390);
+  const [splitTaskFullView, setSplitTaskFullView] = useState(false);
   const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [splitInlineEditing, setSplitInlineEditing] = useState(false);
   const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
     Record<string, number>
   >({});
@@ -533,7 +538,15 @@ export default function WorkItemDetailDialog({
       ? splitComposerState
       : null;
   const isSplitOpen = Boolean(activeSplitComposer);
+  const activeSplitterDrag = isSplitOpen && isDraggingSplitter;
   const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  useEffect(() => {
+    if (!activeSplitterDrag) return;
+    const stopDrag = () => setIsDraggingSplitter(false);
+    window.addEventListener("blur", stopDrag);
+    return () => window.removeEventListener("blur", stopDrag);
+  }, [activeSplitterDrag]);
 
   function isSplitRtl(): boolean {
     const container = splitContainerRef.current;
@@ -546,10 +559,12 @@ export default function WorkItemDetailDialog({
     if (!container) return null;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0) return null;
-    const minTaskPx = 300;
-    const aiReservedPx = splitAiOpen ? 390 : 0;
-    const minNotePx = 360;
-    const splitterPx = 10;
+    const minTaskPx = 280;
+    const aiReservedPx = splitAiOpen
+      ? Math.min(splitAiWidthPx, Math.round(rect.width * 0.45))
+      : 0;
+    const minNotePx = 340;
+    const splitterPx = splitAiOpen ? 20 : 10;
     const maxTaskPx = Math.max(
       minTaskPx,
       rect.width - aiReservedPx - minNotePx - splitterPx,
@@ -573,7 +588,7 @@ export default function WorkItemDetailDialog({
   function handleSplitterPointerMove(
     event: ReactPointerEvent<HTMLDivElement>,
   ) {
-    if (!isDraggingSplitter) return;
+    if (!activeSplitterDrag) return;
     const nextPct = computeClampedTaskPct(event.clientX);
     if (nextPct === null) return;
     if (splitAiOpen) setThreeColTaskPct(nextPct);
@@ -583,7 +598,7 @@ export default function WorkItemDetailDialog({
   function handleSplitterPointerUp(
     event: ReactPointerEvent<HTMLDivElement>,
   ) {
-    if (!isDraggingSplitter) return;
+    if (!activeSplitterDrag) return;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
@@ -628,7 +643,10 @@ export default function WorkItemDetailDialog({
       savedSignal: splitSavedSignalByTask[targetTaskId] ?? 0,
       onOpen: (noteId) => {
         if (!item) return;
+        setIsDraggingSplitter(false);
+        setSplitInlineEditing(false);
         setSplitAiOpen(false);
+        setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
         setSplitComposerState({
           parentItemId: item.id,
@@ -637,7 +655,10 @@ export default function WorkItemDetailDialog({
         });
       },
       onClose: () => {
+        setIsDraggingSplitter(false);
+        setSplitInlineEditing(false);
         setSplitAiOpen(false);
+        setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
         setSplitComposerState(null);
       },
@@ -661,15 +682,24 @@ export default function WorkItemDetailDialog({
     if (mode !== "page" || !isSplitOpen) return;
     const handlePageKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (activeTitleEdit || activeDescEdit) return;
+      if (
+        activeTitleEdit ||
+        activeDescEdit ||
+        splitInlineEditing ||
+        event.defaultPrevented
+      ) {
+        return;
+      }
       event.preventDefault();
       setSplitDismissSignal((cur) => cur + 1);
     };
     window.addEventListener("keydown", handlePageKeyDown);
     return () => window.removeEventListener("keydown", handlePageKeyDown);
-  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode]);
+  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode, splitInlineEditing]);
 
   function selectSubtaskLayer(nextSubtaskId: string | null) {
+    setIsDraggingSplitter(false);
+    setSplitInlineEditing(false);
     setSplitAiOpen(false);
     setSplitConfirmOpen(false);
     setSplitComposerState(null);
@@ -1038,6 +1068,9 @@ export default function WorkItemDetailDialog({
     }
     if (activeDescEdit) {
       setDescEditState(null);
+      return;
+    }
+    if (splitInlineEditing) {
       return;
     }
     if (isSplitOpen) {
@@ -1554,6 +1587,25 @@ export default function WorkItemDetailDialog({
                 </div>
               )}
             </div>
+          )}
+
+          {isSplitOpen && splitTaskFullView && (
+            <button
+              type="button"
+              data-testid="split-task-view-mode-toggle"
+              onClick={() => setSplitTaskFullView(false)}
+              title={tr(
+                t,
+                "splitTask.collapseCompactViewHint",
+                "Switch to compact Task reference view while editing notes",
+              )}
+              className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-500/15 dark:text-brand-300"
+            >
+              <Minimize2 className="size-3.5" aria-hidden="true" />
+              <span>
+                {tr(t, "splitTask.collapseCompactView", "Compact view")}
+              </span>
+            </button>
           )}
 
           {/* Watch Counter Toggle */}
@@ -4638,9 +4690,9 @@ export default function WorkItemDetailDialog({
           mode === "page"
             ? "flex h-[calc(100dvh-5.5rem)] min-h-[640px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-sm lg:flex-row dark:border-gray-800 dark:bg-gray-900"
             : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
-        } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
+        } ${activeSplitterDrag ? "cursor-col-resize select-none" : ""}`}
       >
-        {/* Column 1 (Left): Resizable Task Pane */}
+        {/* Column 1 (Left): Resizable Focused Task Reference Pane */}
         <div
           data-testid="work-note-split-task-pane"
           inert={splitConfirmOpen || undefined}
@@ -4651,10 +4703,38 @@ export default function WorkItemDetailDialog({
           }
           className="@container relative max-h-[45dvh] min-h-0 w-full min-w-0 shrink-0 overflow-y-auto border-b border-gray-200 bg-white lg:h-full lg:max-h-none lg:w-[var(--task-split-w)] lg:border-b-0 dark:border-gray-800 dark:bg-gray-900"
         >
-          {detailContent}
+          {splitTaskFullView ? (
+            detailContent
+          ) : (
+            <WorkItemSplitReferencePane
+              item={item}
+              activeSubtask={activeSubtask}
+              activeSubtaskIndex={activeSubtaskIndex}
+              subtaskList={subtaskList}
+              projectId={projectId}
+              mode={mode}
+              isMaximized={isMaximized}
+              isPreview={isPreview}
+              mutationError={mutationError}
+              onDismissMutationError={onDismissMutationError}
+              splitControl={buildSplitControl(activeSplitComposer.taskId)}
+              onExpandFullView={() => setSplitTaskFullView(true)}
+              onClose={onClose}
+              onOpenFullPage={onOpenFullPage}
+              onToggleMaximize={() => setIsMaximized((prev) => !prev)}
+              onSelectSubtaskLayer={selectSubtaskLayer}
+              onInlineEditingChange={setSplitInlineEditing}
+              onStatusChange={onStatusChange}
+              onPriorityChange={onPriorityChange}
+              onToggleSubtask={onToggleSubtask}
+              onUpdateSubtask={onUpdateSubtask}
+              onDescriptionChange={onDescriptionChange}
+              onAddComment={onAddComment}
+            />
+          )}
         </div>
 
-        {/* Draggable Vertical Splitter (ONLY between Task and Note Task) */}
+        {/* Draggable Vertical Splitter between Task and Note */}
         <div
           role="separator"
           data-testid="task-note-resizer"
@@ -4678,6 +4758,7 @@ export default function WorkItemDetailDialog({
           onPointerMove={handleSplitterPointerMove}
           onPointerUp={handleSplitterPointerUp}
           onPointerCancel={handleSplitterPointerUp}
+          onLostPointerCapture={() => setIsDraggingSplitter(false)}
           onKeyDown={handleSplitterKeyDown}
           onDoubleClick={() => {
             if (splitAiOpen) setThreeColTaskPct(33);
@@ -4688,7 +4769,7 @@ export default function WorkItemDetailDialog({
           <div
             aria-hidden="true"
             className={`h-full w-px transition-colors ${
-              isDraggingSplitter
+              activeSplitterDrag
                 ? "w-0.5 bg-brand-500"
                 : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
             }`}
@@ -4696,7 +4777,7 @@ export default function WorkItemDetailDialog({
           <div
             aria-hidden="true"
             className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
-              isDraggingSplitter
+              activeSplitterDrag
                 ? "border-brand-500 bg-brand-500 text-white"
                 : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
             }`}
@@ -4715,13 +4796,17 @@ export default function WorkItemDetailDialog({
           <WorkNoteComposer
             key={`${projectId}:${activeSplitComposer.taskId}:${activeSplitComposer.noteId ?? "new"}`}
             variant="inline"
+            initialPanelOpen={true}
             projectId={projectId}
             taskId={activeSplitComposer.taskId}
             noteId={activeSplitComposer.noteId}
             dismissSignal={splitDismissSignal}
             onPanelOpenChange={setSplitAiOpen}
+            onAiPanelWidthChange={setSplitAiWidthPx}
             onConfirmationChange={setSplitConfirmOpen}
             onClose={() => {
+              setIsDraggingSplitter(false);
+              setSplitInlineEditing(false);
               setSplitAiOpen(false);
               setSplitConfirmOpen(false);
               setSplitComposerState(null);
@@ -4732,6 +4817,8 @@ export default function WorkItemDetailDialog({
                 ...prev,
                 [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
               }));
+              setIsDraggingSplitter(false);
+              setSplitInlineEditing(false);
               setSplitAiOpen(false);
               setSplitConfirmOpen(false);
               setSplitComposerState(null);
