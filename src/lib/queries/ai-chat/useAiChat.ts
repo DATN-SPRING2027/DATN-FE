@@ -8,19 +8,71 @@ import {
 } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api-client";
 import { aiChatCsrfHeaders } from "./ai-chat-stream";
-import type { AiChatMessagePage, AiChatThread } from "./ai-chat.types";
+import type {
+  AiChatMessagePage,
+  AiChatProjectDocumentSources,
+  AiChatThread,
+} from "./ai-chat.types";
 
 export const aiChatKeys = {
   project: (organizationId: string, projectId: string) =>
     ["ai-chat", organizationId, projectId] as const,
   threads: (organizationId: string, projectId: string) =>
     ["ai-chat", organizationId, projectId, "threads"] as const,
+  projectSources: (
+    organizationId: string,
+    projectId: string,
+    page: number,
+    pageSize: number,
+  ) =>
+    [
+      "ai-chat",
+      organizationId,
+      projectId,
+      "document-sources",
+      page,
+      pageSize,
+    ] as const,
   messages: (organizationId: string, projectId: string, threadId: string) =>
     ["ai-chat", organizationId, projectId, "messages", threadId] as const,
 };
 
 function projectBasePath(projectId: string): string {
   return `/ai-chat/projects/${encodeURIComponent(projectId)}`;
+}
+
+export function useAiChatProjectSourcesQuery(
+  organizationId: string,
+  projectId: string,
+  page = 1,
+  pageSize = 25,
+  options: { enabled?: boolean } = {},
+) {
+  return useQuery({
+    queryKey: aiChatKeys.projectSources(
+      organizationId,
+      projectId,
+      page,
+      pageSize,
+    ),
+    queryFn: ({ signal }) => {
+      const params = new URLSearchParams({
+        page: String(page),
+        pageSize: String(pageSize),
+      });
+      return apiClient<AiChatProjectDocumentSources>(
+        `${projectBasePath(projectId)}/document-sources?${params.toString()}`,
+        { signal, cache: "no-store" },
+      );
+    },
+    enabled:
+      Boolean(organizationId) &&
+      Boolean(projectId) &&
+      options.enabled !== false,
+    retry: false,
+    staleTime: 15_000,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function useAiChatThreadsQuery(

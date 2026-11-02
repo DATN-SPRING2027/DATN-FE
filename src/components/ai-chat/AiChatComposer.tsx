@@ -46,6 +46,8 @@ export interface AiChatComposerProps {
   onChange: (nextValue: string) => void;
   onSubmit: () => void;
   onStopStreaming: () => void;
+  totalSourceCount?: number | null;
+  onOpenSources?: () => void;
 }
 
 export default function AiChatComposer({
@@ -66,6 +68,8 @@ export default function AiChatComposer({
   onChange,
   onSubmit,
   onStopStreaming,
+  totalSourceCount,
+  onOpenSources,
 }: AiChatComposerProps) {
   const t = useTranslations("AiChat");
   const internalTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -227,8 +231,8 @@ export default function AiChatComposer({
                 className={cn(
                   "absolute start-0 z-50 w-64 rounded-2xl border border-gray-200 bg-white p-1.5 shadow-theme-lg dark:border-white/10 dark:bg-gpt-popover",
                   variant === "docked"
-                    ? "bottom-11 continuum-popover-up-enter"
-                    : "top-11 continuum-popover-enter",
+                    ? "continuum-popover-up-enter bottom-11"
+                    : "continuum-popover-enter top-11",
                 )}
               >
                 <div className="px-2.5 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500">
@@ -317,6 +321,33 @@ export default function AiChatComposer({
                   max: AI_CHAT_MAX_QUERY_LENGTH,
                 })}
               </span>
+            )}
+
+            {onOpenSources && (
+              <button
+                type="button"
+                data-testid="ai-chat-sources-trigger"
+                aria-label={t("projectSourcesButtonAria", {
+                  total: totalSourceCount ?? "—",
+                })}
+                title={t("projectSourcesButtonTitle", {
+                  total: totalSourceCount ?? "—",
+                })}
+                onClick={() => {
+                  setProjectMenuOpen(false);
+                  setIsPlusMenuOpen(false);
+                  onOpenSources();
+                }}
+                className="inline-flex h-8 min-w-12 cursor-pointer items-center justify-center gap-1 rounded-full border border-gray-200/80 bg-gray-50 px-2 text-xs font-semibold text-gray-700 tabular-nums transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10"
+              >
+                <DocsIcon
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 text-brand-500 dark:text-brand-400"
+                />
+                <span>
+                  {totalSourceCount ?? "—"}
+                </span>
+              </button>
             )}
 
             {hasProjectSelector && projects && onSelectProject && (

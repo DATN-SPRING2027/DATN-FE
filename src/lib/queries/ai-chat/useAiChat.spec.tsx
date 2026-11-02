@@ -1,4 +1,4 @@
-import { act, renderHook } from "@testing-library/react";
+import { act, renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -7,6 +7,7 @@ import {
   aiChatKeys,
   useBranchAiChatThreadMutation,
   useDeleteAiChatThreadMutation,
+  useAiChatProjectSourcesQuery,
   useUpdateAiChatThreadMutation,
 } from "./useAiChat";
 
@@ -36,6 +37,43 @@ describe("useAiChat branch & delete cache lineage synchronization", () => {
       );
     };
   }
+
+  it("loads paginated project source metadata through the authenticated BFF", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const response = {
+      data: [],
+      pagination: { page: 2, pageSize: 10, totalItems: 16, totalPages: 2 },
+      summary: {
+        totalCount: 16,
+        readyCount: 9,
+        verificationStatus: "VERIFIED",
+        verifiedAt: "2026-10-30T12:00:00.000Z",
+      },
+    };
+    apiClientMock.mockResolvedValueOnce(response);
+
+    const { result } = renderHook(
+      () => useAiChatProjectSourcesQuery("org-1", "project-1", 2, 10),
+      { wrapper: createWrapper(queryClient) },
+    );
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(apiClientMock).toHaveBeenCalledWith(
+      "/ai-chat/projects/project-1/document-sources?page=2&pageSize=10",
+      expect.objectContaining({ cache: "no-store" }),
+    );
+    expect(result.current.data?.summary.readyCount).toBe(9);
+    expect(aiChatKeys.projectSources("org-1", "project-1", 2, 10)).toEqual([
+      "ai-chat",
+      "org-1",
+      "project-1",
+      "document-sources",
+      2,
+      10,
+    ]);
+  });
 
   it("posts to the branch endpoint with CSRF headers and prepends the branched thread in cache", async () => {
     const queryClient = new QueryClient({
