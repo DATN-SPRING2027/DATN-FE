@@ -578,4 +578,52 @@ describe("WorkItemDetailDialog", () => {
       `git commit -m "${sampleItemWithSubtasks.key}: ${sampleItemWithSubtasks.title}"`,
     );
   });
+
+  it("cancels inline description edit on Escape in split view without dismissing the split composer", () => {
+    const onDescriptionChange = vi.fn().mockResolvedValue(true);
+
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          description: "Initial task description",
+        }}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        mode="page"
+        onClose={vi.fn()}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=0",
+    );
+
+    // Start inline description edit inside WorkItemSplitReferencePane
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const descInput = screen.getByRole("textbox", { name: "description" });
+    fireEvent.change(descInput, { target: { value: "Edited draft text" } });
+
+    // First Escape cancels inline description edit ONLY (dismiss remains 0)
+    fireEvent.keyDown(descInput, { key: "Escape" });
+    expect(
+      screen.queryByRole("textbox", { name: "description" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Initial task description")).toBeInTheDocument();
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=0",
+    );
+
+    // Subsequent Escape now forwards dismissSignal=1 to the split composer
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
+      "composer:inline:work-1:new:dismiss=1",
+    );
+  });
 });

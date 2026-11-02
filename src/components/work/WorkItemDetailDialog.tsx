@@ -514,6 +514,7 @@ export default function WorkItemDetailDialog({
   const [splitAiWidthPx, setSplitAiWidthPx] = useState(390);
   const [splitTaskFullView, setSplitTaskFullView] = useState(false);
   const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
+  const [splitInlineEditing, setSplitInlineEditing] = useState(false);
   const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
     Record<string, number>
   >({});
@@ -537,7 +538,15 @@ export default function WorkItemDetailDialog({
       ? splitComposerState
       : null;
   const isSplitOpen = Boolean(activeSplitComposer);
+  const activeSplitterDrag = isSplitOpen && isDraggingSplitter;
   const activeTaskWidthPct = splitAiOpen ? threeColTaskPct : twoColTaskPct;
+
+  useEffect(() => {
+    if (!activeSplitterDrag) return;
+    const stopDrag = () => setIsDraggingSplitter(false);
+    window.addEventListener("blur", stopDrag);
+    return () => window.removeEventListener("blur", stopDrag);
+  }, [activeSplitterDrag]);
 
   function isSplitRtl(): boolean {
     const container = splitContainerRef.current;
@@ -579,7 +588,7 @@ export default function WorkItemDetailDialog({
   function handleSplitterPointerMove(
     event: ReactPointerEvent<HTMLDivElement>,
   ) {
-    if (!isDraggingSplitter) return;
+    if (!activeSplitterDrag) return;
     const nextPct = computeClampedTaskPct(event.clientX);
     if (nextPct === null) return;
     if (splitAiOpen) setThreeColTaskPct(nextPct);
@@ -589,7 +598,7 @@ export default function WorkItemDetailDialog({
   function handleSplitterPointerUp(
     event: ReactPointerEvent<HTMLDivElement>,
   ) {
-    if (!isDraggingSplitter) return;
+    if (!activeSplitterDrag) return;
     if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
       event.currentTarget.releasePointerCapture?.(event.pointerId);
     }
@@ -634,6 +643,8 @@ export default function WorkItemDetailDialog({
       savedSignal: splitSavedSignalByTask[targetTaskId] ?? 0,
       onOpen: (noteId) => {
         if (!item) return;
+        setIsDraggingSplitter(false);
+        setSplitInlineEditing(false);
         setSplitAiOpen(false);
         setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
@@ -644,6 +655,8 @@ export default function WorkItemDetailDialog({
         });
       },
       onClose: () => {
+        setIsDraggingSplitter(false);
+        setSplitInlineEditing(false);
         setSplitAiOpen(false);
         setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
@@ -669,15 +682,24 @@ export default function WorkItemDetailDialog({
     if (mode !== "page" || !isSplitOpen) return;
     const handlePageKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      if (activeTitleEdit || activeDescEdit) return;
+      if (
+        activeTitleEdit ||
+        activeDescEdit ||
+        splitInlineEditing ||
+        event.defaultPrevented
+      ) {
+        return;
+      }
       event.preventDefault();
       setSplitDismissSignal((cur) => cur + 1);
     };
     window.addEventListener("keydown", handlePageKeyDown);
     return () => window.removeEventListener("keydown", handlePageKeyDown);
-  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode]);
+  }, [activeDescEdit, activeTitleEdit, isSplitOpen, mode, splitInlineEditing]);
 
   function selectSubtaskLayer(nextSubtaskId: string | null) {
+    setIsDraggingSplitter(false);
+    setSplitInlineEditing(false);
     setSplitAiOpen(false);
     setSplitConfirmOpen(false);
     setSplitComposerState(null);
@@ -1046,6 +1068,9 @@ export default function WorkItemDetailDialog({
     }
     if (activeDescEdit) {
       setDescEditState(null);
+      return;
+    }
+    if (splitInlineEditing) {
       return;
     }
     if (isSplitOpen) {
@@ -4665,7 +4690,7 @@ export default function WorkItemDetailDialog({
           mode === "page"
             ? "flex h-[calc(100dvh-5.5rem)] min-h-[640px] w-full flex-col overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-sm lg:flex-row dark:border-gray-800 dark:bg-gray-900"
             : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
-        } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
+        } ${activeSplitterDrag ? "cursor-col-resize select-none" : ""}`}
       >
         {/* Column 1 (Left): Resizable Focused Task Reference Pane */}
         <div
@@ -4698,6 +4723,7 @@ export default function WorkItemDetailDialog({
               onOpenFullPage={onOpenFullPage}
               onToggleMaximize={() => setIsMaximized((prev) => !prev)}
               onSelectSubtaskLayer={selectSubtaskLayer}
+              onInlineEditingChange={setSplitInlineEditing}
               onStatusChange={onStatusChange}
               onPriorityChange={onPriorityChange}
               onToggleSubtask={onToggleSubtask}
@@ -4732,6 +4758,7 @@ export default function WorkItemDetailDialog({
           onPointerMove={handleSplitterPointerMove}
           onPointerUp={handleSplitterPointerUp}
           onPointerCancel={handleSplitterPointerUp}
+          onLostPointerCapture={() => setIsDraggingSplitter(false)}
           onKeyDown={handleSplitterKeyDown}
           onDoubleClick={() => {
             if (splitAiOpen) setThreeColTaskPct(33);
@@ -4742,7 +4769,7 @@ export default function WorkItemDetailDialog({
           <div
             aria-hidden="true"
             className={`h-full w-px transition-colors ${
-              isDraggingSplitter
+              activeSplitterDrag
                 ? "w-0.5 bg-brand-500"
                 : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
             }`}
@@ -4750,7 +4777,7 @@ export default function WorkItemDetailDialog({
           <div
             aria-hidden="true"
             className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
-              isDraggingSplitter
+              activeSplitterDrag
                 ? "border-brand-500 bg-brand-500 text-white"
                 : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
             }`}
@@ -4778,6 +4805,8 @@ export default function WorkItemDetailDialog({
             onAiPanelWidthChange={setSplitAiWidthPx}
             onConfirmationChange={setSplitConfirmOpen}
             onClose={() => {
+              setIsDraggingSplitter(false);
+              setSplitInlineEditing(false);
               setSplitAiOpen(false);
               setSplitConfirmOpen(false);
               setSplitComposerState(null);
@@ -4788,6 +4817,8 @@ export default function WorkItemDetailDialog({
                 ...prev,
                 [savedTaskId]: (prev[savedTaskId] ?? 0) + 1,
               }));
+              setIsDraggingSplitter(false);
+              setSplitInlineEditing(false);
               setSplitAiOpen(false);
               setSplitConfirmOpen(false);
               setSplitComposerState(null);

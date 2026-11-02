@@ -275,7 +275,7 @@ export default function WorkNoteAssessmentEvidence({
                       {t(`gapKind.${gap.kind}`)}
                     </Badge>
                     {gap.impact === "BLOCKING" && gap.status === "open" && (
-                      <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                      <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold text-warning-800 dark:bg-warning-500/20 dark:text-warning-300">
                         {t("importantBadge")}
                       </span>
                     )}

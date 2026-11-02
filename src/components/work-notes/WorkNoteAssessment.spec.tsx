@@ -593,3 +593,47 @@ it("renders historical source, claim origin, and gapKind badges in English local
   ).toBeInTheDocument();
   expect(screen.getByText("Historical conflict")).toBeInTheDocument();
 });
+
+it("formats server-masked [[WN_SEC:...]] placeholders in assessment question text, historyRef title, and carry-over answers", () => {
+  const value = structuredClone(assessmentFixture);
+  value.nextQuestion = {
+    id: "q-masked",
+    gapId: value.gaps[0].id,
+    text: "Cấu hình [[WN_SEC:CONNECTION_STRING:0123456789ab]] từ ghi chú trước còn áp dụng không?",
+    reason: "Tránh hỏi lại [[WN_SEC:PASSWORD:abcdef012345]]",
+    options: ["Giữ [[WN_SEC:TOKEN:112233445566]]", "Đã đổi mới"],
+    historyRef: {
+      factId: "n1#0",
+      noteId: "n1",
+      noteTitle: " Triển khai [[WN_SEC:EMAIL:998877665544]]",
+      date: "2026-10-30",
+      status: "CURRENT",
+    },
+  };
+
+  render(
+    <NextIntlClientProvider locale="vi" messages={messages}>
+      <WorkNoteAssessment
+        value={value}
+        busy={false}
+        stale={false}
+        onAssess={vi.fn()}
+        onReply={vi.fn()}
+        onRewrite={vi.fn()}
+        onCorrect={vi.fn()}
+        onReset={vi.fn()}
+        onValidate={vi.fn()}
+        onFeedback={vi.fn()}
+      />
+    </NextIntlClientProvider>,
+  );
+
+  const region = screen.getByRole("region", {
+    name: "Kiểm tra thông tin theo Task",
+  });
+  expect(region).not.toHaveTextContent("WN_SEC");
+  expect(region).toHaveTextContent("🔒 mật khẩu kết nối");
+  expect(region).toHaveTextContent("🔒 mật khẩu");
+  expect(region).toHaveTextContent("🔒 token");
+  expect(region).toHaveTextContent("🔒 email");
+});

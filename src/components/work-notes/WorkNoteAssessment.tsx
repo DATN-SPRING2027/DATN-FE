@@ -14,6 +14,7 @@ import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import WorkNoteAssessmentEvidence from "./WorkNoteAssessmentEvidence";
+import { formatMaskedSensitiveText } from "./WorkNoteSecurityNotice";
 import {
   ASSESSMENT_PURPOSES,
   type AssessmentPurpose,
@@ -61,6 +62,12 @@ export default function WorkNoteAssessment({
 }: WorkNoteAssessmentProps) {
   const t = useTranslations("workNotes.assessment");
   const tAgent = useTranslations("workNotes.agent");
+  const formatMasked = (text: string) =>
+    formatMaskedSensitiveText(text, (category) =>
+      tAgent.has(`securityCategory.${category}`)
+        ? tAgent(`securityCategory.${category}`)
+        : category,
+    );
   const [purpose, setPurpose] = useState<AssessmentPurpose>(
     value?.purpose ?? "AUTO",
   );
@@ -205,7 +212,7 @@ export default function WorkNoteAssessment({
               </div>
 
               <h4 className="text-xs font-bold leading-relaxed text-gray-900 dark:text-gray-100">
-                {question.text}
+                {formatMasked(question.text)}
               </h4>
 
               {question.historyRef && (
@@ -225,7 +232,7 @@ export default function WorkNoteAssessment({
                     {question.historyRef.relation &&
                     question.historyRef.relation !== "SELF"
                       ? tAgent("historyRefRelatedLabel", {
-                          title: question.historyRef.noteTitle,
+                          title: formatMasked(question.historyRef.noteTitle),
                           relation: `${tAgent(`historyContext.relation.${question.historyRef.relation}`)}${
                             question.historyRef.taskKey
                               ? ` ${question.historyRef.taskKey}`
@@ -237,7 +244,7 @@ export default function WorkNoteAssessment({
                             .join("/"),
                         })
                       : tAgent("historyRefLabel", {
-                          title: question.historyRef.noteTitle,
+                          title: formatMasked(question.historyRef.noteTitle),
                           date: question.historyRef.date
                             .split("-")
                             .reverse()
@@ -251,7 +258,7 @@ export default function WorkNoteAssessment({
 
               {question.reason && (
                 <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-                  {question.reason}
+                  {formatMasked(question.reason)}
                 </p>
               )}
 
@@ -265,7 +272,7 @@ export default function WorkNoteAssessment({
                       onClick={() => onReply("answered", option)}
                       className="rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-start text-xs font-medium text-brand-700 shadow-2xs transition-colors hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-500/35 dark:bg-gray-900 dark:text-brand-200 dark:hover:bg-brand-500/15"
                     >
-                      {option}
+                      {formatMasked(option)}
                     </button>
                   ))}
                 </div>
@@ -446,7 +453,9 @@ export default function WorkNoteAssessment({
                       }
                     />
                     <span>
-                      {t("carryAnswer", { text: a.answer ?? a.target })}
+                      {t("carryAnswer", {
+                        text: formatMasked(a.answer ?? a.target),
+                      })}
                     </span>
                   </label>
                 ))}

@@ -9,8 +9,7 @@ import {
   type HistoryFactStatus,
   type HistoryRelation,
 } from "@/lib/queries/work-notes/work-note-agent.api";
-
-const MASKED = /\[\[WN_SEC:([A-Z_]+):[a-f0-9]{10,16}\]\]/g;
+import { formatMaskedSensitiveText } from "./WorkNoteSecurityNotice";
 
 function formatDate(iso: string): string {
   const [y, m, d] = iso.slice(0, 10).split("-");
@@ -44,6 +43,7 @@ export default function WorkNoteHistoryContext({
   refreshKey?: number;
 }) {
   const t = useTranslations("workNotes.agent.historyContext");
+  const tAgent = useTranslations("workNotes.agent");
   const [reloadTick, setReloadTick] = useState(0);
   const [loaded, setLoaded] = useState<{
     key: string;
@@ -90,7 +90,13 @@ export default function WorkNoteHistoryContext({
   const history = loaded?.scopeKey === scopeKey ? loaded.history : null;
   const warnings = history?.facts.filter((f) => f.status !== "CURRENT") ?? [];
   const pretty = (quote: string) =>
-    quote.replace(MASKED, (_m, category: string) => `🔒 ${t.has(`masked.${category}`) ? t(`masked.${category}`) : category}`);
+    formatMaskedSensitiveText(quote, (category) =>
+      t.has(`masked.${category}`)
+        ? t(`masked.${category}`)
+        : tAgent.has(`securityCategory.${category}`)
+          ? tAgent(`securityCategory.${category}`)
+          : category,
+    );
   const relationBadge = (relation?: HistoryRelation, taskKey?: string) => {
     if (!relation || relation === "SELF") return null;
     const label = t(`relation.${relation}`);
@@ -108,7 +114,10 @@ export default function WorkNoteHistoryContext({
           id="worknote-history-title"
           className="flex items-center gap-1.5 text-xs font-bold text-gray-900 dark:text-gray-100"
         >
-          <History className="size-3.5 text-brand-600 dark:text-brand-400" aria-hidden="true" />
+          <History
+            className="size-3.5 text-brand-600 dark:text-brand-400"
+            aria-hidden="true"
+          />
           {t("title", { count: history?.notes.length ?? 0 })}
         </h4>
         <button
@@ -118,18 +127,28 @@ export default function WorkNoteHistoryContext({
           aria-label={t("reload")}
           className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-40 dark:hover:bg-gray-800"
         >
-          <RotateCw className={`size-3.5 ${isLoading ? "animate-spin" : ""}`} aria-hidden="true" />
+          <RotateCw
+            className={`size-3.5 ${isLoading ? "animate-spin" : ""}`}
+            aria-hidden="true"
+          />
         </button>
       </header>
-      <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">{t("subtitle")}</p>
+      <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+        {t("subtitle")}
+      </p>
 
       {isError && (
-        <p role="alert" className="text-[11px] text-error-600 dark:text-error-400">
+        <p
+          role="alert"
+          className="text-[11px] text-error-600 dark:text-error-400"
+        >
           {t("loadFailed")}
         </p>
       )}
       {!isError && !history && !isLoading && (
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">{t("empty")}</p>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          {t("empty")}
+        </p>
       )}
 
       {history && (
@@ -143,7 +162,9 @@ export default function WorkNoteHistoryContext({
                 {note.ref}
               </span>
               <span className="min-w-0 flex-1 truncate font-medium text-gray-800 dark:text-gray-100">
-                {note.source === "CLARIFICATION_LEDGER" ? t("ledgerSource") : note.title}
+                {note.source === "CLARIFICATION_LEDGER"
+                  ? t("ledgerSource")
+                  : pretty(note.title)}
               </span>
               {relationBadge(note.relation, note.taskKey) && (
                 <span
@@ -153,7 +174,9 @@ export default function WorkNoteHistoryContext({
                   {relationBadge(note.relation, note.taskKey)}
                 </span>
               )}
-              <span className="shrink-0 tabular-nums text-gray-500">{formatDate(note.date)}</span>
+              <span className="shrink-0 tabular-nums text-gray-500">
+                {formatDate(note.date)}
+              </span>
             </li>
           ))}
         </ul>
@@ -170,13 +193,17 @@ export default function WorkNoteHistoryContext({
           </p>
           <ul className="space-y-1.5">
             {warnings.slice(0, 6).map((fact) => (
-              <li key={fact.id} className="text-[11px] leading-relaxed text-gray-700 dark:text-gray-200">
+              <li
+                key={fact.id}
+                className="text-[11px] leading-relaxed text-gray-700 dark:text-gray-200"
+              >
                 <span
                   className={`me-1.5 inline-flex rounded px-1.5 py-0.5 text-[10px] font-semibold ring-1 ring-inset ${statusClass(fact.status)}`}
                 >
                   {t(`status.${fact.status}`)}
                 </span>
-                <span className="font-semibold">{fact.ref}</span> · {formatDate(fact.date)} — “{pretty(fact.quote)}”
+                <span className="font-semibold">{fact.ref}</span> ·{" "}
+                {formatDate(fact.date)} — “{pretty(fact.quote)}”
               </li>
             ))}
           </ul>
@@ -185,4 +212,3 @@ export default function WorkNoteHistoryContext({
     </section>
   );
 }
-

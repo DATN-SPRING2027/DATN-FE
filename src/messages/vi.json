@@ -2815,7 +2815,17 @@
       "teamLabel": "Nhóm",
       "labelsLabel": "Nhãn",
       "noLabels": "Không có",
-      "backToParent": "Quay lại {key}"
+      "backToParent": "Quay lại {key}",
+      "backToList": "Quay lại danh sách công việc",
+      "prevSubtask": "Công việc phụ trước",
+      "nextSubtask": "Công việc phụ tiếp theo",
+      "openFullPage": "Mở ở chế độ toàn trang",
+      "restoreModalSize": "Thu nhỏ kích thước hộp thoại",
+      "maximizeModal": "Mở rộng hộp thoại",
+      "subtaskLayerHint": "Chi tiết công việc phụ • Thuộc {key} ({title})",
+      "updateStatusAria": "Cập nhật trạng thái công việc",
+      "updatePriorityAria": "Cập nhật độ ưu tiên công việc",
+      "completeSubtaskAria": "Đánh dấu hoàn thành công việc phụ {key}"
     }
   },
   "organizationMembers": {
@@ -4142,7 +4152,14 @@
           "TOKEN": "token",
           "EMAIL": "email",
           "PHONE": "số điện thoại",
-          "CREDENTIAL": "thông tin xác thực"
+          "CREDENTIAL": "thông tin xác thực",
+          "PRIVATE_KEY": "khóa bí mật",
+          "CLOUD_KEY": "khóa cloud",
+          "CONNECTION_STRING": "mật khẩu kết nối",
+          "HIGH_ENTROPY_SECRET": "chuỗi bí mật",
+          "NATIONAL_ID": "CCCD/CMND",
+          "BANK_CARD": "số thẻ",
+          "BANK_ACCOUNT": "số tài khoản"
         }
       },
       "securityMaskedLabel": "Đã che {category}",

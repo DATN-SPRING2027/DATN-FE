@@ -2815,7 +2815,17 @@
       "teamLabel": "Team",
       "labelsLabel": "Labels",
       "noLabels": "None",
-      "backToParent": "Back to {key}"
+      "backToParent": "Back to {key}",
+      "backToList": "Back to task list",
+      "prevSubtask": "Previous subtask",
+      "nextSubtask": "Next subtask",
+      "openFullPage": "Open in full page view",
+      "restoreModalSize": "Restore modal size",
+      "maximizeModal": "Full page view",
+      "subtaskLayerHint": "Subtask detail layer • Child of {key} ({title})",
+      "updateStatusAria": "Update work item status",
+      "updatePriorityAria": "Update work item priority",
+      "completeSubtaskAria": "Complete subtask {key}"
     }
   },
   "organizationMembers": {
@@ -4142,7 +4152,14 @@
           "TOKEN": "token",
           "EMAIL": "email",
           "PHONE": "phone number",
-          "CREDENTIAL": "credential"
+          "CREDENTIAL": "credential",
+          "PRIVATE_KEY": "private key",
+          "CLOUD_KEY": "cloud key",
+          "CONNECTION_STRING": "connection password",
+          "HIGH_ENTROPY_SECRET": "secret",
+          "NATIONAL_ID": "national ID",
+          "BANK_CARD": "card number",
+          "BANK_ACCOUNT": "bank account"
         }
       },
       "securityMaskedLabel": "{category} masked",

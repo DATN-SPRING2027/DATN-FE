@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ChevronDown, ChevronRight, Maximize2 } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { tr } from "@/i18n/tr";
@@ -20,7 +20,10 @@ import {
 
 type SplitSecondaryTab = "comments" | "worklog" | "notes" | "more";
 
-function formatShortDate(value: string | null | undefined, locale: string): string | null {
+function formatShortDate(
+  value: string | null | undefined,
+  locale: string,
+): string | null {
   if (!value) return null;
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return value;
@@ -61,6 +64,7 @@ export type WorkItemSplitReferencePaneProps = {
   onOpenFullPage?: (subtaskId?: string | null) => void;
   onToggleMaximize: () => void;
   onSelectSubtaskLayer: (subtaskId: string | null) => void;
+  onInlineEditingChange?: (editing: boolean) => void;
   onStatusChange?: (id: string, status: WorkStatus) => void;
   onPriorityChange?: (id: string, priority: WorkPriority) => void;
   onToggleSubtask?: (itemId: string, subtaskId: string) => void;
@@ -93,6 +97,7 @@ export default function WorkItemSplitReferencePane({
   onOpenFullPage,
   onToggleMaximize,
   onSelectSubtaskLayer,
+  onInlineEditingChange,
   onStatusChange,
   onPriorityChange,
   onToggleSubtask,
@@ -112,6 +117,11 @@ export default function WorkItemSplitReferencePane({
     () => new Set(),
   );
   const [quickComment, setQuickComment] = useState("");
+
+  useEffect(() => {
+    onInlineEditingChange?.(editingDesc);
+    return () => onInlineEditingChange?.(false);
+  }, [editingDesc, onInlineEditingChange]);
 
   const activeComments = activeSubtask
     ? (activeSubtask.comments ?? [])
@@ -138,6 +148,21 @@ export default function WorkItemSplitReferencePane({
   const currentDescription = activeSubtask
     ? activeSubtask.description
     : item.description;
+
+  useEffect(() => {
+    if (!editingDesc) return;
+    const handleWindowEscape = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      e.stopPropagation();
+      if (savingDesc) return;
+      setDescDraft(currentDescription ?? "");
+      setEditingDesc(false);
+    };
+    window.addEventListener("keydown", handleWindowEscape, true);
+    return () => window.removeEventListener("keydown", handleWindowEscape, true);
+  }, [currentDescription, editingDesc, savingDesc]);
   const currentLabels = activeSubtask
     ? (activeSubtask.labels ?? item.labels ?? [])
     : (item.labels ?? []);
@@ -206,7 +231,9 @@ export default function WorkItemSplitReferencePane({
   const totalSubtasks = item.subtasks.total;
   const completedSubtasks = item.subtasks.completed;
   const subtaskDonePct =
-    totalSubtasks > 0 ? Math.round((completedSubtasks / totalSubtasks) * 100) : 0;
+    totalSubtasks > 0
+      ? Math.round((completedSubtasks / totalSubtasks) * 100)
+      : 0;
 
   return (
     <div
@@ -220,9 +247,13 @@ export default function WorkItemSplitReferencePane({
             <button
               type="button"
               onClick={onClose}
+              aria-label={tr(t, "splitTask.backToList", "Back to task list")}
+              title={tr(t, "splitTask.backToList", "Back to task list")}
               className="inline-flex h-6 shrink-0 cursor-pointer items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
             >
-              <span>←</span>
+              <span aria-hidden="true" className="inline-block rtl:rotate-180">
+                ←
+              </span>
             </button>
           )}
 
@@ -233,7 +264,12 @@ export default function WorkItemSplitReferencePane({
                 onClick={() => onSelectSubtaskLayer(null)}
                 className="inline-flex h-6 cursor-pointer items-center gap-1 rounded-md border border-gray-200 bg-gray-50 px-2 text-[11px] font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
               >
-                <span>←</span>
+                <span
+                  aria-hidden="true"
+                  className="inline-block rtl:rotate-180"
+                >
+                  ←
+                </span>
                 <span>
                   {tr(t, "splitTask.backToParent", `Back to ${item.key}`, {
                     key: item.key,
@@ -249,15 +285,26 @@ export default function WorkItemSplitReferencePane({
                   <button
                     type="button"
                     disabled={activeSubtaskIndex <= 0}
-                    aria-label="Previous subtask"
+                    aria-label={tr(
+                      t,
+                      "splitTask.prevSubtask",
+                      "Previous subtask",
+                    )}
                     onClick={() => {
                       if (activeSubtaskIndex > 0) {
-                        onSelectSubtaskLayer(subtaskList[activeSubtaskIndex - 1].id);
+                        onSelectSubtaskLayer(
+                          subtaskList[activeSubtaskIndex - 1].id,
+                        );
                       }
                     }}
                     className="h-full cursor-pointer px-1.5 font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-35 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
-                    ‹
+                    <span
+                      aria-hidden="true"
+                      className="inline-block rtl:rotate-180"
+                    >
+                      ‹
+                    </span>
                   </button>
                   <span className="border-x border-gray-200 px-1.5 font-mono text-[10px] dark:border-gray-700">
                     {activeSubtaskIndex + 1}/{subtaskList.length}
@@ -265,15 +312,22 @@ export default function WorkItemSplitReferencePane({
                   <button
                     type="button"
                     disabled={activeSubtaskIndex >= subtaskList.length - 1}
-                    aria-label="Next subtask"
+                    aria-label={tr(t, "splitTask.nextSubtask", "Next subtask")}
                     onClick={() => {
                       if (activeSubtaskIndex < subtaskList.length - 1) {
-                        onSelectSubtaskLayer(subtaskList[activeSubtaskIndex + 1].id);
+                        onSelectSubtaskLayer(
+                          subtaskList[activeSubtaskIndex + 1].id,
+                        );
                       }
                     }}
                     className="h-full cursor-pointer px-1.5 font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-35 dark:text-gray-300 dark:hover:bg-gray-800"
                   >
-                    ›
+                    <span
+                      aria-hidden="true"
+                      className="inline-block rtl:rotate-180"
+                    >
+                      ›
+                    </span>
                   </button>
                 </div>
               )}
@@ -301,10 +355,18 @@ export default function WorkItemSplitReferencePane({
                   }}
                   title={
                     onOpenFullPage
-                      ? "Open in full page view"
+                      ? tr(
+                          t,
+                          "splitTask.openFullPage",
+                          "Open in full page view",
+                        )
                       : isMaximized
-                        ? "Restore modal size"
-                        : "Full page view"
+                        ? tr(
+                            t,
+                            "splitTask.restoreModalSize",
+                            "Restore modal size",
+                          )
+                        : tr(t, "splitTask.maximizeModal", "Full page view")
                   }
                   className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-gray-200 bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-900 hover:border-brand-300 hover:text-brand-600 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:hover:text-brand-400"
                 >
@@ -338,7 +400,12 @@ export default function WorkItemSplitReferencePane({
 
         <p id="work-detail-description" className="sr-only">
           {activeSubtask
-            ? `Subtask detail layer • Child of ${item.key} (${item.title})`
+            ? tr(
+                t,
+                "splitTask.subtaskLayerHint",
+                `Subtask detail layer • Child of ${item.key} (${item.title})`,
+                { key: item.key, title: item.title },
+              )
             : t("detailPreviewHint")}
         </p>
       </header>
@@ -385,7 +452,11 @@ export default function WorkItemSplitReferencePane({
                 />
                 {canEditStatus && (
                   <select
-                    aria-label="Update work item status"
+                    aria-label={tr(
+                      t,
+                      "splitTask.updateStatusAria",
+                      "Update work item status",
+                    )}
                     value={currentStatus}
                     onChange={(e) => {
                       const next = e.target.value as WorkStatus;
@@ -419,7 +490,11 @@ export default function WorkItemSplitReferencePane({
                 <WorkPriorityLabel priority={currentPriority} />
                 {canEditPriority && (
                   <select
-                    aria-label="Update work item priority"
+                    aria-label={tr(
+                      t,
+                      "splitTask.updatePriorityAria",
+                      "Update work item priority",
+                    )}
                     value={currentPriority}
                     onChange={(e) => {
                       const next = e.target.value as WorkPriority;
@@ -518,9 +593,15 @@ export default function WorkItemSplitReferencePane({
               className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
             >
               {descOpen ? (
-                <ChevronDown className="size-3.5 text-gray-400" aria-hidden="true" />
+                <ChevronDown
+                  className="size-3.5 text-gray-400"
+                  aria-hidden="true"
+                />
               ) : (
-                <ChevronRight className="size-3.5 text-gray-400" aria-hidden="true" />
+                <ChevronRight
+                  className="size-3.5 text-gray-400 rtl:rotate-180"
+                  aria-hidden="true"
+                />
               )}
               <span id="split-task-desc-heading">{t("description")}</span>
             </button>
@@ -555,11 +636,20 @@ export default function WorkItemSplitReferencePane({
                 >
                   <textarea
                     autoFocus
+                    aria-label={t("description")}
                     rows={6}
                     maxLength={20000}
                     disabled={savingDesc}
                     value={descDraft}
                     onChange={(e) => setDescDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        setDescDraft(currentDescription ?? "");
+                        setEditingDesc(false);
+                      }
+                    }}
                     className="w-full rounded-lg border border-brand-400 bg-white px-3 py-2 text-xs leading-relaxed text-gray-800 outline-none dark:border-brand-500 dark:bg-gray-950 dark:text-gray-200"
                   />
                   <div className="flex items-center justify-end gap-1.5">
@@ -575,7 +665,10 @@ export default function WorkItemSplitReferencePane({
                     <button
                       type="button"
                       disabled={savingDesc}
-                      onClick={() => setEditingDesc(false)}
+                      onClick={() => {
+                        setDescDraft(currentDescription ?? "");
+                        setEditingDesc(false);
+                      }}
                       className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                     >
                       {t("cancel")}
@@ -589,7 +682,11 @@ export default function WorkItemSplitReferencePane({
               ) : (
                 <p className="text-xs italic text-gray-400 dark:text-gray-500">
                   {projectId
-                    ? tr(t, "quickUi.noDescriptionReal", "No description provided.")
+                    ? tr(
+                        t,
+                        "quickUi.noDescriptionReal",
+                        "No description provided.",
+                      )
                     : t("noDescription")}
                 </p>
               )}
@@ -611,9 +708,15 @@ export default function WorkItemSplitReferencePane({
                 className="inline-flex cursor-pointer items-center gap-1.5 text-xs font-bold text-gray-800 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white"
               >
                 {checklistOpen ? (
-                  <ChevronDown className="size-3.5 text-gray-400" aria-hidden="true" />
+                  <ChevronDown
+                    className="size-3.5 text-gray-400"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <ChevronRight className="size-3.5 text-gray-400" aria-hidden="true" />
+                  <ChevronRight
+                    className="size-3.5 text-gray-400 rtl:rotate-180"
+                    aria-hidden="true"
+                  />
                 )}
                 <span id="split-task-subtasks-heading">{t("subtasks")}</span>
                 <span className="rounded-full bg-gray-100 px-2 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-gray-600 dark:bg-gray-800 dark:text-gray-300">
@@ -639,7 +742,7 @@ export default function WorkItemSplitReferencePane({
             >
               {subtaskDonePct > 0 && (
                 <div
-                  className="h-full bg-emerald-500 transition-all"
+                  className="h-full bg-success-500 transition-all dark:bg-success-400"
                   style={{ width: `${subtaskDonePct}%` }}
                 />
               )}
@@ -659,7 +762,12 @@ export default function WorkItemSplitReferencePane({
                           checked={sub.done}
                           disabled={sub.readOnly || !onToggleSubtask}
                           onChange={() => onToggleSubtask?.(item.id, sub.id)}
-                          aria-label={`Complete subtask ${sub.key}`}
+                          aria-label={tr(
+                            t,
+                            "splitTask.completeSubtaskAria",
+                            `Complete subtask ${sub.key}`,
+                            { key: sub.key },
+                          )}
                           className="mt-0.5 size-3.5 shrink-0 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 disabled:cursor-not-allowed"
                         />
                         <div className="min-w-0 flex-1 space-y-1">
@@ -688,9 +796,9 @@ export default function WorkItemSplitReferencePane({
                           <button
                             type="button"
                             onClick={() => onSelectSubtaskLayer(sub.id)}
-                            className={`block w-full cursor-pointer text-start text-xs leading-snug font-medium line-clamp-2 ${
+                            className={`line-clamp-2 block w-full cursor-pointer text-start text-xs leading-snug font-medium ${
                               sub.done
-                                ? "line-through text-gray-400 dark:text-gray-500"
+                                ? "text-gray-400 line-through dark:text-gray-500"
                                 : "text-gray-800 hover:text-brand-600 dark:text-gray-200 dark:hover:text-brand-300"
                             }`}
                           >
@@ -710,7 +818,7 @@ export default function WorkItemSplitReferencePane({
                                   <span
                                     className={
                                       st.done
-                                        ? "line-through text-gray-400"
+                                        ? "text-gray-400 line-through"
                                         : ""
                                     }
                                   >
@@ -743,31 +851,37 @@ export default function WorkItemSplitReferencePane({
             </div>
             <ul className="mt-2.5 space-y-1.5 text-xs">
               {(activeSubtask.steps ?? []).map((st) => (
-                <li key={st.id} className="flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={st.done}
-                    disabled={activeSubtask.readOnly || !onUpdateSubtask}
-                    onChange={() => {
-                      if (!onUpdateSubtask) return;
-                      const nextSteps = (activeSubtask.steps ?? []).map((cur) =>
-                        cur.id === st.id ? { ...cur, done: !cur.done } : cur,
-                      );
-                      onUpdateSubtask(item.id, activeSubtask.id, {
-                        steps: nextSteps,
-                      });
-                    }}
-                    className="mt-0.5 size-3.5 shrink-0 cursor-pointer rounded border-gray-300 text-brand-600"
-                  />
-                  <span
-                    className={
-                      st.done
-                        ? "line-through text-gray-400 dark:text-gray-500"
-                        : "text-gray-800 dark:text-gray-200"
-                    }
-                  >
-                    {st.text}
-                  </span>
+                <li key={st.id}>
+                  <label className="flex cursor-pointer items-start gap-2">
+                    <input
+                      type="checkbox"
+                      aria-label={st.text}
+                      checked={st.done}
+                      disabled={activeSubtask.readOnly || !onUpdateSubtask}
+                      onChange={() => {
+                        if (!onUpdateSubtask) return;
+                        const nextSteps = (activeSubtask.steps ?? []).map(
+                          (cur) =>
+                            cur.id === st.id
+                              ? { ...cur, done: !cur.done }
+                              : cur,
+                        );
+                        onUpdateSubtask(item.id, activeSubtask.id, {
+                          steps: nextSteps,
+                        });
+                      }}
+                      className="mt-0.5 size-3.5 shrink-0 cursor-pointer rounded border-gray-300 text-brand-600 disabled:cursor-not-allowed"
+                    />
+                    <span
+                      className={
+                        st.done
+                          ? "text-gray-400 line-through dark:text-gray-500"
+                          : "text-gray-800 dark:text-gray-200"
+                      }
+                    >
+                      {st.text}
+                    </span>
+                  </label>
                 </li>
               ))}
             </ul>
@@ -803,7 +917,7 @@ export default function WorkItemSplitReferencePane({
                 onClick={() => setSecondaryTab(key)}
                 className={`inline-flex flex-1 cursor-pointer items-center justify-center gap-1 border-b-2 px-1.5 pt-1 pb-2 text-[11px] whitespace-nowrap transition-colors ${
                   secondaryTab === key
-                    ? "rounded-t-lg border-brand-600 bg-white font-bold text-brand-600 dark:border-brand-400 dark:bg-gray-900 dark:text-brand-300"
+                    ? "rounded-ss-lg rounded-se-lg border-brand-600 bg-white font-bold text-brand-600 dark:border-brand-400 dark:bg-gray-900 dark:text-brand-300"
                     : "border-transparent font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
                 }`}
               >
@@ -963,4 +1077,3 @@ export default function WorkItemSplitReferencePane({
     </div>
   );
 }
-

@@ -1936,4 +1936,39 @@ it("supports dragging, keyboard resizing, and double-click reset on the Note-AI 
   // Double-clicking resets AI panel width back to default 390px
   fireEvent.doubleClick(resizer);
   expect(aiPanel.style.getPropertyValue("--ai-panel-w")).toBe("390px");
+
+  // Losing pointer capture mid-drag clears cursor-col-resize select-none
+  fireEvent.pointerDown(resizer, { button: 0, pointerId: 3, clientX: 1110 });
+  expect(splitContainer.className).toContain("cursor-col-resize");
+  fireEvent.lostPointerCapture(resizer, { pointerId: 3 });
+  expect(splitContainer.className).not.toContain("cursor-col-resize");
+});
+
+it("renders open-ended numbered clarification items as an ordered list and formats masked tokens in uncertainties", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "CLARIFICATION_REQUIRED",
+    message: "Cần làm rõ thêm hai điểm.",
+    suggestion: null,
+    questions: [
+      {
+        id: "open-num-q1",
+        text: "Vui lòng mô tả rõ:\n1. Nguyên nhân lỗi ở [[WN_SEC:API_KEY:0123456789ab]]\n2. Cách kiểm chứng sau khi sửa",
+        reason: "Bổ sung cho Task",
+        options: [],
+      },
+    ],
+    uncertainties: ["Chưa xác minh [[WN_SEC:PASSWORD:abcdef012345]] trên staging."],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByLabelText("Nội dung");
+  runToolbarTool("Làm rõ nghĩa");
+
+  const card = await screen.findByTestId("clarification-question-card");
+  expect(card).toHaveTextContent("Vui lòng mô tả rõ:");
+  expect(card).toHaveTextContent("Nguyên nhân lỗi ở 🔒 API key");
+  expect(card).toHaveTextContent("Cách kiểm chứng sau khi sửa");
+  expect(card).not.toHaveTextContent("WN_SEC");
+  expect(screen.getByText(/Chưa xác minh 🔒 mật khẩu/)).toBeInTheDocument();
 });

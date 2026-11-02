@@ -64,7 +64,8 @@ import { sourceSelection, reconcileTextareaEdit } from "./textarea-source";
 import {
   PreSendSecurityNotice,
   detectPreSendSensitiveData,
-} from "./work-note-security-notice";
+  formatMaskedSensitiveText,
+} from "./WorkNoteSecurityNotice";
 
 type AssistantTab = "chat" | "assessment" | "suggestions" | "context";
 
@@ -229,6 +230,7 @@ export default function WorkNoteComposer({
   const splitBodyRef = useRef<HTMLDivElement>(null);
   const [aiPanelWidthPx, setAiPanelWidthPx] = useState(defaultAiWidthPx);
   const [isDraggingAiResizer, setIsDraggingAiResizer] = useState(false);
+  const activeAiResizeDrag = panelOpen && isDraggingAiResizer;
 
   useEffect(() => {
     onPanelOpenChange?.(panelOpen);
@@ -237,6 +239,13 @@ export default function WorkNoteComposer({
   useEffect(() => {
     onAiPanelWidthChange?.(aiPanelWidthPx);
   }, [aiPanelWidthPx, onAiPanelWidthChange]);
+
+  useEffect(() => {
+    if (!activeAiResizeDrag) return;
+    const stopDrag = () => setIsDraggingAiResizer(false);
+    window.addEventListener("blur", stopDrag);
+    return () => window.removeEventListener("blur", stopDrag);
+  }, [activeAiResizeDrag]);
 
   function isComposerRtl(): boolean {
     const container = splitBodyRef.current;
@@ -270,7 +279,7 @@ export default function WorkNoteComposer({
   }
 
   function handleAiResizerPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
-    if (!isDraggingAiResizer) return;
+    if (!activeAiResizeDrag) return;
     const nextPx = computeClampedAiWidthPx(e.clientX);
     if (nextPx !== null) {
       setAiPanelWidthPx(nextPx);
@@ -278,7 +287,7 @@ export default function WorkNoteComposer({
   }
 
   function handleAiResizerPointerUp(e: ReactPointerEvent<HTMLDivElement>) {
-    if (!isDraggingAiResizer) return;
+    if (!activeAiResizeDrag) return;
     if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
       e.currentTarget.releasePointerCapture?.(e.pointerId);
     }
@@ -377,8 +386,10 @@ export default function WorkNoteComposer({
   dismissStepRef.current = () => {
     if (confirmation) setConfirmation(null);
     else if (toolbarAiOpen) setToolbarAiOpen(false);
-    else if (panelOpen) setPanelToggle(false);
-    else void run(close);
+    else if (panelOpen) {
+      setIsDraggingAiResizer(false);
+      setPanelToggle(false);
+    } else void run(close);
   };
   const lastDismissSignalRef = useRef(dismissSignal);
   useEffect(() => {
@@ -878,6 +889,7 @@ export default function WorkNoteComposer({
         aria-controls="worknote-ai-panel"
         onClick={() => {
           const nextOpen = !panelOpen;
+          if (!nextOpen) setIsDraggingAiResizer(false);
           setPanelToggle(nextOpen);
           if (nextOpen && selection && selection.quote.trim()) {
             setSelectionPromptQuote(selection.quote.trim());
@@ -980,7 +992,7 @@ export default function WorkNoteComposer({
               ref={splitBodyRef}
               data-testid="work-note-editor-ai-split"
               className={`flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden ${
-                isDraggingAiResizer ? "cursor-col-resize select-none" : ""
+                activeAiResizeDrag ? "cursor-col-resize select-none" : ""
               }`}
             >
               {/* LEFT COLUMN: Editor + Pinned Footer (6) */}
@@ -1433,7 +1445,13 @@ export default function WorkNoteComposer({
                     !!editor.response?.uncertainties.length && (
                       <ul className="rounded-xl border border-warning-200 bg-warning-50/60 p-3 text-xs text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
                         {editor.response.uncertainties.map((u, i) => (
-                          <li key={i}>{u}</li>
+                          <li key={i}>
+                            {formatMaskedSensitiveText(u, (cat) =>
+                              t.has(`securityCategory.${cat}`)
+                                ? t(`securityCategory.${cat}`)
+                                : cat,
+                            )}
+                          </li>
                         ))}
                       </ul>
                     )}
@@ -1529,6 +1547,7 @@ export default function WorkNoteComposer({
                   onPointerMove={handleAiResizerPointerMove}
                   onPointerUp={handleAiResizerPointerUp}
                   onPointerCancel={handleAiResizerPointerUp}
+                  onLostPointerCapture={() => setIsDraggingAiResizer(false)}
                   onKeyDown={handleAiResizerKeyDown}
                   onDoubleClick={() => setAiPanelWidthPx(defaultAiWidthPx)}
                   className="group relative z-20 hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center bg-gray-50/70 transition-colors hover:bg-brand-50/80 focus-visible:bg-brand-50/80 focus-visible:outline-none lg:flex dark:bg-gray-950/60 dark:hover:bg-brand-500/15"
@@ -1536,7 +1555,7 @@ export default function WorkNoteComposer({
                   <div
                     aria-hidden="true"
                     className={`h-full w-px transition-colors ${
-                      isDraggingAiResizer
+                      activeAiResizeDrag
                         ? "w-0.5 bg-brand-500"
                         : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
                     }`}
@@ -1544,7 +1563,7 @@ export default function WorkNoteComposer({
                   <div
                     aria-hidden="true"
                     className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
-                      isDraggingAiResizer
+                      activeAiResizeDrag
                         ? "border-brand-500 bg-brand-500 text-white"
                         : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
                     }`}
@@ -1599,7 +1618,10 @@ export default function WorkNoteComposer({
                       type="button"
                       aria-label={t("collapsePanel")}
                       title={t("collapsePanel")}
-                      onClick={() => setPanelToggle(false)}
+                      onClick={() => {
+                        setIsDraggingAiResizer(false);
+                        setPanelToggle(false);
+                      }}
                       className="rounded-xl border border-gray-200 bg-white p-1.5 text-gray-600 shadow-2xs transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
                     >
                       <ChevronUp className="size-4" aria-hidden="true" />

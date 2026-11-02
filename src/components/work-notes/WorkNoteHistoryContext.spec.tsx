@@ -96,3 +96,61 @@ it("degrades gracefully when history cannot be loaded", async () => {
   expect(await screen.findByRole("alert")).toHaveTextContent("Không tải được ghi chú cũ");
 });
 
+it("formats masked sensitive tokens in note titles and across all 13 SensitiveCategory values", async () => {
+  const categories = [
+    "PRIVATE_KEY",
+    "CLOUD_KEY",
+    "API_KEY",
+    "TOKEN",
+    "PASSWORD",
+    "CONNECTION_STRING",
+    "CREDENTIAL",
+    "HIGH_ENTROPY_SECRET",
+    "EMAIL",
+    "PHONE",
+    "NATIONAL_ID",
+    "BANK_CARD",
+    "BANK_ACCOUNT",
+  ] as const;
+
+  vi.mocked(agentApi.history).mockResolvedValue({
+    history: {
+      notes: [
+        {
+          ref: "H1",
+          id: "n1",
+          title: "Cấu hình [[WN_SEC:API_KEY:0123456789ab]]",
+          date: "2026-10-31",
+          source: "TASK_NOTE",
+          relation: "SELF",
+        },
+      ],
+      facts: [
+        {
+          id: "n1#0",
+          ref: "H1",
+          date: "2026-10-10",
+          kind: "FACT",
+          polarity: "POSITIVE",
+          status: "OUTDATED",
+          quote: categories
+            .map((cat) => `[[WN_SEC:${cat}:0123456789ab]]`)
+            .join(", "),
+        },
+      ],
+      findings: [],
+      truncated: false,
+    },
+  });
+
+  mount();
+
+  expect(await screen.findByText("Cấu hình 🔒 API key")).toBeInTheDocument();
+  const warnings = screen.getByTestId("worknote-history-warnings");
+  expect(warnings).not.toHaveTextContent("WN_SEC");
+  expect(warnings).toHaveTextContent("🔒 khóa cloud");
+  expect(warnings).toHaveTextContent("🔒 chuỗi bí mật");
+  expect(warnings).toHaveTextContent("🔒 CCCD/CMND");
+  expect(warnings).toHaveTextContent("🔒 số thẻ");
+  expect(warnings).toHaveTextContent("🔒 số tài khoản");
+});

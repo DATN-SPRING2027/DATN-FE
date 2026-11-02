@@ -43,8 +43,9 @@ import { computeReadableDiff, type DiffSegment } from "./work-note-diff";
 import {
   PreSendSecurityNotice,
   SecurityShieldBanner,
+  formatMaskedSensitiveText,
   type PreSendSecurityScan,
-} from "./work-note-security-notice";
+} from "./WorkNoteSecurityNotice";
 
 type ProposalAction =
   "replace_body" | "replace_selection" | "insert_after" | "replace_title";
@@ -61,32 +62,83 @@ export type ParsedClarificationQuestion = {
   choiceMode: "matrix" | "multi" | "single" | "none";
 };
 
+function isIndexInsideQuotes(text: string, index: number): boolean {
+  let asciiOpen = false;
+  let curlyDepth = 0;
+  for (let i = 0; i < index; i++) {
+    const ch = text[i];
+    if (ch === '"') asciiOpen = !asciiOpen;
+    else if (ch === "“") curlyDepth++;
+    else if (ch === "”" && curlyDepth > 0) curlyDepth--;
+  }
+  if (asciiOpen && text.indexOf('"', index + 1) !== -1) {
+    return true;
+  }
+  if (curlyDepth > 0 && text.indexOf("”", index + 1) !== -1) {
+    return true;
+  }
+  return false;
+}
+
+function findUnquotedMarker(
+  text: string,
+  pattern: RegExp,
+): RegExpExecArray | null {
+  const flags = pattern.flags.includes("g")
+    ? pattern.flags
+    : `${pattern.flags}g`;
+  const globalPattern = new RegExp(pattern.source, flags);
+  let match: RegExpExecArray | null;
+  while ((match = globalPattern.exec(text)) !== null) {
+    const markerOffset = match.index + match[0].search(/\d+\./);
+    if (!isIndexInsideQuotes(text, markerOffset)) {
+      return match;
+    }
+  }
+  return null;
+}
+
 function extractNumberedTargetItems(stem: string): {
   prompt: string;
   items: ClarificationTargetItem[];
 } {
-  const firstMatch = /(?:^|\n|\s+)1\.\s+/.exec(stem);
+  const firstMatch = findUnquotedMarker(stem, /(?:^|\n|\s+)1\.\s+/);
   if (!firstMatch) {
     return { prompt: stem, items: [] };
   }
   const promptCandidate = stem.slice(0, firstMatch.index).trim();
-  let rest = stem.slice(firstMatch.index + firstMatch[0].length).trim();
+  const baseOffset = firstMatch.index + firstMatch[0].length;
+  let cursor = 0;
+  const tail = stem.slice(baseOffset);
   const items: ClarificationTargetItem[] = [];
   let currentNumber = 1;
 
-  while (rest.length > 0) {
+  while (cursor < tail.length) {
     const nextNumber = currentNumber + 1;
-    const nextPattern = new RegExp(`(?:\\n|\\s+)${nextNumber}\\.\\s+`);
-    const nextMatch = nextPattern.exec(rest);
+    const nextPattern = new RegExp(`(?:\\n|\\s+)${nextNumber}\\.\\s+`, "g");
+    nextPattern.lastIndex = cursor;
+    let nextMatch: RegExpExecArray | null = null;
+    let candidate: RegExpExecArray | null;
+    while ((candidate = nextPattern.exec(tail)) !== null) {
+      const absMarkerOffset =
+        baseOffset + candidate.index + candidate[0].search(/\d+\./);
+      if (!isIndexInsideQuotes(stem, absMarkerOffset)) {
+        nextMatch = candidate;
+        break;
+      }
+    }
     if (!nextMatch) {
-      items.push({ number: currentNumber, label: rest.trim() });
+      const finalLabel = tail.slice(cursor).trim();
+      if (finalLabel) {
+        items.push({ number: currentNumber, label: finalLabel });
+      }
       break;
     }
-    const itemLabel = rest.slice(0, nextMatch.index).trim();
+    const itemLabel = tail.slice(cursor, nextMatch.index).trim();
     if (itemLabel) {
       items.push({ number: currentNumber, label: itemLabel });
     }
-    rest = rest.slice(nextMatch.index + nextMatch[0].length).trim();
+    cursor = nextMatch.index + nextMatch[0].length;
     currentNumber = nextNumber;
   }
 
@@ -100,7 +152,9 @@ function extractNumberedTargetItems(stem: string): {
 }
 
 export function parseClarificationQuestion(
-  question: Pick<AgentQuestion, "text" | "options">,
+  question: Pick<AgentQuestion, "text" | "options"> & {
+    historyRef?: AgentQuestion["historyRef"];
+  },
 ): ParsedClarificationQuestion {
   const rawText = question.text.trim();
   let stemPart = rawText;
@@ -122,7 +176,7 @@ export function parseClarificationQuestion(
       )
       .filter(Boolean);
     hasCheckboxChoices = extractedChoices.length > 0;
-  } else if (question.options.length === 0) {
+  } else if (question.options.length === 0 && !question.historyRef) {
     const bulletCue =
       /([\s\S]*?)\b(?:(?:vui\s+lòng|hãy)\s+chọn(?:\s+một)?|lựa\s+chọn|options?|choose)\s*:\s*((?:[-*•]\s+\S[\s\S]*))$/i.exec(
         rawText,
@@ -153,19 +207,40 @@ export function parseClarificationQuestion(
       .trim();
   }
 
-  if (question.options.length > 0) {
-    const listIndex = stemPart.search(
-      /(?:\n|\s+)(?:ví\s+dụ|gợi\s+ý|lựa\s+chọn|options?|cụ\s+thể)?:?\s*\n?\s*1[.)]\s+/i,
-    );
-    if (listIndex !== -1) {
-      stemPart = stemPart.slice(0, listIndex).trim();
+  let prompt = stemPart;
+  let targetItems: ClarificationTargetItem[] = [];
+
+  if (!question.historyRef) {
+    if (question.options.length > 0) {
+      const explicitEchoIndex = stemPart.search(
+        /(?:\n|\s+)(?:ví\s+dụ|gợi\s+ý|lựa\s+chọn|options?)\s*:\s*\n?\s*1[.)]\s+/i,
+      );
+      if (explicitEchoIndex !== -1) {
+        stemPart = stemPart.slice(0, explicitEchoIndex).trim();
+      }
+      const extracted = extractNumberedTargetItems(stemPart);
+      if (extracted.items.length >= 2) {
+        const optionSet = new Set(
+          question.options.map((opt) => cleanLabel(opt).toLowerCase()),
+        );
+        const echoedCount = extracted.items.filter((item) =>
+          optionSet.has(cleanLabel(item.label).toLowerCase()),
+        ).length;
+        const duplicatesOptions =
+          echoedCount === extracted.items.length ||
+          (extracted.items.length === question.options.length &&
+            echoedCount >= 2);
+        prompt = extracted.prompt;
+        targetItems = duplicatesOptions ? [] : extracted.items;
+      } else {
+        prompt = stemPart;
+      }
+    } else {
+      const extracted = extractNumberedTargetItems(stemPart);
+      prompt = extracted.prompt;
+      targetItems = extracted.items;
     }
   }
-
-  const { prompt, items: targetItems } =
-    question.options.length > 0
-      ? { prompt: stemPart, items: [] }
-      : extractNumberedTargetItems(stemPart);
 
   const mergedChoices: string[] = [];
   const seen = new Set<string>();
@@ -205,7 +280,7 @@ function MaskedSensitiveChip({ category }: { category: string }) {
     <span
       data-testid="masked-sensitive-chip"
       title={t("securityMaskedTooltip")}
-      className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/30"
+      className="inline-flex items-center gap-1 rounded-md bg-warning-50 px-1.5 py-0.5 text-[11px] font-semibold text-warning-800 ring-1 ring-warning-200 ring-inset dark:bg-warning-500/15 dark:text-warning-200 dark:ring-warning-500/30"
     >
       <span aria-hidden="true">🔒</span>
       {t("securityMaskedLabel", { category: label })}
@@ -320,16 +395,22 @@ function ClarificationQuestionCard({
   const [otherCustomText, setOtherCustomText] = useState("");
   const otherInputRef = useRef<HTMLInputElement>(null);
 
-  // Legacy matrix / multi checklist state
-  const [matrixSelections, setMatrixSelections] = useState<Record<number, string>>({});
+  // Multi checklist state
   const [multiSelections, setMultiSelections] = useState<string[]>([]);
+
+  const resolveSecurityLabel = (cat: string) => {
+    const key = `securityCategory.${cat}`;
+    return t.has(key) ? t(key) : cat;
+  };
+  const pretty = (text: string) =>
+    formatMaskedSensitiveText(text, resolveSecurityLabel);
 
   const skipLabel = t("skip");
   const unknownLabel = t("unknown");
   const otherChoiceLabel = t("clarificationOtherOption");
 
   const totalTargetItems = parsed.targetItems.length;
-  const isMultiItem = totalTargetItems >= 2;
+  const isMultiItem = totalTargetItems >= 2 && parsed.choices.length > 0;
 
   // Step indicator (e.g. 1/3, 2/3, 3/3)
   const stepIndicator = useMemo(() => {
@@ -405,21 +486,6 @@ function ClarificationQuestionCard({
     }
   }
 
-  const hasMatrixSelection = parsed.targetItems.some(
-    (item) => !!matrixSelections[item.number],
-  );
-
-  function submitMatrixSelections() {
-    const lines = parsed.targetItems
-      .filter((item) => !!matrixSelections[item.number])
-      .map(
-        (item) =>
-          `${item.number}. ${item.label}: ${matrixSelections[item.number]}`,
-      );
-    if (lines.length === 0) return;
-    onSend(lines.join("\n"), "answered");
-  }
-
   function submitMultiSelections() {
     if (multiSelections.length === 0) return;
     onSend(multiSelections.join(", "), "answered");
@@ -442,7 +508,7 @@ function ClarificationQuestionCard({
         {stepIndicator && (
           <span
             data-testid="clarification-step-badge"
-            className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold tabular-nums text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            className="inline-flex items-center rounded-full bg-brand-100 px-2.5 py-0.5 text-xs font-bold tabular-nums text-brand-700 dark:bg-brand-500/20 dark:text-brand-300"
           >
             {stepIndicator}
           </span>
@@ -463,14 +529,14 @@ function ClarificationQuestionCard({
           <span>
             {question.historyRef.relation && question.historyRef.relation !== "SELF"
               ? t("historyRefRelatedLabel", {
-                  title: question.historyRef.noteTitle,
+                  title: pretty(question.historyRef.noteTitle),
                   relation: `${t(`historyContext.relation.${question.historyRef.relation}`)}${
                     question.historyRef.taskKey ? ` ${question.historyRef.taskKey}` : ""
                   }`,
                   date: question.historyRef.date.split("-").reverse().join("/"),
                 })
               : t("historyRefLabel", {
-                  title: question.historyRef.noteTitle,
+                  title: pretty(question.historyRef.noteTitle),
                   date: question.historyRef.date.split("-").reverse().join("/"),
                 })}
             {question.historyRef.status !== "CURRENT" &&
@@ -485,26 +551,26 @@ function ClarificationQuestionCard({
           {/* Tiêu đề câu hỏi chung nếu có */}
           {parsed.prompt && (
             <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
-              {parsed.prompt}
+              {pretty(parsed.prompt)}
             </h4>
           )}
 
           {/* Tiêu đề mục hiện tại */}
           <div className="rounded-xl border border-brand-200/60 bg-brand-50/60 px-3 py-2 text-xs font-semibold text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200">
-            {currentTargetItem.number}. {cleanLabel(currentTargetItem.label)}
+            {currentTargetItem.number}. {pretty(cleanLabel(currentTargetItem.label))}
           </div>
 
           {/* Lý do / mô tả */}
           {question.reason && (
             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              {question.reason}
+              {pretty(question.reason)}
             </p>
           )}
 
           {/* Các lựa chọn dạng Radio */}
           <div
             role="radiogroup"
-            aria-label={`${currentTargetItem.number}. ${cleanLabel(currentTargetItem.label)}`}
+            aria-label={`${currentTargetItem.number}. ${pretty(cleanLabel(currentTargetItem.label))}`}
             className="space-y-2"
           >
             {displayChoices.map((choice) => {
@@ -547,7 +613,7 @@ function ClarificationQuestionCard({
                       )}
                     </span>
                     <span className="flex-1 leading-relaxed">
-                      {isThisOther ? t("clarificationOtherOption") : choice}
+                      {isThisOther ? t("clarificationOtherOption") : pretty(choice)}
                     </span>
                   </button>
 
@@ -603,7 +669,7 @@ function ClarificationQuestionCard({
                 onClick={() => onSend(skipLabel, "skipped")}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
               >
-                <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                <FastForward className="size-3.5 text-gray-500 rtl:rotate-180 dark:text-gray-400" aria-hidden="true" />
                 <span>{t("clarificationSkipBtn")}</span>
               </button>
 
@@ -627,7 +693,7 @@ function ClarificationQuestionCard({
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
               >
                 <span>{t("clarificationNextBtn")}</span>
-                <ArrowRight className="size-3.5" aria-hidden="true" />
+                <ArrowRight className="size-3.5 rtl:rotate-180" aria-hidden="true" />
               </button>
             ) : (
               <button
@@ -649,19 +715,19 @@ function ClarificationQuestionCard({
         <div className="space-y-3 pt-0.5">
           {parsed.prompt && (
             <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
-              {parsed.prompt}
+              {pretty(parsed.prompt)}
             </h4>
           )}
 
           {question.reason && (
             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              {question.reason}
+              {pretty(question.reason)}
             </p>
           )}
 
           <div
             role="radiogroup"
-            aria-label={parsed.prompt || t("clarificationBadge")}
+            aria-label={pretty(parsed.prompt) || t("clarificationBadge")}
             className="space-y-2"
           >
             {displayChoices.map((choice) => {
@@ -701,7 +767,7 @@ function ClarificationQuestionCard({
                       )}
                     </span>
                     <span className="flex-1 leading-relaxed">
-                      {isThisOther ? t("clarificationOtherOption") : choice}
+                      {isThisOther ? t("clarificationOtherOption") : pretty(choice)}
                     </span>
                   </button>
 
@@ -747,7 +813,7 @@ function ClarificationQuestionCard({
               onClick={() => onSend(skipLabel, "skipped")}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <FastForward className="size-3.5 text-gray-500 rtl:rotate-180 dark:text-gray-400" aria-hidden="true" />
               <span>{t("clarificationSkipBtn")}</span>
             </button>
 
@@ -769,12 +835,12 @@ function ClarificationQuestionCard({
         <div className="space-y-2.5 pt-0.5">
           {parsed.prompt && (
             <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
-              {parsed.prompt}
+              {pretty(parsed.prompt)}
             </h4>
           )}
           {question.reason && (
             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              {question.reason}
+              {pretty(question.reason)}
             </p>
           )}
           <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
@@ -813,7 +879,7 @@ function ClarificationQuestionCard({
                   >
                     {checked && <Check className="size-3" />}
                   </span>
-                  <span>{choice}</span>
+                  <span>{pretty(choice)}</span>
                 </button>
               );
             })}
@@ -827,7 +893,7 @@ function ClarificationQuestionCard({
               onClick={() => onSend(skipLabel, "skipped")}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <FastForward className="size-3.5 text-gray-500 rtl:rotate-180 dark:text-gray-400" aria-hidden="true" />
               <span>{t("clarificationSkipBtn")}</span>
             </button>
 
@@ -837,110 +903,24 @@ function ClarificationQuestionCard({
               onClick={submitMultiSelections}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
             >
-              <SendHorizontal className="size-3.5" aria-hidden="true" />
+              <SendHorizontal className="size-3.5 rtl:rotate-180" aria-hidden="true" />
               <span>{t("clarificationSubmitSelected")}</span>
             </button>
           </div>
         </div>
       )}
 
-      {/* Case D: Legacy Matrix for Embedded Checkbox Tests (where options: []) */}
-      {!isMultiItem && parsed.choiceMode === "matrix" && (
-        <div className="space-y-2.5 pt-0.5">
-          <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-            {t("clarificationMatrixHint")}
-          </p>
-          <div className="space-y-2">
-            {parsed.targetItems.map((item) => {
-              const chosen = matrixSelections[item.number] ?? null;
-              return (
-                <div
-                  key={item.number}
-                  role="group"
-                  aria-label={`${item.number}. ${item.label}`}
-                  className="space-y-2 rounded-xl border border-gray-200/90 bg-white p-2.5 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
-                >
-                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">
-                    {item.number}. {item.label}
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {parsed.choices.map((choice) => {
-                      const selected = chosen === choice;
-                      return (
-                        <button
-                          key={choice}
-                          type="button"
-                          aria-pressed={selected}
-                          disabled={disabled}
-                          onClick={() =>
-                            setMatrixSelections((prev) => {
-                              const next = { ...prev };
-                              if (next[item.number] === choice) {
-                                delete next[item.number];
-                              } else {
-                                next[item.number] = choice;
-                              }
-                              return next;
-                            })
-                          }
-                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-start text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                            selected
-                              ? "border-brand-500 bg-brand-600 text-white shadow-2xs"
-                              : "border-gray-200 bg-gray-50/80 text-gray-700 hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500/40"
-                          }`}
-                        >
-                          {selected && (
-                            <Check
-                              className="size-3 shrink-0"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span>{choice}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="flex items-center justify-between gap-3 pt-1">
-            <button
-              type="button"
-              disabled={disabled}
-              aria-label={skipLabel}
-              onClick={() => onSend(skipLabel, "skipped")}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
-            >
-              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
-              <span>{t("clarificationSkipBtn")}</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={disabled || !hasMatrixSelection}
-              onClick={submitMatrixSelections}
-              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
-            >
-              <SendHorizontal className="size-3.5" aria-hidden="true" />
-              <span>{t("clarificationSubmitSelected")}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Case E: Open-ended Question */}
+      {/* Case D: Open-ended Question */}
       {!isMultiItem && parsed.choiceMode === "none" && (
         <div className="space-y-3 pt-0.5">
           {parsed.prompt && (
             <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
-              {parsed.prompt}
+              {pretty(parsed.prompt)}
             </h4>
           )}
           {question.reason && (
             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              {question.reason}
+              {pretty(question.reason)}
             </p>
           )}
           {parsed.targetItems.length >= 2 && (
@@ -948,7 +928,7 @@ function ClarificationQuestionCard({
               {parsed.targetItems.map((item) => (
                 <li key={item.number}>
                   <span className="font-semibold">{item.number}.</span>{" "}
-                  {item.label}
+                  {pretty(item.label)}
                 </li>
               ))}
             </ol>
@@ -967,7 +947,7 @@ function ClarificationQuestionCard({
               onClick={() => onSend(skipLabel, "skipped")}
               className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <FastForward className="size-3.5 text-gray-500 rtl:rotate-180 dark:text-gray-400" aria-hidden="true" />
               <span>{t("clarificationSkipBtn")}</span>
             </button>
 
@@ -1079,6 +1059,12 @@ function InlineChatProposalCard({
   onRegenerate: () => void;
 }) {
   const t = useTranslations("workNotes.agent");
+  const resolveSecurityLabel = (cat: string) => {
+    const key = `securityCategory.${cat}`;
+    return t.has(key) ? t(key) : cat;
+  };
+  const pretty = (text: string) =>
+    formatMaskedSensitiveText(text, resolveSecurityLabel);
   const [edited, setEdited] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [applyTitle, setApplyTitle] = useState(false);
@@ -1300,7 +1286,8 @@ function InlineChatProposalCard({
                 className="rounded border-gray-300 text-brand-600 focus:ring-brand-500"
               />
               <span>
-                {t("applyTitle")}: <strong>{suggestion.suggestedTitle}</strong>
+                {t("applyTitle")}:{" "}
+                <strong>{pretty(suggestion.suggestedTitle)}</strong>
               </span>
             </label>
           )}
@@ -1317,7 +1304,7 @@ function InlineChatProposalCard({
           {!!uncertainties?.length && (
             <ul className="space-y-1 rounded-lg border border-warning-200 bg-warning-50/70 p-2 text-[11px] text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300">
               {uncertainties.map((item, idx) => (
-                <li key={idx}>{item}</li>
+                <li key={idx}>{pretty(item)}</li>
               ))}
             </ul>
           )}
@@ -1766,7 +1753,10 @@ export default function WorkNoteAgentChat({
             disabled={!message.trim() || thinking || busy}
             className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-brand-600 text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:bg-brand-200 dark:disabled:bg-brand-500/30"
           >
-            <SendHorizontal className="size-4" aria-hidden="true" />
+            <SendHorizontal
+              className="size-4 rtl:rotate-180"
+              aria-hidden="true"
+            />
           </button>
         </form>
       </div>
