@@ -6,12 +6,15 @@ import "@fullcalendar/react/themes/classic/theme.css";
 
 import { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Next.js Calender | TailAdmin - Next.js Dashboard Template",
-  description:
-    "This is Next.js Calender page for TailAdmin  Tailwind CSS Admin Dashboard Template",
-  // other metadata
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "calendar");
+}
 export default function page() {
   return (
     <div>

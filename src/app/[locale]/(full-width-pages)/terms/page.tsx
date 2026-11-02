@@ -12,7 +12,9 @@ export async function generateMetadata({
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "legalCenter" });
   return {
-    title: t("termsMetaTitle"),
+    title: {
+      absolute: t("termsMetaTitle"),
+    },
     description: t("termsMetaDescription"),
   };
 }

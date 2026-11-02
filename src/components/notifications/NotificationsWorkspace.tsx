@@ -2,7 +2,9 @@
 
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRouter } from "@/i18n/navigation";
+import { formatAppTitle } from "@/lib/page-titles";
 import {
   AlertIcon,
   ChatIcon,
@@ -114,8 +116,15 @@ export default function NotificationsWorkspace() {
   const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
   const pages = notificationsAccessLost ? [] : (infiniteQuery.data?.pages ?? []);
   const items = pages.flatMap((page) => page?.items ?? []);
+  const tPage = useTranslations("pageTitles");
   const unreadCount =
     (unreadAccessLost ? undefined : unreadQuery.data?.count) ?? pages[0]?.unreadCount ?? 0;
+  const baseNotificationsTitle = formatAppTitle(tPage("notifications"));
+  useDocumentTitle(
+    unreadCount > 0
+      ? `(${unreadCount}) ${baseNotificationsTitle}`
+      : baseNotificationsTitle,
+  );
 
   async function handleOpenNotification(item: NotificationItem) {
     setUnavailableMessage(null);

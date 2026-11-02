@@ -2,7 +2,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link, useRouter } from "@/i18n/navigation";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { useModal } from "@/hooks/useModal";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
@@ -40,6 +42,7 @@ export default function TeamsWorkspace({
   mode?: "list" | "create" | "detail" | "edit";
   embedded?: boolean;
 }) {
+  const tPage = useTranslations("pageTitles");
   const [selection, setSelection] = useState<{ scope: string; page: number; status: TeamFilter }>();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
@@ -57,6 +60,28 @@ export default function TeamsWorkspace({
   // Retain a mounted draft after a transient read failure, but never allow a
   // command until a current read succeeds. Access denials discard cached UI.
   const canManage = isProjectLeader && Boolean(teamAccess.data) && !isAccessOrResourceUnavailableError(teamAccess.error);
+  const visibleProjectName =
+    !userAccessLost && !isAccessOrResourceUnavailableError(project.error)
+      ? project.data?.name
+      : null;
+  const visibleTeamName =
+    !isAccessOrResourceUnavailableError(detailAccess.error) &&
+    detailAccess.data?.team.name
+      ? detailAccess.data.team.name
+      : null;
+  const teamSectionTitle =
+    mode === "create"
+      ? tPage("projectTeamNew")
+      : mode === "edit"
+        ? visibleTeamName
+          ? tPage("projectTeamEditNamed", { name: visibleTeamName })
+          : tPage("projectTeamEdit")
+        : mode === "detail"
+          ? (visibleTeamName ?? tPage("projectTeamDetail"))
+          : tPage("projectTeams");
+  useDocumentTitle(
+    !embedded ? formatProjectSectionTitle(visibleProjectName, teamSectionTitle) : null,
+  );
   if (user.isPending && !visibleUser) return <TeamState loading />;
   if (user.isError && !visibleUser) return <TeamState error={user.error} />;
   if (!visibleUser?.organizationId)

@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import OrganizationSettingsManager from "@/components/organization-settings/OrganizationSettingsManager";
 
-export const metadata: Metadata = {
-  title: "Continuum AI — Organization Settings",
-  description: "Manage organization profile, governance policy, and manager permissions",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "organizationSettings", {
+    descriptionKey: "organizationSettingsDescription",
+  });
+}
 
 export default async function OrganizationSettingsPage({
   params,

@@ -2,10 +2,17 @@ import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 import OrganizationOverviewDashboard from "@/components/organization-overview/OrganizationOverviewDashboard";
 
-export const metadata: Metadata = {
-  title: "Continuum AI — Organization Overview",
-  description: "Organization governance, membership, and project workspace overview",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "dashboard", {
+    descriptionKey: "dashboardDescription",
+  });
+}
 
 export default async function DashboardPage({
   params,

@@ -36,6 +36,8 @@ import {
 } from "@tanstack/react-query";
 import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatAppTitle, formatProjectSectionTitle } from "@/lib/page-titles";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ChatDialog from "./ChatDialog";
 import ChatMessageBubble from "./ChatMessageBubble";
@@ -315,9 +317,15 @@ export default function ChatWorkspace() {
       .find((item) => item.id === activeId) ??
     visibleConversationDetail ??
     (detailAccessLost ? undefined : activeFallback?.conversation);
+  const tPage = useTranslations("pageTitles");
   const activeName = activeConversation
     ? conversationName(activeConversation, actorId)
     : (detailAccessLost ? "" : activeFallback?.name ?? "");
+  useDocumentTitle(
+    activeName.trim()
+      ? formatProjectSectionTitle(activeName, tPage("messages"))
+      : formatAppTitle(tPage("messages")),
+  );
   const activeType = activeConversation?.type ?? (detailAccessLost ? undefined : activeFallback?.type);
   const contextQuery = useChatMessageContextQuery(
     organizationId,

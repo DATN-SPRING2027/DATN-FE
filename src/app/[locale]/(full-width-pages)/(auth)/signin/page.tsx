@@ -1,11 +1,16 @@
 import SignInForm from "@/components/auth/SignInForm";
-import { Metadata } from "next";
+import type { Metadata } from "next";
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
-export const metadata: Metadata = {
-  title: "Sign in | Continuum AI",
-  description:
-    "Sign in to your Continuum AI workspace to capture, verify, and carry project knowledge forward.",
-};
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "signIn", {
+    descriptionKey: "signInDescription",
+  });
+}
 
 export default async function SignIn({
   searchParams,

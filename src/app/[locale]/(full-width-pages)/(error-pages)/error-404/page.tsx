@@ -5,16 +5,22 @@ import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import React from "react";
 
+import { formatAppTitle } from "@/lib/page-titles";
+import { resolveMetadataLocale } from "@/lib/page-titles.server";
+
 type PageProps = {
   params: Promise<{ locale: string }>;
 };
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { locale } = await params;
-  const t = await getTranslations({ locale, namespace: "notFound" });
+  const resolvedLocale = resolveMetadataLocale(locale);
+  const t = await getTranslations({ locale: resolvedLocale, namespace: "notFound" });
 
   return {
-    title: `${t("pageTitle")} | Continuum AI`,
+    title: {
+      absolute: formatAppTitle(t("pageTitle")),
+    },
     description: t("message"),
   };
 }

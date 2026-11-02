@@ -11,7 +11,9 @@ import {
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { formatAiChatTitle } from "@/lib/page-titles";
 import {
   AlertIcon,
   ArrowRightIcon,
@@ -184,6 +186,7 @@ function WorkspaceLoadingSkeleton({ label }: { label: string }) {
 
 function AiChatWorkspaceContent() {
   const t = useTranslations("AiChat");
+  const tPage = useTranslations("pageTitles");
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -421,6 +424,14 @@ function AiChatWorkspaceContent() {
       null
     );
   }, [activeThreadId, currentScopeBranchedThreads, effectiveThreads]);
+
+  useDocumentTitle(
+    formatAiChatTitle({
+      threadTitle: activeThread?.title,
+      fallbackLabel: tPage("aiChat"),
+      isStreaming,
+    }),
+  );
 
   const messagesQuery = useAiChatMessagesInfiniteQuery(
     organizationId,

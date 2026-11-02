@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import BrandLogo from "@/components/common/BrandLogo";
 import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link } from "@/i18n/navigation";
 import {
   ArrowRightIcon,
@@ -87,6 +88,9 @@ export default function LegalCenterView({ initialTab }: LegalCenterViewProps) {
     }
   }
   const [activeTab, setActiveTab] = useState<LegalTabId>(initialTab);
+  useDocumentTitle(
+    activeTab === "terms" ? t("termsMetaTitle") : t("privacyMetaTitle"),
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileTocOpen, setMobileTocOpen] = useState(false);
   const [activeSectionId, setActiveSectionId] = useState<string>("");
