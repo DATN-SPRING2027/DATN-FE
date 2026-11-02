@@ -2067,11 +2067,6 @@ function AiChatWorkspaceContent() {
           }}
           onSubmit={() => void sendQuestion(composerValue)}
           onStopStreaming={handleStopStreaming}
-          readySourceCount={
-            projectSourcesSummaryQuery.isError || projectSourcesAccessDenied
-              ? null
-              : (projectSourcesSummaryQuery.data?.summary.readyCount ?? null)
-          }
           totalSourceCount={
             projectSourcesAccessDenied
               ? null

@@ -283,10 +283,16 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     expect(screen.getByTestId("ai-chat-mind-map-trigger")).toBeDisabled();
   });
 
-  it("shows the live ready/total count and opens a read-only project source list", () => {
+  it("shows the project document total and opens a read-only source list", () => {
     renderWorkspace();
 
-    fireEvent.click(screen.getByTestId("ai-chat-sources-trigger"));
+    const sourcesTrigger = screen.getByTestId("ai-chat-sources-trigger");
+    expect(sourcesTrigger).toHaveTextContent("4");
+    expect(sourcesTrigger).toHaveAccessibleName(
+      "Open project sources. 4 documents in this project",
+    );
+
+    fireEvent.click(sourcesTrigger);
 
     expect(screen.getByTestId("ai-chat-sources-panel")).toBeInTheDocument();
     expect(
@@ -316,7 +322,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     renderWorkspace();
 
     expect(screen.getByTestId("ai-chat-sources-trigger")).toHaveTextContent(
-      "—/4",
+      "4",
     );
   });
 
@@ -340,7 +346,7 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     renderWorkspace();
 
     expect(screen.getByTestId("ai-chat-sources-trigger")).toHaveTextContent(
-      "—/—",
+      "—",
     );
   });
 

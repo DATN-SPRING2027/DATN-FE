@@ -46,7 +46,6 @@ export interface AiChatComposerProps {
   onChange: (nextValue: string) => void;
   onSubmit: () => void;
   onStopStreaming: () => void;
-  readySourceCount?: number | null;
   totalSourceCount?: number | null;
   onOpenSources?: () => void;
 }
@@ -69,7 +68,6 @@ export default function AiChatComposer({
   onChange,
   onSubmit,
   onStopStreaming,
-  readySourceCount,
   totalSourceCount,
   onOpenSources,
 }: AiChatComposerProps) {
@@ -330,11 +328,9 @@ export default function AiChatComposer({
                 type="button"
                 data-testid="ai-chat-sources-trigger"
                 aria-label={t("projectSourcesButtonAria", {
-                  ready: readySourceCount ?? "—",
                   total: totalSourceCount ?? "—",
                 })}
                 title={t("projectSourcesButtonTitle", {
-                  ready: readySourceCount ?? "—",
                   total: totalSourceCount ?? "—",
                 })}
                 onClick={() => {
@@ -349,7 +345,7 @@ export default function AiChatComposer({
                   className="size-3.5 shrink-0 text-brand-500 dark:text-brand-400"
                 />
                 <span>
-                  {readySourceCount ?? "—"}/{totalSourceCount ?? "—"}
+                  {totalSourceCount ?? "—"}
                 </span>
               </button>
             )}
