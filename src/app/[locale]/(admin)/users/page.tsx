@@ -3,10 +3,15 @@ import UserDirectory from "@/components/users/UserDirectory";
 import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "Users | Continuum AI",
-  description: "Organization user directory",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "users");
+}
 
 export default async function UsersPage() {
   const t = await getTranslations("users");

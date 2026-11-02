@@ -1914,7 +1914,15 @@ export default function ProjectDocumentsWorkspace({
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pt-6 pb-24 sm:px-6 lg:px-8">
-      <WorkNotesPageHeader projectId={projectId} active="documents" />
+      <WorkNotesPageHeader
+        projectId={projectId}
+        active="documents"
+        activeEntityTitle={
+          !detailAccessLost && !listAccessLost && documentId
+            ? (current?.title ?? selected?.title ?? null)
+            : null
+        }
+      />
 
       <input
         ref={batchFileInputRef}

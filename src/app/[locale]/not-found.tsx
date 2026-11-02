@@ -1,12 +1,16 @@
 "use client";
 
 import GridShape from "@/components/common/GridShape";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link } from "@/i18n/navigation";
+import { formatAppTitle } from "@/lib/page-titles";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 
 export default function NotFound() {
   const t = useTranslations("notFound");
+  const tPage = useTranslations("pageTitles");
+  useDocumentTitle(formatAppTitle(tPage("notFound")));
 
   return (
     <div className="relative z-1 flex min-h-screen flex-col items-center justify-center overflow-hidden p-6">
@@ -44,7 +48,7 @@ export default function NotFound() {
       </div>
       {/* <!-- Footer --> */}
       <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-center text-sm text-gray-500 dark:text-gray-400">
-        &copy; {new Date().getFullYear()} - TailAdmin
+        &copy; {new Date().getFullYear()} - Continuum
       </p>
     </div>
   );

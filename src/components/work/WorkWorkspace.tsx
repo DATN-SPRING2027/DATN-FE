@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from"react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from"next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
 import {
   ApiError,
@@ -319,6 +321,7 @@ export default function WorkWorkspace({
   hideProjectBanner?: boolean;
 }) {
   const t = useTranslations("work");
+  const tPage = useTranslations("pageTitles");
   const common = useTranslations("common");
   const queryClient = useQueryClient();
   const user = useCurrentUserQuery();
@@ -329,6 +332,11 @@ export default function WorkWorkspace({
   const projectAccessLost = isAccessOrResourceUnavailableError(project.error);
   const visibleProject = projectAccessLost ? undefined : project.data;
   const resolvedProject = projectProp ?? visibleProject;
+  useDocumentTitle(
+    !embedded && !onProjectChange
+      ? formatProjectSectionTitle(resolvedProject?.name, tPage("projectWork"))
+      : null,
+  );
   const [internalView, setInternalView] = useState<WorkView>(controlledView ??"list");
   const view = controlledView ?? internalView;
   const [fullPageWorkItemId, setFullPageWorkItemId] = useState<string | null>(null);

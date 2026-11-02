@@ -3,8 +3,10 @@
 import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { tr } from "@/i18n/tr";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link, useRouter } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import {
@@ -55,12 +57,22 @@ export default function HandoverListWorkspace({
   projectId: string;
 }) {
   const t = useTranslations("handover");
+  const tPage = useTranslations("pageTitles");
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const organizationId = currentUser.data?.organizationId ?? "";
   const isOrgManager = Boolean(currentUser.data?.roles?.includes("ADMIN"));
 
   const projectQuery = useProjectQuery(organizationId, projectId);
+  const projectAccessLost =
+    isAccessOrResourceUnavailableError(currentUser.error) ||
+    isAccessOrResourceUnavailableError(projectQuery.error);
+  useDocumentTitle(
+    formatProjectSectionTitle(
+      !projectAccessLost ? projectQuery.data?.name : null,
+      tPage("projectHandover"),
+    ),
+  );
   const membersQuery = useProjectMembersQuery(organizationId, projectId, {
     page: 1,
     pageSize: 100,

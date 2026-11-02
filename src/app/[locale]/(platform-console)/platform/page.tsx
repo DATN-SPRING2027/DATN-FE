@@ -1,11 +1,14 @@
-import PlatformConsoleRoute from "@/components/platform/PlatformConsoleRoute";
 import type { Metadata } from "next";
+import PlatformConsoleRoute from "@/components/platform/PlatformConsoleRoute";
+import { buildPlatformPageMetadata } from "@/lib/page-titles.server";
 
-export const metadata: Metadata = {
-  title: "Platform Console | Continuum AI",
-  description:
-    "Review the Platform administration, security, operations and audit capabilities available to your account.",
-};
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildPlatformPageMetadata(params, "platformOverview", { descriptionKey: "platformDescription" });
+}
 
 export default function PlatformConsolePage() {
   return <PlatformConsoleRoute />;

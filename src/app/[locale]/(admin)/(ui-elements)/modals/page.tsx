@@ -6,12 +6,15 @@ import ModalBasedAlerts from "@/components/example/ModalExample/ModalBasedAlerts
 import VerticallyCenteredModal from "@/components/example/ModalExample/VerticallyCenteredModal";
 import { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Next.js Modals | TailAdmin - Next.js Dashboard Template",
-  description:
-    "This is Next.js Modals page for TailAdmin - Next.js Tailwind CSS Admin Dashboard Template",
-  // other metadata
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "uiModals");
+}
 
 export default function Modals() {
   return (

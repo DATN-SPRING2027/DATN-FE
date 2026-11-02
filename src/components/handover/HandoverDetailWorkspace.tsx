@@ -2,8 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import {
@@ -269,8 +271,20 @@ export default function HandoverDetailWorkspace({
     detailQuery.error instanceof ApiError &&
     [401, 403, 404].includes(detailQuery.error.status);
 
+  const tPage = useTranslations("pageTitles");
   const detailResource = detailQuery.data;
   const handover = detailResource?.detail.handover;
+  const projectAccessLost =
+    isAccessOrResourceUnavailableError(currentUser.error) ||
+    isAccessOrResourceUnavailableError(projectQuery.error);
+  useDocumentTitle(
+    formatProjectSectionTitle(
+      !projectAccessLost ? projectQuery.data?.name : null,
+      !isAccessDenied && handover?.title
+        ? handover.title
+        : tPage("projectHandoverDetail"),
+    ),
+  );
   const publishedRevision = detailResource?.detail.publishedRevision ?? null;
   const capabilities = useMemo(
     () => detailResource?.detail.capabilities ?? [],

@@ -5,10 +5,17 @@ import UserMetaCard from "@/components/user-profile/UserMetaCard";
 import { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
 
-export const metadata: Metadata = {
-  title: "My Profile | Continuum AI",
-  description: "Manage your personal information and account security in Continuum AI.",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "profile", {
+    descriptionKey: "profileDescription",
+  });
+}
 
 export default async function Profile() {
   const t = await getTranslations("profile");

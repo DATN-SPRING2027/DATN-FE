@@ -1,5 +1,8 @@
 "use client";
 
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useProjectQuery } from "@/lib/queries/projects/useProjects";
 import { ChevronLeftIcon } from "@/icons";
@@ -11,15 +14,34 @@ export type WorkNotesSection = "tasks" | "documents" | "reports";
 export default function WorkNotesPageHeader({
   projectId,
   active,
+  activeEntityTitle,
 }: {
   projectId: string;
   active: WorkNotesSection;
+  activeEntityTitle?: string | null;
 }) {
   const t = useTranslations("workNotes");
+  const tPage = useTranslations("pageTitles");
   const user = useCurrentUserQuery();
   const project = useProjectQuery(user.data?.organizationId ?? "", projectId);
+  const projectAccessLost =
+    isAccessOrResourceUnavailableError(user.error) ||
+    isAccessOrResourceUnavailableError(project.error);
+  const visibleProjectName = !projectAccessLost ? project.data?.name : null;
+  const sectionPageLabel =
+    active === "tasks"
+      ? tPage("projectWorkNotes")
+      : active === "documents"
+        ? tPage("projectDocuments")
+        : tPage("projectWorkReports");
+  useDocumentTitle(
+    formatProjectSectionTitle(
+      visibleProjectName,
+      activeEntityTitle?.trim() || sectionPageLabel,
+    ),
+  );
   const projectName =
-    project.data?.name ?? t("projectFallback", { id: projectId.slice(0, 8) });
+    visibleProjectName ?? t("projectFallback", { id: projectId.slice(0, 8) });
   const encodedProjectId = encodeURIComponent(projectId);
   const links: readonly Readonly<{
     id: WorkNotesSection;

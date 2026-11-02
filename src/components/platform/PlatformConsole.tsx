@@ -16,7 +16,9 @@ import {
   QueryRefreshStatus,
 } from "@/components/platform/PlatformOperationsUi";
 import Button from "@/components/ui/button/Button";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { formatPlatformTitle } from "@/lib/page-titles";
 import { ApiError } from "@/lib/api-client";
 import { usePlatformChangeOrganizationMetadataMutation } from "@/lib/queries/platform/usePlatformOperations";
 import {
@@ -73,6 +75,7 @@ function apiMessage(error: unknown, fallback: string): string {
 
 export default function PlatformConsole() {
   const t = useTranslations("platformConsole");
+  const tPage = useTranslations("pageTitles");
   const router = useRouter();
   const pathname = usePathname();
   const pathSegments = pathname.split("/").filter(Boolean);
@@ -150,6 +153,44 @@ export default function PlatformConsole() {
       activeSection === "organizations" &&
       hasValidRouteOrganizationId,
   );
+  const visiblePlatformOrgName =
+    activeSection === "organizations" &&
+    hasValidRouteOrganizationId &&
+    !isReadAccessLost(organization.error)
+      ? organization.data?.name
+      : null;
+  const platformSectionTitle =
+    activeSection === "organizations"
+      ? (visiblePlatformOrgName ??
+        (hasValidRouteOrganizationId
+          ? tPage("platformOrganizationDetail")
+          : tPage("platformOrganizations")))
+      : activeSection === "users"
+        ? tPage("platformUsers")
+        : activeSection === "memberships"
+          ? tPage("platformMemberships")
+          : activeSection === "projects"
+            ? tPage("platformProjects")
+            : activeSection === "security"
+              ? tPage("platformSecurity")
+              : activeSection === "services"
+                ? tPage("platformServices")
+                : activeSection === "jobs"
+                  ? tPage("platformJobs")
+                  : activeSection === "ai"
+                    ? tPage("platformAi")
+                    : activeSection === "integrations"
+                      ? tPage("platformIntegrations")
+                      : activeSection === "incidents"
+                        ? tPage("platformIncidents")
+                        : activeSection === "diagnostics"
+                          ? tPage("platformDiagnostics")
+                          : activeSection === "audit"
+                            ? tPage("platformAudit")
+                            : activeSection === "account"
+                              ? tPage("platformAccount")
+                              : tPage("platformOverview");
+  useDocumentTitle(formatPlatformTitle(platformSectionTitle));
   const changeOrganizationMetadata =
     usePlatformChangeOrganizationMetadataMutation();
   const lookup = usePlatformUserLookupMutation();

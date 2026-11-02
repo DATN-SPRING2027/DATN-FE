@@ -2,7 +2,9 @@
 
 import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link } from "@/i18n/navigation";
+import { formatAiChatTitle } from "@/lib/page-titles";
 import {
   AlertIcon,
   ArrowRightIcon,
@@ -36,6 +38,7 @@ export default function SharedAiAnswerView({
   shareId,
 }: SharedAiAnswerViewProps) {
   const t = useTranslations("AiChat");
+  const tPage = useTranslations("pageTitles");
   const locale = useLocale();
   const currentUserQuery = useCurrentUserQuery();
   const organizationId = currentUserQuery.data?.organizationId ?? "";
@@ -54,6 +57,16 @@ export default function SharedAiAnswerView({
 
   const { speakingMessageId, preparingMessageId, speechError, toggleSpeak } =
     useLocalSpeech(locale);
+
+  useDocumentTitle(
+    formatAiChatTitle({
+      threadTitle:
+        !sharedQuery.isError && !currentUserQuery.isError
+          ? sharedQuery.data?.question.content
+          : null,
+      fallbackLabel: tPage("aiChatShared"),
+    }),
+  );
 
   const backHref = `/ai-chat?projectId=${encodeURIComponent(projectId)}`;
 

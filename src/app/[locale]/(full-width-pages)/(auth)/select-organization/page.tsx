@@ -15,9 +15,15 @@ function organizationInitials(name: string) {
     .join("");
 }
 
-export const metadata: Metadata = {
-  title: "Choose an organization | Continuum AI",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "selectOrganization");
+}
 
 export default async function SelectOrganizationPage({
   searchParams,

@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
+import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import {
@@ -22,6 +24,7 @@ export default function MemberWorkspace({
   initialView?: WorkView;
 }) {
   const t = useTranslations("work");
+  const tPage = useTranslations("pageTitles");
   const common = useTranslations("common");
   const pathname = usePathname?.() ?? "/workspace";
   const router = useRouter?.();
@@ -111,9 +114,12 @@ export default function MemberWorkspace({
   );
   const directProjectAccessLost = isAccessOrResourceUnavailableError(directProject.error);
   const visibleDirectProject = directProjectAccessLost ? undefined : directProject.data;
-  const resolvedActiveProjectId = (
-    matchedFromPage ?? visibleDirectProject ?? loadedProjects[0]
-  )?.id;
+  const resolvedActiveProject =
+    matchedFromPage ?? visibleDirectProject ?? loadedProjects[0];
+  const resolvedActiveProjectId = resolvedActiveProject?.id;
+  useDocumentTitle(
+    formatProjectSectionTitle(resolvedActiveProject?.name, tPage("workspace")),
+  );
 
   useEffect(() => {
     if (typeof window !== "undefined" && resolvedActiveProjectId) {

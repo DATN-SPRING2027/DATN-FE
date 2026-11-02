@@ -5,11 +5,15 @@ import CopyButton from "@/components/ui/button/CopyButton";
 import { ArrowRightIcon, BoxIcon, TrashBinIcon } from "@/icons";
 import { Metadata } from "next";
 
-export const metadata: Metadata = {
-  title: "Buttons | Continuum AI",
-  description:
-    "Interactive Animate UI spring & ripple button system for Continuum AI",
-};
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "uiButtons");
+}
 
 export default function Buttons() {
   return (

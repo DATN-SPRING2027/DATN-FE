@@ -4,10 +4,13 @@ import { isRtl } from "@/i18n/languages";
 import { type Locale, routing } from "@/i18n/routing";
 import { AppProviders } from "@/lib/providers/AppProviders";
 import "flatpickr/dist/flatpickr.css";
+import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
-import { setRequestLocale } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { notFound } from "next/navigation";
+import { BRAND_SHORT } from "@/lib/page-titles";
+import { resolveMetadataLocale } from "@/lib/page-titles.server";
 import "simplebar-react/dist/simplebar.min.css";
 import "swiper/css/bundle";
 import "../globals.css";
@@ -21,6 +24,26 @@ const beVietnamPro = Be_Vietnam_Pro({
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const resolvedLocale = resolveMetadataLocale(locale);
+  const t = await getTranslations({
+    locale: resolvedLocale,
+    namespace: "pageTitles",
+  });
+  return {
+    title: {
+      default: t("defaultApp"),
+      template: `%s · ${BRAND_SHORT}`,
+    },
+    description: t("defaultDescription"),
+  };
 }
 
 export default async function RootLayout({

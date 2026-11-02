@@ -2,6 +2,17 @@ import { Suspense } from "react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import SharedAiAnswerView from "@/components/ai-chat/SharedAiAnswerView";
 
+import type { Metadata } from "next";
+import { buildAiChatPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAiChatPageMetadata(params, "aiChatShared");
+}
+
 export default async function ProjectSharedAiAnswerPage({
   params,
 }: {

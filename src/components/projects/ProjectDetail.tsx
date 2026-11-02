@@ -3,7 +3,12 @@
 import { useMutationState } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { lazy, Suspense, useState } from "react";
+import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRouter } from "@/i18n/navigation";
+import {
+  formatProjectOverviewTitle,
+  formatProjectSectionTitle,
+} from "@/lib/page-titles";
 import ProjectVisibilityNotification from "./ProjectVisibilityNotification";
 import ProjectOverview, {
   type ProjectTab,
@@ -49,6 +54,7 @@ function OrganizationProject({
   const router = useRouter();
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
+  const tPage = useTranslations("pageTitles");
   const common = useTranslations("common");
   const changes = useMutationState({
     filters: {
@@ -62,6 +68,22 @@ function OrganizationProject({
   });
   const latest = changes.at(-1);
   const accessWasRevoked = isAccessOrResourceUnavailableError(project.error);
+  const visibleProjectName = !accessWasRevoked ? project.data?.name : null;
+  const resolvedDocumentTitle =
+    activeTab === "teams"
+      ? formatProjectSectionTitle(visibleProjectName, tPage("projectTeams"))
+      : activeTab === "members"
+        ? formatProjectSectionTitle(visibleProjectName, tPage("projectMembers"))
+        : activeTab === "settings"
+          ? formatProjectSectionTitle(
+              visibleProjectName,
+              tPage("projectSettings"),
+            )
+          : formatProjectOverviewTitle(
+              visibleProjectName,
+              tPage("projectOverview"),
+            );
+  useDocumentTitle(resolvedDocumentTitle);
   const notice =
     latest?.status === "success" &&
     (project.isError || project.data?.visibility === latest.target) &&

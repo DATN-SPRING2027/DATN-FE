@@ -2,6 +2,17 @@ import { Suspense } from "react";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import HandoverListWorkspace from "@/components/handover/HandoverListWorkspace";
 
+import type { Metadata } from "next";
+import { buildAppPageMetadata } from "@/lib/page-titles.server";
+
+export function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  return buildAppPageMetadata(params, "projectHandover");
+}
+
 export default async function ProjectHandoverListPage({
   params,
 }: {
