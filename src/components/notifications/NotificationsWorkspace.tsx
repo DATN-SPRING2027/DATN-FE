@@ -28,6 +28,7 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
@@ -91,9 +92,18 @@ export default function NotificationsWorkspace() {
   const common = useTranslations("common");
   const router = useRouter();
   const openChatMessage = useChatNavigation((state) => state.open);
+  const openFloatingConversation = useFloatingChatStore(
+    (state) => state.openConversation,
+  );
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
   const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
+  const organizationId =
+    !currentUserAccessLost &&
+    currentUser.data &&
+    "organizationId" in currentUser.data
+      ? (currentUser.data.organizationId ?? null)
+      : null;
 
   const [filter, setFilter] = useState<"all" | "unread">("all");
   const [unavailableMessage, setUnavailableMessage] = useState<string | null>(
@@ -142,6 +152,18 @@ export default function NotificationsWorkspace() {
       const target = resolution.target ?? item.target;
       const url =
         resolution.url ?? target?.url ?? resolveDefaultTargetUrl(item);
+      const chatConversationId =
+        target?.conversationId ?? item.conversationId ?? null;
+      const isChatTarget =
+        target?.kind === "CHAT" || resolveNotificationCategory(item) === "CHAT";
+
+      if (isChatTarget && chatConversationId && organizationId) {
+        openFloatingConversation(organizationId, chatConversationId, {
+          messageId: target?.messageId ?? undefined,
+        });
+        return;
+      }
+
       if (
         target?.kind === "CHAT" &&
         target.conversationId &&

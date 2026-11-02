@@ -926,7 +926,18 @@
     "timeUnavailable": "Đã xác nhận · không rõ thời gian",
     "receiptTimeHint": "Thời gian hiển thị là mốc xác nhận gần nhất áp dụng cho tin nhắn này. Các tin nhắn cũ hơn có thể không có thời gian xác nhận được ghi lại.",
     "messageSearchLabel": "Tìm kiếm tin nhắn",
-    "loadingOperation": "Đang tải…"
+    "loadingOperation": "Đang tải…",
+    "floatingButtonLabel": "Mở cửa sổ tin nhắn nhanh",
+    "floatingCloseLauncher": "Đóng danh sách tin nhắn",
+    "openInFullChat": "Mở trong trang Tin nhắn đầy đủ",
+    "minimizeChat": "Thu nhỏ thành bong bóng chat",
+    "restoreChatWith": "Mở lại đoạn chat với {name}",
+    "closeChatHead": "Đóng bong bóng chat {name}",
+    "closeChatWindow": "Đóng cửa sổ chat {name}",
+    "recentConversations": "Gần đây",
+    "quickSearchPlaceholder": "Tìm cuộc trò chuyện hoặc thành viên…",
+    "startingDirectChat": "Đang mở cuộc trò chuyện…",
+    "backToConversations": "Quay về danh sách tin nhắn"
   },
   "sidebar": {
     "navigation": "Điều hướng chính",

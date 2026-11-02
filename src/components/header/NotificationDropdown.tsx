@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   AlertIcon,
   ChatIcon,
@@ -28,6 +28,7 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
@@ -93,7 +94,11 @@ export default function NotificationDropdown() {
   const t = useTranslations("header.notifications");
   const common = useTranslations("common");
   const router = useRouter();
+  const pathname = usePathname();
   const openChatMessage = useChatNavigation((state) => state.open);
+  const openFloatingConversation = useFloatingChatStore(
+    (state) => state.openConversation,
+  );
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
   const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
@@ -161,6 +166,21 @@ export default function NotificationDropdown() {
       const target = resolution.target ?? item.target;
       const url =
         resolution.url ?? target?.url ?? resolveDefaultTargetUrl(item);
+      const chatConversationId =
+        target?.conversationId ?? item.conversationId ?? null;
+      const isChatTarget =
+        target?.kind === "CHAT" || resolveNotificationCategory(item) === "CHAT";
+      const isAlreadyOnChatPage =
+        pathname === "/chat" || pathname.startsWith("/chat/");
+
+      if (isChatTarget && chatConversationId && organizationId && !isAlreadyOnChatPage) {
+        openFloatingConversation(organizationId, chatConversationId, {
+          messageId: target?.messageId ?? undefined,
+        });
+        closeDropdown();
+        return;
+      }
+
       if (
         target?.kind === "CHAT" &&
         target.conversationId &&
