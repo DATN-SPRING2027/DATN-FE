@@ -27,6 +27,14 @@ export function getConversationDisplayName(
   return getConversationPeer(conversation, actorId)?.displayName ?? "";
 }
 
+export function getEffectiveConversationUnreadCount(
+  conversation: Pick<ChatConversation, "unreadCount" | "markedUnread">,
+): number {
+  const raw = Math.max(0, conversation.unreadCount ?? 0);
+  if (raw > 0) return raw;
+  return conversation.markedUnread ? 1 : 0;
+}
+
 export function mergeChatMessage(
   page: ChatPage<ChatMessage> | undefined,
   message: ChatMessage,
@@ -90,26 +98,29 @@ export function hasParticipantDelivered(
   );
 }
 
-export function formatCompactConversationTime(isoString: string | null): string {
+export function formatCompactConversationTime(
+  isoString: string | null,
+  locale?: string,
+): string {
   if (!isoString) return "";
   const timestamp = Date.parse(isoString);
   if (Number.isNaN(timestamp)) return "";
   const date = new Date(timestamp);
   const now = new Date();
+  const resolvedLocale = locale ? [locale] : [];
   const isSameDay =
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
     date.getDate() === now.getDate();
 
   if (isSameDay) {
-    return date.toLocaleTimeString([], {
+    return date.toLocaleTimeString(resolvedLocale, {
       hour: "2-digit",
       minute: "2-digit",
     });
   }
-  return date.toLocaleDateString([], {
+  return date.toLocaleDateString(resolvedLocale, {
     month: "short",
     day: "numeric",
   });
 }
-

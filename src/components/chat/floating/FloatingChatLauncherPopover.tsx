@@ -24,6 +24,7 @@ import {
   formatCompactConversationTime,
   getConversationDisplayName,
   getConversationPeer,
+  getEffectiveConversationUnreadCount,
 } from "./chat-shared-helpers";
 
 export type FloatingChatLauncherPopoverProps = Readonly<{
@@ -50,6 +51,8 @@ export default function FloatingChatLauncherPopover({
   onClose,
 }: FloatingChatLauncherPopoverProps) {
   const t = useTranslations("chat");
+  const common = useTranslations("common");
+  const dateLocale = common("localeCode") === "vi" ? "vi-VN" : "en-US";
   const panelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -302,88 +305,100 @@ export default function FloatingChatLauncherPopover({
         ) : (
           <>
             {visibleConversations.length > 0 && (
-              <div className="space-y-0.5">
-                {visibleConversations.map((conversation) => {
-                  const peer = getConversationPeer(conversation, actorId);
-                  const name =
-                    getConversationDisplayName(conversation, actorId) ||
-                    t("title");
-                  const isOnline = Boolean(peer?.isOnline);
-                  const unread = conversation.unreadCount ?? 0;
-                  const timeLabel = formatCompactConversationTime(
-                    conversation.lastMessageAt,
-                  );
+              <div>
+                <p className="px-2.5 pb-1 text-xs font-semibold tracking-wide text-gray-400 uppercase dark:text-gray-500">
+                  {t("recentConversations")}
+                </p>
+                <div className="space-y-0.5">
+                  {visibleConversations.map((conversation) => {
+                    const peer = getConversationPeer(conversation, actorId);
+                    const name =
+                      getConversationDisplayName(conversation, actorId) ||
+                      t("title");
+                    const isOnline = Boolean(peer?.isOnline);
+                    const rawUnread = conversation.unreadCount ?? 0;
+                    const effectiveUnread =
+                      getEffectiveConversationUnreadCount(conversation);
+                    const timeLabel = formatCompactConversationTime(
+                      conversation.lastMessageAt,
+                      dateLocale,
+                    );
 
-                  return (
-                    <button
-                      key={conversation.id}
-                      type="button"
-                      data-testid={`floating-launcher-conv-${conversation.id}`}
-                      onClick={() => onSelectConversation(conversation.id)}
-                      className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start transition hover:bg-gray-100/90 dark:hover:bg-gray-800/80"
-                    >
-                      <div className="relative shrink-0">
-                        <ChatAvatar
-                          name={name}
-                          src={peer?.avatarUrl}
-                          className="h-10 w-10 text-xs"
-                        />
-                        {conversation.type === "ROOM" ? (
-                          <span
-                            aria-hidden="true"
-                            className="absolute -end-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-brand-50 text-brand-600 dark:border-gray-900 dark:bg-brand-500/20 dark:text-brand-300"
-                          >
-                            <GroupIcon className="h-2.5 w-2.5" />
-                          </span>
-                        ) : (
-                          isOnline && (
+                    return (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        data-testid={`floating-launcher-conv-${conversation.id}`}
+                        onClick={() => onSelectConversation(conversation.id)}
+                        className="flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-start transition hover:bg-gray-100/90 dark:hover:bg-gray-800/80"
+                      >
+                        <div className="relative shrink-0">
+                          <ChatAvatar
+                            name={name}
+                            src={peer?.avatarUrl}
+                            className="h-10 w-10 text-xs"
+                          />
+                          {conversation.type === "ROOM" ? (
                             <span
                               aria-hidden="true"
-                              className="absolute end-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-success-500 dark:border-gray-900"
-                            />
-                          )
-                        )}
-                      </div>
-
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <span
-                            className={`truncate text-sm ${
-                              unread > 0
-                                ? "font-bold text-gray-900 dark:text-white"
-                                : "font-medium text-gray-800 dark:text-gray-100"
-                            }`}
-                          >
-                            {name}
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1 text-xs text-gray-400">
-                            {conversation.isPinned && (
-                              <PinStarIcon className="h-3 w-3 text-brand-500" />
-                            )}
-                            {timeLabel}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 flex items-center justify-between gap-2">
-                          <span
-                            className={`truncate text-xs ${
-                              unread > 0
-                                ? "font-semibold text-gray-800 dark:text-gray-200"
-                                : "text-gray-500 dark:text-gray-400"
-                            }`}
-                          >
-                            {conversation.lastMessagePreview ||
-                              t("startConversation")}
-                          </span>
-                          {unread > 0 && (
-                            <span className="flex h-4.5 min-w-4.5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1 text-xs font-bold text-white tabular-nums">
-                              {unread > 99 ? "99+" : unread}
+                              className="absolute -end-0.5 -bottom-0.5 flex h-4 w-4 items-center justify-center rounded-full border border-white bg-brand-50 text-brand-600 dark:border-gray-900 dark:bg-brand-500/20 dark:text-brand-300"
+                            >
+                              <GroupIcon className="h-2.5 w-2.5" />
                             </span>
+                          ) : (
+                            isOnline && (
+                              <span
+                                aria-hidden="true"
+                                className="absolute end-0 bottom-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-success-500 dark:border-gray-900"
+                              />
+                            )
                           )}
                         </div>
-                      </div>
-                    </button>
-                  );
-                })}
+
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <span
+                              className={`truncate text-sm ${
+                                effectiveUnread > 0
+                                  ? "font-bold text-gray-900 dark:text-white"
+                                  : "font-medium text-gray-800 dark:text-gray-100"
+                              }`}
+                            >
+                              {name}
+                            </span>
+                            <span className="flex shrink-0 items-center gap-1 text-xs text-gray-400">
+                              {conversation.isPinned && (
+                                <PinStarIcon className="h-3 w-3 text-brand-500" />
+                              )}
+                              {timeLabel}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2">
+                            <span
+                              className={`truncate text-xs ${
+                                effectiveUnread > 0
+                                  ? "font-semibold text-gray-800 dark:text-gray-200"
+                                  : "text-gray-500 dark:text-gray-400"
+                              }`}
+                            >
+                              {conversation.lastMessagePreview ||
+                                t("startConversation")}
+                            </span>
+                            {effectiveUnread > 0 && (
+                              <span className="flex h-4.5 min-w-4.5 shrink-0 items-center justify-center rounded-full bg-brand-500 px-1 text-xs font-bold text-white tabular-nums">
+                                {rawUnread > 99
+                                  ? "99+"
+                                  : rawUnread > 0
+                                    ? rawUnread
+                                    : "•"}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -454,4 +469,3 @@ export default function FloatingChatLauncherPopover({
     </section>
   );
 }
-

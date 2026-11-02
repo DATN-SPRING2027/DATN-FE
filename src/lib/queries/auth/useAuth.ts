@@ -10,6 +10,8 @@ import {
 import { apiClient, logoutSession } from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
 import { notifyAuthSessionChanged } from "./session-sync";
+import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 
 export type LoginInput = Readonly<{
   email: string;
@@ -92,6 +94,8 @@ export function useLoginMutation(
       // Tenant-scoped cached data may belong to a different account using the
       // same browser. Drop it before the protected shell loads for this login.
       queryClient.removeQueries();
+      useFloatingChatStore.getState().reset();
+      useChatNavigation.getState().clear();
       notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },
@@ -200,6 +204,8 @@ export function useLogoutMutation(
     },
     onSuccess: (...args) => {
       queryClient.clear();
+      useFloatingChatStore.getState().reset();
+      useChatNavigation.getState().clear();
       notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },

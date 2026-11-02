@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -43,12 +43,16 @@ export type MiniChatWindowProps = Readonly<{
   conversationId: string;
   conversation?: ChatConversation;
   highlightedMessageId?: string;
+  contextMessageId?: string;
   typingUsers?: Readonly<Record<string, string>>;
   connection: FloatingConnectionState;
   onSendTyping: (conversationId: string, isTyping: boolean) => void;
   onBack: () => void;
   onMinimize: () => void;
   onClose: () => void;
+  onRemoveUnavailable: () => void;
+  onFocusMessageContext: (messageId: string) => void;
+  onExitContext: () => void;
   onClearHighlight: () => void;
 }>;
 
@@ -58,12 +62,16 @@ export default function MiniChatWindow({
   conversationId,
   conversation,
   highlightedMessageId = "",
+  contextMessageId = "",
   typingUsers = EMPTY_TYPING_USERS,
   connection,
   onSendTyping,
   onBack,
   onMinimize,
   onClose,
+  onRemoveUnavailable,
+  onFocusMessageContext,
+  onExitContext,
   onClearHighlight,
 }: MiniChatWindowProps) {
   const t = useTranslations("chat");
@@ -79,6 +87,7 @@ export default function MiniChatWindow({
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const isLoadingEarlierRef = useRef(false);
+  const clearedMarkedUnreadRef = useRef<string | null>(null);
   const localTypingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUploads = useRef(
     new Map<string, { fingerprint: string; ids: string[] }>(),
@@ -96,28 +105,31 @@ export default function MiniChatWindow({
     conversation ?? (detailAccessLost ? undefined : detailQuery.data);
 
   const messagesQuery = useChatMessagesQuery(organizationId, conversationId);
-  const hasHighlightedInRegularPage = Boolean(
-    highlightedMessageId &&
-      messagesQuery.data?.data.some((m) => m.id === highlightedMessageId),
+  const hasContextInRegularPage = Boolean(
+    contextMessageId &&
+      messagesQuery.data?.data.some((m) => m.id === contextMessageId),
   );
+  const effectiveContextId =
+    contextMessageId && !hasContextInRegularPage ? contextMessageId : "";
+
   const contextQuery = useChatMessageContextQuery(
     organizationId,
     conversationId,
-    highlightedMessageId && !hasHighlightedInRegularPage
-      ? highlightedMessageId
-      : "",
+    effectiveContextId,
   );
 
-  const useContextFeed = Boolean(
-    highlightedMessageId && !hasHighlightedInRegularPage && contextQuery.data,
-  );
+  const useContextFeed = Boolean(effectiveContextId && contextQuery.data);
   const displayedQuery = useContextFeed ? contextQuery : messagesQuery;
   const messagesAccessLost = isAccessOrResourceUnavailableError(
+    messagesQuery.error,
+  );
+  const displayedAccessLost = isAccessOrResourceUnavailableError(
     displayedQuery.error,
   );
-  const visibleMessages = messagesAccessLost ? undefined : displayedQuery.data;
+  const visibleMessages = displayedAccessLost ? undefined : displayedQuery.data;
   const messages = visibleMessages?.data ?? [];
-  const latestMessageId = messages.at(-1)?.id;
+  const latestRegularMessageId = messagesQuery.data?.data.at(-1)?.id;
+  const latestDisplayedMessageId = messages.at(-1)?.id;
 
   const peer = activeConversation
     ? getConversationPeer(activeConversation, actorId)
@@ -171,16 +183,49 @@ export default function MiniChatWindow({
     };
   }, []);
 
+  // Auto-dismiss window if conversation was deleted or membership revoked (403/404).
   useEffect(() => {
-    if (!latestMessageId || !conversationId) return;
+    if (!messagesAccessLost && !detailAccessLost) return;
+    onRemoveUnavailable();
+    void queryClient.invalidateQueries({
+      queryKey: chatKeys.conversations(organizationId),
+    });
+  }, [
+    detailAccessLost,
+    messagesAccessLost,
+    onRemoveUnavailable,
+    organizationId,
+    queryClient,
+  ]);
+
+  // Clear markedUnread preference when opening a conversation, matching ChatWorkspace.
+  useEffect(() => {
+    if (
+      !activeConversation?.markedUnread ||
+      clearedMarkedUnreadRef.current === conversationId
+    ) {
+      return;
+    }
+    clearedMarkedUnreadRef.current = conversationId;
+    void chatFeatures
+      .setPreferences(conversationId, { markedUnread: false })
+      .then(() =>
+        queryClient.invalidateQueries({ queryKey: ["chat", organizationId] }),
+      )
+      .catch(() => undefined);
+  }, [activeConversation?.markedUnread, conversationId, organizationId, queryClient]);
+
+  useEffect(() => {
+    const readTargetId = latestRegularMessageId ?? latestDisplayedMessageId;
+    if (!readTargetId || !conversationId) return;
     void chatApi
-      .markDelivered(conversationId, latestMessageId)
+      .markDelivered(conversationId, readTargetId)
       .catch(() => undefined);
 
     const markVisibleRead = () => {
       if (document.visibilityState !== "visible") return;
       void chatApi
-        .markRead(conversationId, latestMessageId)
+        .markRead(conversationId, readTargetId)
         .then(() =>
           queryClient.invalidateQueries({
             queryKey: chatKeys.conversations(organizationId),
@@ -193,25 +238,55 @@ export default function MiniChatWindow({
     document.addEventListener("visibilitychange", markVisibleRead);
     return () =>
       document.removeEventListener("visibilitychange", markVisibleRead);
-  }, [conversationId, latestMessageId, organizationId, queryClient]);
+  }, [
+    conversationId,
+    latestDisplayedMessageId,
+    latestRegularMessageId,
+    organizationId,
+    queryClient,
+  ]);
+
+  const findMessageElement = useCallback((targetId: string): HTMLElement | null => {
+    const list = scrollRef.current?.querySelectorAll<HTMLElement>(
+      "[data-message-id]",
+    );
+    if (list) {
+      for (const node of list) {
+        if (node.dataset.messageId === targetId) return node;
+      }
+    }
+    return document.getElementById(`chat-message-${targetId}`);
+  }, []);
 
   useEffect(() => {
     if (!highlightedMessageId) return;
-    const element = document.getElementById(
-      `chat-message-${highlightedMessageId}`,
-    );
+    const element = findMessageElement(highlightedMessageId);
     if (!element) return;
     element.scrollIntoView({ block: "center" });
     const timer = setTimeout(() => {
       onClearHighlight();
     }, 3200);
     return () => clearTimeout(timer);
-  }, [highlightedMessageId, messages.length, onClearHighlight]);
+  }, [
+    findMessageElement,
+    highlightedMessageId,
+    messages.length,
+    onClearHighlight,
+  ]);
+
+  const skipAutoScrollRef = useRef(
+    Boolean(highlightedMessageId || effectiveContextId),
+  );
+  useLayoutEffect(() => {
+    skipAutoScrollRef.current = Boolean(
+      highlightedMessageId || effectiveContextId,
+    );
+  }, [effectiveContextId, highlightedMessageId]);
 
   useEffect(() => {
-    if (!latestMessageId || highlightedMessageId) return;
+    if (!latestDisplayedMessageId || skipAutoScrollRef.current) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [conversationId, highlightedMessageId, latestMessageId]);
+  }, [conversationId, latestDisplayedMessageId]);
 
   const handleComposerTyping = useCallback(
     (isTyping: boolean) => {
@@ -238,7 +313,7 @@ export default function MiniChatWindow({
     try {
       const older = await chatApi.olderMessages(conversationId, cursor);
       const targetKey = useContextFeed
-        ? chatKeys.context(organizationId, conversationId, highlightedMessageId)
+        ? chatKeys.context(organizationId, conversationId, effectiveContextId)
         : chatKeys.messages(organizationId, conversationId);
       queryClient.setQueryData<ChatPage<ChatMessage>>(targetKey, (page) => ({
         data: [...older.data, ...(page?.data ?? [])].filter(
@@ -307,6 +382,9 @@ export default function MiniChatWindow({
         chatKeys.messages(organizationId, conversationId),
         (page) => mergeChatMessage(page, message),
       );
+      if (contextMessageId) {
+        onExitContext();
+      }
       if (replyToMessageId) {
         setReplyingTo((current) =>
           current?.id === replyToMessageId ? null : current,
@@ -410,14 +488,18 @@ export default function MiniChatWindow({
   };
 
   const scrollToQuotedMessage = (targetMessageId: string) => {
-    const targetEl = document.getElementById(`chat-message-${targetMessageId}`);
+    const targetEl = findMessageElement(targetMessageId);
+    onFocusMessageContext(targetMessageId);
     if (targetEl) {
       targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
       targetEl.focus({ preventScroll: true });
     }
   };
 
-  const fullChatHref = `/chat?conversation=${encodeURIComponent(conversationId)}`;
+  const fullChatContextId = highlightedMessageId || effectiveContextId;
+  const fullChatHref = fullChatContextId
+    ? `/chat?conversation=${encodeURIComponent(conversationId)}&message=${encodeURIComponent(fullChatContextId)}`
+    : `/chat?conversation=${encodeURIComponent(conversationId)}`;
 
   return (
     <section
@@ -446,8 +528,8 @@ export default function MiniChatWindow({
             data-testid={`mini-chat-open-full-${conversationId}`}
             title={t("openInFullChat")}
             onClick={() => {
-              if (latestMessageId) {
-                openFullChatTarget(conversationId, latestMessageId);
+              if (fullChatContextId) {
+                openFullChatTarget(conversationId, fullChatContextId);
               }
             }}
             className="flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-1.5 py-1 text-start transition hover:bg-gray-100/80 dark:hover:bg-gray-800/60"
@@ -513,6 +595,30 @@ export default function MiniChatWindow({
           </button>
         </div>
       </header>
+
+      {/* Historical Context Banner (when jumped to an older message outside latest 50) */}
+      {useContextFeed && (
+        <div
+          data-testid={`mini-chat-context-banner-${conversationId}`}
+          className="flex shrink-0 items-center justify-between gap-2 border-b border-brand-100 bg-brand-50 px-3 py-1.5 text-xs text-brand-800 dark:border-brand-900 dark:bg-brand-500/10 dark:text-brand-200"
+        >
+          <span className="truncate">{t("viewingMessageContext")}</span>
+          <button
+            type="button"
+            onClick={() => {
+              onExitContext();
+              requestAnimationFrame(() => {
+                scrollRef.current?.scrollTo({
+                  top: scrollRef.current.scrollHeight,
+                });
+              });
+            }}
+            className="shrink-0 rounded-md px-1.5 py-0.5 font-semibold hover:bg-brand-100 dark:hover:bg-brand-900"
+          >
+            {t("backToLatest")}
+          </button>
+        </div>
+      )}
 
       {/* Error Banners */}
       {(sendError || messageActionError || olderMessagesError) && (
@@ -630,10 +736,11 @@ export default function MiniChatWindow({
             ? {
                 id: replyingTo.id,
                 name: replyingTo.senderName,
-                text:
-                  replyingTo.deletedAt
-                    ? t("messageDeleted")
-                    : replyingTo.content || t("attachment"),
+                text: replyingTo.deletedAt
+                  ? t("messageDeleted")
+                  : replyingTo.content ||
+                    replyingTo.attachments[0]?.name ||
+                    t("attachment"),
               }
             : null
         }
@@ -645,4 +752,3 @@ export default function MiniChatWindow({
     </section>
   );
 }
-

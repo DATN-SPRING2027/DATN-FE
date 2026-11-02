@@ -6,6 +6,8 @@ import { useUpdateUserMutation, useUsersQuery } from "@/lib/queries/users/useUse
 import { AppProviders } from "./AppProviders";
 import { usePlatformOrganizationsQuery, usePlatformSessionQuery } from "@/lib/queries/platform/usePlatformConsole";
 import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "@/lib/queries/auth/session-sync";
+import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 
 function ProtectedScreen() {
   const currentUser = useCurrentUserQuery();
@@ -82,6 +84,8 @@ describe("AppProviders", () => {
     render(<AppProviders><CachedPrivateScreen /></AppProviders>);
     await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
 
+    useFloatingChatStore.getState().openConversation("account-a-org", "conv-secret");
+    useChatNavigation.getState().open("conv-secret", "msg-secret");
     identity = "account-b";
     await act(async () => {
       window.dispatchEvent(new StorageEvent("storage", {
@@ -92,6 +96,8 @@ describe("AppProviders", () => {
 
     await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
     expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+    expect(useFloatingChatStore.getState().openWindowsByOrg).toEqual({});
+    expect(useChatNavigation.getState().target).toBeNull();
   });
 
   it("rechecks the cookie session after an OAuth login changes the shared CSRF cookie", async () => {
@@ -114,12 +120,16 @@ describe("AppProviders", () => {
     render(<AppProviders><CachedPrivateScreen /></AppProviders>);
     await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
 
+    useFloatingChatStore.getState().openConversation("account-a-org", "conv-secret");
+    useChatNavigation.getState().open("conv-secret", "msg-secret");
     identity = "account-b";
     csrfCookie = "__Host-csrf=csrf-b";
     await act(async () => window.dispatchEvent(new Event("focus")));
 
     await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
     expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+    expect(useFloatingChatStore.getState().openWindowsByOrg).toEqual({});
+    expect(useChatNavigation.getState().target).toBeNull();
   });
 
   it("clears private data after another tab logs out when browser storage is unavailable", async () => {
@@ -145,12 +155,16 @@ describe("AppProviders", () => {
     render(<AppProviders><CachedPrivateScreen /></AppProviders>);
     await waitFor(() => expect(screen.getByText("account-a-private-data")).toBeInTheDocument());
 
+    useFloatingChatStore.getState().openConversation("account-a-org", "conv-secret");
+    useChatNavigation.getState().open("conv-secret", "msg-secret");
     identity = "account-b";
     csrfCookie = "";
     await act(async () => window.dispatchEvent(new Event("focus")));
 
     await waitFor(() => expect(screen.getByText("account-b-private-data")).toBeInTheDocument());
     expect(screen.queryByText("account-a-private-data")).not.toBeInTheDocument();
+    expect(useFloatingChatStore.getState().openWindowsByOrg).toEqual({});
+    expect(useChatNavigation.getState().target).toBeNull();
   });
 
   it("does not restart failed recovery on window focus or reconnect", async () => {

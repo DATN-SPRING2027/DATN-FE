@@ -8,11 +8,13 @@ import ChatAvatar from "../ChatAvatar";
 import {
   getConversationDisplayName,
   getConversationPeer,
+  getEffectiveConversationUnreadCount,
 } from "./chat-shared-helpers";
 
 export type FloatingChatHeadsRailProps = Readonly<{
   actorId: string;
   isLauncherOpen: boolean;
+  hasOpenWindow?: boolean;
   totalUnread: number;
   minimizedConversations: readonly ChatConversation[];
   triggerRef: RefObject<HTMLButtonElement | null>;
@@ -24,6 +26,7 @@ export type FloatingChatHeadsRailProps = Readonly<{
 export default function FloatingChatHeadsRail({
   actorId,
   isLauncherOpen,
+  hasOpenWindow = false,
   totalUnread,
   minimizedConversations,
   triggerRef,
@@ -36,14 +39,17 @@ export default function FloatingChatHeadsRail({
   return (
     <div
       data-testid="floating-chat-heads-rail"
-      className="fixed end-4 bottom-4 z-50 flex flex-col items-end gap-2.5 sm:end-5 sm:bottom-5"
+      className={`fixed end-4 bottom-4 z-50 flex-col items-end gap-2.5 sm:end-5 sm:bottom-5 ${
+        hasOpenWindow ? "hidden sm:flex" : "flex"
+      }`}
     >
       {minimizedConversations.map((conversation) => {
         const peer = getConversationPeer(conversation, actorId);
         const name =
           getConversationDisplayName(conversation, actorId) || t("title");
         const isOnline = Boolean(peer?.isOnline);
-        const unread = conversation.unreadCount ?? 0;
+        const rawUnread = conversation.unreadCount ?? 0;
+        const effectiveUnread = getEffectiveConversationUnreadCount(conversation);
 
         return (
           <div
@@ -73,12 +79,12 @@ export default function FloatingChatHeadsRail({
                   className="absolute end-0 bottom-0 h-3 w-3 rounded-full border-2 border-white bg-success-500 dark:border-gray-900"
                 />
               )}
-              {unread > 0 && (
+              {effectiveUnread > 0 && (
                 <span
                   data-testid={`floating-chat-head-unread-${conversation.id}`}
                   className="absolute -end-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-error-500 px-1 text-xs font-bold text-white tabular-nums shadow-theme-xs"
                 >
-                  {unread > 99 ? "99+" : unread}
+                  {rawUnread > 99 ? "99+" : rawUnread > 0 ? rawUnread : "•"}
                 </span>
               )}
             </button>
@@ -131,4 +137,3 @@ export default function FloatingChatHeadsRail({
     </div>
   );
 }
-

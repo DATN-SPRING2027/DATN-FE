@@ -28,7 +28,10 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
-import { useFloatingChatStore } from "@/stores/floating-chat";
+import {
+  resolveMaxOpenChatWindows,
+  useFloatingChatStore,
+} from "@/stores/floating-chat";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
@@ -154,12 +157,20 @@ export default function NotificationsWorkspace() {
         resolution.url ?? target?.url ?? resolveDefaultTargetUrl(item);
       const chatConversationId =
         target?.conversationId ?? item.conversationId ?? null;
+      const targetOrgId =
+        target?.organizationId ?? item.organizationId ?? organizationId;
       const isChatTarget =
         target?.kind === "CHAT" || resolveNotificationCategory(item) === "CHAT";
 
-      if (isChatTarget && chatConversationId && organizationId) {
+      if (
+        isChatTarget &&
+        chatConversationId &&
+        organizationId &&
+        targetOrgId === organizationId
+      ) {
         openFloatingConversation(organizationId, chatConversationId, {
           messageId: target?.messageId ?? undefined,
+          maxOpen: resolveMaxOpenChatWindows(),
         });
         return;
       }

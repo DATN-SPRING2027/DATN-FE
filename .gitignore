@@ -46,3 +46,4 @@ next-env.d.ts
 .worknote-agent-preview/
 .worknote-agent-preview-evidence/
 /ContinuumAI_NeuralSignature_React/
+dump.rdb

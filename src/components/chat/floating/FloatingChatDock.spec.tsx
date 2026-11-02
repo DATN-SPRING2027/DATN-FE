@@ -15,6 +15,7 @@ import { apiClient } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
+import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import FloatingChatDock from "./FloatingChatDock";
 
@@ -40,7 +41,14 @@ vi.mock("@/i18n/navigation", () => ({
     onClick,
     ...rest
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} onClick={onClick} {...rest}>
+    <a
+      href={href}
+      onClick={(e) => {
+        onClick?.(e);
+        e.preventDefault();
+      }}
+      {...rest}
+    >
       {children}
     </a>
   ),
@@ -124,6 +132,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     Element.prototype.scrollTo = vi.fn();
     Element.prototype.scrollIntoView = vi.fn();
     useFloatingChatStore.getState().reset();
+    useChatNavigation.getState().clear();
     api.mockReset();
     routerPushMock.mockReset();
     routeState.pathname = "/projects/507f1f77bcf86cd799439011/work";
@@ -298,6 +307,8 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       "href",
       `/chat?conversation=${convId}`,
     );
+    fireEvent.click(openFullLink);
+    expect(useChatNavigation.getState().target).toBeNull();
 
     fireEvent.click(within(miniWindow).getByTestId(`mini-chat-back-${convId}`));
     expect(
@@ -427,8 +438,320 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     expect(
       useFloatingChatStore.getState().highlightedMessageByConv[convId],
     ).toBe("507f1f77bcf86cd799439044");
+    expect(
+      useFloatingChatStore.getState().contextMessageByConv[convId],
+    ).toBe("507f1f77bcf86cd799439044");
     // Stays on current Kanban page instead of pushing to /chat!
     expect(routerPushMock).not.toHaveBeenCalled();
+  });
+
+  it("shares a single WebSocket between FloatingChatDock and NotificationDropdown without duplicate ws-ticket calls", async () => {
+    let wsTicketCalls = 0;
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        wsTicketCalls += 1;
+        return { ticket: `ws-ticket-${wsTicketCalls}`, expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return { data: [], nextCursor: null };
+      }
+      if (path === "/notifications/unread-count") {
+        return { count: 0 };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    renderWithProviders(
+      <>
+        <NotificationDropdown />
+        <FloatingChatDock />
+      </>,
+    );
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+    expect(wsTicketCalls).toBe(1);
+  });
+
+  it("keeps historical message context visible after the 3.2s highlight ring fades and forwards context when opening full chat", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const olderMsgId = "507f1f77bcf86cd799439077";
+    const sampleConversation = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-02T09:00:00.000Z",
+      lastMessagePreview: "Latest message",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    try {
+      api.mockImplementation(async (path: string, init?: RequestInit) => {
+        if (path === "/chat/ws-ticket" && init?.method === "POST") {
+          return { ticket: "ws-ticket-ctx", expiresInSeconds: 60 };
+        }
+        if (path.startsWith("/chat/conversations?")) {
+          return { data: [sampleConversation], nextCursor: null };
+        }
+        if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+          return {
+            data: [
+              {
+                id: "507f1f77bcf86cd799439090",
+                conversationId: convId,
+                senderId: "507f1f77bcf86cd799439099",
+                senderName: "Lan Tran",
+                senderAvatarUrl: null,
+                content: "Latest message",
+                createdAt: "2026-11-02T09:00:00.000Z",
+                editedAt: null,
+                deletedAt: null,
+                replyToMessageId: null,
+                replyTo: null,
+                attachments: [],
+                reactions: [],
+              },
+            ],
+            nextCursor: "cursor-1",
+          };
+        }
+        if (
+          path ===
+          `/chat/conversations/${convId}/messages?limit=50&aroundMessageId=${olderMsgId}`
+        ) {
+          return {
+            data: [
+              {
+                id: olderMsgId,
+                conversationId: convId,
+                senderId: "507f1f77bcf86cd799439099",
+                senderName: "Lan Tran",
+                senderAvatarUrl: null,
+                content: "Pinned older spec decision",
+                createdAt: "2026-10-01T09:00:00.000Z",
+                editedAt: null,
+                deletedAt: null,
+                replyToMessageId: null,
+                replyTo: null,
+                attachments: [],
+                reactions: [],
+              },
+            ],
+            nextCursor: null,
+          };
+        }
+        if (path === `/chat/conversations/${convId}/draft`) {
+          return { content: "", mentionUserIds: [] };
+        }
+        if (
+          path === `/chat/conversations/${convId}/delivered` ||
+          path === `/chat/conversations/${convId}/read`
+        ) {
+          return { ok: true };
+        }
+        throw new Error(`Unexpected path: ${path}`);
+      });
+
+      useFloatingChatStore.getState().openConversation(orgId, convId, {
+        messageId: olderMsgId,
+      });
+
+      renderWithProviders(<FloatingChatDock />);
+
+      const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+      expect(
+        await within(miniWindow).findByText("Pinned older spec decision"),
+      ).toBeInTheDocument();
+      expect(
+        within(miniWindow).getByTestId(`mini-chat-context-banner-${convId}`),
+      ).toBeInTheDocument();
+
+      // Advance past the 3200ms highlight timer: highlight fades, but context stays mounted!
+      await act(async () => {
+        vi.advanceTimersByTime(3500);
+      });
+
+      expect(
+        useFloatingChatStore.getState().highlightedMessageByConv[convId],
+      ).toBeUndefined();
+      expect(
+        within(miniWindow).getByText("Pinned older spec decision"),
+      ).toBeInTheDocument();
+      expect(
+        within(miniWindow).getByTestId(`mini-chat-context-banner-${convId}`),
+      ).toBeInTheDocument();
+
+      const openFullLink = within(miniWindow).getByTestId(
+        `mini-chat-open-full-${convId}`,
+      );
+      expect(openFullLink).toHaveAttribute(
+        "href",
+        `/chat?conversation=${convId}&message=${olderMsgId}`,
+      );
+      fireEvent.click(openFullLink);
+      expect(useChatNavigation.getState().target).toEqual({
+        conversationId: convId,
+        messageId: olderMsgId,
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clamps open windows on <1024px viewports, hides mobile FAB rail when a window is open, and resets AI companion offset on org switch", async () => {
+    const conv2Id = "507f1f77bcf86cd799439034";
+    const org2Id = "507f1f77bcf86cd799439098";
+
+    Object.defineProperty(window, "innerWidth", {
+      configurable: true,
+      writable: true,
+      value: 800,
+    });
+
+    const makeConv = (id: string, peerName: string, peerId: string) => ({
+      id,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-02T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: peerId,
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: peerId,
+          displayName: peerName,
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    });
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-mobile", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return {
+          data: [
+            makeConv(convId, "Lan Tran", "507f1f77bcf86cd799439099"),
+            makeConv(conv2Id, "Minh Le", "507f1f77bcf86cd799439088"),
+          ],
+          nextCursor: null,
+        };
+      }
+      if (path.endsWith("/messages?limit=50")) {
+        return { data: [], nextCursor: null };
+      }
+      if (path.endsWith("/draft")) {
+        return { content: "", mentionUserIds: [] };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    useFloatingChatStore.getState().openConversation(orgId, conv2Id);
+
+    const view = renderWithProviders(
+      <>
+        <FloatingChatDock />
+        <ContinuumAiCompanion locale="en" />
+      </>,
+    );
+
+    // On 800px (<1024px), only 1 window stays mounted; the older one overflows into a chat head!
+    expect(
+      await screen.findByTestId(`mini-chat-window-${conv2Id}`),
+    ).toBeInTheDocument();
+    await waitFor(() => {
+      expect(
+        screen.queryByTestId(`mini-chat-window-${convId}`),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.getByTestId(`floating-chat-head-${convId}`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("floating-chat-heads-rail").className,
+    ).toContain("hidden sm:flex");
+
+    const aiDock = screen.getByTestId("ai-companion-floating-dock");
+    expect(aiDock.className).toContain("sm:end-108");
+
+    // Switch organization -> activeOrgId syncs to org2Id (0 open windows), so AI companion resets to sm:end-24!
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: actorId,
+        email: "phuc@example.com",
+        name: "Phuc Nguyen",
+        context: "ORGANIZATION",
+        organizationId: org2Id,
+        roles: ["MEMBER"],
+      },
+      isPending: false,
+      isError: false,
+      refetch: vi.fn().mockResolvedValue(undefined),
+    } as never);
+
+    view.rerender(
+      <QueryClientProvider client={view.client}>
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <FloatingChatDock />
+          <ContinuumAiCompanion locale="en" />
+        </NextIntlClientProvider>
+      </QueryClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(aiDock.className).toContain("sm:end-24");
+    });
   });
 });
 

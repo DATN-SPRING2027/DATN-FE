@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -9,9 +9,10 @@ import {
 } from "@/lib/queries/chat/useChat";
 import {
   EMPTY_CHAT_IDS,
-  MAX_OPEN_CHAT_WINDOWS,
+  resolveMaxOpenChatWindows,
   useFloatingChatStore,
 } from "@/stores/floating-chat";
+import { getEffectiveConversationUnreadCount } from "./chat-shared-helpers";
 import FloatingChatHeadsRail from "./FloatingChatHeadsRail";
 import FloatingChatLauncherPopover from "./FloatingChatLauncherPopover";
 import MiniChatWindow from "./MiniChatWindow";
@@ -35,6 +36,7 @@ function buildFallbackConversation(id: string): ChatConversation {
 
 export default function FloatingChatDock() {
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const lastActorIdRef = useRef<string | null>(null);
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(
     currentUser.error,
@@ -45,6 +47,19 @@ export default function FloatingChatDock() {
     visibleUser && "organizationId" in visibleUser
       ? (visibleUser.organizationId ?? "")
       : "";
+
+  const [maxVisibleWindows, setMaxVisibleWindows] = useState<number>(() =>
+    resolveMaxOpenChatWindows(),
+  );
+
+  useEffect(() => {
+    const syncViewportLimit = () => {
+      setMaxVisibleWindows(resolveMaxOpenChatWindows(window.innerWidth));
+    };
+    syncViewportLimit();
+    window.addEventListener("resize", syncViewportLimit);
+    return () => window.removeEventListener("resize", syncViewportLimit);
+  }, []);
 
   const isLauncherOpen = useFloatingChatStore(
     (state) => Boolean(organizationId) && state.launcherOrgId === organizationId,
@@ -62,17 +77,73 @@ export default function FloatingChatDock() {
   const highlightedMap = useFloatingChatStore(
     (state) => state.highlightedMessageByConv,
   );
+  const contextMap = useFloatingChatStore(
+    (state) => state.contextMessageByConv,
+  );
 
+  const setActiveOrg = useFloatingChatStore((state) => state.setActiveOrg);
   const toggleLauncher = useFloatingChatStore((state) => state.toggleLauncher);
   const closeLauncher = useFloatingChatStore((state) => state.closeLauncher);
   const openConversation = useFloatingChatStore(
     (state) => state.openConversation,
   );
+  const clampOpenWindows = useFloatingChatStore(
+    (state) => state.clampOpenWindows,
+  );
   const minimizeWindow = useFloatingChatStore((state) => state.minimizeWindow);
   const backToLauncher = useFloatingChatStore((state) => state.backToLauncher);
   const closeWindow = useFloatingChatStore((state) => state.closeWindow);
   const closeHead = useFloatingChatStore((state) => state.closeHead);
+  const removeConversation = useFloatingChatStore(
+    (state) => state.removeConversation,
+  );
+  const focusMessageContext = useFloatingChatStore(
+    (state) => state.focusMessageContext,
+  );
+  const clearContextMessage = useFloatingChatStore(
+    (state) => state.clearContextMessage,
+  );
   const clearHighlight = useFloatingChatStore((state) => state.clearHighlight);
+  const resetStore = useFloatingChatStore((state) => state.reset);
+
+  // Defensive identity isolation if user changes in-place without full reload,
+  // and synchronize activeOrgId so ContinuumAiCompanion offsets match the current org.
+  useEffect(() => {
+    if (currentUserAccessLost) {
+      lastActorIdRef.current = null;
+      resetStore();
+      return;
+    }
+    if (
+      actorId &&
+      lastActorIdRef.current &&
+      lastActorIdRef.current !== actorId
+    ) {
+      resetStore();
+    }
+    if (actorId) {
+      lastActorIdRef.current = actorId;
+    }
+    setActiveOrg(organizationId || null);
+  }, [
+    actorId,
+    currentUserAccessLost,
+    organizationId,
+    resetStore,
+    setActiveOrg,
+  ]);
+
+  // Overflow excess open windows into minimized chat heads on <1024px viewports
+  // so a hidden window never vanishes or marks incoming messages as read unseen.
+  useEffect(() => {
+    if (!organizationId || openWindowIds.length <= maxVisibleWindows) return;
+    clampOpenWindows(organizationId, maxVisibleWindows);
+  }, [clampOpenWindows, maxVisibleWindows, openWindowIds.length, organizationId]);
+
+  const visibleOpenWindowIds = useMemo(
+    () => openWindowIds.slice(0, maxVisibleWindows),
+    [maxVisibleWindows, openWindowIds],
+  );
 
   const conversationsQuery = useChatConversationsQuery(organizationId);
   const conversationsAccessLost =
@@ -91,7 +162,7 @@ export default function FloatingChatDock() {
     useFloatingChatRealtime({
       organizationId,
       actorId,
-      openWindowIds,
+      openWindowIds: visibleOpenWindowIds,
       conversations,
       refreshCurrentUser: currentUser.refetch,
     });
@@ -107,7 +178,7 @@ export default function FloatingChatDock() {
   const totalUnread = useMemo(
     () =>
       conversations.reduce(
-        (sum, conv) => sum + Math.max(0, conv.unreadCount ?? 0),
+        (sum, conv) => sum + getEffectiveConversationUnreadCount(conv),
         0,
       ),
     [conversations],
@@ -126,40 +197,41 @@ export default function FloatingChatDock() {
   }
 
   const handleSelectConversation = (conversationId: string) => {
-    const isSmallViewport =
-      typeof window !== "undefined" && window.innerWidth < 640;
     openConversation(organizationId, conversationId, {
-      maxOpen: isSmallViewport ? 1 : MAX_OPEN_CHAT_WINDOWS,
+      maxOpen: resolveMaxOpenChatWindows(),
     });
   };
 
   return (
     <>
       {/* Open Mini Chat Windows Dock (sits beside the bottom-right Chat FAB rail) */}
-      {openWindowIds.length > 0 && (
+      {visibleOpenWindowIds.length > 0 && (
         <div
           data-testid="floating-chat-windows-dock"
           className="fixed inset-x-3 bottom-3 z-50 flex flex-row-reverse items-end gap-3 sm:inset-x-auto sm:end-22 sm:bottom-0 sm:max-w-[calc(100vw-6rem)]"
         >
-          {openWindowIds.map((conversationId, index) => (
-            <div
-              key={conversationId}
-              className={
-                index > 0 ? "hidden lg:block" : "w-full sm:w-auto"
-              }
-            >
+          {visibleOpenWindowIds.map((conversationId) => (
+            <div key={conversationId} className="w-full sm:w-auto">
               <MiniChatWindow
                 organizationId={organizationId}
                 actorId={actorId}
                 conversationId={conversationId}
                 conversation={conversationMap.get(conversationId)}
                 highlightedMessageId={highlightedMap[conversationId]}
+                contextMessageId={contextMap[conversationId]}
                 typingUsers={typingByConversation[conversationId]}
                 connection={connection}
                 onSendTyping={sendTyping}
                 onBack={() => backToLauncher(organizationId, conversationId)}
                 onMinimize={() => minimizeWindow(organizationId, conversationId)}
                 onClose={() => closeWindow(organizationId, conversationId)}
+                onRemoveUnavailable={() =>
+                  removeConversation(organizationId, conversationId)
+                }
+                onFocusMessageContext={(messageId) =>
+                  focusMessageContext(conversationId, messageId)
+                }
+                onExitContext={() => clearContextMessage(conversationId)}
                 onClearHighlight={() => clearHighlight(conversationId)}
               />
             </div>
@@ -186,6 +258,7 @@ export default function FloatingChatDock() {
       <FloatingChatHeadsRail
         actorId={actorId}
         isLauncherOpen={isLauncherOpen}
+        hasOpenWindow={visibleOpenWindowIds.length > 0}
         totalUnread={totalUnread}
         minimizedConversations={minimizedConversations}
         triggerRef={triggerRef}
@@ -198,4 +271,3 @@ export default function FloatingChatDock() {
     </>
   );
 }
-

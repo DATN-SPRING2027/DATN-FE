@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { useFloatingChatStore } from "./floating-chat";
+import {
+  resolveMaxOpenChatWindows,
+  useFloatingChatStore,
+} from "./floating-chat";
 
 describe("useFloatingChatStore", () => {
   beforeEach(() => {
@@ -90,6 +93,53 @@ describe("useFloatingChatStore", () => {
     expect(next.openWindowsByOrg["org-1"]).toEqual([]);
     expect(next.launcherOrgId).toBe("org-1");
     expect(next.highlightedMessageByConv["conv-1"]).toBeUndefined();
+    expect(next.contextMessageByConv["conv-1"]).toBeUndefined();
+  });
+
+  it("clamps open windows on narrow viewports (<1024px) into minimized chat heads", () => {
+    expect(resolveMaxOpenChatWindows(768)).toBe(1);
+    expect(resolveMaxOpenChatWindows(1024)).toBe(2);
+    expect(resolveMaxOpenChatWindows(1440)).toBe(2);
+
+    const store = useFloatingChatStore.getState();
+    store.openConversation("org-1", "conv-1");
+    store.openConversation("org-1", "conv-2");
+    expect(useFloatingChatStore.getState().openWindowsByOrg["org-1"]).toEqual([
+      "conv-2",
+      "conv-1",
+    ]);
+
+    store.clampOpenWindows("org-1", 1);
+    expect(useFloatingChatStore.getState().openWindowsByOrg["org-1"]).toEqual([
+      "conv-2",
+    ]);
+    expect(
+      useFloatingChatStore.getState().minimizedHeadsByOrg["org-1"],
+    ).toEqual(["conv-1"]);
+  });
+
+  it("preserves contextMessageByConv when clearHighlight runs, and clears it on exit or close", () => {
+    const store = useFloatingChatStore.getState();
+    store.openConversation("org-1", "conv-1", { messageId: "msg-older-1" });
+    expect(useFloatingChatStore.getState().highlightedMessageByConv["conv-1"]).toBe(
+      "msg-older-1",
+    );
+    expect(useFloatingChatStore.getState().contextMessageByConv["conv-1"]).toBe(
+      "msg-older-1",
+    );
+
+    store.clearHighlight("conv-1");
+    expect(
+      useFloatingChatStore.getState().highlightedMessageByConv["conv-1"],
+    ).toBeUndefined();
+    expect(useFloatingChatStore.getState().contextMessageByConv["conv-1"]).toBe(
+      "msg-older-1",
+    );
+
+    store.clearContextMessage("conv-1");
+    expect(
+      useFloatingChatStore.getState().contextMessageByConv["conv-1"],
+    ).toBeUndefined();
   });
 });
 

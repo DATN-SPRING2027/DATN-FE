@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -18,6 +18,24 @@ import {
   mergeChatMessage,
   type FloatingConnectionState,
 } from "./chat-shared-helpers";
+
+const EMPTY_TYPING_MAP: Readonly<Record<string, Record<string, string>>> = {};
+
+let floatingWsTicketInFlight:
+  | { identity: string; promise: ReturnType<typeof chatApi.wsTicket> }
+  | undefined;
+
+function getSharedFloatingWsTicket(identity: string) {
+  if (floatingWsTicketInFlight?.identity !== identity) {
+    const promise = chatApi.wsTicket().finally(() => {
+      if (floatingWsTicketInFlight?.promise === promise) {
+        floatingWsTicketInFlight = undefined;
+      }
+    });
+    floatingWsTicketInFlight = { identity, promise };
+  }
+  return floatingWsTicketInFlight.promise;
+}
 
 function sendSocketFrame(
   socket: WebSocket | null,
@@ -37,6 +55,13 @@ export type UseFloatingChatRealtimeOptions = Readonly<{
   refreshCurrentUser: () => Promise<unknown>;
 }>;
 
+type SocketRuntimeState = Readonly<{
+  identity: string;
+  status: FloatingConnectionState;
+  epoch: number;
+  typing: Record<string, Record<string, string>>;
+}>;
+
 export function useFloatingChatRealtime({
   organizationId,
   actorId,
@@ -45,17 +70,40 @@ export function useFloatingChatRealtime({
   refreshCurrentUser,
 }: UseFloatingChatRealtimeOptions) {
   const queryClient = useQueryClient();
-  const [connection, setConnection] =
-    useState<FloatingConnectionState>("connecting");
-  const [typingByConversation, setTypingByConversation] = useState<
-    Record<string, Record<string, string>>
-  >({});
+  const identityKey =
+    organizationId && actorId ? `${actorId}:${organizationId}` : "";
+
+  const [runtime, setRuntime] = useState<SocketRuntimeState>({
+    identity: "",
+    status: "connecting",
+    epoch: 0,
+    typing: {},
+  });
+
+  const connection: FloatingConnectionState =
+    runtime.identity === identityKey ? runtime.status : "connecting";
+  const socketEpoch = runtime.identity === identityKey ? runtime.epoch : 0;
+  const typingByConversation =
+    runtime.identity === identityKey ? runtime.typing : EMPTY_TYPING_MAP;
 
   const socketRef = useRef<WebSocket | null>(null);
   const openWindowIdsRef = useRef<readonly string[]>(openWindowIds);
   const remoteTypingTimers = useRef(
     new Map<string, ReturnType<typeof setTimeout>>(),
   );
+
+  // Claim realtime ownership during layout phase so NotificationDropdown
+  // reuses this WebSocket instead of requesting a duplicate ws-ticket.
+  useLayoutEffect(() => {
+    if (!identityKey) return;
+    useFloatingChatStore.getState().setRealtimeOwner(identityKey);
+    return () => {
+      const store = useFloatingChatStore.getState();
+      if (store.realtimeOwner === identityKey) {
+        store.setRealtimeOwner(null);
+      }
+    };
+  }, [identityKey]);
 
   useEffect(() => {
     openWindowIdsRef.current = openWindowIds;
@@ -100,15 +148,46 @@ export function useFloatingChatRealtime({
   );
 
   useEffect(() => {
-    if (!organizationId || !actorId) return;
+    if (!organizationId || !actorId || !identityKey) return;
+    if (typeof window === "undefined" || typeof WebSocket === "undefined") {
+      return;
+    }
+
     let stopped = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let delay = 1000;
+    let authRecheckAttempted = false;
     const timersMap = remoteTypingTimers.current;
+
+    const setTypingForRoom = (
+      updater: (
+        prev: Record<string, Record<string, string>>,
+      ) => Record<string, Record<string, string>>,
+    ) => {
+      setRuntime((prev) => {
+        const baseTyping = prev.identity === identityKey ? prev.typing : {};
+        const nextTyping = updater(baseTyping);
+        if (prev.identity === identityKey && nextTyping === baseTyping) {
+          return prev;
+        }
+        return {
+          identity: identityKey,
+          status: prev.identity === identityKey ? prev.status : "connecting",
+          epoch: prev.identity === identityKey ? prev.epoch : 0,
+          typing: nextTyping,
+        };
+      });
+    };
 
     const scheduleReconnect = () => {
       if (stopped) return;
-      setConnection("reconnecting");
+      useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
+      setRuntime((prev) => ({
+        identity: identityKey,
+        status: "reconnecting",
+        epoch: prev.identity === identityKey ? prev.epoch : 0,
+        typing: prev.identity === identityKey ? prev.typing : {},
+      }));
       reconnectTimer = setTimeout(
         () => void connect(),
         delay + Math.random() * 400,
@@ -118,7 +197,7 @@ export function useFloatingChatRealtime({
 
     const connect = async () => {
       try {
-        const { ticket } = await chatApi.wsTicket();
+        const { ticket } = await getSharedFloatingWsTicket(identityKey);
         if (stopped) return;
         const defaultUrl = `${
           window.location.protocol === "https:" ? "wss:" : "ws:"
@@ -135,9 +214,11 @@ export function useFloatingChatRealtime({
             return;
           }
           delay = 1000;
+          authRecheckAttempted = false;
         };
 
         socket.onmessage = (event) => {
+          if (stopped) return;
           try {
             const packet = JSON.parse(String(event.data)) as {
               event?: unknown;
@@ -145,7 +226,15 @@ export function useFloatingChatRealtime({
             };
 
             if (packet.event === "connected") {
-              setConnection("connected");
+              useFloatingChatStore
+                .getState()
+                .setRealtimeConnectedOwner(identityKey);
+              setRuntime((prev) => ({
+                identity: identityKey,
+                status: "connected",
+                epoch: prev.epoch + 1,
+                typing: prev.identity === identityKey ? prev.typing : {},
+              }));
               void queryClient.invalidateQueries({
                 queryKey: ["chat", organizationId],
               });
@@ -374,7 +463,7 @@ export function useFloatingChatRealtime({
               if (existingTimer) clearTimeout(existingTimer);
 
               if (typingData.isTyping) {
-                setTypingByConversation((current) => ({
+                setTypingForRoom((current) => ({
                   ...current,
                   [typingData.conversationId]: {
                     ...(current[typingData.conversationId] ?? {}),
@@ -384,7 +473,7 @@ export function useFloatingChatRealtime({
                 timersMap.set(
                   timerKey,
                   setTimeout(() => {
-                    setTypingByConversation((current) => {
+                    setTypingForRoom((current) => {
                       const roomMap = current[typingData.conversationId];
                       if (!roomMap || !(typingData.userId in roomMap)) {
                         return current;
@@ -400,7 +489,7 @@ export function useFloatingChatRealtime({
                   }, 2500),
                 );
               } else {
-                setTypingByConversation((current) => {
+                setTypingForRoom((current) => {
                   const roomMap = current[typingData.conversationId];
                   if (!roomMap || !(typingData.userId in roomMap)) {
                     return current;
@@ -430,24 +519,37 @@ export function useFloatingChatRealtime({
 
         socket.onclose = (event) => {
           if (socketRef.current === socket) socketRef.current = null;
-          if (!stopped && event.code === 1008) {
+          if (stopped) return;
+          if (event.code === 1008) {
+            if (authRecheckAttempted) return;
+            authRecheckAttempted = true;
             void refreshCurrentUser().then(
               scheduleReconnect,
               scheduleReconnect,
             );
-          } else if (!stopped) {
+          } else {
             scheduleReconnect();
           }
         };
 
         socket.onerror = () => socket.close();
       } catch (error) {
+        if (stopped) return;
+        useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
         if (error instanceof ApiError && error.status === 401) {
+          if (authRecheckAttempted) return;
+          authRecheckAttempted = true;
           try {
             await refreshCurrentUser();
           } catch {
-            // Terminal auth failure is surfaced by the session shell.
+            return;
           }
+          if (stopped) return;
+        } else if (
+          error instanceof ApiError &&
+          (error.status === 403 || error.status === 404)
+        ) {
+          return;
         }
         scheduleReconnect();
       }
@@ -459,11 +561,16 @@ export function useFloatingChatRealtime({
       if (reconnectTimer) clearTimeout(reconnectTimer);
       for (const timer of timersMap.values()) clearTimeout(timer);
       timersMap.clear();
+      const store = useFloatingChatStore.getState();
+      if (store.realtimeConnectedOwner === identityKey) {
+        store.setRealtimeConnectedOwner(null);
+      }
       socketRef.current?.close(1000, "Floating dock closed");
       socketRef.current = null;
     };
   }, [
     actorId,
+    identityKey,
     organizationId,
     queryClient,
     refreshCurrentUser,
@@ -472,22 +579,25 @@ export function useFloatingChatRealtime({
 
   const openWindowKey = openWindowIds.join(",");
   useEffect(() => {
-    if (connection !== "connected" || !openWindowKey) return;
+    if (connection !== "connected" || socketEpoch === 0 || !openWindowKey) {
+      return;
+    }
+    const socket = socketRef.current;
     const ids = openWindowKey.split(",").filter(Boolean);
     for (const id of ids) {
-      sendSocketFrame(socketRef.current, "subscribe", { conversationId: id });
+      sendSocketFrame(socket, "subscribe", { conversationId: id });
     }
     return () => {
       for (const id of ids) {
-        sendSocketFrame(socketRef.current, "unsubscribe", {
+        sendSocketFrame(socket, "unsubscribe", {
           conversationId: id,
         });
       }
     };
-  }, [connection, openWindowKey]);
+  }, [connection, openWindowKey, socketEpoch]);
 
   useEffect(() => {
-    if (connection !== "connected") return;
+    if (connection !== "connected" || socketEpoch === 0) return;
     const peers = conversations
       .filter((conversation) => conversation.type === "DIRECT")
       .flatMap((conversation) =>
@@ -501,7 +611,7 @@ export function useFloatingChatRealtime({
         userIds: uniquePeers,
       });
     }
-  }, [actorId, connection, conversations]);
+  }, [actorId, connection, conversations, socketEpoch]);
 
   const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
     if (!conversationId) return;
@@ -517,4 +627,3 @@ export function useFloatingChatRealtime({
     sendTyping,
   };
 }
-

@@ -7,6 +7,8 @@ import { installBrowserExtensionHydrationGuard } from "@/lib/browser-extension-h
 import { ApiError } from "@/lib/api-client";
 import { currentSessionIdentityKey, handleSessionError } from "@/lib/queries/auth/session-errors";
 import { subscribeToAuthSessionChanges } from "@/lib/queries/auth/session-sync";
+import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 
 if (typeof window !== "undefined") {
   installBrowserExtensionHydrationGuard();
@@ -55,6 +57,8 @@ export function AppProviders({ children }: AppProvidersProps) {
   useEffect(
     () => subscribeToAuthSessionChanges(() => {
       queryClient.clear();
+      useFloatingChatStore.getState().reset();
+      useChatNavigation.getState().clear();
       setSessionGeneration((generation) => generation + 1);
     }),
     [queryClient],
