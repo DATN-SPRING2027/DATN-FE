@@ -57,6 +57,8 @@ export function syncProjectTabUrl(projectId: string, nextTab: ProjectTab) {
   const targetPath = `${basePath}/${nextTab}${window.location.search}${window.location.hash}`;
   const currentFull = `${pathname}${window.location.search}${window.location.hash}`;
   if (currentFull !== targetPath) {
+    // Preserve Next.js history.state during in-page tab switches so AdminLayout
+    // (which keys page content by usePathname()) does not remount ProjectOverview or close modals.
     window.history.replaceState(window.history.state, "", targetPath);
   }
   window.dispatchEvent(
@@ -114,6 +116,14 @@ export default function ProjectOverview({
   const [internalTab, setInternalTab] = useState<ProjectTab>(
     initialTab === "teams" && !showTeams ? "overview" : initialTab,
   );
+  const normalizedInitialTab: ProjectTab =
+    initialTab === "teams" && !showTeams ? "overview" : initialTab;
+  const [prevInitialTab, setPrevInitialTab] =
+    useState<ProjectTab>(normalizedInitialTab);
+  if (prevInitialTab !== normalizedInitialTab) {
+    setPrevInitialTab(normalizedInitialTab);
+    setInternalTab(normalizedInitialTab);
+  }
   const currentTab = activeTab ?? internalTab;
   const tab: ProjectTab =
     currentTab === "teams" && !showTeams ? "overview" : currentTab;
@@ -145,6 +155,7 @@ export default function ProjectOverview({
         detail.tab &&
         (VALID_TABS as readonly string[]).includes(detail.tab)
       ) {
+        event.preventDefault();
         setInternalTab(detail.tab);
         onTabChange?.(detail.tab);
         syncProjectTabUrl(project.id, detail.tab);
