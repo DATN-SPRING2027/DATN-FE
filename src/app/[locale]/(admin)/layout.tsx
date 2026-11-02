@@ -45,14 +45,21 @@ export default function AdminLayout({
       sessionRecoveryFailed);
 
   useEffect(() => {
-    if (!isChat || !window.visualViewport) return;
+    const shellEl = shell.current;
+    if (!isChat || !window.visualViewport) {
+      if (shellEl) shellEl.style.height = "";
+      return;
+    }
     const viewport = window.visualViewport;
     const resize = () => {
       if (shell.current) shell.current.style.height = `${viewport.height}px`;
     };
     resize();
     viewport.addEventListener("resize", resize);
-    return () => viewport.removeEventListener("resize", resize);
+    return () => {
+      viewport.removeEventListener("resize", resize);
+      if (shellEl) shellEl.style.height = "";
+    };
   }, [isChat, currentUser.data, currentUser.isError]);
 
   const retrySession = async () => {

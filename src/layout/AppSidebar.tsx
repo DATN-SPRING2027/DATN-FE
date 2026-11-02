@@ -61,6 +61,41 @@ const MIN_WIDTH = 180;
 const MAX_WIDTH = 420;
 const COLLAPSED_WIDTH = 64;
 const COLLAPSE_SNAP_WIDTH = 140;
+export const SIDEBAR_NAV_WATCHDOG_MS = 3000;
+
+function isSafeInternalHref(href: string): boolean {
+  return href.startsWith("/") && !href.startsWith("//");
+}
+
+function defaultHardNavigate(href: string): void {
+  if (typeof window !== "undefined" && isSafeInternalHref(href)) {
+    window.location.assign(href);
+  }
+}
+
+function isPlainLeftClick(
+  event: React.MouseEvent<HTMLAnchorElement | HTMLElement>,
+): boolean {
+  return (
+    event.button === 0 &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    !event.altKey
+  );
+}
+
+function stripQueryAndHash(href: string): string {
+  const queryIdx = href.indexOf("?");
+  const hashIdx = href.indexOf("#");
+  const endIdx =
+    queryIdx === -1
+      ? hashIdx
+      : hashIdx === -1
+        ? queryIdx
+        : Math.min(queryIdx, hashIdx);
+  return endIdx === -1 ? href : href.slice(0, endIdx);
+}
 
 function safeClampWidth(width: number): number {
   if (!Number.isFinite(width)) return DEFAULT_WIDTH;
@@ -110,7 +145,13 @@ function ProjectSettingsNavigation({
   return access.canAccessSettings ? children : null;
 }
 
-const AppSidebar: React.FC = () => {
+type AppSidebarProps = {
+  onHardNavigate?: (href: string) => void;
+};
+
+const AppSidebar: React.FC<AppSidebarProps> = ({
+  onHardNavigate = defaultHardNavigate,
+}) => {
   const {
     isExpanded,
     isMobileOpen,
@@ -120,6 +161,7 @@ const AppSidebar: React.FC = () => {
     setSidebarWidth,
     setIsResizing,
     resetSidebarWidth,
+    toggleMobileSidebar,
   } = useSidebar();
   const pathname = usePathname();
   const router = useRouter();
@@ -144,12 +186,56 @@ const AppSidebar: React.FC = () => {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const [pendingNav, setPendingNav] = useState<{
     fromPathname: string;
+    targetHref: string;
     itemId: string;
+    stuckSince: number;
   } | null>(null);
+  const pendingTargetPathname = pendingNav
+    ? stripQueryAndHash(pendingNav.targetHref)
+    : null;
+  const isPendingOnCurrentRoute = Boolean(
+    pendingNav &&
+      pendingNav.fromPathname === pathname &&
+      (pendingNav.targetHref.includes("?") ||
+        pendingTargetPathname !== pathname),
+  );
   const activePendingItemId =
-    pendingNav && pendingNav.fromPathname === pathname
-      ? pendingNav.itemId
+    isPendingOnCurrentRoute && !pendingNav?.itemId.startsWith("aux:")
+      ? pendingNav!.itemId
       : null;
+
+  useEffect(() => {
+    if (!pendingNav) return;
+    const expectedPathname = stripQueryAndHash(pendingNav.targetHref);
+    const targetHasQuery = pendingNav.targetHref.includes("?");
+    if (
+      pathname !== pendingNav.fromPathname ||
+      (!targetHasQuery && pathname === expectedPathname)
+    ) {
+      return;
+    }
+    const elapsedMs = Math.max(0, Date.now() - pendingNav.stuckSince);
+    const remainingMs = Math.max(450, SIDEBAR_NAV_WATCHDOG_MS - elapsedMs);
+    const timerId = window.setTimeout(() => {
+      const livePathname =
+        typeof window !== "undefined" ? window.location.pathname : pathname;
+      const liveFullHref =
+        typeof window !== "undefined"
+          ? `${window.location.pathname}${window.location.search}`
+          : pathname;
+      const alreadyReachedTarget = targetHasQuery
+        ? liveFullHref === pendingNav.targetHref
+        : livePathname === expectedPathname;
+      if (!alreadyReachedTarget && isSafeInternalHref(pendingNav.targetHref)) {
+        onHardNavigate(pendingNav.targetHref);
+      } else {
+        setPendingNav(null);
+      }
+    }, remainingMs);
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [onHardNavigate, pathname, pendingNav]);
 
   const projectRouteMatch = /^\/projects\/([^/]+)/.exec(pathname);
   const rawProjectSegment = projectRouteMatch?.[1]
@@ -344,6 +430,19 @@ const AppSidebar: React.FC = () => {
         );
       }
       const destination = resolveProjectSwitchDestination(pathname, project.id);
+      if (
+        stripQueryAndHash(destination) !== pathname ||
+        destination.includes("?")
+      ) {
+        const now = Date.now();
+        setPendingNav((prev) => ({
+          fromPathname: pathname,
+          targetHref: destination,
+          itemId: `aux:${destination}`,
+          stuckSince:
+            prev && prev.fromPathname === pathname ? prev.stuckSince : now,
+        }));
+      }
       if (typeof router.push === "function") {
         router.push(destination);
       } else {
@@ -465,6 +564,142 @@ const AppSidebar: React.FC = () => {
       cleanupResizeRef.current?.();
     };
   }, []);
+
+  const isInActiveProjectSectionView = useMemo(() => {
+    if (!activeProject || activeProjectIdFromPath !== activeProject.id) {
+      return false;
+    }
+    const projectBasePath = `/projects/${activeProject.id}`;
+    const encodedBasePath = `/projects/${encodeURIComponent(activeProject.id)}`;
+    return [projectBasePath, encodedBasePath].some(
+      (base) =>
+        pathname === base ||
+        pathname === `${base}/overview` ||
+        pathname.startsWith(`${base}/overview/`) ||
+        pathname === `${base}/members` ||
+        pathname.startsWith(`${base}/members/`) ||
+        pathname === `${base}/settings` ||
+        pathname.startsWith(`${base}/settings/`) ||
+        pathname === `${base}/teams` ||
+        pathname.startsWith(`${base}/teams/`),
+    );
+  }, [activeProject, activeProjectIdFromPath, pathname]);
+
+  const handleNavLinkClick = useCallback(
+    (
+      event: React.MouseEvent<HTMLAnchorElement>,
+      options: {
+        itemId: string;
+        targetHref: string;
+        isCurrentlyActive: boolean;
+        projectTab?: "overview" | "members" | "settings";
+      },
+    ) => {
+      setOpenSelector(null);
+      if (!isPlainLeftClick(event)) {
+        return;
+      }
+
+      // Switch in-place via CustomEvent only when Next.js pathname already equals targetHref
+      // (e.g. user loaded /overview, switched in-page to Members via syncProjectTabUrl, and
+      // now clicks Overview back where canonicalUrl is still /overview). For all distinct
+      // routes, let <Link> run a real Next.js navigation so FlightRouterState stays synced.
+      if (
+        options.projectTab &&
+        activeProject &&
+        isInActiveProjectSectionView &&
+        stripQueryAndHash(options.targetHref) === pathname &&
+        !options.isCurrentlyActive
+      ) {
+        const tabEvent = new CustomEvent("continuum:project-tab-change", {
+          detail: {
+            projectId: activeProject.id,
+            tab: options.projectTab,
+          },
+          cancelable: true,
+        });
+        const handledInPlace = !window.dispatchEvent(tabEvent);
+        if (handledInPlace) {
+          event.preventDefault();
+          setPendingNav(null);
+          setSyncedProjectTab({
+            pathnameAtSync: pathname,
+            projectId: activeProject.id,
+            tab: options.projectTab,
+          });
+          if (isMobileOpen && typeof toggleMobileSidebar === "function") {
+            toggleMobileSidebar();
+          }
+          return;
+        }
+      }
+
+      if (options.isCurrentlyActive) {
+        setPendingNav(null);
+        return;
+      }
+
+      if (
+        activePendingItemId === options.itemId &&
+        isSafeInternalHref(options.targetHref)
+      ) {
+        event.preventDefault();
+        setPendingNav(null);
+        onHardNavigate(options.targetHref);
+        return;
+      }
+
+      const now = Date.now();
+      setPendingNav((prev) => ({
+        fromPathname: pathname,
+        targetHref: options.targetHref,
+        itemId: options.itemId,
+        stuckSince:
+          prev && prev.fromPathname === pathname ? prev.stuckSince : now,
+      }));
+    },
+    [
+      activePendingItemId,
+      activeProject,
+      isInActiveProjectSectionView,
+      isMobileOpen,
+      onHardNavigate,
+      pathname,
+      toggleMobileSidebar,
+    ],
+  );
+
+  const handleAsideAuxLinkClick = useCallback(
+    (event: React.MouseEvent<HTMLElement>) => {
+      if (event.defaultPrevented || !isPlainLeftClick(event)) return;
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const anchor = target.closest("a");
+      if (!anchor || anchor.hasAttribute("data-motion-indicator")) return;
+      if (anchor.target && anchor.target !== "_self") return;
+      const rawHref = anchor.getAttribute("href");
+      if (!rawHref || !isSafeInternalHref(rawHref)) return;
+      const destPathname = stripQueryAndHash(rawHref);
+      if (destPathname === pathname && !rawHref.includes("?")) return;
+
+      const auxItemId = `aux:${rawHref}`;
+      if (isPendingOnCurrentRoute && pendingNav?.itemId === auxItemId) {
+        event.preventDefault();
+        setPendingNav(null);
+        onHardNavigate(rawHref);
+        return;
+      }
+      const now = Date.now();
+      setPendingNav((prev) => ({
+        fromPathname: pathname,
+        targetHref: rawHref,
+        itemId: auxItemId,
+        stuckSince:
+          prev && prev.fromPathname === pathname ? prev.stuckSince : now,
+      }));
+    },
+    [isPendingOnCurrentRoute, onHardNavigate, pathname, pendingNav?.itemId],
+  );
 
   const canViewMembers = canReadOrganizationMemberships(visibleUser);
   const visiblePrimaryItems = primaryItems.filter(
@@ -661,17 +896,19 @@ const AppSidebar: React.FC = () => {
             href={item.path}
             aria-label={label}
             aria-current={isItemActive ? "page" : undefined}
+            aria-busy={isPendingActive ? "true" : undefined}
             data-motion-indicator="true"
             data-active={isVisualActive ? "true" : undefined}
             data-pending={isPendingActive ? "true" : undefined}
             title={!isExpandedView ? label : undefined}
             onMouseEnter={() => setHoveredItemId(itemId)}
             onFocus={() => setHoveredItemId(itemId)}
-            onClick={() => {
-              setOpenSelector(null);
-              if (!isItemActive) {
-                setPendingNav({ fromPathname: pathname, itemId });
-              }
+            onClick={(event) => {
+              handleNavLinkClick(event, {
+                itemId,
+                targetHref: item.path,
+                isCurrentlyActive: isItemActive,
+              });
             }}
             className={cn(
               "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",
@@ -746,6 +983,7 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
+      onClick={handleAsideAuxLinkClick}
       style={{ width: `${currentWidthPx}px` }}
       className={cn(
         "fixed top-14 bottom-0 start-0 z-40 flex h-[calc(100dvh-3.5rem)] flex-col border-e border-gray-200/90 bg-white px-2.5 pt-2.5 text-gray-900 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-100",
@@ -846,32 +1084,20 @@ const AppSidebar: React.FC = () => {
                         href={subItem.href}
                         aria-label={subItem.label}
                         aria-current={subItem.isActive ? "page" : undefined}
+                        aria-busy={isPendingActive ? "true" : undefined}
                         data-motion-indicator="true"
                         data-active={isVisualActive ? "true" : undefined}
                         data-pending={isPendingActive ? "true" : undefined}
                         title={!isExpandedView ? subItem.label : undefined}
                         onMouseEnter={() => setHoveredItemId(itemId)}
                         onFocus={() => setHoveredItemId(itemId)}
-                        onClick={() => {
-                          setOpenSelector(null);
-                          if (!subItem.isActive) {
-                            setPendingNav({ fromPathname: pathname, itemId });
-                          }
-                          if (subItem.tab) {
-                            setSyncedProjectTab({
-                              pathnameAtSync: pathname,
-                              projectId: activeProject.id,
-                              tab: subItem.tab,
-                            });
-                            window.dispatchEvent(
-                              new CustomEvent("continuum:project-tab-change", {
-                                detail: {
-                                  projectId: activeProject.id,
-                                  tab: subItem.tab,
-                                },
-                              }),
-                            );
-                          }
+                        onClick={(event) => {
+                          handleNavLinkClick(event, {
+                            itemId,
+                            targetHref: subItem.href,
+                            isCurrentlyActive: subItem.isActive,
+                            projectTab: subItem.tab,
+                          });
                         }}
                         className={cn(
                           "group menu-item h-8 min-h-8 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1 focus-visible:outline-none dark:focus-visible:ring-offset-gray-900",

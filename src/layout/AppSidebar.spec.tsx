@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import AppSidebar from "./AppSidebar";
+import AppSidebar, { SIDEBAR_NAV_WATCHDOG_MS } from "./AppSidebar";
 import { isPointInSafeTriangle } from "./SidebarFlyoutMenu";
 import { ApiError } from "@/lib/api-client";
 
@@ -71,7 +71,16 @@ vi.mock("@/i18n/navigation", () => ({
     children,
     ...props
   }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) => (
-    <a href={href} {...props}>
+    <a
+      href={href}
+      {...props}
+      onClick={(event) => {
+        props.onClick?.(event);
+        if (!event.defaultPrevented) {
+          event.preventDefault();
+        }
+      }}
+    >
       {children}
     </a>
   ),
@@ -739,5 +748,174 @@ describe("AppSidebar navigation", () => {
       "sidebar-item-pending-shimmer",
     );
     expect(within(handoverLink).getByTestId("sidebar-active-bar")).toBeInTheDocument();
+  });
+
+  it("recovers from a hung router transition via the watchdog without requiring a manual F5 reload", () => {
+    vi.useFakeTimers();
+    const hardNavigate = vi.fn();
+    const tabChangeListener = vi.fn();
+    window.addEventListener("continuum:project-tab-change", tabChangeListener);
+    try {
+      routeState.pathname = "/chat";
+      render(<AppSidebar onHardNavigate={hardNavigate} />);
+
+      const projectNav = screen.getByRole("navigation", {
+        name: "Project navigation",
+      });
+      const membersLink = within(projectNav).getByRole("link", {
+        name: "Members",
+      });
+      const workNotesLink = within(projectNav).getByRole("link", {
+        name: "Work Notes",
+      });
+
+      fireEvent.click(membersLink);
+      // Outside /projects/[id]/*, clicking Members must not dispatch a spurious project-tab-change
+      expect(tabChangeListener).not.toHaveBeenCalled();
+      // Only the clicked item carries aria-busy="true", never idle siblings
+      expect(membersLink).toHaveAttribute("aria-busy", "true");
+      expect(workNotesLink).not.toHaveAttribute("aria-busy");
+      expect(hardNavigate).not.toHaveBeenCalled();
+
+      // Clicking another item while still stuck on /chat preserves stuckSince instead of resetting the full 3s timer
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      fireEvent.click(workNotesLink);
+      expect(workNotesLink).toHaveAttribute("aria-busy", "true");
+      expect(membersLink).not.toHaveAttribute("aria-busy");
+
+      act(() => {
+        vi.advanceTimersByTime(SIDEBAR_NAV_WATCHDOG_MS - 2000);
+      });
+      expect(hardNavigate).toHaveBeenCalledTimes(1);
+      expect(hardNavigate).toHaveBeenCalledWith(
+        "/projects/69e923c77859fd1c702d4c21/work-notes",
+      );
+    } finally {
+      window.removeEventListener(
+        "continuum:project-tab-change",
+        tabChangeListener,
+      );
+      vi.useRealTimers();
+    }
+  });
+
+  it("escapes a stalled router transition immediately when the user clicks the pending item a second time", () => {
+    const hardNavigate = vi.fn();
+    routeState.pathname = "/chat";
+    render(<AppSidebar onHardNavigate={hardNavigate} />);
+
+    const projectNav = screen.getByRole("navigation", {
+      name: "Project navigation",
+    });
+    const membersLink = within(projectNav).getByRole("link", {
+      name: "Members",
+    });
+
+    fireEvent.click(membersLink);
+    expect(membersLink).toHaveAttribute("data-pending", "true");
+    expect(hardNavigate).not.toHaveBeenCalled();
+
+    fireEvent.click(membersLink);
+    expect(hardNavigate).toHaveBeenCalledTimes(1);
+    expect(hardNavigate).toHaveBeenCalledWith(
+      "/projects/69e923c77859fd1c702d4c21/members",
+    );
+  });
+
+  it("cancels the fallback watchdog cleanly when SPA navigation completes normally", () => {
+    vi.useFakeTimers();
+    const hardNavigate = vi.fn();
+    try {
+      routeState.pathname = "/chat";
+      const view = render(<AppSidebar onHardNavigate={hardNavigate} />);
+
+      const projectNav = screen.getByRole("navigation", {
+        name: "Project navigation",
+      });
+      fireEvent.click(
+        within(projectNav).getByRole("link", { name: "Members" }),
+      );
+
+      routeState.pathname = "/projects/69e923c77859fd1c702d4c21/members";
+      view.rerender(<AppSidebar onHardNavigate={hardNavigate} />);
+
+      act(() => {
+        vi.advanceTimersByTime(SIDEBAR_NAV_WATCHDOG_MS + 500);
+      });
+      expect(hardNavigate).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("recovers cleanly when returning to Overview after an in-page Members sync without getting pending state stuck, and ignores Ctrl+Click", () => {
+    const hardNavigate = vi.fn();
+    routeState.pathname = "/projects/69e923c77859fd1c702d4c21/overview";
+    const handleInPlaceTabChange = (event: Event) => {
+      event.preventDefault();
+    };
+    window.addEventListener(
+      "continuum:project-tab-change",
+      handleInPlaceTabChange,
+    );
+    try {
+      render(<AppSidebar onHardNavigate={hardNavigate} />);
+      const projectNav = screen.getByRole("navigation", {
+        name: "Project navigation",
+      });
+      const overviewLink = within(projectNav).getByRole("link", {
+        name: "Overview",
+      });
+      const membersLink = within(projectNav).getByRole("link", {
+        name: "Members",
+      });
+
+      // Ctrl+Click opens in new tab and must not alter active/pending state
+      fireEvent.click(membersLink, { ctrlKey: true });
+      expect(overviewLink).toHaveAttribute("aria-current", "page");
+      expect(membersLink).not.toHaveAttribute("data-pending");
+
+      // Simulate user clicking the in-page Members card while Next.js pathname is still /overview
+      act(() => {
+        window.dispatchEvent(
+          new CustomEvent("continuum:project-tab-sync", {
+            detail: {
+              projectId: "69e923c77859fd1c702d4c21",
+              tab: "members",
+            },
+          }),
+        );
+      });
+      expect(membersLink).toHaveAttribute("aria-current", "page");
+      expect(overviewLink).not.toHaveAttribute("aria-current");
+
+      // Clicking Overview back (where targetHref === pathname === /overview) switches in-place
+      // without leaving Overview stuck in data-pending="true"
+      const probeEvent = new MouseEvent("click", {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+      });
+      let preventCount = 0;
+      const origPrevent = probeEvent.preventDefault.bind(probeEvent);
+      probeEvent.preventDefault = () => {
+        preventCount += 1;
+        origPrevent();
+      };
+      act(() => {
+        overviewLink.dispatchEvent(probeEvent);
+      });
+      expect(preventCount).toBe(1);
+      expect(overviewLink).toHaveAttribute("aria-current", "page");
+      expect(overviewLink).not.toHaveAttribute("data-pending");
+      expect(hardNavigate).not.toHaveBeenCalled();
+    } finally {
+      window.removeEventListener(
+        "continuum:project-tab-change",
+        handleInPlaceTabChange,
+      );
+    }
   });
 });
