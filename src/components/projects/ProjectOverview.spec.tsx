@@ -1,10 +1,10 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { useProjectMembersQuery } from "@/lib/queries/projects/useProjectMembers";
 import type { Project } from "@/lib/queries/projects/useProjects";
-import ProjectOverview from "./ProjectOverview";
+import ProjectOverview, { syncProjectTabUrl } from "./ProjectOverview";
 
 const management = vi.hoisted(() => ({ canAccessSettings: true }));
 const memberAddAccess = vi.hoisted(() => ({ isSuccess: false }));
@@ -141,4 +141,42 @@ it("does not invent a member total while the request is pending or denied", () =
   );
   expect(screen.getByText("Member data unavailable")).toBeVisible();
   expect(screen.queryByText("0")).not.toBeInTheDocument();
+});
+
+it("preserves history.state in syncProjectTabUrl and marks custom tab events handled", () => {
+  const existingState = { __NA: true, custom: "existing" };
+  window.history.replaceState(
+    existingState,
+    "",
+    "/projects/project-1/overview",
+  );
+  const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+  try {
+    syncProjectTabUrl("project-1", "members");
+    expect(replaceStateSpy).toHaveBeenCalledWith(
+      existingState,
+      "",
+      "/projects/project-1/members",
+    );
+
+    membersQuery.mockReturnValue({
+      data: undefined,
+      isPending: false,
+      isError: true,
+    } as unknown as ReturnType<typeof useProjectMembersQuery>);
+    renderOverview();
+
+    const tabEvent = new CustomEvent("continuum:project-tab-change", {
+      detail: { projectId: "project-1", tab: "members" },
+      cancelable: true,
+    });
+    let notCancelled = true;
+    act(() => {
+      notCancelled = window.dispatchEvent(tabEvent);
+    });
+    expect(notCancelled).toBe(false);
+  } finally {
+    replaceStateSpy.mockRestore();
+    window.history.replaceState(null, "", "/");
+  }
 });

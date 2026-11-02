@@ -68,6 +68,36 @@ describe("protected dashboard layout", () => {
     expect(shell).toHaveStyle({ height: "430px" });
   });
 
+  it("clears the inline viewport height when navigating from /chat to a standard project route", () => {
+    path.value = "/chat";
+    const viewport = Object.assign(new EventTarget(), { height: 520 });
+    vi.stubGlobal("visualViewport", viewport);
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "user", organizationId: "organization" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+    const view = render(
+      <AdminLayout>
+        <div>Page content</div>
+      </AdminLayout>,
+    );
+    const shell = screen.getByText("Page content").closest(".h-dvh");
+    expect(shell).toHaveStyle({ height: "520px" });
+
+    path.value = "/projects/p1/members";
+    view.rerender(
+      <AdminLayout>
+        <div>Page content</div>
+      </AdminLayout>,
+    );
+    const updatedShell = screen
+      .getByText("Page content")
+      .closest(".min-h-screen") as HTMLElement;
+    expect(updatedShell.style.height).toBe("");
+  });
+
   it("replays the chat content entrance when navigating between chat routes", () => {
     path.value = "/chat";
     vi.mocked(useCurrentUserQuery).mockReturnValue({

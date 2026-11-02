@@ -51,6 +51,15 @@ function OrganizationProject({
     }
     return showTeams && teamMode === "fixture" ? "teams" : "overview";
   });
+  const [prevInitialTab, setPrevInitialTab] = useState<ProjectTab | undefined>(
+    initialTab,
+  );
+  if (prevInitialTab !== initialTab) {
+    setPrevInitialTab(initialTab);
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }
   const router = useRouter();
   const project = useProjectQuery(organizationId, projectId);
   const t = useTranslations("projectVisibility");
