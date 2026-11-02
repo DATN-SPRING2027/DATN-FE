@@ -2825,7 +2825,8 @@
       "subtaskLayerHint": "Chi tiết công việc phụ • Thuộc {key} ({title})",
       "updateStatusAria": "Cập nhật trạng thái công việc",
       "updatePriorityAria": "Cập nhật độ ưu tiên công việc",
-      "completeSubtaskAria": "Đánh dấu hoàn thành công việc phụ {key}"
+      "completeSubtaskAria": "Đánh dấu hoàn thành công việc phụ {key}",
+      "saveDescriptionError": "Không thể lưu mô tả. Vui lòng thử lại."
     }
   },
   "organizationMembers": {

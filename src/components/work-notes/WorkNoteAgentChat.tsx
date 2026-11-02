@@ -359,14 +359,13 @@ export function cleanLabel(text: string): string {
 }
 
 export function isOtherOption(text: string): boolean {
-  const norm = text.trim().toLowerCase();
+  const norm = cleanLabel(text).toLowerCase();
   return (
-    norm === "khác" ||
-    norm.startsWith("khác") ||
-    norm.startsWith("other") ||
-    norm.includes("khác (") ||
-    norm.includes("nội dung khác") ||
-    norm.includes("other (")
+    /^(?:khác|other)(?:\s*(?:[:\-–—(/,.…]|$))/u.test(norm) ||
+    /^(?:ý kiến|lựa chọn|phương án|nội dung)\s+khác(?:\s*(?:[:\-–—(/,.…]|$))/u.test(
+      norm,
+    ) ||
+    /^something\s+else(?:\s*(?:[:\-–—(/,.…]|$))/u.test(norm)
   );
 }
 
@@ -1473,20 +1472,7 @@ export default function WorkNoteAgentChat({
     },
   ];
 
-  const assessmentGaps = draft?.assessment?.gaps ?? [];
-  const openGaps = assessmentGaps.filter((g) => g.status === "open");
-  const answeredGaps = assessmentGaps.filter(
-    (g) => g.status === "answered" || g.status === "skipped",
-  );
-  const totalGaps = openGaps.length + answeredGaps.length;
-
   const activeQuestionStep = useMemo(() => {
-    if (totalGaps >= 2) {
-      return {
-        current: Math.min(answeredGaps.length + 1, totalGaps),
-        total: totalGaps,
-      };
-    }
     if (question) {
       const match = /(?:^|\s|\()(\d+)\/(\d+)(?:\)|\s|$)/.exec(question.text);
       if (match) {
@@ -1497,7 +1483,7 @@ export default function WorkNoteAgentChat({
       }
     }
     return undefined;
-  }, [totalGaps, answeredGaps.length, question]);
+  }, [question]);
 
   const hasMessages =
     conversationCount > 0 ||

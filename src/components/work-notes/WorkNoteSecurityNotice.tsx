@@ -436,4 +436,3 @@ export default function WorkNoteSecurityNotice({
   }
   return <PreSendSecurityNotice scan={scan ?? null} />;
 }
-

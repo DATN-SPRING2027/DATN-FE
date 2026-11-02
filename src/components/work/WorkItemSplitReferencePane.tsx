@@ -113,6 +113,7 @@ export default function WorkItemSplitReferencePane({
   const [editingDesc, setEditingDesc] = useState(false);
   const [descDraft, setDescDraft] = useState("");
   const [savingDesc, setSavingDesc] = useState(false);
+  const [descError, setDescError] = useState<string | null>(null);
   const [expandedStepSubIds, setExpandedStepSubIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -158,6 +159,7 @@ export default function WorkItemSplitReferencePane({
       e.stopPropagation();
       if (savingDesc) return;
       setDescDraft(currentDescription ?? "");
+      setDescError(null);
       setEditingDesc(false);
     };
     window.addEventListener("keydown", handleWindowEscape, true);
@@ -194,13 +196,32 @@ export default function WorkItemSplitReferencePane({
 
   async function handleSaveInlineDescription(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    setDescError(null);
     const trimmed = descDraft.trim();
+    const fallbackError = tr(
+      t,
+      "splitTask.saveDescriptionError",
+      "Could not save description. Please try again.",
+    );
     if (activeSubtask) {
       if (!onUpdateSubtask) return;
-      onUpdateSubtask(item.id, activeSubtask.id, {
-        description: trimmed || undefined,
-      });
-      setEditingDesc(false);
+      setSavingDesc(true);
+      try {
+        await Promise.resolve(
+          onUpdateSubtask(item.id, activeSubtask.id, {
+            description: trimmed,
+          }),
+        );
+        setEditingDesc(false);
+      } catch (err) {
+        setDescError(
+          err instanceof Error && err.message.trim().length > 0
+            ? err.message
+            : fallbackError,
+        );
+      } finally {
+        setSavingDesc(false);
+      }
       return;
     }
     if (!onDescriptionChange) return;
@@ -210,9 +231,17 @@ export default function WorkItemSplitReferencePane({
         item.id,
         trimmed.length > 0 ? trimmed : null,
       );
-      if (ok !== false) {
-        setEditingDesc(false);
+      if (ok === false) {
+        setDescError(fallbackError);
+        return;
       }
+      setEditingDesc(false);
+    } catch (err) {
+      setDescError(
+        err instanceof Error && err.message.trim().length > 0
+          ? err.message
+          : fallbackError,
+      );
     } finally {
       setSavingDesc(false);
     }
@@ -612,6 +641,7 @@ export default function WorkItemSplitReferencePane({
                 onClick={() => {
                   setDescOpen(true);
                   setDescDraft(currentDescription ?? "");
+                  setDescError(null);
                   setEditingDesc(true);
                 }}
                 aria-label={tr(
@@ -641,17 +671,29 @@ export default function WorkItemSplitReferencePane({
                     maxLength={20000}
                     disabled={savingDesc}
                     value={descDraft}
-                    onChange={(e) => setDescDraft(e.target.value)}
+                    onChange={(e) => {
+                      setDescDraft(e.target.value);
+                      if (descError) setDescError(null);
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Escape") {
                         e.preventDefault();
                         e.stopPropagation();
                         setDescDraft(currentDescription ?? "");
+                        setDescError(null);
                         setEditingDesc(false);
                       }
                     }}
                     className="w-full rounded-lg border border-brand-400 bg-white px-3 py-2 text-xs leading-relaxed text-gray-800 outline-none dark:border-brand-500 dark:bg-gray-950 dark:text-gray-200"
                   />
+                  {descError && (
+                    <p
+                      role="alert"
+                      className="rounded-md border border-error-200 bg-error-50 px-2.5 py-1.5 text-xs text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+                    >
+                      {descError}
+                    </p>
+                  )}
                   <div className="flex items-center justify-end gap-1.5">
                     <button
                       type="submit"
@@ -667,6 +709,7 @@ export default function WorkItemSplitReferencePane({
                       disabled={savingDesc}
                       onClick={() => {
                         setDescDraft(currentDescription ?? "");
+                        setDescError(null);
                         setEditingDesc(false);
                       }}
                       className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"

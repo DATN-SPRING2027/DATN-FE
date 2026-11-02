@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import WorkItemDetailDialog from "./WorkItemDetailDialog";
 import type { WorkItem } from "./work-types";
@@ -624,6 +624,88 @@ describe("WorkItemDetailDialog", () => {
     fireEvent.keyDown(window, { key: "Escape" });
     expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
       "composer:inline:work-1:new:dismiss=1",
+    );
+  });
+
+  it("clears subtask description with empty string and surfaces inline error alert without losing draft when task description save fails", async () => {
+    const onUpdateSubtask = vi.fn();
+    const onDescriptionChange = vi
+      .fn<(id: string, description: string | null) => Promise<boolean>>()
+      .mockResolvedValueOnce(false)
+      .mockRejectedValueOnce(new Error("Server rejected description"));
+
+    render(
+      <WorkItemDetailDialog
+        item={{
+          ...sampleItemWithSubtasks,
+          description: "Parent description",
+          subtaskItems: [
+            {
+              ...sampleItemWithSubtasks.subtaskItems![0],
+              description: "Subtask initial description",
+            },
+          ],
+        }}
+        projectId="651a2b3c4d5e6f7a8b9c0d21"
+        mode="page"
+        onClose={vi.fn()}
+        onUpdateSubtask={onUpdateSubtask}
+        onDescriptionChange={onDescriptionChange}
+      />,
+    );
+
+    // Enter split mode
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+
+    // 1) Parent task description save returning false keeps editor + draft and shows alert
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const parentTextbox = screen.getByRole("textbox", { name: "description" });
+    fireEvent.change(parentTextbox, { target: { value: "Unsaved draft 1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save description. Please try again.",
+    );
+    expect(screen.getByRole("textbox", { name: "description" })).toHaveValue(
+      "Unsaved draft 1",
+    );
+
+    // 2) Parent task description save rejecting surfaces error message without unhandled rejection
+    fireEvent.change(screen.getByRole("textbox", { name: "description" }), {
+      target: { value: "Unsaved draft 2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Server rejected description",
+    );
+    expect(screen.getByRole("textbox", { name: "description" })).toHaveValue(
+      "Unsaved draft 2",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "cancel" }));
+
+    // 3) Switch to subtask layer, re-open split pane on subtask, and clear subtask description -> sends "" (not undefined)
+    fireEvent.click(screen.getByRole("button", { name: "KNW-142.1" }));
+    fireEvent.click(screen.getByRole("button", { name: "title" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trigger split new note" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Edit work item description" }),
+    );
+    const subTextbox = screen.getByRole("textbox", { name: "description" });
+    expect(subTextbox).toHaveValue("Subtask initial description");
+    fireEvent.change(subTextbox, { target: { value: "   " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() =>
+      expect(onUpdateSubtask).toHaveBeenCalledWith("work-1", "sub-1", {
+        description: "",
+      }),
     );
   });
 });

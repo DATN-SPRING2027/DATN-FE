@@ -1,13 +1,19 @@
-import { render, screen } from "@testing-library/react";
+import { createRef } from "react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/vi.json";
 import WorkNoteSecurityNotice, {
   SecurityShieldBanner,
   detectPreSendSensitiveData,
   formatMaskedSensitiveText,
 } from "./WorkNoteSecurityNotice";
-import { parseClarificationQuestion } from "./WorkNoteAgentChat";
+import WorkNoteAgentChat, {
+  isOtherOption,
+  parseClarificationQuestion,
+} from "./WorkNoteAgentChat";
+import { assessmentFixture } from "./assessment.test-fixture";
+import type { AgentDraft } from "@/lib/queries/work-notes/work-note-agent.api";
 
 describe("WorkNoteSecurityNotice & pre-send sensitive data detection", () => {
   it("flags weak real passwords like Password123! and non-dummy secrets while ignoring exact placeholders", () => {
@@ -157,5 +163,108 @@ describe("parseClarificationQuestion edge cases", () => {
     expect(openNumbered.choiceMode).toBe("none");
     expect(openNumbered.targetItems).toHaveLength(2);
     expect(openNumbered.prompt).toBe("Vui lòng bổ sung chi tiết:");
+  });
+
+  it("distinguishes true 'Khác'/'Other' options from domain choices like 'Khách hàng...' or 'Otherwise...'", () => {
+    expect(isOtherOption("Khách hàng đã xác nhận")).toBe(false);
+    expect(isOtherOption("Khách báo lỗi trên staging")).toBe(false);
+    expect(isOtherOption("Otherwise keep current retry")).toBe(false);
+    expect(isOtherOption("Other team approved")).toBe(false);
+
+    expect(isOtherOption("Khác")).toBe(true);
+    expect(isOtherOption("Khác...")).toBe(true);
+    expect(isOtherOption("Khác (nhập thêm)")).toBe(true);
+    expect(isOtherOption("Khác: ghi rõ")).toBe(true);
+    expect(isOtherOption("Nội dung khác")).toBe(true);
+    expect(isOtherOption("Ý kiến khác")).toBe(true);
+    expect(isOtherOption("Other")).toBe(true);
+    expect(isOtherOption("Other (specify)")).toBe(true);
+    expect(isOtherOption("Something else")).toBe(true);
+  });
+
+  it("renders 'Khách hàng đã xác nhận' and 'Otherwise...' as selectable options in Chat without leaking Assessment gap counters", () => {
+    const onSend = vi.fn();
+    const draftWithAssessmentAndChatQuestion: AgentDraft = {
+      id: "f081a006-489c-4a50-a0df-a54567fdc01b",
+      taskId: "6ad7758334bd88b3f2cc844b",
+      noteId: null,
+      workflow: "TASK_NOTE",
+      baseNoteVersion: 0,
+      revision: 1,
+      title: "Tiến độ kiểm thử",
+      contentMarkdown: "Đã xử lý phản hồi từ khách hàng.",
+      expiresAt: "2099-01-01T00:00:00.000Z",
+      hasAppliedRewrite: false,
+      conversation: [],
+      suggestion: null,
+      pendingQuestion: {
+        id: "q-chat-1",
+        text: "Ai đã xác nhận kết quả kiểm thử?",
+        reason: "Cần ghi rõ nguồn xác nhận.",
+        options: ["Khách hàng đã xác nhận", "Otherwise keep internal QA"],
+      },
+      assessment: {
+        ...assessmentFixture,
+        gaps: [
+          assessmentFixture.gaps[0],
+          {
+            ...assessmentFixture.gaps[0],
+            id: "gap-two",
+            status: "answered",
+          },
+          {
+            ...assessmentFixture.gaps[0],
+            id: "gap-three",
+            status: "open",
+          },
+        ],
+      },
+    };
+
+    render(
+      <NextIntlClientProvider locale="vi" messages={messages}>
+        <WorkNoteAgentChat
+          draft={draftWithAssessmentAndChatQuestion}
+          before={{
+            title: draftWithAssessmentAndChatQuestion.title,
+            contentMarkdown: draftWithAssessmentAndChatQuestion.contentMarkdown,
+          }}
+          selectionPromptQuote={null}
+          suggestion={null}
+          suggestionStale={false}
+          busy={false}
+          thinking={false}
+          message=""
+          onMessage={vi.fn()}
+          onQuickOption={vi.fn()}
+          onSend={onSend}
+          onApplySuggestion={vi.fn()}
+          onDismissSuggestion={vi.fn()}
+          onRegenerateSuggestion={vi.fn()}
+          onReset={vi.fn()}
+          inputRef={createRef<HTMLTextAreaElement>()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // Must NOT borrow 2/3 counter from draft.assessment.gaps for an independent Chat pendingQuestion
+    expect(screen.queryByText("2/3")).not.toBeInTheDocument();
+
+    // Both domain choices must preserve their full labels rather than turning into "Khác"
+    const customerRadio = screen.getByRole("radio", {
+      name: /Khách hàng đã xác nhận/,
+    });
+    expect(customerRadio).toBeVisible();
+    expect(
+      screen.getByRole("radio", { name: /Otherwise keep internal QA/ }),
+    ).toBeVisible();
+
+    // Selecting "Khách hàng đã xác nhận" submits directly without requiring custom "Khác" text
+    expect(
+      screen.getByRole("radio", { name: /Khác \(nhập chi tiết\)/ }),
+    ).toBeVisible();
+    fireEvent.click(customerRadio);
+    fireEvent.click(screen.getByRole("button", { name: "Xác nhận" }));
+    expect(onSend).toHaveBeenCalledWith("Khách hàng đã xác nhận", "answered");
   });
 });

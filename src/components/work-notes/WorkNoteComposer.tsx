@@ -214,16 +214,15 @@ export default function WorkNoteComposer({
         : assessmentEnabled && d?.assessment
           ? "assessment"
           : "chat";
+  const hasFields = fields !== null;
+  const fieldTitle = fields?.title ?? "";
+  const fieldBody = fields?.contentMarkdown ?? "";
   const preSendSecurity = useMemo(
     () =>
-      fields
-        ? detectPreSendSensitiveData([
-            fields.title,
-            fields.contentMarkdown,
-            instruction,
-          ])
+      hasFields
+        ? detectPreSendSensitiveData([fieldTitle, fieldBody, instruction])
         : null,
-    [fields, instruction],
+    [hasFields, fieldTitle, fieldBody, instruction],
   );
 
   const defaultAiWidthPx = variant === "inline" ? 390 : 410;

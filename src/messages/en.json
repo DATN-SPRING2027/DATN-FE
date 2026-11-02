@@ -2825,7 +2825,8 @@
       "subtaskLayerHint": "Subtask detail layer • Child of {key} ({title})",
       "updateStatusAria": "Update work item status",
       "updatePriorityAria": "Update work item priority",
-      "completeSubtaskAria": "Complete subtask {key}"
+      "completeSubtaskAria": "Complete subtask {key}",
+      "saveDescriptionError": "Could not save description. Please try again."
     }
   },
   "organizationMembers": {
