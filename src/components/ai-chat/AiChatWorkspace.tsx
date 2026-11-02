@@ -46,6 +46,7 @@ import {
   useCreateAiChatThreadMutation,
   useDeleteAiChatThreadMutation,
   useUpdateAiChatThreadMutation,
+  useAiChatProjectSourcesQuery,
 } from "@/lib/queries/ai-chat/useAiChat";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
@@ -60,6 +61,7 @@ import AiChatMessageList, {
 } from "./AiChatMessageList";
 import AiChatSidebar from "./AiChatSidebar";
 import AiChatMindMapPanel from "./AiChatMindMapPanel";
+import AiChatSourcesPanel from "./AiChatSourcesPanel";
 import { aiMindMapKeys } from "@/lib/queries/ai-chat/useAiMindMap";
 import { isPersistedMessageId } from "./answer-action-utils";
 import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
@@ -224,6 +226,7 @@ function AiChatWorkspaceContent() {
   const [isComposerProjectMenuOpen, setIsComposerProjectMenuOpen] =
     useState(false);
   const [isMindMapOpen, setIsMindMapOpen] = useState(false);
+  const [isSourcesOpen, setIsSourcesOpen] = useState(false);
   const [pinnedIdsByScope, setPinnedIdsByScope] = useState<
     Record<string, readonly string[]>
   >({});
@@ -359,6 +362,16 @@ function AiChatWorkspaceContent() {
   const threadsQuery = useAiChatThreadsQuery(organizationId, projectId, {
     enabled: Boolean(organizationId && projectId),
   });
+  const projectSourcesSummaryQuery = useAiChatProjectSourcesQuery(
+    organizationId,
+    projectId,
+    1,
+    25,
+    { enabled: Boolean(organizationId && projectId) },
+  );
+  const projectSourcesAccessDenied = isAccessOrResourceUnavailableError(
+    projectSourcesSummaryQuery.error,
+  );
   const createThreadMutation = useCreateAiChatThreadMutation(
     organizationId,
     projectId,
@@ -514,6 +527,8 @@ function AiChatWorkspaceContent() {
       setIsProjectMenuOpen(false);
       setIsComposerProjectMenuOpen(false);
       setIsEngineMenuOpen(false);
+      setIsSourcesOpen(false);
+      setIsMindMapOpen(false);
 
       const nextParams = new URLSearchParams(searchParams.toString());
       nextParams.set("projectId", project.id);
@@ -1766,6 +1781,7 @@ function AiChatWorkspaceContent() {
                 setIsComposerProjectMenuOpen(false);
                 setIsMindMapOpen((prev) => {
                   const next = !prev;
+                  if (next) setIsSourcesOpen(false);
                   if (
                     next &&
                     typeof window !== "undefined" &&
@@ -2051,8 +2067,35 @@ function AiChatWorkspaceContent() {
           }}
           onSubmit={() => void sendQuestion(composerValue)}
           onStopStreaming={handleStopStreaming}
+          readySourceCount={
+            projectSourcesSummaryQuery.isError || projectSourcesAccessDenied
+              ? null
+              : (projectSourcesSummaryQuery.data?.summary.readyCount ?? null)
+          }
+          totalSourceCount={
+            projectSourcesAccessDenied
+              ? null
+              : (projectSourcesSummaryQuery.data?.summary.totalCount ?? null)
+          }
+          onOpenSources={() => {
+            setIsMindMapOpen(false);
+            setIsSourcesOpen(true);
+            if (typeof window !== "undefined" && window.innerWidth < 1536) {
+              setIsDesktopSidebarOpen(false);
+            }
+          }}
         />
       </div>
+
+      {isSourcesOpen && !queryAccessError && organizationId && (
+        <AiChatSourcesPanel
+          key={`${organizationId}:${selectedProject.id}`}
+          organizationId={organizationId}
+          projectId={selectedProject.id}
+          projectName={selectedProject.name}
+          onClose={() => setIsSourcesOpen(false)}
+        />
+      )}
 
       {isMindMapOpen && !queryAccessError && userId && organizationId && (
         <AiChatMindMapPanel

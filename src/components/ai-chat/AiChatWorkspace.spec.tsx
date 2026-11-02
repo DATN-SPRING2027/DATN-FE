@@ -16,6 +16,7 @@ const {
   useSearchParamsMock,
   useActiveProjectsMock,
   useThreadsMock,
+  useProjectSourcesMock,
   createThreadMutateAsync,
   updateThreadMutateAsync,
   deleteThreadMutateAsync,
@@ -29,6 +30,7 @@ const {
   useSearchParamsMock: vi.fn(() => new URLSearchParams()),
   useActiveProjectsMock: vi.fn(),
   useThreadsMock: vi.fn(),
+  useProjectSourcesMock: vi.fn(),
   createThreadMutateAsync: vi.fn(),
   updateThreadMutateAsync: vi.fn(),
   deleteThreadMutateAsync: vi.fn(),
@@ -97,6 +99,8 @@ vi.mock("@/lib/queries/ai-chat/useAiChat", () => ({
       ["ai-chat", orgId, projectId, "messages", threadId] as const,
   },
   useAiChatThreadsQuery: (...args: unknown[]) => useThreadsMock(...args),
+  useAiChatProjectSourcesQuery: (...args: unknown[]) =>
+    useProjectSourcesMock(...args),
   useCreateAiChatThreadMutation: () => ({
     mutateAsync: createThreadMutateAsync,
     isPending: false,
@@ -205,6 +209,34 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       isError: false,
       refetch: vi.fn(),
     });
+    useProjectSourcesMock.mockReset().mockReturnValue({
+      data: {
+        data: [
+          {
+            documentId: "doc-1",
+            title: "Project specification",
+            fileName: "project-spec.pdf",
+            type: "PDF",
+            approvalStatus: "APPROVED",
+            currentVersion: 2,
+            approvedVersion: 2,
+            readinessStatus: "READY",
+            updatedAt: "2026-10-30T12:00:00Z",
+          },
+        ],
+        pagination: { page: 1, pageSize: 25, totalItems: 4, totalPages: 1 },
+        summary: {
+          totalCount: 4,
+          readyCount: 3,
+          verificationStatus: "VERIFIED",
+          verifiedAt: "2026-10-30T12:00:00Z",
+        },
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      refetch: vi.fn(),
+    });
     useMessagesInfiniteMock.mockReset().mockReturnValue({
       data: {
         pages: [
@@ -249,6 +281,67 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       screen.queryByTestId("mind-map-workspace-panel"),
     ).not.toBeInTheDocument();
     expect(screen.getByTestId("ai-chat-mind-map-trigger")).toBeDisabled();
+  });
+
+  it("shows the live ready/total count and opens a read-only project source list", () => {
+    renderWorkspace();
+
+    fireEvent.click(screen.getByTestId("ai-chat-sources-trigger"));
+
+    expect(screen.getByTestId("ai-chat-sources-panel")).toBeInTheDocument();
+    expect(
+      screen.getByText("3/4 sources ready for AI search"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Project specification")).toBeInTheDocument();
+    expect(screen.getByText("Ready for search")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+  });
+
+  it("does not present a stale ready count after source verification fails", () => {
+    useProjectSourcesMock.mockReturnValue({
+      data: {
+        summary: {
+          totalCount: 4,
+          readyCount: 3,
+          verificationStatus: "VERIFIED",
+          verifiedAt: "2026-10-30T12:00:00Z",
+        },
+      },
+      isError: true,
+      isPending: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    });
+
+    renderWorkspace();
+
+    expect(screen.getByTestId("ai-chat-sources-trigger")).toHaveTextContent(
+      "—/4",
+    );
+  });
+
+  it("hides a cached project total when source access is denied", () => {
+    useProjectSourcesMock.mockReturnValue({
+      data: {
+        summary: {
+          totalCount: 4,
+          readyCount: 3,
+          verificationStatus: "VERIFIED",
+          verifiedAt: "2026-10-30T12:00:00Z",
+        },
+      },
+      error: new ApiError(403, "FORBIDDEN", "Project source access revoked"),
+      isError: true,
+      isPending: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    });
+
+    renderWorkspace();
+
+    expect(screen.getByTestId("ai-chat-sources-trigger")).toHaveTextContent(
+      "—/—",
+    );
   });
 
   it("renders the welcome state without a Chat/Work switch and auto-selects the first ACTIVE project", () => {

@@ -9,6 +9,44 @@ export type AiChatThread = Readonly<{
   branchPointMessageId?: string | null;
 }>;
 
+export type AiChatProjectSourceReadiness =
+  | "READY"
+  | "PROCESSING"
+  | "NOT_APPROVED"
+  | "NOT_INDEXED"
+  | "FAILED"
+  | "REVOKED"
+  | "ARCHIVED"
+  | "UNVERIFIED";
+
+export type AiChatProjectDocumentSource = Readonly<{
+  documentId: string;
+  title: string;
+  fileName?: string;
+  type: string;
+  approvalStatus: string;
+  currentVersion: number;
+  approvedVersion: number | null;
+  readinessStatus: AiChatProjectSourceReadiness;
+  updatedAt: string;
+}>;
+
+export type AiChatProjectDocumentSources = Readonly<{
+  data: readonly AiChatProjectDocumentSource[];
+  pagination: Readonly<{
+    page: number;
+    pageSize: number;
+    totalItems: number;
+    totalPages: number;
+  }>;
+  summary: Readonly<{
+    totalCount: number;
+    readyCount: number | null;
+    verificationStatus: "VERIFIED" | "UNAVAILABLE";
+    verifiedAt: string | null;
+  }>;
+}>;
+
 export type AiChatCitation = Readonly<{
   number: number;
   sourceId: string;
