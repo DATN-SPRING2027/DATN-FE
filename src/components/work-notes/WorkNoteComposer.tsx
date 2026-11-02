@@ -3,9 +3,12 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import {
   ArrowLeftRight,
@@ -16,6 +19,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronUp,
+  ClipboardCheck,
   ExternalLink,
   FileText,
   Italic,
@@ -51,13 +55,18 @@ import WorkNoteAgentChat from "./WorkNoteAgentChat";
 import WorkNoteAssessment from "./WorkNoteAssessment";
 import WorkNoteHistory from "./WorkNoteHistory";
 import WorkNoteContext from "./WorkNoteContext";
+import WorkNoteHistoryContext from "./WorkNoteHistoryContext";
 import WorkNoteSelectionAssistant, {
   computeTextareaSelectionPoint,
   type SelectionAnchorPoint,
 } from "./WorkNoteSelectionAssistant";
 import { sourceSelection, reconcileTextareaEdit } from "./textarea-source";
+import {
+  PreSendSecurityNotice,
+  detectPreSendSensitiveData,
+} from "./work-note-security-notice";
 
-type AssistantTab = "chat" | "suggestions" | "context";
+type AssistantTab = "chat" | "assessment" | "suggestions" | "context";
 
 export default function WorkNoteComposer({
   projectId,
@@ -71,8 +80,10 @@ export default function WorkNoteComposer({
   startFreshDraft = false,
   variant = "modal",
   onPanelOpenChange,
+  onAiPanelWidthChange,
   onConfirmationChange,
   dismissSignal = 0,
+  initialPanelOpen,
 }: {
   projectId: string;
   taskId?: string;
@@ -88,10 +99,13 @@ export default function WorkNoteComposer({
   startFreshDraft?: boolean;
   variant?: "modal" | "inline";
   onPanelOpenChange?: (open: boolean) => void;
+  onAiPanelWidthChange?: (widthPx: number) => void;
   onConfirmationChange?: (open: boolean) => void;
   dismissSignal?: number;
+  initialPanelOpen?: boolean;
 }) {
   const t = useTranslations("workNotes.agent");
+  const tAssessment = useTranslations("workNotes.assessment");
   const editor = useWorkNoteComposer(
     projectId,
     taskId,
@@ -104,7 +118,7 @@ export default function WorkNoteComposer({
   );
   const [historyOpen, setHistoryOpen] = useState(false);
   const [panelToggle, setPanelToggle] = useState<boolean | null>(null);
-  const [assistantTab, setAssistantTab] = useState<AssistantTab>("chat");
+  const [assistantTabState, setAssistantTab] = useState<AssistantTab | null>(null);
   const [toolbarAiOpen, setToolbarAiOpen] = useState(false);
   const [blockStyle, setBlockStyle] = useState<"normal" | "h1" | "h2" | "h3">(
     "normal",
@@ -189,11 +203,109 @@ export default function WorkNoteComposer({
       d?.pendingQuestion ||
       (assessmentEnabled && d?.assessment),
   );
-  const panelOpen = panelToggle ?? hasPendingAiOutput;
+  const panelOpen = panelToggle ?? (initialPanelOpen !== undefined ? initialPanelOpen : hasPendingAiOutput);
+  const assistantTab: AssistantTab =
+    assistantTabState &&
+    (assistantTabState !== "assessment" || assessmentEnabled)
+      ? assistantTabState
+      : activeSuggestion || d?.pendingQuestion
+        ? "chat"
+        : assessmentEnabled && d?.assessment
+          ? "assessment"
+          : "chat";
+  const preSendSecurity = useMemo(
+    () =>
+      fields
+        ? detectPreSendSensitiveData([
+            fields.title,
+            fields.contentMarkdown,
+            instruction,
+          ])
+        : null,
+    [fields, instruction],
+  );
+
+  const defaultAiWidthPx = variant === "inline" ? 390 : 410;
+  const splitBodyRef = useRef<HTMLDivElement>(null);
+  const [aiPanelWidthPx, setAiPanelWidthPx] = useState(defaultAiWidthPx);
+  const [isDraggingAiResizer, setIsDraggingAiResizer] = useState(false);
 
   useEffect(() => {
     onPanelOpenChange?.(panelOpen);
   }, [onPanelOpenChange, panelOpen]);
+
+  useEffect(() => {
+    onAiPanelWidthChange?.(aiPanelWidthPx);
+  }, [aiPanelWidthPx, onAiPanelWidthChange]);
+
+  function isComposerRtl(): boolean {
+    const container = splitBodyRef.current;
+    if (!container || typeof window === "undefined") return false;
+    return window.getComputedStyle(container).direction === "rtl";
+  }
+
+  function computeClampedAiWidthPx(clientX: number): number | null {
+    const container = splitBodyRef.current;
+    if (!container) return null;
+    const rect = container.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    const minAiPx = 290;
+    const minNotePx = 310;
+    const splitterPx = 10;
+    const maxAiPx = Math.max(
+      minAiPx,
+      Math.min(720, Math.round(rect.width - minNotePx - splitterPx)),
+    );
+    const rawAiPx = isComposerRtl()
+      ? clientX - rect.left
+      : rect.right - clientX;
+    return Math.round(Math.min(maxAiPx, Math.max(minAiPx, rawAiPx)));
+  }
+
+  function handleAiResizerPointerDown(e: ReactPointerEvent<HTMLDivElement>) {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+    setIsDraggingAiResizer(true);
+  }
+
+  function handleAiResizerPointerMove(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!isDraggingAiResizer) return;
+    const nextPx = computeClampedAiWidthPx(e.clientX);
+    if (nextPx !== null) {
+      setAiPanelWidthPx(nextPx);
+    }
+  }
+
+  function handleAiResizerPointerUp(e: ReactPointerEvent<HTMLDivElement>) {
+    if (!isDraggingAiResizer) return;
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture?.(e.pointerId);
+    }
+    setIsDraggingAiResizer(false);
+  }
+
+  function handleAiResizerKeyDown(e: KeyboardEvent<HTMLDivElement>) {
+    const minAiPx = 290;
+    const containerWidth =
+      splitBodyRef.current?.getBoundingClientRect().width ?? 0;
+    const maxAiPx =
+      containerWidth > 0
+        ? Math.max(minAiPx, Math.min(720, Math.round(containerWidth - 320)))
+        : 720;
+    const widenAiKey = isComposerRtl() ? "ArrowRight" : "ArrowLeft";
+    const narrowAiKey = isComposerRtl() ? "ArrowLeft" : "ArrowRight";
+    if (e.key === widenAiKey) {
+      e.preventDefault();
+      setAiPanelWidthPx((cur) => Math.min(maxAiPx, cur + 24));
+    } else if (e.key === narrowAiKey) {
+      e.preventDefault();
+      setAiPanelWidthPx((cur) => Math.max(minAiPx, cur - 24));
+    } else if (e.key === "Home" || e.key === "Enter") {
+      e.preventDefault();
+      setAiPanelWidthPx(defaultAiWidthPx);
+    }
+  }
 
   useEffect(() => {
     onConfirmationChange?.(Boolean(confirmation));
@@ -865,16 +977,14 @@ export default function WorkNoteComposer({
             </div>
           ) : (
             <div
-              className={`grid min-h-0 flex-1 grid-cols-1 overflow-y-auto lg:overflow-hidden ${
-                panelOpen
-                  ? isInline
-                    ? "lg:grid-cols-[minmax(0,1fr)_375px] xl:grid-cols-[minmax(0,1fr)_400px]"
-                    : "lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_420px]"
-                  : ""
+              ref={splitBodyRef}
+              data-testid="work-note-editor-ai-split"
+              className={`flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row lg:overflow-hidden ${
+                isDraggingAiResizer ? "cursor-col-resize select-none" : ""
               }`}
             >
-              {/* LEFT COLUMN: Editor + Task Information Check + Pinned Footer (6) */}
-              <div className="flex min-h-0 min-w-0 flex-col">
+              {/* LEFT COLUMN: Editor + Pinned Footer (6) */}
+              <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                 {isInline && (
                   <>
                     {headerElement}
@@ -1314,6 +1424,10 @@ export default function WorkNoteComposer({
                     </div>
                   </div>
 
+                  {!panelOpen && preSendSecurity && (
+                    <PreSendSecurityNotice scan={preSendSecurity} />
+                  )}
+
                   {/* Uncertainties when no inline proposal card is active */}
                   {!activeSuggestion &&
                     !!editor.response?.uncertainties.length && (
@@ -1398,12 +1512,61 @@ export default function WorkNoteComposer({
                 </footer>
               </div>
 
-              {/* Region (7): Collapsible Right-Hand AI Chat Panel */}
+              {/* Draggable Vertical Splitter between Note Editor and AI Assistant */}
+              {panelOpen && (
+                <div
+                  role="separator"
+                  data-testid="note-ai-resizer"
+                  inert={!!confirmation || undefined}
+                  tabIndex={0}
+                  aria-orientation="vertical"
+                  aria-label={t("resizeNoteAiAria")}
+                  aria-valuemin={290}
+                  aria-valuemax={720}
+                  aria-valuenow={Math.round(aiPanelWidthPx)}
+                  title={t("resizeNoteAiTitle")}
+                  onPointerDown={handleAiResizerPointerDown}
+                  onPointerMove={handleAiResizerPointerMove}
+                  onPointerUp={handleAiResizerPointerUp}
+                  onPointerCancel={handleAiResizerPointerUp}
+                  onKeyDown={handleAiResizerKeyDown}
+                  onDoubleClick={() => setAiPanelWidthPx(defaultAiWidthPx)}
+                  className="group relative z-20 hidden w-2.5 shrink-0 cursor-col-resize items-center justify-center bg-gray-50/70 transition-colors hover:bg-brand-50/80 focus-visible:bg-brand-50/80 focus-visible:outline-none lg:flex dark:bg-gray-950/60 dark:hover:bg-brand-500/15"
+                >
+                  <div
+                    aria-hidden="true"
+                    className={`h-full w-px transition-colors ${
+                      isDraggingAiResizer
+                        ? "w-0.5 bg-brand-500"
+                        : "bg-gray-200 group-hover:w-0.5 group-hover:bg-brand-500 group-focus-visible:w-0.5 group-focus-visible:bg-brand-500 dark:bg-gray-800"
+                    }`}
+                  />
+                  <div
+                    aria-hidden="true"
+                    className={`absolute flex h-9 w-2 flex-col items-center justify-center gap-0.5 rounded-full border shadow-2xs transition-colors ${
+                      isDraggingAiResizer
+                        ? "border-brand-500 bg-brand-500 text-white"
+                        : "border-gray-300 bg-white text-gray-400 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:text-brand-600 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500 dark:group-hover:bg-gray-800"
+                    }`}
+                  >
+                    <span className="size-0.5 rounded-full bg-current" />
+                    <span className="size-0.5 rounded-full bg-current" />
+                    <span className="size-0.5 rounded-full bg-current" />
+                  </div>
+                </div>
+              )}
+
+              {/* Region (7): Collapsible & Resizable Right-Hand AI Chat Panel */}
               {panelOpen && (
                 <aside
                   id="worknote-ai-panel"
                   aria-label={t("assistantTitle")}
-                  className="flex min-h-[460px] flex-col border-t border-gray-200/90 bg-white lg:min-h-0 lg:border-t-0 lg:border-s dark:border-gray-800 dark:bg-gray-900"
+                  style={
+                    {
+                      "--ai-panel-w": `${aiPanelWidthPx}px`,
+                    } as CSSProperties
+                  }
+                  className="flex min-h-[460px] w-full flex-col border-t border-gray-200/90 bg-white lg:min-h-0 lg:w-[clamp(280px,var(--ai-panel-w),calc(100%-300px))] lg:shrink-0 lg:border-t-0 dark:border-gray-800 dark:bg-gray-900"
                 >
                   {/* Panel Header + Collapse Button [⌃] */}
                   <div className="flex shrink-0 items-start gap-2.5 px-4 pt-4 pb-3">
@@ -1426,7 +1589,9 @@ export default function WorkNoteComposer({
                         {t(
                           assistantTab === "chat"
                             ? "assistantSubtitle"
-                            : "assistantSuggestionsSubtitle",
+                            : assistantTab === "assessment"
+                              ? "assistantAssessmentSubtitle"
+                              : "assistantSuggestionsSubtitle",
                         )}
                       </p>
                     </div>
@@ -1441,32 +1606,63 @@ export default function WorkNoteComposer({
                     </button>
                   </div>
 
-                  {/* Region (8): 3-Tab Segmented Switcher (Trò chuyện | Gợi ý | Ngữ cảnh công việc) */}
-                  <div className="mx-4 mb-3 flex shrink-0 items-stretch gap-1 rounded-xl bg-gray-100/90 px-1.5 pt-1 dark:bg-gray-800">
-                    {(
-                      [
-                        ["chat", "tabChat"],
-                        ["suggestions", "tabSuggestions"],
-                        ["context", "tabTaskContext"],
-                      ] as const
-                    ).map(([tabKey, labelKey]) => (
-                      <button
-                        key={tabKey}
-                        type="button"
-                        onClick={() => setAssistantTab(tabKey)}
-                        className={`flex-1 border-b-2 px-2 pt-1.5 pb-2 text-center text-xs whitespace-nowrap transition-all ${
-                          assistantTab === tabKey
-                            ? "rounded-t-lg border-brand-600 bg-white font-bold text-brand-600 shadow-2xs dark:border-brand-400 dark:bg-gray-900 dark:text-brand-300"
-                            : "border-transparent font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
-                        }`}
-                      >
-                        {t(labelKey)}
-                      </button>
-                    ))}
+                  {/* Region (8): Segmented Switcher (Trò chuyện | Kiểm tra | Gợi ý | Ngữ cảnh) */}
+                  <div className="mx-4 mb-3 flex shrink-0 items-stretch gap-0.5 rounded-xl bg-gray-100/90 px-1 pt-1 dark:bg-gray-800">
+                    {(assessmentEnabled
+                      ? ([
+                          ["chat", "tabChat", "tabChat"],
+                          ["assessment", "tabAssessment", "tabAssessment"],
+                          ["suggestions", "tabSuggestions", "tabSuggestions"],
+                          ["context", "tabTaskContextShort", "tabTaskContext"],
+                        ] as const)
+                      : ([
+                          ["chat", "tabChat", "tabChat"],
+                          ["suggestions", "tabSuggestions", "tabSuggestions"],
+                          ["context", "tabTaskContext", "tabTaskContext"],
+                        ] as const)
+                    ).map(([tabKey, displayKey, ariaKey]) => {
+                      const hasAssessmentDot =
+                        tabKey === "assessment" && Boolean(d?.assessment);
+                      const dotClass =
+                        d?.assessment?.state === "ready_to_edit"
+                          ? "bg-success-500"
+                          : d?.assessment?.state === "contradiction" ||
+                              d?.assessment?.state === "error"
+                            ? "bg-error-500"
+                            : "bg-warning-500";
+                      return (
+                        <button
+                          key={tabKey}
+                          type="button"
+                          aria-label={t(ariaKey)}
+                          onClick={() => setAssistantTab(tabKey)}
+                          className={`inline-flex flex-1 items-center justify-center gap-1 border-b-2 px-1.5 pt-1.5 pb-2 text-center text-[11px] whitespace-nowrap transition-all sm:text-xs ${
+                            assistantTab === tabKey
+                              ? "rounded-t-lg border-brand-600 bg-white font-bold text-brand-600 shadow-2xs dark:border-brand-400 dark:bg-gray-900 dark:text-brand-300"
+                              : "border-transparent font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                          }`}
+                        >
+                          <span>{t(displayKey)}</span>
+                          {hasAssessmentDot && (
+                            <span
+                              aria-hidden="true"
+                              className={`size-1.5 shrink-0 rounded-full ${dotClass}`}
+                            />
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
 
-                  {assessmentEnabled && (
-                    <div className="max-h-[48%] shrink-0 overflow-y-auto border-b border-gray-100 px-4 pb-3 dark:border-gray-800">
+                  {assistantTab !== "chat" && preSendSecurity && (
+                    <div className="shrink-0 px-4 pb-2.5">
+                      <PreSendSecurityNotice scan={preSendSecurity} />
+                    </div>
+                  )}
+
+                  {/* TAB KIỂM TRA THEO TASK (Full-height single scroll, no 48% split) */}
+                  {assessmentEnabled && assistantTab === "assessment" && (
+                    <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
                       <WorkNoteAssessment
                         key={d?.assessment?.id ?? "new-assessment"}
                         value={d?.assessment}
@@ -1515,6 +1711,40 @@ export default function WorkNoteComposer({
                     </div>
                   )}
 
+                  {/* Quick 1-line Task Check launcher on Chat when no assessment has run yet */}
+                  {assistantTab === "chat" &&
+                    assessmentEnabled &&
+                    !d?.assessment && (
+                      <div className="mx-4 mb-2 flex shrink-0 items-center justify-between gap-2 rounded-xl border border-brand-100 bg-brand-50/45 px-3 py-2 text-xs dark:border-brand-500/25 dark:bg-brand-500/10">
+                        <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-gray-700 dark:text-gray-200">
+                          <ClipboardCheck
+                            className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
+                            aria-hidden="true"
+                          />
+                          <span className="truncate">
+                            {t("quickCheckBarLabel")}
+                          </span>
+                        </span>
+                        <button
+                          type="button"
+                          disabled={
+                            busy ||
+                            editor.agentBusy ||
+                            editor.saving ||
+                            !!confirmation ||
+                            !d
+                          }
+                          onClick={() => {
+                            setAssistantTab("assessment");
+                            void requestAssessment(() => editor.assess("AUTO"));
+                          }}
+                          className="shrink-0 rounded-lg bg-white px-2.5 py-1 text-[11px] font-semibold text-brand-600 shadow-2xs ring-1 ring-brand-200 ring-inset transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-gray-900 dark:text-brand-300 dark:ring-brand-500/35 dark:hover:bg-brand-500/15"
+                        >
+                          {tAssessment("check")}
+                        </button>
+                      </div>
+                    )}
+
                   {/* TAB 1: TRÒ CHUYỆN (Regions 9, 10, 11) */}
                   {assistantTab === "chat" && (
                     <WorkNoteAgentChat
@@ -1528,6 +1758,10 @@ export default function WorkNoteComposer({
                           activeSuggestion.baseRevision !== d?.revision)
                       }
                       uncertainties={editor.response?.uncertainties}
+                      security={
+                        editor.response?.security ?? d?.lastSecurity ?? null
+                      }
+                      preSendSecurity={preSendSecurity}
                       busy={busy || !!confirmation}
                       thinking={editor.agentBusy}
                       pendingUserMessage={editor.pendingMessage}
@@ -1553,6 +1787,13 @@ export default function WorkNoteComposer({
                         if (activeSuggestion) {
                           setDismissed(activeSuggestion.id);
                           editor.setResponse(null);
+                          if (
+                            assessmentEnabled &&
+                            d?.assessment &&
+                            (d?.conversation.length ?? 0) === 0
+                          ) {
+                            setAssistantTab(null);
+                          }
                         }
                       }}
                       onRegenerateSuggestion={() =>
@@ -1725,7 +1966,15 @@ export default function WorkNoteComposer({
                           selection={selection}
                           fullContext={false}
                         />
-                      ) : (
+                      ) : null}
+                      {!source && (
+                        <WorkNoteHistoryContext
+                          projectId={projectId}
+                          draftId={d?.id}
+                          refreshKey={d?.conversation.length ?? 0}
+                        />
+                      )}
+                      {!source ? null : (
                         <div className="rounded-xl border border-gray-200 bg-white p-3.5 text-xs text-gray-600 shadow-2xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-300">
                           <p>
                             {t(

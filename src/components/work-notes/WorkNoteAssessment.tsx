@@ -1,10 +1,19 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
-import { ClipboardCheck, Sparkles } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ClipboardCheck,
+  HelpCircle,
+  History,
+  RotateCcw,
+  Sparkles,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import WorkNoteAssessmentEvidence from "./WorkNoteAssessmentEvidence";
 import Badge from "@/components/ui/badge/Badge";
+import WorkNoteAssessmentEvidence from "./WorkNoteAssessmentEvidence";
 import {
   ASSESSMENT_PURPOSES,
   type AssessmentPurpose,
@@ -27,14 +36,16 @@ export type WorkNoteAssessmentProps = {
   onValidate: () => void;
   onFeedback: (category: AssessmentFeedbackCategory) => void;
 };
+
 const feedbackCategories: AssessmentFeedbackCategory[] = [
   "UNNECESSARY_QUESTION",
   "MISSING_QUESTION",
   "WRONG_SOURCE",
   "FALSE_SUFFICIENT",
 ];
+
 const fieldClass =
-  "w-full rounded-lg border border-gray-200 bg-transparent p-2 text-sm focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:text-gray-200";
+  "w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs leading-relaxed text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100";
 
 export default function WorkNoteAssessment({
   value,
@@ -49,6 +60,7 @@ export default function WorkNoteAssessment({
   onFeedback,
 }: WorkNoteAssessmentProps) {
   const t = useTranslations("workNotes.assessment");
+  const tAgent = useTranslations("workNotes.agent");
   const [purpose, setPurpose] = useState<AssessmentPurpose>(
     value?.purpose ?? "AUTO",
   );
@@ -65,26 +77,34 @@ export default function WorkNoteAssessment({
     "UNNECESSARY_QUESTION",
   );
   const questionInput = useRef<HTMLTextAreaElement>(null);
+
   const purposeChanged = !!value && purpose !== value.purpose;
   const isStale = stale || purposeChanged || value?.state === "stale";
   const state = busy ? "analyzing" : isStale ? "stale" : value?.state;
+
   const can = (action: string) =>
     !busy &&
     !!value?.allowedActions.includes(action) &&
     (!isStale || ["correct", "feedback", "reset", "manual"].includes(action)) &&
     !(purposeChanged && action === "correct");
+
   const question = !manual && !isStale ? value?.nextQuestion : null;
   const answer =
     answerBuffer?.questionId === question?.id ? (answerBuffer?.text ?? "") : "";
+
   useEffect(() => {
     questionInput.current?.focus();
   }, [question?.id]);
+
+  const showResetPanel = resetOpen || purposeChanged;
+
   return (
     <section
       aria-label={t("title")}
-      className="space-y-4 rounded-xl border border-gray-200 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
+      className="space-y-3.5 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
     >
-      <div className="flex items-start justify-between gap-3">
+      {/* 1. Clean Header + Friendly Localized Status Badge */}
+      <div className="flex items-start justify-between gap-2.5">
         <div className="flex min-w-0 items-start gap-2.5">
           <span
             aria-hidden="true"
@@ -96,14 +116,20 @@ export default function WorkNoteAssessment({
             <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
               {t("title")}
             </h3>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-              {t("intro")}
+            <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {state ? t(`stateHelp.${state}`) : t("introShort")}
             </p>
           </div>
         </div>
         {state && (
-          <span role="status" aria-live="polite" className="shrink-0">
+          <span
+            role="status"
+            aria-live="polite"
+            data-testid="assessment-state-badge"
+            className="shrink-0"
+          >
             <Badge
+              size="sm"
               color={
                 state === "ready_to_edit"
                   ? "success"
@@ -112,16 +138,21 @@ export default function WorkNoteAssessment({
                     : "warning"
               }
             >
-              {state}
+              {t(`stateLabels.${state}`)}
             </Badge>
           </span>
         )}
       </div>
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="min-w-48 flex-1 space-y-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-          <span>{t("purpose")}</span>
+
+      {/* 2. Compact Purpose Selector + Check Action */}
+      <div className="space-y-2">
+        <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300">
+          {t("purpose")}
+        </label>
+        <div className="flex flex-wrap items-center gap-2">
           <select
-            className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            aria-label={t("purpose")}
+            className="min-w-44 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             value={purpose}
             disabled={busy}
             onChange={(e) => {
@@ -135,94 +166,111 @@ export default function WorkNoteAssessment({
               </option>
             ))}
           </select>
-        </label>
-        <button
-          type="button"
-          disabled={busy || purposeChanged}
-          onClick={() => {
-            setManual(false);
-            onAssess(purpose);
-          }}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-brand-300 bg-white px-4 py-2 text-sm font-semibold text-brand-600 shadow-2xs transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-500/40 dark:bg-gray-900 dark:text-brand-300 dark:hover:bg-brand-500/10"
-        >
-          <Sparkles className="size-4" aria-hidden="true" />
-          <span>{t("check")}</span>
-        </button>
+
+          <button
+            type="button"
+            disabled={busy || purposeChanged}
+            onClick={() => {
+              setManual(false);
+              onAssess(purpose);
+            }}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
+          >
+            <Sparkles className="size-3.5" aria-hidden="true" />
+            <span>{t("check")}</span>
+          </button>
+        </div>
       </div>
-      {state && (
-        <p className="text-sm text-gray-600 dark:text-gray-300">
-          {t(`stateHelp.${state}`)}
-        </p>
-      )}
+
       {purposeChanged && (
         <p
           role="status"
-          className="text-sm text-warning-700 dark:text-warning-400"
+          className="rounded-lg border border-warning-200 bg-warning-50/70 px-3 py-2 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
         >
           {t("purposeChanged")}
         </p>
       )}
+
       {value && (
         <>
-          <WorkNoteAssessmentEvidence
-            value={value}
-            canCorrect={can("correct")}
-            onCorrectionRequest={(target) => {
-              setCorrectionTarget(target);
-              setCorrectionText("");
-            }}
-          />
-          {correctionTarget && (
-            <form
-              className="space-y-2"
-              onSubmit={(e) => {
-                e.preventDefault();
-                onCorrect(correctionTarget, correctionText.trim());
-                setCorrectionTarget(null);
-              }}
-            >
-              <label className="block space-y-1 text-sm">
-                <span>{t("correctionText")}</span>
-                <textarea
-                  autoFocus
-                  rows={3}
-                  maxLength={2000}
-                  value={correctionText}
-                  onChange={(e) => setCorrectionText(e.target.value)}
-                  className={fieldClass}
-                />
-              </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {t("correctionHint")}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  size="sm"
-                  type="submit"
-                  disabled={!can("correct") || !correctionText.trim()}
-                >
-                  {t("submitCorrection")}
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  type="button"
-                  onClick={() => setCorrectionTarget(null)}
-                >
-                  {t("cancel")}
-                </Button>
-              </div>
-            </form>
-          )}
+          {/* 3. TOP PRIORITY: Active Clarification Question (immediately visible without scrolling!) */}
           {question && (
             <section
               aria-label={t("questionTitle")}
-              className="space-y-2 border-t border-gray-100 pt-3 dark:border-gray-800"
+              className="space-y-3 rounded-xl border border-brand-200/90 bg-brand-50/45 p-3.5 dark:border-brand-500/30 dark:bg-brand-500/10"
             >
-              <h4 className="font-medium">{question.text}</h4>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                {question.reason}
-              </p>
+              <div className="flex items-center gap-1.5 text-brand-700 dark:text-brand-300">
+                <HelpCircle className="size-4 shrink-0" aria-hidden="true" />
+                <span className="text-xs font-bold">{t("questionBadge")}</span>
+              </div>
+
+              <h4 className="text-xs font-bold leading-relaxed text-gray-900 dark:text-gray-100">
+                {question.text}
+              </h4>
+
+              {question.historyRef && (
+                <div
+                  data-testid="assessment-history-ref"
+                  className={`flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ring-1 ring-inset ${
+                    question.historyRef.status === "CURRENT"
+                      ? "bg-white text-gray-600 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
+                      : "bg-warning-50 text-warning-800 ring-warning-200 dark:bg-warning-500/15 dark:text-warning-200 dark:ring-warning-500/30"
+                  }`}
+                >
+                  <History
+                    className="mt-0.5 size-3.5 shrink-0"
+                    aria-hidden="true"
+                  />
+                  <span>
+                    {question.historyRef.relation &&
+                    question.historyRef.relation !== "SELF"
+                      ? tAgent("historyRefRelatedLabel", {
+                          title: question.historyRef.noteTitle,
+                          relation: `${tAgent(`historyContext.relation.${question.historyRef.relation}`)}${
+                            question.historyRef.taskKey
+                              ? ` ${question.historyRef.taskKey}`
+                              : ""
+                          }`,
+                          date: question.historyRef.date
+                            .split("-")
+                            .reverse()
+                            .join("/"),
+                        })
+                      : tAgent("historyRefLabel", {
+                          title: question.historyRef.noteTitle,
+                          date: question.historyRef.date
+                            .split("-")
+                            .reverse()
+                            .join("/"),
+                        })}
+                    {question.historyRef.status !== "CURRENT" &&
+                      ` · ${tAgent(`historyContext.status.${question.historyRef.status}`)}`}
+                  </span>
+                </div>
+              )}
+
+              {question.reason && (
+                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                  {question.reason}
+                </p>
+              )}
+
+              {question.options.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {question.options.map((option, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      disabled={!can("reply")}
+                      onClick={() => onReply("answered", option)}
+                      className="rounded-lg border border-brand-200 bg-white px-2.5 py-1.5 text-start text-xs font-medium text-brand-700 shadow-2xs transition-colors hover:border-brand-400 hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-brand-500/35 dark:bg-gray-900 dark:text-brand-200 dark:hover:bg-brand-500/15"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <form
                 className="space-y-2"
                 onSubmit={(e) => {
@@ -231,10 +279,12 @@ export default function WorkNoteAssessment({
                   setAnswerBuffer(null);
                 }}
               >
-                <label className="block space-y-1 text-sm">
-                  <span>{t("answer")}</span>
+                <label className="block space-y-1 text-xs">
+                  <span className="sr-only">{t("answer")}</span>
                   <textarea
                     ref={questionInput}
+                    aria-label={t("answer")}
+                    placeholder={t("answerPlaceholder")}
                     rows={2}
                     maxLength={2000}
                     value={answer}
@@ -248,19 +298,8 @@ export default function WorkNoteAssessment({
                     className={fieldClass}
                   />
                 </label>
-                <div className="flex flex-wrap gap-2">
-                  {question.options.map((option, i) => (
-                    <Button
-                      key={i}
-                      size="sm"
-                      variant="outline"
-                      type="button"
-                      disabled={!can("reply")}
-                      onClick={() => onReply("answered", option)}
-                    >
-                      {option}
-                    </Button>
-                  ))}
+
+                <div className="flex flex-wrap items-center gap-2">
                   <Button
                     size="sm"
                     type="submit"
@@ -290,58 +329,113 @@ export default function WorkNoteAssessment({
               </form>
             </section>
           )}
+
+          {/* 3B. Ready-to-Rewrite Callout when sufficient */}
+          {!question && can("rewrite") && (
+            <div className="space-y-2.5 rounded-xl border border-success-200 bg-success-50/70 p-3.5 dark:border-success-500/30 dark:bg-success-500/10">
+              <div className="flex items-start gap-2">
+                <CheckCircle2
+                  className="mt-0.5 size-4 shrink-0 text-success-600 dark:text-success-400"
+                  aria-hidden="true"
+                />
+                <div className="space-y-0.5 text-xs">
+                  <p className="font-semibold text-gray-900 dark:text-gray-100">
+                    {t("readyBannerTitle", {
+                      purpose: t(`purposes.${value.purpose}`),
+                    })}
+                  </p>
+                  <p className="leading-relaxed text-gray-600 dark:text-gray-300">
+                    {t("readyBannerHint")}
+                  </p>
+                </div>
+              </div>
+              <Button size="sm" onClick={onRewrite}>
+                {t("rewrite")}
+              </Button>
+            </div>
+          )}
+
+          {/* Inline Correction Form (opens right in view when user clicks Correct on any item) */}
+          {correctionTarget && (
+            <form
+              className="space-y-2 rounded-xl border border-brand-200 bg-brand-50/35 p-3 dark:border-brand-500/30 dark:bg-brand-500/10"
+              onSubmit={(e) => {
+                e.preventDefault();
+                onCorrect(correctionTarget, correctionText.trim());
+                setCorrectionTarget(null);
+              }}
+            >
+              <label className="block space-y-1 text-xs font-medium text-gray-800 dark:text-gray-200">
+                <span>{t("correctionText")}</span>
+                <textarea
+                  autoFocus
+                  rows={2}
+                  maxLength={2000}
+                  value={correctionText}
+                  onChange={(e) => setCorrectionText(e.target.value)}
+                  className={fieldClass}
+                />
+              </label>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {t("correctionHint")}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  type="submit"
+                  disabled={!can("correct") || !correctionText.trim()}
+                >
+                  {t("submitCorrection")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  type="button"
+                  onClick={() => setCorrectionTarget(null)}
+                >
+                  {t("cancel")}
+                </Button>
+              </div>
+            </form>
+          )}
+
           {(value.state === "paused" || value.counters.noProgress >= 2) && (
             <p
               role="status"
-              className="text-sm text-warning-700 dark:text-warning-400"
+              className="rounded-lg border border-warning-200 bg-warning-50/70 px-3 py-2 text-xs leading-relaxed text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
             >
               {t("stopNotice", { questions: value.counters.questionCount })}
             </p>
           )}
+
           {manual && (
             <p
               role="status"
-              className="text-sm text-gray-600 dark:text-gray-300"
+              className="rounded-lg bg-gray-50 px-3 py-2 text-xs leading-relaxed text-gray-600 dark:bg-gray-800/70 dark:text-gray-300"
             >
               {t("manualNotice")}
             </p>
           )}
-          <div className="flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <Button size="sm" disabled={!can("rewrite")} onClick={onRewrite}>
-              {t("rewrite")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy}
-              onClick={() => setManual(true)}
-            >
-              {t("manual")}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={busy || !value.allowedActions.includes("reset")}
-              onClick={() => {
-                setResetOpen((v) => !v);
-                setCarry([]);
-              }}
-            >
-              {t("reset")}
-            </Button>
-          </div>
-          {resetOpen && (
-            <fieldset className="space-y-2 rounded-lg border border-gray-200 p-3 dark:border-gray-700">
-              <legend className="px-1 text-sm font-medium">{t("reset")}</legend>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
+
+          {/* Reset / Carry-Answers Panel (shown when user changes purpose or clicks Reset) */}
+          {showResetPanel && (
+            <fieldset className="space-y-2 rounded-xl border border-gray-200 bg-gray-50/70 p-3 dark:border-gray-700 dark:bg-gray-800/50">
+              <legend className="px-1 text-xs font-semibold text-gray-800 dark:text-gray-200">
+                {t("reset")}
+              </legend>
+              <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
                 {t("resetHint")}
               </p>
               {value.answers
                 .filter((a) => a.disposition === "answered")
                 .map((a) => (
-                  <label key={a.id} className="flex gap-2 text-sm">
+                  <label
+                    key={a.id}
+                    className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-200"
+                  >
                     <input
                       type="checkbox"
+                      className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
                       checked={carry.includes(a.id)}
                       onChange={(e) =>
                         setCarry((ids) =>
@@ -369,70 +463,122 @@ export default function WorkNoteAssessment({
               </Button>
             </fieldset>
           )}
-          <div className="space-y-2 border-t border-gray-100 pt-3 dark:border-gray-800">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("signals", {
-                applied: value.signals.proposalApplied ? t("yes") : t("no"),
-                validated: value.authorValidated ? t("yes") : t("no"),
-                saved: value.signals.saved ? t("yes") : t("no"),
-              })}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {t("reviewNotEstablished")}
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!can("validate_author") || value.authorValidated}
-              onClick={onValidate}
-            >
-              {t("validateAuthor")}
-            </Button>
-          </div>
-          <details className="border-t border-gray-100 pt-3 dark:border-gray-800">
-            <summary className="cursor-pointer text-sm">
-              {t("feedback")}
+
+          {/* 4. Summary + Open Gaps + Collapsed Deep-Dive Accordions */}
+          <WorkNoteAssessmentEvidence
+            value={value}
+            canCorrect={can("correct")}
+            onCorrectionRequest={(target) => {
+              setCorrectionTarget(target);
+              setCorrectionText("");
+            }}
+          />
+
+          {/* 5. Secondary Actions & Quality Feedback Accordion (Closed by default) */}
+          <details
+            data-testid="assessment-more-actions-accordion"
+            className="group rounded-xl border border-gray-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
+          >
+            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white">
+              <span>{t("moreActionsAccordion")}</span>
+              <ChevronDown
+                className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+                aria-hidden="true"
+              />
             </summary>
-            <p className="my-2 text-xs text-gray-500 dark:text-gray-400">
-              {t("feedbackHint")}
-            </p>
-            <label className="block space-y-1 text-sm">
-              <span>{t("feedbackCategory")}</span>
-              <select
-                value={feedback}
-                onChange={(e) =>
-                  setFeedback(e.target.value as AssessmentFeedbackCategory)
-                }
-                className={fieldClass}
-              >
-                {feedbackCategories.map((category) => (
-                  <option
-                    key={category}
-                    value={category}
-                    className="dark:bg-gray-900"
+
+            <div className="space-y-3 border-t border-gray-100 px-3 py-3 text-xs dark:border-gray-800">
+              <div className="flex flex-wrap gap-2">
+                {(question || !can("rewrite")) && (
+                  <Button
+                    size="sm"
+                    disabled={!can("rewrite")}
+                    onClick={onRewrite}
                   >
-                    {t(`feedbackCategories.${category}`)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button
-              size="sm"
-              variant="outline"
-              className="mt-2"
-              disabled={!can("feedback")}
-              onClick={() => onFeedback(feedback)}
-            >
-              {t("sendFeedback")}
-            </Button>
-            {!!value.feedback?.length && (
-              <p
-                role="status"
-                className="mt-2 text-xs text-gray-500 dark:text-gray-400"
-              >
-                {t("feedbackRecorded")}
-              </p>
-            )}
+                    {t("rewrite")}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy}
+                  onClick={() => setManual(true)}
+                >
+                  {t("manual")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !value.allowedActions.includes("reset")}
+                  onClick={() => {
+                    setResetOpen((v) => !v);
+                    setCarry([]);
+                  }}
+                >
+                  <RotateCcw className="me-1 size-3.5" aria-hidden="true" />
+                  {t("reset")}
+                </Button>
+              </div>
+
+              <div className="space-y-2 border-t border-gray-100 pt-2.5 dark:border-gray-800">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!can("validate_author") || value.authorValidated}
+                  onClick={onValidate}
+                >
+                  {t("validateAuthor")}
+                </Button>
+                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                  {t("reviewNotEstablished")}
+                </p>
+              </div>
+
+              <div className="space-y-2 border-t border-gray-100 pt-2.5 dark:border-gray-800">
+                <p className="font-semibold text-gray-800 dark:text-gray-200">
+                  {t("feedback")}
+                </p>
+                <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+                  {t("feedbackHint")}
+                </p>
+                <label className="block space-y-1 text-xs">
+                  <span>{t("feedbackCategory")}</span>
+                  <select
+                    value={feedback}
+                    onChange={(e) =>
+                      setFeedback(e.target.value as AssessmentFeedbackCategory)
+                    }
+                    className={fieldClass}
+                  >
+                    {feedbackCategories.map((category) => (
+                      <option
+                        key={category}
+                        value={category}
+                        className="dark:bg-gray-900"
+                      >
+                        {t(`feedbackCategories.${category}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!can("feedback")}
+                  onClick={() => onFeedback(feedback)}
+                >
+                  {t("sendFeedback")}
+                </Button>
+                {!!value.feedback?.length && (
+                  <p
+                    role="status"
+                    className="text-[11px] text-gray-500 dark:text-gray-400"
+                  >
+                    {t("feedbackRecorded")}
+                  </p>
+                )}
+              </div>
+            </div>
           </details>
         </>
       )}

@@ -23,7 +23,9 @@ import { WorkPriorityLabel, WorkStatusBadge } from"./WorkStatusBadge";
 import TaskNotesPanel, {
   type TaskNotesSplitControl,
 } from "@/components/work-notes/TaskNotesPanel";
+import { Minimize2 } from "lucide-react";
 import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
+import WorkItemSplitReferencePane from "./WorkItemSplitReferencePane";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -509,6 +511,8 @@ export default function WorkItemDetailDialog({
     noteId?: string;
   } | null>(null);
   const [splitAiOpen, setSplitAiOpen] = useState(false);
+  const [splitAiWidthPx, setSplitAiWidthPx] = useState(390);
+  const [splitTaskFullView, setSplitTaskFullView] = useState(false);
   const [splitConfirmOpen, setSplitConfirmOpen] = useState(false);
   const [splitSavedSignalByTask, setSplitSavedSignalByTask] = useState<
     Record<string, number>
@@ -546,10 +550,12 @@ export default function WorkItemDetailDialog({
     if (!container) return null;
     const rect = container.getBoundingClientRect();
     if (rect.width <= 0) return null;
-    const minTaskPx = 300;
-    const aiReservedPx = splitAiOpen ? 390 : 0;
-    const minNotePx = 360;
-    const splitterPx = 10;
+    const minTaskPx = 280;
+    const aiReservedPx = splitAiOpen
+      ? Math.min(splitAiWidthPx, Math.round(rect.width * 0.45))
+      : 0;
+    const minNotePx = 340;
+    const splitterPx = splitAiOpen ? 20 : 10;
     const maxTaskPx = Math.max(
       minTaskPx,
       rect.width - aiReservedPx - minNotePx - splitterPx,
@@ -629,6 +635,7 @@ export default function WorkItemDetailDialog({
       onOpen: (noteId) => {
         if (!item) return;
         setSplitAiOpen(false);
+        setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
         setSplitComposerState({
           parentItemId: item.id,
@@ -638,6 +645,7 @@ export default function WorkItemDetailDialog({
       },
       onClose: () => {
         setSplitAiOpen(false);
+        setSplitTaskFullView(false);
         setSplitConfirmOpen(false);
         setSplitComposerState(null);
       },
@@ -1554,6 +1562,25 @@ export default function WorkItemDetailDialog({
                 </div>
               )}
             </div>
+          )}
+
+          {isSplitOpen && splitTaskFullView && (
+            <button
+              type="button"
+              data-testid="split-task-view-mode-toggle"
+              onClick={() => setSplitTaskFullView(false)}
+              title={tr(
+                t,
+                "splitTask.collapseCompactViewHint",
+                "Switch to compact Task reference view while editing notes",
+              )}
+              className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50 px-2.5 text-xs font-semibold text-brand-700 transition-colors hover:bg-brand-100 dark:border-brand-500/35 dark:bg-brand-500/15 dark:text-brand-300"
+            >
+              <Minimize2 className="size-3.5" aria-hidden="true" />
+              <span>
+                {tr(t, "splitTask.collapseCompactView", "Compact view")}
+              </span>
+            </button>
           )}
 
           {/* Watch Counter Toggle */}
@@ -4640,7 +4667,7 @@ export default function WorkItemDetailDialog({
             : "flex h-[92dvh] w-full flex-col overflow-hidden bg-white lg:flex-row dark:bg-gray-900"
         } ${isDraggingSplitter ? "cursor-col-resize select-none" : ""}`}
       >
-        {/* Column 1 (Left): Resizable Task Pane */}
+        {/* Column 1 (Left): Resizable Focused Task Reference Pane */}
         <div
           data-testid="work-note-split-task-pane"
           inert={splitConfirmOpen || undefined}
@@ -4651,10 +4678,37 @@ export default function WorkItemDetailDialog({
           }
           className="@container relative max-h-[45dvh] min-h-0 w-full min-w-0 shrink-0 overflow-y-auto border-b border-gray-200 bg-white lg:h-full lg:max-h-none lg:w-[var(--task-split-w)] lg:border-b-0 dark:border-gray-800 dark:bg-gray-900"
         >
-          {detailContent}
+          {splitTaskFullView ? (
+            detailContent
+          ) : (
+            <WorkItemSplitReferencePane
+              item={item}
+              activeSubtask={activeSubtask}
+              activeSubtaskIndex={activeSubtaskIndex}
+              subtaskList={subtaskList}
+              projectId={projectId}
+              mode={mode}
+              isMaximized={isMaximized}
+              isPreview={isPreview}
+              mutationError={mutationError}
+              onDismissMutationError={onDismissMutationError}
+              splitControl={buildSplitControl(activeSplitComposer.taskId)}
+              onExpandFullView={() => setSplitTaskFullView(true)}
+              onClose={onClose}
+              onOpenFullPage={onOpenFullPage}
+              onToggleMaximize={() => setIsMaximized((prev) => !prev)}
+              onSelectSubtaskLayer={selectSubtaskLayer}
+              onStatusChange={onStatusChange}
+              onPriorityChange={onPriorityChange}
+              onToggleSubtask={onToggleSubtask}
+              onUpdateSubtask={onUpdateSubtask}
+              onDescriptionChange={onDescriptionChange}
+              onAddComment={onAddComment}
+            />
+          )}
         </div>
 
-        {/* Draggable Vertical Splitter (ONLY between Task and Note Task) */}
+        {/* Draggable Vertical Splitter between Task and Note */}
         <div
           role="separator"
           data-testid="task-note-resizer"
@@ -4715,11 +4769,13 @@ export default function WorkItemDetailDialog({
           <WorkNoteComposer
             key={`${projectId}:${activeSplitComposer.taskId}:${activeSplitComposer.noteId ?? "new"}`}
             variant="inline"
+            initialPanelOpen={true}
             projectId={projectId}
             taskId={activeSplitComposer.taskId}
             noteId={activeSplitComposer.noteId}
             dismissSignal={splitDismissSignal}
             onPanelOpenChange={setSplitAiOpen}
+            onAiPanelWidthChange={setSplitAiWidthPx}
             onConfirmationChange={setSplitConfirmOpen}
             onClose={() => {
               setSplitAiOpen(false);

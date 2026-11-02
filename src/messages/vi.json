@@ -2792,6 +2792,30 @@
       "title": "Đã tạo {key}",
       "viewAction": "Xem {key}",
       "dismiss": "Đóng thông báo"
+    },
+    "splitResizeAria": "Kéo để thay đổi chiều rộng giữa Task và Ghi chú",
+    "splitResizeTitle": "Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)",
+    "splitTask": {
+      "referenceBadge": "Tham chiếu nhanh",
+      "expandFullView": "Xem đầy đủ",
+      "collapseCompactView": "Chế độ gọn",
+      "expandFullViewHint": "Mở giao diện quản lý Task đầy đủ",
+      "collapseCompactViewHint": "Thu gọn về chế độ đọc thông tin Task khi viết ghi chú",
+      "parentTask": "Task cha",
+      "stepsHeading": "Các bước thực hiện",
+      "donePercent": "{percent}% hoàn thành",
+      "tabNotes": "Ghi chú",
+      "tabComments": "Bình luận",
+      "tabWorklog": "Nhật ký",
+      "tabMore": "Thông tin khác",
+      "noComments": "Chưa có bình luận nào cho công việc này.",
+      "noWorklogs": "Chưa có nhật ký thời gian nào.",
+      "quickCommentPlaceholder": "Thêm bình luận nhanh…",
+      "sendComment": "Gửi",
+      "teamLabel": "Nhóm",
+      "labelsLabel": "Nhãn",
+      "noLabels": "Không có",
+      "backToParent": "Quay lại {key}"
     }
   },
   "organizationMembers": {
@@ -4074,13 +4098,70 @@
       "thinking": "AI đang phân tích và phản hồi…",
       "skip": "Tiếp tục mà không thêm thông tin",
       "unknown": "Tôi chưa biết",
-      "clarificationBadge": "Cần bạn làm rõ thêm",
+      "clarificationBadge": "Cần làm rõ thêm",
+      "clarificationOtherOption": "Khác (nhập chi tiết)",
+      "clarificationOtherPlaceholder": "Nhập chi tiết...",
+      "clarificationHintText": "Bạn cũng có thể trả lời bằng văn bản hoặc chọn “Bỏ qua” nếu chưa có thông tin.",
+      "clarificationSkipBtn": "Bỏ qua",
+      "clarificationConfirmBtn": "Xác nhận",
+      "clarificationNextBtn": "Tiếp theo",
+      "clarificationBackBtn": "Quay lại",
+      "clarificationStep": "{current}/{total}",
       "clarificationMatrixHint": "Chọn trạng thái tương ứng cho từng mục bên dưới:",
       "clarificationMultiSelectHint": "Chọn một hoặc nhiều mục phù hợp:",
       "clarificationSingleSelectHint": "Chọn nhanh câu trả lời phù hợp:",
       "clarificationOpenHint": "Bạn có thể nhập câu trả lời ở ô bên dưới hoặc bỏ qua:",
       "clarificationSubmitSelected": "Gửi lựa chọn",
       "clarificationFallbackLabel": "Hoặc nếu chưa có thông tin:",
+      "historyRefLabel": "Từ ghi chú cũ “{title}” ngày {date}",
+      "historyRefRelatedLabel": "Từ ghi chú “{title}” của {relation} ngày {date}",
+      "historyContext": {
+        "title": "Ghi chú cũ AI tham khảo ({count})",
+        "subtitle": "Chỉ đọc. Lấy từ các ghi chú đã lưu của cùng Task và Task cha/con liên quan, đã che dữ liệu nhạy cảm và được kiểm tra độ cập nhật trước khi gửi AI.",
+        "reload": "Tải lại ghi chú cũ",
+        "loadFailed": "Không tải được ghi chú cũ. Trợ lý AI vẫn hoạt động bình thường.",
+        "empty": "Chưa có ghi chú cũ nào của Task này để tham khảo.",
+        "ledgerSource": "Câu trả lời làm rõ trước đây",
+        "warningsTitle": "{count} thông tin cũ cần lưu ý",
+        "relation": {
+          "PARENT": "Task cha",
+          "CHILD": "Task con",
+          "LINKED": "Task liên kết"
+        },
+        "status": {
+          "CURRENT": "Còn hiệu lực",
+          "SUPERSEDED": "Đã có thông tin mới hơn",
+          "OUTDATED": "Có thể đã lỗi thời",
+          "CONFLICT_CURRENT": "Mâu thuẫn với ghi chú đang viết",
+          "CONFLICT_TASK": "Mâu thuẫn với trạng thái Task",
+          "CONFLICT_HISTORY": "Ghi chú cũ tự mâu thuẫn"
+        },
+        "masked": {
+          "PASSWORD": "mật khẩu",
+          "API_KEY": "API key",
+          "TOKEN": "token",
+          "EMAIL": "email",
+          "PHONE": "số điện thoại",
+          "CREDENTIAL": "thông tin xác thực"
+        }
+      },
+      "securityMaskedLabel": "Đã che {category}",
+      "securityMaskedTooltip": "Dữ liệu nhạy cảm đã được che trước khi gửi tới Trợ lý AI. Giá trị thật vẫn nằm trong ghi chú của bạn.",
+      "securityCategory": {
+        "PRIVATE_KEY": "private key",
+        "CLOUD_KEY": "khóa cloud",
+        "API_KEY": "API key",
+        "TOKEN": "token",
+        "PASSWORD": "mật khẩu",
+        "CONNECTION_STRING": "mật khẩu kết nối",
+        "CREDENTIAL": "thông tin xác thực",
+        "HIGH_ENTROPY_SECRET": "chuỗi bí mật",
+        "EMAIL": "email",
+        "PHONE": "số điện thoại",
+        "NATIONAL_ID": "CCCD/CMND",
+        "BANK_CARD": "số thẻ",
+        "BANK_ACCOUNT": "số tài khoản"
+      },
       "fullContext": "Gửi kèm toàn bộ ghi chú cho yêu cầu đoạn chọn này",
       "instruction": "Nhập yêu cầu của bạn...",
       "send": "Gửi yêu cầu",
@@ -4264,7 +4345,22 @@
       "taskChecklistHeading": "Tiến độ Checklist",
       "taskChecklistProgress": "{done}/{total} hoàn thành",
       "taskDuePrefix": "Hạn: {date}",
-      "aiScopeSummaryBadge": "{count} nguồn"
+      "aiScopeSummaryBadge": "{count} nguồn",
+      "securityShield": {
+        "maskedTitle": "Đã che {count} dữ liệu nhạy cảm trước khi gửi AI ({categories})",
+        "restoredLocallyHint": "AI chỉ nhận mã ẩn danh [[WN_SEC:...]], tuyệt đối không thấy giá trị thật. Dữ liệu trong bản đề xuất bên dưới được khôi phục cục bộ tại máy chủ sau khi kiểm tra an toàn để ghi chú không bị mất thông tin khi áp dụng.",
+        "keptMaskedHint": "AI chỉ nhận mã ẩn danh [[WN_SEC:...]] và không bao giờ thấy giá trị thật.",
+        "preSendMaskTitle": "Bảo vệ dữ liệu nhạy cảm đang bật ({categories})",
+        "preSendMaskHint": "Các giá trị nhạy cảm này sẽ tự động được thay bằng mã ẩn danh [[WN_SEC:...]] tại máy chủ trước khi gửi tới AI.",
+        "preSendBlockTitle": "Phát hiện khóa bí mật (Private Key) — Trợ lý AI sẽ chặn gửi đi",
+        "preSendBlockHint": "Để bảo mật, yêu cầu gửi tới AI sẽ bị từ chối khi còn Private Key trong nội dung. Bạn vẫn có thể Lưu ghi chú bình thường."
+      },
+      "tabAssessment": "Kiểm tra",
+      "tabTaskContextShort": "Ngữ cảnh",
+      "assistantAssessmentSubtitle": "Đối chiếu nhanh ghi chú với yêu cầu Task để bổ sung thông tin còn thiếu.",
+      "quickCheckBarLabel": "Đối chiếu ghi chú với yêu cầu Task",
+      "resizeNoteAiAria": "Kéo để thay đổi chiều rộng giữa Ghi chú và Trợ lý AI",
+      "resizeNoteAiTitle": "Kéo để thay đổi độ rộng (nhấp đúp để đặt lại)"
     },
     "assessment": {
       "title": "Kiểm tra thông tin theo Task",
@@ -4380,7 +4476,8 @@
       },
       "origin": {
         "TASK_REQUIREMENT": "Yêu cầu từ Task",
-        "AUTHOR_REPORT": "Phát biểu từ tác giả"
+        "AUTHOR_REPORT": "Phát biểu từ tác giả",
+        "HISTORICAL_REPORT": "Ghi nhận lịch sử (không phải bằng chứng hiện tại)"
       },
       "support": {
         "FULL": "Được chứng minh đầy đủ bởi trích dẫn",
@@ -4413,7 +4510,46 @@
         "WRONG_SOURCE": "Trích dẫn sai nguồn",
         "FALSE_SUFFICIENT": "Kết luận đủ thông tin sai"
       },
-      "sourceVersion": "Phiên bản nguồn: {version}"
+      "sourceVersion": "Phiên bản nguồn: {version}",
+      "gapKind": {
+        "SCOPE": "Phạm vi",
+        "IMPLEMENTATION": "Cách thực hiện",
+        "RESULT": "Kết quả",
+        "EVIDENCE": "Bằng chứng",
+        "CONTRADICTION": "Mâu thuẫn hiện tại",
+        "HISTORICAL_CONFLICT": "Mâu thuẫn với lịch sử",
+        "OUTDATED_INFO": "Thông tin lịch sử đã cũ",
+        "PURPOSE": "Mục đích"
+      },
+      "historySource": {
+        "badge": "Nguồn lịch sử",
+        "sameTask": "Cùng Task",
+        "dateLabel": "Ngày {date}",
+        "notCurrentEvidence": "Chỉ dùng đối chiếu ngữ cảnh, không dùng làm bằng chứng hoàn thành công việc hiện tại."
+      },
+      "introShort": "Rà soát xem ghi chú đã rõ ràng, khớp với yêu cầu Task hay còn điểm nào cần bổ sung.",
+      "recheck": "Kiểm tra lại",
+      "questionBadge": "Cần bạn làm rõ",
+      "answerPlaceholder": "Nhập ngắn gọn thông tin bổ sung của bạn…",
+      "correctShort": "Đính chính",
+      "importantBadge": "Quan trọng",
+      "summaryHeading": "Tóm tắt kết quả",
+      "openGapsHeading": "Điểm cần lưu ý ({count})",
+      "detailsAccordion": "Chi tiết đối chiếu ({count})",
+      "sourcesAccordion": "Nguồn dữ liệu tham chiếu ({count})",
+      "moreActionsAccordion": "Tùy chọn khác & Phản hồi",
+      "readyBannerTitle": "Ghi chú đã đủ thông tin cho mục đích {purpose}.",
+      "readyBannerHint": "Bạn có thể nhờ AI viết lại bản đề xuất mạch lạc hơn từ các dữ kiện đã xác nhận, hoặc bấm Lưu ghi chú ngay.",
+      "stateLabels": {
+        "analyzing": "Đang kiểm tra…",
+        "waiting_for_answer": "Cần làm rõ thêm",
+        "missing_context": "Thiếu mô tả Task",
+        "contradiction": "Có mâu thuẫn",
+        "ready_to_edit": "Đã đủ thông tin",
+        "stale": "Cần kiểm tra lại",
+        "paused": "Đã tạm dừng hỏi",
+        "error": "Không thể kiểm tra"
+      }
     }
   },
   "projectVisibility": {

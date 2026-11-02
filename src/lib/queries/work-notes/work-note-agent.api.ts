@@ -26,11 +26,86 @@ export type AgentSuggestion = {
   changeSummary: readonly string[];
   selection?: SelectionAnchor;
 };
+export type HistoryFactStatus =
+  | "CURRENT"
+  | "SUPERSEDED"
+  | "OUTDATED"
+  | "CONFLICT_CURRENT"
+  | "CONFLICT_TASK"
+  | "CONFLICT_HISTORY";
+export type HistoryRelation = "SELF" | "PARENT" | "CHILD" | "LINKED";
+/** A question that confirms information from a previous note/answer. */
+export type AgentQuestionHistoryRef = {
+  factId: string;
+  noteId: string | null;
+  noteTitle: string;
+  date: string;
+  status: HistoryFactStatus;
+  /** Masked quote of the historical statement being confirmed. */
+  quote?: string;
+  relation?: HistoryRelation;
+  taskKey?: string;
+};
+/** Masked, verified facts from previous notes of the same or related Task (read-only). */
+export type HistoricalContextView = {
+  notes: readonly {
+    ref: string;
+    id: string;
+    title: string;
+    date: string;
+    source: "TASK_NOTE" | "CLARIFICATION_LEDGER";
+    relation?: HistoryRelation;
+    taskKey?: string;
+  }[];
+  facts: readonly {
+    id: string;
+    ref: string;
+    date: string;
+    kind: string;
+    polarity: "POSITIVE" | "NEGATIVE" | "UNCERTAIN";
+    status: HistoryFactStatus;
+    quote: string;
+    relation?: HistoryRelation;
+    taskKey?: string;
+  }[];
+  findings: readonly {
+    factId: string;
+    noteId: string;
+    status: Exclude<HistoryFactStatus, "CURRENT">;
+    reason: string;
+    relatedFactId?: string;
+  }[];
+  truncated: boolean;
+};
 export type AgentQuestion = {
   id: string;
   text: string;
   reason: string;
   options: readonly string[];
+  historyRef?: AgentQuestionHistoryRef;
+};
+export type AgentSecurityFindingSummary = {
+  ruleId: string;
+  category: string;
+  severity: "CRITICAL" | "HIGH" | "MEDIUM";
+  count: number;
+};
+export type AgentSecurityReport = {
+  mode: "enforce" | "monitor" | "off";
+  input: {
+    decision: "ALLOW" | "MASKED" | "MONITORED";
+    maskedValues: number;
+    findings: readonly AgentSecurityFindingSummary[];
+  };
+  output: {
+    decision: "PASS" | "SANITIZED" | "REJECTED";
+    issues: readonly {
+      code: string;
+      field: "applied" | "display";
+      category?: string;
+    }[];
+    unmasked: number;
+  };
 };
 export type AgentDraft = {
   id: string;
@@ -46,18 +121,22 @@ export type AgentDraft = {
   contentMarkdown: string;
   expiresAt: string;
   hasAppliedRewrite: boolean;
-  conversation: readonly { role: "user" | "assistant"; content: string }[];
+  conversation: readonly { role: "user" | "assistant"; content: string; security?: AgentSecurityReport }[];
   pendingQuestion: AgentQuestion | null;
   suggestion: AgentSuggestion | null;
+  lastSecurity?: AgentSecurityReport | null;
   assessment?: AssessmentView | null;
 };
 export type AgentResponse = {
   status: "ANSWER" | "CLARIFICATION_REQUIRED" | "SUGGESTION_READY";
   message: string;
   suggestion: AgentSuggestion | null;
+  lastSecurity?: AgentSecurityReport | null;
   questions: readonly AgentQuestion[];
   uncertainties: readonly string[];
   sourceRevision: number;
+  history?: HistoricalContextView;
+  security?: AgentSecurityReport;
 };
 export type AgentMessageInput = {
   operationId: string;
@@ -99,6 +178,11 @@ export const agentApi = {
   ) => mutate<AgentDraft>(draftPath(p, id), "PATCH", value),
   message: (p: string, id: string, value: AgentMessageInput) =>
     mutate<AgentResponse>(`${draftPath(p, id)}/agent/messages`, "POST", value),
+  history: (p: string, id: string, signal?: AbortSignal) =>
+    apiClient<{ history: HistoricalContextView | null }>(
+      `${draftPath(p, id)}/history`,
+      { signal },
+    ),
   apply: (
     p: string,
     id: string,

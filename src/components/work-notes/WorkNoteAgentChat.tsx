@@ -11,9 +11,13 @@ import {
 } from "react";
 import {
   ArrowLeftRight,
+  ArrowRight,
   Check,
   Copy,
+  FastForward,
   HelpCircle,
+  History,
+  Info,
   LayoutGrid,
   Loader2,
   Paperclip,
@@ -31,10 +35,16 @@ import type {
   AgentDraft,
   AgentOperation,
   AgentQuestion,
+  AgentSecurityReport,
   AgentSuggestion,
 } from "@/lib/queries/work-notes/work-note-agent.api";
 import { reconcileTextareaEdit } from "./textarea-source";
 import { computeReadableDiff, type DiffSegment } from "./work-note-diff";
+import {
+  PreSendSecurityNotice,
+  SecurityShieldBanner,
+  type PreSendSecurityScan,
+} from "./work-note-security-notice";
 
 type ProposalAction =
   "replace_body" | "replace_selection" | "insert_after" | "replace_title";
@@ -143,7 +153,19 @@ export function parseClarificationQuestion(
       .trim();
   }
 
-  const { prompt, items: targetItems } = extractNumberedTargetItems(stemPart);
+  if (question.options.length > 0) {
+    const listIndex = stemPart.search(
+      /(?:\n|\s+)(?:ví\s+dụ|gợi\s+ý|lựa\s+chọn|options?|cụ\s+thể)?:?\s*\n?\s*1[.)]\s+/i,
+    );
+    if (listIndex !== -1) {
+      stemPart = stemPart.slice(0, listIndex).trim();
+    }
+  }
+
+  const { prompt, items: targetItems } =
+    question.options.length > 0
+      ? { prompt: stemPart, items: [] }
+      : extractNumberedTargetItems(stemPart);
 
   const mergedChoices: string[] = [];
   const seen = new Set<string>();
@@ -172,10 +194,35 @@ export function parseClarificationQuestion(
   };
 }
 
+const MASKED_PLACEHOLDER = /^\[\[WN_SEC:([A-Z_]+):[a-f0-9]{10,16}\]\]$/;
+
+/** Server-masked sensitive value (Pre-LLM Security Gateway). Never revealed in chat. */
+function MaskedSensitiveChip({ category }: { category: string }) {
+  const t = useTranslations("workNotes.agent");
+  const key = `securityCategory.${category}`;
+  const label = t.has(key) ? t(key) : category;
+  return (
+    <span
+      data-testid="masked-sensitive-chip"
+      title={t("securityMaskedTooltip")}
+      className="inline-flex items-center gap-1 rounded-md bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 ring-1 ring-amber-200 ring-inset dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/30"
+    >
+      <span aria-hidden="true">🔒</span>
+      {t("securityMaskedLabel", { category: label })}
+    </span>
+  );
+}
+
 function renderInlineMarkdown(text: string): ReactNode[] {
-  const tokens = text.split(/(\*\*[^*\n]+\*\*|\*[^*\s][^*\n]*\*|`[^`\n]+`)/g);
+  const tokens = text.split(
+    /(\[\[WN_SEC:[A-Z_]+:[a-f0-9]{10,16}\]\]|\*\*[^*\n]+\*\*|\*[^*\s][^*\n]*\*|`[^`\n]+`)/g,
+  );
   return tokens.map((token, idx) => {
     if (!token) return null;
+    const masked = MASKED_PLACEHOLDER.exec(token);
+    if (masked) {
+      return <MaskedSensitiveChip key={idx} category={masked[1]} />;
+    }
     if (token.startsWith("**") && token.endsWith("**") && token.length > 4) {
       return (
         <strong
@@ -232,24 +279,131 @@ function FormattedAssistantText({ content }: { content: string }) {
   );
 }
 
+export function cleanLabel(text: string): string {
+  return text.trim().replace(/^[\"']|[\"']$/g, "").trim();
+}
+
+export function isOtherOption(text: string): boolean {
+  const norm = text.trim().toLowerCase();
+  return (
+    norm === "khác" ||
+    norm.startsWith("khác") ||
+    norm.startsWith("other") ||
+    norm.includes("khác (") ||
+    norm.includes("nội dung khác") ||
+    norm.includes("other (")
+  );
+}
+
 function ClarificationQuestionCard({
   question,
+  step,
   disabled,
   onSend,
 }: {
   question: AgentQuestion;
+  step?: { current: number; total: number };
   disabled: boolean;
   onSend: (text?: string, disposition?: "answered" | "skipped") => void;
 }) {
   const t = useTranslations("workNotes.agent");
   const parsed = parseClarificationQuestion(question);
-  const [matrixSelections, setMatrixSelections] = useState<
-    Record<number, string>
-  >({});
+
+  // Sequential multi-item state (when question contains multiple numbered items 1., 2., 3...)
+  const [activeItemIndex, setActiveItemIndex] = useState(0);
+  const [itemSelections, setItemSelections] = useState<Record<number, string>>({});
+  const [itemCustomTexts, setItemCustomTexts] = useState<Record<number, string>>({});
+  const itemOtherInputRef = useRef<HTMLInputElement>(null);
+
+  // Single-question state
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const [otherCustomText, setOtherCustomText] = useState("");
+  const otherInputRef = useRef<HTMLInputElement>(null);
+
+  // Legacy matrix / multi checklist state
+  const [matrixSelections, setMatrixSelections] = useState<Record<number, string>>({});
   const [multiSelections, setMultiSelections] = useState<string[]>([]);
 
   const skipLabel = t("skip");
   const unknownLabel = t("unknown");
+  const otherChoiceLabel = t("clarificationOtherOption");
+
+  const totalTargetItems = parsed.targetItems.length;
+  const isMultiItem = totalTargetItems >= 2;
+
+  // Step indicator (e.g. 1/3, 2/3, 3/3)
+  const stepIndicator = useMemo(() => {
+    if (isMultiItem) {
+      return `${activeItemIndex + 1}/${totalTargetItems}`;
+    }
+    if (step && step.total >= 2) {
+      return `${step.current}/${step.total}`;
+    }
+    const match = /(?:^|\s|\()(\d+)\/(\d+)(?:\)|\s|$)/.exec(question.text);
+    if (match) {
+      return `${match[1]}/${match[2]}`;
+    }
+    return null;
+  }, [isMultiItem, activeItemIndex, totalTargetItems, step, question.text]);
+
+  const displayChoices = useMemo(() => {
+    const raw = parsed.choices.filter(
+      (opt) =>
+        opt.toLowerCase() !== skipLabel.toLowerCase() &&
+        opt.toLowerCase() !== unknownLabel.toLowerCase(),
+    );
+    if (!raw.some(isOtherOption)) {
+      return [...raw, otherChoiceLabel];
+    }
+    return raw;
+  }, [parsed.choices, skipLabel, unknownLabel, otherChoiceLabel]);
+
+  // Current item logic for sequential stepper
+  const currentTargetItem = isMultiItem
+    ? parsed.targetItems[activeItemIndex]
+    : null;
+  const currentItemSelection = currentTargetItem
+    ? itemSelections[currentTargetItem.number] ?? null
+    : null;
+  const currentItemCustomText = currentTargetItem
+    ? itemCustomTexts[currentTargetItem.number] ?? ""
+    : "";
+  const isCurrentOtherActive = Boolean(
+    currentItemSelection && isOtherOption(currentItemSelection),
+  );
+  const canAdvanceCurrentItem = isCurrentOtherActive
+    ? currentItemCustomText.trim().length > 0
+    : Boolean(currentItemSelection);
+
+  function handleSubmitSequentialItems() {
+    const lines = parsed.targetItems.map((item) => {
+      const rawChoice = itemSelections[item.number] ?? "";
+      const isOther = isOtherOption(rawChoice);
+      const finalAnswer = isOther
+        ? (itemCustomTexts[item.number] || rawChoice)
+        : rawChoice;
+      return `${item.number}. ${cleanLabel(item.label)}: ${finalAnswer}`;
+    });
+    onSend(lines.join("\n"), "answered");
+  }
+
+  // Single-select confirm logic
+  const isOtherActive = Boolean(
+    selectedChoice && isOtherOption(selectedChoice),
+  );
+  const canConfirmSingle = isOtherActive
+    ? otherCustomText.trim().length > 0
+    : Boolean(selectedChoice);
+
+  function handleConfirmSingle() {
+    if (!selectedChoice || disabled) return;
+    if (isOtherActive) {
+      if (!otherCustomText.trim()) return;
+      onSend(otherCustomText.trim(), "answered");
+    } else {
+      onSend(selectedChoice, "answered");
+    }
+  }
 
   const hasMatrixSelection = parsed.targetItems.some(
     (item) => !!matrixSelections[item.number],
@@ -272,225 +426,551 @@ function ClarificationQuestionCard({
   }
 
   return (
-    <div className="flex items-start gap-2.5">
-      <span
-        aria-hidden="true"
-        className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300"
-      >
-        <Sparkles className="size-3.5" aria-hidden="true" />
-      </span>
-
-      <div className="min-w-0 flex-1 space-y-2.5 rounded-2xl rounded-ss-md border border-brand-200 bg-brand-50/65 p-3.5 shadow-2xs dark:border-brand-500/30 dark:bg-brand-500/10">
-        <div className="inline-flex items-center gap-1 rounded-md bg-brand-100/80 px-2 py-0.5 text-[10px] font-bold text-brand-700 dark:bg-brand-500/20 dark:text-brand-300">
-          <HelpCircle className="size-3" aria-hidden="true" />
-          <span>{t("clarificationBadge")}</span>
+    <div
+      data-testid="clarification-question-card"
+      className="space-y-3.5 rounded-2xl border border-brand-200/90 bg-brand-50/40 p-4 shadow-2xs dark:border-brand-500/30 dark:bg-brand-500/10"
+    >
+      {/* Header: (?) Cần làm rõ thêm          1/3 */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-brand-600 dark:text-brand-400">
+          <HelpCircle className="size-4 shrink-0" aria-hidden="true" />
+          <span className="text-xs font-bold tracking-tight">
+            {t("clarificationBadge")}
+          </span>
         </div>
 
-        {parsed.prompt && (
-          <p className="text-xs leading-relaxed font-semibold text-gray-900 dark:text-gray-100">
-            {parsed.prompt}
-          </p>
+        {stepIndicator && (
+          <span
+            data-testid="clarification-step-badge"
+            className="inline-flex items-center rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-bold tabular-nums text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+          >
+            {stepIndicator}
+          </span>
         )}
+      </div>
 
-        {question.reason && (
-          <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
-            {question.reason}
-          </p>
-        )}
+      {/* Question reuses information from a previous note → confirmation, not a re-ask */}
+      {question.historyRef && (
+        <div
+          data-testid="clarification-history-ref"
+          className={`flex items-start gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] leading-relaxed ring-1 ring-inset ${
+            question.historyRef.status === "CURRENT"
+              ? "bg-white text-gray-600 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
+              : "bg-warning-50 text-warning-800 ring-warning-200 dark:bg-warning-500/10 dark:text-warning-200 dark:ring-warning-500/30"
+          }`}
+        >
+          <History className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+          <span>
+            {question.historyRef.relation && question.historyRef.relation !== "SELF"
+              ? t("historyRefRelatedLabel", {
+                  title: question.historyRef.noteTitle,
+                  relation: `${t(`historyContext.relation.${question.historyRef.relation}`)}${
+                    question.historyRef.taskKey ? ` ${question.historyRef.taskKey}` : ""
+                  }`,
+                  date: question.historyRef.date.split("-").reverse().join("/"),
+                })
+              : t("historyRefLabel", {
+                  title: question.historyRef.noteTitle,
+                  date: question.historyRef.date.split("-").reverse().join("/"),
+                })}
+            {question.historyRef.status !== "CURRENT" &&
+              ` · ${t(`historyContext.status.${question.historyRef.status}`)}`}
+          </span>
+        </div>
+      )}
 
-        {/* Mode 1: Multi-item Matrix (e.g. 2+ numbered items + extracted status choices) */}
-        {parsed.choiceMode === "matrix" && (
-          <div className="space-y-2.5 pt-0.5">
-            <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-              {t("clarificationMatrixHint")}
-            </p>
-            <div className="space-y-2">
-              {parsed.targetItems.map((item) => {
-                const chosen = matrixSelections[item.number] ?? null;
-                return (
-                  <div
-                    key={item.number}
-                    role="group"
-                    aria-label={`${item.number}. ${item.label}`}
-                    className="space-y-2 rounded-xl border border-gray-200/90 bg-white p-2.5 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
-                  >
-                    <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">
-                      {item.number}. {item.label}
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {parsed.choices.map((choice) => {
-                        const selected = chosen === choice;
-                        return (
-                          <button
-                            key={choice}
-                            type="button"
-                            aria-pressed={selected}
-                            disabled={disabled}
-                            onClick={() =>
-                              setMatrixSelections((prev) => {
-                                const next = { ...prev };
-                                if (next[item.number] === choice) {
-                                  delete next[item.number];
-                                } else {
-                                  next[item.number] = choice;
-                                }
-                                return next;
-                              })
-                            }
-                            className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-start text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                              selected
-                                ? "border-brand-500 bg-brand-600 text-white shadow-2xs"
-                                : "border-gray-200 bg-gray-50/80 text-gray-700 hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500/40"
-                            }`}
-                          >
-                            {selected && (
-                              <Check
-                                className="size-3 shrink-0"
-                                aria-hidden="true"
-                              />
-                            )}
-                            <span>{choice}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+      {/* Case A: Sequential Stepper for Multi-item Questions (1/3, 2/3, 3/3) */}
+      {isMultiItem && currentTargetItem && (
+        <div className="space-y-3 pt-0.5">
+          {/* Tiêu đề câu hỏi chung nếu có */}
+          {parsed.prompt && (
+            <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
+              {parsed.prompt}
+            </h4>
+          )}
 
-            <button
-              type="button"
-              disabled={disabled || !hasMatrixSelection}
-              onClick={submitMatrixSelections}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45"
-            >
-              <SendHorizontal className="size-3.5" aria-hidden="true" />
-              <span>{t("clarificationSubmitSelected")}</span>
-            </button>
+          {/* Tiêu đề mục hiện tại */}
+          <div className="rounded-xl border border-brand-200/60 bg-brand-50/60 px-3 py-2 text-xs font-semibold text-brand-900 dark:border-brand-500/20 dark:bg-brand-500/10 dark:text-brand-200">
+            {currentTargetItem.number}. {cleanLabel(currentTargetItem.label)}
           </div>
-        )}
 
-        {/* Mode 2: Multi-select Checklist (single question with embedded `- [ ]` checkboxes) */}
-        {parsed.choiceMode === "multi" && (
-          <div className="space-y-2 pt-0.5">
-            <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-              {t("clarificationMultiSelectHint")}
+          {/* Lý do / mô tả */}
+          {question.reason && (
+            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {question.reason}
             </p>
-            <div className="space-y-1.5">
-              {parsed.choices.map((choice) => {
-                const checked = multiSelections.includes(choice);
-                return (
+          )}
+
+          {/* Các lựa chọn dạng Radio */}
+          <div
+            role="radiogroup"
+            aria-label={`${currentTargetItem.number}. ${cleanLabel(currentTargetItem.label)}`}
+            className="space-y-2"
+          >
+            {displayChoices.map((choice) => {
+              const isThisOther = isOtherOption(choice);
+              const isSelected = currentItemSelection === choice;
+              return (
+                <div key={choice} className="space-y-2">
                   <button
-                    key={choice}
                     type="button"
-                    role="checkbox"
-                    aria-checked={checked}
+                    role="radio"
+                    aria-checked={isSelected}
                     disabled={disabled}
-                    onClick={() =>
-                      setMultiSelections((prev) =>
-                        prev.includes(choice)
-                          ? prev.filter((item) => item !== choice)
-                          : [...prev, choice],
-                      )
-                    }
-                    className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-start text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
-                      checked
-                        ? "border-brand-500 bg-brand-50 text-brand-800 dark:border-brand-400 dark:bg-brand-500/20 dark:text-brand-100"
-                        : "border-gray-200 bg-white text-gray-700 hover:border-brand-300 hover:bg-brand-50/40 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                    onClick={() => {
+                      setItemSelections((prev) => ({
+                        ...prev,
+                        [currentTargetItem.number]: choice,
+                      }));
+                      if (isThisOther) {
+                        setTimeout(() => {
+                          itemOtherInputRef.current?.focus();
+                        }, 50);
+                      }
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-start text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+                      isSelected
+                        ? "border-brand-500 bg-white text-gray-900 shadow-2xs ring-1 ring-brand-500 dark:border-brand-400 dark:bg-gray-900 dark:text-gray-100"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50/80 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
                     }`}
                   >
                     <span
                       aria-hidden="true"
-                      className={`flex size-4 shrink-0 items-center justify-center rounded border ${
-                        checked
-                          ? "border-brand-600 bg-brand-600 text-white"
+                      className={`flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        isSelected
+                          ? "border-brand-600 bg-white dark:border-brand-400 dark:bg-gray-900"
                           : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
                       }`}
                     >
-                      {checked && <Check className="size-3" />}
+                      {isSelected && (
+                        <span className="size-2 rounded-full bg-brand-600 dark:bg-brand-400" />
+                      )}
                     </span>
-                    <span>{choice}</span>
+                    <span className="flex-1 leading-relaxed">
+                      {isThisOther ? t("clarificationOtherOption") : choice}
+                    </span>
                   </button>
-                );
-              })}
+
+                  {/* Khi chọn Khác, luôn hiển thị một ô nhập text ngay bên dưới để người dùng nhập */}
+                  {isThisOther && isSelected && (
+                    <div className="pt-0.5">
+                      <input
+                        ref={itemOtherInputRef}
+                        type="text"
+                        value={currentItemCustomText}
+                        disabled={disabled}
+                        onChange={(e) =>
+                          setItemCustomTexts((prev) => ({
+                            ...prev,
+                            [currentTargetItem.number]: e.target.value,
+                          }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (canAdvanceCurrentItem) {
+                              if (activeItemIndex < totalTargetItems - 1) {
+                                setActiveItemIndex((prev) => prev + 1);
+                              } else {
+                                handleSubmitSequentialItems();
+                              }
+                            }
+                          }
+                        }}
+                        placeholder={t("clarificationOtherPlaceholder")}
+                        className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-xs text-gray-900 shadow-2xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Dòng hướng dẫn: Bạn cũng có thể trả lời bằng văn bản hoặc chọn "Bỏ qua" nếu chưa có thông tin */}
+          <div className="flex items-start gap-1.5 pt-1 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+            <span>{t("clarificationHintText")}</span>
+          </div>
+
+          {/* Các nút hành động: [ ▷▷ Bỏ qua ] [ ← Quay lại ] và [ Tiếp theo → ] / [ ✓ Xác nhận ] */}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={disabled}
+                aria-label={skipLabel}
+                onClick={() => onSend(skipLabel, "skipped")}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+              >
+                <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+                <span>{t("clarificationSkipBtn")}</span>
+              </button>
+
+              {activeItemIndex > 0 && (
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => setActiveItemIndex((prev) => prev - 1)}
+                  className="inline-flex items-center justify-center gap-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-600 shadow-2xs transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+                >
+                  <span>{t("clarificationBackBtn")}</span>
+                </button>
+              )}
             </div>
+
+            {activeItemIndex < totalTargetItems - 1 ? (
+              <button
+                type="button"
+                disabled={disabled || !canAdvanceCurrentItem}
+                onClick={() => setActiveItemIndex((prev) => prev + 1)}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
+              >
+                <span>{t("clarificationNextBtn")}</span>
+                <ArrowRight className="size-3.5" aria-hidden="true" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={disabled || !canAdvanceCurrentItem}
+                onClick={handleSubmitSequentialItems}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
+              >
+                <Check className="size-3.5" aria-hidden="true" />
+                <span>{t("clarificationConfirmBtn")}</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Case B: Single Question with Radio buttons, 'Khác' input, and Action Buttons */}
+      {!isMultiItem && parsed.choiceMode === "single" && (
+        <div className="space-y-3 pt-0.5">
+          {parsed.prompt && (
+            <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
+              {parsed.prompt}
+            </h4>
+          )}
+
+          {question.reason && (
+            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {question.reason}
+            </p>
+          )}
+
+          <div
+            role="radiogroup"
+            aria-label={parsed.prompt || t("clarificationBadge")}
+            className="space-y-2"
+          >
+            {displayChoices.map((choice) => {
+              const isThisOther = isOtherOption(choice);
+              const isSelected = selectedChoice === choice;
+              return (
+                <div key={choice} className="space-y-2">
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={isSelected}
+                    disabled={disabled}
+                    onClick={() => {
+                      setSelectedChoice(choice);
+                      if (isThisOther) {
+                        setTimeout(() => {
+                          otherInputRef.current?.focus();
+                        }, 50);
+                      }
+                    }}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3.5 py-2.5 text-start text-xs font-medium transition-all disabled:cursor-not-allowed disabled:opacity-45 ${
+                      isSelected
+                        ? "border-brand-500 bg-white text-gray-900 shadow-2xs ring-1 ring-brand-500 dark:border-brand-400 dark:bg-gray-900 dark:text-gray-100"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50/80 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
+                    }`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`flex size-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        isSelected
+                          ? "border-brand-600 bg-white dark:border-brand-400 dark:bg-gray-900"
+                          : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
+                      }`}
+                    >
+                      {isSelected && (
+                        <span className="size-2 rounded-full bg-brand-600 dark:bg-brand-400" />
+                      )}
+                    </span>
+                    <span className="flex-1 leading-relaxed">
+                      {isThisOther ? t("clarificationOtherOption") : choice}
+                    </span>
+                  </button>
+
+                  {/* Khi chọn Khác, luôn hiển thị một ô nhập text ngay bên dưới để người dùng nhập */}
+                  {isThisOther && isSelected && (
+                    <div className="pt-0.5">
+                      <input
+                        ref={otherInputRef}
+                        type="text"
+                        value={otherCustomText}
+                        disabled={disabled}
+                        onChange={(e) => setOtherCustomText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            if (otherCustomText.trim()) {
+                              handleConfirmSingle();
+                            }
+                          }
+                        }}
+                        placeholder={t("clarificationOtherPlaceholder")}
+                        className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-xs text-gray-900 shadow-2xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100 dark:placeholder:text-gray-500"
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Dòng hướng dẫn: Bạn cũng có thể trả lời bằng văn bản hoặc chọn "Bỏ qua" nếu chưa có thông tin */}
+          <div className="flex items-start gap-1.5 pt-1 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+            <span>{t("clarificationHintText")}</span>
+          </div>
+
+          {/* Các nút hành động: [ ▷▷ Bỏ qua ] và [ ✓ Xác nhận ] */}
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label={skipLabel}
+              onClick={() => onSend(skipLabel, "skipped")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span>{t("clarificationSkipBtn")}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={disabled || !canConfirmSingle}
+              onClick={handleConfirmSingle}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
+            >
+              <Check className="size-3.5" aria-hidden="true" />
+              <span>{t("clarificationConfirmBtn")}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Case C: Multi-select Checklist (single question with embedded `- [ ]` checkboxes) */}
+      {!isMultiItem && parsed.choiceMode === "multi" && (
+        <div className="space-y-2.5 pt-0.5">
+          {parsed.prompt && (
+            <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
+              {parsed.prompt}
+            </h4>
+          )}
+          {question.reason && (
+            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {question.reason}
+            </p>
+          )}
+          <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+            {t("clarificationMultiSelectHint")}
+          </p>
+          <div className="space-y-1.5">
+            {parsed.choices.map((choice) => {
+              const checked = multiSelections.includes(choice);
+              return (
+                <button
+                  key={choice}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={checked}
+                  disabled={disabled}
+                  onClick={() =>
+                    setMultiSelections((prev) =>
+                      prev.includes(choice)
+                        ? prev.filter((item) => item !== choice)
+                        : [...prev, choice],
+                    )
+                  }
+                  className={`flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2 text-start text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                    checked
+                      ? "border-brand-500 bg-white text-brand-900 ring-1 ring-brand-500 dark:border-brand-400 dark:bg-gray-900 dark:text-brand-100"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50/80 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  }`}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-4 shrink-0 items-center justify-center rounded border ${
+                      checked
+                        ? "border-brand-600 bg-brand-600 text-white"
+                        : "border-gray-300 bg-white dark:border-gray-600 dark:bg-gray-800"
+                    }`}
+                  >
+                    {checked && <Check className="size-3" />}
+                  </span>
+                  <span>{choice}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label={skipLabel}
+              onClick={() => onSend(skipLabel, "skipped")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span>{t("clarificationSkipBtn")}</span>
+            </button>
 
             <button
               type="button"
               disabled={disabled || multiSelections.length === 0}
               onClick={submitMultiSelections}
-              className="inline-flex w-full items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-3.5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
             >
               <SendHorizontal className="size-3.5" aria-hidden="true" />
               <span>{t("clarificationSubmitSelected")}</span>
             </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Mode 3: Single-click Options (from backend `question.options`) */}
-        {parsed.choiceMode === "single" && (
-          <div className="space-y-1.5 pt-0.5">
-            <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
-              {t("clarificationSingleSelectHint")}
-            </p>
-            <div className="flex flex-wrap gap-1.5">
-              {parsed.choices
-                .filter(
-                  (option) =>
-                    option.toLowerCase() !== skipLabel.toLowerCase() &&
-                    option.toLowerCase() !== unknownLabel.toLowerCase(),
-                )
-                .map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    disabled={disabled}
-                    onClick={() => onSend(option, "answered")}
-                    className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-2xs transition-colors hover:border-brand-400 hover:bg-brand-50 hover:text-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-brand-500/40 dark:hover:text-brand-300"
-                  >
-                    {option}
-                  </button>
-                ))}
-            </div>
+      {/* Case D: Legacy Matrix for Embedded Checkbox Tests (where options: []) */}
+      {!isMultiItem && parsed.choiceMode === "matrix" && (
+        <div className="space-y-2.5 pt-0.5">
+          <p className="text-[11px] font-medium text-gray-700 dark:text-gray-300">
+            {t("clarificationMatrixHint")}
+          </p>
+          <div className="space-y-2">
+            {parsed.targetItems.map((item) => {
+              const chosen = matrixSelections[item.number] ?? null;
+              return (
+                <div
+                  key={item.number}
+                  role="group"
+                  aria-label={`${item.number}. ${item.label}`}
+                  className="space-y-2 rounded-xl border border-gray-200/90 bg-white p-2.5 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
+                >
+                  <p className="text-xs font-semibold text-gray-800 dark:text-gray-100">
+                    {item.number}. {item.label}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {parsed.choices.map((choice) => {
+                      const selected = chosen === choice;
+                      return (
+                        <button
+                          key={choice}
+                          type="button"
+                          aria-pressed={selected}
+                          disabled={disabled}
+                          onClick={() =>
+                            setMatrixSelections((prev) => {
+                              const next = { ...prev };
+                              if (next[item.number] === choice) {
+                                delete next[item.number];
+                              } else {
+                                next[item.number] = choice;
+                              }
+                              return next;
+                            })
+                          }
+                          className={`inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-start text-[11px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                            selected
+                              ? "border-brand-500 bg-brand-600 text-white shadow-2xs"
+                              : "border-gray-200 bg-gray-50/80 text-gray-700 hover:border-brand-300 hover:bg-brand-50/70 hover:text-brand-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:border-brand-500/40"
+                          }`}
+                        >
+                          {selected && (
+                            <Check
+                              className="size-3 shrink-0"
+                              aria-hidden="true"
+                            />
+                          )}
+                          <span>{choice}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        )}
 
-        {/* Mode 4: Open-ended Question (with formatted vertical numbered items if present) */}
-        {parsed.choiceMode === "none" && (
-          <div className="space-y-1.5">
-            {parsed.targetItems.length >= 2 && (
-              <ol className="space-y-1 rounded-xl border border-gray-200/80 bg-white/90 px-3 py-2 text-xs text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                {parsed.targetItems.map((item) => (
-                  <li key={item.number}>
-                    <span className="font-semibold">{item.number}.</span>{" "}
-                    {item.label}
-                  </li>
-                ))}
-              </ol>
-            )}
-            <p className="text-[11px] text-gray-600 dark:text-gray-400">
-              {t("clarificationOpenHint")}
-            </p>
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              type="button"
+              disabled={disabled}
+              aria-label={skipLabel}
+              onClick={() => onSend(skipLabel, "skipped")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span>{t("clarificationSkipBtn")}</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={disabled || !hasMatrixSelection}
+              onClick={submitMatrixSelections}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-600 px-5 py-2 text-xs font-semibold text-white shadow-2xs transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-45 dark:bg-brand-500 dark:hover:bg-brand-600"
+            >
+              <SendHorizontal className="size-3.5" aria-hidden="true" />
+              <span>{t("clarificationSubmitSelected")}</span>
+            </button>
           </div>
-        )}
+        </div>
+      )}
 
-        {/* Secondary Skip / Unknown Fallback Actions */}
-        <div className="space-y-1.5 border-t border-brand-200/70 pt-2 dark:border-brand-500/20">
-          {parsed.choiceMode !== "none" && (
-            <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
-              {t("clarificationFallbackLabel")}
+      {/* Case E: Open-ended Question */}
+      {!isMultiItem && parsed.choiceMode === "none" && (
+        <div className="space-y-3 pt-0.5">
+          {parsed.prompt && (
+            <h4 className="text-sm font-bold leading-snug text-gray-900 dark:text-gray-100">
+              {parsed.prompt}
+            </h4>
+          )}
+          {question.reason && (
+            <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              {question.reason}
             </p>
           )}
-          <div className="flex flex-wrap gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
+          {parsed.targetItems.length >= 2 && (
+            <ol className="space-y-1 rounded-xl border border-gray-200/80 bg-white/90 px-3 py-2 text-xs text-gray-800 dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+              {parsed.targetItems.map((item) => (
+                <li key={item.number}>
+                  <span className="font-semibold">{item.number}.</span>{" "}
+                  {item.label}
+                </li>
+              ))}
+            </ol>
+          )}
+
+          <div className="flex items-start gap-1.5 text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">
+            <Info className="mt-0.5 size-3.5 shrink-0 text-gray-400 dark:text-gray-500" aria-hidden="true" />
+            <span>{t("clarificationHintText")}</span>
+          </div>
+
+          <div className="flex items-center justify-between gap-3 pt-1">
+            <button
+              type="button"
               disabled={disabled}
+              aria-label={skipLabel}
               onClick={() => onSend(skipLabel, "skipped")}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 shadow-2xs transition-colors hover:bg-gray-50 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800"
             >
-              {skipLabel}
-            </Button>
+              <FastForward className="size-3.5 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+              <span>{t("clarificationSkipBtn")}</span>
+            </button>
+
             <Button
               size="sm"
               variant="outline"
@@ -501,7 +981,7 @@ function ClarificationQuestionCard({
             </Button>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
@@ -579,6 +1059,7 @@ function InlineChatProposalCard({
   stale,
   busy,
   uncertainties,
+  security,
   onApply,
   onDismiss,
   onRegenerate,
@@ -588,6 +1069,7 @@ function InlineChatProposalCard({
   stale: boolean;
   busy: boolean;
   uncertainties?: readonly string[];
+  security?: AgentSecurityReport | null;
   onApply: (
     action: ProposalAction,
     applyTitle: boolean,
@@ -668,6 +1150,8 @@ function InlineChatProposalCard({
               <CloseIcon className="size-3.5 fill-current" />
             </button>
           </div>
+
+          <SecurityShieldBanner report={security} />
 
           {/* Segmented View Switcher (So sánh | Bản hoàn chỉnh | Bản gốc) + Edit/Copy */}
           <div className="flex flex-wrap items-center justify-between gap-1.5">
@@ -896,6 +1380,8 @@ export default function WorkNoteAgentChat({
   suggestion,
   suggestionStale,
   uncertainties,
+  security,
+  preSendSecurity,
   busy,
   thinking,
   pendingUserMessage,
@@ -915,6 +1401,8 @@ export default function WorkNoteAgentChat({
   suggestion: AgentSuggestion | null;
   suggestionStale: boolean;
   uncertainties?: readonly string[];
+  security?: AgentSecurityReport | null;
+  preSendSecurity?: PreSendSecurityScan | null;
   busy: boolean;
   thinking: boolean;
   pendingUserMessage?: string | null;
@@ -998,6 +1486,32 @@ export default function WorkNoteAgentChat({
     },
   ];
 
+  const assessmentGaps = draft?.assessment?.gaps ?? [];
+  const openGaps = assessmentGaps.filter((g) => g.status === "open");
+  const answeredGaps = assessmentGaps.filter(
+    (g) => g.status === "answered" || g.status === "skipped",
+  );
+  const totalGaps = openGaps.length + answeredGaps.length;
+
+  const activeQuestionStep = useMemo(() => {
+    if (totalGaps >= 2) {
+      return {
+        current: Math.min(answeredGaps.length + 1, totalGaps),
+        total: totalGaps,
+      };
+    }
+    if (question) {
+      const match = /(?:^|\s|\()(\d+)\/(\d+)(?:\)|\s|$)/.exec(question.text);
+      if (match) {
+        return {
+          current: parseInt(match[1], 10),
+          total: parseInt(match[2], 10),
+        };
+      }
+    }
+    return undefined;
+  }, [totalGaps, answeredGaps.length, question]);
+
   const hasMessages =
     conversationCount > 0 ||
     !!pendingUserMessage ||
@@ -1059,7 +1573,7 @@ export default function WorkNoteAgentChat({
             return (
               <div key={i} className="flex items-end justify-end gap-2">
                 <div className="max-w-[82%] rounded-2xl rounded-ee-md bg-brand-100/80 px-3.5 py-2 text-xs font-medium break-words whitespace-pre-wrap text-gray-900 dark:bg-brand-500/20 dark:text-brand-100">
-                  {entry.content}
+                  {renderInlineMarkdown(entry.content)}
                 </div>
                 <span
                   aria-hidden="true"
@@ -1079,8 +1593,11 @@ export default function WorkNoteAgentChat({
               >
                 <Sparkles className="size-3.5" aria-hidden="true" />
               </span>
-              <div className="max-w-[86%] rounded-2xl rounded-ss-md border border-gray-100 bg-white px-3.5 py-2.5 text-xs leading-relaxed break-words text-gray-800 shadow-2xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                <FormattedAssistantText content={entry.content} />
+              <div className="max-w-[86%] space-y-2">
+                <SecurityShieldBanner report={entry.security} />
+                <div className="rounded-2xl rounded-ss-md border border-gray-100 bg-white px-3.5 py-2.5 text-xs leading-relaxed break-words text-gray-800 shadow-2xs dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                  <FormattedAssistantText content={entry.content} />
+                </div>
               </div>
             </div>
           );
@@ -1145,6 +1662,12 @@ export default function WorkNoteAgentChat({
             stale={suggestionStale}
             busy={busy || thinking}
             uncertainties={uncertainties}
+            security={
+              security ??
+              draft?.lastSecurity ??
+              draft?.conversation[conversationCount - 1]?.security ??
+              null
+            }
             onApply={onApplySuggestion}
             onDismiss={onDismissSuggestion}
             onRegenerate={onRegenerateSuggestion}
@@ -1156,6 +1679,7 @@ export default function WorkNoteAgentChat({
           <ClarificationQuestionCard
             key={question.id}
             question={question}
+            step={activeQuestionStep}
             disabled={thinking || busy}
             onSend={onSend}
           />
@@ -1201,7 +1725,8 @@ export default function WorkNoteAgentChat({
       </div>
 
       {/* Region (11): Pinned Bottom Message Input Bar */}
-      <div className="shrink-0 border-t border-gray-200/80 bg-white/85 px-4 py-3 backdrop-blur-xs dark:border-gray-800 dark:bg-gray-900/90">
+      <div className="shrink-0 space-y-2 border-t border-gray-200/80 bg-white/85 px-4 py-3 backdrop-blur-xs dark:border-gray-800 dark:bg-gray-900/90">
+        {preSendSecurity && <PreSendSecurityNotice scan={preSendSecurity} />}
         <form
           onSubmit={(e) => {
             e.preventDefault();

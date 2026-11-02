@@ -286,11 +286,16 @@ export function useWorkNoteComposer(
             }
           : {}),
         suggestion: result.suggestion,
+        lastSecurity: result.suggestion ? (result.security ?? null) : null,
         pendingQuestion: result.questions[0] ?? null,
         conversation: [
           ...current.conversation,
           { role: "user", content: outgoingContent },
-          { role: "assistant", content: result.message },
+          {
+            role: "assistant",
+            content: result.message,
+            ...(result.security ? { security: result.security } : {}),
+          },
         ],
       });
       return result;
@@ -464,6 +469,7 @@ export function useWorkNoteComposer(
           ...current,
           assessment: nextAssessment ?? a,
           suggestion: result.suggestion,
+        lastSecurity: result.suggestion ? (result.security ?? null) : null,
           pendingQuestion: null,
         });
         setResponse(result);

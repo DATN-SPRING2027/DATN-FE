@@ -232,7 +232,7 @@ describe("WorkItemDetailDialog", () => {
     );
   });
 
-  it("splits into 2 resizable panes (Task | Note) on New/Edit Note and 3 panes (Task | Note | AI) with only the Task-Note divider draggable", () => {
+  it("splits into resizable Task | Note | AI panes on New/Edit Note and renders the focused Task Reference view by default with a Full/Compact toggle", () => {
     render(
       <WorkItemDetailDialog
         item={sampleItemWithSubtasks}
@@ -258,6 +258,24 @@ describe("WorkItemDetailDialog", () => {
     expect(resizers).toHaveLength(1);
     expect(resizers[0]).toHaveAttribute("data-testid", "task-note-resizer");
     expect(taskPane.style.getPropertyValue("--task-split-w")).toBe("48%");
+    // Focused Task Reference View is shown by default (no noisy Git CLI card or horizontal 7-col table)
+    expect(screen.getByTestId("split-task-reference-view")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("region", { name: "Development git actions" }),
+    ).not.toBeInTheDocument();
+    expect(within(taskPane).getByText("Minh Anh")).toBeInTheDocument();
+    expect(within(taskPane).getByText("Thiết kế schema citation")).toBeInTheDocument();
+
+    // User can toggle to Full Task view and back to Compact Reference view
+    fireEvent.click(screen.getByTestId("split-task-view-mode-toggle"));
+    expect(
+      screen.queryByTestId("split-task-reference-view"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Development git actions" }),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("split-task-view-mode-toggle"));
+    expect(screen.getByTestId("split-task-reference-view")).toBeInTheDocument();
     expect(screen.getByTestId("inline-work-note-composer")).toHaveTextContent(
       "composer:inline:work-1:new:dismiss=0",
     );
