@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Dropdown } from "../ui/dropdown/Dropdown";
-import { Link, useRouter } from "@/i18n/navigation";
+import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import {
   AlertIcon,
   ChatIcon,
@@ -28,6 +28,10 @@ import {
   type NotificationItem,
 } from "@/lib/queries/notifications/useNotifications";
 import { useChatNavigation } from "@/stores/chat-navigation";
+import {
+  resolveMaxOpenChatWindows,
+  useFloatingChatStore,
+} from "@/stores/floating-chat";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
@@ -93,7 +97,11 @@ export default function NotificationDropdown() {
   const t = useTranslations("header.notifications");
   const common = useTranslations("common");
   const router = useRouter();
+  const pathname = usePathname();
   const openChatMessage = useChatNavigation((state) => state.open);
+  const openFloatingConversation = useFloatingChatStore(
+    (state) => state.openConversation,
+  );
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
   const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
@@ -102,10 +110,21 @@ export default function NotificationDropdown() {
       ? (currentUser.data.organizationId ?? null)
       : null;
 
-  const realtimeConnected = useNotificationRealtimeSubscription(
+  const identityKey =
+    userId && organizationId ? `${userId}:${organizationId}` : null;
+  const floatingRealtimeOwned = useFloatingChatStore(
+    (state) => Boolean(identityKey) && state.realtimeOwner === identityKey,
+  );
+  const floatingRealtimeConnected = useFloatingChatStore(
+    (state) =>
+      Boolean(identityKey) && state.realtimeConnectedOwner === identityKey,
+  );
+  const ownRealtimeConnected = useNotificationRealtimeSubscription(
     userId,
     organizationId,
+    !floatingRealtimeOwned,
   );
+  const realtimeConnected = ownRealtimeConnected || floatingRealtimeConnected;
 
   const [isOpen, setIsOpen] = useState(false);
   const [unavailableNotice, setUnavailableNotice] = useState<string | null>(
@@ -161,6 +180,30 @@ export default function NotificationDropdown() {
       const target = resolution.target ?? item.target;
       const url =
         resolution.url ?? target?.url ?? resolveDefaultTargetUrl(item);
+      const chatConversationId =
+        target?.conversationId ?? item.conversationId ?? null;
+      const targetOrgId =
+        target?.organizationId ?? item.organizationId ?? organizationId;
+      const isChatTarget =
+        target?.kind === "CHAT" || resolveNotificationCategory(item) === "CHAT";
+      const isAlreadyOnChatPage =
+        pathname === "/chat" || pathname.startsWith("/chat/");
+
+      if (
+        isChatTarget &&
+        chatConversationId &&
+        organizationId &&
+        targetOrgId === organizationId &&
+        !isAlreadyOnChatPage
+      ) {
+        openFloatingConversation(organizationId, chatConversationId, {
+          messageId: target?.messageId ?? undefined,
+          maxOpen: resolveMaxOpenChatWindows(),
+        });
+        closeDropdown();
+        return;
+      }
+
       if (
         target?.kind === "CHAT" &&
         target.conversationId &&

@@ -7,6 +7,7 @@ import Backdrop from "@/layout/Backdrop";
 import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
 import AdminSessionLoadingShell from "@/components/auth/AdminSessionLoadingShell";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
+import FloatingChatDock from "@/components/chat/floating/FloatingChatDock";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
@@ -27,7 +28,9 @@ export default function AdminLayout({
   const locale = common("localeCode") === "vi" ? "vi" : "en";
   const isAiChat =
     pathname === "/ai-chat" || pathname.startsWith("/ai-chat/");
-  const isChat = pathname === "/chat" || isAiChat;
+  const isHumanChat =
+    pathname === "/chat" || pathname.startsWith("/chat/");
+  const isChat = isHumanChat || isAiChat;
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -189,6 +192,7 @@ export default function AdminLayout({
           </div>
         </div>
       </div>
+      {!isHumanChat && <FloatingChatDock />}
       {!isAiChat && <ContinuumAiCompanion locale={locale} />}
     </div>
   );

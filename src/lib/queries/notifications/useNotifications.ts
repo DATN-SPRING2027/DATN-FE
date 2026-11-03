@@ -9,6 +9,7 @@ import {
 } from "@tanstack/react-query";
 import { ApiError, apiClient } from "@/lib/api-client";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
 import { chatApi } from "@/lib/queries/chat/useChat";
@@ -242,16 +243,18 @@ export function useMarkAllNotificationsReadMutation() {
 export function useNotificationRealtimeSubscription(
   userId?: string | null,
   organizationId?: string | null,
+  enabled = true,
 ) {
   const queryClient = useQueryClient();
   const [connectedIdentity, setConnectedIdentity] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!userId || !organizationId) return;
+    if (!enabled || !userId || !organizationId) return;
     if (typeof window === "undefined" || typeof WebSocket === "undefined") {
       return;
     }
     const identityKey = `${userId}:${organizationId}`;
+    if (useFloatingChatStore.getState().realtimeOwner === identityKey) return;
 
     let stopped = false;
     let socket: WebSocket | null = null;
@@ -355,7 +358,7 @@ export function useNotificationRealtimeSubscription(
         socket.close();
       }
     };
-  }, [organizationId, queryClient, userId]);
+  }, [enabled, organizationId, queryClient, userId]);
 
   return Boolean(
     userId &&
