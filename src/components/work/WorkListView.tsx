@@ -35,6 +35,7 @@ import {
   WorkPriorityLabel,
   WorkStatusBadge,
 } from "./WorkStatusBadge";
+import { buildCanonicalTaskUrl } from "./work-route";
 import {
   WORK_STATUS_ORDER,
   type WorkGroupBy,
@@ -63,6 +64,7 @@ function createdAtTimestamp(value?: string): number {
 }
 
 export default function WorkListView({
+  projectId,
   groups,
   allItems: allWorkspaceItems,
   people,
@@ -98,6 +100,7 @@ export default function WorkListView({
   onAddWorklog,
   onRefresh,
 }: {
+  projectId?: string;
   groups: readonly WorkItemGroup[];
   allItems?: readonly WorkItem[];
   people?: readonly WorkPerson[];
@@ -991,14 +994,20 @@ export default function WorkListView({
                                       type="button"
                                       onClick={() => {
                                         setActiveMenuRowId(null);
-                                        if (typeof navigator !== "undefined") {
-                                          const url = new URL(
-                                            window.location.href,
-                                          );
-                                          url.hash = "";
-                                          url.searchParams.set("taskId", item.id);
+                                        if (
+                                          typeof window !== "undefined" &&
+                                          typeof navigator !== "undefined"
+                                        ) {
+                                          const canonicalUrl =
+                                            buildCanonicalTaskUrl({
+                                              origin: window.location.origin,
+                                              pathname:
+                                                window.location.pathname,
+                                              projectId,
+                                              taskKeyOrId: item.key || item.id,
+                                            });
                                           void navigator.clipboard?.writeText(
-                                            url.toString(),
+                                            canonicalUrl,
                                           );
                                         }
                                         showNotice(
@@ -1227,11 +1236,27 @@ export default function WorkListView({
                                                 type="button"
                                                 onClick={() => {
                                                   if (
+                                                    typeof window !==
+                                                      "undefined" &&
                                                     typeof navigator !==
-                                                    "undefined"
+                                                      "undefined"
                                                   ) {
-                                                    navigator.clipboard?.writeText(
-                                                      `${window.location.origin}${window.location.pathname}#${sub.key}`,
+                                                    const canonicalUrl =
+                                                      buildCanonicalTaskUrl({
+                                                        origin:
+                                                          window.location
+                                                            .origin,
+                                                        pathname:
+                                                          window.location
+                                                            .pathname,
+                                                        projectId,
+                                                        taskKeyOrId:
+                                                          item.key || item.id,
+                                                        subtaskKeyOrId:
+                                                          sub.key || sub.id,
+                                                      });
+                                                    void navigator.clipboard?.writeText(
+                                                      canonicalUrl,
                                                     );
                                                   }
                                                   showNotice(
@@ -1694,19 +1719,26 @@ export default function WorkListView({
                                               onClick={() => {
                                                 setActiveSubtaskMenuId(null);
                                                 if (
+                                                  typeof window !==
+                                                    "undefined" &&
                                                   typeof navigator !==
-                                                  "undefined"
+                                                    "undefined"
                                                 ) {
-                                                  const url = new URL(
-                                                    window.location.href,
-                                                  );
-                                                  url.hash = "";
-                                                  url.searchParams.set(
-                                                    "taskId",
-                                                    sub.id,
-                                                  );
+                                                  const canonicalUrl =
+                                                    buildCanonicalTaskUrl({
+                                                      origin:
+                                                        window.location.origin,
+                                                      pathname:
+                                                        window.location
+                                                          .pathname,
+                                                      projectId,
+                                                      taskKeyOrId:
+                                                        item.key || item.id,
+                                                      subtaskKeyOrId:
+                                                        sub.key || sub.id,
+                                                    });
                                                   void navigator.clipboard?.writeText(
-                                                    url.toString(),
+                                                    canonicalUrl,
                                                   );
                                                 }
                                                 showNotice(

@@ -7,7 +7,7 @@ import {
 } from "@testing-library/react";
 import { useEffect } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import AdminLayout from "./layout";
+import AdminLayout, { resolveAdminPageTransitionKey } from "./layout";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { ApiError } from "@/lib/api-client";
 
@@ -181,6 +181,65 @@ describe("protected dashboard layout", () => {
     );
     expect(screen.getByText("header")).toBe(header);
     expect(screen.getByText("sidebar")).toBe(sidebar);
+  });
+
+  it("keeps project work workspace mounted across intra-work task and view sub-routes while remounting on project switch", () => {
+    expect(
+      resolveAdminPageTransitionKey("/projects/p1/work/list/GENERAL-1"),
+    ).toBe("/projects/p1/work");
+    expect(resolveAdminPageTransitionKey("/projects/p1/work/GENERAL-1")).toBe(
+      "/projects/p1/work",
+    );
+    expect(resolveAdminPageTransitionKey("/projects/p1/work-notes")).toBe(
+      "/projects/p1/work-notes",
+    );
+
+    path.value = "/projects/p1/work";
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "user", organizationId: "organization" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+
+    const onMount = vi.fn();
+    function WorkContent() {
+      useEffect(() => {
+        onMount();
+      }, []);
+      return <div>Work workspace</div>;
+    }
+
+    const { rerender } = render(
+      <AdminLayout>
+        <WorkContent />
+      </AdminLayout>,
+    );
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    path.value = "/projects/p1/work/list/GENERAL-1";
+    rerender(
+      <AdminLayout>
+        <WorkContent />
+      </AdminLayout>,
+    );
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    path.value = "/projects/p1/work/GENERAL-1";
+    rerender(
+      <AdminLayout>
+        <WorkContent />
+      </AdminLayout>,
+    );
+    expect(onMount).toHaveBeenCalledTimes(1);
+
+    path.value = "/projects/p2/work";
+    rerender(
+      <AdminLayout>
+        <WorkContent />
+      </AdminLayout>,
+    );
+    expect(onMount).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the error card and Trying again button when an explicit retry becomes pending", async () => {

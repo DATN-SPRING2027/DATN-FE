@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-import proxy from "./proxy";
+import proxy, { config } from "./proxy";
 
 const localeMiddleware = vi.hoisted(() => vi.fn());
 vi.mock("next-intl/middleware", () => ({ default: () => localeMiddleware }));
@@ -67,5 +67,16 @@ describe("route proxy", () => {
     expect(localizedSignIn.status).toBe(200);
     expect(localizedViSignIn.status).toBe(200);
     expect(cookie.status).toBe(200);
+  });
+
+  it("includes an explicit matcher pattern for project work routes so dotted subtask keys reach i18n routing", () => {
+    expect(config.matcher).toContain("/projects/:projectId/work/:slug*");
+    const subtaskResponse = proxy(
+      new NextRequest(
+        "http://localhost:3000/projects/6addb4e1601e4bc926ed4602/work/GENERAL-1/GENERAL-1.1",
+      ),
+    );
+    expect(subtaskResponse.status).toBe(200);
+    expect(localeMiddleware).toHaveBeenCalledOnce();
   });
 });

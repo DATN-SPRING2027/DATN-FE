@@ -26,6 +26,7 @@ import TaskNotesPanel, {
 import { Minimize2 } from "lucide-react";
 import WorkNoteComposer from "@/components/work-notes/WorkNoteComposer";
 import WorkItemSplitReferencePane from "./WorkItemSplitReferencePane";
+import { buildCanonicalTaskUrl } from "./work-route";
 import {
   WORK_STATUS_ORDER,
   type WorkItem,
@@ -1255,8 +1256,8 @@ export default function WorkItemDetailDialog({
           </button>
         </div>
       )}
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-4 border-b border-gray-200 bg-white/95 px-5 py-3 backdrop-blur-xs sm:px-6 dark:border-gray-800 dark:bg-gray-900/95">
-        <div className="min-w-0">
+      <header className="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-2.5 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur-xs sm:flex-nowrap sm:gap-4 sm:px-6 dark:border-gray-800 dark:bg-gray-900/95">
+        <div className="min-w-0 flex-1">
           <nav
             aria-label={t("detailBreadcrumb")}
             className="flex flex-wrap items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400"
@@ -1266,34 +1267,34 @@ export default function WorkItemDetailDialog({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="me-1.5 inline-flex h-7 cursor-pointer items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2 text-xs font-semibold text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
+                  className="me-1.5 inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded border border-gray-200 bg-gray-50 px-2.5 text-xs font-semibold whitespace-nowrap text-gray-700 hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
                 >
-                  <span>←</span>
+                  <span aria-hidden="true">←</span>
                   <span>Back to workspace</span>
                 </button>
                 <button
                   type="button"
                   onClick={onClose}
-                  className="cursor-pointer hover:text-gray-900 hover:underline dark:hover:text-white"
+                  className="hidden cursor-pointer hover:text-gray-900 hover:underline sm:inline dark:hover:text-white"
                 >
                   Spaces
                 </button>
-                <span aria-hidden="true">/</span>
+                <span aria-hidden="true" className="hidden sm:inline">/</span>
               </>
             )}
             <button
               type="button"
               onClick={mode === "page" ? onClose : undefined}
-              className={`inline-flex items-center gap-1.5 ${
+              className={`inline-flex min-w-0 items-center gap-1.5 ${
                 mode === "page" ? "cursor-pointer hover:text-gray-900 hover:underline dark:hover:text-white" : ""
               }`}
             >
               <TaskIcon
                 viewBox="0 0 24 24"
-                className="h-3.5 w-3.5 text-gray-600 dark:text-gray-400"
+                className="h-3.5 w-3.5 shrink-0 text-gray-600 dark:text-gray-400"
                 aria-hidden="true"
               />
-              <span>{item.projectName}</span>
+              <span className="max-w-[160px] truncate sm:max-w-[260px]">{item.projectName}</span>
             </button>
             {item.parent && (
               <>
@@ -1456,17 +1457,20 @@ export default function WorkItemDetailDialog({
               const targetKey = activeSubtask
                 ? activeSubtask.key
                 : item.key;
-              const targetId = activeSubtask
-                ? activeSubtask.id
-                : item.id;
               if (
                 typeof window !== "undefined" &&
                 typeof navigator !== "undefined"
               ) {
-                const url = new URL(window.location.href);
-                url.hash = "";
-                url.searchParams.set("taskId", targetId);
-                void navigator.clipboard?.writeText(url.toString());
+                const canonicalUrl = buildCanonicalTaskUrl({
+                  origin: window.location.origin,
+                  pathname: window.location.pathname,
+                  projectId,
+                  taskKeyOrId: item.key || item.id,
+                  subtaskKeyOrId: activeSubtask
+                    ? activeSubtask.key || activeSubtask.id
+                    : null,
+                });
+                void navigator.clipboard?.writeText(canonicalUrl);
               }
               showSubtaskFeedback(`Copied link to ${targetKey}`);
             }}
@@ -3363,9 +3367,22 @@ export default function WorkItemDetailDialog({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        if (typeof navigator !== "undefined") {
-                                          navigator.clipboard?.writeText(
-                                            `${window.location.origin}${window.location.pathname}#${sub.key}`,
+                                        if (
+                                          typeof window !== "undefined" &&
+                                          typeof navigator !== "undefined"
+                                        ) {
+                                          const canonicalUrl =
+                                            buildCanonicalTaskUrl({
+                                              origin: window.location.origin,
+                                              pathname:
+                                                window.location.pathname,
+                                              projectId,
+                                              taskKeyOrId: item.key || item.id,
+                                              subtaskKeyOrId:
+                                                sub.key || sub.id,
+                                            });
+                                          void navigator.clipboard?.writeText(
+                                            canonicalUrl,
                                           );
                                         }
                                         showSubtaskFeedback(

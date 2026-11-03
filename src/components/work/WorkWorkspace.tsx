@@ -1,11 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from"react";
+import { useCallback, useEffect, useMemo, useRef, useState } from"react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from"next-intl";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { usePathname } from "@/i18n/navigation";
 import { formatProjectSectionTitle } from "@/lib/page-titles";
 import { applyTaskPermissions, canManageProjectWork, canModifyProjectTask } from "./work-permissions";
+import {
+  buildProjectWorkPath,
+  isProjectWorkPathname,
+  parseProjectWorkLocation,
+  parseProjectWorkSlugs,
+  resolveWorkRouteTarget,
+  stripLegacyTaskSearchParams,
+  type ParsedProjectWorkRoute,
+  type WorkDetailRouteMode,
+} from "./work-route";
 import {
   ApiError,
   isAccessOrResourceUnavailableError,
@@ -151,6 +162,128 @@ function WorkItemsLoadingState({
       )}
     </div>
   );
+}
+
+function WorkTaskDetailLoadingState({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+      aria-label={label}
+      data-testid="work-task-detail-loading"
+      className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+    >
+      <span className="sr-only">{label}</span>
+      <div
+        aria-hidden="true"
+        className="flex items-center justify-between gap-3 border-b border-gray-200 px-5 py-3.5 dark:border-gray-800"
+      >
+        <div className="flex items-center gap-2">
+          <div className="continuum-shimmer h-7 w-32 rounded-md" />
+          <div className="continuum-shimmer h-4 w-40 rounded-md" />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="continuum-shimmer size-8 rounded-md" />
+          <div className="continuum-shimmer size-8 rounded-md" />
+        </div>
+      </div>
+      <div
+        aria-hidden="true"
+        className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_22rem] xl:grid-cols-[minmax(0,1fr)_24rem]"
+      >
+        <div className="space-y-5 px-5 py-5 sm:px-7 sm:py-6">
+          <div className="flex items-center gap-2">
+            <div className="continuum-shimmer h-6 w-20 rounded-md" />
+            <div className="continuum-shimmer h-6 w-16 rounded-md" />
+          </div>
+          <div className="continuum-shimmer h-8 w-3/4 rounded-md" />
+          <div className="space-y-2.5 pt-2">
+            <div className="continuum-shimmer h-4 w-28 rounded-md" />
+            <div className="continuum-shimmer h-4 w-full rounded-md" />
+            <div className="continuum-shimmer h-4 w-5/6 rounded-md" />
+            <div className="continuum-shimmer h-4 w-2/3 rounded-md" />
+          </div>
+          <div className="space-y-3 pt-4">
+            <div className="continuum-shimmer h-4 w-24 rounded-md" />
+            <div className="continuum-shimmer h-20 w-full rounded-lg" />
+          </div>
+        </div>
+        <div className="space-y-4 border-t border-gray-200 p-5 lg:border-s lg:border-t-0 dark:border-gray-800">
+          <div className="continuum-shimmer h-7 w-24 rounded-md" />
+          <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-800">
+            {[0, 1, 2, 3, 4].map((row) => (
+              <div key={row} className="flex items-center justify-between gap-3">
+                <div className="continuum-shimmer h-3.5 w-20 rounded-md" />
+                <div className="continuum-shimmer h-4 w-28 rounded-md" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface PendingWorkRouteTarget {
+  id: number;
+  mode: WorkDetailRouteMode;
+  taskRef: string;
+  subtaskRef: string | null;
+  isLegacyQueryOrHash: boolean;
+}
+
+function computeInitialProjectWorkRoute(options: {
+  isStandaloneProjectWork: boolean;
+  projectId: string;
+  pathname: string | null | undefined;
+  initialWorkSlug?: readonly string[];
+}): ParsedProjectWorkRoute | null {
+  const { isStandaloneProjectWork, projectId, pathname, initialWorkSlug } =
+    options;
+  if (!isStandaloneProjectWork) {
+    if (typeof window !== "undefined") {
+      return parseProjectWorkLocation({
+        pathname: window.location.pathname,
+        projectId,
+        search: window.location.search,
+        hash: window.location.hash,
+      });
+    }
+    return null;
+  }
+  if (
+    typeof window !== "undefined" &&
+    isProjectWorkPathname(window.location.pathname, projectId)
+  ) {
+    return parseProjectWorkLocation({
+      pathname: window.location.pathname,
+      projectId,
+      search: window.location.search,
+      hash: window.location.hash,
+    });
+  }
+  if (initialWorkSlug !== undefined) {
+    return {
+      isProjectWorkPath: true,
+      ...parseProjectWorkSlugs(initialWorkSlug),
+    };
+  }
+  if (isProjectWorkPathname(pathname, projectId)) {
+    return parseProjectWorkLocation({
+      pathname,
+      projectId,
+    });
+  }
+  if (typeof window !== "undefined") {
+    return parseProjectWorkLocation({
+      pathname: window.location.pathname,
+      projectId,
+      search: window.location.search,
+      hash: window.location.hash,
+    });
+  }
+  return null;
 }
 
 function describeMutationError(error: unknown): string {
@@ -305,6 +438,7 @@ export default function WorkWorkspace({
   onLoadMoreProjects,
   view: controlledView,
   onViewChange,
+  initialWorkSlug,
   embedded = false,
   hideProjectBanner = false,
 }: {
@@ -317,12 +451,14 @@ export default function WorkWorkspace({
   onLoadMoreProjects?: () => void;
   view?: WorkView;
   onViewChange?: (view: WorkView) => void;
+  initialWorkSlug?: readonly string[];
   embedded?: boolean;
   hideProjectBanner?: boolean;
 }) {
   const t = useTranslations("work");
   const tPage = useTranslations("pageTitles");
   const common = useTranslations("common");
+  const pathname = usePathname();
   const queryClient = useQueryClient();
   const user = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(user.error);
@@ -332,21 +468,22 @@ export default function WorkWorkspace({
   const projectAccessLost = isAccessOrResourceUnavailableError(project.error);
   const visibleProject = projectAccessLost ? undefined : project.data;
   const resolvedProject = projectProp ?? visibleProject;
-  useDocumentTitle(
-    !embedded && !onProjectChange
-      ? formatProjectSectionTitle(resolvedProject?.name, tPage("projectWork"))
-      : null,
+  const isStandaloneProjectWork =
+    !embedded && !onProjectChange && controlledView === undefined;
+  const [initialParsedRoute] = useState<ParsedProjectWorkRoute | null>(() =>
+    computeInitialProjectWorkRoute({
+      isStandaloneProjectWork,
+      projectId,
+      pathname,
+      initialWorkSlug,
+    }),
   );
-  const [internalView, setInternalView] = useState<WorkView>(controlledView ??"list");
+  const [internalView, setInternalView] = useState<WorkView>(
+    () => controlledView ?? initialParsedRoute?.view ?? "list",
+  );
   const view = controlledView ?? internalView;
   const [fullPageWorkItemId, setFullPageWorkItemId] = useState<string | null>(null);
   const [fullPageSubtaskId, setFullPageSubtaskId] = useState<string | null>(null);
-  const setView = (nextView: WorkView) => {
-    setFullPageWorkItemId(null);
-    setFullPageSubtaskId(null);
-    setInternalView(nextView);
-    onViewChange?.(nextView);
-  };
   const [calendarMonth, setCalendarMonth] = useState(() =>
     getCalendarMonthStart(new Date()),
   );
@@ -375,8 +512,89 @@ export default function WorkWorkspace({
   const [mutationError, setMutationError] = useState<string | null>(null);
   const [activityError, setActivityError] = useState<string | null>(null);
   const [unavailableTaskNotice, setUnavailableTaskNotice] = useState<string | null>(null);
-  const [deepLinkOverrideTaskId, setDeepLinkOverrideTaskId] = useState<string | null>(null);
-  const handledDeepLinkTaskRef = useRef<string | null>(null);
+  const [pendingRouteTarget, setPendingRouteTarget] =
+    useState<PendingWorkRouteTarget | null>(() =>
+      initialParsedRoute?.taskRef && initialParsedRoute.mode
+        ? {
+            id: 1,
+            mode: initialParsedRoute.mode,
+            taskRef: initialParsedRoute.taskRef,
+            subtaskRef: initialParsedRoute.subtaskRef,
+            isLegacyQueryOrHash: initialParsedRoute.isLegacyQueryOrHash,
+          }
+        : null,
+    );
+  const routeTargetSeqRef = useRef(1);
+  const lastSyncedPathRef = useRef<string | null>(null);
+  const prevPathnameRef = useRef<string>(pathname);
+  const itemsRef = useRef<readonly WorkItem[]>(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  const openedRouteStateRef = useRef({
+    activeWorkItemId,
+    activeSubtaskId,
+    fullPageWorkItemId,
+    fullPageSubtaskId,
+    view,
+  });
+  useEffect(() => {
+    openedRouteStateRef.current = {
+      activeWorkItemId,
+      activeSubtaskId,
+      fullPageWorkItemId,
+      fullPageSubtaskId,
+      view,
+    };
+  }, [
+    activeSubtaskId,
+    activeWorkItemId,
+    fullPageSubtaskId,
+    fullPageWorkItemId,
+    view,
+  ]);
+  const syncProjectWorkUrl = useCallback(
+    (
+      next: {
+        view?: WorkView;
+        mode: WorkDetailRouteMode | null;
+        taskKeyOrId?: string | null;
+        subtaskKeyOrId?: string | null;
+      },
+      historyAction: "push" | "replace" = "push",
+    ) => {
+      if (typeof window === "undefined" || !isStandaloneProjectWork) return;
+      if (!isProjectWorkPathname(window.location.pathname, projectId)) return;
+      const nextPathname = buildProjectWorkPath({
+        projectId,
+        view: next.view ?? view,
+        mode: next.mode,
+        taskKeyOrId: next.taskKeyOrId,
+        subtaskKeyOrId: next.subtaskKeyOrId,
+      });
+      const nextSearch = stripLegacyTaskSearchParams(window.location.search);
+      const nextHref = `${nextPathname}${nextSearch}`;
+      const currentHref = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+      if (currentHref === nextHref) return;
+      lastSyncedPathRef.current = nextPathname;
+      if (historyAction === "replace") {
+        window.history.replaceState(null, "", nextHref);
+      } else {
+        window.history.pushState(null, "", nextHref);
+      }
+    },
+    [isStandaloneProjectWork, projectId, view],
+  );
+  const setView = (nextView: WorkView) => {
+    setPendingRouteTarget(null);
+    setFullPageWorkItemId(null);
+    setFullPageSubtaskId(null);
+    setActiveWorkItemId(null);
+    setActiveSubtaskId(null);
+    setInternalView(nextView);
+    onViewChange?.(nextView);
+    syncProjectWorkUrl({ view: nextView, mode: null }, "push");
+  };
   const [annotationsByProject, setAnnotationsByProject] = useState<
     Record<
       string,
@@ -836,115 +1054,258 @@ export default function WorkWorkspace({
 
   const openedTaskId = fullPageWorkItemId ?? activeWorkItemId;
 
+  const applyExternalRoute = useCallback(
+    (parsed: ParsedProjectWorkRoute) => {
+      if (parsed.isProjectWorkPath) {
+        if (parsed.view) {
+          setInternalView(parsed.view);
+        }
+        if (!parsed.taskRef || !parsed.mode) {
+          setPendingRouteTarget(null);
+          setActiveWorkItemId(null);
+          setActiveSubtaskId(null);
+          setFullPageWorkItemId(null);
+          setFullPageSubtaskId(null);
+          return;
+        }
+        const resolved = resolveWorkRouteTarget(
+          itemsRef.current,
+          parsed.taskRef,
+          parsed.subtaskRef,
+        );
+        if (resolved.status === "matched" && !resolved.missingSubtask) {
+          setPendingRouteTarget(null);
+          setUnavailableTaskNotice(null);
+          if (parsed.mode === "page") {
+            setActiveWorkItemId(null);
+            setActiveSubtaskId(null);
+            setFullPageWorkItemId(resolved.item.id);
+            setFullPageSubtaskId(resolved.subtask?.id ?? null);
+          } else {
+            setFullPageWorkItemId(null);
+            setFullPageSubtaskId(null);
+            setActiveWorkItemId(resolved.item.id);
+            setActiveSubtaskId(resolved.subtask?.id ?? null);
+          }
+          syncProjectWorkUrl(
+            {
+              view: parsed.view ?? openedRouteStateRef.current.view,
+              mode: parsed.mode,
+              taskKeyOrId: resolved.item.key || resolved.item.id,
+              subtaskKeyOrId: resolved.subtask
+                ? resolved.subtask.key || resolved.subtask.id
+                : null,
+            },
+            "replace",
+          );
+          return;
+        }
+        routeTargetSeqRef.current += 1;
+        setPendingRouteTarget({
+          id: routeTargetSeqRef.current,
+          mode: parsed.mode,
+          taskRef: parsed.taskRef,
+          subtaskRef: parsed.subtaskRef,
+          isLegacyQueryOrHash: parsed.isLegacyQueryOrHash,
+        });
+        return;
+      }
+
+      if (parsed.taskRef) {
+        routeTargetSeqRef.current += 1;
+        setPendingRouteTarget({
+          id: routeTargetSeqRef.current,
+          mode: "modal",
+          taskRef: parsed.taskRef,
+          subtaskRef: null,
+          isLegacyQueryOrHash: true,
+        });
+      }
+    },
+    [syncProjectWorkUrl],
+  );
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const onDeepLink = (event: Event) => {
       const detailUrl = (event as CustomEvent<{ url?: string }>).detail?.url;
       if (detailUrl) {
-        const qIndex = detailUrl.indexOf("?");
-        const searchPart = qIndex >= 0 ? detailUrl.slice(qIndex) : "";
-        const nextId = new URLSearchParams(searchPart).get("taskId")?.trim() ?? null;
-        if (nextId) {
-          handledDeepLinkTaskRef.current = null;
-          setDeepLinkOverrideTaskId(nextId);
-        }
-      } else {
-        handledDeepLinkTaskRef.current = null;
-        setDeepLinkOverrideTaskId(
-          new URLSearchParams(window.location.search).get("taskId")?.trim() ?? null,
+        const targetUrl = new URL(detailUrl, window.location.origin);
+        applyExternalRoute(
+          parseProjectWorkLocation({
+            pathname: targetUrl.pathname,
+            projectId,
+            search: targetUrl.search,
+            hash: targetUrl.hash,
+          }),
         );
+        return;
       }
+      applyExternalRoute(
+        parseProjectWorkLocation({
+          pathname: window.location.pathname,
+          projectId,
+          search: window.location.search,
+          hash: window.location.hash,
+        }),
+      );
+    };
+    const onPopState = () => {
+      lastSyncedPathRef.current = window.location.pathname;
+      applyExternalRoute(
+        parseProjectWorkLocation({
+          pathname: window.location.pathname,
+          projectId,
+          search: window.location.search,
+          hash: window.location.hash,
+        }),
+      );
     };
     window.addEventListener("continuum:deep-link", onDeepLink);
-    window.addEventListener("popstate", onDeepLink);
+    window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener("continuum:deep-link", onDeepLink);
-      window.removeEventListener("popstate", onDeepLink);
+      window.removeEventListener("popstate", onPopState);
     };
-  }, []);
+  }, [applyExternalRoute, projectId]);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const params = new URLSearchParams(window.location.search);
-    const hashTarget = window.location.hash.startsWith("#")
-      ? decodeURIComponent(window.location.hash.slice(1)).trim()
-      : "";
-    const deepLinkTaskId =
-      deepLinkOverrideTaskId ??
-      params.get("taskId")?.trim() ??
-      (hashTarget || null);
-    if (!deepLinkTaskId) return;
-    if (handledDeepLinkTaskRef.current === deepLinkTaskId) return;
+    if (pathname === prevPathnameRef.current) return;
+    prevPathnameRef.current = pathname;
+    if (!isStandaloneProjectWork) return;
+    if (pathname === lastSyncedPathRef.current) {
+      lastSyncedPathRef.current = null;
+      return;
+    }
+    if (!isProjectWorkPathname(pathname, projectId)) return;
+    const search = typeof window !== "undefined" ? window.location.search : "";
+    const hash = typeof window !== "undefined" ? window.location.hash : "";
+    applyExternalRoute(
+      parseProjectWorkLocation({
+        pathname,
+        projectId,
+        search,
+        hash,
+      }),
+    );
+  }, [applyExternalRoute, isStandaloneProjectWork, pathname, projectId]);
 
+  useEffect(() => {
+    if (!pendingRouteTarget) return;
     if (isRealProject && !tasksQuery.isFetched) {
       return;
     }
 
-    const normalizedTarget = deepLinkTaskId.toUpperCase();
-    const directItem = items.find(
-      (item) =>
-        item.id === deepLinkTaskId ||
-        item.key.toUpperCase() === normalizedTarget,
+    const resolved = resolveWorkRouteTarget(
+      items,
+      pendingRouteTarget.taskRef,
+      pendingRouteTarget.subtaskRef,
     );
-    if (directItem) {
-      handledDeepLinkTaskRef.current = deepLinkTaskId;
-      queueMicrotask(() => {
-        setUnavailableTaskNotice(null);
-        setActiveSubtaskId(null);
-        setActiveWorkItemId(directItem.id);
-      });
-      return;
-    }
-
-    let matchedSubtaskId: string | null = null;
-    const parentWithSubtask = items.find((item) =>
-      (item.subtaskItems ?? []).some((sub) => {
-        if (
-          sub.id === deepLinkTaskId ||
-          sub.key.toUpperCase() === normalizedTarget
-        ) {
-          matchedSubtaskId = sub.id;
-          return true;
+    if (resolved.status === "matched") {
+      if (
+        resolved.missingSubtask &&
+        pendingRouteTarget.subtaskRef &&
+        isRealProject &&
+        visibleTasks
+      ) {
+        const subRefUpper = pendingRouteTarget.subtaskRef.trim().toUpperCase();
+        const rawSubExists = visibleTasks.items.some(
+          (candidate) =>
+            candidate.status !== "CANCELLED" &&
+            (candidate.id === pendingRouteTarget.subtaskRef?.trim() ||
+              candidate.key.toUpperCase() === subRefUpper),
+        );
+        if (rawSubExists) {
+          return;
         }
-        return false;
-      }),
-    );
-    if (parentWithSubtask && matchedSubtaskId) {
-      const resolvedSubId = matchedSubtaskId;
-      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      }
+
+      const targetSnapshot = pendingRouteTarget;
       queueMicrotask(() => {
-        setUnavailableTaskNotice(null);
-        setActiveWorkItemId(parentWithSubtask.id);
-        setActiveSubtaskId(resolvedSubId);
+        setPendingRouteTarget((curr) =>
+          curr?.id === targetSnapshot.id ? null : curr,
+        );
+        setUnavailableTaskNotice(
+          resolved.missingSubtask ? t("contentUnavailable") : null,
+        );
+        if (targetSnapshot.mode === "page") {
+          setActiveWorkItemId(null);
+          setActiveSubtaskId(null);
+          setFullPageWorkItemId(resolved.item.id);
+          setFullPageSubtaskId(resolved.subtask?.id ?? null);
+        } else {
+          setFullPageWorkItemId(null);
+          setFullPageSubtaskId(null);
+          setActiveWorkItemId(resolved.item.id);
+          setActiveSubtaskId(resolved.subtask?.id ?? null);
+        }
+        syncProjectWorkUrl(
+          {
+            view,
+            mode: targetSnapshot.mode,
+            taskKeyOrId: resolved.item.key || resolved.item.id,
+            subtaskKeyOrId: resolved.subtask
+              ? resolved.subtask.key || resolved.subtask.id
+              : null,
+          },
+          "replace",
+        );
       });
       return;
     }
 
+    const normalizedTarget = pendingRouteTarget.taskRef.trim().toUpperCase();
     if (isRealProject && visibleTasks) {
       const rawMatched = visibleTasks.items.find(
-        (t) =>
-          (t.id === deepLinkTaskId ||
-            t.key.toUpperCase() === normalizedTarget) &&
-          t.status !== "CANCELLED",
+        (candidate) =>
+          (candidate.id === pendingRouteTarget.taskRef.trim() ||
+            candidate.key.toUpperCase() === normalizedTarget) &&
+          candidate.status !== "CANCELLED",
       );
       if (rawMatched) {
         // Wait for items state sync effect to populate `items`
         return;
       }
-      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      const targetSnapshot = pendingRouteTarget;
       queueMicrotask(() => {
+        setPendingRouteTarget((curr) =>
+          curr?.id === targetSnapshot.id ? null : curr,
+        );
+        setActiveWorkItemId(null);
+        setActiveSubtaskId(null);
+        setFullPageWorkItemId(null);
+        setFullPageSubtaskId(null);
         setUnavailableTaskNotice(t("contentUnavailable"));
+        syncProjectWorkUrl({ view, mode: null }, "replace");
       });
       return;
     }
 
     if (!isRealProject || tasksQuery.isError) {
-      handledDeepLinkTaskRef.current = deepLinkTaskId;
+      const targetSnapshot = pendingRouteTarget;
       queueMicrotask(() => {
+        setPendingRouteTarget((curr) =>
+          curr?.id === targetSnapshot.id ? null : curr,
+        );
+        setActiveWorkItemId(null);
+        setActiveSubtaskId(null);
+        setFullPageWorkItemId(null);
+        setFullPageSubtaskId(null);
         setUnavailableTaskNotice(t("contentUnavailable"));
+        syncProjectWorkUrl({ view, mode: null }, "replace");
       });
     }
-  }, [deepLinkOverrideTaskId, isRealProject, items, t, visibleTasks, tasksQuery.isError, tasksQuery.isFetched]);
+  }, [
+    isRealProject,
+    items,
+    pendingRouteTarget,
+    syncProjectWorkUrl,
+    t,
+    tasksQuery.isError,
+    tasksQuery.isFetched,
+    view,
+    visibleTasks,
+  ]);
   useEffect(() => {
     if (!isRealProject || !openedTaskId || !OBJECT_ID_PATTERN.test(openedTaskId)) {
       setActivityError(null);
@@ -1303,6 +1664,74 @@ export default function WorkWorkspace({
     [fullPageWorkItemId, itemsWithPermissions, projectName],
   );
 
+  const focusedWorkItem = fullPageWorkItem ?? activeWorkItem;
+  const focusedSubtaskId = fullPageWorkItem
+    ? fullPageSubtaskId
+    : activeSubtaskId;
+  const focusedSubtask = useMemo(
+    () =>
+      focusedWorkItem && focusedSubtaskId
+        ? ((focusedWorkItem.subtaskItems ?? []).find(
+            (sub) => sub.id === focusedSubtaskId,
+          ) ?? null)
+        : null,
+    [focusedSubtaskId, focusedWorkItem],
+  );
+
+  const documentTitleLabel = useMemo(() => {
+    if (embedded || onProjectChange) return null;
+    if (focusedSubtask) {
+      return formatProjectSectionTitle(
+        resolvedProject?.name,
+        `${focusedSubtask.key}: ${focusedSubtask.summary}`,
+      );
+    }
+    if (focusedWorkItem) {
+      return formatProjectSectionTitle(
+        resolvedProject?.name,
+        `${focusedWorkItem.key}: ${focusedWorkItem.title}`,
+      );
+    }
+    const pendingRef =
+      pendingRouteTarget?.subtaskRef ?? pendingRouteTarget?.taskRef ?? null;
+    if (pendingRef && !OBJECT_ID_PATTERN.test(pendingRef)) {
+      return formatProjectSectionTitle(
+        resolvedProject?.name,
+        pendingRef.toUpperCase(),
+      );
+    }
+    return formatProjectSectionTitle(
+      resolvedProject?.name,
+      tPage("projectWork"),
+    );
+  }, [
+    embedded,
+    focusedSubtask,
+    focusedWorkItem,
+    onProjectChange,
+    pendingRouteTarget,
+    resolvedProject?.name,
+    tPage,
+  ]);
+  useDocumentTitle(documentTitleLabel);
+
+  const isAwaitingFullPageRouteTask =
+    pendingRouteTarget?.mode === "page" &&
+    !fullPageWorkItem &&
+    isRealProject &&
+    !tasksQuery.isError &&
+    (!tasksQuery.isFetched ||
+      Boolean(
+        visibleTasks?.items.some((candidate) => {
+          const ref = pendingRouteTarget.taskRef.trim();
+          return (
+            candidate.status !== "CANCELLED" &&
+            (candidate.id === ref ||
+              candidate.key.toUpperCase() === ref.toUpperCase())
+          );
+        }),
+      ));
+
   const groups = useMemo(
     () => groupWorkItems(visibleItems, groupBy, projectPeople),
     [groupBy, projectPeople, visibleItems],
@@ -1333,8 +1762,20 @@ export default function WorkWorkspace({
 
   function openWorkItem(item: WorkItem, trigger: HTMLButtonElement) {
     detailTriggerRef.current = trigger;
+    setPendingRouteTarget(null);
+    setFullPageWorkItemId(null);
+    setFullPageSubtaskId(null);
     setActiveSubtaskId(null);
     setActiveWorkItemId(item.id);
+    syncProjectWorkUrl(
+      {
+        view,
+        mode: "modal",
+        taskKeyOrId: item.key || item.id,
+        subtaskKeyOrId: null,
+      },
+      "push",
+    );
   }
 
   function openSubtask(
@@ -1343,15 +1784,43 @@ export default function WorkWorkspace({
     trigger: HTMLButtonElement,
   ) {
     detailTriggerRef.current = trigger;
+    const targetSub = item.subtaskItems?.find((sub) => sub.id === subtaskId);
+    setPendingRouteTarget(null);
+    setFullPageWorkItemId(null);
+    setFullPageSubtaskId(null);
     setActiveWorkItemId(item.id);
     setActiveSubtaskId(subtaskId);
+    syncProjectWorkUrl(
+      {
+        view,
+        mode: "modal",
+        taskKeyOrId: item.key || item.id,
+        subtaskKeyOrId: targetSub?.key || subtaskId,
+      },
+      "push",
+    );
   }
 
   function openFullPageWorkItem(item: WorkItem, subtaskId?: string | null) {
+    const targetSub = subtaskId
+      ? item.subtaskItems?.find((sub) => sub.id === subtaskId)
+      : null;
+    setPendingRouteTarget(null);
     setActiveWorkItemId(null);
     setActiveSubtaskId(null);
     setFullPageWorkItemId(item.id);
     setFullPageSubtaskId(subtaskId ?? null);
+    syncProjectWorkUrl(
+      {
+        view,
+        mode: "page",
+        taskKeyOrId: item.key || item.id,
+        subtaskKeyOrId: targetSub
+          ? targetSub.key || targetSub.id
+          : (subtaskId ?? null),
+      },
+      "push",
+    );
   }
 
   function toggleAllVisible() {
@@ -1427,6 +1896,13 @@ export default function WorkWorkspace({
     const existing = items.find((item) => item.id === id);
     const fromStatus = existing?.status ?? "TODO";
     setCreatedTaskToast((curr) => (curr?.id === id ? null : curr));
+    if (activeWorkItemId === id || fullPageWorkItemId === id) {
+      setActiveWorkItemId(null);
+      setActiveSubtaskId(null);
+      setFullPageWorkItemId(null);
+      setFullPageSubtaskId(null);
+      syncProjectWorkUrl({ view, mode: null }, "replace");
+    }
     setItems((current) => current.filter((item) => item.id !== id));
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -1567,6 +2043,29 @@ export default function WorkWorkspace({
           setFullPageWorkItemId((current) =>
             current === tempId ? created.id : current,
           );
+          if (openedRouteStateRef.current.activeWorkItemId === tempId) {
+            syncProjectWorkUrl(
+              {
+                view: openedRouteStateRef.current.view,
+                mode: "modal",
+                taskKeyOrId: created.key,
+                subtaskKeyOrId: null,
+              },
+              "replace",
+            );
+          } else if (
+            openedRouteStateRef.current.fullPageWorkItemId === tempId
+          ) {
+            syncProjectWorkUrl(
+              {
+                view: openedRouteStateRef.current.view,
+                mode: "page",
+                taskKeyOrId: created.key,
+                subtaskKeyOrId: null,
+              },
+              "replace",
+            );
+          }
           try {
             const finalVersion = await performBackendStatusTransition(
               created.id,
@@ -2128,6 +2627,40 @@ export default function WorkWorkspace({
               };
             }),
           );
+          setActiveSubtaskId((current) =>
+            current === tempSubId ? createdSub.id : current,
+          );
+          setFullPageSubtaskId((current) =>
+            current === tempSubId ? createdSub.id : current,
+          );
+          const parentItemForRoute = itemsRef.current.find(
+            (item) => item.id === itemId || item.id === realParentId,
+          );
+          if (parentItemForRoute) {
+            if (openedRouteStateRef.current.activeSubtaskId === tempSubId) {
+              syncProjectWorkUrl(
+                {
+                  view: openedRouteStateRef.current.view,
+                  mode: "modal",
+                  taskKeyOrId: parentItemForRoute.key || parentItemForRoute.id,
+                  subtaskKeyOrId: createdSub.key,
+                },
+                "replace",
+              );
+            } else if (
+              openedRouteStateRef.current.fullPageSubtaskId === tempSubId
+            ) {
+              syncProjectWorkUrl(
+                {
+                  view: openedRouteStateRef.current.view,
+                  mode: "page",
+                  taskKeyOrId: parentItemForRoute.key || parentItemForRoute.id,
+                  subtaskKeyOrId: createdSub.key,
+                },
+                "replace",
+              );
+            }
+          }
           try {
             const finalSubVersion = await performBackendStatusTransition(
               createdSub.id,
@@ -2446,6 +2979,31 @@ export default function WorkWorkspace({
 
     if (activeSubtaskId === subtaskId) {
       setActiveSubtaskId(null);
+      if (parentItem) {
+        syncProjectWorkUrl(
+          {
+            view,
+            mode: "modal",
+            taskKeyOrId: parentItem.key || parentItem.id,
+            subtaskKeyOrId: null,
+          },
+          "replace",
+        );
+      }
+    }
+    if (fullPageSubtaskId === subtaskId) {
+      setFullPageSubtaskId(null);
+      if (parentItem) {
+        syncProjectWorkUrl(
+          {
+            view,
+            mode: "page",
+            taskKeyOrId: parentItem.key || parentItem.id,
+            subtaskKeyOrId: null,
+          },
+          "replace",
+        );
+      }
     }
     setItems((current) =>
       current.map((item) => {
@@ -2603,9 +3161,34 @@ export default function WorkWorkspace({
 
       return [promotedItem, ...updatedList];
     });
+    const promotedKey = isRealProject
+      ? sourceSub.key
+      : `${projectCode || "KNW"}-${146 + items.length}`;
     if (activeSubtaskId === subtaskId) {
       setActiveSubtaskId(null);
       setActiveWorkItemId(promotedTaskId);
+      syncProjectWorkUrl(
+        {
+          view,
+          mode: "modal",
+          taskKeyOrId: promotedKey,
+          subtaskKeyOrId: null,
+        },
+        "replace",
+      );
+    }
+    if (fullPageSubtaskId === subtaskId) {
+      setFullPageSubtaskId(null);
+      setFullPageWorkItemId(promotedTaskId);
+      syncProjectWorkUrl(
+        {
+          view,
+          mode: "page",
+          taskKeyOrId: promotedKey,
+          subtaskKeyOrId: null,
+        },
+        "replace",
+      );
     }
     setAnnouncement("Converted subtask to standalone Task.");
 
@@ -2674,6 +3257,39 @@ export default function WorkWorkspace({
     });
     if (activeWorkItemId === fromItemId && activeSubtaskId === subtaskId) {
       setActiveWorkItemId(toItemId);
+      const nextParent = items.find((i) => i.id === toItemId);
+      const movedSub = items
+        .find((i) => i.id === fromItemId)
+        ?.subtaskItems?.find((s) => s.id === subtaskId);
+      if (nextParent) {
+        syncProjectWorkUrl(
+          {
+            view,
+            mode: "modal",
+            taskKeyOrId: nextParent.key || nextParent.id,
+            subtaskKeyOrId: movedSub?.key || subtaskId,
+          },
+          "replace",
+        );
+      }
+    }
+    if (fullPageWorkItemId === fromItemId && fullPageSubtaskId === subtaskId) {
+      setFullPageWorkItemId(toItemId);
+      const nextParent = items.find((i) => i.id === toItemId);
+      const movedSub = items
+        .find((i) => i.id === fromItemId)
+        ?.subtaskItems?.find((s) => s.id === subtaskId);
+      if (nextParent) {
+        syncProjectWorkUrl(
+          {
+            view,
+            mode: "page",
+            taskKeyOrId: nextParent.key || nextParent.id,
+            subtaskKeyOrId: movedSub?.key || subtaskId,
+          },
+          "replace",
+        );
+      }
     }
     setAnnouncement("Moved subtask to new parent work item.");
 
@@ -3065,6 +3681,16 @@ export default function WorkWorkspace({
     setCreatedTaskToast((curr) =>
       curr && affectedIds.has(curr.id) ? null : curr,
     );
+    if (
+      (activeWorkItemId && affectedIds.has(activeWorkItemId)) ||
+      (fullPageWorkItemId && affectedIds.has(fullPageWorkItemId))
+    ) {
+      setActiveWorkItemId(null);
+      setActiveSubtaskId(null);
+      setFullPageWorkItemId(null);
+      setFullPageSubtaskId(null);
+      syncProjectWorkUrl({ view, mode: null }, "replace");
+    }
     setItems((current) =>
       current.filter((item) => !affectedIds.has(item.id)),
     );
@@ -3330,7 +3956,9 @@ export default function WorkWorkspace({
         </div>
       )}
 
-      {fullPageWorkItem ? (
+      {isAwaitingFullPageRouteTask ? (
+        <WorkTaskDetailLoadingState label={common("loading")} />
+      ) : fullPageWorkItem ? (
         <WorkItemDetailDialog
           mode="page"
           projectId={projectId}
@@ -3349,10 +3977,30 @@ export default function WorkWorkspace({
           }
           onToggleWatching={toggleItemWatching}
           initialSubtaskId={fullPageSubtaskId}
-          onSelectSubtask={setFullPageSubtaskId}
+          onSelectSubtask={(nextSubId) => {
+            setFullPageSubtaskId(nextSubId);
+            const nextSub = nextSubId
+              ? fullPageWorkItem.subtaskItems?.find(
+                  (sub) => sub.id === nextSubId,
+                )
+              : null;
+            syncProjectWorkUrl(
+              {
+                view,
+                mode: "page",
+                taskKeyOrId: fullPageWorkItem.key || fullPageWorkItem.id,
+                subtaskKeyOrId: nextSub
+                  ? nextSub.key || nextSub.id
+                  : nextSubId,
+              },
+              "push",
+            );
+          }}
           onClose={() => {
+            setPendingRouteTarget(null);
             setFullPageSubtaskId(null);
             setFullPageWorkItemId(null);
+            syncProjectWorkUrl({ view, mode: null }, "push");
           }}
           onTitleChange={updateItemTitle}
           onDescriptionChange={updateItemDescription}
@@ -3536,6 +4184,7 @@ export default function WorkWorkspace({
             </div>
           ) : view ==="list"? (
             <WorkListView
+              projectId={projectId}
               groups={groups}
               allItems={itemsWithPermissions}
               people={projectPeople}
@@ -3669,11 +4318,22 @@ export default function WorkWorkspace({
         toast={createdTaskToast}
         onDismiss={() => setCreatedTaskToast(null)}
         onViewTask={(taskId) => {
+          const targetItem = items.find((candidate) => candidate.id === taskId);
           setCreatedTaskToast(null);
+          setPendingRouteTarget(null);
           setActiveWorkItemId(null);
           setActiveSubtaskId(null);
           setFullPageSubtaskId(null);
           setFullPageWorkItemId(taskId);
+          syncProjectWorkUrl(
+            {
+              view,
+              mode: "page",
+              taskKeyOrId: targetItem?.key || taskId,
+              subtaskKeyOrId: null,
+            },
+            "push",
+          );
         }}
       />
       {activeWorkItem && (
@@ -3695,11 +4355,29 @@ export default function WorkWorkspace({
           }
           onToggleWatching={toggleItemWatching}
           initialSubtaskId={activeSubtaskId}
-          onSelectSubtask={setActiveSubtaskId}
+          onSelectSubtask={(nextSubId) => {
+            setActiveSubtaskId(nextSubId);
+            const nextSub = nextSubId
+              ? activeWorkItem.subtaskItems?.find((sub) => sub.id === nextSubId)
+              : null;
+            syncProjectWorkUrl(
+              {
+                view,
+                mode: "modal",
+                taskKeyOrId: activeWorkItem.key || activeWorkItem.id,
+                subtaskKeyOrId: nextSub
+                  ? nextSub.key || nextSub.id
+                  : nextSubId,
+              },
+              "push",
+            );
+          }}
           onOpenFullPage={(subId) => openFullPageWorkItem(activeWorkItem, subId)}
           onClose={() => {
+            setPendingRouteTarget(null);
             setActiveSubtaskId(null);
             setActiveWorkItemId(null);
+            syncProjectWorkUrl({ view, mode: null }, "push");
           }}
           onTitleChange={updateItemTitle}
           onDescriptionChange={updateItemDescription}

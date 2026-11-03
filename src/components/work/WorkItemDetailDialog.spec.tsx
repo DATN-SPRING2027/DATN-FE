@@ -708,4 +708,40 @@ describe("WorkItemDetailDialog", () => {
       }),
     );
   });
+
+  it("copies canonical full-page task and subtask URLs via Copy link actions", () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    const projectId = "651a2b3c4d5e6f7a8b9c0d21";
+
+    render(
+      <WorkItemDetailDialog
+        mode="modal"
+        projectId={projectId}
+        item={sampleItemWithSubtasks}
+        onClose={vi.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(writeText).toHaveBeenLastCalledWith(
+      `${window.location.origin}/projects/${projectId}/work/KNW-142`,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Copy link to KNW-142.1" }),
+    );
+    expect(writeText).toHaveBeenLastCalledWith(
+      `${window.location.origin}/projects/${projectId}/work/KNW-142/KNW-142.1`,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "KNW-142.1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(writeText).toHaveBeenLastCalledWith(
+      `${window.location.origin}/projects/${projectId}/work/KNW-142/KNW-142.1`,
+    );
+  });
 });

@@ -119,6 +119,14 @@ describe("Project task notes", () => {
     ).toBeVisible();
     expect(screen.getByText("Added the API route.")).toBeVisible();
     expect(screen.getByText("FE-12")).toBeVisible();
+    const taskLinks = screen.getAllByRole("link", { name: /FE-12/ });
+    expect(taskLinks.length).toBeGreaterThanOrEqual(2);
+    for (const taskLink of taskLinks) {
+      expect(taskLink).toHaveAttribute(
+        "href",
+        `/projects/${projectId}/work/FE-12`,
+      );
+    }
     expect(
       screen.getByText("Authentication & session handling"),
     ).toBeVisible();

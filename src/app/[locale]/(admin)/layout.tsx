@@ -15,6 +15,13 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useTranslations } from "next-intl";
 import React, { useEffect, useRef, useState } from "react";
 
+export function resolveAdminPageTransitionKey(pathname: string): string {
+  const workRouteMatch = pathname.match(
+    /^((?:\/(?:en|vi))?\/projects\/[^/]+\/work)(?:\/.*)?$/,
+  );
+  return workRouteMatch?.[1] ?? pathname;
+}
+
 export default function AdminLayout({
   children,
 }: {
@@ -167,7 +174,7 @@ export default function AdminLayout({
         >
           {/* Page Content */}
           <div
-            key={pathname}
+            key={resolveAdminPageTransitionKey(pathname)}
             className={
               isChat
                 ? "continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden"
