@@ -15,6 +15,10 @@ vi.mock("@/components/ai-companion/WorkReportReminderNotice", () => ({ default: 
 
 vi.mock("@/components/ai-companion/CompanionProjectPicker", () => ({ default: () => null }));
 
+vi.mock("@/components/chat/floating/FloatingChatDock", () => ({
+  default: () => <div data-testid="floating-chat-dock-shell" />,
+}));
+
 const replace = vi.fn();
 const path = vi.hoisted(() => ({ value: "/dashboard" }));
 vi.mock("@/context/SidebarContext", () => ({
@@ -96,6 +100,42 @@ describe("protected dashboard layout", () => {
       .getByText("Page content")
       .closest(".min-h-screen") as HTMLElement;
     expect(updatedShell.style.height).toBe("");
+  });
+
+  it("mounts FloatingChatDock across workspace routes and hides it on the full /chat route", () => {
+    path.value = "/dashboard";
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: { id: "user", organizationId: "organization" },
+      isError: false,
+      isFetching: false,
+      refetch: vi.fn(),
+    } as never);
+
+    const { rerender } = render(
+      <AdminLayout>
+        <div>Workspace content</div>
+      </AdminLayout>,
+    );
+
+    expect(screen.getByTestId("floating-chat-dock-shell")).toBeInTheDocument();
+
+    path.value = "/ai-chat";
+    rerender(
+      <AdminLayout>
+        <div>Workspace content</div>
+      </AdminLayout>,
+    );
+    expect(screen.getByTestId("floating-chat-dock-shell")).toBeInTheDocument();
+
+    path.value = "/chat";
+    rerender(
+      <AdminLayout>
+        <div>Workspace content</div>
+      </AdminLayout>,
+    );
+    expect(
+      screen.queryByTestId("floating-chat-dock-shell"),
+    ).not.toBeInTheDocument();
   });
 
   it("replays the chat content entrance when navigating between chat routes", () => {

@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 import { CompanionChatClient } from "./companion-chat-client";
 import CompanionProjectPicker from "./CompanionProjectPicker";
 import { useTranslations } from "next-intl";
@@ -123,6 +124,13 @@ export default function ContinuumAiCompanion({
   const [chatNotice, setChatNotice] = useState(false);
   const isEn = locale === "en";
   const pathname = usePathname();
+  const isHumanChatPage =
+    pathname === "/chat" || pathname.startsWith("/chat/");
+  const openChatWindowCount = useFloatingChatStore((state) =>
+    state.activeOrgId
+      ? (state.openWindowsByOrg[state.activeOrgId]?.length ?? 0)
+      : 0,
+  );
   const activeProjectId = useMemo(() => extractProjectId(pathname), [pathname]);
 
   const [selectedProjectId, setSelectedProjectId] = useState("");
@@ -299,7 +307,7 @@ export default function ContinuumAiCompanion({
         position?.x ??
         (hasMeasuredRect && rect
           ? rect.left
-          : Math.max(12, viewportW - width - 24));
+          : Math.max(12, viewportW - width - 96));
       const initialTop =
         position?.y ??
         (hasMeasuredRect && rect
@@ -399,6 +407,24 @@ export default function ContinuumAiCompanion({
     return { left: `${left}px`, top: `${top}px` };
   }, [position]);
 
+  // Default anchor: sits right beside the bottom-right Floating Chat button,
+  // and glides smoothly further inline-start when mini chat boxes expand.
+  const defaultDockOffsetClass = isHumanChatPage
+    ? "end-4 bottom-4 sm:end-6 sm:bottom-5"
+    : openChatWindowCount >= 2
+      ? "end-20 bottom-4 sm:end-108 lg:end-195 sm:bottom-5"
+      : openChatWindowCount === 1
+        ? "end-20 bottom-4 sm:end-108 sm:bottom-5"
+        : "end-20 bottom-4 sm:end-24 sm:bottom-5";
+
+  const defaultPanelOffsetClass = isHumanChatPage
+    ? "end-3 bottom-3 sm:end-6 sm:bottom-5"
+    : openChatWindowCount >= 2
+      ? "end-3 bottom-3 sm:end-108 lg:end-195 sm:bottom-5"
+      : openChatWindowCount === 1
+        ? "end-3 bottom-3 sm:end-108 sm:bottom-5"
+        : "end-3 bottom-3 sm:end-24 sm:bottom-5";
+
   return (
     <>
       {/* Free-Draggable Floating 3D Robot Widget */}
@@ -414,9 +440,11 @@ export default function ContinuumAiCompanion({
               : undefined
           }
           className={`fixed z-40 flex touch-none flex-col select-none ${
-            isDragging ? "cursor-grabbing" : "cursor-grab"
+            isDragging
+              ? "cursor-grabbing"
+              : "cursor-grab transition-[inset-inline-end] duration-200 ease-out"
           } ${isOnLeftHalf ? "items-start" : "items-end"} ${
-            position ? "" : "end-4 bottom-4 sm:end-6 sm:bottom-5"
+            position ? "" : defaultDockOffsetClass
           }`}
         >
           <WorkReportReminderNotice visible={!isOpen} />
@@ -522,7 +550,7 @@ export default function ContinuumAiCompanion({
           data-testid="ai-companion-panel"
           style={panelStyle}
           className={`fixed z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 ${
-            position ? "" : "end-3 bottom-3 sm:end-6 sm:bottom-5"
+            position ? "" : defaultPanelOffsetClass
           }`}
         >
           {/* Unified Compact Hero Header with 3D Robot Stage (Also Draggable) */}

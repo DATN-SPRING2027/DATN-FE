@@ -46,6 +46,7 @@ function SelectedFile({
 
 type ChatComposerProps = Readonly<{
   disabled?: boolean;
+  compact?: boolean;
   isSending: boolean;
   replyContext?: Readonly<{ id: string; name: string; text: string }> | null;
   onCancelReply?: () => void;
@@ -64,6 +65,7 @@ type ChatComposerProps = Readonly<{
 
 export default function ChatComposer({
   disabled = false,
+  compact = false,
   isSending,
   replyContext = null,
   onCancelReply,
@@ -177,19 +179,23 @@ export default function ChatComposer({
   return (
     <form
       onSubmit={(event) => void submit(event)}
-      className="shrink-0 bg-white p-3 dark:bg-gray-900"
+      className={
+        compact
+          ? "shrink-0 border-t border-gray-100 bg-white p-2 dark:border-gray-800 dark:bg-gray-900"
+          : "shrink-0 bg-white p-3 dark:bg-gray-900"
+      }
     >
       {mentionMatches.length > 0 && (
         <div
           role="group"
           aria-label={t("mentionMember")}
-          className="mb-2 max-h-40 overflow-auto rounded-xl border border-gray-200 p-1 dark:border-gray-700"
+          className="mb-2 max-h-36 overflow-auto rounded-xl border border-gray-200 p-1 dark:border-gray-700"
         >
           {mentionMatches.map((member) => (
             <button
               type="button"
               key={member.userId}
-              className="block w-full rounded-lg px-3 py-2 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="block w-full rounded-lg px-3 py-1.5 text-start text-xs hover:bg-gray-100 dark:hover:bg-gray-800"
               onClick={() => {
                 const content = value.replace(
                   /@[^@\n]*$/u,
@@ -211,7 +217,7 @@ export default function ChatComposer({
         </div>
       )}
       {replyContext && (
-        <div className="mb-3 flex items-start justify-between gap-3 border-s-2 border-brand-400 bg-gray-50 px-3 py-2 dark:bg-gray-900">
+        <div className="mb-2 flex items-start justify-between gap-2 rounded-lg border-s-2 border-brand-400 bg-gray-50 px-2.5 py-1.5 dark:bg-gray-800/70">
           <div className="min-w-0">
             <p className="text-xs font-semibold text-gray-700 dark:text-gray-200">
               {t("replyingTo", { name: replyContext.name })}
@@ -224,7 +230,7 @@ export default function ChatComposer({
             type="button"
             aria-label={t("cancelReply")}
             onClick={onCancelReply}
-            className="shrink-0 px-2 text-sm text-gray-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800"
+            className="shrink-0 px-1.5 text-sm text-gray-500 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800"
           >
             ×
           </button>
@@ -232,7 +238,7 @@ export default function ChatComposer({
       )}
       {files.length > 0 && (
         <ul
-          className="mb-3 flex flex-wrap gap-2"
+          className="mb-2 flex flex-wrap gap-1.5"
           aria-label={t("selectedFiles")}
         >
           {files.map((selected, index) => (
@@ -244,12 +250,22 @@ export default function ChatComposer({
           ))}
         </ul>
       )}
-      <div className="flex min-w-0 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 focus-within:border-brand-400 dark:border-gray-700 dark:bg-gray-950">
+      <div
+        className={
+          compact
+            ? "flex min-w-0 items-center gap-1.5 rounded-2xl border border-gray-200 bg-gray-50 p-1.5 focus-within:border-brand-400 dark:border-gray-700 dark:bg-gray-950"
+            : "flex min-w-0 items-center gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 focus-within:border-brand-400 dark:border-gray-700 dark:bg-gray-950"
+        }
+      >
         <label
           title={t("attachFiles")}
-          className="inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 focus-within:outline-2 focus-within:outline-brand-500 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
+          className={
+            compact
+              ? "inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 focus-within:outline-2 focus-within:outline-brand-500 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
+              : "inline-flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-600 focus-within:outline-2 focus-within:outline-brand-500 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-800"
+          }
         >
-          <PlusIcon width={20} height={20} className="h-5 w-5" />
+          <PlusIcon width={20} height={20} className="h-4.5 w-4.5" />
           <span className="sr-only">{t("attachFiles")}</span>
           <input
             type="file"
@@ -331,7 +347,11 @@ export default function ChatComposer({
               event.currentTarget.form?.requestSubmit();
             }
           }}
-          className="max-h-36 min-h-9 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm leading-5 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"
+          className={
+            compact
+              ? "max-h-28 min-h-8 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-xs leading-5 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"
+              : "max-h-36 min-h-9 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-2 text-sm leading-5 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"
+          }
         />
         <button
           type="submit"
@@ -341,13 +361,20 @@ export default function ChatComposer({
             isSending ||
             (!value.trim() && files.length === 0)
           }
+          title={t(submitting || isSending ? "sending" : "send")}
           aria-label={t("send")}
-          className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+          className={
+            compact
+              ? "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-brand-500 text-white transition hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+              : "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-brand-500 px-3 text-sm font-semibold text-white transition hover:bg-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50"
+          }
         >
-          <PaperPlaneIcon width={18} height={18} className="h-4.5 w-4.5" />
-          <span className="hidden sm:inline">
-            {t(submitting || isSending ? "sending" : "send")}
-          </span>
+          <PaperPlaneIcon width={18} height={18} className="h-4 w-4" />
+          {!compact && (
+            <span className="hidden sm:inline">
+              {t(submitting || isSending ? "sending" : "send")}
+            </span>
+          )}
         </button>
       </div>
       {fileError && (

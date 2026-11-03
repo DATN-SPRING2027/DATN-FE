@@ -926,7 +926,18 @@
     "timeUnavailable": "Confirmed · time unavailable",
     "receiptTimeHint": "Times show the latest acknowledgment covering this message. Older messages may have no recorded acknowledgment time.",
     "messageSearchLabel": "Search messages",
-    "loadingOperation": "Loading…"
+    "loadingOperation": "Loading…",
+    "floatingButtonLabel": "Open quick messages",
+    "floatingCloseLauncher": "Close message list",
+    "openInFullChat": "Open in full Messages",
+    "minimizeChat": "Minimize to chat head",
+    "restoreChatWith": "Restore chat with {name}",
+    "closeChatHead": "Dismiss chat head for {name}",
+    "closeChatWindow": "Close chat window with {name}",
+    "recentConversations": "Recent",
+    "quickSearchPlaceholder": "Search conversations or members…",
+    "startingDirectChat": "Opening conversation…",
+    "backToConversations": "Back to conversations"
   },
   "sidebar": {
     "navigation": "Main navigation",
