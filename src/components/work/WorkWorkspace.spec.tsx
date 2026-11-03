@@ -20,12 +20,13 @@ vi.mock("@/lib/api-client", async (original) => ({
   apiClient: vi.fn(),
 }));
 const routerReplaceMock = vi.fn();
+let mockPathname = "/workspace";
 
 vi.mock("@/i18n/navigation", () => ({
   Link: ({ href, children }: { href: string; children: ReactNode }) => (
     <a href={href}>{children}</a>
   ),
-  usePathname: () => "/workspace",
+  usePathname: () => mockPathname,
   useRouter: () => ({ replace: routerReplaceMock }),
 }));
 vi.mock("@/icons", () => {
@@ -54,14 +55,22 @@ vi.mock("@/icons", () => {
 
 const api = vi.mocked(apiClient);
 
-function mount(projectId: string, view?: WorkView) {
+function mount(
+  projectId: string,
+  view?: WorkView,
+  initialWorkSlug?: readonly string[],
+) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   const rendered = render(
     <QueryClientProvider client={client}>
       <NextIntlClientProvider locale="en" messages={messages}>
-        <WorkWorkspace projectId={projectId} view={view} />
+        <WorkWorkspace
+          projectId={projectId}
+          view={view}
+          initialWorkSlug={initialWorkSlug}
+        />
       </NextIntlClientProvider>
     </QueryClientProvider>,
   );
@@ -86,6 +95,8 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
   beforeEach(() => {
     api.mockReset();
     routerReplaceMock.mockReset();
+    mockPathname = "/workspace";
+    window.history.replaceState(null, "", "/workspace");
   });
 
   it.each(["MEMBER", "TEAM_LEADER"])("keeps other actors' Tasks read-only and hides Sprint management for an unassigned %s", async (role) => {
@@ -2968,6 +2979,301 @@ describe("WorkWorkspace project scope", { timeout: 15000 }, () => {
           reason: "Unblocked from workspace UI",
         },
       ]);
+    });
+  });
+
+  it("syncs browser URL and tab title across modal task detail, full-page detail, view tabs, and popstate", async () => {
+    const projectId = "6addb4e1601e4bc926ed4602";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const taskId = "69e923c77859fd1c702d4ca1";
+    mockPathname = `/projects/${projectId}/work`;
+    window.history.replaceState(null, "", `/projects/${projectId}/work`);
+
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "org-1",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: "org-1",
+          name: "General",
+          code: "GENERAL",
+          status: "ACTIVE",
+          visibility: "PRIVATE",
+          leaders: [],
+          createdBy: actorId,
+          createdAt: "2026-10-01",
+          updatedAt: "2026-10-01",
+        };
+      }
+      if (path.includes("/memberships")) {
+        return { data: [], pagination: { totalItems: 0, totalPages: 0 } };
+      }
+      if (path.endsWith("/sprints")) {
+        return { items: [] };
+      }
+      if (path === `/tasks/projects/${projectId}/tasks/${taskId}`) {
+        return {
+          id: taskId,
+          projectId,
+          key: "GENERAL-1",
+          title: "[DATN-1] Thảo luận đề tài đồ án",
+          description: "Nội dung chi tiết task",
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: actorId,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path.endsWith("/comments")) {
+        return { items: [], nextCursor: null };
+      }
+      if (path.endsWith("/worklogs")) {
+        return { items: [], totalMinutes: 0 };
+      }
+      if (path.endsWith("/history")) {
+        return { items: [], nextCursor: null };
+      }
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return {
+          items: [
+            {
+              id: taskId,
+              projectId,
+              key: "GENERAL-1",
+              title: "[DATN-1] Thảo luận đề tài đồ án",
+              type: "TASK",
+              status: "DONE",
+              priority: "MEDIUM",
+              assigneeId: actorId,
+              createdBy: actorId,
+              parentId: null,
+              sprintId: null,
+              dueDate: null,
+              startDate: null,
+              labels: [],
+              subtaskCounts: { total: 0, done: 0 },
+              version: 1,
+              createdAt: "2026-10-25T00:00:00.000Z",
+              updatedAt: "2026-10-25T00:00:00.000Z",
+            },
+          ],
+          nextAfterId: null,
+          nextCursor: null,
+        };
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId);
+    expect(
+      await screen.findByText("[DATN-1] Thảo luận đề tài đồ án"),
+    ).toBeVisible();
+
+    // 1. Open modal detail from List view -> /projects/:id/work/list/GENERAL-1
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Open work item GENERAL-1/ }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(window.location.pathname).toBe(
+      `/projects/${projectId}/work/list/GENERAL-1`,
+    );
+    await waitFor(() => {
+      expect(document.title).toContain("GENERAL-1");
+    });
+
+    // 2. Click Full view -> /projects/:id/work/GENERAL-1
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Open in full page view" }),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(window.location.pathname).toBe(
+      `/projects/${projectId}/work/GENERAL-1`,
+    );
+    expect(
+      await screen.findByRole("button", { name: /Back to workspace/i }),
+    ).toBeVisible();
+
+    // 3. Click Back to workspace -> /projects/:id/work
+    fireEvent.click(
+      screen.getByRole("button", { name: /Back to workspace/i }),
+    );
+    expect(window.location.pathname).toBe(`/projects/${projectId}/work`);
+
+    // 4. Switch to Board -> /projects/:id/work/board
+    fireEvent.click(screen.getByRole("button", { name: "Board" }));
+    expect(window.location.pathname).toBe(`/projects/${projectId}/work/board`);
+
+    // 5. Browser Back/Forward popstate to /projects/:id/work/GENERAL-1 restores full-page detail
+    act(() => {
+      window.history.replaceState(
+        null,
+        "",
+        `/projects/${projectId}/work/GENERAL-1`,
+      );
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(
+      await screen.findByRole("button", { name: /Back to workspace/i }),
+    ).toBeVisible();
+  });
+
+  it("resolves direct full-page slug routes without flashing the list and canonicalizes legacy ?taskId= links", async () => {
+    const projectId = "6addb4e1601e4bc926ed4602";
+    const actorId = "69e923c77859fd1c702d4c10";
+    const taskId = "69e923c77859fd1c702d4ca1";
+    mockPathname = `/projects/${projectId}/work/GENERAL-1`;
+    window.history.replaceState(
+      null,
+      "",
+      `/projects/${projectId}/work/GENERAL-1`,
+    );
+
+    let resolveTasksFetch: ((value: unknown) => void) | null = null;
+    api.mockImplementation(async (path) => {
+      if (path === "/auth/me") {
+        return {
+          id: actorId,
+          name: "KeyT Xin Chàoo",
+          organizationId: "org-1",
+          roles: ["ADMIN"],
+        };
+      }
+      if (path === `/iam/projects/${projectId}`) {
+        return {
+          id: projectId,
+          organizationId: "org-1",
+          name: "General",
+          code: "GENERAL",
+          status: "ACTIVE",
+          visibility: "PRIVATE",
+          leaders: [],
+          createdBy: actorId,
+          createdAt: "2026-10-01",
+          updatedAt: "2026-10-01",
+        };
+      }
+      if (path.includes("/memberships")) {
+        return { data: [], pagination: { totalItems: 0, totalPages: 0 } };
+      }
+      if (path.endsWith("/sprints")) {
+        return { items: [] };
+      }
+      if (path === `/tasks/projects/${projectId}/tasks/${taskId}`) {
+        return {
+          id: taskId,
+          projectId,
+          key: "GENERAL-1",
+          title: "[DATN-1] Thảo luận đề tài đồ án",
+          description: "Nội dung chi tiết task",
+          type: "TASK",
+          status: "DONE",
+          priority: "MEDIUM",
+          assigneeId: actorId,
+          createdBy: actorId,
+          parentId: null,
+          sprintId: null,
+          labels: [],
+          steps: [],
+          subtaskCounts: { total: 0, done: 0 },
+          dueDate: null,
+          startDate: null,
+          completedAt: null,
+          createdAt: "2026-10-25T00:00:00.000Z",
+          updatedAt: "2026-10-25T00:00:00.000Z",
+          version: 1,
+        };
+      }
+      if (path.endsWith("/comments")) return { items: [], nextCursor: null };
+      if (path.endsWith("/worklogs")) return { items: [], totalMinutes: 0 };
+      if (path.endsWith("/history")) return { items: [], nextCursor: null };
+      if (path.startsWith(`/tasks/projects/${projectId}/tasks`)) {
+        return new Promise((resolve) => {
+          resolveTasksFetch = resolve;
+        });
+      }
+      throw new Error(`Unexpected API path: ${path}`);
+    });
+
+    mount(projectId, undefined, ["GENERAL-1"]);
+
+    expect(
+      await screen.findByTestId("work-task-detail-loading"),
+    ).toBeVisible();
+
+    await act(async () => {
+      resolveTasksFetch?.({
+        items: [
+          {
+            id: taskId,
+            projectId,
+            key: "GENERAL-1",
+            title: "[DATN-1] Thảo luận đề tài đồ án",
+            type: "TASK",
+            status: "DONE",
+            priority: "MEDIUM",
+            assigneeId: actorId,
+            createdBy: actorId,
+            parentId: null,
+            sprintId: null,
+            dueDate: null,
+            startDate: null,
+            labels: [],
+            subtaskCounts: { total: 0, done: 0 },
+            version: 1,
+            createdAt: "2026-10-25T00:00:00.000Z",
+            updatedAt: "2026-10-25T00:00:00.000Z",
+          },
+        ],
+        nextAfterId: null,
+        nextCursor: null,
+      });
+    });
+
+    expect(
+      await screen.findByRole("button", { name: /Back to workspace/i }),
+    ).toBeVisible();
+    expect(window.location.pathname).toBe(
+      `/projects/${projectId}/work/GENERAL-1`,
+    );
+
+    // Dispatch a legacy ?taskId=<ObjectId> deep-link -> canonicalizes to /work/list/GENERAL-1
+    act(() => {
+      window.history.replaceState(
+        null,
+        "",
+        `/projects/${projectId}/work?taskId=${taskId}`,
+      );
+      window.dispatchEvent(
+        new CustomEvent("continuum:deep-link", {
+          detail: { url: `/projects/${projectId}/work?taskId=${taskId}` },
+        }),
+      );
+    });
+
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    await waitFor(() => {
+      expect(`${window.location.pathname}${window.location.search}`).toBe(
+        `/projects/${projectId}/work/list/GENERAL-1`,
+      );
     });
   });
 });

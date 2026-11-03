@@ -114,7 +114,10 @@ function TaskNoteExplorerCard({
   const common = useTranslations("common");
   const activeLocale = common("localeCode") === "vi" ? "vi" : "en";
   const encodedProjectId = encodeURIComponent(projectId);
-  const taskHref = `/projects/${encodedProjectId}/work?taskId=${encodeURIComponent(note.taskId)}`;
+  const targetTaskSegment = encodeURIComponent(
+    note.taskKey?.trim() || note.taskId,
+  );
+  const taskHref = `/projects/${encodedProjectId}/work/${targetTaskSegment}`;
 
   const { taskKey, taskTitle } = resolveTaskMetadata(
     note,
