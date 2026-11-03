@@ -96,7 +96,7 @@ export default function FloatingChatHeadsRail({
                 event.stopPropagation();
                 onCloseHead(conversation.id);
               }}
-              className="invisible absolute -start-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 opacity-0 shadow-theme-xs transition hover:bg-gray-100 hover:text-gray-900 focus-visible:visible focus-visible:opacity-100 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+              className="invisible absolute -start-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 opacity-0 shadow-theme-xs transition hover:bg-gray-100 hover:text-gray-900 focus-visible:visible focus-visible:opacity-100 group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
             >
               <CloseLineIcon className="h-3.5 w-3.5" />
             </button>

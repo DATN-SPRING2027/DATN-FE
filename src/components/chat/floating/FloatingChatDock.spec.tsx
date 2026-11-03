@@ -348,10 +348,21 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     expect(head).toBeInTheDocument();
     expect(aiDock.className).toContain("sm:end-24");
 
-    // 7. Click Chat Head -> restores MiniChatWindow, then Close (×) dismisses it completely
-    fireEvent.click(
-      within(head).getByRole("button", { name: "Restore chat with Lan Tran" }),
+    const restoreButton = within(head).getByRole("button", {
+      name: "Restore chat with Lan Tran",
+    });
+    const closeHeadButton = within(head).getByRole("button", {
+      name: "Dismiss chat head for Lan Tran",
+    });
+    restoreButton.focus();
+    expect(restoreButton).toHaveFocus();
+    expect(closeHeadButton).toHaveClass(
+      "group-focus-within:visible",
+      "group-focus-within:opacity-100",
     );
+
+    // 7. Click Chat Head -> restores MiniChatWindow, then Close (×) dismisses it completely
+    fireEvent.click(restoreButton);
     const restoredWindow = await screen.findByTestId(
       `mini-chat-window-${convId}`,
     );
