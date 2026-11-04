@@ -764,5 +764,268 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       expect(aiDock.className).toContain("sm:end-24");
     });
   });
+
+  it("preserves unsent draft text immediately when minimizing a mini chat window before debounce completes and restoring it", async () => {
+    let serverDraft = "";
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-02T09:00:00.000Z",
+      lastMessagePreview: "Hello",
+      lastMessageSenderId: "507f1f77bcf86cd799439099",
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: "507f1f77bcf86cd799439099",
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+      ],
+    };
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-draft", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return { data: [sampleConv], nextCursor: null };
+      }
+      if (path === `/chat/conversations/${convId}/messages?limit=50`) {
+        return { data: [], nextCursor: null };
+      }
+      if (path === `/chat/conversations/${convId}/draft`) {
+        if (init?.method === "PUT") {
+          const body = JSON.parse(String(init.body ?? "{}")) as {
+            content?: string;
+          };
+          serverDraft = body.content ?? "";
+          return { content: serverDraft, mentionUserIds: [] };
+        }
+        return { content: serverDraft, mentionUserIds: [] };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    renderWithProviders(<FloatingChatDock />);
+
+    const miniWindow = await screen.findByTestId(`mini-chat-window-${convId}`);
+    const input = await within(miniWindow).findByPlaceholderText(
+      "Write a message…",
+    );
+    await waitFor(() => expect(input).not.toBeDisabled());
+
+    fireEvent.change(input, {
+      target: { value: "Unsent draft before 500ms debounce" },
+    });
+
+    // Immediately minimize before the 500ms autosave timer fires
+    fireEvent.click(
+      within(miniWindow).getByRole("button", {
+        name: "Minimize to chat head",
+      }),
+    );
+
+    const head = await screen.findByTestId(`floating-chat-head-${convId}`);
+    fireEvent.click(
+      within(head).getByRole("button", { name: "Restore chat with Lan Tran" }),
+    );
+
+    const restoredWindow = await screen.findByTestId(
+      `mini-chat-window-${convId}`,
+    );
+    const restoredInput = await within(restoredWindow).findByPlaceholderText(
+      "Write a message…",
+    );
+    await waitFor(() => {
+      expect(restoredInput).toHaveValue("Unsent draft before 500ms debounce");
+    });
+  });
+
+  it("hides minimized heads while launcher is open, prevents presence.watch loops on snapshot, and avoids false empty search flashes", async () => {
+    const candidateId = "507f1f77bcf86cd799439088";
+    const peerId = "507f1f77bcf86cd799439099";
+    let resolveCandidateSearch: ((value: unknown) => void) | null = null;
+
+    const sampleConv = {
+      id: convId,
+      type: "DIRECT" as const,
+      title: null,
+      createdBy: actorId,
+      lastMessageAt: "2026-11-02T09:00:00.000Z",
+      lastMessagePreview: "Hi",
+      lastMessageSenderId: peerId,
+      lastReadMessageId: null,
+      lastReadAt: null,
+      unreadCount: 0,
+      members: [
+        {
+          userId: actorId,
+          displayName: "Phuc Nguyen",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: true,
+        },
+        {
+          userId: peerId,
+          displayName: "Lan Tran",
+          avatarUrl: null,
+          role: "MEMBER" as const,
+          lastReadMessageId: null,
+          lastReadAt: null,
+          lastDeliveredMessageId: null,
+          lastDeliveredAt: null,
+          isOnline: false,
+        },
+      ],
+    };
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-presence", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        if (path.includes("search=Member")) {
+          return { data: [], nextCursor: null };
+        }
+        return { data: [sampleConv], nextCursor: null };
+      }
+      if (path.startsWith("/chat/candidates")) {
+        if (path.includes("search=Member")) {
+          return await new Promise((resolve) => {
+            resolveCandidateSearch = resolve;
+          });
+        }
+        return {
+          data: [
+            {
+              id: candidateId,
+              fullName: "Pham Anh Member 1",
+              email: "member1@continuum.ai",
+              avatarUrl: null,
+              isOnline: false,
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    useFloatingChatStore.getState().openConversation(orgId, convId);
+    useFloatingChatStore.getState().minimizeWindow(orgId, convId);
+
+    renderWithProviders(
+      <>
+        <FloatingChatDock />
+        <ContinuumAiCompanion locale="en" />
+      </>,
+    );
+
+    expect(
+      await screen.findByTestId(`floating-chat-head-${convId}`),
+    ).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(FakeWebSocket.instances).toHaveLength(1);
+    });
+    const socket = FakeWebSocket.instances[0]!;
+
+    await waitFor(() => {
+      const watchFrames = socket.sent.filter((frame) =>
+        frame.includes('"presence.watch"'),
+      );
+      expect(watchFrames).toHaveLength(1);
+    });
+
+    // Server sends presence.snapshot -> must NOT re-trigger presence.watch in a loop!
+    await act(async () => {
+      socket.onmessage?.({
+        data: JSON.stringify({
+          event: "presence.snapshot",
+          data: { data: [{ userId: peerId, isOnline: true }] },
+        }),
+      });
+    });
+    expect(
+      socket.sent.filter((frame) => frame.includes('"presence.watch"')),
+    ).toHaveLength(1);
+
+    // Open Launcher -> minimized chat head hides cleanly and AI Companion shifts to sm:end-96
+    fireEvent.click(screen.getByTestId("floating-chat-fab"));
+    const launcher = await screen.findByTestId(
+      "floating-chat-launcher-popover",
+    );
+    expect(
+      screen.queryByTestId(`floating-chat-head-${convId}`),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByTestId("ai-companion-floating-dock").className,
+    ).toContain("sm:end-96");
+
+    // Once Launcher fetches candidates, candidateId is added to presence.watch!
+    await waitFor(() => {
+      const watchFrames = socket.sent.filter((frame) =>
+        frame.includes('"presence.watch"'),
+      );
+      expect(watchFrames.at(-1)).toContain(candidateId);
+    });
+
+    // Typing "Member" shows Loading… while candidate search is pending instead of "No conversations match your search."
+    const searchInput = within(launcher).getByRole("textbox", {
+      name: "Search conversations",
+    });
+    fireEvent.change(searchInput, { target: { value: "Member" } });
+
+    await waitFor(() => {
+      expect(resolveCandidateSearch).not.toBeNull();
+    });
+    expect(
+      within(launcher).queryByText("No conversations match your search."),
+    ).not.toBeInTheDocument();
+    expect(within(launcher).getByText("Loading…")).toBeInTheDocument();
+
+    await act(async () => {
+      resolveCandidateSearch?.({
+        data: [
+          {
+            id: candidateId,
+            fullName: "Pham Anh Member 1",
+            email: "member1@continuum.ai",
+            avatarUrl: null,
+            isOnline: true,
+          },
+        ],
+      });
+    });
+
+    expect(
+      await within(launcher).findByText("Pham Anh Member 1"),
+    ).toBeInTheDocument();
+  });
 });
 

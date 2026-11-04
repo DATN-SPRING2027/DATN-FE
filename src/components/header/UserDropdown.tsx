@@ -15,6 +15,7 @@ import {
 import type { SignInSession } from "@/lib/queries/auth/sign-in-session";
 import { usePlatformLogoutMutation } from "@/lib/queries/platform/usePlatformConsole";
 import { useUserQuery } from "@/lib/queries/users/useUsers";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 import { cn } from "@/utils";
 import { useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
@@ -116,8 +117,9 @@ export default function UserDropdown({
   };
 
   const handleSwitchAccount = () => {
+    useFloatingChatStore.getState().reset();
     closeDropdown();
-    router.replace("/signin");
+    router.replace("/signin?switch=1" as never);
   };
 
   const handleLogout = async () => {
@@ -127,6 +129,7 @@ export default function UserDropdown({
       } else {
         await logout.mutateAsync();
       }
+      useFloatingChatStore.getState().reset();
       closeDropdown();
       router.replace("/signin");
     } catch {

@@ -8,11 +8,15 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { ApiError, apiClient } from "@/lib/api-client";
+import {
+  acquireSharedChatWsTicket,
+  getChatWsCooldownRemainingMs,
+  resolveChatRealtimeWsUrl,
+} from "@/components/chat/floating/chat-shared-helpers";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 
 const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
-import { chatApi } from "@/lib/queries/chat/useChat";
 
 export type NotificationMvpType =
   | "ORGANIZATION_MEMBER_INVITED"
@@ -136,8 +140,8 @@ export const notificationsApi = {
       nextCursor: raw.nextCursor ?? null,
       unreadCount:
         typeof raw.unreadCount === "number"
-          ? raw.unreadCount
-          : items.filter((item) => !item.readAt).length,
+        ? raw.unreadCount
+        : items.filter((item) => !item.readAt).length,
     };
   },
 
@@ -263,23 +267,26 @@ export function useNotificationRealtimeSubscription(
     let authRecheckAttempted = false;
 
     const scheduleReconnect = () => {
+      const waitMs = Math.max(delay, getChatWsCooldownRemainingMs(identityKey));
       reconnectTimer = setTimeout(() => {
         void connect();
-      }, delay);
+      }, waitMs);
       delay = Math.min(delay * 2, 30_000);
     };
 
     const connect = async () => {
       try {
-        const { ticket } = await getSharedWsTicket();
+        const cooldown = getChatWsCooldownRemainingMs(identityKey);
+        if (cooldown > 0) {
+          scheduleReconnect();
+          return;
+        }
+        const { ticket } = await acquireSharedChatWsTicket(identityKey);
         if (stopped) return;
-        const defaultUrl = `${
-          window.location.protocol === "https:" ? "wss:" : "ws:"
-        }//${window.location.host}/internal/chat/ws`;
-        const connection = new WebSocket(
-          process.env.NEXT_PUBLIC_CHAT_WS_URL || defaultUrl,
-          ["continuum-chat.v1", `ticket.${ticket}`],
-        );
+        const connection = new WebSocket(resolveChatRealtimeWsUrl(), [
+          "continuum-chat.v1",
+          `ticket.${ticket}`,
+        ]);
         socket = connection;
 
         connection.onopen = () => {
@@ -365,15 +372,4 @@ export function useNotificationRealtimeSubscription(
       organizationId &&
       connectedIdentity === `${userId}:${organizationId}`,
   );
-}
-
-let wsTicketInFlight: ReturnType<typeof chatApi.wsTicket> | undefined;
-
-function getSharedWsTicket() {
-  if (!wsTicketInFlight) {
-    wsTicketInFlight = chatApi.wsTicket().finally(() => {
-      wsTicketInFlight = undefined;
-    });
-  }
-  return wsTicketInFlight;
 }

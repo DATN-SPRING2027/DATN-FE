@@ -23,13 +23,16 @@ export default function SignInForm({
   googleStatus,
   returnTo,
   initialEmail,
+  switchAccount = false,
 }: {
   googleStatus?: "organization-required" | "failed" | "cancelled";
   returnTo?: string;
   initialEmail?: string;
+  switchAccount?: boolean;
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
+  const [hasSubmittedSwitch, setHasSubmittedSwitch] = useState(false);
   const safeReturnTo = isSafeInvitationReturnTo(returnTo)
     ? returnTo
     : undefined;
@@ -47,6 +50,9 @@ export default function SignInForm({
   const login = useSharedLoginMutation();
 
   useEffect(() => {
+    if (switchAccount && !hasSubmittedSwitch) {
+      return;
+    }
     if (currentUser.isSuccess && !currentUser.isFetching && currentUser.data) {
       router.replace(
         (currentUser.data.context === "PLATFORM"
@@ -58,8 +64,10 @@ export default function SignInForm({
     currentUser.isSuccess,
     currentUser.isFetching,
     currentUser.data,
+    hasSubmittedSwitch,
     router,
     safeReturnTo,
+    switchAccount,
   ]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -72,7 +80,11 @@ export default function SignInForm({
         ...(organizationId ? { organizationId: organizationId.trim() } : {}),
       });
       const session = await currentUser.refetch();
-      if (session.isError || !session.data) setSessionError(true);
+      if (session.isError || !session.data) {
+        setSessionError(true);
+      } else if (switchAccount) {
+        setHasSubmittedSwitch(true);
+      }
     } catch (error) {
       if (
         error instanceof ApiError &&

@@ -140,6 +140,15 @@ describe("useFloatingChatStore", () => {
     expect(
       useFloatingChatStore.getState().contextMessageByConv["conv-1"],
     ).toBeUndefined();
+
+    store.openConversation("org-1", "conv-1", { messageId: "msg-older-2" });
+    store.minimizeWindow("org-1", "conv-1");
+    expect(
+      useFloatingChatStore.getState().highlightedMessageByConv["conv-1"],
+    ).toBeUndefined();
+    expect(
+      useFloatingChatStore.getState().contextMessageByConv["conv-1"],
+    ).toBeUndefined();
   });
 });
 

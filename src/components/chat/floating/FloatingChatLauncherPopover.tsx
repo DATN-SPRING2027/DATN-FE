@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type RefObject,
+  type UIEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -33,7 +40,11 @@ export type FloatingChatLauncherPopoverProps = Readonly<{
   baseConversations: readonly ChatConversation[];
   isLoadingBase: boolean;
   isBaseError: boolean;
+  hasNextPage?: boolean;
+  isFetchingNextPage?: boolean;
+  onLoadMoreBase?: () => void;
   onRetryBase: () => void;
+  isHelpOpen?: boolean;
   triggerRef: RefObject<HTMLButtonElement | null>;
   onSelectConversation: (conversationId: string) => void;
   onClose: () => void;
@@ -45,7 +56,11 @@ export default function FloatingChatLauncherPopover({
   baseConversations,
   isLoadingBase,
   isBaseError,
+  hasNextPage = false,
+  isFetchingNextPage = false,
+  onLoadMoreBase,
   onRetryBase,
+  isHelpOpen = false,
   triggerRef,
   onSelectConversation,
   onClose,
@@ -119,20 +134,32 @@ export default function FloatingChatLauncherPopover({
     candidatesQuery.error,
   );
 
+  const trimmedSearch = search.trim();
+  const isSearchPending =
+    Boolean(trimmedSearch) &&
+    (trimmedSearch !== debouncedSearch ||
+      searchConversationsQuery.isLoading ||
+      candidatesQuery.isLoading);
+
   const visibleConversations = useMemo(() => {
-    if (!debouncedSearch) {
+    if (!trimmedSearch) {
       return [...baseConversations].sort(
         (a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)),
       );
     }
-    if (!searchAccessLost && !searchConversationsQuery.isError) {
+    if (
+      trimmedSearch === debouncedSearch &&
+      !searchAccessLost &&
+      !searchConversationsQuery.isError &&
+      searchConversationsQuery.data
+    ) {
       const serverItems =
-        searchConversationsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+        searchConversationsQuery.data.pages.flatMap((page) => page.data) ?? [];
       return [...serverItems].sort(
         (a, b) => Number(Boolean(b.isPinned)) - Number(Boolean(a.isPinned)),
       );
     }
-    const tokens = foldSearchText(debouncedSearch)
+    const tokens = foldSearchText(trimmedSearch)
       .trim()
       .split(/\s+/)
       .filter(Boolean);
@@ -156,6 +183,7 @@ export default function FloatingChatLauncherPopover({
     searchAccessLost,
     searchConversationsQuery.data,
     searchConversationsQuery.isError,
+    trimmedSearch,
   ]);
 
   const directPeerIdsWithExistingChat = useMemo(() => {
@@ -172,17 +200,55 @@ export default function FloatingChatLauncherPopover({
   const suggestedCandidates = useMemo(() => {
     if (candidatesAccessLost) return [];
     const list = candidatesQuery.data?.data ?? [];
-    return list.filter(
-      (candidate) =>
-        candidate.id !== actorId &&
-        !directPeerIdsWithExistingChat.has(candidate.id),
-    );
+    const tokens = trimmedSearch
+      ? foldSearchText(trimmedSearch).trim().split(/\s+/).filter(Boolean)
+      : [];
+    return list.filter((candidate) => {
+      if (
+        candidate.id === actorId ||
+        directPeerIdsWithExistingChat.has(candidate.id)
+      ) {
+        return false;
+      }
+      if (tokens.length > 0 && trimmedSearch !== debouncedSearch) {
+        const foldedCandidate = foldSearchText(
+          `${candidate.fullName} ${candidate.email ?? ""}`,
+        );
+        return tokens.every((token) => foldedCandidate.includes(token));
+      }
+      return true;
+    });
   }, [
     actorId,
     candidatesAccessLost,
     candidatesQuery.data?.data,
+    debouncedSearch,
     directPeerIdsWithExistingChat,
+    trimmedSearch,
   ]);
+
+  const activeHasNextPage = debouncedSearch
+    ? Boolean(searchConversationsQuery.hasNextPage)
+    : hasNextPage;
+  const activeIsFetchingNextPage = debouncedSearch
+    ? searchConversationsQuery.isFetchingNextPage
+    : isFetchingNextPage;
+
+  const triggerLoadMore = () => {
+    if (!activeHasNextPage || activeIsFetchingNextPage) return;
+    if (debouncedSearch) {
+      void searchConversationsQuery.fetchNextPage();
+    } else {
+      onLoadMoreBase?.();
+    }
+  };
+
+  const handleFeedScroll = (event: UIEvent<HTMLDivElement>) => {
+    const target = event.currentTarget;
+    if (target.scrollHeight - target.scrollTop - target.clientHeight <= 64) {
+      triggerLoadMore();
+    }
+  };
 
   const handleStartDirect = async (candidate: ChatCandidate) => {
     if (pendingCandidateId) return;
@@ -208,13 +274,17 @@ export default function FloatingChatLauncherPopover({
     }
   };
 
+  const helpShiftClass = isHelpOpen
+    ? "lg:-translate-x-80 rtl:lg:translate-x-80 max-lg:pointer-events-none max-lg:opacity-0"
+    : "";
+
   return (
     <section
       ref={panelRef}
       role="dialog"
       aria-label={t("title")}
       data-testid="floating-chat-launcher-popover"
-      className="fixed inset-x-3 bottom-20 z-50 flex max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:inset-x-auto sm:end-5 sm:bottom-22 sm:w-88 dark:border-gray-800 dark:bg-gray-900"
+      className={`fixed inset-x-3 bottom-20 z-45 flex max-h-[min(32rem,calc(100dvh-6rem))] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl transition-transform duration-200 ease-out sm:inset-x-auto sm:end-5 sm:bottom-22 sm:w-88 dark:border-gray-800 dark:bg-gray-900 ${helpShiftClass}`}
     >
       {/* Header */}
       <header className="flex items-center justify-between gap-2 border-b border-gray-100 px-4 py-3 dark:border-gray-800">
@@ -284,14 +354,23 @@ export default function FloatingChatLauncherPopover({
       )}
 
       {/* Conversations & People Feed */}
-      <div className="custom-scrollbar min-h-48 flex-1 overflow-y-auto p-2">
+      <div
+        onScroll={handleFeedScroll}
+        className="custom-scrollbar min-h-48 flex-1 overflow-y-auto p-2"
+      >
         {isLoadingBase && !baseConversations.length ? (
-          <p role="status" className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+          <p
+            role="status"
+            className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400"
+          >
             {t("loading")}
           </p>
         ) : isBaseError && !baseConversations.length ? (
           <div className="space-y-2 px-3 py-6 text-center">
-            <p role="alert" className="text-xs text-error-600 dark:text-error-400">
+            <p
+              role="alert"
+              className="text-xs text-error-600 dark:text-error-400"
+            >
               {t("conversationError")}
             </p>
             <button
@@ -399,6 +478,20 @@ export default function FloatingChatLauncherPopover({
                     );
                   })}
                 </div>
+                {activeHasNextPage && (
+                  <div className="mt-1.5 px-2 text-center">
+                    <button
+                      type="button"
+                      disabled={activeIsFetchingNextPage}
+                      onClick={triggerLoadMore}
+                      className="w-full rounded-lg border border-gray-200 py-1.5 text-xs font-medium text-gray-600 transition hover:bg-gray-50 disabled:opacity-50 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+                    >
+                      {activeIsFetchingNextPage
+                        ? t("loadingOperation")
+                        : t("loadMoreConversations")}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
@@ -457,10 +550,15 @@ export default function FloatingChatLauncherPopover({
 
             {visibleConversations.length === 0 &&
               suggestedCandidates.length === 0 && (
-                <p className="px-3 py-8 text-center text-xs text-gray-500 dark:text-gray-400">
-                  {debouncedSearch
-                    ? t("noConversationMatches")
-                    : t("noConversations")}
+                <p
+                  role={isSearchPending ? "status" : undefined}
+                  className="px-3 py-8 text-center text-xs text-gray-500 dark:text-gray-400"
+                >
+                  {isSearchPending
+                    ? t("loadingOperation")
+                    : trimmedSearch
+                      ? t("noConversationMatches")
+                      : t("noConversations")}
                 </p>
               )}
           </>

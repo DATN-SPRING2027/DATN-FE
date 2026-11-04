@@ -9,6 +9,7 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { useOptionalSidebar } from "@/context/SidebarContext";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useFloatingChatStore } from "@/stores/floating-chat";
@@ -121,6 +122,9 @@ export default function ContinuumAiCompanion({
   locale?: string;
 } = {}) {
   const t = useTranslations("aiCompanionNotifications");
+  const sidebar = useOptionalSidebar();
+  const isHelpOpen = Boolean(sidebar?.isHelpOpen);
+
   const [chatNotice, setChatNotice] = useState(false);
   const isEn = locale === "en";
   const pathname = usePathname();
@@ -130,6 +134,9 @@ export default function ContinuumAiCompanion({
     state.activeOrgId
       ? (state.openWindowsByOrg[state.activeOrgId]?.length ?? 0)
       : 0,
+  );
+  const isLauncherOpen = useFloatingChatStore((state) =>
+    Boolean(state.activeOrgId && state.launcherOrgId === state.activeOrgId),
   );
   const activeProjectId = useMemo(() => extractProjectId(pathname), [pathname]);
 
@@ -166,7 +173,10 @@ export default function ContinuumAiCompanion({
   }, []);
 
   useEffect(() => {
-    return () => { clearTimers(); requestController.current?.abort(); };
+    return () => {
+      clearTimers();
+      requestController.current?.abort();
+    };
   }, [clearTimers]);
 
   useEffect(() => {
@@ -214,7 +224,12 @@ export default function ContinuumAiCompanion({
     }
   }, [messages, isOpen]);
 
-  useEffect(() => () => { requestController.current?.abort(); }, [activeProjectId]);
+  useEffect(
+    () => () => {
+      requestController.current?.abort();
+    },
+    [activeProjectId],
+  );
 
   const runPrompt = useCallback(
     async (promptText: string) => {
@@ -222,45 +237,90 @@ export default function ContinuumAiCompanion({
       if (!trimmed || requestController.current) return;
       const projectId = activeProjectId ?? selectedProjectId;
       if (!projectId) {
-        setMessages((previous) => [...previous, { id: `context-${Date.now()}`, role: "assistant", content: t("chooseProjectHelp") }]);
+        setMessages((previous) => [
+          ...previous,
+          {
+            id: `context-${Date.now()}`,
+            role: "assistant",
+            content: t("chooseProjectHelp"),
+          },
+        ]);
         return;
       }
       clearTimers();
       const controller = new AbortController();
       requestController.current = controller;
       const assistantMsgId = `assistant-${Date.now()}`;
-      setMessages((previous) => [...previous,
+      setMessages((previous) => [
+        ...previous,
         { id: `user-${Date.now()}`, role: "user", content: trimmed },
         { id: assistantMsgId, role: "assistant", content: "" },
       ]);
       setInput("");
       setRobotStatus("thinking");
       try {
-        const reply = await chatClient.current.ask(projectId, trimmed, controller.signal, (content) => {
-          if (controller.signal.aborted) return;
-          setRobotStatus("speaking");
-          setMessages((previous) => previous.map((message) => message.id === assistantMsgId ? { ...message, content } : message));
-        });
+        const reply = await chatClient.current.ask(
+          projectId,
+          trimmed,
+          controller.signal,
+          (content) => {
+            if (controller.signal.aborted) return;
+            setRobotStatus("speaking");
+            setMessages((previous) =>
+              previous.map((message) =>
+                message.id === assistantMsgId
+                  ? { ...message, content }
+                  : message,
+              ),
+            );
+          },
+        );
         if (controller.signal.aborted) return;
-        setMessages((previous) => previous.map((message) => message.id === assistantMsgId ? {
-          ...message, content: reply.content, links: [{ label: t("openAiChat"), href: `/ai-chat?projectId=${encodeURIComponent(projectId)}` }],
-        } : message));
+        setMessages((previous) =>
+          previous.map((message) =>
+            message.id === assistantMsgId
+              ? {
+                  ...message,
+                  content: reply.content,
+                  links: [
+                    {
+                      label: t("openAiChat"),
+                      href: `/ai-chat?projectId=${encodeURIComponent(projectId)}`,
+                    },
+                  ],
+                }
+              : message,
+          ),
+        );
         setRobotStatus("happy");
         setChatNotice(true);
-        transitionTimerRef.current = setTimeout(() => { setRobotStatus("idle"); setChatNotice(false); }, 8000);
+        transitionTimerRef.current = setTimeout(() => {
+          setRobotStatus("idle");
+          setChatNotice(false);
+        }, 8000);
       } catch (error) {
         if (controller.signal.aborted) return;
-        const message = error instanceof ApiError && error.code === "AI_ENGINE_NOT_CONFIGURED"
-          ? t("notConfigured") : error instanceof ApiError && [401, 403, 404].includes(error.status)
-            ? t("accessDenied") : t("aiUnavailable");
-        setMessages((previous) => previous.map((item) => item.id === assistantMsgId ? { ...item, content: message } : item));
+        const message =
+          error instanceof ApiError && error.code === "AI_ENGINE_NOT_CONFIGURED"
+            ? t("notConfigured")
+            : error instanceof ApiError &&
+                [401, 403, 404].includes(error.status)
+              ? t("accessDenied")
+              : t("aiUnavailable");
+        setMessages((previous) =>
+          previous.map((item) =>
+            item.id === assistantMsgId ? { ...item, content: message } : item,
+          ),
+        );
         setRobotStatus("idle");
         setInput(trimmed);
       } finally {
         if (controller.signal.aborted) setRobotStatus("idle");
-        if (requestController.current === controller) requestController.current = null;
+        if (requestController.current === controller)
+          requestController.current = null;
       }
-    }, [activeProjectId, selectedProjectId, clearTimers, t],
+    },
+    [activeProjectId, selectedProjectId, clearTimers, t],
   );
 
   useEffect(() => {
@@ -407,23 +467,40 @@ export default function ContinuumAiCompanion({
     return { left: `${left}px`, top: `${top}px` };
   }, [position]);
 
+  const helpShiftClass =
+    isHelpOpen && !position
+      ? "lg:-translate-x-80 rtl:lg:translate-x-80 max-lg:pointer-events-none max-lg:opacity-0"
+      : "";
+
+  const hideGreetingBubble =
+    (openChatWindowCount > 0 || isLauncherOpen || isHumanChatPage) &&
+    !chatNotice;
+
   // Default anchor: sits right beside the bottom-right Floating Chat button,
-  // and glides smoothly further inline-start when mini chat boxes expand.
+  // and glides smoothly further inline-start (or above on medium screens) when mini chat boxes or launcher expand.
   const defaultDockOffsetClass = isHumanChatPage
-    ? "end-4 bottom-4 sm:end-6 sm:bottom-5"
-    : openChatWindowCount >= 2
-      ? "end-20 bottom-4 sm:end-108 lg:end-195 sm:bottom-5"
-      : openChatWindowCount === 1
-        ? "end-20 bottom-4 sm:end-108 sm:bottom-5"
-        : "end-20 bottom-4 sm:end-24 sm:bottom-5";
+    ? "end-4 bottom-24 sm:end-6 sm:bottom-24"
+    : isLauncherOpen
+      ? openChatWindowCount >= 1
+        ? "max-lg:hidden end-20 bottom-4 sm:end-96 lg:end-96 lg:bottom-116 xl:end-184 xl:bottom-5"
+        : "max-sm:hidden end-20 bottom-4 sm:end-96 sm:bottom-5"
+      : openChatWindowCount >= 2
+        ? "max-sm:hidden end-20 bottom-4 sm:end-108 lg:end-24 lg:bottom-116 xl:end-195 xl:bottom-5"
+        : openChatWindowCount === 1
+          ? "max-sm:hidden end-20 bottom-4 sm:end-108 sm:bottom-5"
+          : "end-20 bottom-4 sm:end-24 sm:bottom-5";
 
   const defaultPanelOffsetClass = isHumanChatPage
-    ? "end-3 bottom-3 sm:end-6 sm:bottom-5"
-    : openChatWindowCount >= 2
-      ? "end-3 bottom-3 sm:end-108 lg:end-195 sm:bottom-5"
-      : openChatWindowCount === 1
-        ? "end-3 bottom-3 sm:end-108 sm:bottom-5"
-        : "end-3 bottom-3 sm:end-24 sm:bottom-5";
+    ? "end-3 bottom-24 sm:end-6 sm:bottom-24"
+    : isLauncherOpen
+      ? openChatWindowCount >= 1
+        ? "end-3 bottom-3 sm:end-96 xl:end-184 sm:bottom-5"
+        : "end-3 bottom-3 sm:end-96 sm:bottom-5"
+      : openChatWindowCount >= 2
+        ? "end-3 bottom-3 sm:end-108 lg:end-24 xl:end-195 sm:bottom-5"
+        : openChatWindowCount === 1
+          ? "end-3 bottom-3 sm:end-108 sm:bottom-5"
+          : "end-3 bottom-3 sm:end-24 sm:bottom-5";
 
   return (
     <>
@@ -439,13 +516,13 @@ export default function ContinuumAiCompanion({
               ? { left: `${position.x}px`, top: `${position.y}px` }
               : undefined
           }
-          className={`fixed z-40 flex touch-none flex-col select-none ${
+          className={`fixed z-30 flex touch-none flex-col select-none ${
             isDragging
               ? "cursor-grabbing"
-              : "cursor-grab transition-[inset-inline-end] duration-200 ease-out"
+              : "cursor-grab transition-[inset-inline-end,bottom,transform] duration-200 ease-out"
           } ${isOnLeftHalf ? "items-start" : "items-end"} ${
             position ? "" : defaultDockOffsetClass
-          }`}
+          } ${helpShiftClass}`}
         >
           <WorkReportReminderNotice visible={!isOpen} />
           {isMinimized ? (
@@ -475,9 +552,9 @@ export default function ContinuumAiCompanion({
             >
               {/* Greeting bubble above the floating 3D robot */}
               <div
-                className={`mb-1 flex items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition group-hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
-                  isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"
-                }`}
+                className={`mb-1 items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition group-hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
+                  hideGreetingBubble ? "hidden" : "flex"
+                } ${isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"}`}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
                 <span role="status" aria-live="polite">
@@ -549,9 +626,9 @@ export default function ContinuumAiCompanion({
           aria-label="Continuum AI Companion"
           data-testid="ai-companion-panel"
           style={panelStyle}
-          className={`fixed z-50 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 ${
+          className={`fixed z-45 flex max-h-[calc(100dvh-1.5rem)] w-[calc(100vw-1.5rem)] max-w-[400px] flex-col overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900 ${
             position ? "" : defaultPanelOffsetClass
-          }`}
+          } ${helpShiftClass}`}
         >
           {/* Unified Compact Hero Header with 3D Robot Stage (Also Draggable) */}
           <header
@@ -614,7 +691,13 @@ export default function ContinuumAiCompanion({
               </button>
             </div>
           </header>
-          {!activeProjectId && <CompanionProjectPicker value={selectedProjectId} onChange={setSelectedProjectId} disabled={robotStatus === "thinking" || robotStatus === "speaking"} />}
+          {!activeProjectId && (
+            <CompanionProjectPicker
+              value={selectedProjectId}
+              onChange={setSelectedProjectId}
+              disabled={robotStatus === "thinking" || robotStatus === "speaking"}
+            />
+          )}
 
           {/* Spacious Conversation Feed */}
           <div className="max-h-80 min-h-56 flex-1 space-y-3 overflow-y-auto px-4 py-3.5">
@@ -661,7 +744,7 @@ export default function ContinuumAiCompanion({
           <div className="flex flex-wrap gap-1.5 border-t border-gray-100 bg-gray-50/60 px-3.5 py-2 dark:border-gray-800 dark:bg-gray-900/60">
             <button
               type="button"
-              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
+              disabled={robotStatus === "thinking" || robotStatus === "speaking"}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -679,7 +762,7 @@ export default function ContinuumAiCompanion({
             </button>
             <button
               type="button"
-              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
+              disabled={robotStatus === "thinking" || robotStatus === "speaking"}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -693,7 +776,7 @@ export default function ContinuumAiCompanion({
             </button>
             <button
               type="button"
-              disabled={(robotStatus === "thinking" || robotStatus === "speaking")}
+              disabled={robotStatus === "thinking" || robotStatus === "speaking"}
               onClick={() =>
                 void runPrompt(
                   isEn
@@ -727,7 +810,11 @@ export default function ContinuumAiCompanion({
               />
               <button
                 type="submit"
-                disabled={!input.trim() || (robotStatus === "thinking" || robotStatus === "speaking")}
+                disabled={
+                  !input.trim() ||
+                  robotStatus === "thinking" ||
+                  robotStatus === "speaking"
+                }
                 className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-brand-600 px-3.5 text-xs font-semibold text-white transition hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {isEn ? "Send" : "Gửi"}
