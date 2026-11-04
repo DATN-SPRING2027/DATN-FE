@@ -222,7 +222,6 @@ export default function FloatingChatLauncherPopover({
     actorId,
     candidatesAccessLost,
     candidatesQuery.data?.data,
-    debouncedSearch,
     directPeerIdsWithExistingChat,
     trimmedSearch,
   ]);
