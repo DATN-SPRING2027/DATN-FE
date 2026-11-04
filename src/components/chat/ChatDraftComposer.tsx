@@ -60,7 +60,12 @@ export default function ChatDraftComposer({
             normalized.content,
             normalized.mentionUserIds,
           );
-          queryClient.setQueryData(draftQueryKey, normalized);
+          if (
+            !latest.current ||
+            latest.current.content === normalized.content
+          ) {
+            queryClient.setQueryData(draftQueryKey, normalized);
+          }
           if (mounted.current) setFailed(false);
         } catch {
           if (mounted.current) setFailed(true);

@@ -210,7 +210,7 @@ export default function FloatingChatLauncherPopover({
       ) {
         return false;
       }
-      if (tokens.length > 0 && trimmedSearch !== debouncedSearch) {
+      if (tokens.length > 0) {
         const foldedCandidate = foldSearchText(
           `${candidate.fullName} ${candidate.email ?? ""}`,
         );

@@ -14,9 +14,6 @@ export type FloatingConnectionState =
 
 const WS_RATE_LIMIT_COOLDOWN_MS = 15_000;
 
-let sharedWsTicketInFlight:
-  | { identity: string; promise: ReturnType<typeof chatApi.wsTicket> }
-  | undefined;
 const wsCooldownUntilByIdentity = new Map<string, number>();
 
 export function resolveChatRealtimeWsUrl(): string {
@@ -59,26 +56,17 @@ export function resetChatWsCooldown(identity?: string): void {
 }
 
 export function acquireSharedChatWsTicket(identity: string) {
-  if (sharedWsTicketInFlight?.identity !== identity) {
-    const promise = chatApi
-      .wsTicket()
-      .catch((error: unknown) => {
-        if (error instanceof ApiError && error.status === 429) {
-          wsCooldownUntilByIdentity.set(
-            identity,
-            Date.now() + WS_RATE_LIMIT_COOLDOWN_MS,
-          );
-        }
-        throw error;
-      })
-      .finally(() => {
-        if (sharedWsTicketInFlight?.promise === promise) {
-          sharedWsTicketInFlight = undefined;
-        }
-      });
-    sharedWsTicketInFlight = { identity, promise };
-  }
-  return sharedWsTicketInFlight.promise;
+  return chatApi
+    .wsTicket()
+    .catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 429) {
+        wsCooldownUntilByIdentity.set(
+          identity,
+          Date.now() + WS_RATE_LIMIT_COOLDOWN_MS,
+        );
+      }
+      throw error;
+    });
 }
 
 export function getConversationPeer(

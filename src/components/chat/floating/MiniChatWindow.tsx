@@ -108,7 +108,11 @@ export default function MiniChatWindow({
     conversation ?? (detailAccessLost ? undefined : detailQuery.data);
 
   const messagesQuery = useChatMessagesQuery(organizationId, conversationId, {
-    refetchInterval: IS_TEST_ENV ? false : 2_500,
+    refetchInterval: IS_TEST_ENV
+      ? false
+      : connection === "connected"
+        ? 30_000
+        : 5_000,
     refetchIntervalInBackground: false,
   });
   const hasContextInRegularPage = Boolean(

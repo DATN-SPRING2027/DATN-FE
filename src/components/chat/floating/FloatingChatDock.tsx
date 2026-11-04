@@ -166,7 +166,7 @@ export default function FloatingChatDock() {
   );
 
   const conversationsQuery = useChatConversationsQuery(organizationId, "", {
-    refetchInterval: IS_TEST_ENV ? false : 3_000,
+    refetchInterval: IS_TEST_ENV ? false : 15_000,
     refetchIntervalInBackground: false,
   });
   const conversationsAccessLost =

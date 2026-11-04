@@ -15,6 +15,7 @@ import {
 import type { SignInSession } from "@/lib/queries/auth/sign-in-session";
 import { usePlatformLogoutMutation } from "@/lib/queries/platform/usePlatformConsole";
 import { useUserQuery } from "@/lib/queries/users/useUsers";
+import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import { cn } from "@/utils";
 import { useLocale, useTranslations } from "next-intl";
@@ -118,6 +119,7 @@ export default function UserDropdown({
 
   const handleSwitchAccount = () => {
     useFloatingChatStore.getState().reset();
+    useChatNavigation.getState().clear();
     closeDropdown();
     router.replace("/signin?switch=1" as never);
   };

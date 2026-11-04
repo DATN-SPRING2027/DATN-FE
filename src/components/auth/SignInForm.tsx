@@ -50,6 +50,9 @@ export default function SignInForm({
   const login = useSharedLoginMutation();
 
   useEffect(() => {
+    if (googleStatus) {
+      return;
+    }
     if (switchAccount && !hasSubmittedSwitch) {
       return;
     }
@@ -64,6 +67,7 @@ export default function SignInForm({
     currentUser.isSuccess,
     currentUser.isFetching,
     currentUser.data,
+    googleStatus,
     hasSubmittedSwitch,
     router,
     safeReturnTo,
