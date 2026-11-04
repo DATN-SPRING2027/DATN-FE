@@ -204,11 +204,13 @@ export default function ChatMessageBubble({
               {message.isPinned && (
                 <p className="mb-1 text-xs opacity-80">{t("pinnedMessages")}</p>
               )}
-              <MessageContent
-                content={
-                  message.deletedAt ? t("messageDeleted") : message.content
-                }
-              />
+              {Boolean(message.deletedAt || message.content) && (
+                <MessageContent
+                  content={
+                    message.deletedAt ? t("messageDeleted") : message.content
+                  }
+                />
+              )}
               {!message.deletedAt && (
                 <ChatAttachments
                   conversationId={message.conversationId}

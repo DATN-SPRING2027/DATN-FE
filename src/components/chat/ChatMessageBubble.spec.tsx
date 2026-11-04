@@ -145,3 +145,35 @@ it("keeps the last message menu inside the viewport and closes it when history s
     width.mockRestore();
   }
 });
+
+it("does not render empty message content when message only has attachments and no text", () => {
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatMessageBubble
+        message={{
+          ...message,
+          content: "",
+          attachments: [
+            {
+              id: "att-1",
+              name: "photo.png",
+              contentType: "image/png",
+              size: 1024,
+              kind: "IMAGE",
+            },
+          ],
+        }}
+        mine
+        showSender={false}
+        groupStart
+        groupEnd
+        highlighted={false}
+        onReply={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onReaction={vi.fn()}
+      />
+    </NextIntlClientProvider>,
+  );
+  expect(screen.queryByText("Original")).not.toBeInTheDocument();
+});
