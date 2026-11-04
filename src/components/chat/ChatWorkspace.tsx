@@ -1007,7 +1007,8 @@ export default function ChatWorkspace() {
         queryKey: chatKeys.conversations(organizationId),
       });
       return true;
-    } catch {
+    } catch (error) {
+      console.error("Failed to send chat message:", error);
       setSendError(true);
       return false;
     } finally {

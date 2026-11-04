@@ -138,16 +138,31 @@ export default function ChatComposer({
     if (incoming.length === 0 || disabled || submitting || isSending) return;
 
     const normalizedIncoming = incoming.map((file, idx) => {
-      if (!file.name || file.name === "blob") {
-        const ext = file.type
-          ? file.type.split("/")[1]?.replace("+xml", "") || "png"
-          : "png";
-        return new File([file], `image-${Date.now()}-${idx + 1}.${ext}`, {
-          type: file.type || "image/png",
-          lastModified: file.lastModified || Date.now(),
-        });
+      let ext = "png";
+      if (file.type) {
+        ext = file.type.split("/")[1]?.replace("+xml", "") || "png";
+      } else if (file.name && file.name.includes(".")) {
+        ext = file.name.split(".").pop()?.toLowerCase() || "png";
       }
-      return file;
+
+      let mimeType = file.type;
+      if (!mimeType || mimeType === "application/octet-stream") {
+        if (/^png$/i.test(ext)) mimeType = "image/png";
+        else if (/^jpe?g$/i.test(ext)) mimeType = "image/jpeg";
+        else if (/^webp$/i.test(ext)) mimeType = "image/webp";
+        else if (/^gif$/i.test(ext)) mimeType = "image/gif";
+        else if (/^pdf$/i.test(ext)) mimeType = "application/pdf";
+      }
+
+      const safeName =
+        !file.name || file.name === "blob"
+          ? `image-${Date.now()}-${idx + 1}.${ext}`
+          : file.name;
+
+      return new File([file], safeName, {
+        type: mimeType || file.type || "image/png",
+        lastModified: file.lastModified || Date.now(),
+      });
     });
 
     const combined = [
