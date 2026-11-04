@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useQueryClient, type InfiniteData } from "@tanstack/react-query";
 import { ApiError } from "@/lib/api-client";
 import {
@@ -14,28 +21,16 @@ import {
 import { preserveLocalReactions } from "../message-state";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
+  acquireSharedChatWsTicket,
+  getChatWsCooldownRemainingMs,
+  resetChatWsCooldown,
   isChatMessagePacket,
   mergeChatMessage,
+  resolveChatRealtimeWsUrl,
   type FloatingConnectionState,
 } from "./chat-shared-helpers";
 
 const EMPTY_TYPING_MAP: Readonly<Record<string, Record<string, string>>> = {};
-
-let floatingWsTicketInFlight:
-  | { identity: string; promise: ReturnType<typeof chatApi.wsTicket> }
-  | undefined;
-
-function getSharedFloatingWsTicket(identity: string) {
-  if (floatingWsTicketInFlight?.identity !== identity) {
-    const promise = chatApi.wsTicket().finally(() => {
-      if (floatingWsTicketInFlight?.promise === promise) {
-        floatingWsTicketInFlight = undefined;
-      }
-    });
-    floatingWsTicketInFlight = { identity, promise };
-  }
-  return floatingWsTicketInFlight.promise;
-}
 
 function sendSocketFrame(
   socket: WebSocket | null,
@@ -79,6 +74,14 @@ export function useFloatingChatRealtime({
     epoch: 0,
     typing: {},
   });
+  const [cachedCandidateState, setCachedCandidateState] = useState<{
+    identity: string;
+    idsKey: string;
+  }>({ identity: "", idsKey: "" });
+  const cachedCandidateIdsKey =
+    cachedCandidateState.identity === identityKey
+      ? cachedCandidateState.idsKey
+      : "";
 
   const connection: FloatingConnectionState =
     runtime.identity === identityKey ? runtime.status : "connecting";
@@ -109,39 +112,97 @@ export function useFloatingChatRealtime({
     openWindowIdsRef.current = openWindowIds;
   }, [openWindowIds]);
 
+  // Track candidate IDs already fetched into QueryClient cache (e.g. when Launcher opens)
+  // without issuing extra network requests before the user opens the Launcher.
+  useEffect(() => {
+    if (!organizationId || !actorId || !identityKey) {
+      return;
+    }
+
+    let active = true;
+    const syncCandidateIds = () => {
+      if (!active) return;
+      const entries = queryClient.getQueriesData<{
+        data: readonly ChatCandidate[];
+      }>({
+        queryKey: ["chat", organizationId, "candidates"],
+      });
+      const ids = entries.flatMap(([, payload]) =>
+        (payload?.data ?? [])
+          .filter((candidate) => candidate.id !== actorId)
+          .map((candidate) => candidate.id),
+      );
+      const nextKey = [...new Set(ids)].sort().join(",");
+      setCachedCandidateState((prev) =>
+        prev.identity === identityKey && prev.idsKey === nextKey
+          ? prev
+          : { identity: identityKey, idsKey: nextKey },
+      );
+    };
+
+    queueMicrotask(syncCandidateIds);
+    const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
+      if (event.type !== "updated" && event.type !== "removed") {
+        return;
+      }
+      const key = event.query.queryKey;
+      if (
+        Array.isArray(key) &&
+        key[0] === "chat" &&
+        key[1] === organizationId &&
+        key[2] === "candidates"
+      ) {
+        queueMicrotask(syncCandidateIds);
+      }
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [actorId, identityKey, organizationId, queryClient]);
+
   const updatePresence = useCallback(
     (userId: string, isOnline: boolean) => {
       queryClient.setQueriesData<
         InfiniteData<ChatPage<ChatConversation>, string | undefined>
-      >({ queryKey: chatKeys.conversations(organizationId) }, (result) =>
-        result
-          ? {
-              ...result,
-              pages: result.pages.map((page) => ({
-                ...page,
-                data: page.data.map((conversation) => ({
-                  ...conversation,
-                  members: conversation.members.map((member) =>
-                    member.userId === userId ? { ...member, isOnline } : member,
-                  ),
-                })),
-              })),
-            }
-          : result,
-      );
+      >({ queryKey: chatKeys.conversations(organizationId) }, (result) => {
+        if (!result) return result;
+        let changed = false;
+        const pages = result.pages.map((page) => {
+          let pageChanged = false;
+          const data = page.data.map((conversation) => {
+            let convChanged = false;
+            const members = conversation.members.map((member) => {
+              if (member.userId === userId && member.isOnline !== isOnline) {
+                convChanged = true;
+                return { ...member, isOnline };
+              }
+              return member;
+            });
+            if (!convChanged) return conversation;
+            pageChanged = true;
+            return { ...conversation, members };
+          });
+          if (!pageChanged) return page;
+          changed = true;
+          return { ...page, data };
+        });
+        return changed ? { ...result, pages } : result;
+      });
       queryClient.setQueriesData<{ data: readonly ChatCandidate[] }>(
         { queryKey: ["chat", organizationId, "candidates"] },
-        (result) =>
-          result
-            ? {
-                ...result,
-                data: result.data.map((candidate) =>
-                  candidate.id === userId
-                    ? { ...candidate, isOnline }
-                    : candidate,
-                ),
-              }
-            : result,
+        (result) => {
+          if (!result) return result;
+          let changed = false;
+          const data = result.data.map((candidate) => {
+            if (candidate.id === userId && candidate.isOnline !== isOnline) {
+              changed = true;
+              return { ...candidate, isOnline };
+            }
+            return candidate;
+          });
+          return changed ? { ...result, data } : result;
+        },
       );
     },
     [organizationId, queryClient],
@@ -188,24 +249,25 @@ export function useFloatingChatRealtime({
         epoch: prev.identity === identityKey ? prev.epoch : 0,
         typing: prev.identity === identityKey ? prev.typing : {},
       }));
-      reconnectTimer = setTimeout(
-        () => void connect(),
-        delay + Math.random() * 400,
-      );
+      const cooldown = getChatWsCooldownRemainingMs(identityKey);
+      const waitMs = Math.max(delay + Math.random() * 400, cooldown);
+      reconnectTimer = setTimeout(() => void connect(), waitMs);
       delay = Math.min(delay * 2, 30_000);
     };
 
     const connect = async () => {
       try {
-        const { ticket } = await getSharedFloatingWsTicket(identityKey);
+        const cooldown = getChatWsCooldownRemainingMs(identityKey);
+        if (cooldown > 0) {
+          scheduleReconnect();
+          return;
+        }
+        const { ticket } = await acquireSharedChatWsTicket(identityKey);
         if (stopped) return;
-        const defaultUrl = `${
-          window.location.protocol === "https:" ? "wss:" : "ws:"
-        }//${window.location.host}/internal/chat/ws`;
-        const socket = new WebSocket(
-          process.env.NEXT_PUBLIC_CHAT_WS_URL || defaultUrl,
-          ["continuum-chat.v1", `ticket.${ticket}`],
-        );
+        const socket = new WebSocket(resolveChatRealtimeWsUrl(), [
+          "continuum-chat.v1",
+          `ticket.${ticket}`,
+        ]);
         socketRef.current = socket;
 
         socket.onopen = () => {
@@ -213,6 +275,7 @@ export function useFloatingChatRealtime({
             socket.close();
             return;
           }
+          resetChatWsCooldown(identityKey);
           delay = 1000;
           authRecheckAttempted = false;
         };
@@ -596,22 +659,35 @@ export function useFloatingChatRealtime({
     };
   }, [connection, openWindowKey, socketEpoch]);
 
-  useEffect(() => {
-    if (connection !== "connected" || socketEpoch === 0) return;
-    const peers = conversations
+  // Stable sorted key prevents re-sending presence.watch on every message/read/presence cache update.
+  const watchedPeersKey = useMemo(() => {
+    const directPeers = conversations
       .filter((conversation) => conversation.type === "DIRECT")
       .flatMap((conversation) =>
         conversation.members
           .filter((member) => member.userId !== actorId)
           .map((member) => member.userId),
       );
-    const uniquePeers = [...new Set(peers)].slice(0, 100);
+    const candidatePeers = cachedCandidateIdsKey
+      ? cachedCandidateIdsKey.split(",").filter(Boolean)
+      : [];
+    return [...new Set([...directPeers, ...candidatePeers])]
+      .sort()
+      .slice(0, 100)
+      .join(",");
+  }, [actorId, cachedCandidateIdsKey, conversations]);
+
+  useEffect(() => {
+    if (connection !== "connected" || socketEpoch === 0 || !watchedPeersKey) {
+      return;
+    }
+    const uniquePeers = watchedPeersKey.split(",").filter(Boolean);
     if (uniquePeers.length > 0) {
       sendSocketFrame(socketRef.current, "presence.watch", {
         userIds: uniquePeers,
       });
     }
-  }, [actorId, connection, conversations, socketEpoch]);
+  }, [connection, socketEpoch, watchedPeersKey]);
 
   const sendTyping = useCallback((conversationId: string, isTyping: boolean) => {
     if (!conversationId) return;

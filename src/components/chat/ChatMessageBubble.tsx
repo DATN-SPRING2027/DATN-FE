@@ -1,7 +1,7 @@
 "use client";
 import MessageContent from "./MessageContent";
 
-import type { ChatMessage } from "@/lib/queries/chat/useChat";
+import type { ChatAttachment, ChatMessage } from "@/lib/queries/chat/useChat";
 import { MoreDotIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -25,6 +25,7 @@ export default function ChatMessageBubble({
   onPin,
   onReceipts,
   onReport,
+  conversationImages,
 }: {
   message: ChatMessage;
   mine: boolean;
@@ -42,6 +43,7 @@ export default function ChatMessageBubble({
   onEdit: (content: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
   onReaction: (emoji: string, active: boolean) => Promise<void>;
+  conversationImages?: readonly ChatAttachment[];
 }) {
   const t = useTranslations("chat");
   const [menu, setMenu] = useState(false);
@@ -204,15 +206,18 @@ export default function ChatMessageBubble({
               {message.isPinned && (
                 <p className="mb-1 text-xs opacity-80">{t("pinnedMessages")}</p>
               )}
-              <MessageContent
-                content={
-                  message.deletedAt ? t("messageDeleted") : message.content
-                }
-              />
+              {Boolean(message.deletedAt || message.content) && (
+                <MessageContent
+                  content={
+                    message.deletedAt ? t("messageDeleted") : message.content
+                  }
+                />
+              )}
               {!message.deletedAt && (
                 <ChatAttachments
                   conversationId={message.conversationId}
                   attachments={message.attachments ?? []}
+                  conversationImages={conversationImages}
                 />
               )}
               {message.editedAt && !message.deletedAt && (
@@ -244,7 +249,7 @@ export default function ChatMessageBubble({
             <div
               ref={popover}
               style={{ visibility: "hidden" }}
-              className="fixed z-50 max-h-[calc(100dvh-1rem)] w-64 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white shadow-theme-md dark:border-gray-700 dark:bg-gray-900"
+              className="fixed z-60 max-h-[calc(100dvh-1rem)] w-64 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border border-gray-200 bg-white text-gray-800 shadow-theme-md dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"
             >
               {menu && (
                 <div
@@ -258,7 +263,7 @@ export default function ChatMessageBubble({
                       setMenu(false);
                       setPickingReaction(true);
                     }}
-                    className="block min-h-10 w-full rounded-lg px-3 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="block min-h-10 w-full rounded-lg px-3 text-start text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
                   >
                     {t("react")}
                   </button>
@@ -268,7 +273,7 @@ export default function ChatMessageBubble({
                       setMenu(false);
                       onReply();
                     }}
-                    className="block min-h-10 w-full rounded-lg px-3 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                    className="block min-h-10 w-full rounded-lg px-3 text-start text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
                   >
                     {t("replyMessage")}
                   </button>
@@ -284,7 +289,7 @@ export default function ChatMessageBubble({
                       <button
                         type="button"
                         key={label}
-                        className="block min-h-10 w-full rounded-lg px-3 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                        className="block min-h-10 w-full rounded-lg px-3 text-start text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
                         onClick={() => {
                           setMenu(false);
                           action();
@@ -303,7 +308,7 @@ export default function ChatMessageBubble({
                           setDraft(message.content);
                           setEditing(true);
                         }}
-                        className="block min-h-10 w-full rounded-lg px-3 text-start text-sm hover:bg-gray-100 dark:hover:bg-gray-800"
+                        className="block min-h-10 w-full rounded-lg px-3 text-start text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-100 dark:hover:bg-gray-800"
                       >
                         {t("editMessage")}
                       </button>
@@ -343,7 +348,7 @@ export default function ChatMessageBubble({
                 <div
                   role="group"
                   aria-label={t("confirmDeleteMessage")}
-                  className="space-y-2 p-3 text-sm"
+                  className="space-y-2 p-3 text-sm text-gray-800 dark:text-gray-100"
                 >
                   <p>{t("confirmDeleteMessage")}</p>
                   <div className="flex gap-3">
@@ -359,7 +364,7 @@ export default function ChatMessageBubble({
                       disabled={pending}
                       type="button"
                       onClick={() => setConfirmDelete(false)}
-                      className="min-h-9"
+                      className="min-h-9 text-gray-700 dark:text-gray-200"
                     >
                       {t("cancel")}
                     </button>

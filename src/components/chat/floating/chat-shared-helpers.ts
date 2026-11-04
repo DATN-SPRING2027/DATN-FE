@@ -1,14 +1,73 @@
-import type {
-  ChatConversation,
-  ChatMessage,
-  ChatPage,
-  ChatParticipant,
+import { ApiError } from "@/lib/api-client";
+import {
+  chatApi,
+  type ChatConversation,
+  type ChatMessage,
+  type ChatPage,
+  type ChatParticipant,
 } from "@/lib/queries/chat/useChat";
 
 export type FloatingConnectionState =
   | "connecting"
   | "connected"
   | "reconnecting";
+
+const WS_RATE_LIMIT_COOLDOWN_MS = 15_000;
+
+const wsCooldownUntilByIdentity = new Map<string, number>();
+
+export function resolveChatRealtimeWsUrl(): string {
+  const explicitWsUrl = process.env.NEXT_PUBLIC_CHAT_WS_URL?.trim();
+  if (explicitWsUrl) {
+    return explicitWsUrl;
+  }
+
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (apiBaseUrl && /^https?:\/\//i.test(apiBaseUrl)) {
+    try {
+      const parsed = new URL(apiBaseUrl);
+      const wsProtocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+      return `${wsProtocol}//${parsed.host}/internal/chat/ws`;
+    } catch {
+      // Fall back to current location host below.
+    }
+  }
+
+  const fallbackProtocol =
+    typeof window !== "undefined" && window.location.protocol === "https:"
+      ? "wss:"
+      : "ws:";
+  const fallbackHost =
+    typeof window !== "undefined" ? window.location.host : "localhost:3000";
+  return `${fallbackProtocol}//${fallbackHost}/internal/chat/ws`;
+}
+
+export function getChatWsCooldownRemainingMs(identity: string): number {
+  const until = wsCooldownUntilByIdentity.get(identity) ?? 0;
+  return Math.max(0, until - Date.now());
+}
+
+export function resetChatWsCooldown(identity?: string): void {
+  if (identity) {
+    wsCooldownUntilByIdentity.delete(identity);
+  } else {
+    wsCooldownUntilByIdentity.clear();
+  }
+}
+
+export function acquireSharedChatWsTicket(identity: string) {
+  return chatApi
+    .wsTicket()
+    .catch((error: unknown) => {
+      if (error instanceof ApiError && error.status === 429) {
+        wsCooldownUntilByIdentity.set(
+          identity,
+          Date.now() + WS_RATE_LIMIT_COOLDOWN_MS,
+        );
+      }
+      throw error;
+    });
+}
 
 export function getConversationPeer(
   conversation: ChatConversation,

@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState, type ComponentProps } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import ChatComposer from "./ChatComposer";
 import { chatFeatures } from "@/lib/queries/chat/features";
+
+const pendingDraftSaves = new Map<string, Promise<void>>();
 
 export default function ChatDraftComposer({
   conversationId,
@@ -14,15 +16,26 @@ export default function ChatDraftComposer({
   organizationId: string;
 }) {
   const t = useTranslations("chat");
+  const queryClient = useQueryClient();
   const [failed, setFailed] = useState(false);
+  const saveScopeKey = `${organizationId}:${conversationId}`;
+  const draftQueryKey = [
+    "chat",
+    organizationId,
+    "draft",
+    conversationId,
+  ] as const;
+
   const draft = useQuery({
-    queryKey: ["chat", organizationId, "draft", conversationId],
-    queryFn: () => chatFeatures.draft(conversationId),
+    queryKey: draftQueryKey,
+    queryFn: async () => {
+      await pendingDraftSaves.get(saveScopeKey)?.catch(() => undefined);
+      return chatFeatures.draft(conversationId);
+    },
     staleTime: 0,
     refetchOnWindowFocus: false,
     retry: false,
   });
-  const chain = useRef(Promise.resolve());
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const latest = useRef<
     { content: string; mentionUserIds: readonly string[] } | undefined
@@ -32,20 +45,38 @@ export default function ChatDraftComposer({
     content: string;
     mentionUserIds: readonly string[];
   }) => {
-    chain.current = chain.current
+    const normalized = {
+      content: value.content,
+      mentionUserIds: [...value.mentionUserIds],
+    };
+    queryClient.setQueryData(draftQueryKey, normalized);
+    const prior = pendingDraftSaves.get(saveScopeKey) ?? Promise.resolve();
+    const next = prior
       .catch(() => undefined)
       .then(async () => {
         try {
           await chatFeatures.saveDraft(
             conversationId,
-            value.content,
-            value.mentionUserIds,
+            normalized.content,
+            normalized.mentionUserIds,
           );
+          if (
+            !latest.current ||
+            latest.current.content === normalized.content
+          ) {
+            queryClient.setQueryData(draftQueryKey, normalized);
+          }
           if (mounted.current) setFailed(false);
         } catch {
           if (mounted.current) setFailed(true);
         }
+      })
+      .finally(() => {
+        if (pendingDraftSaves.get(saveScopeKey) === next) {
+          pendingDraftSaves.delete(saveScopeKey);
+        }
       });
+    pendingDraftSaves.set(saveScopeKey, next);
   };
   useEffect(() => {
     mounted.current = true;
@@ -99,8 +130,9 @@ export default function ChatDraftComposer({
         initialValue={draft.data.content}
         initialMentionUserIds={draft.data.mentionUserIds}
         onDraftChange={(content, mentionUserIds) => {
-          const value = { content, mentionUserIds };
+          const value = { content, mentionUserIds: [...mentionUserIds] };
           latest.current = value;
+          queryClient.setQueryData(draftQueryKey, value);
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(() => {
             timer.current = undefined;
@@ -110,10 +142,12 @@ export default function ChatDraftComposer({
         onSend={async (...args) => {
           const success = await props.onSend(...args);
           if (success) {
-            latest.current = { content: "", mentionUserIds: [] };
+            const emptyDraft = { content: "", mentionUserIds: [] };
+            latest.current = emptyDraft;
+            queryClient.setQueryData(draftQueryKey, emptyDraft);
             if (timer.current) clearTimeout(timer.current);
             timer.current = undefined;
-            enqueue({ content: "", mentionUserIds: [] });
+            enqueue(emptyDraft);
           }
           return success;
         }}

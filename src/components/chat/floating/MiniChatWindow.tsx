@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -17,6 +17,7 @@ import {
   chatKeys,
   useChatMessageContextQuery,
   useChatMessagesQuery,
+  type ChatAttachment,
   type ChatConversation,
   type ChatMessage,
   type ChatPage,
@@ -36,6 +37,9 @@ import {
 } from "./chat-shared-helpers";
 
 const EMPTY_TYPING_USERS: Readonly<Record<string, string>> = {};
+const IS_TEST_ENV = Boolean(
+  process.env.VITEST || process.env.NODE_ENV === "test",
+);
 
 export type MiniChatWindowProps = Readonly<{
   organizationId: string;
@@ -104,7 +108,14 @@ export default function MiniChatWindow({
   const activeConversation =
     conversation ?? (detailAccessLost ? undefined : detailQuery.data);
 
-  const messagesQuery = useChatMessagesQuery(organizationId, conversationId);
+  const messagesQuery = useChatMessagesQuery(organizationId, conversationId, {
+    refetchInterval: IS_TEST_ENV
+      ? false
+      : connection === "connected"
+        ? 30_000
+        : 5_000,
+    refetchIntervalInBackground: false,
+  });
   const hasContextInRegularPage = Boolean(
     contextMessageId &&
       messagesQuery.data?.data.some((m) => m.id === contextMessageId),
@@ -128,6 +139,17 @@ export default function MiniChatWindow({
   );
   const visibleMessages = displayedAccessLost ? undefined : displayedQuery.data;
   const messages = visibleMessages?.data ?? [];
+  const conversationImages = useMemo(() => {
+    if (!visibleMessages?.data) return [];
+    const images: ChatAttachment[] = [];
+    for (const m of visibleMessages.data) {
+      if (m.deletedAt) continue;
+      for (const att of m.attachments ?? []) {
+        if (att.kind === "IMAGE") images.push(att);
+      }
+    }
+    return images;
+  }, [visibleMessages?.data]);
   const latestRegularMessageId = messagesQuery.data?.data.at(-1)?.id;
   const latestDisplayedMessageId = messages.at(-1)?.id;
 
@@ -152,13 +174,16 @@ export default function MiniChatWindow({
             })
           : "";
 
+  const isReconnecting = connection === "reconnecting" && !typingStatus;
   const subtitle = typingStatus
     ? typingStatus
-    : activeType === "ROOM"
-      ? t("members", { count: activeConversation?.members.length ?? 0 })
-      : isOnline
-        ? t("online")
-        : t("offline");
+    : isReconnecting
+      ? t("connectionLost")
+      : activeType === "ROOM"
+        ? t("members", { count: activeConversation?.members.length ?? 0 })
+        : isOnline
+          ? t("online")
+          : t("offline");
 
   const latestOwnMessage = [...messages]
     .reverse()
@@ -259,19 +284,30 @@ export default function MiniChatWindow({
   }, []);
 
   useEffect(() => {
-    if (!highlightedMessageId) return;
+    if (!highlightedMessageId) {
+      if (contextMessageId && hasContextInRegularPage) {
+        onExitContext();
+      }
+      return;
+    }
     const element = findMessageElement(highlightedMessageId);
     if (!element) return;
     element.scrollIntoView({ block: "center" });
     const timer = setTimeout(() => {
       onClearHighlight();
+      if (hasContextInRegularPage) {
+        onExitContext();
+      }
     }, 3200);
     return () => clearTimeout(timer);
   }, [
+    contextMessageId,
     findMessageElement,
+    hasContextInRegularPage,
     highlightedMessageId,
     messages.length,
     onClearHighlight,
+    onExitContext,
   ]);
 
   const skipAutoScrollRef = useRef(
@@ -394,7 +430,8 @@ export default function MiniChatWindow({
         queryKey: chatKeys.conversations(organizationId),
       });
       return true;
-    } catch {
+    } catch (error) {
+      console.error("Failed to send chat message:", error);
       setSendError(true);
       return false;
     } finally {
@@ -564,7 +601,9 @@ export default function MiniChatWindow({
                 className={`block truncate text-xs ${
                   typingStatus
                     ? "font-medium text-brand-600 dark:text-brand-400"
-                    : "text-gray-500 dark:text-gray-400"
+                    : isReconnecting
+                      ? "font-medium text-warning-600 dark:text-warning-400"
+                      : "text-gray-500 dark:text-gray-400"
                 }`}
               >
                 {subtitle}
@@ -711,6 +750,7 @@ export default function MiniChatWindow({
                 groupEnd={groupEnd}
                 highlighted={highlightedMessageId === message.id}
                 receipt={receipt}
+                conversationImages={conversationImages}
                 onOpenContext={scrollToQuotedMessage}
                 onReply={() => setReplyingTo(message)}
                 onEdit={(content) => saveMessageEdit(message.id, content)}

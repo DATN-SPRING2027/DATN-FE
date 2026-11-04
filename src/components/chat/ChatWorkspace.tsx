@@ -17,6 +17,7 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   chatApi,
   chatKeys,
+  type ChatAttachment,
   type ChatCandidate,
   type ChatConversation,
   type ChatMessage,
@@ -38,7 +39,14 @@ import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useTranslations } from "next-intl";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { formatAppTitle, formatProjectSectionTitle } from "@/lib/page-titles";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useFloatingChatStore } from "@/stores/floating-chat";
+import {
+  acquireSharedChatWsTicket,
+  getChatWsCooldownRemainingMs,
+  resetChatWsCooldown,
+  resolveChatRealtimeWsUrl,
+} from "./floating/chat-shared-helpers";
 import ChatDialog from "./ChatDialog";
 import ChatMessageBubble from "./ChatMessageBubble";
 import ChatSearchResults from "./ChatSearchResults";
@@ -338,6 +346,17 @@ export default function ChatWorkspace() {
   const messagesAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(displayedMessagesQuery.error);
   const visibleMessages = messagesAccessLost ? undefined : displayedMessagesQuery.data;
   const messages = visibleMessages?.data ?? [];
+  const conversationImages = useMemo(() => {
+    if (!visibleMessages?.data) return [];
+    const images: ChatAttachment[] = [];
+    for (const m of visibleMessages.data) {
+      if (m.deletedAt) continue;
+      for (const att of m.attachments ?? []) {
+        if (att.kind === "IMAGE") images.push(att);
+      }
+    }
+    return images;
+  }, [visibleMessages?.data]);
   const latestMessageId = messages.at(-1)?.id;
   const latestOwnMessage = [...messages]
     .reverse()
@@ -438,70 +457,96 @@ export default function ChatWorkspace() {
     (userId: string, isOnline: boolean) => {
       queryClient.setQueriesData<
         InfiniteData<ChatPage<ChatConversation>, string | undefined>
-      >({ queryKey: chatKeys.conversations(organizationId) }, (result) =>
-        result
-          ? {
-              ...result,
-              pages: result.pages.map((page) => ({
-                ...page,
-                data: page.data.map((conversation) => ({
-                  ...conversation,
-                  members: conversation.members.map((member) =>
-                    member.userId === userId ? { ...member, isOnline } : member,
-                  ),
-                })),
-              })),
-            }
-          : result,
-      );
+      >({ queryKey: chatKeys.conversations(organizationId) }, (result) => {
+        if (!result) return result;
+        let changed = false;
+        const pages = result.pages.map((page) => {
+          let pageChanged = false;
+          const data = page.data.map((conversation) => {
+            let convChanged = false;
+            const members = conversation.members.map((member) => {
+              if (member.userId === userId && member.isOnline !== isOnline) {
+                convChanged = true;
+                return { ...member, isOnline };
+              }
+              return member;
+            });
+            if (!convChanged) return conversation;
+            pageChanged = true;
+            return { ...conversation, members };
+          });
+          if (!pageChanged) return page;
+          changed = true;
+          return { ...page, data };
+        });
+        return changed ? { ...result, pages } : result;
+      });
       queryClient.setQueriesData<{ data: readonly ChatCandidate[] }>(
         { queryKey: ["chat", organizationId, "candidates"] },
-        (result) =>
-          result
-            ? {
-                ...result,
-                data: result.data.map((candidate) =>
-                  candidate.id === userId
-                    ? { ...candidate, isOnline }
-                    : candidate,
-                ),
-              }
-            : result,
+        (result) => {
+          if (!result) return result;
+          let changed = false;
+          const data = result.data.map((candidate) => {
+            if (candidate.id === userId && candidate.isOnline !== isOnline) {
+              changed = true;
+              return { ...candidate, isOnline };
+            }
+            return candidate;
+          });
+          return changed ? { ...result, data } : result;
+        },
       );
     },
     [organizationId, queryClient],
   );
 
+  const realtimeIdentityKey =
+    actorId && organizationId ? `${actorId}:${organizationId}` : "";
+
+  useLayoutEffect(() => {
+    if (!realtimeIdentityKey) return;
+    useFloatingChatStore.getState().setRealtimeOwner(realtimeIdentityKey);
+    return () => {
+      const store = useFloatingChatStore.getState();
+      if (store.realtimeOwner === realtimeIdentityKey) {
+        store.setRealtimeOwner(null);
+      }
+    };
+  }, [realtimeIdentityKey]);
+
   useEffect(() => {
-    if (!organizationId || !actorId) return;
+    if (!organizationId || !actorId || !realtimeIdentityKey) return;
     let stopped = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
     let delay = 1000;
 
     const scheduleReconnect = () => {
       if (stopped) return;
+      useFloatingChatStore.getState().setRealtimeConnectedOwner(null);
       setConnection("reconnecting");
-      reconnectTimer = setTimeout(
-        () => void connect(),
-        delay + Math.random() * 400,
-      );
+      const cooldown = getChatWsCooldownRemainingMs(realtimeIdentityKey);
+      const waitMs = Math.max(delay + Math.random() * 400, cooldown);
+      reconnectTimer = setTimeout(() => void connect(), waitMs);
       delay = Math.min(delay * 2, 30_000);
     };
 
     const connect = async () => {
       try {
-        const { ticket } = await chatApi.wsTicket();
+        const cooldown = getChatWsCooldownRemainingMs(realtimeIdentityKey);
+        if (cooldown > 0) {
+          scheduleReconnect();
+          return;
+        }
+        const { ticket } = await acquireSharedChatWsTicket(realtimeIdentityKey);
         if (stopped) return;
-        const defaultUrl = `${
-          window.location.protocol === "https:" ? "wss:" : "ws:"
-        }//${window.location.host}/internal/chat/ws`;
-        const socket = new WebSocket(
-          process.env.NEXT_PUBLIC_CHAT_WS_URL || defaultUrl,
-          ["continuum-chat.v1", `ticket.${ticket}`],
-        );
+        const socket = new WebSocket(resolveChatRealtimeWsUrl(), [
+          "continuum-chat.v1",
+          `ticket.${ticket}`,
+        ]);
         socketRef.current = socket;
         socket.onopen = () => {
           if (stopped) return socket.close();
+          resetChatWsCooldown(realtimeIdentityKey);
           delay = 1000;
         };
         socket.onmessage = (event) => {
@@ -511,6 +556,9 @@ export default function ChatWorkspace() {
               data?: unknown;
             };
             if (packet.event === "connected") {
+              useFloatingChatStore
+                .getState()
+                .setRealtimeConnectedOwner(realtimeIdentityKey);
               setConnection("connected");
               void queryClient.invalidateQueries({
                 queryKey: ["chat", organizationId],
@@ -817,12 +865,17 @@ export default function ChatWorkspace() {
     return () => {
       stopped = true;
       if (reconnectTimer) clearTimeout(reconnectTimer);
+      const store = useFloatingChatStore.getState();
+      if (store.realtimeConnectedOwner === realtimeIdentityKey) {
+        store.setRealtimeConnectedOwner(null);
+      }
       socketRef.current?.close(1000, "Page closed");
       socketRef.current = null;
       setConnection("connecting");
     };
   }, [
     actorId,
+    realtimeIdentityKey,
     refreshCurrentUser,
     organizationId,
     queryClient,
@@ -840,8 +893,7 @@ export default function ChatWorkspace() {
       });
   }, [activeId, connection]);
 
-  useEffect(() => {
-    if (connection !== "connected") return;
+  const watchedPeersKey = useMemo(() => {
     const peers = [
       ...conversations
         .filter((conversation) => conversation.type === "DIRECT")
@@ -854,10 +906,15 @@ export default function ChatWorkspace() {
         .filter((member) => member.id !== actorId)
         .map((member) => member.id) ?? []),
     ];
+    return [...new Set(peers)].sort().slice(0, 100).join(",");
+  }, [actorId, conversations, visibleOrgMembers]);
+
+  useEffect(() => {
+    if (connection !== "connected") return;
     sendSocketEvent(socketRef.current, "presence.watch", {
-      userIds: [...new Set(peers)].slice(0, 100),
+      userIds: watchedPeersKey ? watchedPeersKey.split(",") : [],
     });
-  }, [actorId, connection, conversations, visibleOrgMembers]);
+  }, [connection, watchedPeersKey]);
 
   useEffect(() => {
     if (!latestMessageId || !activeId) return;
@@ -964,7 +1021,8 @@ export default function ChatWorkspace() {
         queryKey: chatKeys.conversations(organizationId),
       });
       return true;
-    } catch {
+    } catch (error) {
+      console.error("Failed to send chat message:", error);
       setSendError(true);
       return false;
     } finally {
@@ -1896,6 +1954,7 @@ export default function ChatWorkspace() {
                         }
                         highlighted={highlightedMessageId === message.id}
                         receipt={receipt}
+                        conversationImages={conversationImages}
                         onOpenContext={(id) =>
                           openMessageContext({
                             id,

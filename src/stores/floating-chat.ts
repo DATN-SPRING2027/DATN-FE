@@ -197,6 +197,11 @@ export const useFloatingChatStore = create<FloatingChatState>((set) => ({
         ...currentHeads.filter((id) => id !== conversationId),
       ].slice(0, MAX_MINIMIZED_CHAT_HEADS);
 
+      const nextHighlights = { ...state.highlightedMessageByConv };
+      delete nextHighlights[conversationId];
+      const nextContexts = { ...state.contextMessageByConv };
+      delete nextContexts[conversationId];
+
       return {
         activeOrgId: organizationId,
         openWindowsByOrg: {
@@ -207,6 +212,8 @@ export const useFloatingChatStore = create<FloatingChatState>((set) => ({
           ...state.minimizedHeadsByOrg,
           [organizationId]: nextHeads,
         },
+        highlightedMessageByConv: nextHighlights,
+        contextMessageByConv: nextContexts,
       };
     }),
 

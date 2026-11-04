@@ -321,7 +321,14 @@ export const chatApi = {
     }),
 };
 
-export function useChatConversationsQuery(organizationId: string, search = "") {
+export function useChatConversationsQuery(
+  organizationId: string,
+  search = "",
+  options?: {
+    refetchInterval?: number | false;
+    refetchIntervalInBackground?: boolean;
+  },
+) {
   return useInfiniteQuery({
     queryKey: chatKeys.conversations(organizationId, search),
     queryFn: ({ pageParam, signal }) =>
@@ -331,6 +338,13 @@ export function useChatConversationsQuery(organizationId: string, search = "") {
     enabled: Boolean(organizationId),
     retry: false,
     staleTime: 5_000,
+    ...(options?.refetchInterval !== undefined
+      ? {
+          refetchInterval: options.refetchInterval,
+          refetchIntervalInBackground:
+            options.refetchIntervalInBackground ?? false,
+        }
+      : {}),
   });
 }
 
@@ -352,6 +366,10 @@ export function useChatCandidatesQuery(
 export function useChatMessagesQuery(
   organizationId: string,
   conversationId: string,
+  options?: {
+    refetchInterval?: number | false;
+    refetchIntervalInBackground?: boolean;
+  },
 ) {
   const client = useQueryClient();
   return useQuery({
@@ -367,6 +385,13 @@ export function useChatMessagesQuery(
     enabled: Boolean(organizationId && conversationId),
     retry: false,
     staleTime: 0,
+    ...(options?.refetchInterval !== undefined
+      ? {
+          refetchInterval: options.refetchInterval,
+          refetchIntervalInBackground:
+            options.refetchIntervalInBackground ?? false,
+        }
+      : {}),
   });
 }
 

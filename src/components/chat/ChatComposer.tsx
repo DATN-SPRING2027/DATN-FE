@@ -4,7 +4,7 @@ import { matchesNamePrefixes } from "./search-text";
 import Image from "next/image";
 import { PaperPlaneIcon, PlusIcon } from "@/icons";
 import { useTranslations } from "next-intl";
-import { useEffect, useId, useRef, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 
 type SelectedFileData = Readonly<{ file: File; previewUrl: string | null }>;
 
@@ -132,6 +132,116 @@ export default function ChatComposer({
     setFiles((current) =>
       current.filter((_, fileIndex) => fileIndex !== index),
     );
+  }
+
+  function addIncomingFiles(incoming: readonly File[]) {
+    if (incoming.length === 0 || disabled || submitting || isSending) return;
+
+    const normalizedIncoming = incoming.map((file, idx) => {
+      let ext = "";
+      if (file.name && file.name.includes(".")) {
+        ext = file.name.split(".").pop()?.toLowerCase() || "";
+      } else if (file.type) {
+        ext = file.type.split("/")[1]?.replace("+xml", "").toLowerCase() || "";
+      }
+
+      const isImage =
+        Boolean(file.type?.startsWith("image/")) ||
+        /^(png|jpe?g|webp|gif|svg|bmp|ico)$/i.test(ext);
+
+      let mimeType = file.type;
+      if (!mimeType || mimeType === "application/octet-stream") {
+        if (/^png$/i.test(ext)) mimeType = "image/png";
+        else if (/^jpe?g$/i.test(ext)) mimeType = "image/jpeg";
+        else if (/^webp$/i.test(ext)) mimeType = "image/webp";
+        else if (/^gif$/i.test(ext)) mimeType = "image/gif";
+        else if (/^svg$/i.test(ext)) mimeType = "image/svg+xml";
+        else if (/^pdf$/i.test(ext)) mimeType = "application/pdf";
+      }
+
+      const effectiveExt = ext || (isImage ? "png" : "bin");
+      const prefix = isImage ? "image" : "file";
+      const safeName =
+        !file.name || file.name === "blob"
+          ? `${prefix}-${Date.now()}-${idx + 1}.${effectiveExt}`
+          : file.name;
+
+      const fallbackType = isImage ? "image/png" : "application/octet-stream";
+
+      return new File([file], safeName, {
+        type: mimeType || file.type || fallbackType,
+        lastModified: file.lastModified || Date.now(),
+      });
+    });
+
+    const combined = [
+      ...files,
+      ...normalizedIncoming.map((file) => ({ file, previewUrl: null })),
+    ].filter(
+      (selected, index, all) =>
+        all.findIndex(
+          ({ file }) =>
+            file.name === selected.file.name &&
+            file.size === selected.file.size &&
+            file.lastModified === selected.file.lastModified,
+        ) === index,
+    );
+
+    const invalidFile = combined.some(
+      ({ file }) =>
+        file.size >
+        (file.type.startsWith("image/") ? 10 : 25) * 1024 * 1024,
+    );
+
+    setFileError(invalidFile || combined.length > 10);
+    if (!invalidFile && combined.length <= 10) {
+      setFiles(
+        combined.map((selected) => {
+          const existing = files.find(
+            ({ file }) =>
+              file.name === selected.file.name &&
+              file.size === selected.file.size &&
+              file.lastModified === selected.file.lastModified,
+          );
+          if (existing) return existing;
+          if (!selected.file.type.startsWith("image/")) return selected;
+          const previewUrl = URL.createObjectURL(selected.file);
+          previewUrls.current.add(previewUrl);
+          return { ...selected, previewUrl };
+        }),
+      );
+    }
+  }
+
+  function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return;
+
+    const pastedFiles: File[] = [];
+
+    if (clipboardData.items && clipboardData.items.length > 0) {
+      for (let i = 0; i < clipboardData.items.length; i++) {
+        const item = clipboardData.items[i];
+        if (item.kind === "file") {
+          const file = item.getAsFile();
+          if (file) {
+            pastedFiles.push(file);
+          }
+        }
+      }
+    } else if (clipboardData.files && clipboardData.files.length > 0) {
+      for (let i = 0; i < clipboardData.files.length; i++) {
+        const file = clipboardData.files[i];
+        if (file) {
+          pastedFiles.push(file);
+        }
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      event.preventDefault();
+      addIncomingFiles(pastedFiles);
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -275,42 +385,7 @@ export default function ChatComposer({
             className="sr-only"
             onChange={(event) => {
               const incoming = Array.from(event.currentTarget.files ?? []);
-              const combined = [
-                ...files,
-                ...incoming.map((file) => ({ file, previewUrl: null })),
-              ].filter(
-                (selected, index, all) =>
-                  all.findIndex(
-                    ({ file }) =>
-                      file.name === selected.file.name &&
-                      file.size === selected.file.size &&
-                      file.lastModified === selected.file.lastModified,
-                  ) === index,
-              );
-              const invalidFile = combined.some(
-                ({ file }) =>
-                  file.size >
-                  (file.type.startsWith("image/") ? 10 : 25) * 1024 * 1024,
-              );
-              setFileError(invalidFile || combined.length > 10);
-              if (!invalidFile && combined.length <= 10) {
-                setFiles(
-                  combined.map((selected) => {
-                    const existing = files.find(
-                      ({ file }) =>
-                        file.name === selected.file.name &&
-                        file.size === selected.file.size &&
-                        file.lastModified === selected.file.lastModified,
-                    );
-                    if (existing) return existing;
-                    if (!selected.file.type.startsWith("image/"))
-                      return selected;
-                    const previewUrl = URL.createObjectURL(selected.file);
-                    previewUrls.current.add(previewUrl);
-                    return { ...selected, previewUrl };
-                  }),
-                );
-              }
+              addIncomingFiles(incoming);
               event.currentTarget.value = "";
             }}
           />
@@ -347,6 +422,7 @@ export default function ChatComposer({
               event.currentTarget.form?.requestSubmit();
             }
           }}
+          onPaste={handlePaste}
           className={
             compact
               ? "max-h-28 min-h-8 min-w-0 flex-1 resize-none border-0 bg-transparent px-1 py-1.5 text-xs leading-5 text-gray-900 outline-none placeholder:text-gray-500 focus:ring-0 disabled:cursor-not-allowed dark:text-gray-100 dark:placeholder:text-gray-400"

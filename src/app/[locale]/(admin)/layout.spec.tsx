@@ -27,6 +27,12 @@ vi.mock("@/context/SidebarContext", () => ({
     isHovered: false,
     isMobileOpen: false,
   }),
+  useOptionalSidebar: () => ({
+    isExpanded: true,
+    isHovered: false,
+    isMobileOpen: false,
+    isHelpOpen: false,
+  }),
 }));
 vi.mock("@/layout/AppHeader", () => ({ default: () => <div>header</div> }));
 vi.mock("@/layout/AppSidebar", () => ({ default: () => <div>sidebar</div> }));

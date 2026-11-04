@@ -12,6 +12,7 @@ import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/
 import { usePathname, useRouter } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 import { useTranslations } from "next-intl";
 import React, { useEffect, useRef, useState } from "react";
 
@@ -38,6 +39,17 @@ export default function AdminLayout({
   const isHumanChat =
     pathname === "/chat" || pathname.startsWith("/chat/");
   const isChat = isHumanChat || isAiChat;
+  const aiChatFloatingPadding = useFloatingChatStore((state) => {
+    if (!isAiChat || !state.activeOrgId) return "";
+    const openCount = state.openWindowsByOrg[state.activeOrgId]?.length ?? 0;
+    const launcherOpen = state.launcherOrgId === state.activeOrgId;
+    if (launcherOpen && openCount >= 1) return "lg:pe-96 xl:pe-184";
+    if (launcherOpen) return "sm:pe-96";
+    if (openCount >= 2) return "sm:pe-96 lg:pe-184";
+    if (openCount === 1) return "sm:pe-96";
+    return "";
+  });
+
   const shell = useRef<HTMLDivElement>(null);
   const currentUser = useCurrentUserQuery();
   const [isRetrying, setIsRetrying] = useState(false);
@@ -177,7 +189,7 @@ export default function AdminLayout({
             key={resolveAdminPageTransitionKey(pathname)}
             className={
               isChat
-                ? "continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden"
+                ? `continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden transition-[padding] duration-200 ease-out ${aiChatFloatingPadding}`
                 : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
             }
           >

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useOptionalSidebar } from "@/context/SidebarContext";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -9,6 +10,8 @@ import {
 } from "@/lib/queries/chat/useChat";
 import {
   EMPTY_CHAT_IDS,
+  MAX_MINIMIZED_CHAT_HEADS,
+  TWO_WINDOW_MIN_VIEWPORT_PX,
   resolveMaxOpenChatWindows,
   useFloatingChatStore,
 } from "@/stores/floating-chat";
@@ -17,6 +20,10 @@ import FloatingChatHeadsRail from "./FloatingChatHeadsRail";
 import FloatingChatLauncherPopover from "./FloatingChatLauncherPopover";
 import MiniChatWindow from "./MiniChatWindow";
 import { useFloatingChatRealtime } from "./useFloatingChatRealtime";
+
+const IS_TEST_ENV = Boolean(
+  process.env.VITEST || process.env.NODE_ENV === "test",
+);
 
 function buildFallbackConversation(id: string): ChatConversation {
   return {
@@ -37,6 +44,9 @@ function buildFallbackConversation(id: string): ChatConversation {
 export default function FloatingChatDock() {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const lastActorIdRef = useRef<string | null>(null);
+  const sidebar = useOptionalSidebar();
+  const isHelpOpen = Boolean(sidebar?.isHelpOpen);
+
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(
     currentUser.error,
@@ -48,13 +58,18 @@ export default function FloatingChatDock() {
       ? (visibleUser.organizationId ?? "")
       : "";
 
-  const [maxVisibleWindows, setMaxVisibleWindows] = useState<number>(() =>
-    resolveMaxOpenChatWindows(),
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window !== "undefined" && window.innerWidth > 0
+      ? window.innerWidth
+      : TWO_WINDOW_MIN_VIEWPORT_PX,
   );
+  const maxVisibleWindows = resolveMaxOpenChatWindows(viewportWidth);
 
   useEffect(() => {
     const syncViewportLimit = () => {
-      setMaxVisibleWindows(resolveMaxOpenChatWindows(window.innerWidth));
+      if (window.innerWidth > 0) {
+        setViewportWidth(window.innerWidth);
+      }
     };
     syncViewportLimit();
     window.addEventListener("resize", syncViewportLimit);
@@ -140,12 +155,21 @@ export default function FloatingChatDock() {
     clampOpenWindows(organizationId, maxVisibleWindows);
   }, [clampOpenWindows, maxVisibleWindows, openWindowIds.length, organizationId]);
 
+  const effectiveVisibleWindowLimit =
+    (isLauncherOpen && viewportWidth < 1360) ||
+    (isHelpOpen && viewportWidth < 1600)
+      ? 1
+      : maxVisibleWindows;
+
   const visibleOpenWindowIds = useMemo(
-    () => openWindowIds.slice(0, maxVisibleWindows),
-    [maxVisibleWindows, openWindowIds],
+    () => openWindowIds.slice(0, effectiveVisibleWindowLimit),
+    [effectiveVisibleWindowLimit, openWindowIds],
   );
 
-  const conversationsQuery = useChatConversationsQuery(organizationId);
+  const conversationsQuery = useChatConversationsQuery(organizationId, "", {
+    refetchInterval: IS_TEST_ENV ? false : 15_000,
+    refetchIntervalInBackground: false,
+  });
   const conversationsAccessLost =
     currentUserAccessLost ||
     isAccessOrResourceUnavailableError(conversationsQuery.error);
@@ -184,12 +208,21 @@ export default function FloatingChatDock() {
     [conversations],
   );
 
+  const effectiveMinimizedHeadIds = useMemo(() => {
+    const overflowOpenWindowIds = openWindowIds.slice(effectiveVisibleWindowLimit);
+    if (overflowOpenWindowIds.length === 0) return minimizedHeadIds;
+    return [
+      ...overflowOpenWindowIds,
+      ...minimizedHeadIds.filter((id) => !overflowOpenWindowIds.includes(id)),
+    ].slice(0, MAX_MINIMIZED_CHAT_HEADS);
+  }, [effectiveVisibleWindowLimit, minimizedHeadIds, openWindowIds]);
+
   const minimizedConversations = useMemo(
     () =>
-      minimizedHeadIds.map(
+      effectiveMinimizedHeadIds.map(
         (id) => conversationMap.get(id) ?? buildFallbackConversation(id),
       ),
-    [conversationMap, minimizedHeadIds],
+    [conversationMap, effectiveMinimizedHeadIds],
   );
 
   if (!actorId || !organizationId) {
@@ -202,13 +235,21 @@ export default function FloatingChatDock() {
     });
   };
 
+  const helpShiftClass = isHelpOpen
+    ? "lg:-translate-x-80 rtl:lg:translate-x-80 max-lg:pointer-events-none max-lg:opacity-0"
+    : "";
+
+  const windowsDockPositionClass = isLauncherOpen
+    ? "hidden lg:inset-x-auto lg:end-96 lg:bottom-0 lg:flex lg:max-w-[calc(100vw-25rem)]"
+    : "flex sm:inset-x-auto sm:end-22 sm:bottom-0 sm:max-w-[calc(100vw-6rem)]";
+
   return (
     <>
-      {/* Open Mini Chat Windows Dock (sits beside the bottom-right Chat FAB rail) */}
+      {/* Open Mini Chat Windows Dock (z-40 sits cleanly beneath AppHeader z-50 dropdowns) */}
       {visibleOpenWindowIds.length > 0 && (
         <div
           data-testid="floating-chat-windows-dock"
-          className="fixed inset-x-3 bottom-3 z-50 flex flex-row-reverse items-end gap-3 sm:inset-x-auto sm:end-22 sm:bottom-0 sm:max-w-[calc(100vw-6rem)]"
+          className={`fixed inset-x-3 bottom-3 z-40 flex-row-reverse items-end gap-3 transition-transform duration-200 ease-out ${windowsDockPositionClass} ${helpShiftClass}`}
         >
           {visibleOpenWindowIds.map((conversationId) => (
             <div key={conversationId} className="w-full sm:w-auto">
@@ -247,7 +288,11 @@ export default function FloatingChatDock() {
           baseConversations={conversations}
           isLoadingBase={conversationsQuery.isLoading}
           isBaseError={conversationsQuery.isError && !conversationsAccessLost}
+          hasNextPage={Boolean(conversationsQuery.hasNextPage)}
+          isFetchingNextPage={conversationsQuery.isFetchingNextPage}
+          onLoadMoreBase={() => void conversationsQuery.fetchNextPage()}
           onRetryBase={() => void conversationsQuery.refetch()}
+          isHelpOpen={isHelpOpen}
           triggerRef={triggerRef}
           onSelectConversation={handleSelectConversation}
           onClose={closeLauncher}
@@ -259,14 +304,19 @@ export default function FloatingChatDock() {
         actorId={actorId}
         isLauncherOpen={isLauncherOpen}
         hasOpenWindow={visibleOpenWindowIds.length > 0}
+        isHelpOpen={isHelpOpen}
         totalUnread={totalUnread}
         minimizedConversations={minimizedConversations}
         triggerRef={triggerRef}
         onToggleLauncher={() => toggleLauncher(organizationId)}
         onRestoreHead={handleSelectConversation}
-        onCloseHead={(conversationId) =>
-          closeHead(organizationId, conversationId)
-        }
+        onCloseHead={(conversationId) => {
+          if (openWindowIds.includes(conversationId)) {
+            closeWindow(organizationId, conversationId);
+          } else {
+            closeHead(organizationId, conversationId);
+          }
+        }}
       />
     </>
   );
