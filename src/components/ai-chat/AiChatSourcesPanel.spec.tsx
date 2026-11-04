@@ -119,10 +119,60 @@ describe("AiChatSourcesPanel", () => {
       "Could not load project sources",
     );
     expect(screen.getByText("—/1 sources ready for AI search")).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "Live SAG verification is unavailable; the ready count is unconfirmed.",
+      ),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Architecture specification")).toBeInTheDocument();
     expect(
       screen.getByText("AI uses approved v1; current version is v2"),
     ).toBeInTheDocument();
+  });
+
+  it.each([
+    [401, "Sign-in required"],
+    [403, "Project access denied"],
+    [404, "Project sources are unavailable"],
+  ])("shows the right access state for HTTP %s", (status, title) => {
+    sourceQueryMock.mockReturnValue({
+      data: response,
+      isPending: false,
+      isFetching: false,
+      isError: true,
+      error: new ApiError(status, "REQUEST_FAILED", "Request failed"),
+      refetch: vi.fn(),
+    });
+
+    renderPanel();
+
+    expect(screen.getByRole("alert")).toHaveTextContent(title);
+    expect(screen.queryByText("Architecture specification")).not.toBeInTheDocument();
+  });
+
+  it("shows SAG verification unavailable only when the API says the live check failed", () => {
+    sourceQueryMock.mockReturnValue({
+      data: {
+        ...response,
+        summary: {
+          ...response.summary,
+          readyCount: null,
+          verificationStatus: "UNAVAILABLE",
+          verifiedAt: null,
+        },
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPanel();
+
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Live SAG verification is unavailable; the ready count is unconfirmed.",
+    );
   });
 
   it("hides cached source details after 403 and closes on Escape", () => {
@@ -137,7 +187,7 @@ describe("AiChatSourcesPanel", () => {
     const { onClose } = renderPanel();
 
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Project sources are unavailable",
+      "Project access denied",
     );
     expect(screen.getByText("—/— sources ready for AI search")).toBeInTheDocument();
     expect(screen.queryByText("Architecture specification")).not.toBeInTheDocument();

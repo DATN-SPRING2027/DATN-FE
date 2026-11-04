@@ -3,12 +3,59 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertIcon, CloseLineIcon, DocsIcon, RefreshIcon } from "@/icons";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
 import { useAiChatProjectSourcesQuery } from "@/lib/queries/ai-chat/useAiChat";
 import type { AiChatProjectSourceReadiness } from "@/lib/queries/ai-chat/ai-chat.types";
 import { cn } from "@/utils";
 
 const PAGE_SIZE = 25;
+
+type ProjectSourcesErrorKind =
+  | "AUTHENTICATION"
+  | "FORBIDDEN"
+  | "NOT_FOUND"
+  | "LOAD";
+
+function projectSourcesErrorKind(error: unknown): ProjectSourcesErrorKind {
+  if (!(error instanceof ApiError)) return "LOAD";
+  if (error.status === 401) return "AUTHENTICATION";
+  if (error.status === 403) return "FORBIDDEN";
+  if (error.status === 404) return "NOT_FOUND";
+  return "LOAD";
+}
+
+const projectSourcesErrorTranslationKey: Record<
+  ProjectSourcesErrorKind,
+  {
+    title:
+      | "projectSourcesSignInErrorTitle"
+      | "projectSourcesPermissionErrorTitle"
+      | "projectSourcesNotFoundErrorTitle"
+      | "projectSourcesErrorTitle";
+    body:
+      | "projectSourcesSignInErrorBody"
+      | "projectSourcesPermissionErrorBody"
+      | "projectSourcesNotFoundErrorBody"
+      | "projectSourcesErrorBody";
+  }
+> = {
+  AUTHENTICATION: {
+    title: "projectSourcesSignInErrorTitle",
+    body: "projectSourcesSignInErrorBody",
+  },
+  FORBIDDEN: {
+    title: "projectSourcesPermissionErrorTitle",
+    body: "projectSourcesPermissionErrorBody",
+  },
+  NOT_FOUND: {
+    title: "projectSourcesNotFoundErrorTitle",
+    body: "projectSourcesNotFoundErrorBody",
+  },
+  LOAD: {
+    title: "projectSourcesErrorTitle",
+    body: "projectSourcesErrorBody",
+  },
+};
 
 type AiChatSourcesPanelProps = Readonly<{
   organizationId: string;
@@ -85,11 +132,13 @@ export default function AiChatSourcesPanel({
     page,
     PAGE_SIZE,
   );
-  const accessDenied = isAccessOrResourceUnavailableError(query.error);
-  const data = accessDenied ? undefined : query.data;
+  const queryErrorKind = query.isError
+    ? projectSourcesErrorKind(query.error)
+    : null;
+  const hideCachedSources = queryErrorKind !== null && queryErrorKind !== "LOAD";
+  const data = hideCachedSources ? undefined : query.data;
   const totalPages = data?.pagination.totalPages ?? 0;
   const verificationUnavailable =
-    query.isError ||
     data?.summary.verificationStatus === "UNAVAILABLE" ||
     data?.summary.readyCount === null;
 
@@ -183,9 +232,11 @@ export default function AiChatSourcesPanel({
                   ? "text-warning-700 dark:text-warning-300"
                   : "text-gray-500 dark:text-gray-400",
               )}
-              role={verificationUnavailable ? "status" : undefined}
+              role={verificationUnavailable || query.isError ? "status" : undefined}
             >
-              {verificationUnavailable
+              {query.isError
+                ? t("projectSourcesStatusUnknown")
+                : verificationUnavailable
                 ? t("projectSourcesUnverified")
                 : t("projectSourcesReadOnlyHint")}
             </p>
@@ -227,14 +278,18 @@ export default function AiChatSourcesPanel({
                 className="mx-auto size-5 text-error-600 dark:text-error-300"
               />
               <p className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
-                {accessDenied
-                  ? t("projectSourcesPermissionErrorTitle")
-                  : t("projectSourcesErrorTitle")}
+                {t(
+                  projectSourcesErrorTranslationKey[
+                    queryErrorKind ?? "LOAD"
+                  ].title,
+                )}
               </p>
               <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                {accessDenied
-                  ? t("projectSourcesPermissionErrorBody")
-                  : t("projectSourcesErrorBody")}
+                {t(
+                  projectSourcesErrorTranslationKey[
+                    queryErrorKind ?? "LOAD"
+                  ].body,
+                )}
               </p>
               <button
                 type="button"
