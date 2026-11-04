@@ -440,6 +440,10 @@ export default function ChatAttachments({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
 
+  const handleUrlLoaded = useCallback((id: string, url: string) => {
+    setUrls((prev) => (prev[id] === url ? prev : { ...prev, [id]: url }));
+  }, []);
+
   if (!attachments.length) return null;
 
   const imageAttachments = attachments.filter((att) => att.kind === "IMAGE");
@@ -449,10 +453,6 @@ export default function ChatAttachments({
     conversationImages && conversationImages.length > 0
       ? conversationImages
       : imageAttachments;
-
-  const handleUrlLoaded = useCallback((id: string, url: string) => {
-    setUrls((prev) => (prev[id] === url ? prev : { ...prev, [id]: url }));
-  }, []);
 
   const openLightbox = (attachment: ChatAttachment, localIdx: number) => {
     const foundIndex = allImages.findIndex((img) => img.id === attachment.id);

@@ -140,15 +140,16 @@ export default function MiniChatWindow({
   const visibleMessages = displayedAccessLost ? undefined : displayedQuery.data;
   const messages = visibleMessages?.data ?? [];
   const conversationImages = useMemo(() => {
+    if (!visibleMessages?.data) return [];
     const images: ChatAttachment[] = [];
-    for (const m of messages) {
+    for (const m of visibleMessages.data) {
       if (m.deletedAt) continue;
       for (const att of m.attachments ?? []) {
         if (att.kind === "IMAGE") images.push(att);
       }
     }
     return images;
-  }, [messages]);
+  }, [visibleMessages?.data]);
   const latestRegularMessageId = messagesQuery.data?.data.at(-1)?.id;
   const latestDisplayedMessageId = messages.at(-1)?.id;
 

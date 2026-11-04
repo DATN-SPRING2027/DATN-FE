@@ -347,15 +347,16 @@ export default function ChatWorkspace() {
   const visibleMessages = messagesAccessLost ? undefined : displayedMessagesQuery.data;
   const messages = visibleMessages?.data ?? [];
   const conversationImages = useMemo(() => {
+    if (!visibleMessages?.data) return [];
     const images: ChatAttachment[] = [];
-    for (const m of messages) {
+    for (const m of visibleMessages.data) {
       if (m.deletedAt) continue;
       for (const att of m.attachments ?? []) {
         if (att.kind === "IMAGE") images.push(att);
       }
     }
     return images;
-  }, [messages]);
+  }, [visibleMessages?.data]);
   const latestMessageId = messages.at(-1)?.id;
   const latestOwnMessage = [...messages]
     .reverse()
