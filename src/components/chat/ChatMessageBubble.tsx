@@ -1,7 +1,7 @@
 "use client";
 import MessageContent from "./MessageContent";
 
-import type { ChatMessage } from "@/lib/queries/chat/useChat";
+import type { ChatAttachment, ChatMessage } from "@/lib/queries/chat/useChat";
 import { MoreDotIcon } from "@/icons";
 import { useTranslations } from "next-intl";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
@@ -25,6 +25,7 @@ export default function ChatMessageBubble({
   onPin,
   onReceipts,
   onReport,
+  conversationImages,
 }: {
   message: ChatMessage;
   mine: boolean;
@@ -42,6 +43,7 @@ export default function ChatMessageBubble({
   onEdit: (content: string) => Promise<boolean>;
   onDelete: () => Promise<boolean>;
   onReaction: (emoji: string, active: boolean) => Promise<void>;
+  conversationImages?: readonly ChatAttachment[];
 }) {
   const t = useTranslations("chat");
   const [menu, setMenu] = useState(false);
@@ -215,6 +217,7 @@ export default function ChatMessageBubble({
                 <ChatAttachments
                   conversationId={message.conversationId}
                   attachments={message.attachments ?? []}
+                  conversationImages={conversationImages}
                 />
               )}
               {message.editedAt && !message.deletedAt && (

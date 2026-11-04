@@ -123,6 +123,50 @@ function ChatImageThumbnail({
   );
 }
 
+function ChatStripThumbnail({
+  conversationId,
+  image,
+  cachedUrl,
+  isActive,
+  onClick,
+}: Readonly<{
+  conversationId: string;
+  image: ChatAttachment;
+  cachedUrl?: string;
+  isActive: boolean;
+  onClick: () => void;
+}>) {
+  const t = useTranslations("chat");
+  const { url } = useAttachmentUrl(conversationId, cachedUrl ? "" : image.id);
+  const displayUrl = cachedUrl || url;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={t("previewImage", { name: image.name })}
+      className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
+        isActive
+          ? "border-white scale-110 shadow-lg opacity-100 ring-2 ring-white/30"
+          : "border-transparent opacity-50 hover:opacity-90 hover:scale-105"
+      }`}
+    >
+      {displayUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={displayUrl}
+          alt={image.name}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-white/10 text-[10px] text-white/60">
+          …
+        </div>
+      )}
+    </button>
+  );
+}
+
 function ChatImageLightbox({
   conversationId,
   images,
@@ -364,33 +408,17 @@ function ChatImageLightbox({
         >
           <div className="flex max-w-[90vw] items-center gap-2 overflow-x-auto rounded-2xl bg-black/65 px-3 py-2 shadow-2xl backdrop-blur-md">
             {images.map((img, idx) => (
-              <button
+              <ChatStripThumbnail
                 key={img.id}
-                type="button"
+                conversationId={conversationId}
+                image={img}
+                cachedUrl={urls[img.id]}
+                isActive={idx === safeIndex}
                 onClick={() => {
                   setCurrentIndex(idx);
                   setIsZoomed(false);
                 }}
-                aria-label={t("previewImage", { name: img.name })}
-                className={`relative h-12 w-12 shrink-0 overflow-hidden rounded-lg border-2 transition-all ${
-                  idx === safeIndex
-                    ? "border-white scale-110 shadow-lg opacity-100 ring-2 ring-white/30"
-                    : "border-transparent opacity-50 hover:opacity-90 hover:scale-105"
-                }`}
-              >
-                {urls[img.id] ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={urls[img.id]}
-                    alt={img.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center bg-white/10 text-[10px] text-white/60">
-                    …
-                  </div>
-                )}
-              </button>
+              />
             ))}
           </div>
         </div>
@@ -403,9 +431,11 @@ function ChatImageLightbox({
 export default function ChatAttachments({
   conversationId,
   attachments,
+  conversationImages,
 }: Readonly<{
   conversationId: string;
   attachments: readonly ChatAttachment[];
+  conversationImages?: readonly ChatAttachment[];
 }>) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [urls, setUrls] = useState<Record<string, string>>({});
@@ -415,9 +445,19 @@ export default function ChatAttachments({
   const imageAttachments = attachments.filter((att) => att.kind === "IMAGE");
   const docAttachments = attachments.filter((att) => att.kind !== "IMAGE");
 
+  const allImages =
+    conversationImages && conversationImages.length > 0
+      ? conversationImages
+      : imageAttachments;
+
   const handleUrlLoaded = useCallback((id: string, url: string) => {
     setUrls((prev) => (prev[id] === url ? prev : { ...prev, [id]: url }));
   }, []);
+
+  const openLightbox = (attachment: ChatAttachment, localIdx: number) => {
+    const foundIndex = allImages.findIndex((img) => img.id === attachment.id);
+    setLightboxIndex(foundIndex >= 0 ? foundIndex : localIdx);
+  };
 
   return (
     <div className="space-y-1">
@@ -426,7 +466,7 @@ export default function ChatAttachments({
           key={attachment.id}
           conversationId={conversationId}
           attachment={attachment}
-          onClick={() => setLightboxIndex(idx)}
+          onClick={() => openLightbox(attachment, idx)}
           onUrlLoaded={(url) => handleUrlLoaded(attachment.id, url)}
         />
       ))}
@@ -438,10 +478,10 @@ export default function ChatAttachments({
         />
       ))}
 
-      {lightboxIndex !== null && imageAttachments.length > 0 && (
+      {lightboxIndex !== null && allImages.length > 0 && (
         <ChatImageLightbox
           conversationId={conversationId}
-          images={imageAttachments}
+          images={allImages}
           initialIndex={lightboxIndex}
           urls={urls}
           onClose={() => setLightboxIndex(null)}

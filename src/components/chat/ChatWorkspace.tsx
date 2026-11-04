@@ -17,6 +17,7 @@ import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   chatApi,
   chatKeys,
+  type ChatAttachment,
   type ChatCandidate,
   type ChatConversation,
   type ChatMessage,
@@ -345,6 +346,16 @@ export default function ChatWorkspace() {
   const messagesAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(displayedMessagesQuery.error);
   const visibleMessages = messagesAccessLost ? undefined : displayedMessagesQuery.data;
   const messages = visibleMessages?.data ?? [];
+  const conversationImages = useMemo(() => {
+    const images: ChatAttachment[] = [];
+    for (const m of messages) {
+      if (m.deletedAt) continue;
+      for (const att of m.attachments ?? []) {
+        if (att.kind === "IMAGE") images.push(att);
+      }
+    }
+    return images;
+  }, [messages]);
   const latestMessageId = messages.at(-1)?.id;
   const latestOwnMessage = [...messages]
     .reverse()
@@ -1942,6 +1953,7 @@ export default function ChatWorkspace() {
                         }
                         highlighted={highlightedMessageId === message.id}
                         receipt={receipt}
+                        conversationImages={conversationImages}
                         onOpenContext={(id) =>
                           openMessageContext({
                             id,

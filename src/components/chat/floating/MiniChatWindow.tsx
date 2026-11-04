@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
@@ -17,6 +17,7 @@ import {
   chatKeys,
   useChatMessageContextQuery,
   useChatMessagesQuery,
+  type ChatAttachment,
   type ChatConversation,
   type ChatMessage,
   type ChatPage,
@@ -138,6 +139,16 @@ export default function MiniChatWindow({
   );
   const visibleMessages = displayedAccessLost ? undefined : displayedQuery.data;
   const messages = visibleMessages?.data ?? [];
+  const conversationImages = useMemo(() => {
+    const images: ChatAttachment[] = [];
+    for (const m of messages) {
+      if (m.deletedAt) continue;
+      for (const att of m.attachments ?? []) {
+        if (att.kind === "IMAGE") images.push(att);
+      }
+    }
+    return images;
+  }, [messages]);
   const latestRegularMessageId = messagesQuery.data?.data.at(-1)?.id;
   const latestDisplayedMessageId = messages.at(-1)?.id;
 
@@ -738,6 +749,7 @@ export default function MiniChatWindow({
                 groupEnd={groupEnd}
                 highlighted={highlightedMessageId === message.id}
                 receipt={receipt}
+                conversationImages={conversationImages}
                 onOpenContext={scrollToQuotedMessage}
                 onReply={() => setReplyingTo(message)}
                 onEdit={(content) => saveMessageEdit(message.id, content)}
