@@ -146,7 +146,7 @@ it("keeps the last message menu inside the viewport and closes it when history s
   }
 });
 
-it("does not render empty message content when message only has attachments and no text", () => {
+it("does not render empty message content when message only has attachments and no text", async () => {
   render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <ChatMessageBubble
@@ -176,4 +176,7 @@ it("does not render empty message content when message only has attachments and 
     </NextIntlClientProvider>,
   );
   expect(screen.queryByText("Original")).not.toBeInTheDocument();
+  await waitFor(() => {
+    expect(screen.getByText("Attachment unavailable")).toBeInTheDocument();
+  });
 });
