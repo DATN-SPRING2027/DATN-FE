@@ -11,6 +11,7 @@ import { ApiError, apiClient } from "@/lib/api-client";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
 } from "@/components/chat/floating/chat-shared-helpers";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
@@ -294,6 +295,7 @@ export function useNotificationRealtimeSubscription(
             connection.close();
             return;
           }
+          resetChatWsCooldown(identityKey);
           setConnectedIdentity(identityKey);
           delay = 2000;
           authRecheckAttempted = false;

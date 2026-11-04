@@ -130,3 +130,46 @@ it("attaches an image pasted from clipboard into the textarea and sends it", asy
     ),
   );
 });
+
+
+it("attaches a non-image document without converting it to image/png or generating broken img preview", async () => {
+  const createObjectURL = vi.fn(() => "blob:doc-preview");
+  class TestURL extends URL {
+    static createObjectURL = createObjectURL;
+    static revokeObjectURL = vi.fn();
+  }
+  const onSend = vi.fn().mockResolvedValue(true);
+  vi.stubGlobal("URL", TestURL);
+
+  render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <ChatComposer isSending={false} onSend={onSend} onTyping={vi.fn()} />
+    </NextIntlClientProvider>,
+  );
+
+  const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+  // Non-image file with empty type (common on Windows)
+  const docFile = new File(["test data content"], "notes.txt", { type: "" });
+  fireEvent.change(input, { target: { files: [docFile] } });
+
+  // Must NOT render img tag or call createObjectURL
+  expect(document.querySelector("img")).not.toBeInTheDocument();
+  expect(createObjectURL).not.toHaveBeenCalled();
+  expect(screen.getByText("notes.txt")).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+
+  await waitFor(() =>
+    expect(onSend).toHaveBeenCalledWith(
+      "",
+      expect.any(String),
+      [
+        expect.objectContaining({
+          name: "notes.txt",
+          type: "application/octet-stream",
+        }),
+      ],
+      [],
+    ),
+  );
+});

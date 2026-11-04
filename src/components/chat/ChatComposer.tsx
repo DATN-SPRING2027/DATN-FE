@@ -138,12 +138,16 @@ export default function ChatComposer({
     if (incoming.length === 0 || disabled || submitting || isSending) return;
 
     const normalizedIncoming = incoming.map((file, idx) => {
-      let ext = "png";
-      if (file.type) {
-        ext = file.type.split("/")[1]?.replace("+xml", "") || "png";
-      } else if (file.name && file.name.includes(".")) {
-        ext = file.name.split(".").pop()?.toLowerCase() || "png";
+      let ext = "";
+      if (file.name && file.name.includes(".")) {
+        ext = file.name.split(".").pop()?.toLowerCase() || "";
+      } else if (file.type) {
+        ext = file.type.split("/")[1]?.replace("+xml", "").toLowerCase() || "";
       }
+
+      const isImage =
+        Boolean(file.type?.startsWith("image/")) ||
+        /^(png|jpe?g|webp|gif|svg|bmp|ico)$/i.test(ext);
 
       let mimeType = file.type;
       if (!mimeType || mimeType === "application/octet-stream") {
@@ -151,16 +155,21 @@ export default function ChatComposer({
         else if (/^jpe?g$/i.test(ext)) mimeType = "image/jpeg";
         else if (/^webp$/i.test(ext)) mimeType = "image/webp";
         else if (/^gif$/i.test(ext)) mimeType = "image/gif";
+        else if (/^svg$/i.test(ext)) mimeType = "image/svg+xml";
         else if (/^pdf$/i.test(ext)) mimeType = "application/pdf";
       }
 
+      const effectiveExt = ext || (isImage ? "png" : "bin");
+      const prefix = isImage ? "image" : "file";
       const safeName =
         !file.name || file.name === "blob"
-          ? `image-${Date.now()}-${idx + 1}.${ext}`
+          ? `${prefix}-${Date.now()}-${idx + 1}.${effectiveExt}`
           : file.name;
 
+      const fallbackType = isImage ? "image/png" : "application/octet-stream";
+
       return new File([file], safeName, {
-        type: mimeType || file.type || "image/png",
+        type: mimeType || file.type || fallbackType,
         lastModified: file.lastModified || Date.now(),
       });
     });

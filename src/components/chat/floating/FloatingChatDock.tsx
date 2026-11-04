@@ -10,6 +10,7 @@ import {
 } from "@/lib/queries/chat/useChat";
 import {
   EMPTY_CHAT_IDS,
+  MAX_MINIMIZED_CHAT_HEADS,
   TWO_WINDOW_MIN_VIEWPORT_PX,
   resolveMaxOpenChatWindows,
   useFloatingChatStore,
@@ -207,12 +208,21 @@ export default function FloatingChatDock() {
     [conversations],
   );
 
+  const effectiveMinimizedHeadIds = useMemo(() => {
+    const overflowOpenWindowIds = openWindowIds.slice(effectiveVisibleWindowLimit);
+    if (overflowOpenWindowIds.length === 0) return minimizedHeadIds;
+    return [
+      ...overflowOpenWindowIds,
+      ...minimizedHeadIds.filter((id) => !overflowOpenWindowIds.includes(id)),
+    ].slice(0, MAX_MINIMIZED_CHAT_HEADS);
+  }, [effectiveVisibleWindowLimit, minimizedHeadIds, openWindowIds]);
+
   const minimizedConversations = useMemo(
     () =>
-      minimizedHeadIds.map(
+      effectiveMinimizedHeadIds.map(
         (id) => conversationMap.get(id) ?? buildFallbackConversation(id),
       ),
-    [conversationMap, minimizedHeadIds],
+    [conversationMap, effectiveMinimizedHeadIds],
   );
 
   if (!actorId || !organizationId) {
@@ -300,9 +310,13 @@ export default function FloatingChatDock() {
         triggerRef={triggerRef}
         onToggleLauncher={() => toggleLauncher(organizationId)}
         onRestoreHead={handleSelectConversation}
-        onCloseHead={(conversationId) =>
-          closeHead(organizationId, conversationId)
-        }
+        onCloseHead={(conversationId) => {
+          if (openWindowIds.includes(conversationId)) {
+            closeWindow(organizationId, conversationId);
+          } else {
+            closeHead(organizationId, conversationId);
+          }
+        }}
       />
     </>
   );

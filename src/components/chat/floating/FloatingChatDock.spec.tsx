@@ -65,6 +65,20 @@ vi.mock("@/components/ai-companion/CompanionProjectPicker", () => ({
   default: () => null,
 }));
 
+const sidebarState = vi.hoisted(() => ({
+  isHelpOpen: false,
+}));
+
+vi.mock("@/context/SidebarContext", () => ({
+  useSidebar: () => ({
+    ...sidebarState,
+    isExpanded: true,
+    isHovered: false,
+    isMobileOpen: false,
+  }),
+  useOptionalSidebar: () => sidebarState,
+}));
+
 class FakeWebSocket {
   static OPEN = 1;
   static instances: FakeWebSocket[] = [];
@@ -131,6 +145,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     });
     Element.prototype.scrollTo = vi.fn();
     Element.prototype.scrollIntoView = vi.fn();
+    sidebarState.isHelpOpen = false;
     useFloatingChatStore.getState().reset();
     useChatNavigation.getState().clear();
     api.mockReset();
@@ -1027,5 +1042,127 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       await within(launcher).findByText("Pham Anh Member 1"),
     ).toBeInTheDocument();
   });
-});
 
+  it("surfaces overflow open windows as chat heads when Help drawer is open and swaps visible window when clicked", async () => {
+    const conv1 = convId;
+    const conv2 = "507f1f77bcf86cd799439022";
+    const sampleConvs = [
+      {
+        id: conv1,
+        type: "DIRECT" as const,
+        title: null,
+        createdBy: actorId,
+        lastMessageAt: "2026-11-02T09:00:00.000Z",
+        lastMessagePreview: "Hi 1",
+        lastMessageSenderId: "507f1f77bcf86cd799439099",
+        lastReadMessageId: null,
+        lastReadAt: null,
+        unreadCount: 0,
+        members: [
+          {
+            userId: actorId,
+            displayName: "Phuc Nguyen",
+            avatarUrl: null,
+            role: "MEMBER" as const,
+            lastReadMessageId: null,
+            lastReadAt: null,
+            lastDeliveredMessageId: null,
+            lastDeliveredAt: null,
+            isOnline: true,
+          },
+          {
+            userId: "507f1f77bcf86cd799439099",
+            displayName: "Lan Tran",
+            avatarUrl: null,
+            role: "MEMBER" as const,
+            lastReadMessageId: null,
+            lastReadAt: null,
+            lastDeliveredMessageId: null,
+            lastDeliveredAt: null,
+            isOnline: true,
+          },
+        ],
+      },
+      {
+        id: conv2,
+        type: "DIRECT" as const,
+        title: null,
+        createdBy: actorId,
+        lastMessageAt: "2026-11-02T10:00:00.000Z",
+        lastMessagePreview: "Hi 2",
+        lastMessageSenderId: "507f1f77bcf86cd799439088",
+        lastReadMessageId: null,
+        lastReadAt: null,
+        unreadCount: 0,
+        members: [
+          {
+            userId: actorId,
+            displayName: "Phuc Nguyen",
+            avatarUrl: null,
+            role: "MEMBER" as const,
+            lastReadMessageId: null,
+            lastReadAt: null,
+            lastDeliveredMessageId: null,
+            lastDeliveredAt: null,
+            isOnline: true,
+          },
+          {
+            userId: "507f1f77bcf86cd799439088",
+            displayName: "Bao Pham",
+            avatarUrl: null,
+            role: "MEMBER" as const,
+            lastReadMessageId: null,
+            lastReadAt: null,
+            lastDeliveredMessageId: null,
+            lastDeliveredAt: null,
+            isOnline: true,
+          },
+        ],
+      },
+    ];
+
+    api.mockImplementation(async (path: string, init?: RequestInit) => {
+      if (path === "/chat/ws-ticket" && init?.method === "POST") {
+        return { ticket: "ws-ticket-help", expiresInSeconds: 60 };
+      }
+      if (path.startsWith("/chat/conversations?")) {
+        return { data: sampleConvs, nextCursor: null };
+      }
+      if (path.includes("/messages?limit=50")) {
+        return { data: [], nextCursor: null };
+      }
+      if (path.includes("/draft")) {
+        return { content: "", mentionUserIds: [] };
+      }
+      throw new Error(`Unexpected path: ${path}`);
+    });
+
+    sidebarState.isHelpOpen = true;
+    useFloatingChatStore.getState().openConversation(orgId, conv1);
+    useFloatingChatStore.getState().openConversation(orgId, conv2);
+
+    renderWithProviders(<FloatingChatDock />);
+
+    // conv2 was opened most recently, so visible window is conv2
+    expect(
+      await screen.findByTestId(`mini-chat-window-${conv2}`),
+    ).toBeInTheDocument();
+    // conv1 is the overflow open window, rendered as a minimized chat head!
+    expect(
+      await screen.findByTestId(`floating-chat-head-${conv1}`),
+    ).toBeInTheDocument();
+
+    // Clicking conv1 chat head swaps it to the visible mini window and makes conv2 the chat head
+    const head1 = screen.getByTestId(`floating-chat-head-${conv1}`);
+    fireEvent.click(
+      within(head1).getByRole("button", { name: "Restore chat with Lan Tran" }),
+    );
+
+    expect(
+      await screen.findByTestId(`mini-chat-window-${conv1}`),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByTestId(`floating-chat-head-${conv2}`),
+    ).toBeInTheDocument();
+  });
+});

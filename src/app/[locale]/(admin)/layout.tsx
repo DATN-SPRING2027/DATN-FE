@@ -45,7 +45,7 @@ export default function AdminLayout({
     const launcherOpen = state.launcherOrgId === state.activeOrgId;
     if (launcherOpen && openCount >= 1) return "lg:pe-96 xl:pe-184";
     if (launcherOpen) return "sm:pe-96";
-    if (openCount >= 2) return "sm:pe-96 xl:pe-184";
+    if (openCount >= 2) return "sm:pe-96 lg:pe-184";
     if (openCount === 1) return "sm:pe-96";
     return "";
   });

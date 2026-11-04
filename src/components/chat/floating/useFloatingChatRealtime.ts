@@ -23,6 +23,7 @@ import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  resetChatWsCooldown,
   isChatMessagePacket,
   mergeChatMessage,
   resolveChatRealtimeWsUrl,
@@ -274,6 +275,7 @@ export function useFloatingChatRealtime({
             socket.close();
             return;
           }
+          resetChatWsCooldown(identityKey);
           delay = 1000;
           authRecheckAttempted = false;
         };

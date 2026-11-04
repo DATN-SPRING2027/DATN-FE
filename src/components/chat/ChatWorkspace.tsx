@@ -43,6 +43,7 @@ import { useFloatingChatStore } from "@/stores/floating-chat";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
 } from "./floating/chat-shared-helpers";
 import ChatDialog from "./ChatDialog";
@@ -533,6 +534,7 @@ export default function ChatWorkspace() {
         socketRef.current = socket;
         socket.onopen = () => {
           if (stopped) return socket.close();
+          resetChatWsCooldown(realtimeIdentityKey);
           delay = 1000;
         };
         socket.onmessage = (event) => {
