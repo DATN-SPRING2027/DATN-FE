@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { chatApi, type ChatAttachment } from "@/lib/queries/chat/useChat";
@@ -148,4 +148,83 @@ describe("ChatAttachments — Image Lightbox and Document Attachments", () => {
       expect(screen.getByText("Attachment unavailable")).toBeInTheDocument();
     });
   });
+
+  it("supports multi-image album navigation with Next/Prev buttons, counter, and keyboard arrows", async () => {
+    const secondImage: ChatAttachment = {
+      id: "att-img-2",
+      name: "diagram.png",
+      contentType: "image/png",
+      size: 409600,
+      kind: "IMAGE",
+    };
+
+    vi.mocked(chatApi.attachmentDownloadUrl).mockImplementation(
+      async (_convId, attId) => {
+        if (attId === "att-img-1") {
+          return { url: "blob:mock-image-1", expiresInSeconds: 300 };
+        }
+        return { url: "blob:mock-image-2", expiresInSeconds: 300 };
+      },
+    );
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <ChatAttachments
+          conversationId="conv-1"
+          attachments={[imageAttachment, secondImage]}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: "View image screenshot.png" }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: "View image diagram.png" }),
+      ).toBeInTheDocument();
+    });
+
+    // Open first image
+    fireEvent.click(
+      screen.getByRole("button", { name: "View image screenshot.png" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("dialog", { name: "screenshot.png" }),
+      ).toBeInTheDocument();
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    const prevButton = screen.getByRole("button", { name: "Previous image" });
+    const nextButton = screen.getByRole("button", { name: "Next image" });
+    expect(prevButton).toBeInTheDocument();
+    expect(nextButton).toBeInTheDocument();
+
+    // Click Next to switch to second image
+    fireEvent.click(nextButton);
+    await waitFor(() => {
+      expect(screen.getByText("diagram.png")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+
+    const downloadLink = screen.getByRole("link", { name: "Download image" });
+    expect(downloadLink).toHaveAttribute("download", "diagram.png");
+
+    // Keyboard ArrowLeft to navigate back to first image
+    fireEvent.keyDown(window, { key: "ArrowLeft" });
+    await waitFor(() => {
+      expect(screen.getByText("screenshot.png")).toBeInTheDocument();
+    });
+    expect(screen.getByText("1 / 2")).toBeInTheDocument();
+
+    // Keyboard ArrowRight to navigate to second image
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    await waitFor(() => {
+      expect(screen.getByText("diagram.png")).toBeInTheDocument();
+    });
+    expect(screen.getByText("2 / 2")).toBeInTheDocument();
+  });
 });
+

@@ -839,6 +839,8 @@
     "closePreview": "Close preview",
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
+    "previousImage": "Previous image",
+    "nextImage": "Next image",
     "loadEarlier": "Load earlier messages",
     "loading": "Loading conversations…",
     "loadMoreConversations": "Load more conversations",
