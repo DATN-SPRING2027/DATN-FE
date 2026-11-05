@@ -384,14 +384,22 @@ export default function HandoverDetailWorkspace({
     }
     if (
       currentUserId &&
-      (currentUserId === handover.departingUserId ||
-        currentUserId === handover.successorUserId ||
+      ((activeMembers.some((member) => member.userId === currentUserId) &&
+        (currentUserId === handover.departingUserId ||
+          currentUserId === handover.successorUserId)) ||
         verifiedLeadersMap.has(currentUserId))
     ) {
       return false;
     }
     return true;
-  }, [capabilities, currentUserId, handover, isOrgManager, verifiedLeadersMap]);
+  }, [
+    activeMembers,
+    capabilities,
+    currentUserId,
+    handover,
+    isOrgManager,
+    verifiedLeadersMap,
+  ]);
 
   const resolvedTab: DetailTab = useMemo(() => {
     if (isCoordinatorRecoveryOnly) return "published";

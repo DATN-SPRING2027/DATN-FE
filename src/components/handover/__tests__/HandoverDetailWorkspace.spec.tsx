@@ -1417,4 +1417,77 @@ describe("HandoverDetailWorkspace", () => {
       });
     });
   });
+  it.each([
+    ["user-a", "INACTIVE", false],
+    ["user-b", "INACTIVE", false],
+    ["user-a", "ACTIVE", true],
+    ["user-b", "ACTIVE", true],
+  ] as const)(
+    "uses current %s membership (%s) for participant tabs",
+    (userId, status, canReadContent) => {
+      mockedCurrentUser.mockReturnValue({
+        data: {
+          id: userId,
+          name: "Participant Manager",
+          email: "manager@continuum.local",
+          organizationId: "org-1",
+          roles: ["ADMIN"],
+        },
+        isPending: false,
+        isError: false,
+      } as never);
+      mockedMembers.mockReturnValue({
+        data: {
+          data: [
+            {
+              id: "participant-membership",
+              userId,
+              projectId: PROJECT_ID,
+              status,
+              joinedAt: "2026-10-01T00:00:00.000Z",
+            },
+          ],
+        },
+        isPending: false,
+        isError: false,
+      } as never);
+      vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+        data: {
+          detail: {
+            handover: makeSummary(),
+            capabilities: ["READ"],
+            requiredPendingCount: 1,
+            canComplete: false,
+            publishedRevision: {
+              id: "rev-001",
+              handoverId: HANDOVER_ID,
+              number: 1,
+              publishedAt: "2026-10-28T03:00:00.000Z",
+              publishedBy: "user-d",
+              isCurrent: true,
+              items: [{ itemId: "item-secret-99", access: "UNAVAILABLE" }],
+            },
+          },
+          etag: `"handover:${HANDOVER_ID}:5"`,
+        },
+        isPending: false,
+        isFetching: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      } as never);
+      renderDetail();
+      const nav = screen.getByRole("navigation", {
+        name: /handover workspace sections/i,
+      });
+      expect(
+        within(nav).getByRole("button", { name: /published package/i }),
+      ).toBeInTheDocument();
+      for (const name of [/task transfers/i, /q&a/i, /follow-ups/i]) {
+        const tab = within(nav).queryByRole("button", { name });
+        if (canReadContent) expect(tab).toBeInTheDocument();
+        else expect(tab).not.toBeInTheDocument();
+      }
+    },
+  );
 });
