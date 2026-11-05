@@ -1972,3 +1972,32 @@ it("renders open-ended numbered clarification items as an ordered list and forma
   expect(card).not.toHaveTextContent("WN_SEC");
   expect(screen.getByText(/Chưa xác minh 🔒 mật khẩu/)).toBeInTheDocument();
 });
+
+it("renders explicit no-change badge and noChangesSummary in the live WorkNoteAgentChat proposal card when replacementText is identical and changeSummary is empty", async () => {
+  vi.mocked(agentApi.message).mockResolvedValueOnce({
+    status: "SUGGESTION_READY",
+    message: "Nội dung đã đầy đủ, giữ nguyên bản thảo.",
+    suggestion: {
+      id: "sug-no-change-live",
+      scope: "whole_note",
+      operation: "grammar",
+      baseRevision: 1,
+      replacementText: base.contentMarkdown,
+      suggestedTitle: null,
+      changeSummary: [],
+    },
+    questions: [],
+    uncertainties: [],
+    sourceRevision: 1,
+  });
+
+  mount();
+  await screen.findByDisplayValue(base.contentMarkdown);
+  runToolbarTool("Sửa chính tả & ngữ pháp");
+
+  const proposalCard = await screen.findByRole("region", {
+    name: "Đề xuất chỉnh sửa",
+  });
+  expect(within(proposalCard).getByText("Giữ nguyên nội dung")).toBeInTheDocument();
+  expect(within(proposalCard).getByText("Không có thay đổi")).toBeInTheDocument();
+});

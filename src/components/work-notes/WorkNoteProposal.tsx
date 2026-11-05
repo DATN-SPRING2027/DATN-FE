@@ -26,6 +26,13 @@ export default function WorkNoteProposal({
   const t = useTranslations("workNotes.agent");
   const [edited, setEdited] = useState<string | null>(null),
     [title, setTitle] = useState(false);
+  const originalText =
+    suggestion.operation === "title"
+      ? before.title
+      : (suggestion.selection?.quote ?? before.contentMarkdown);
+  const proposedText =
+    suggestion.replacementText ?? suggestion.suggestedTitle ?? "";
+  const isIdentical = originalText === (edited ?? proposedText);
   return (
     <section
       aria-label={t("proposal")}
@@ -41,20 +48,18 @@ export default function WorkNoteProposal({
             <li key={i}>{line}</li>
           ))}
         </ul>
-      ) : (
+      ) : isIdentical ? (
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {t("noChangesSummary")}
         </p>
-      )}
+      ) : null}
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <h4 className="mb-1 text-xs text-gray-500 dark:text-gray-400">
             {t("before")}
           </h4>
           <pre className="max-h-64 overflow-auto rounded-md bg-gray-50 p-3 font-sans text-sm break-words whitespace-pre-wrap dark:bg-gray-950">
-            {suggestion.operation === "title"
-              ? before.title
-              : (suggestion.selection?.quote ?? before.contentMarkdown)}
+            {originalText}
           </pre>
         </div>
         <div>
