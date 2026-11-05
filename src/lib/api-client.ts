@@ -69,15 +69,6 @@ async function recoverSession(): Promise<void> {
   }
 }
 
-export async function keepAliveSession(): Promise<void> {
-  if (logoutInFlight) return;
-  try {
-    await recoverSession();
-  } catch {
-    // Ignore proactive keep-alive failures; normal 401 session recovery handles invalid sessions.
-  }
-}
-
 function waitForRefresh(
   pendingRefresh: Promise<unknown> | undefined,
   signal?: AbortSignal,

@@ -10,13 +10,11 @@ import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion
 import FloatingChatDock from "@/components/chat/floating/FloatingChatDock";
 import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
 import { usePathname, useRouter } from "@/i18n/navigation";
-import { ApiError, keepAliveSession } from "@/lib/api-client";
+import { ApiError } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import { useTranslations } from "next-intl";
 import React, { useEffect, useRef, useState } from "react";
-
-const SESSION_KEEP_ALIVE_INTERVAL_MS = 10 * 60 * 1000;
 
 export function resolveAdminPageTransitionKey(pathname: string): string {
   const workRouteMatch = pathname.match(
@@ -107,39 +105,6 @@ export default function AdminLayout({
       router.replace("/onboarding");
     }
   }, [unauthorized, currentUser.data?.context, router]);
-
-  const hasAuthenticatedOrganizationSession = Boolean(
-    currentUser.data &&
-      !currentUser.isError &&
-      currentUser.data.context !== "ACCOUNT",
-  );
-
-  useEffect(() => {
-    if (!hasAuthenticatedOrganizationSession) return;
-    let lastRefreshedAt = Date.now();
-    const runKeepAlive = () => {
-      if (document.visibilityState === "hidden") return;
-      lastRefreshedAt = Date.now();
-      void keepAliveSession();
-    };
-    const handleVisibilityChange = () => {
-      if (
-        document.visibilityState === "visible" &&
-        Date.now() - lastRefreshedAt >= SESSION_KEEP_ALIVE_INTERVAL_MS
-      ) {
-        runKeepAlive();
-      }
-    };
-    const intervalId = window.setInterval(
-      runKeepAlive,
-      SESSION_KEEP_ALIVE_INTERVAL_MS,
-    );
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-    return () => {
-      window.clearInterval(intervalId);
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, [hasAuthenticatedOrganizationSession]);
 
   if (
     !currentUser.data ||

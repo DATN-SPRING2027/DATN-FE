@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -331,6 +331,54 @@ describe("AiChatEvidenceSheet — Source Reader Studio", () => {
     expect(dialog.style.getPropertyValue("--evidence-drawer-width")).toBe(
       "716px",
     );
+  });
+
+  it("keeps a legacy all-project citation as an excerpt when only the filename matches", async () => {
+    const sources = ["a", "b"].map((id) => ({
+      projectId: id.repeat(24),
+      documentId: (id === "a" ? "1" : "2").repeat(24),
+      title: "report.pdf",
+      fileName: "report.pdf",
+    }));
+    vi.spyOn(apiClientModule, "apiClient").mockResolvedValue({
+      data: sources,
+      pagination: { totalPages: 1 },
+    });
+    const getChunks = vi
+      .spyOn(workNotesApi, "getDocumentKnowledgeChunks")
+      .mockImplementation(async (_projectId, documentId) => ({
+        documentId,
+        version: 1,
+        sourceStage: "EMPTY",
+        totalChunks: 0,
+        totalTokens: 0,
+        items: [],
+      }));
+
+    await act(async () => {
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <AiChatEvidenceSheet
+            evidence={{
+              kind: "document",
+              citation: {
+                number: 1,
+                sourceId: "legacy-source",
+                documentId: "c1b2a3d4-0000-4000-8000-111122223333",
+                documentName: "report.pdf",
+                snippet: "Original cited excerpt.",
+              },
+            }}
+            projectId="all"
+            onClose={vi.fn()}
+          />
+        </NextIntlClientProvider>,
+      );
+    });
+
+    expect(screen.getByText("Original cited excerpt.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Open document/i })).toBeNull();
+    expect(getChunks).not.toHaveBeenCalled();
   });
 
   it("resolves owning project for citations from two different projects in projectId='all' scope to hydrate canonical chunks and render Open document links", async () => {

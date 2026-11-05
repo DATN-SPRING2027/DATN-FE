@@ -30,7 +30,6 @@ import {
 } from "@/icons";
 import type {
   AiChatCitation,
-  AiChatProjectDocumentSource,
   AiChatProjectDocumentSources,
 } from "@/lib/queries/ai-chat/ai-chat.types";
 import { apiClient } from "@/lib/api-client";
@@ -75,14 +74,10 @@ const docChunksCache = new Map<
   string,
   CachedEntry<readonly DocumentKnowledgeChunk[]>
 >();
-let allProjectSourcesCache: CachedEntry<
-  readonly AiChatProjectDocumentSource[]
-> | null = null;
 
 export function resetEvidenceSheetCachesForTests(): void {
   projectDocsCache.clear();
   docChunksCache.clear();
-  allProjectSourcesCache = null;
 }
 
 function clampDrawerWidth(raw: number): number {
@@ -141,6 +136,7 @@ function detectFileFormatBadge(name: string | undefined): string {
 function matchBestDocumentSummary(
   docs: readonly ProjectDocumentSummary[],
   citation: AiChatCitation,
+  allowFilenameFallback: boolean,
 ): string | null {
   const candidates = [citation.documentId, citation.sagDocumentId].filter(
     (id): id is string => Boolean(id),
@@ -153,6 +149,7 @@ function matchBestDocumentSummary(
       return doc.id;
     }
   }
+  if (!allowFilenameFallback) return null;
   const targetName = (citation.documentName ?? "").trim().toLowerCase();
   if (targetName) {
     const exactByFile = docs.find(
@@ -253,40 +250,6 @@ type HydratedCitationData = Readonly<{
   prevChunk: DocumentKnowledgeChunk | null;
   nextChunk: DocumentKnowledgeChunk | null;
 }>;
-
-function matchAllProjectsDocumentSource(
-  sources: readonly AiChatProjectDocumentSource[],
-  citation: AiChatCitation,
-): { projectId: string; documentId: string } | null {
-  const candidates = [citation.documentId, citation.sagDocumentId].filter(
-    (id): id is string => Boolean(id),
-  );
-  for (const src of sources) {
-    if (
-      src.projectId &&
-      isContinuumDocumentId(src.projectId) &&
-      isContinuumDocumentId(src.documentId) &&
-      candidates.includes(src.documentId)
-    ) {
-      return { projectId: src.projectId, documentId: src.documentId };
-    }
-  }
-  const targetName = (citation.documentName ?? "").trim().toLowerCase();
-  if (targetName) {
-    const byName = sources.find(
-      (src) =>
-        src.projectId &&
-        isContinuumDocumentId(src.projectId) &&
-        isContinuumDocumentId(src.documentId) &&
-        (src.fileName?.trim().toLowerCase() === targetName ||
-          src.title.trim().toLowerCase() === targetName),
-    );
-    if (byName && byName.projectId) {
-      return { projectId: byName.projectId, documentId: byName.documentId };
-    }
-  }
-  return null;
-}
 
 export default function AiChatEvidenceSheet({
   evidence,
@@ -409,42 +372,26 @@ export default function AiChatEvidenceSheet({
         : null;
 
       if (!targetProjectId && projectId === "all") {
-        const now = Date.now();
-        let allSources: readonly AiChatProjectDocumentSource[] = [];
-        if (allProjectSourcesCache && allProjectSourcesCache.expiresAt > now) {
-          allSources = allProjectSourcesCache.data;
-        } else {
-          const collected: AiChatProjectDocumentSource[] = [];
-          const firstPage = await apiClient<AiChatProjectDocumentSources>(
-            "/ai-chat/projects/all/document-sources?page=1&pageSize=100",
+        // The catalog exposes Continuum document IDs. A legacy SAG UUID alone
+        // cannot identify which Project owns the cited document.
+        if (!resolvedDocId) return;
+        let totalPages = 1;
+        for (let page = 1; page <= totalPages; page += 1) {
+          const result = await apiClient<AiChatProjectDocumentSources>(
+            `/ai-chat/projects/all/document-sources?page=${page}&pageSize=100`,
             { signal: controller.signal, cache: "no-store" },
           );
-          collected.push(...(firstPage.data ?? []));
-          const totalPages = Math.min(firstPage.pagination?.totalPages ?? 1, 5);
-          for (let page = 2; page <= totalPages; page += 1) {
-            if (controller.signal.aborted) return;
-            const nextPage = await apiClient<AiChatProjectDocumentSources>(
-              `/ai-chat/projects/all/document-sources?page=${page}&pageSize=100`,
-              { signal: controller.signal, cache: "no-store" },
-            );
-            collected.push(...(nextPage.data ?? []));
+          if (controller.signal.aborted) return;
+          const match = result.data.find(
+            (source) =>
+              source.documentId === resolvedDocId &&
+              isContinuumDocumentId(source.projectId),
+          );
+          if (match?.projectId) {
+            targetProjectId = match.projectId;
+            break;
           }
-          allSources = collected;
-          allProjectSourcesCache = {
-            data: allSources,
-            expiresAt: Date.now() + CACHE_TTL_MS,
-          };
-        }
-        if (controller.signal.aborted) return;
-        const matchedSource = matchAllProjectsDocumentSource(
-          allSources,
-          activeDocumentCitation,
-        );
-        if (matchedSource) {
-          targetProjectId = matchedSource.projectId;
-          if (!resolvedDocId) {
-            resolvedDocId = matchedSource.documentId;
-          }
+          totalPages = Math.min(result.pagination.totalPages, 5);
         }
       }
 
@@ -472,7 +419,11 @@ export default function AiChatEvidenceSheet({
           });
         }
         if (controller.signal.aborted) return;
-        resolvedDocId = matchBestDocumentSummary(docs, activeDocumentCitation);
+        resolvedDocId = matchBestDocumentSummary(
+          docs,
+          activeDocumentCitation,
+          projectId !== "all",
+        );
       }
 
       if (!resolvedDocId || !isContinuumDocumentId(resolvedDocId)) {
