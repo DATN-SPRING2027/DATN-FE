@@ -859,4 +859,86 @@ describe("HandoverListWorkspace", () => {
       `/projects/${PROJECT_ID}/handover/69e923c77859fd1c702d4d77`,
     );
   });
+
+  it("hides New Handover CTA for an Org Manager who is not a Project Leader and pre-populates Handover ID, Version, and verified Leaders in Appoint Coordinator modal", async () => {
+    mockedCurrentUser.mockReturnValue({
+      data: {
+        id: "69e923c77859fd1c702d4a99",
+        name: "Org Admin Outside Project",
+        email: "manager@continuum.ai",
+        organizationId: "org-1",
+        roles: ["ADMIN"],
+      },
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useCurrentUserQuery>);
+
+    mockedHandovers.mockReturnValue({
+      data: {
+        data: [
+          makeSummary({
+            id: "69e923c77859fd1c702d4d54",
+            title: "Completed Historical Handover",
+            version: 12,
+            status: "COMPLETED",
+            assignedLeaderId: "69e923c77859fd1c702d4a02",
+          }),
+          makeSummary({
+            id: "69e923c77859fd1c702d4d55",
+            title: "Active Core Transition",
+            version: 7,
+            status: "OPEN",
+            assignedLeaderId: "69e923c77859fd1c702d4a02",
+          }),
+        ],
+        nextCursor: null,
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as unknown as ReturnType<typeof useHandoversQuery>);
+
+    renderWorkspace();
+
+    // Org Admin is not in verifiedLeadersMap -> New Handover CTA is hidden, Appoint Coordinator is visible
+    expect(
+      screen.queryByRole("button", { name: /new handover/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /appoint coordinator/i }),
+    );
+
+    expect(screen.getByLabelText(/handover id/i)).toHaveValue(
+      "69e923c77859fd1c702d4d55",
+    );
+    expect(screen.getByLabelText(/expected version/i)).toHaveValue(7);
+
+    // Quick-select only includes OPEN handovers (excludes COMPLETED historical handovers)
+    const handoverSelect = document.getElementById(
+      "coord-handover-select",
+    ) as HTMLSelectElement;
+    const handoverOptionLabels = within(handoverSelect)
+      .getAllByRole("option")
+      .map((opt) => opt.textContent ?? "");
+    expect(
+      handoverOptionLabels.some((label) =>
+        /active core transition/i.test(label),
+      ),
+    ).toBe(true);
+    expect(
+      handoverOptionLabels.some((label) =>
+        /completed historical handover/i.test(label),
+      ),
+    ).toBe(false);
+
+    const leaderSelect = screen.getByLabelText(/coordinator leader \(d\)/i);
+    const options = within(leaderSelect).getAllByRole("option");
+    const optionLabels = options.map((opt) => opt.textContent ?? "");
+    expect(optionLabels.some((label) => /leader minh/i.test(label))).toBe(true);
+    expect(optionLabels.some((label) => /an nguyen/i.test(label))).toBe(false);
+    expect(optionLabels.some((label) => /binh tran/i.test(label))).toBe(false);
+  });
 });

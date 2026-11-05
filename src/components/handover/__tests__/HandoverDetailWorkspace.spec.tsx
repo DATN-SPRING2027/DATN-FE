@@ -10,6 +10,7 @@ import {
   useProjectMemberCandidatesQuery,
   useProjectMembersQuery,
 } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import { fetchProjectTasks } from "@/lib/queries/tasks/useTasks";
 import * as useHandoversModule from "@/lib/queries/handovers/useHandovers";
 import type {
@@ -41,6 +42,9 @@ vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMembersQuery: vi.fn(),
   useProjectMemberCandidatesQuery: vi.fn(),
   useAddProjectMember: vi.fn(),
+}));
+vi.mock("@/lib/queries/projects/useProjectLeaders", () => ({
+  useProjectLeadersQuery: vi.fn(),
 }));
 vi.mock("@/lib/queries/work-notes/useWorkNotes", () => ({
   workNotesApi: {
@@ -89,6 +93,7 @@ vi.mock("@/lib/queries/handovers/useHandovers", () => ({
 const mockedCurrentUser = vi.mocked(useCurrentUserQuery);
 const mockedProject = vi.mocked(useProjectQuery);
 const mockedMembers = vi.mocked(useProjectMembersQuery);
+const mockedLeaders = vi.mocked(useProjectLeadersQuery);
 const mockedCandidates = vi.mocked(useProjectMemberCandidatesQuery);
 const mockedAddMember = vi.mocked(useAddProjectMember);
 
@@ -236,6 +241,22 @@ describe("HandoverDetailWorkspace", () => {
       isPending: false,
       isError: false,
     } as unknown as ReturnType<typeof useProjectMemberCandidatesQuery>);
+
+    mockedLeaders.mockReturnValue({
+      data: [
+        {
+          userId: "user-d",
+          fullName: "Minh Coordinator",
+          email: "minh@continuum.local",
+          avatarUrl: null,
+          role: "TEAM_LEADER",
+          status: "ACTIVE",
+        },
+      ],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectLeadersQuery>);
 
     mockedAddMember.mockReturnValue({
       mutateAsync: vi.fn(),
@@ -1266,4 +1287,207 @@ describe("HandoverDetailWorkspace", () => {
       screen.queryByText(/design core handover workspace/i),
     ).not.toBeInTheDocument();
   });
+
+  it("allows an Org Manager with READ-only capability to appoint a verified Project Leader as Coordinator (D) while filtering out regular members", async () => {
+    const setCoordMutate = vi.fn().mockResolvedValue({
+      data: { version: 6, status: "OPEN" },
+    });
+    vi.mocked(
+      useHandoversModule.useSetHandoverCoordinatorMutation,
+    ).mockReturnValue({
+      mutateAsync: setCoordMutate,
+      isPending: false,
+      isError: false,
+      error: null,
+    } as never);
+
+    mockedCurrentUser.mockReturnValue({
+      data: {
+        id: "org-admin-1",
+        name: "Org Admin",
+        email: "manager@continuum.ai",
+        organizationId: "org-1",
+        roles: ["ADMIN"],
+      },
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useCurrentUserQuery>);
+
+    mockedLeaders.mockReturnValue({
+      data: [
+        {
+          userId: "user-d",
+          fullName: "Minh Coordinator",
+          email: "minh@continuum.local",
+          avatarUrl: null,
+          role: "TEAM_LEADER",
+          status: "ACTIVE",
+        },
+        {
+          userId: "user-d2",
+          fullName: "Lan Backup Leader",
+          email: "lan.leader@continuum.local",
+          avatarUrl: null,
+          role: "TEAM_LEADER",
+          status: "ACTIVE",
+        },
+      ],
+      isSuccess: true,
+      isPending: false,
+      isError: false,
+    } as unknown as ReturnType<typeof useProjectLeadersQuery>);
+
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary(),
+          capabilities: ["READ"],
+          requiredPendingCount: 1,
+          canComplete: false,
+          publishedRevision: {
+            id: "rev-001",
+            handoverId: HANDOVER_ID,
+            number: 1,
+            publishedAt: "2026-10-28T03:00:00.000Z",
+            publishedBy: "user-d",
+            isCurrent: true,
+            items: [{ itemId: "item-secret-99", access: "UNAVAILABLE" }],
+          },
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    } as never);
+
+    renderDetail();
+
+    // Coordinator Recovery viewer sees only the Published Package tab (not forbidden Tasks/Q&A/Follow-ups tabs)
+    const tabsNav = screen.getByRole("navigation", {
+      name: /handover workspace sections/i,
+    });
+    expect(
+      within(tabsNav).getByRole("button", { name: /published package/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(tabsNav).queryByRole("button", { name: /task transfers/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(tabsNav).queryByRole("button", { name: /follow-ups/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getAllByRole("button", { name: /change coordinator \(d\)/i })[0]!,
+    );
+
+    const coordCombobox = screen.getByRole("combobox", {
+      name: /coordinator leader \(d\)/i,
+    });
+    fireEvent.click(coordCombobox);
+
+    const listbox = screen.getByRole("listbox");
+    expect(
+      within(listbox).queryByRole("option", { name: /an departing/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(listbox).queryByRole("option", { name: /binh successor/i }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      within(listbox).getByRole("option", { name: /lan backup leader/i }),
+    );
+    fireEvent.change(screen.getByLabelText(/appointment reason/i), {
+      target: { value: "Reassigning coordinator to backup Project Leader Lan." },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /confirm coordinator/i }),
+    );
+
+    await waitFor(() => {
+      expect(setCoordMutate).toHaveBeenCalledWith({
+        etag: `"handover:${HANDOVER_ID}:5"`,
+        input: {
+          assignedLeaderId: "user-d2",
+          reason: "Reassigning coordinator to backup Project Leader Lan.",
+        },
+      });
+    });
+  });
+  it.each([
+    ["user-a", "INACTIVE", false],
+    ["user-b", "INACTIVE", false],
+    ["user-a", "ACTIVE", true],
+    ["user-b", "ACTIVE", true],
+  ] as const)(
+    "uses current %s membership (%s) for participant tabs",
+    (userId, status, canReadContent) => {
+      mockedCurrentUser.mockReturnValue({
+        data: {
+          id: userId,
+          name: "Participant Manager",
+          email: "manager@continuum.local",
+          organizationId: "org-1",
+          roles: ["ADMIN"],
+        },
+        isPending: false,
+        isError: false,
+      } as never);
+      mockedMembers.mockReturnValue({
+        data: {
+          data: [
+            {
+              id: "participant-membership",
+              userId,
+              projectId: PROJECT_ID,
+              status,
+              joinedAt: "2026-10-01T00:00:00.000Z",
+            },
+          ],
+        },
+        isPending: false,
+        isError: false,
+      } as never);
+      vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+        data: {
+          detail: {
+            handover: makeSummary(),
+            capabilities: ["READ"],
+            requiredPendingCount: 1,
+            canComplete: false,
+            publishedRevision: {
+              id: "rev-001",
+              handoverId: HANDOVER_ID,
+              number: 1,
+              publishedAt: "2026-10-28T03:00:00.000Z",
+              publishedBy: "user-d",
+              isCurrent: true,
+              items: [{ itemId: "item-secret-99", access: "UNAVAILABLE" }],
+            },
+          },
+          etag: `"handover:${HANDOVER_ID}:5"`,
+        },
+        isPending: false,
+        isFetching: false,
+        isError: false,
+        error: null,
+        refetch: vi.fn(),
+      } as never);
+      renderDetail();
+      const nav = screen.getByRole("navigation", {
+        name: /handover workspace sections/i,
+      });
+      expect(
+        within(nav).getByRole("button", { name: /published package/i }),
+      ).toBeInTheDocument();
+      for (const name of [/task transfers/i, /q&a/i, /follow-ups/i]) {
+        const tab = within(nav).queryByRole("button", { name });
+        if (canReadContent) expect(tab).toBeInTheDocument();
+        else expect(tab).not.toBeInTheDocument();
+      }
+    },
+  );
 });

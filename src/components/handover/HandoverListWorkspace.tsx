@@ -13,6 +13,7 @@ import {
   useProjectMembersQuery,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSettings";
 import { useHandoversQuery } from "@/lib/queries/handovers/useHandovers";
 import {
@@ -43,6 +44,7 @@ import {
   UserCircleIcon,
 } from "@/icons";
 import CreateHandoverModal from "./CreateHandoverModal";
+import type { HandoverMemberOption } from "./HandoverMemberSelect";
 import {
   extractHandoverErrorMessage,
   formatMemberOptionLabel,
@@ -61,6 +63,7 @@ export default function HandoverListWorkspace({
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const organizationId = currentUser.data?.organizationId ?? "";
+  const currentUserId = currentUser.data?.id ?? "";
   const isOrgManager = Boolean(currentUser.data?.roles?.includes("ADMIN"));
 
   const projectQuery = useProjectQuery(organizationId, projectId);
@@ -77,6 +80,7 @@ export default function HandoverListWorkspace({
     page: 1,
     pageSize: 100,
   }, { allPages: true });
+  const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
 
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<HandoverStatus | "ALL">(
@@ -113,24 +117,108 @@ export default function HandoverListWorkspace({
     for (const m of members) {
       map.set(m.userId, m);
     }
+    for (const leader of leadersQuery.data ?? []) {
+      if (!map.has(leader.userId)) {
+        map.set(leader.userId, {
+          id: `leader-${leader.userId}`,
+          organizationId,
+          projectId,
+          userId: leader.userId,
+          status: leader.status,
+          joinedAt: "",
+          user: {
+            id: leader.userId,
+            fullName: leader.fullName,
+            email: leader.email,
+            avatarUrl: leader.avatarUrl,
+          },
+        });
+      }
+    }
     return map;
-  }, [members]);
+  }, [leadersQuery.data, members, organizationId, projectId]);
+
+  const verifiedLeadersMap = useMemo(() => {
+    const map = new Map<string, HandoverMemberOption>();
+    for (const leader of leadersQuery.data ?? []) {
+      if (leader.status !== "ACTIVE") continue;
+      map.set(leader.userId, {
+        userId: leader.userId,
+        fullName:
+          leader.fullName.trim() ||
+          leader.email.trim() ||
+          `User ${leader.userId.slice(0, 6)}`,
+        email: leader.email.trim() || undefined,
+        avatarUrl: leader.avatarUrl,
+        status: "ACTIVE",
+        roleCode: "TEAM_LEADER",
+        isCurrentUser: Boolean(
+          currentUserId && leader.userId === currentUserId,
+        ),
+      });
+    }
+    for (const member of activeMembers) {
+      const rawRole = (member as { role?: unknown; roleCode?: unknown }).role ??
+        (member as { roleCode?: unknown }).roleCode;
+      const role = typeof rawRole === "string" ? rawRole.toUpperCase() : "";
+      if (
+        (role === "TEAM_LEADER" || role === "LEADER") &&
+        !map.has(member.userId)
+      ) {
+        map.set(member.userId, {
+          userId: member.userId,
+          fullName: formatMemberOptionLabel(member),
+          email: member.user?.email?.trim() || undefined,
+          avatarUrl: member.user?.avatarUrl ?? null,
+          status: member.status,
+          roleCode: "TEAM_LEADER",
+          isCurrentUser: Boolean(
+            currentUserId && member.userId === currentUserId,
+          ),
+        });
+      }
+    }
+    return map;
+  }, [activeMembers, currentUserId, leadersQuery.data]);
+
+  const coordinatorOptions = useMemo<readonly HandoverMemberOption[]>(
+    () =>
+      Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+        a.fullName.localeCompare(b.fullName),
+      ),
+    [verifiedLeadersMap],
+  );
 
   const managementAccess = useProjectManagementAccess(
     organizationId,
     projectId,
-    Boolean(organizationId && projectId),
+    Boolean(
+      organizationId &&
+        projectId &&
+        !leadersQuery.isSuccess &&
+        !leadersQuery.isPending,
+    ),
   );
 
-  // Project Leaders and Organization Managers can initiate a handover; backend enforces authoritative IAM scope.
+  // Only active Project Leaders (TEAM_LEADER) can initiate a handover; Org Managers without Project Leader role use Appoint Coordinator (D).
   const canInitiateHandover =
-    isOrgManager ||
-    managementAccess.canAccessSettings ||
-    managementAccess.isPending;
+    leadersQuery.isPending ||
+    leadersQuery.isSuccess ||
+    verifiedLeadersMap.size > 0
+      ? Boolean(currentUserId && verifiedLeadersMap.has(currentUserId))
+      : Boolean(
+          (managementAccess as { canUpdateProject?: boolean })
+            .canUpdateProject ?? managementAccess.canAccessSettings,
+        ) && !managementAccess.isPending;
 
   const allItems = useMemo(
     () => handoversQuery.data?.data ?? [],
     [handoversQuery.data],
+  );
+
+  const openItems = useMemo(
+    () => allItems.filter((item) => item.status === "OPEN"),
+    [allItems],
   );
 
   const filteredItems = useMemo(() => {
@@ -181,6 +269,27 @@ export default function HandoverListWorkspace({
   const isAccessDenied =
     handoversQuery.error instanceof ApiError &&
     [401, 403, 404].includes(handoversQuery.error.status);
+
+  const openCoordModal = () => {
+    setCoordError(null);
+    setCoordSuccess(null);
+    const currentMatched = openItems.find(
+      (item) => item.id === coordHandoverId.trim(),
+    );
+    const preferred = currentMatched ?? openItems[0];
+    if (preferred) {
+      setCoordHandoverId(preferred.id);
+      setCoordVersion(String(preferred.version));
+      if (
+        (!coordLeaderId.trim() || !currentMatched) &&
+        preferred.assignedLeaderId &&
+        verifiedLeadersMap.has(preferred.assignedLeaderId)
+      ) {
+        setCoordLeaderId(preferred.assignedLeaderId);
+      }
+    }
+    setIsCoordModalOpen(true);
+  };
 
   const handleAppointCoordinator = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -317,11 +426,7 @@ export default function HandoverListWorkspace({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  setCoordError(null);
-                  setCoordSuccess(null);
-                  setIsCoordModalOpen(true);
-                }}
+                onClick={openCoordModal}
               >
                 {t("appointCoordinatorCta")}
               </Button>
@@ -390,7 +495,7 @@ export default function HandoverListWorkspace({
                     type="button"
                     variant="primary"
                     size="sm"
-                    onClick={() => setIsCoordModalOpen(true)}
+                    onClick={openCoordModal}
                   >
                     {t("appointCoordinatorCta")}
                   </Button>
@@ -932,6 +1037,53 @@ export default function HandoverListWorkspace({
             </div>
           )}
 
+          {openItems.length > 0 && (
+            <div>
+              <label
+                htmlFor="coord-handover-select"
+                className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+              >
+                {t("list.colHandover")}
+              </label>
+              <select
+                id="coord-handover-select"
+                value={
+                  openItems.some((item) => item.id === coordHandoverId)
+                    ? coordHandoverId
+                    : ""
+                }
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  setCoordError(null);
+                  setCoordSuccess(null);
+                  setCoordHandoverId(selectedId);
+                  const matched = openItems.find(
+                    (item) => item.id === selectedId,
+                  );
+                  if (matched) {
+                    setCoordVersion(String(matched.version));
+                    if (
+                      matched.assignedLeaderId &&
+                      verifiedLeadersMap.has(matched.assignedLeaderId)
+                    ) {
+                      setCoordLeaderId(matched.assignedLeaderId);
+                    }
+                  }
+                }}
+                className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              >
+                <option value="">
+                  {t("detail.coordinatorIdPlaceholder")}
+                </option>
+                {openItems.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {`${item.title} (v${item.version} · ${item.status})`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <div className="sm:col-span-2">
               <label
@@ -974,7 +1126,7 @@ export default function HandoverListWorkspace({
             >
               {t("createModal.coordinatorLabel")}
             </label>
-            {activeMembers.length > 0 ? (
+            {coordinatorOptions.length > 0 ? (
               <select
                 id="coord-leader-select"
                 value={coordLeaderId}
@@ -984,9 +1136,11 @@ export default function HandoverListWorkspace({
                 <option value="">
                   {t("createModal.selectCoordinatorPlaceholder")}
                 </option>
-                {activeMembers.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {formatMemberOptionLabel(m)}
+                {coordinatorOptions.map((opt) => (
+                  <option key={opt.userId} value={opt.userId}>
+                    {opt.email && opt.email !== opt.fullName
+                      ? `${opt.fullName} (${opt.email})`
+                      : opt.fullName}
                   </option>
                 ))}
               </select>
