@@ -1,7 +1,8 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
+import * as apiClientModule from "@/lib/api-client";
 import type { AiChatCitation } from "@/lib/queries/ai-chat/ai-chat.types";
 import { workNotesApi } from "@/lib/queries/work-notes/useWorkNotes";
 import AiChatEvidenceSheet, {
@@ -330,5 +331,242 @@ describe("AiChatEvidenceSheet — Source Reader Studio", () => {
     expect(dialog.style.getPropertyValue("--evidence-drawer-width")).toBe(
       "716px",
     );
+  });
+
+  it("keeps a legacy all-project citation as an excerpt when only the filename matches", async () => {
+    const sources = ["a", "b"].map((id) => ({
+      projectId: id.repeat(24),
+      documentId: (id === "a" ? "1" : "2").repeat(24),
+      title: "report.pdf",
+      fileName: "report.pdf",
+    }));
+    vi.spyOn(apiClientModule, "apiClient").mockResolvedValue({
+      data: sources,
+      pagination: { totalPages: 1 },
+    });
+    const getChunks = vi
+      .spyOn(workNotesApi, "getDocumentKnowledgeChunks")
+      .mockImplementation(async (_projectId, documentId) => ({
+        documentId,
+        version: 1,
+        sourceStage: "EMPTY",
+        totalChunks: 0,
+        totalTokens: 0,
+        items: [],
+      }));
+
+    await act(async () => {
+      render(
+        <NextIntlClientProvider locale="en" messages={messages}>
+          <AiChatEvidenceSheet
+            evidence={{
+              kind: "document",
+              citation: {
+                number: 1,
+                sourceId: "legacy-source",
+                documentId: "c1b2a3d4-0000-4000-8000-111122223333",
+                documentName: "report.pdf",
+                snippet: "Original cited excerpt.",
+              },
+            }}
+            projectId="all"
+            onClose={vi.fn()}
+          />
+        </NextIntlClientProvider>,
+      );
+    });
+
+    expect(screen.getByText("Original cited excerpt.")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Open document/i })).toBeNull();
+    expect(getChunks).not.toHaveBeenCalled();
+  });
+
+  it("resolves owning project for citations from two different projects in projectId='all' scope to hydrate canonical chunks and render Open document links", async () => {
+    const projectAlphaId = "507f1f77bcf86cd7994390a1";
+    const docAlphaId = "507f1f77bcf86cd799439011";
+    const projectBetaId = "507f1f77bcf86cd7994390b2";
+    const docBetaId = "507f1f77bcf86cd799439022";
+
+    const getChunksSpy = vi
+      .spyOn(workNotesApi, "getDocumentKnowledgeChunks")
+      .mockImplementation(async (projId, docId) => {
+        if (projId === projectAlphaId && docId === docAlphaId) {
+          return {
+            documentId: docAlphaId,
+            version: 1,
+            sagDocumentId: "sag-alpha-1",
+            sagVersionNo: 1,
+            sourceStage: "SEARCH_UNITS",
+            totalChunks: 2,
+            totalTokens: 80,
+            items: [
+              {
+                chunkId: "alpha-chunk-0",
+                ordinal: 0,
+                sectionPath: "1. Alpha Intro",
+                blockType: "PARAGRAPH",
+                pageFrom: 1,
+                pageTo: 1,
+                content: "Preceding context chunk from first project.",
+                tokenCount: 30,
+              },
+              {
+                chunkId: "alpha-chunk-1",
+                ordinal: 1,
+                sectionPath: "2. Alpha Architecture",
+                blockType: "PARAGRAPH",
+                pageFrom: 1,
+                pageTo: 1,
+                content:
+                  "Complete canonical chunk for billing service in first project.",
+                tokenCount: 50,
+              },
+            ],
+          };
+        }
+        if (projId === projectBetaId && docId === docBetaId) {
+          return {
+            documentId: docBetaId,
+            version: 2,
+            sagDocumentId: "sag-beta-2",
+            sagVersionNo: 2,
+            sourceStage: "SEARCH_UNITS",
+            totalChunks: 2,
+            totalTokens: 90,
+            items: [
+              {
+                chunkId: "beta-chunk-1",
+                ordinal: 0,
+                sectionPath: "1. Beta Security",
+                blockType: "PARAGRAPH",
+                pageFrom: 2,
+                pageTo: 2,
+                content:
+                  "Complete canonical chunk for zero-trust gateway in second project.",
+                tokenCount: 55,
+              },
+              {
+                chunkId: "beta-chunk-2",
+                ordinal: 1,
+                sectionPath: "2. Beta Audit",
+                blockType: "PARAGRAPH",
+                pageFrom: 3,
+                pageTo: 3,
+                content: "Following audit trail chunk from second project.",
+                tokenCount: 35,
+              },
+            ],
+          };
+        }
+        throw new Error(`Unexpected project/doc pair: ${projId}/${docId}`);
+      });
+
+    vi.spyOn(apiClientModule, "apiClient").mockResolvedValue({
+      data: [
+        {
+          documentId: docBetaId,
+          projectId: projectBetaId,
+          projectCode: "BETA",
+          projectName: "Project Beta",
+          title: "beta-gateway.md",
+          fileName: "beta-gateway.md",
+          type: "ARCHITECTURE",
+          approvalStatus: "APPROVED",
+          currentVersion: 2,
+          approvedVersion: 2,
+          readinessStatus: "READY",
+          updatedAt: "2026-11-05T10:00:00.000Z",
+        },
+      ],
+      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      summary: {
+        totalCount: 1,
+        readyCount: 1,
+        verificationStatus: "VERIFIED",
+        verifiedAt: "2026-11-05T10:00:00.000Z",
+      },
+    });
+
+    const alphaCitation: AiChatCitation = {
+      number: 1,
+      sourceId: "src-alpha",
+      projectId: projectAlphaId,
+      documentId: docAlphaId,
+      documentName: "alpha-billing.md",
+      chunkId: "alpha-chunk-1",
+      heading: "2. Alpha Architecture",
+      snippet: "Truncated Alpha snippet…",
+    };
+
+    // Citation [2] omits inline projectId and resolves owning project from server-verified /ai-chat/projects/all/document-sources metadata
+    const betaCitation: AiChatCitation = {
+      number: 2,
+      sourceId: "src-beta",
+      documentId: docBetaId,
+      documentName: "beta-gateway.md",
+      chunkId: "beta-chunk-1",
+      heading: "1. Beta Security",
+      snippet: "Truncated Beta snippet…",
+    };
+
+    render(
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <AiChatEvidenceSheet
+          evidence={{
+            kind: "document",
+            citation: alphaCitation,
+            relatedCitations: [alphaCitation, betaCitation],
+          }}
+          projectId="all"
+          onClose={vi.fn()}
+        />
+      </NextIntlClientProvider>,
+    );
+
+    // 1. Citation [1] hydrates from Project Alpha and links to Project Alpha document
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Complete canonical chunk for billing service in first project.",
+        ),
+      ).toBeTruthy();
+    });
+    expect(getChunksSpy).toHaveBeenCalledWith(
+      projectAlphaId,
+      docAlphaId,
+      expect.objectContaining({ limit: 100 }),
+    );
+    expect(
+      screen.getByRole("link", { name: /Open document/i }).getAttribute("href"),
+    ).toBe(`/projects/${projectAlphaId}/documents?documentId=${docAlphaId}`);
+
+    fireEvent.click(screen.getByTestId("evidence-prev-chunk-toggle"));
+    expect(
+      screen.getByText("Preceding context chunk from first project."),
+    ).toBeTruthy();
+
+    // 2. Switch to Citation [2] -> hydrates from Project Beta and links to Project Beta document
+    fireEvent.click(screen.getByTestId("evidence-tab-2"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          "Complete canonical chunk for zero-trust gateway in second project.",
+        ),
+      ).toBeTruthy();
+    });
+    expect(getChunksSpy).toHaveBeenCalledWith(
+      projectBetaId,
+      docBetaId,
+      expect.objectContaining({ limit: 100 }),
+    );
+    expect(
+      screen.getByRole("link", { name: /Open document/i }).getAttribute("href"),
+    ).toBe(`/projects/${projectBetaId}/documents?documentId=${docBetaId}`);
+
+    fireEvent.click(screen.getByTestId("evidence-next-chunk-toggle"));
+    expect(
+      screen.getByText("Following audit trail chunk from second project."),
+    ).toBeTruthy();
   });
 });

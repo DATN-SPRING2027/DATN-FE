@@ -5961,7 +5961,12 @@
     "branchBackToOriginalAction": "View original",
     "branchToastDismissAria": "Dismiss branch notification",
     "branchErrorDefault": "Unable to branch this conversation. Please try again.",
-    "branchedThreadBadgeAria": "Branched conversation"
+    "branchedThreadBadgeAria": "Branched conversation",
+    "allProjectsName": "All projects",
+    "allProjectsCode": "ALL",
+    "allProjectsMeta": "Org-wide · {count} projects",
+    "allProjectsIsolationTitle": "Organization-Wide Manager Scope",
+    "allProjectsIsolationDesc": "Searching across all active projects in your organization · Knowledge-only"
   },
   "handover": {
     "aiCoverage": {
