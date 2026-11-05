@@ -151,8 +151,9 @@ export default function NotificationDropdown() {
     enabled: isAuthenticated && isOpen,
     organizationId,
   });
-  const markReadMutation = useMarkNotificationReadMutation();
-  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+  const markReadMutation = useMarkNotificationReadMutation(organizationId);
+  const markAllReadMutation =
+    useMarkAllNotificationsReadMutation(organizationId);
 
   const listAccessLost =
     currentUserAccessLost ||
@@ -195,7 +196,10 @@ export default function NotificationDropdown() {
     }
 
     try {
-      const resolution = await notificationsApi.resolveTarget(item.id);
+      const resolution = await notificationsApi.resolveTarget(
+        item.id,
+        organizationId,
+      );
       if (!resolution.available) {
         setUnavailableNotice(t("contentUnavailableTitle"));
         return;

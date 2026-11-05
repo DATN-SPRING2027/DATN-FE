@@ -101,6 +101,35 @@ function csrfHeaders(): HeadersInit {
   return {};
 }
 
+function requestHeaders(organizationId?: string | null): Headers {
+  const headers = new Headers(csrfHeaders());
+  if (organizationId?.trim()) {
+    headers.set("X-Expected-Organization-Id", organizationId.trim());
+  }
+  return headers;
+}
+
+type NotificationListPayload = {
+  items?: readonly NotificationItem[];
+  data?: readonly NotificationItem[];
+  nextCursor?: string | null;
+  unreadCount?: number;
+};
+
+function normalizeNotificationList(
+  raw: NotificationListPayload,
+): NotificationListResponse {
+  const items = raw.items ?? raw.data ?? [];
+  return {
+    items,
+    nextCursor: raw.nextCursor ?? null,
+    unreadCount:
+      typeof raw.unreadCount === "number"
+        ? raw.unreadCount
+        : items.filter((item) => !item.readAt).length,
+  };
+}
+
 export const notificationKeys = {
   all: ["notifications"] as const,
   list: (unreadOnly = false, limit = 15, organizationId?: string | null) =>
@@ -123,6 +152,10 @@ export const notificationKeys = {
     organizationId
       ? (["notifications", "unread-count", { organizationId }] as const)
       : (["notifications", "unread-count"] as const),
+  accountEvents: (userId?: string | null) =>
+    userId
+      ? (["notifications", "account-events", userId] as const)
+      : (["notifications", "account-events"] as const),
 };
 
 export function unreadNotificationPollingInterval(
@@ -135,50 +168,68 @@ export const notificationsApi = {
   list: async (
     params: { cursor?: string; limit?: number; unreadOnly?: boolean } = {},
     signal?: AbortSignal,
+    organizationId?: string | null,
   ): Promise<NotificationListResponse> => {
     const search = new URLSearchParams();
     search.set("limit", String(params.limit ?? 20));
     if (params.cursor) search.set("cursor", params.cursor);
     if (params.unreadOnly) search.set("unreadOnly", "true");
-    const raw = await apiClient<{
-      items?: readonly NotificationItem[];
-      data?: readonly NotificationItem[];
-      nextCursor?: string | null;
-      unreadCount?: number;
-    }>(`/notifications?${search.toString()}`, { signal, cache: "no-store" });
-    const items = raw.items ?? raw.data ?? [];
-    return {
-      items,
-      nextCursor: raw.nextCursor ?? null,
-      unreadCount:
-        typeof raw.unreadCount === "number"
-          ? raw.unreadCount
-          : items.filter((item) => !item.readAt).length,
-    };
+    const raw = await apiClient<NotificationListPayload>(
+      `/notifications?${search.toString()}`,
+      {
+        signal,
+        cache: "no-store",
+        headers: requestHeaders(organizationId),
+      },
+    );
+    return normalizeNotificationList(raw);
   },
 
-  unreadCount: (signal?: AbortSignal) =>
+  accountEvents: async (
+    params: { cursor?: string; limit?: number } = {},
+    signal?: AbortSignal,
+  ): Promise<NotificationListResponse> => {
+    const search = new URLSearchParams();
+    search.set("limit", String(params.limit ?? 20));
+    if (params.cursor) search.set("cursor", params.cursor);
+    const raw = await apiClient<NotificationListPayload>(
+      `/notifications/account-events?${search.toString()}`,
+      { signal, cache: "no-store" },
+    );
+    return normalizeNotificationList(raw);
+  },
+
+  unreadCount: (organizationId?: string | null, signal?: AbortSignal) =>
     apiClient<{ count: number }>("/notifications/unread-count", {
       signal,
       cache: "no-store",
+      headers: requestHeaders(organizationId),
     }),
 
-  markRead: (id: string) =>
+  markRead: (id: string, organizationId?: string | null) =>
     apiClient<NotificationItem>(
       `/notifications/${encodeURIComponent(id)}/read`,
-      { method: "PATCH", headers: csrfHeaders() },
+      { method: "PATCH", headers: requestHeaders(organizationId) },
     ),
 
-  markAllRead: () =>
+  markAllRead: (organizationId?: string | null) =>
     apiClient<{ updatedCount: number; readAt: string }>(
       "/notifications/read-all",
-      { method: "PATCH", headers: csrfHeaders() },
+      { method: "PATCH", headers: requestHeaders(organizationId) },
     ),
 
-  resolveTarget: (id: string, signal?: AbortSignal) =>
+  resolveTarget: (
+    id: string,
+    organizationId?: string | null,
+    signal?: AbortSignal,
+  ) =>
     apiClient<NotificationResolveResponse>(
       `/notifications/${encodeURIComponent(id)}/resolve`,
-      { signal, cache: "no-store" },
+      {
+        signal,
+        cache: "no-store",
+        headers: requestHeaders(organizationId),
+      },
     ),
 };
 
@@ -204,6 +255,7 @@ export function useNotificationsQuery(
           limit,
         },
         signal,
+        options.organizationId,
       ),
     enabled: options.enabled ?? true,
     refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
@@ -235,6 +287,7 @@ export function useInfiniteNotificationsQuery(
           limit,
         },
         signal,
+        options.organizationId,
       ),
     getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
     enabled: options.enabled ?? true,
@@ -248,27 +301,43 @@ export function useUnreadNotificationCountQuery(
 ) {
   return useQuery({
     queryKey: notificationKeys.unreadCount(organizationId),
-    queryFn: ({ signal }) => notificationsApi.unreadCount(signal),
+    queryFn: ({ signal }) => notificationsApi.unreadCount(organizationId, signal),
     enabled,
     refetchInterval: unreadNotificationPollingInterval(realtimeConnected),
     staleTime: 5_000,
   });
 }
 
-export function useMarkNotificationReadMutation() {
+export function useAccountEventsQuery(options: {
+  userId?: string | null;
+  enabled?: boolean;
+} = {}) {
+  return useQuery({
+    queryKey: notificationKeys.accountEvents(options.userId),
+    queryFn: ({ signal }) => notificationsApi.accountEvents({}, signal),
+    enabled: (options.enabled ?? true) && Boolean(options.userId),
+    staleTime: 5_000,
+  });
+}
+
+export function useMarkNotificationReadMutation(
+  organizationId?: string | null,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: string) => notificationsApi.markRead(id),
+    mutationFn: (id: string) => notificationsApi.markRead(id, organizationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },
   });
 }
 
-export function useMarkAllNotificationsReadMutation() {
+export function useMarkAllNotificationsReadMutation(
+  organizationId?: string | null,
+) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => notificationsApi.markAllRead(),
+    mutationFn: () => notificationsApi.markAllRead(organizationId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: notificationKeys.all });
     },

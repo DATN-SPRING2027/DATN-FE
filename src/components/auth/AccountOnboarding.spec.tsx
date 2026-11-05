@@ -12,6 +12,7 @@ import {
   useOrganizationOptionsQuery,
   useSelectOrganizationMutation,
 } from "@/lib/queries/auth/useAccountOnboarding";
+import { useAccountEventsQuery } from "@/lib/queries/notifications/useNotifications";
 
 const replace = vi.fn();
 const select = vi.fn();
@@ -41,6 +42,9 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   useSelectOrganizationMutation: vi.fn(),
   checkOrganizationSlugAvailability: vi.fn(),
 }));
+vi.mock("@/lib/queries/notifications/useNotifications", () => ({
+  useAccountEventsQuery: vi.fn(),
+}));
 
 describe("account onboarding invitations", () => {
   beforeEach(() => {
@@ -53,6 +57,11 @@ describe("account onboarding invitations", () => {
     refetchOrganizations.mockReset().mockResolvedValue({});
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: { id: "user-1", email: "invitee@example.com", name: "Invitee", context: "ACCOUNT" },
+      isError: false,
+    } as never);
+    vi.mocked(useAccountEventsQuery).mockReturnValue({
+      data: { items: [], nextCursor: null, unreadCount: 0 },
+      isLoading: false,
       isError: false,
     } as never);
     vi.mocked(useLogoutMutation).mockReturnValue({ mutateAsync: vi.fn() } as never);
@@ -264,6 +273,54 @@ describe("account onboarding invitations", () => {
 
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-2"));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
+  });
+
+  it("shows invitation and removal events when the current session has organization context", () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1", email: "member@example.com", name: "Member", context: "ORGANIZATION",
+        organizationId: "org-1", roles: ["MEMBER"],
+      },
+      isError: false,
+    } as never);
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: [{ id: "org-1", name: "North Star" }],
+      isLoading: false,
+      isError: false,
+      isSuccess: true,
+      refetch: vi.fn().mockResolvedValue({}),
+    } as never);
+    vi.mocked(useAccountEventsQuery).mockReturnValue({
+      data: {
+        items: [
+          {
+            id: "invite-1",
+            type: "ORGANIZATION_MEMBER_INVITED",
+            title: "Invitation from North Star",
+            message: "You have been invited to join North Star.",
+            createdAt: "2026-11-01T10:00:00.000Z",
+          },
+          {
+            id: "removed-1",
+            type: "ORGANIZATION_MEMBER_REMOVED",
+            title: "Membership ended",
+            message: "Your membership in North Star has ended.",
+            createdAt: "2026-11-02T10:00:00.000Z",
+          },
+        ],
+        nextCursor: null,
+        unreadCount: 2,
+      },
+      isLoading: false,
+      isError: false,
+    } as never);
+
+    render(<AccountOnboarding />);
+
+    expect(screen.getByText("Invitation from North Star")).toBeInTheDocument();
+    expect(screen.getByText("Membership ended")).toBeInTheDocument();
+    expect(screen.getByText("You have been invited to join North Star.")).toBeInTheDocument();
+    expect(screen.getByText("Your membership in North Star has ended.")).toBeInTheDocument();
   });
 
   it("marks only the selected organization button as aria-busy while selection is pending", async () => {

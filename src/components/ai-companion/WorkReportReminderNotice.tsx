@@ -40,7 +40,7 @@ export default function WorkReportReminderNotice({
     enabled: authenticated,
     organizationId,
   });
-  const read = useMarkNotificationReadMutation();
+  const read = useMarkNotificationReadMutation(organizationId);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const candidates =
     authenticated && !query.isError

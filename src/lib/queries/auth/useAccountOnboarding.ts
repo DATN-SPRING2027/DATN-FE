@@ -7,7 +7,10 @@ import {
   parseRecipientInvitationPage,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { authKeys } from "./auth.keys";
-import { syncCurrentAuthSessionCookie } from "./session-sync";
+import {
+  notifyAuthSessionChanged,
+  syncCurrentAuthSessionCookie,
+} from "./session-sync";
 import type { CurrentUserResponse } from "./useAuth";
 
 export interface OrganizationOption {
@@ -172,6 +175,7 @@ export function useSelectOrganizationMutation() {
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== "auth",
       });
+      notifyAuthSessionChanged();
     },
   });
 }

@@ -312,12 +312,16 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     );
 
     await waitFor(() => {
-      expect(api).toHaveBeenCalledWith(
-        "/notifications/507f1f77bcf86cd799439010/read",
-        expect.objectContaining({
-          method: "PATCH",
-          headers: { "X-CSRF-Token": "test-csrf-token-123" },
-        }),
+      const readRequest = api.mock.calls.find(
+        ([path, options]) =>
+          path === "/notifications/507f1f77bcf86cd799439010/read" &&
+          options?.method === "PATCH",
+      );
+      expect(readRequest).toBeDefined();
+      const headers = new Headers(readRequest?.[1]?.headers);
+      expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token-123");
+      expect(headers.get("X-Expected-Organization-Id")).toBe(
+        "507f1f77bcf86cd799439002",
       );
     });
 
@@ -325,12 +329,15 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     fireEvent.click(screen.getByTestId("notification-mark-all-read"));
 
     await waitFor(() => {
-      expect(api).toHaveBeenCalledWith(
-        "/notifications/read-all",
-        expect.objectContaining({
-          method: "PATCH",
-          headers: { "X-CSRF-Token": "test-csrf-token-123" },
-        }),
+      const markAllRequest = api.mock.calls.find(
+        ([path, options]) =>
+          path === "/notifications/read-all" && options?.method === "PATCH",
+      );
+      expect(markAllRequest).toBeDefined();
+      const headers = new Headers(markAllRequest?.[1]?.headers);
+      expect(headers.get("X-CSRF-Token")).toBe("test-csrf-token-123");
+      expect(headers.get("X-Expected-Organization-Id")).toBe(
+        "507f1f77bcf86cd799439002",
       );
     });
   });

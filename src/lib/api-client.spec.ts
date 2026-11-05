@@ -6,6 +6,7 @@ import {
   getServerApiBaseUrl,
   logoutSession,
 } from "./api-client";
+import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "./queries/auth/session-sync";
 
 describe("apiClient", () => {
   const originalEnv = process.env;
@@ -331,6 +332,28 @@ describe("apiClient", () => {
       message: "Select an organization to continue.",
       organizations: [{ id: "org-a", name: "Alpha" }],
     } satisfies Partial<ApiError>);
+  });
+
+  it("notifies tabs to refresh when an organization-bound request detects stale context", async () => {
+    window.localStorage.removeItem(AUTH_SESSION_CHANGE_STORAGE_KEY);
+    vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          code: "ORGANIZATION_CONTEXT_MISMATCH",
+          message: "The active organization changed.",
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    await expect(apiClient("/notifications", {
+      headers: { "X-Expected-Organization-Id": "org-stale" },
+    })).rejects.toMatchObject({
+      status: 409,
+      code: "ORGANIZATION_CONTEXT_MISMATCH",
+    });
+
+    expect(window.localStorage.getItem(AUTH_SESSION_CHANGE_STORAGE_KEY)).toBeTruthy();
   });
 
   describe("unauthorized responses", () => {

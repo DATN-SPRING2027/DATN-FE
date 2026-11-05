@@ -12,6 +12,7 @@ const forwardedHeaders = [
   'x-auto-sync-sag',
   'x-content-sha256',
   'x-csrf-token',
+  'x-expected-organization-id',
   'x-file-name',
   'idempotency-key',
   'if-match',

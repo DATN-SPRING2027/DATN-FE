@@ -13,6 +13,8 @@ describe('BFF proxy boundary', () => {
       authorization: 'Bearer test',
       cookie: 'session=test',
       'x-csrf-token': 'csrf-test',
+      'x-expected-organization-id': 'org-expected',
+      'x-organization-id': 'org-untrusted',
       'idempotency-key': '0123456789abcdef',
       'x-ignored': 'nope',
     });
@@ -22,6 +24,8 @@ describe('BFF proxy boundary', () => {
     expect(forwarded.get('authorization')).toBe('Bearer test');
     expect(forwarded.get('cookie')).toBe('session=test');
     expect(forwarded.get('x-csrf-token')).toBe('csrf-test');
+    expect(forwarded.get('x-expected-organization-id')).toBe('org-expected');
+    expect(forwarded.get('x-organization-id')).toBeNull();
     expect(forwarded.get('idempotency-key')).toBe('0123456789abcdef');
     expect(forwarded.get('x-ignored')).toBeNull();
     expect(forwarded.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);

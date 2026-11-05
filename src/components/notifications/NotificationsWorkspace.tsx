@@ -133,8 +133,9 @@ export default function NotificationsWorkspace() {
     enabled: hasOrganizationContext,
     organizationId,
   });
-  const markReadMutation = useMarkNotificationReadMutation();
-  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+  const markReadMutation = useMarkNotificationReadMutation(organizationId);
+  const markAllReadMutation =
+    useMarkAllNotificationsReadMutation(organizationId);
 
   const notificationsAccessLost =
     currentUserAccessLost ||
@@ -176,7 +177,10 @@ export default function NotificationsWorkspace() {
     }
 
     try {
-      const resolution = await notificationsApi.resolveTarget(item.id);
+      const resolution = await notificationsApi.resolveTarget(
+        item.id,
+        organizationId,
+      );
       if (!resolution.available) {
         setUnavailableMessage(t("contentUnavailableTitle"));
         return;
