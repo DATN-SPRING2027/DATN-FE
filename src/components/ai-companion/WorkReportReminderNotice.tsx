@@ -38,6 +38,7 @@ export default function WorkReportReminderNotice({
     unreadOnly: true,
     limit: 100,
     enabled: authenticated,
+    organizationId,
   });
   const read = useMarkNotificationReadMutation();
   const [dismissed, setDismissed] = useState<string[]>([]);
@@ -53,7 +54,8 @@ export default function WorkReportReminderNotice({
             item.target.reportId &&
             item.target.url ===
               `/projects/${item.target.projectId}/work-reports` &&
-            item.organizationId === user.data?.organizationId,
+            (item.organizationId ?? item.target?.organizationId) ===
+              organizationId,
         ) ?? [])
       : [];
   const eligible = useQuery({
@@ -61,7 +63,7 @@ export default function WorkReportReminderNotice({
       "work-notes",
       "companion-reminders",
       user.data?.id,
-      user.data?.organizationId,
+      organizationId,
       candidates.map((item) => item.id),
     ],
     queryFn: async ({ signal }) => {

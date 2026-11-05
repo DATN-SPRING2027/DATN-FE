@@ -32,7 +32,10 @@ import {
   resolveMaxOpenChatWindows,
   useFloatingChatStore,
 } from "@/stores/floating-chat";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
   resolveDefaultTargetUrl,
@@ -99,8 +102,10 @@ export default function NotificationsWorkspace() {
     (state) => state.openConversation,
   );
   const currentUser = useCurrentUserQuery();
-  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
-  const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(
+    currentUser.error,
+  );
+  const userId = currentUserAccessLost ? null : (currentUser.data?.id ?? null);
   const organizationId =
     !currentUserAccessLost &&
     currentUser.data &&
@@ -117,29 +122,45 @@ export default function NotificationsWorkspace() {
 
   const isUnreadOnly = filter === "unread";
   const hasOrganizationContext = Boolean(userId && organizationId);
-  const unreadQuery = useUnreadNotificationCountQuery(hasOrganizationContext);
+  const unreadQuery = useUnreadNotificationCountQuery(
+    hasOrganizationContext,
+    false,
+    organizationId,
+  );
   const infiniteQuery = useInfiniteNotificationsQuery({
     unreadOnly: isUnreadOnly,
     limit: 20,
     enabled: hasOrganizationContext,
+    organizationId,
   });
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
-  const notificationsAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(infiniteQuery.error);
-  const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
-  const pages = notificationsAccessLost ? [] : (infiniteQuery.data?.pages ?? []);
-  const items = pages
-    .flatMap((page) => page?.items ?? [])
-    .filter(
-      (item) =>
-        !organizationId ||
-        !item.organizationId ||
-        item.organizationId === organizationId,
-    );
+  const notificationsAccessLost =
+    currentUserAccessLost ||
+    isAccessOrResourceUnavailableError(infiniteQuery.error);
+  const unreadAccessLost =
+    currentUserAccessLost ||
+    isAccessOrResourceUnavailableError(unreadQuery.error);
+  const pages =
+    hasOrganizationContext && !notificationsAccessLost
+      ? (infiniteQuery.data?.pages ?? [])
+      : [];
+  const items = hasOrganizationContext
+    ? pages
+        .flatMap((page) => page?.items ?? [])
+        .filter((item) => {
+          const itemOrgId =
+            item.organizationId ?? item.target?.organizationId ?? null;
+          return !itemOrgId || itemOrgId === organizationId;
+        })
+    : [];
   const tPage = useTranslations("pageTitles");
-  const unreadCount =
-    (unreadAccessLost ? undefined : unreadQuery.data?.count) ?? pages[0]?.unreadCount ?? 0;
+  const unreadCount = hasOrganizationContext
+    ? ((unreadAccessLost ? undefined : unreadQuery.data?.count) ??
+      pages[0]?.unreadCount ??
+      0)
+    : 0;
   const baseNotificationsTitle = formatAppTitle(tPage("notifications"));
   useDocumentTitle(
     unreadCount > 0
@@ -343,21 +364,25 @@ export default function NotificationsWorkspace() {
 
       {/* Notification List */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-        {!notificationsAccessLost && infiniteQuery.isFetching && items.length > 0 && (
-          <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
-            <UpdatingStatus>{common("updating")}</UpdatingStatus>
-          </div>
-        )}
-        {!notificationsAccessLost && infiniteQuery.isRefetchError && items.length > 0 && (
-          <div className="border-b border-gray-100 p-3 dark:border-gray-800">
-            <BackgroundRefreshError
-              retryLabel={common("retry")}
-              onRetry={() => void infiniteQuery.refetch()}
-            >
-              {common("updateFailed")}
-            </BackgroundRefreshError>
-          </div>
-        )}
+        {!notificationsAccessLost &&
+          infiniteQuery.isFetching &&
+          items.length > 0 && (
+            <div className="border-b border-gray-100 px-4 py-3 dark:border-gray-800">
+              <UpdatingStatus>{common("updating")}</UpdatingStatus>
+            </div>
+          )}
+        {!notificationsAccessLost &&
+          infiniteQuery.isRefetchError &&
+          items.length > 0 && (
+            <div className="border-b border-gray-100 p-3 dark:border-gray-800">
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void infiniteQuery.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
+            </div>
+          )}
         {infiniteQuery.isLoading ? (
           <div
             role="status"
@@ -366,10 +391,10 @@ export default function NotificationsWorkspace() {
           >
             {[0, 1, 2, 3].map((idx) => (
               <div key={idx} className="flex items-start gap-3.5 p-4 sm:p-5">
-                <div className="h-10 w-10 shrink-0 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                <div className="h-10 w-10 shrink-0 rounded-xl bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
                 <div className="flex-1 space-y-2">
-                  <div className="h-4 w-48 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-                  <div className="h-3.5 w-3/4 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-4 w-48 rounded bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
+                  <div className="h-3.5 w-3/4 rounded bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
                 </div>
               </div>
             ))}
