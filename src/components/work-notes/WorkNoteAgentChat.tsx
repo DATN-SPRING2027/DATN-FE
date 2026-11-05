@@ -1138,6 +1138,12 @@ function InlineChatProposalCard({
 
           <SecurityShieldBanner report={security} />
 
+          {diff.isIdentical && suggestion.changeSummary.length === 0 && (
+            <p className="text-xs text-gray-600 dark:text-gray-400">
+              {t("noChangesSummary")}
+            </p>
+          )}
+
           {/* Segmented View Switcher (So sánh | Bản hoàn chỉnh | Bản gốc) + Edit/Copy */}
           <div className="flex flex-wrap items-center justify-between gap-1.5">
             {!diff.isNewContent ? (
