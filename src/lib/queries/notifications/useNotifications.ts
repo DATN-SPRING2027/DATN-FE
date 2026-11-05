@@ -35,11 +35,7 @@ export type NotificationMvpType =
   | "CHAT_MENTION";
 
 export type NotificationTargetKind =
-  | "ORGANIZATION"
-  | "PROJECT"
-  | "TASK"
-  | "WORK_NOTE"
-  | "CHAT";
+  "ORGANIZATION" | "PROJECT" | "TASK" | "WORK_NOTE" | "CHAT";
 
 export type NotificationTarget = Readonly<{
   kind: NotificationTargetKind;
@@ -107,11 +103,26 @@ function csrfHeaders(): HeadersInit {
 
 export const notificationKeys = {
   all: ["notifications"] as const,
-  list: (unreadOnly = false, limit = 15) =>
-    ["notifications", "list", { unreadOnly, limit }] as const,
-  infinite: (unreadOnly = false, limit = 20) =>
-    ["notifications", "infinite", { unreadOnly, limit }] as const,
-  unreadCount: () => ["notifications", "unread-count"] as const,
+  list: (unreadOnly = false, limit = 15, organizationId?: string | null) =>
+    organizationId
+      ? ([
+          "notifications",
+          "list",
+          { unreadOnly, limit, organizationId },
+        ] as const)
+      : (["notifications", "list", { unreadOnly, limit }] as const),
+  infinite: (unreadOnly = false, limit = 20, organizationId?: string | null) =>
+    organizationId
+      ? ([
+          "notifications",
+          "infinite",
+          { unreadOnly, limit, organizationId },
+        ] as const)
+      : (["notifications", "infinite", { unreadOnly, limit }] as const),
+  unreadCount: (organizationId?: string | null) =>
+    organizationId
+      ? (["notifications", "unread-count", { organizationId }] as const)
+      : (["notifications", "unread-count"] as const),
 };
 
 export function unreadNotificationPollingInterval(
@@ -141,8 +152,8 @@ export const notificationsApi = {
       nextCursor: raw.nextCursor ?? null,
       unreadCount:
         typeof raw.unreadCount === "number"
-        ? raw.unreadCount
-        : items.filter((item) => !item.readAt).length,
+          ? raw.unreadCount
+          : items.filter((item) => !item.readAt).length,
     };
   },
 
@@ -172,11 +183,20 @@ export const notificationsApi = {
 };
 
 export function useNotificationsQuery(
-  options: { unreadOnly?: boolean; limit?: number; enabled?: boolean } = {},
+  options: {
+    unreadOnly?: boolean;
+    limit?: number;
+    enabled?: boolean;
+    organizationId?: string | null;
+  } = {},
 ) {
   const limit = options.limit ?? 15;
   return useQuery({
-    queryKey: notificationKeys.list(Boolean(options.unreadOnly), limit),
+    queryKey: notificationKeys.list(
+      Boolean(options.unreadOnly),
+      limit,
+      options.organizationId,
+    ),
     queryFn: ({ signal }) =>
       notificationsApi.list(
         {
@@ -192,11 +212,20 @@ export function useNotificationsQuery(
 }
 
 export function useInfiniteNotificationsQuery(
-  options: { unreadOnly?: boolean; limit?: number; enabled?: boolean } = {},
+  options: {
+    unreadOnly?: boolean;
+    limit?: number;
+    enabled?: boolean;
+    organizationId?: string | null;
+  } = {},
 ) {
   const limit = options.limit ?? 20;
   return useInfiniteQuery({
-    queryKey: notificationKeys.infinite(Boolean(options.unreadOnly), limit),
+    queryKey: notificationKeys.infinite(
+      Boolean(options.unreadOnly),
+      limit,
+      options.organizationId,
+    ),
     initialPageParam: undefined as string | undefined,
     queryFn: ({ pageParam, signal }) =>
       notificationsApi.list(
@@ -215,9 +244,10 @@ export function useInfiniteNotificationsQuery(
 export function useUnreadNotificationCountQuery(
   enabled = true,
   realtimeConnected = false,
+  organizationId?: string | null,
 ) {
   return useQuery({
-    queryKey: notificationKeys.unreadCount(),
+    queryKey: notificationKeys.unreadCount(organizationId),
     queryFn: ({ signal }) => notificationsApi.unreadCount(signal),
     enabled,
     refetchInterval: unreadNotificationPollingInterval(realtimeConnected),
@@ -251,7 +281,9 @@ export function useNotificationRealtimeSubscription(
   enabled = true,
 ) {
   const queryClient = useQueryClient();
-  const [connectedIdentity, setConnectedIdentity] = useState<string | null>(null);
+  const [connectedIdentity, setConnectedIdentity] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (!enabled || !userId || !organizationId) return;
@@ -371,7 +403,7 @@ export function useNotificationRealtimeSubscription(
 
   return Boolean(
     userId &&
-      organizationId &&
-      connectedIdentity === `${userId}:${organizationId}`,
+    organizationId &&
+    connectedIdentity === `${userId}:${organizationId}`,
   );
 }

@@ -64,13 +64,15 @@ function renderWithProviders(ui: ReactNode) {
   });
   return {
     client,
-    ...render(
-      <QueryClientProvider client={client}>
-        <NextIntlClientProvider locale="en" messages={messages}>
-          {ui}
-        </NextIntlClientProvider>
-      </QueryClientProvider>,
-    ),
+    ...render(ui, {
+      wrapper: ({ children }: { children: ReactNode }) => (
+        <QueryClientProvider client={client}>
+          <NextIntlClientProvider locale="en" messages={messages}>
+            {children}
+          </NextIntlClientProvider>
+        </QueryClientProvider>
+      ),
+    }),
   };
 }
 
@@ -122,6 +124,78 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     });
   });
 
+  it("does not query notifications or unread count while in ACCOUNT context before organization selection, nor leak cached organization data", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "507f1f77bcf86cd799439001",
+        email: "member@example.com",
+        name: "Member User",
+        context: "ACCOUNT",
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    const { client, rerender } = renderWithProviders(
+      <>
+        <NotificationDropdown />
+        <NotificationsWorkspace />
+      </>,
+    );
+
+    fireEvent.click(screen.getByTestId("notification-bell-button"));
+
+    expect(api).not.toHaveBeenCalled();
+
+    // Seed cached Org A data and verify ACCOUNT context never renders it
+    client.setQueryData(
+      [
+        "notifications",
+        "unread-count",
+        { organizationId: "507f1f77bcf86cd799439002" },
+      ],
+      { count: 5 },
+    );
+    client.setQueryData(["notifications", "unread-count"], { count: 5 });
+    client.setQueryData(
+      ["notifications", "list", { unreadOnly: false, limit: 12 }],
+      {
+        items: [
+          {
+            id: "cached-org-a-item",
+            recipientId: "507f1f77bcf86cd799439001",
+            actorId: null,
+            organizationId: "507f1f77bcf86cd799439002",
+            projectId: null,
+            taskId: null,
+            noteId: null,
+            conversationId: null,
+            type: "TASK_ASSIGNED",
+            title: "Leaked Org A Task",
+            message: "Should not appear in ACCOUNT context",
+            target: null,
+            readAt: null,
+            createdAt: new Date().toISOString(),
+          },
+        ],
+        nextCursor: null,
+        unreadCount: 5,
+      },
+    );
+
+    rerender(
+      <>
+        <NotificationDropdown />
+        <NotificationsWorkspace />
+      </>,
+    );
+
+    expect(
+      screen.queryByTestId("notification-unread-badge"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Leaked Org A Task")).not.toBeInTheDocument();
+  });
+
   it("loads real notifications in dropdown, marks single item as read, and marks all as read with CSRF header", async () => {
     document.cookie = "continuum_csrf=test-csrf-token-123";
     const sampleNotifications = [
@@ -136,7 +210,8 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
         conversationId: null,
         type: "TASK_ASSIGNED",
         title: "New task assigned",
-        message: "You were assigned to task ATL-101: Implement Notification MVP.",
+        message:
+          "You were assigned to task ATL-101: Implement Notification MVP.",
         target: {
           kind: "TASK",
           organizationId: "507f1f77bcf86cd799439002",
@@ -208,16 +283,18 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
       );
     });
     expect(
-      api.mock.calls.some(([path]) => String(path).startsWith("/notifications?")),
+      api.mock.calls.some(([path]) =>
+        String(path).startsWith("/notifications?"),
+      ),
     ).toBe(false);
 
     fireEvent.click(screen.getByTestId("notification-bell-button"));
 
+    expect(await screen.findByText("New task assigned")).toBeInTheDocument();
     expect(
-      await screen.findByText("New task assigned"),
-    ).toBeInTheDocument();
-    expect(
-      api.mock.calls.some(([path]) => String(path).startsWith("/notifications?")),
+      api.mock.calls.some(([path]) =>
+        String(path).startsWith("/notifications?"),
+      ),
     ).toBe(true);
     expect(
       api.mock.calls.filter(([path]) => path === "/notifications/unread-count"),
@@ -231,9 +308,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     // Mark single notification as read
     fireEvent.click(
-      screen.getByTestId(
-        "notification-mark-read-507f1f77bcf86cd799439010",
-      ),
+      screen.getByTestId("notification-mark-read-507f1f77bcf86cd799439010"),
     );
 
     await waitFor(() => {
@@ -386,9 +461,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     // Click accessible notification -> navigates to deep-link
     fireEvent.click(
-      screen.getByTestId(
-        "notifications-page-item-507f1f77bcf86cd799439010",
-      ),
+      screen.getByTestId("notifications-page-item-507f1f77bcf86cd799439010"),
     );
 
     await waitFor(() => {
@@ -401,9 +474,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     // Click deleted notification -> shows safe fallback banner without navigating or crashing
     fireEvent.click(
-      screen.getByTestId(
-        "notifications-page-item-507f1f77bcf86cd799439015",
-      ),
+      screen.getByTestId("notifications-page-item-507f1f77bcf86cd799439015"),
     );
 
     expect(
@@ -413,9 +484,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
 
     // Dismiss and click HTTP 403 rejected notification -> also shows safe fallback without navigating
     fireEvent.click(
-      screen.getByTestId(
-        "notifications-page-item-507f1f77bcf86cd799439019",
-      ),
+      screen.getByTestId("notifications-page-item-507f1f77bcf86cd799439019"),
     );
 
     expect(
@@ -525,9 +594,7 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     } as never);
 
     try {
-      renderWithProviders(
-        <WorkNotesWorkspace projectId="project-preview-1" />,
-      );
+      renderWithProviders(<WorkNotesWorkspace projectId="project-preview-1" />);
 
       expect(
         await screen.findByTestId("work-note-unavailable-banner"),
