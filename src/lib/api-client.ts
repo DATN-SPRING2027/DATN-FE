@@ -3,6 +3,8 @@
  * Centralized HTTP client for communication with the BFF or backend boundary.
  */
 
+import { syncCurrentAuthSessionCookie } from "@/lib/queries/auth/session-sync";
+
 export function getServerApiBaseUrl(): string {
   const configuredBaseUrl =
     process.env.CONTINUUM_API_BASE_URL || "http://localhost:3001";
@@ -54,13 +56,25 @@ function recoveryError(error: unknown): ApiError {
 async function recoverSession(): Promise<void> {
   if (!refreshInFlight) {
     refreshInFlight = apiClient("/api/v1/auth/refresh", { method: "POST" })
-      .then(() => { sessionGeneration += 1; })
+      .then(() => {
+        sessionGeneration += 1;
+        syncCurrentAuthSessionCookie();
+      })
       .finally(() => { refreshInFlight = undefined; });
   }
   try {
     await refreshInFlight;
   } catch (error) {
     throw recoveryError(error);
+  }
+}
+
+export async function keepAliveSession(): Promise<void> {
+  if (logoutInFlight) return;
+  try {
+    await recoverSession();
+  } catch {
+    // Ignore proactive keep-alive failures; normal 401 session recovery handles invalid sessions.
   }
 }
 

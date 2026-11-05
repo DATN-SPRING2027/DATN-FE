@@ -894,9 +894,13 @@ export default function AiChatMessageList({
                           {t("noEvidenceScopeBody")}
                         </p>
                         <Link
-                          href={`/projects/${encodeURIComponent(
-                            projectId,
-                          )}/documents`}
+                          href={
+                            projectId === "all"
+                              ? "/projects"
+                              : `/projects/${encodeURIComponent(
+                                  projectId,
+                                )}/documents`
+                          }
                           className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-brand-600 transition-colors hover:bg-gray-50 dark:border-white/10 dark:bg-gpt-composer dark:text-brand-300 dark:hover:bg-white/10"
                         >
                           <span>{t("manageDocumentsCta")}</span>
@@ -984,9 +988,9 @@ export default function AiChatMessageList({
                             : cit.pageFrom
                               ? t("pageSingleLabel", { page: cit.pageFrom })
                               : null;
-                        const canDeepLink = isContinuumDocumentId(
-                          cit.documentId,
-                        );
+                        const canDeepLink =
+                          projectId !== "all" &&
+                          isContinuumDocumentId(cit.documentId);
 
                         return (
                           <div

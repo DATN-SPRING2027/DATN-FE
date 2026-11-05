@@ -5961,7 +5961,12 @@
     "branchBackToOriginalAction": "Xem bản gốc",
     "branchToastDismissAria": "Đóng thông báo rẽ nhánh",
     "branchErrorDefault": "Không thể rẽ nhánh cuộc trò chuyện này. Vui lòng thử lại.",
-    "branchedThreadBadgeAria": "Cuộc trò chuyện rẽ nhánh"
+    "branchedThreadBadgeAria": "Cuộc trò chuyện rẽ nhánh",
+    "allProjectsName": "Tất cả dự án",
+    "allProjectsCode": "ALL",
+    "allProjectsMeta": "Toàn tổ chức · {count} dự án",
+    "allProjectsIsolationTitle": "Phạm vi Toàn tổ chức (Manager)",
+    "allProjectsIsolationDesc": "Truy vấn xuyên suốt toàn bộ dự án đang hoạt động trong tổ chức · Chỉ dựa trên tri thức"
   },
   "handover": {
     "aiCoverage": {

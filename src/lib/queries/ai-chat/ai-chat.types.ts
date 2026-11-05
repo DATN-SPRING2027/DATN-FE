@@ -21,6 +21,9 @@ export type AiChatProjectSourceReadiness =
 
 export type AiChatProjectDocumentSource = Readonly<{
   documentId: string;
+  projectId?: string;
+  projectCode?: string;
+  projectName?: string;
   title: string;
   fileName?: string;
   type: string;
@@ -51,6 +54,7 @@ export type AiChatCitation = Readonly<{
   number: number;
   sourceId: string;
   sourceName?: string;
+  projectId?: string;
   documentId: string;
   sagDocumentId?: string;
   documentName?: string;
