@@ -877,6 +877,13 @@ describe("HandoverListWorkspace", () => {
       data: {
         data: [
           makeSummary({
+            id: "69e923c77859fd1c702d4d54",
+            title: "Completed Historical Handover",
+            version: 12,
+            status: "COMPLETED",
+            assignedLeaderId: "69e923c77859fd1c702d4a02",
+          }),
+          makeSummary({
             id: "69e923c77859fd1c702d4d55",
             title: "Active Core Transition",
             version: 7,
@@ -908,6 +915,24 @@ describe("HandoverListWorkspace", () => {
       "69e923c77859fd1c702d4d55",
     );
     expect(screen.getByLabelText(/expected version/i)).toHaveValue(7);
+
+    // Quick-select only includes OPEN handovers (excludes COMPLETED historical handovers)
+    const handoverSelect = document.getElementById(
+      "coord-handover-select",
+    ) as HTMLSelectElement;
+    const handoverOptionLabels = within(handoverSelect)
+      .getAllByRole("option")
+      .map((opt) => opt.textContent ?? "");
+    expect(
+      handoverOptionLabels.some((label) =>
+        /active core transition/i.test(label),
+      ),
+    ).toBe(true);
+    expect(
+      handoverOptionLabels.some((label) =>
+        /completed historical handover/i.test(label),
+      ),
+    ).toBe(false);
 
     const leaderSelect = screen.getByLabelText(/coordinator leader \(d\)/i);
     const options = within(leaderSelect).getAllByRole("option");

@@ -177,16 +177,13 @@ export default function CreateHandoverModal({
     });
   }, [currentUserId, members, verifiedLeadersMap]);
 
-  const coordinatorOptions = useMemo<readonly HandoverMemberOption[]>(() => {
-    if (verifiedLeadersMap.size > 0) {
-      return Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+  const coordinatorOptions = useMemo<readonly HandoverMemberOption[]>(
+    () =>
+      Array.from(verifiedLeadersMap.values()).sort((a, b) =>
         a.fullName.localeCompare(b.fullName),
-      );
-    }
-    return activeMembers
-      .map((m) => toMemberOption(m, currentUserId))
-      .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [activeMembers, currentUserId, verifiedLeadersMap]);
+      ),
+    [verifiedLeadersMap],
+  );
 
   const defaultCoordinator = useMemo(() => {
     if (

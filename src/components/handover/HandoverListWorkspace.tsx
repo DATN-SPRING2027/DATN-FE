@@ -181,24 +181,13 @@ export default function HandoverListWorkspace({
     return map;
   }, [activeMembers, currentUserId, leadersQuery.data]);
 
-  const coordinatorOptions = useMemo<readonly HandoverMemberOption[]>(() => {
-    if (verifiedLeadersMap.size > 0) {
-      return Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+  const coordinatorOptions = useMemo<readonly HandoverMemberOption[]>(
+    () =>
+      Array.from(verifiedLeadersMap.values()).sort((a, b) =>
         a.fullName.localeCompare(b.fullName),
-      );
-    }
-    return activeMembers
-      .map((m) => ({
-        userId: m.userId,
-        fullName: formatMemberOptionLabel(m),
-        email: m.user?.email?.trim() || undefined,
-        avatarUrl: m.user?.avatarUrl ?? null,
-        status: m.status,
-        roleCode: (m as { role?: string }).role,
-        isCurrentUser: Boolean(currentUserId && m.userId === currentUserId),
-      }))
-      .sort((a, b) => a.fullName.localeCompare(b.fullName));
-  }, [activeMembers, currentUserId, verifiedLeadersMap]);
+      ),
+    [verifiedLeadersMap],
+  );
 
   const managementAccess = useProjectManagementAccess(
     organizationId,
@@ -213,16 +202,23 @@ export default function HandoverListWorkspace({
 
   // Only active Project Leaders (TEAM_LEADER) can initiate a handover; Org Managers without Project Leader role use Appoint Coordinator (D).
   const canInitiateHandover =
-    leadersQuery.isSuccess || verifiedLeadersMap.size > 0
+    leadersQuery.isPending ||
+    leadersQuery.isSuccess ||
+    verifiedLeadersMap.size > 0
       ? Boolean(currentUserId && verifiedLeadersMap.has(currentUserId))
       : Boolean(
           (managementAccess as { canUpdateProject?: boolean })
             .canUpdateProject ?? managementAccess.canAccessSettings,
-        ) || managementAccess.isPending;
+        ) && !managementAccess.isPending;
 
   const allItems = useMemo(
     () => handoversQuery.data?.data ?? [],
     [handoversQuery.data],
+  );
+
+  const openItems = useMemo(
+    () => allItems.filter((item) => item.status === "OPEN"),
+    [allItems],
   );
 
   const filteredItems = useMemo(() => {
@@ -277,19 +273,19 @@ export default function HandoverListWorkspace({
   const openCoordModal = () => {
     setCoordError(null);
     setCoordSuccess(null);
-    if (!coordHandoverId.trim() && allItems.length > 0) {
-      const preferred =
-        allItems.find((item) => item.status === "OPEN") ?? allItems[0];
-      if (preferred) {
-        setCoordHandoverId(preferred.id);
-        setCoordVersion(String(preferred.version));
-        if (
-          !coordLeaderId.trim() &&
-          preferred.assignedLeaderId &&
-          verifiedLeadersMap.has(preferred.assignedLeaderId)
-        ) {
-          setCoordLeaderId(preferred.assignedLeaderId);
-        }
+    const currentMatched = openItems.find(
+      (item) => item.id === coordHandoverId.trim(),
+    );
+    const preferred = currentMatched ?? openItems[0];
+    if (preferred) {
+      setCoordHandoverId(preferred.id);
+      setCoordVersion(String(preferred.version));
+      if (
+        (!coordLeaderId.trim() || !currentMatched) &&
+        preferred.assignedLeaderId &&
+        verifiedLeadersMap.has(preferred.assignedLeaderId)
+      ) {
+        setCoordLeaderId(preferred.assignedLeaderId);
       }
     }
     setIsCoordModalOpen(true);
@@ -1041,7 +1037,7 @@ export default function HandoverListWorkspace({
             </div>
           )}
 
-          {allItems.length > 0 && (
+          {openItems.length > 0 && (
             <div>
               <label
                 htmlFor="coord-handover-select"
@@ -1052,18 +1048,26 @@ export default function HandoverListWorkspace({
               <select
                 id="coord-handover-select"
                 value={
-                  allItems.some((item) => item.id === coordHandoverId)
+                  openItems.some((item) => item.id === coordHandoverId)
                     ? coordHandoverId
                     : ""
                 }
                 onChange={(e) => {
                   const selectedId = e.target.value;
+                  setCoordError(null);
+                  setCoordSuccess(null);
                   setCoordHandoverId(selectedId);
-                  const matched = allItems.find(
+                  const matched = openItems.find(
                     (item) => item.id === selectedId,
                   );
                   if (matched) {
                     setCoordVersion(String(matched.version));
+                    if (
+                      matched.assignedLeaderId &&
+                      verifiedLeadersMap.has(matched.assignedLeaderId)
+                    ) {
+                      setCoordLeaderId(matched.assignedLeaderId);
+                    }
                   }
                 }}
                 className="mt-1.5 w-full rounded-xl border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-white"
@@ -1071,7 +1075,7 @@ export default function HandoverListWorkspace({
                 <option value="">
                   {t("detail.coordinatorIdPlaceholder")}
                 </option>
-                {allItems.map((item) => (
+                {openItems.map((item) => (
                   <option key={item.id} value={item.id}>
                     {`${item.title} (v${item.version} · ${item.status})`}
                   </option>

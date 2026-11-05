@@ -1365,6 +1365,20 @@ describe("HandoverDetailWorkspace", () => {
 
     renderDetail();
 
+    // Coordinator Recovery viewer sees only the Published Package tab (not forbidden Tasks/Q&A/Follow-ups tabs)
+    const tabsNav = screen.getByRole("navigation", {
+      name: /handover workspace sections/i,
+    });
+    expect(
+      within(tabsNav).getByRole("button", { name: /published package/i }),
+    ).toBeInTheDocument();
+    expect(
+      within(tabsNav).queryByRole("button", { name: /task transfers/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(tabsNav).queryByRole("button", { name: /follow-ups/i }),
+    ).not.toBeInTheDocument();
+
     fireEvent.click(
       screen.getAllByRole("button", { name: /change coordinator \(d\)/i })[0]!,
     );

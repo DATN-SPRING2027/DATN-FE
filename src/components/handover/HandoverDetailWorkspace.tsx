@@ -309,25 +309,11 @@ export default function HandoverDetailWorkspace({
   }, [activeMembers, currentUserId, leadersQuery.data]);
 
   const coordinatorSelectOptions = useMemo<readonly HandoverMemberOption[]>(
-    () => {
-      if (verifiedLeadersMap.size > 0) {
-        return Array.from(verifiedLeadersMap.values()).sort((a, b) =>
-          a.fullName.localeCompare(b.fullName),
-        );
-      }
-      return activeMembers
-        .map((m) => ({
-          userId: m.userId,
-          fullName: formatMemberOptionLabel(m),
-          email: m.user?.email?.trim() || undefined,
-          avatarUrl: m.user?.avatarUrl ?? null,
-          status: m.status,
-          roleCode: (m as { role?: string }).role,
-          isCurrentUser: Boolean(currentUserId && m.userId === currentUserId),
-        }))
-        .sort((a, b) => a.fullName.localeCompare(b.fullName));
-    },
-    [activeMembers, currentUserId, verifiedLeadersMap],
+    () =>
+      Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+        a.fullName.localeCompare(b.fullName),
+      ),
+    [verifiedLeadersMap],
   );
 
   const encodedProjectId = encodeURIComponent(projectId);
@@ -391,13 +377,30 @@ export default function HandoverDetailWorkspace({
   const isSavingSuccessor =
     addProjectMemberMutation.isPending || setSuccessorMutation.isPending;
 
+  const isCoordinatorRecoveryOnly = useMemo(() => {
+    if (!isOrgManager || !handover) return false;
+    if (capabilities.some((cap) => cap !== "READ")) {
+      return false;
+    }
+    if (
+      currentUserId &&
+      (currentUserId === handover.departingUserId ||
+        currentUserId === handover.successorUserId ||
+        verifiedLeadersMap.has(currentUserId))
+    ) {
+      return false;
+    }
+    return true;
+  }, [capabilities, currentUserId, handover, isOrgManager, verifiedLeadersMap]);
+
   const resolvedTab: DetailTab = useMemo(() => {
+    if (isCoordinatorRecoveryOnly) return "published";
     if (activeTab) return activeTab;
     if (!publishedRevision && capabilities.includes("MANAGE")) {
       return "draft";
     }
     return "published";
-  }, [activeTab, publishedRevision, capabilities]);
+  }, [activeTab, publishedRevision, capabilities, isCoordinatorRecoveryOnly]);
 
   const viewerRolePill = useMemo(() => {
     if (!handover) return null;
@@ -456,7 +459,17 @@ export default function HandoverDetailWorkspace({
   };
 
   const openCoordinatorModal = () => {
-    setNextCoordinatorId(handover?.assignedLeaderId ?? "");
+    const currentLeaderId = handover?.assignedLeaderId ?? "";
+    const preselectedLeaderId =
+      currentLeaderId &&
+      (coordinatorSelectOptions.length === 0 ||
+        coordinatorSelectOptions.some((opt) => opt.userId === currentLeaderId))
+        ? currentLeaderId
+        : "";
+    setNextCoordinatorId(preselectedLeaderId);
+    if (handover?.version) {
+      setFallbackVersion(String(handover.version));
+    }
     setCoordinatorReason("");
     setModalError(null);
     setMoreMenuOpen(false);
@@ -1127,21 +1140,25 @@ export default function HandoverDetailWorkspace({
                         },
                       ]
                     : []),
-                  {
-                    id: "tasks" as const,
-                    label: t("detail.tabTasks"),
-                    icon: TaskIcon,
-                  },
-                  {
-                    id: "qa" as const,
-                    label: t("detail.tabQa"),
-                    icon: ChatIcon,
-                  },
-                  {
-                    id: "followups" as const,
-                    label: t("detail.tabFollowUps"),
-                    icon: HandShakeIcon,
-                  },
+                  ...(!isCoordinatorRecoveryOnly
+                    ? [
+                        {
+                          id: "tasks" as const,
+                          label: t("detail.tabTasks"),
+                          icon: TaskIcon,
+                        },
+                        {
+                          id: "qa" as const,
+                          label: t("detail.tabQa"),
+                          icon: ChatIcon,
+                        },
+                        {
+                          id: "followups" as const,
+                          label: t("detail.tabFollowUps"),
+                          icon: HandShakeIcon,
+                        },
+                      ]
+                    : []),
                 ] as const
               ).map((tab) => {
                 const TabIcon = tab.icon;
