@@ -1,12 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { workNotesApi } from "./useWorkNotes";
+import { isKnowledgeSyncActive, workNotesApi } from "./useWorkNotes";
 
 const fetchMock = vi.fn<typeof fetch>();
 
 describe("Work Notes API client", () => {
   beforeEach(() => {
     vi.stubGlobal("fetch", fetchMock);
-    vi.spyOn(document, "cookie", "get").mockReturnValue("__Host-csrf=csrf-value");
+    vi.spyOn(document, "cookie", "get").mockReturnValue(
+      "__Host-csrf=csrf-value",
+    );
     fetchMock.mockReset();
   });
 
@@ -84,10 +86,7 @@ describe("Work Notes API client", () => {
       new Response(JSON.stringify(response), { status: 200 }),
     );
 
-    await workNotesApi.updateReportSettings(
-      response.projectId,
-      "EVERY_3_DAYS",
-    );
+    await workNotesApi.updateReportSettings(response.projectId, "EVERY_3_DAYS");
 
     expect(fetchMock).toHaveBeenCalledWith(
       `/api/backend/capture/projects/${response.projectId}/work-report-settings`,
@@ -418,6 +417,217 @@ describe("Work Notes API client", () => {
       2,
       "https://r2.example.cloudflarestorage.com/direct-get",
       expect.objectContaining({ credentials: "omit" }),
+    );
+  });
+
+  it("caps legacy proxy upload XHR progress at 98% until server responds 2xx and recognizes DATA_READY as settled knowledge sync", async () => {
+    const projectId = "651a2b3c4d5e6f7a8b9c0d21";
+    const documentId = "751a2b3c4d5e6f7a8b9c0d22";
+    const file = new File(["%PDF-1.7 legacy"], "legacy.pdf", {
+      type: "application/pdf",
+    });
+
+    const progressTimeline: string[] = [];
+
+    class LegacyProxyMockXMLHttpRequest {
+      status = 0;
+      responseText = "";
+      upload: { onprogress: ((e: ProgressEvent) => void) | null } = {
+        onprogress: null,
+      };
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      onabort: (() => void) | null = null;
+
+      open() {}
+      setRequestHeader() {}
+      abort() {
+        this.onabort?.();
+      }
+      send(body: Document | XMLHttpRequestBodyInit | null) {
+        const size = body instanceof Blob ? body.size : 15;
+        this.upload.onprogress?.({
+          lengthComputable: true,
+          loaded: size,
+          total: size,
+        } as ProgressEvent);
+        progressTimeline.push("before-server-200");
+        this.status = 200;
+        this.responseText = JSON.stringify({ id: documentId });
+        this.onload?.();
+      }
+    }
+
+    vi.stubGlobal("XMLHttpRequest", LegacyProxyMockXMLHttpRequest);
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(JSON.stringify({ message: "Not Implemented" }), {
+        status: 501,
+      }),
+    );
+
+    await workNotesApi.uploadDocumentFile(projectId, documentId, file, {
+      sha256: "c".repeat(64),
+      onProgress: (pct) => progressTimeline.push(`pct:${pct}`),
+    });
+
+    expect(progressTimeline).toEqual([
+      "pct:98",
+      "before-server-200",
+      "pct:100",
+    ]);
+
+    expect(
+      isKnowledgeSyncActive({
+        documentId,
+        version: 1,
+        status: "SEARCH_READY",
+        searchStatus: "SEARCH_READY",
+        knowledgeStatus: "QUEUED",
+        searchReady: true,
+        knowledgeReady: false,
+        progress: 100,
+      }),
+    ).toBe(true);
+
+    expect(
+      isKnowledgeSyncActive({
+        documentId,
+        version: 1,
+        status: "SEARCH_READY",
+        searchStatus: "SEARCH_READY",
+        knowledgeStatus: "DATA_READY",
+        searchReady: true,
+        knowledgeReady: false,
+        progress: 100,
+      }),
+    ).toBe(false);
+  });
+
+  it("approves Task Notes, downloads post-approval .md artifacts via DIRECT_GET, and controls SAG sync for Task Notes and Work Reports", async () => {
+    const projectId = "651a2b3c4d5e6f7a8b9c0d21";
+    const noteId = "751a2b3c4d5e6f7a8b9c0d21";
+    const reportId = "751a2b3c4d5e6f7a8b9c0d31";
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          id: noteId,
+          projectId,
+          reviewStatus: "APPROVED",
+        }),
+        { status: 200 },
+      ),
+    );
+    const approvedNote = await workNotesApi.taskNoteAction(
+      projectId,
+      noteId,
+      "approve",
+      "Ready for SAG",
+    );
+    expect(approvedNote.reviewStatus).toBe("APPROVED");
+    expect(fetchMock).toHaveBeenCalledWith(
+      `/api/backend/capture/projects/${projectId}/work-notes/${noteId}/approve`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ comment: "Ready for SAG" }),
+      }),
+    );
+
+    fetchMock
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            mode: "DIRECT_GET",
+            downloadUrl: "https://r2.example.com/work-notes/approved.md",
+            fileName: "task-note.md",
+            contentType: "text/markdown",
+          }),
+          { status: 200 },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response("# Approved Task Note", {
+          status: 200,
+          headers: { "Content-Type": "text/markdown" },
+        }),
+      );
+
+    const noteBlob = await workNotesApi.downloadTaskNoteFile(projectId, noteId);
+    expect(await noteBlob.text()).toBe("# Approved Task Note");
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          documentId: reportId,
+          version: 1,
+          status: "PAUSED",
+        }),
+        { status: 200 },
+      ),
+    );
+    const pausedReportSync = await workNotesApi.controlWorkReportKnowledge(
+      projectId,
+      reportId,
+      "PAUSE",
+    );
+    expect(pausedReportSync.status).toBe("PAUSED");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/backend/capture/projects/${projectId}/work-reports/${reportId}/knowledge-control`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ action: "PAUSE" }),
+      }),
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          entityId: noteId,
+          status: "CHANGES_REQUESTED",
+          sagRevoked: true,
+          r2DeletedKeys: 1,
+          r2RetainedSharedKeys: 0,
+        }),
+        { status: 200 },
+      ),
+    );
+    const purgedNote = await workNotesApi.purgeTaskNoteFile(
+      projectId,
+      noteId,
+      { reopen: true, comment: "Needs diagram" },
+    );
+    expect(purgedNote.r2DeletedKeys).toBe(1);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/backend/capture/projects/${projectId}/work-notes/${noteId}/file?reopen=true`,
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ reopen: true, comment: "Needs diagram" }),
+      }),
+    );
+
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          action: "APPROVE",
+          requestedCount: 1,
+          succeededIds: [reportId],
+          failed: [],
+        }),
+        { status: 200 },
+      ),
+    );
+    const bulkResult = await workNotesApi.bulkWorkReportAction(projectId, {
+      ids: [reportId],
+      action: "APPROVE",
+    });
+    expect(bulkResult.succeededIds).toEqual([reportId]);
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      `/api/backend/capture/projects/${projectId}/work-reports/bulk-action`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ ids: [reportId], action: "APPROVE" }),
+      }),
     );
   });
 });

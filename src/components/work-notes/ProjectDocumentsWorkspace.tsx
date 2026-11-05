@@ -13,10 +13,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
-import {
-  BackgroundRefreshError,
-  UpdatingStatus,
-} from "@/components/ui/loading/AsyncStatus";
+import { BackgroundRefreshError } from "@/components/ui/loading/AsyncStatus";
 import { Modal } from "@/components/ui/modal";
 import {
   AlertIcon,
@@ -171,7 +168,7 @@ function extractSyncErrorMessage(
   return null;
 }
 
-function resolvePipelineDisplay(
+export function resolvePipelineDisplay(
   docStatus: DocumentStatus,
   sync?: DocumentKnowledgeStatus,
 ): PipelineDisplayMeta {
@@ -362,6 +359,12 @@ function resolvePipelineDisplay(
     rawDocStatus === "LOADING" ||
     rawDocStatus === "EXTRACTING";
 
+  const isKnowledgeSettled =
+    sync.knowledgeReady === true ||
+    rawKnowledgeStatus === "DATA_READY" ||
+    rawKnowledgeStatus === "KNOWLEDGE_READY" ||
+    rawKnowledgeStatus === "READY";
+
   const isFullyReady =
     !isDocInFlight &&
     (rawStatus === "COMPLETED" ||
@@ -370,10 +373,14 @@ function resolvePipelineDisplay(
       ((rawStatus === "SEARCH_READY" ||
         sync.searchReady === true ||
         rawStage === "COMPLETE") &&
-        (sync.knowledgeReady === true ||
-          (!["PROCESSING", "EXTRACTING", "RUNNING", "QUEUED"].includes(
-            rawKnowledgeStatus,
-          ) &&
+        (isKnowledgeSettled ||
+          (![
+            "PROCESSING",
+            "EXTRACTING",
+            "RUNNING",
+            "QUEUED",
+            "PENDING",
+          ].includes(rawKnowledgeStatus) &&
             (sync.progress ?? 100) >= 100))));
 
   if (isFullyReady) {
@@ -393,7 +400,26 @@ function resolvePipelineDisplay(
   let defaultPct = 45;
   let stepIndex: 1 | 2 | 3 = 2;
 
-  if (
+  if (rawStage.includes("RECEIVE")) {
+    if (rawDocStatus === "LOADING" || rawStatus === "UPLOADING") {
+      stageKey = "pipelineReceiving";
+      defaultPct = 12;
+      stepIndex = 1;
+    } else {
+      stageKey = "pipelineQueued";
+      defaultPct = 5;
+      stepIndex = 1;
+    }
+  } else if (
+    rawStatus === "QUEUED_OUTBOX" ||
+    rawStage.includes("OUTBOX") ||
+    rawStatus === "QUEUED" ||
+    rawStage === "QUEUED"
+  ) {
+    stageKey = "pipelineQueued";
+    defaultPct = 5;
+    stepIndex = 1;
+  } else if (
     rawStage.includes("INDEX") ||
     rawStage.includes("EMBED") ||
     rawStatus === "INDEXING"
@@ -406,7 +432,7 @@ function resolvePipelineDisplay(
     rawStage.includes("EXTRACT") ||
     rawStage.includes("CHUNK") ||
     rawStatus === "EXTRACTING" ||
-    rawDocStatus === "EXTRACTING"
+    (!rawStage && rawDocStatus === "EXTRACTING")
   ) {
     stageKey = "pipelineExtracting";
     defaultPct = 65;
@@ -415,7 +441,7 @@ function resolvePipelineDisplay(
     rawStage.includes("PARSE") ||
     rawStage.includes("CANONICAL") ||
     rawStatus === "PARSING" ||
-    rawDocStatus === "LOADING"
+    (!rawStage && rawDocStatus === "LOADING")
   ) {
     stageKey = "pipelineParsing";
     defaultPct = 35;
@@ -428,15 +454,7 @@ function resolvePipelineDisplay(
     stageKey = "pipelineReceiving";
     defaultPct = 12;
     stepIndex = 1;
-  } else if (
-    rawStatus === "QUEUED_OUTBOX" ||
-    rawStage.includes("OUTBOX") ||
-    rawStatus === "QUEUED" ||
-    rawStage === "QUEUED" ||
-    rawStage.includes("RECEIVE") ||
-    rawStatus === "RECEIVED" ||
-    rawDocStatus === "PENDING"
-  ) {
+  } else if (rawStatus === "RECEIVED" || rawDocStatus === "PENDING") {
     stageKey = "pipelineQueued";
     defaultPct = 5;
     stepIndex = 1;
@@ -618,7 +636,21 @@ export default function ProjectDocumentsWorkspace({
 
   // Unified Role-Aware File Upload / Upload Request Modal state
   const [uploadModalOpen, setUploadModalOpen] = useState(false);
-  const [batchQueue, setBatchQueue] = useState<BatchQueueItem[]>([]);
+  const [batchQueue, setBatchQueueState] = useState<BatchQueueItem[]>([]);
+  const batchQueueRef = useRef<BatchQueueItem[]>([]);
+  const batchHashingPromisesRef = useRef<Map<string, Promise<string>>>(
+    new Map(),
+  );
+  const batchClaimedIdsRef = useRef<Set<string>>(new Set());
+  const isBatchRunningRef = useRef(false);
+  const setBatchQueue = (
+    updater: BatchQueueItem[] | ((prev: BatchQueueItem[]) => BatchQueueItem[]),
+  ) => {
+    const next =
+      typeof updater === "function" ? updater(batchQueueRef.current) : updater;
+    batchQueueRef.current = next;
+    setBatchQueueState(next);
+  };
   const [memberNote, setMemberNote] = useState("");
   const [batchIsDragging, setBatchIsDragging] = useState(false);
   const [isBatchRunning, setIsBatchRunning] = useState(false);
@@ -718,11 +750,11 @@ export default function ProjectDocumentsWorkspace({
     documentId,
     Boolean(
       selected &&
-        !isReplacingVersion &&
-        (selected.status === "APPROVED" ||
-          selected.knowledgeSync ||
-          detail.data?.knowledgeSync ||
-          syncedDocIds[documentId]),
+      !isReplacingVersion &&
+      (selected.status === "APPROVED" ||
+        selected.knowledgeSync ||
+        detail.data?.knowledgeSync ||
+        syncedDocIds[documentId]),
     ),
   );
 
@@ -740,14 +772,14 @@ export default function ProjectDocumentsWorkspace({
     documentId,
     Boolean(
       selected &&
-        !isReplacingVersion &&
-        selectedVersionNumber === null &&
-        detailPipelineForChunks &&
-        (detailPipelineForChunks.phase === "ready" ||
-          (detailPipelineForChunks.phase === "paused" &&
-            detailPipelineForChunks.stepIndex >= 2) ||
-          (detailPipelineForChunks.phase === "processing" &&
-            detailPipelineForChunks.stepIndex >= 3)),
+      !isReplacingVersion &&
+      selectedVersionNumber === null &&
+      detailPipelineForChunks &&
+      (detailPipelineForChunks.phase === "ready" ||
+        (detailPipelineForChunks.phase === "paused" &&
+          detailPipelineForChunks.stepIndex >= 2) ||
+        (detailPipelineForChunks.phase === "processing" &&
+          detailPipelineForChunks.stepIndex >= 3)),
     ),
     detailPipelineForChunks?.phase === "ready"
       ? (detailLiveSync?.sagVersionNo ?? detail.data?.version ?? 1) * 10 + 1
@@ -848,15 +880,12 @@ export default function ProjectDocumentsWorkspace({
     }
   }, [detailPipelineForChunks?.phase, documentId, projectId, queryClient]);
 
-  const syncKnowledge = useWorkNotesMutation(
-    async () => {
-      const res = await workNotesApi.syncDocumentToSag(projectId, documentId);
-      setSyncedDocIds((prev) => ({ ...prev, [documentId]: true }));
-      updateCachedDocumentSync(documentId, res, true);
-      return res;
-    },
-    [workNoteKeys.document(projectId, documentId)],
-  );
+  const syncKnowledge = useWorkNotesMutation(async () => {
+    const res = await workNotesApi.syncDocumentToSag(projectId, documentId);
+    setSyncedDocIds((prev) => ({ ...prev, [documentId]: true }));
+    updateCachedDocumentSync(documentId, res, true);
+    return res;
+  }, [workNoteKeys.document(projectId, documentId)]);
 
   const controlKnowledge = useWorkNotesMutation(
     async (controlAction: DocumentKnowledgeControlAction) => {
@@ -1094,23 +1123,23 @@ export default function ProjectDocumentsWorkspace({
 
   const canArchiveDocument = Boolean(
     current &&
-      (current.permissions.canConfigure ||
-        current.permissions.canReview ||
-        isProjectLeader) &&
-      current.status !== "ARCHIVED" &&
-      (current.status === "APPROVED" ||
-        current.versions.some((v) => v.status === "APPROVED")),
+    (current.permissions.canConfigure ||
+      current.permissions.canReview ||
+      isProjectLeader) &&
+    current.status !== "ARCHIVED" &&
+    (current.status === "APPROVED" ||
+      current.versions.some((v) => v.status === "APPROVED")),
   );
 
   const canDeleteDocument = Boolean(
     current &&
-      (current.permissions.canDelete ||
-        isProjectLeader ||
-        (cachedCurrentUser?.id &&
-          cachedCurrentUser.id.toLowerCase() ===
-            current.createdBy.toLowerCase() &&
-          current.status !== "APPROVED" &&
-          current.status !== "ARCHIVED")),
+    (current.permissions.canDelete ||
+      isProjectLeader ||
+      (cachedCurrentUser?.id &&
+        cachedCurrentUser.id.toLowerCase() ===
+          current.createdBy.toLowerCase() &&
+        current.status !== "APPROVED" &&
+        current.status !== "ARCHIVED")),
   );
 
   useEffect(() => {
@@ -1155,7 +1184,9 @@ export default function ProjectDocumentsWorkspace({
     );
     const seenHashes = new Set<string>([
       ...existingHashes,
-      ...batchQueue.map((item) => item.sha256.toLowerCase()).filter(Boolean),
+      ...batchQueueRef.current
+        .map((item) => item.sha256.toLowerCase())
+        .filter(Boolean),
     ]);
 
     const candidates = Array.from(files);
@@ -1188,6 +1219,17 @@ export default function ProjectDocumentsWorkspace({
 
     if (validToHash.length === 0) return;
 
+    const deferredByItemId = new Map<
+      string,
+      { resolve: (hash: string) => void }
+    >();
+    for (const entry of validToHash) {
+      const promise = new Promise<string>((resolve) => {
+        deferredByItemId.set(entry.id, { resolve });
+      });
+      batchHashingPromisesRef.current.set(entry.id, promise);
+    }
+
     let hashCursor = 0;
     const hashWorkerCount = Math.min(HASH_CONCURRENCY, validToHash.length);
     await Promise.all(
@@ -1197,61 +1239,116 @@ export default function ProjectDocumentsWorkspace({
           hashCursor += 1;
           if (idx >= validToHash.length) break;
           const entry = validToHash[idx];
-          const sha256 = await computeFileSha256(entry.file).catch(() => "");
-          const normalized = sha256.toLowerCase();
-          const isDuplicate =
-            Boolean(normalized) && seenHashes.has(normalized);
-          if (normalized) {
-            seenHashes.add(normalized);
+          let sha256 = "";
+          try {
+            sha256 = await computeFileSha256(entry.file).catch(() => "");
+            const normalized = sha256.toLowerCase();
+            const currentHashes = new Set<string>([
+              ...seenHashes,
+              ...batchQueueRef.current
+                .filter((item) => item.id !== entry.id && Boolean(item.sha256))
+                .map((item) => item.sha256.toLowerCase()),
+            ]);
+            const isDuplicate =
+              Boolean(normalized) && currentHashes.has(normalized);
+            if (normalized) {
+              seenHashes.add(normalized);
+            }
+            setBatchQueue((prev) =>
+              prev.map((q) => {
+                if (q.id !== entry.id) return q;
+                if (q.status !== "HASHING") {
+                  if (isDuplicate && !q.documentId) {
+                    return {
+                      ...q,
+                      sha256,
+                      status: "SKIPPED_DUPLICATE",
+                      progress: 100,
+                    };
+                  }
+                  return sha256 && !q.sha256 ? { ...q, sha256 } : q;
+                }
+                return {
+                  ...q,
+                  sha256,
+                  status: isDuplicate ? "SKIPPED_DUPLICATE" : "QUEUED",
+                  progress: isDuplicate ? 100 : 0,
+                };
+              }),
+            );
+          } finally {
+            batchHashingPromisesRef.current.delete(entry.id);
+            deferredByItemId.get(entry.id)?.resolve(sha256);
           }
-          setBatchQueue((prev) =>
-            prev.map((q) => {
-              if (q.id !== entry.id) return q;
-              if (q.status !== "HASHING") {
-                return sha256 && !q.sha256 ? { ...q, sha256 } : q;
-              }
-              return {
-                ...q,
-                sha256,
-                status: isDuplicate ? "SKIPPED_DUPLICATE" : "QUEUED",
-                progress: isDuplicate ? 100 : 0,
-              };
-            }),
-          );
         }
       }),
     );
   }
 
   async function runBatchUploadQueue(onlyItemId?: string) {
-    if (isBatchRunning && !onlyItemId) return;
+    if (isBatchRunningRef.current && !onlyItemId) return;
     if (!onlyItemId) {
       batchCancelAllRef.current = false;
+      setBatchQueue((prev) =>
+        prev.map((q) =>
+          !q.invalidFormat &&
+          (q.status === "CANCELLED" || q.status === "FAILED")
+            ? { ...q, status: "QUEUED", progress: 0, error: undefined }
+            : q,
+        ),
+      );
+    } else {
+      setBatchQueue((prev) =>
+        prev.map((q) =>
+          q.id === onlyItemId && !q.invalidFormat
+            ? { ...q, status: "QUEUED", progress: 0, error: undefined }
+            : q,
+        ),
+      );
+    }
+
+    const hasPendingCandidate = () =>
+      batchQueueRef.current.some(
+        (item) =>
+          !item.invalidFormat &&
+          !batchClaimedIdsRef.current.has(item.id) &&
+          (onlyItemId
+            ? item.id === onlyItemId
+            : item.status === "HASHING" || item.status === "QUEUED"),
+      );
+
+    if (!hasPendingCandidate()) return;
+
+    if (!onlyItemId) {
+      isBatchRunningRef.current = true;
     }
     setIsBatchRunning(true);
     const trimmedNote = memberNote.trim();
     try {
-      const itemsToRun = batchQueue.filter(
-        (item) =>
-          !item.invalidFormat &&
-          (onlyItemId
-            ? item.id === onlyItemId
-            : item.status === "HASHING" ||
-              item.status === "QUEUED" ||
-              item.status === "CANCELLED" ||
-              item.status === "FAILED"),
-      );
-      if (itemsToRun.length === 0) return;
-
-      let uploadCursor = 0;
-      const workerCount = onlyItemId
-        ? 1
-        : Math.min(R2_UPLOAD_CONCURRENCY, itemsToRun.length);
-
-      const uploadSingleItem = async (item: BatchQueueItem) => {
-        if (!isSupportedDocumentFile(item.file)) return;
+      const uploadSingleItem = async (initialItem: BatchQueueItem) => {
+        if (!isSupportedDocumentFile(initialItem.file)) return;
         if (!onlyItemId && batchCancelAllRef.current) return;
 
+        const inFlightHash = batchHashingPromisesRef.current.get(
+          initialItem.id,
+        );
+        if (inFlightHash) {
+          await inFlightHash;
+        }
+
+        const latestBeforeStart = batchQueueRef.current.find(
+          (q) => q.id === initialItem.id,
+        );
+        if (
+          !latestBeforeStart ||
+          latestBeforeStart.invalidFormat ||
+          latestBeforeStart.status === "SKIPPED_DUPLICATE" ||
+          (!onlyItemId && batchCancelAllRef.current)
+        ) {
+          return;
+        }
+
+        const item = latestBeforeStart;
         const controller = new AbortController();
         batchAbortControllersRef.current.set(item.id, controller);
         setBatchQueue((prev) =>
@@ -1302,9 +1399,14 @@ export default function ProjectDocumentsWorkspace({
             autoSyncSag: isProjectLeader,
             signal: controller.signal,
             onProgress: (percent) => {
+              const displayPercent = isProjectLeader
+                ? percent
+                : Math.min(92, Math.round(percent * 0.92));
               setBatchQueue((prev) =>
                 prev.map((q) =>
-                  q.id === item.id ? { ...q, progress: percent } : q,
+                  q.id === item.id
+                    ? { ...q, progress: Math.max(q.progress, displayPercent) }
+                    : q,
                 ),
               );
             },
@@ -1314,7 +1416,11 @@ export default function ProjectDocumentsWorkspace({
             setBatchQueue((prev) =>
               prev.map((q) =>
                 q.id === item.id
-                  ? { ...q, status: "SUBMITTING", progress: 95 }
+                  ? {
+                      ...q,
+                      status: "SUBMITTING",
+                      progress: Math.max(q.progress, 95),
+                    }
                   : q,
               ),
             );
@@ -1362,21 +1468,64 @@ export default function ProjectDocumentsWorkspace({
         }
       };
 
-      await Promise.all(
-        Array.from({ length: workerCount }, async () => {
-          while (onlyItemId || !batchCancelAllRef.current) {
-            const idx = uploadCursor;
-            uploadCursor += 1;
-            if (idx >= itemsToRun.length) break;
-            await uploadSingleItem(itemsToRun[idx]);
+      const claimNextCandidate = (): BatchQueueItem | undefined => {
+        const next = batchQueueRef.current.find(
+          (item) =>
+            !item.invalidFormat &&
+            !batchClaimedIdsRef.current.has(item.id) &&
+            (onlyItemId
+              ? item.id === onlyItemId
+              : item.status === "HASHING" || item.status === "QUEUED"),
+        );
+        if (next) {
+          batchClaimedIdsRef.current.add(next.id);
+        }
+        return next;
+      };
+
+      const workerCount = onlyItemId ? 1 : R2_UPLOAD_CONCURRENCY;
+      while (onlyItemId ? hasPendingCandidate() : !batchCancelAllRef.current) {
+        if (!hasPendingCandidate()) {
+          if (!onlyItemId && batchHashingPromisesRef.current.size > 0) {
+            await Promise.race(batchHashingPromisesRef.current.values());
+            continue;
           }
-        }),
-      );
+          break;
+        }
+        await Promise.all(
+          Array.from({ length: workerCount }, async () => {
+            while (onlyItemId || !batchCancelAllRef.current) {
+              const claimed = claimNextCandidate();
+              if (!claimed) {
+                if (!onlyItemId && batchHashingPromisesRef.current.size > 0) {
+                  await Promise.race(batchHashingPromisesRef.current.values());
+                  continue;
+                }
+                break;
+              }
+              try {
+                await uploadSingleItem(claimed);
+              } finally {
+                batchClaimedIdsRef.current.delete(claimed.id);
+              }
+              if (onlyItemId) break;
+            }
+          }),
+        );
+        if (onlyItemId) break;
+      }
+
       await queryClient.invalidateQueries({
         queryKey: ["work-notes", projectId, "documents"],
       });
     } finally {
-      if (batchAbortControllersRef.current.size === 0) {
+      if (!onlyItemId) {
+        isBatchRunningRef.current = false;
+      }
+      if (
+        !isBatchRunningRef.current &&
+        batchAbortControllersRef.current.size === 0
+      ) {
         setIsBatchRunning(false);
       }
     }
@@ -1387,8 +1536,13 @@ export default function ProjectDocumentsWorkspace({
     setBusyRowId(doc.id);
     try {
       await workNotesApi.documentAction(projectId, doc.id, "approve");
-      await workNotesApi.syncDocumentToSag(projectId, doc.id).catch(() => undefined);
+      const synced = await workNotesApi
+        .syncDocumentToSag(projectId, doc.id)
+        .catch(() => undefined);
       setSyncedDocIds((prev) => ({ ...prev, [doc.id]: true }));
+      if (synced) {
+        updateCachedDocumentSync(doc.id, synced, true);
+      }
       await queryClient.invalidateQueries({
         queryKey: workNoteKeys.project(projectId),
       });
@@ -1419,11 +1573,7 @@ export default function ProjectDocumentsWorkspace({
         doc.version,
       );
       setSyncedDocIds((prev) => ({ ...prev, [doc.id]: true }));
-      updateCachedDocumentSync(
-        doc.id,
-        optimisticZero,
-        control === "SYNC",
-      );
+      updateCachedDocumentSync(doc.id, optimisticZero, control === "SYNC");
     }
 
     try {
@@ -1480,11 +1630,7 @@ export default function ProjectDocumentsWorkspace({
         current?.version ?? selected?.version ?? 1,
       );
       setSyncedDocIds((prev) => ({ ...prev, [documentId]: true }));
-      updateCachedDocumentSync(
-        documentId,
-        optimisticZero,
-        control === "SYNC",
-      );
+      updateCachedDocumentSync(documentId, optimisticZero, control === "SYNC");
     }
 
     try {
@@ -1625,15 +1771,23 @@ export default function ProjectDocumentsWorkspace({
         ...(effectiveComment ? { comment: effectiveComment } : {}),
       });
       if (actionName === "approve" && documentId) {
-        await workNotesApi
+        const synced = await workNotesApi
           .syncDocumentToSag(projectId, documentId)
           .catch(() => undefined);
         setSyncedDocIds((prev) => ({ ...prev, [documentId]: true }));
+        if (synced) {
+          updateCachedDocumentSync(documentId, synced, true);
+        }
         await queryClient.invalidateQueries({
           queryKey: workNoteKeys.project(projectId),
         });
+        setSelected({
+          ...result,
+          ...(synced ? { knowledgeSync: synced } : {}),
+        });
+      } else {
+        setSelected(result);
       }
-      setSelected(result);
       setReviewComment("");
       setConfirmingArchive(false);
       setMoreActionsOpen(false);
@@ -1646,22 +1800,35 @@ export default function ProjectDocumentsWorkspace({
   async function handleConfirmPermanentDelete() {
     if (!documentId || deleteDocumentMutation.isPending) return;
     setDeleteError("");
-    const targetName = activeFile?.name ?? current?.title ?? selected?.title ?? "";
+    const targetName =
+      activeFile?.name ?? current?.title ?? selected?.title ?? "";
+    const isCloudR2 =
+      (current?.storageReference ?? selected?.storageReference)?.provider !== "LOCAL";
     try {
       const outcome = await deleteDocumentMutation.mutateAsync(undefined);
       if (outcome.r2DeletedKeys > 0) {
         setRemovalBanner(
-          t("removalFeedbackDeletedR2", {
-            name: targetName,
-            count: outcome.r2DeletedKeys,
-          }),
+          t(
+            isCloudR2
+              ? "removalFeedbackDeletedR2"
+              : "removalFeedbackDeletedLocal",
+            {
+              name: targetName,
+              count: outcome.r2DeletedKeys,
+            },
+          ),
         );
       } else if (outcome.r2RetainedSharedKeys > 0) {
         setRemovalBanner(
-          t("removalFeedbackDeletedSharedR2", {
-            name: targetName,
-            count: outcome.r2RetainedSharedKeys,
-          }),
+          t(
+            isCloudR2
+              ? "removalFeedbackDeletedSharedR2"
+              : "removalFeedbackDeletedSharedLocal",
+            {
+              name: targetName,
+              count: outcome.r2RetainedSharedKeys,
+            },
+          ),
         );
       } else {
         setRemovalBanner(
@@ -1695,6 +1862,7 @@ export default function ProjectDocumentsWorkspace({
     if (!removalTarget || removalBusyTier !== null) return;
     const targetDoc = removalTarget;
     const targetName = targetDoc.file?.name || targetDoc.title;
+    const isCloudR2 = targetDoc.storageReference?.provider !== "LOCAL";
     setRemovalModalError("");
     setRemovalBusyTier(tier);
     try {
@@ -1708,7 +1876,14 @@ export default function ProjectDocumentsWorkspace({
         await queryClient.invalidateQueries({
           queryKey: workNoteKeys.project(projectId),
         });
-        setRemovalBanner(t("removalFeedbackRevoked", { name: targetName }));
+        setRemovalBanner(
+          t(
+            isCloudR2
+              ? "removalFeedbackRevoked"
+              : "removalFeedbackRevokedLocal",
+            { name: targetName },
+          ),
+        );
         setRemovalTarget(null);
       } else if (tier === 2) {
         const archived = await workNotesApi.documentAction(
@@ -1722,7 +1897,14 @@ export default function ProjectDocumentsWorkspace({
         await queryClient.invalidateQueries({
           queryKey: workNoteKeys.project(projectId),
         });
-        setRemovalBanner(t("removalFeedbackArchived", { name: targetName }));
+        setRemovalBanner(
+          t(
+            isCloudR2
+              ? "removalFeedbackArchived"
+              : "removalFeedbackArchivedLocal",
+            { name: targetName },
+          ),
+        );
         setRemovalTarget(null);
       } else {
         const outcome = await workNotesApi.deleteDocument(
@@ -1737,17 +1919,27 @@ export default function ProjectDocumentsWorkspace({
         });
         if (outcome.r2DeletedKeys > 0) {
           setRemovalBanner(
-            t("removalFeedbackDeletedR2", {
-              name: targetName,
-              count: outcome.r2DeletedKeys,
-            }),
+            t(
+              isCloudR2
+                ? "removalFeedbackDeletedR2"
+                : "removalFeedbackDeletedLocal",
+              {
+                name: targetName,
+                count: outcome.r2DeletedKeys,
+              },
+            ),
           );
         } else if (outcome.r2RetainedSharedKeys > 0) {
           setRemovalBanner(
-            t("removalFeedbackDeletedSharedR2", {
-              name: targetName,
-              count: outcome.r2RetainedSharedKeys,
-            }),
+            t(
+              isCloudR2
+                ? "removalFeedbackDeletedSharedR2"
+                : "removalFeedbackDeletedSharedLocal",
+              {
+                name: targetName,
+                count: outcome.r2RetainedSharedKeys,
+              },
+            ),
           );
         } else {
           setRemovalBanner(
@@ -1890,8 +2082,8 @@ export default function ProjectDocumentsWorkspace({
     const activeItems = batchQueue.filter(
       (i) => i.status === "UPLOADING" || i.status === "SUBMITTING",
     );
-    const uploadableTotal =
-      processedCount + actionableCount + activeItems.length;
+    const activeCount = activeItems.length;
+    const uploadableTotal = processedCount + actionableCount + activeCount;
     const validTotal = batchQueue.filter((i) => !i.invalidFormat).length;
     const aggregateProgressSum =
       processedCount * 100 +
@@ -1905,6 +2097,7 @@ export default function ProjectDocumentsWorkspace({
       processedCount,
       duplicateCount,
       doneCount,
+      activeCount,
       actionableCount,
       uploadableTotal,
       validTotal,
@@ -1984,7 +2177,7 @@ export default function ProjectDocumentsWorkspace({
                 setFilter(event.target.value as DocumentStatus | "ALL");
                 setPage(1);
               }}
-              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs outline-none transition focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               {STATUSES.map((status) => (
                 <option key={status} value={status}>
@@ -1996,7 +2189,7 @@ export default function ProjectDocumentsWorkspace({
             {visibleList !== undefined && (
               <Button
                 size="sm"
-                className="h-9 !py-0 px-3.5 text-xs whitespace-nowrap"
+                className="h-9 px-3.5 !py-0 text-xs whitespace-nowrap"
                 startIcon={
                   isBatchRunning ? (
                     <UploadProgressArcIcon className="h-3.5 w-3.5 animate-spin" />
@@ -2009,10 +2202,11 @@ export default function ProjectDocumentsWorkspace({
                 {isBatchRunning
                   ? t("uploadActiveBadge", {
                       done: Math.min(
-                        batchSummary.doneCount + 1,
-                        Math.max(1, batchSummary.validTotal),
+                        batchSummary.processedCount +
+                          (batchSummary.activeCount > 0 ? 1 : 0),
+                        Math.max(1, batchSummary.uploadableTotal),
                       ),
-                      total: Math.max(1, batchSummary.validTotal),
+                      total: Math.max(1, batchSummary.uploadableTotal),
                       percent: batchSummary.activePercent,
                     })
                   : isProjectLeader
@@ -2026,7 +2220,7 @@ export default function ProjectDocumentsWorkspace({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-9 !py-0 px-3.5 text-xs whitespace-nowrap"
+                  className="h-9 px-3.5 !py-0 text-xs whitespace-nowrap"
                   onClick={() =>
                     setAgentSource({
                       workflow: "PROJECT_DOCUMENT",
@@ -2042,19 +2236,14 @@ export default function ProjectDocumentsWorkspace({
 
         {visibleList !== undefined &&
           !listAccessLost &&
-          (list.isFetching || list.isRefetchError) && (
+          list.isRefetchError && (
             <div className="border-b border-gray-100 px-5 py-2 dark:border-gray-800">
-              {list.isFetching && (
-                <UpdatingStatus>{common("loading")}</UpdatingStatus>
-              )}
-              {list.isRefetchError && (
-                <BackgroundRefreshError
-                  retryLabel={common("retry")}
-                  onRetry={() => void list.refetch()}
-                >
-                  {common("updateFailed")}
-                </BackgroundRefreshError>
-              )}
+              <BackgroundRefreshError
+                retryLabel={common("retry")}
+                onRetry={() => void list.refetch()}
+              >
+                {common("updateFailed")}
+              </BackgroundRefreshError>
             </div>
           )}
 
@@ -2087,7 +2276,7 @@ export default function ProjectDocumentsWorkspace({
             {[0, 1, 2].map((item) => (
               <div
                 key={item}
-                className="h-14 motion-safe:animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900"
+                className="h-14 rounded-lg border border-gray-200 bg-gray-50 motion-safe:animate-pulse dark:border-gray-800 dark:bg-gray-900"
               />
             ))}
           </div>
@@ -2105,7 +2294,7 @@ export default function ProjectDocumentsWorkspace({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 !py-0 px-3 text-xs"
+                className="h-8 px-3 !py-0 text-xs"
                 onClick={() => void list.refetch()}
               >
                 {common("retry")}
@@ -2137,7 +2326,7 @@ export default function ProjectDocumentsWorkspace({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 !py-0 px-3 text-xs"
+                      className="h-8 px-3 !py-0 text-xs"
                       onClick={() => {
                         setFilter("PENDING_REVIEW");
                         setPage(1);
@@ -2149,7 +2338,7 @@ export default function ProjectDocumentsWorkspace({
                   <Button
                     type="button"
                     size="sm"
-                    className="h-8 !py-0 px-3 text-xs"
+                    className="h-8 px-3 !py-0 text-xs"
                     onClick={() => openDocument(reviewableDocuments[0])}
                   >
                     {t("reviewNextDocument")}
@@ -2202,31 +2391,31 @@ export default function ProjectDocumentsWorkspace({
                     const isRowBusy = busyRowId === document.id;
                     const isOwner = Boolean(
                       cachedCurrentUser?.id &&
-                        cachedCurrentUser.id.toLowerCase() ===
-                          document.createdBy.toLowerCase(),
+                      cachedCurrentUser.id.toLowerCase() ===
+                        document.createdBy.toLowerCase(),
                     );
                     const canControlPipeline =
                       document.status === "APPROVED" &&
                       (isProjectLeader || isOwner);
                     const rowCanDelete = Boolean(
                       document.permissions.canDelete ||
-                        isProjectLeader ||
-                        (isOwner &&
-                          document.status !== "APPROVED" &&
-                          document.status !== "ARCHIVED"),
+                      isProjectLeader ||
+                      (isOwner &&
+                        document.status !== "APPROVED" &&
+                        document.status !== "ARCHIVED"),
                     );
                     const rowCanArchive = Boolean(
                       (document.permissions.canConfigure ||
                         document.permissions.canReview ||
                         isProjectLeader) &&
-                        document.status === "APPROVED",
+                      document.status === "APPROVED",
                     );
                     const rowCanRevoke = Boolean(
                       isProjectLeader &&
-                        document.status === "APPROVED" &&
-                        (pipeline.phase === "ready" ||
-                          pipeline.phase === "paused" ||
-                          pipeline.phase === "processing"),
+                      document.status === "APPROVED" &&
+                      (pipeline.phase === "ready" ||
+                        pipeline.phase === "paused" ||
+                        pipeline.phase === "processing"),
                     );
                     const canOpenRemoval =
                       rowCanDelete || rowCanArchive || rowCanRevoke;
@@ -2284,11 +2473,22 @@ export default function ProjectDocumentsWorkspace({
                                         title={
                                           document.storageReference
                                             .externalDocumentRefs > 0
-                                            ? t("r2RefStatusSharedTitle", {
-                                                refs: document.storageReference
-                                                  .refCount,
-                                              })
-                                            : t("r2RefStatusUniqueTitle")
+                                            ? t(
+                                                document.storageReference
+                                                  .provider === "LOCAL"
+                                                  ? "localRefStatusSharedTitle"
+                                                  : "r2RefStatusSharedTitle",
+                                                {
+                                                  refs: document
+                                                    .storageReference.refCount,
+                                                },
+                                              )
+                                            : t(
+                                                document.storageReference
+                                                  .provider === "LOCAL"
+                                                  ? "localRefStatusUniqueTitle"
+                                                  : "r2RefStatusUniqueTitle",
+                                              )
                                         }
                                         className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${
                                           document.storageReference
@@ -2304,12 +2504,23 @@ export default function ProjectDocumentsWorkspace({
                                         <span>
                                           {document.storageReference
                                             .externalDocumentRefs > 0
-                                            ? t("r2BadgeShared", {
-                                                count:
-                                                  document.storageReference
-                                                    .refCount,
-                                              })
-                                            : t("r2BadgeUnique")}
+                                            ? t(
+                                                document.storageReference
+                                                  .provider === "LOCAL"
+                                                  ? "localBadgeShared"
+                                                  : "r2BadgeShared",
+                                                {
+                                                  count:
+                                                    document.storageReference
+                                                      .refCount,
+                                                },
+                                              )
+                                            : t(
+                                                document.storageReference
+                                                  .provider === "LOCAL"
+                                                  ? "localBadgeUnique"
+                                                  : "r2BadgeUnique",
+                                              )}
                                         </span>
                                       </span>
                                     </>
@@ -2377,7 +2588,7 @@ export default function ProjectDocumentsWorkspace({
                               </span>
 
                               <span
-                                className={`shrink-0 font-mono text-xs tabular-nums ${
+                                className={`font-mono shrink-0 text-xs tabular-nums ${
                                   pipeline.phase === "ready"
                                     ? "font-semibold text-emerald-600 dark:text-emerald-400"
                                     : pipeline.phase === "processing"
@@ -2507,7 +2718,9 @@ export default function ProjectDocumentsWorkspace({
                               pipeline.phase === "paused" && (
                                 <button
                                   type="button"
-                                  disabled={isRowBusy || Boolean(pipeline.isPausing)}
+                                  disabled={
+                                    isRowBusy || Boolean(pipeline.isPausing)
+                                  }
                                   onClick={() =>
                                     void handleRowPipelineControl(
                                       document,
@@ -2644,13 +2857,11 @@ export default function ProjectDocumentsWorkspace({
             <div className="mt-4">
               <Button
                 size="sm"
-                className="h-9 !py-0 px-4 text-xs"
+                className="h-9 px-4 !py-0 text-xs"
                 startIcon={<UploadDropzoneIcon className="h-3.5 w-3.5" />}
                 onClick={openUploadModal}
               >
-                {isProjectLeader
-                  ? t("leaderUploadCta")
-                  : t("memberRequestCta")}
+                {isProjectLeader ? t("leaderUploadCta") : t("memberRequestCta")}
               </Button>
             </div>
           </div>
@@ -2667,7 +2878,7 @@ export default function ProjectDocumentsWorkspace({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 !py-0 px-3 text-xs"
+                className="h-8 px-3 !py-0 text-xs"
                 disabled={page <= 1}
                 onClick={() => setPage((value) => Math.max(1, value - 1))}
               >
@@ -2676,7 +2887,7 @@ export default function ProjectDocumentsWorkspace({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 !py-0 px-3 text-xs"
+                className="h-8 px-3 !py-0 text-xs"
                 disabled={page >= visibleList.pagination.totalPages}
                 onClick={() => setPage((value) => value + 1)}
               >
@@ -2741,7 +2952,9 @@ export default function ProjectDocumentsWorkspace({
                 setBatchIsDragging(true);
               }}
               onDragLeave={(event) => {
-                if (!event.currentTarget.contains(event.relatedTarget as Node)) {
+                if (
+                  !event.currentTarget.contains(event.relatedTarget as Node)
+                ) {
                   setBatchIsDragging(false);
                 }
               }}
@@ -2811,20 +3024,45 @@ export default function ProjectDocumentsWorkspace({
 
                   <ul className="max-h-[252px] space-y-2 overflow-y-auto p-2.5">
                     {batchQueue.map((item) => {
+                      const liveDoc = item.documentId
+                        ? visibleList?.data.find(
+                            (doc) => doc.id === item.documentId,
+                          )
+                        : undefined;
+                      const livePipeline =
+                        item.status === "SYNCED"
+                          ? resolvePipelineDisplay(
+                              liveDoc?.status ?? "APPROVED",
+                              liveDoc?.knowledgeSync,
+                            )
+                          : null;
+                      const liveProgressPercent =
+                        livePipeline?.phase === "ready"
+                          ? 100
+                          : typeof livePipeline?.percent === "number" &&
+                              livePipeline.percent > 0
+                            ? livePipeline.percent
+                            : 15;
+
                       const statusDotClass =
-                        item.status === "FAILED"
+                        item.status === "FAILED" ||
+                        livePipeline?.phase === "failed"
                           ? "bg-rose-500 dark:bg-rose-400"
-                          : item.status === "SYNCED" ||
-                              item.status === "REQUESTED" ||
-                              item.status === "SKIPPED_DUPLICATE"
-                            ? "bg-emerald-500 dark:bg-emerald-400"
-                            : item.status === "CANCELLED"
-                              ? "bg-amber-500 dark:bg-amber-400"
-                              : item.status === "UPLOADING" ||
-                                  item.status === "SUBMITTING" ||
-                                  item.status === "HASHING"
-                                ? "animate-pulse bg-brand-500 dark:bg-brand-400"
-                                : "bg-gray-300 dark:bg-gray-600";
+                          : item.status === "CANCELLED" ||
+                              livePipeline?.phase === "paused"
+                            ? "bg-amber-500 dark:bg-amber-400"
+                            : item.status === "SYNCED" &&
+                                livePipeline?.phase === "processing"
+                              ? "animate-pulse bg-brand-500 dark:bg-brand-400"
+                              : item.status === "SYNCED" ||
+                                  item.status === "REQUESTED" ||
+                                  item.status === "SKIPPED_DUPLICATE"
+                                ? "bg-emerald-500 dark:bg-emerald-400"
+                                : item.status === "UPLOADING" ||
+                                    item.status === "SUBMITTING" ||
+                                    item.status === "HASHING"
+                                  ? "animate-pulse bg-brand-500 dark:bg-brand-400"
+                                  : "bg-gray-300 dark:bg-gray-600";
 
                       const canRetryItem =
                         (item.status === "CANCELLED" ||
@@ -2882,7 +3120,7 @@ export default function ProjectDocumentsWorkspace({
                                 <p className="truncate text-sm font-medium text-gray-900 dark:text-white/90">
                                   {item.file.name}
                                 </p>
-                                <span className="shrink-0 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                                <span className="font-mono shrink-0 rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-400">
                                   {getFileTypeBadge(
                                     item.file.name,
                                     item.file.type,
@@ -2910,14 +3148,65 @@ export default function ProjectDocumentsWorkspace({
                                   />
                                   <span>{statusText}</span>
                                 </span>
+                                {livePipeline && (
+                                  <>
+                                    <span
+                                      aria-hidden="true"
+                                      className="text-gray-300 dark:text-gray-600"
+                                    >
+                                      ·
+                                    </span>
+                                    <span
+                                      className={`inline-flex items-center gap-1 font-medium ${
+                                        livePipeline.phase === "ready"
+                                          ? "text-emerald-600 dark:text-emerald-400"
+                                          : livePipeline.phase === "failed"
+                                            ? "text-rose-600 dark:text-rose-400"
+                                            : livePipeline.phase === "paused"
+                                              ? "text-amber-600 dark:text-amber-400"
+                                              : "text-brand-600 dark:text-brand-400"
+                                      }`}
+                                    >
+                                      <span>{t(livePipeline.stageKey)}</span>
+                                      <span className="font-mono">
+                                        {liveProgressPercent}%
+                                      </span>
+                                      {livePipeline.phase === "ready" &&
+                                        livePipeline.chunkCount > 0 && (
+                                          <span className="font-mono text-[11px] text-gray-500 dark:text-gray-400">
+                                            (
+                                            {t("pipelineChunksBadge", {
+                                              count: livePipeline.chunkCount,
+                                            })}
+                                            )
+                                          </span>
+                                        )}
+                                    </span>
+                                  </>
+                                )}
                               </p>
                               {(item.status === "UPLOADING" ||
-                                item.status === "SUBMITTING") && (
-                                <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                                item.status === "SUBMITTING" ||
+                                item.status === "SYNCED") && (
+                                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
                                   <div
-                                    className="h-full rounded-full bg-brand-600 transition-all duration-150 dark:bg-brand-400"
+                                    className={`h-full rounded-full transition-all duration-300 ${
+                                      item.status === "SYNCED"
+                                        ? livePipeline?.phase === "ready"
+                                          ? "bg-emerald-500 dark:bg-emerald-400"
+                                          : livePipeline?.phase === "failed"
+                                            ? "bg-rose-500 dark:bg-rose-400"
+                                            : livePipeline?.phase === "paused"
+                                              ? "bg-amber-500 dark:bg-amber-400"
+                                              : "bg-brand-600 dark:bg-brand-400"
+                                        : "bg-brand-600 dark:bg-brand-400"
+                                    }`}
                                     style={{
-                                      width: `${Math.max(6, item.progress)}%`,
+                                      width: `${
+                                        item.status === "SYNCED"
+                                          ? Math.max(8, liveProgressPercent)
+                                          : Math.max(6, item.progress)
+                                      }%`,
                                     }}
                                   />
                                 </div>
@@ -3039,10 +3328,11 @@ export default function ProjectDocumentsWorkspace({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="h-9 !py-0 px-3.5 text-xs"
+                className="h-9 px-3.5 !py-0 text-xs"
                 onClick={() => setUploadModalOpen(false)}
               >
-                {batchSummary.doneCount > 0 && batchSummary.actionableCount === 0
+                {batchSummary.doneCount > 0 &&
+                batchSummary.actionableCount === 0
                   ? t("close")
                   : t("cancel")}
               </Button>
@@ -3052,7 +3342,7 @@ export default function ProjectDocumentsWorkspace({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 !py-0 px-3.5 text-xs"
+                  className="h-9 px-3.5 !py-0 text-xs"
                   startIcon={<UploadPauseIcon className="h-3.5 w-3.5" />}
                   onClick={pauseAllBatchUploads}
                 >
@@ -3062,7 +3352,7 @@ export default function ProjectDocumentsWorkspace({
                 <Button
                   type="button"
                   size="sm"
-                  className="h-9 !py-0 px-4 text-xs"
+                  className="h-9 px-4 !py-0 text-xs"
                   onClick={() => void runBatchUploadQueue()}
                 >
                   {isProjectLeader
@@ -3111,7 +3401,7 @@ export default function ProjectDocumentsWorkspace({
             <div className="min-w-0 flex-1">
               <h2
                 id="document-dialog-title"
-                className="text-base sm:text-lg font-semibold tracking-tight break-words text-gray-900 dark:text-white/95"
+                className="text-base font-semibold tracking-tight break-words text-gray-900 sm:text-lg dark:text-white/95"
               >
                 {isReplacingVersion && current
                   ? isProjectLeader
@@ -3147,7 +3437,7 @@ export default function ProjectDocumentsWorkspace({
                     />
                     {t(`status.${viewedVersion?.status ?? current.status}`)}
                   </span>
-                  <span className="inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 font-mono text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
+                  <span className="font-mono inline-flex items-center rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
                     v{viewedVersion?.version ?? current.version}
                   </span>
                   <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
@@ -3336,7 +3626,7 @@ export default function ProjectDocumentsWorkspace({
                   type="button"
                   variant="outline"
                   size="sm"
-                  className="h-9 !py-0 px-3.5 text-xs"
+                  className="h-9 px-3.5 !py-0 text-xs"
                   onClick={() => {
                     replacementAbortRef.current?.abort();
                     setIsReplacingVersion(false);
@@ -3349,7 +3639,7 @@ export default function ProjectDocumentsWorkspace({
                 <Button
                   type="submit"
                   size="sm"
-                  className="h-9 !py-0 px-4 text-xs"
+                  className="h-9 px-4 !py-0 text-xs"
                   disabled={!replacementFile}
                   isLoading={isReplacementSubmitting}
                 >
@@ -3389,9 +3679,6 @@ export default function ProjectDocumentsWorkspace({
           ) : current ? (
             /* Mode B: Detail Inspection & Leader Review */
             <>
-              {!detailAccessLost && detail.isFetching && (
-                <UpdatingStatus>{common("loading")}</UpdatingStatus>
-              )}
               {!detailAccessLost && detail.isRefetchError && (
                 <BackgroundRefreshError
                   retryLabel={common("retry")}
@@ -3461,7 +3748,7 @@ export default function ProjectDocumentsWorkspace({
                           type="button"
                           variant="outline"
                           size="sm"
-                          className="h-8 !py-0 px-3 text-xs"
+                          className="h-8 px-3 !py-0 text-xs"
                           onClick={() => {
                             setChunkFilter("");
                             setExpandedChunkIds({});
@@ -3531,7 +3818,8 @@ export default function ProjectDocumentsWorkspace({
                                     )}
                                   {!isViewingHistoricalVersion &&
                                     current.storageReference &&
-                                    current.storageReference.objectCount > 0 && (
+                                    current.storageReference.objectCount >
+                                      0 && (
                                       <>
                                         <span
                                           aria-hidden="true"
@@ -3543,11 +3831,23 @@ export default function ProjectDocumentsWorkspace({
                                           title={
                                             current.storageReference
                                               .externalDocumentRefs > 0
-                                              ? t("r2RefStatusSharedTitle", {
-                                                  refs: current.storageReference
-                                                    .refCount,
-                                                })
-                                              : t("r2RefStatusUniqueTitle")
+                                              ? t(
+                                                  current.storageReference
+                                                    .provider === "LOCAL"
+                                                    ? "localRefStatusSharedTitle"
+                                                    : "r2RefStatusSharedTitle",
+                                                  {
+                                                    refs: current
+                                                      .storageReference
+                                                      .refCount,
+                                                  },
+                                                )
+                                              : t(
+                                                  current.storageReference
+                                                    .provider === "LOCAL"
+                                                    ? "localRefStatusUniqueTitle"
+                                                    : "r2RefStatusUniqueTitle",
+                                                )
                                           }
                                           className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium ${
                                             current.storageReference
@@ -3563,12 +3863,23 @@ export default function ProjectDocumentsWorkspace({
                                           <span>
                                             {current.storageReference
                                               .externalDocumentRefs > 0
-                                              ? t("r2BadgeShared", {
-                                                  count:
-                                                    current.storageReference
-                                                      .refCount,
-                                                })
-                                              : t("r2BadgeUnique")}
+                                              ? t(
+                                                  current.storageReference
+                                                    .provider === "LOCAL"
+                                                    ? "localBadgeShared"
+                                                    : "r2BadgeShared",
+                                                  {
+                                                    count:
+                                                      current.storageReference
+                                                        .refCount,
+                                                  },
+                                                )
+                                              : t(
+                                                  current.storageReference
+                                                    .provider === "LOCAL"
+                                                    ? "localBadgeUnique"
+                                                    : "r2BadgeUnique",
+                                                )}
                                           </span>
                                         </span>
                                       </>
@@ -3615,8 +3926,8 @@ export default function ProjectDocumentsWorkspace({
                             controlKnowledge.isPending;
                           const isOwner = Boolean(
                             cachedCurrentUser?.id &&
-                              cachedCurrentUser.id.toLowerCase() ===
-                                current.createdBy.toLowerCase(),
+                            cachedCurrentUser.id.toLowerCase() ===
+                              current.createdBy.toLowerCase(),
                           );
                           const canControl =
                             current.status === "APPROVED" &&
@@ -3650,7 +3961,10 @@ export default function ProjectDocumentsWorkspace({
                                   >
                                     {t("pipelineHeading")}
                                   </h3>
-                                  <span aria-hidden="true" className="shrink-0 text-gray-300 dark:text-gray-600">
+                                  <span
+                                    aria-hidden="true"
+                                    className="shrink-0 text-gray-300 dark:text-gray-600"
+                                  >
                                     ·
                                   </span>
                                   <span className="truncate font-medium text-gray-700 dark:text-gray-300">
@@ -3658,7 +3972,10 @@ export default function ProjectDocumentsWorkspace({
                                   </span>
                                   {pipeline.chunkCount > 0 && (
                                     <>
-                                      <span aria-hidden="true" className="shrink-0 text-gray-300 dark:text-gray-600">
+                                      <span
+                                        aria-hidden="true"
+                                        className="shrink-0 text-gray-300 dark:text-gray-600"
+                                      >
                                         ·
                                       </span>
                                       <span className="shrink-0 text-gray-500 tabular-nums dark:text-gray-400">
@@ -3691,44 +4008,44 @@ export default function ProjectDocumentsWorkspace({
                                         (isProjectLeader &&
                                           (pipeline.phase === "not_started" ||
                                             pipeline.phase === "revoked"))) && (
-                                          <button
-                                            type="button"
-                                            disabled={isBusy}
-                                            aria-label={
-                                              pipeline.phase === "failed"
-                                                ? t("aiReprocess")
-                                                : t("aiSyncNow")
+                                        <button
+                                          type="button"
+                                          disabled={isBusy}
+                                          aria-label={
+                                            pipeline.phase === "failed"
+                                              ? t("aiReprocess")
+                                              : t("aiSyncNow")
+                                          }
+                                          title={
+                                            pipeline.phase === "failed"
+                                              ? t("aiReprocess")
+                                              : t("aiSyncNow")
+                                          }
+                                          onClick={() => {
+                                            if (
+                                              pipeline.phase === "failed" &&
+                                              liveSync?.sagDocumentId
+                                            ) {
+                                              void handleDetailPipelineControl(
+                                                "REPROCESS",
+                                              );
+                                            } else {
+                                              void handleDetailPipelineControl(
+                                                "SYNC",
+                                              );
                                             }
-                                            title={
-                                              pipeline.phase === "failed"
-                                                ? t("aiReprocess")
-                                                : t("aiSyncNow")
-                                            }
-                                            onClick={() => {
-                                              if (
-                                                pipeline.phase === "failed" &&
-                                                liveSync?.sagDocumentId
-                                              ) {
-                                                void handleDetailPipelineControl(
-                                                  "REPROCESS",
-                                                );
-                                              } else {
-                                                void handleDetailPipelineControl(
-                                                  "SYNC",
-                                                );
-                                              }
-                                            }}
-                                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                          >
-                                            {isBusy ? (
-                                              <UploadProgressArcIcon className="h-3.5 w-3.5 animate-spin" />
-                                            ) : pipeline.phase === "failed" ? (
-                                              <UploadRetryIcon className="h-3.5 w-3.5" />
-                                            ) : (
-                                              <UploadIndexSyncIcon className="h-3.5 w-3.5" />
-                                            )}
-                                          </button>
-                                        )}
+                                          }}
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-gray-200 bg-white text-gray-600 transition hover:bg-gray-50 hover:text-gray-900 disabled:opacity-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                        >
+                                          {isBusy ? (
+                                            <UploadProgressArcIcon className="h-3.5 w-3.5 animate-spin" />
+                                          ) : pipeline.phase === "failed" ? (
+                                            <UploadRetryIcon className="h-3.5 w-3.5" />
+                                          ) : (
+                                            <UploadIndexSyncIcon className="h-3.5 w-3.5" />
+                                          )}
+                                        </button>
+                                      )}
 
                                       {pipeline.phase === "processing" && (
                                         <button
@@ -3755,7 +4072,8 @@ export default function ProjectDocumentsWorkspace({
                                         <button
                                           type="button"
                                           disabled={
-                                            isBusy || Boolean(pipeline.isPausing)
+                                            isBusy ||
+                                            Boolean(pipeline.isPausing)
                                           }
                                           aria-label={
                                             pipeline.isPausing
@@ -3962,7 +4280,9 @@ export default function ProjectDocumentsWorkspace({
                           return null;
                         }
 
-                        const normalizedQuery = chunkFilter.trim().toLowerCase();
+                        const normalizedQuery = chunkFilter
+                          .trim()
+                          .toLowerCase();
                         const filteredChunks = normalizedQuery
                           ? allChunks.filter(
                               (item) =>
@@ -4069,7 +4389,7 @@ export default function ProjectDocumentsWorkspace({
                                     >
                                       <div className="flex items-center justify-between gap-2">
                                         <div className="flex min-w-0 flex-1 items-center gap-2">
-                                          <span className="shrink-0 font-mono text-[11px] font-semibold text-gray-400 tabular-nums dark:text-gray-500">
+                                          <span className="font-mono shrink-0 text-[11px] font-semibold text-gray-400 tabular-nums dark:text-gray-500">
                                             #{chunk.ordinal}
                                           </span>
                                           <span className="truncate text-xs font-medium text-gray-800 dark:text-gray-200">
@@ -4082,13 +4402,13 @@ export default function ProjectDocumentsWorkspace({
                                               )}
                                           </span>
                                           {isStructuredMono && (
-                                            <span className="shrink-0 rounded border border-gray-200/90 bg-gray-50 px-1.5 py-0.5 font-mono text-[10px] text-gray-500 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
+                                            <span className="font-mono shrink-0 rounded border border-gray-200/90 bg-gray-50 px-1.5 py-0.5 text-[10px] text-gray-500 uppercase dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400">
                                               {chunk.blockType}
                                             </span>
                                           )}
                                         </div>
 
-                                        <div className="flex shrink-0 items-center gap-1.5 font-mono text-[11px] text-gray-400 tabular-nums dark:text-gray-500">
+                                        <div className="font-mono flex shrink-0 items-center gap-1.5 text-[11px] text-gray-400 tabular-nums dark:text-gray-500">
                                           {chunk.pageFrom > 0 && (
                                             <span>
                                               {chunk.pageTo > chunk.pageFrom
@@ -4218,22 +4538,22 @@ export default function ProjectDocumentsWorkspace({
                         ) &&
                           (knowledgeChunksQuery.data?.items.length ?? 0) ===
                             0)) && (
-                      <section
-                        aria-labelledby="detail-document-content-heading"
-                        className="space-y-1.5"
-                      >
-                        <h3
-                          id="detail-document-content-heading"
-                          className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                        <section
+                          aria-labelledby="detail-document-content-heading"
+                          className="space-y-1.5"
                         >
-                          <DocsIcon className="h-3.5 w-3.5 text-gray-400" />
-                          {t("contentLabel")}
-                        </h3>
-                        <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200/90 bg-white p-4 text-sm leading-6 break-words whitespace-pre-wrap text-gray-800 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200">
-                          {activeContent}
-                        </div>
-                      </section>
-                    )}
+                          <h3
+                            id="detail-document-content-heading"
+                            className="flex items-center gap-1.5 text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                          >
+                            <DocsIcon className="h-3.5 w-3.5 text-gray-400" />
+                            {t("contentLabel")}
+                          </h3>
+                          <div className="max-h-56 overflow-y-auto rounded-xl border border-gray-200/90 bg-white p-4 text-sm leading-6 break-words whitespace-pre-wrap text-gray-800 dark:border-gray-800 dark:bg-gray-900/70 dark:text-gray-200">
+                            {activeContent}
+                          </div>
+                        </section>
+                      )}
 
                     {/* Leader Review Panel */}
                     {current.permissions.canReview &&
@@ -4270,8 +4590,10 @@ export default function ProjectDocumentsWorkspace({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-8 !py-0 px-3 text-xs"
-                              disabled={!reviewComment.trim() || action.isPending}
+                              className="h-8 px-3 !py-0 text-xs"
+                              disabled={
+                                !reviewComment.trim() || action.isPending
+                              }
                               isLoading={action.isPending}
                               onClick={() => void runAction("comment")}
                             >
@@ -4454,7 +4776,9 @@ export default function ProjectDocumentsWorkspace({
                                     : ev.action) as DocumentActivityAction,
                                   actorId: ev.reviewerId,
                                   version: current.version,
-                                  ...(ev.comment ? { comment: ev.comment } : {}),
+                                  ...(ev.comment
+                                    ? { comment: ev.comment }
+                                    : {}),
                                   at: ev.at,
                                 })),
                               ];
@@ -4496,7 +4820,9 @@ export default function ProjectDocumentsWorkspace({
                           }
                         };
 
-                        const styleForAction = (act: DocumentActivityAction) => {
+                        const styleForAction = (
+                          act: DocumentActivityAction,
+                        ) => {
                           switch (act) {
                             case "APPROVED":
                             case "AUTO_APPROVED":
@@ -4639,7 +4965,7 @@ export default function ProjectDocumentsWorkspace({
                                         {labelForAction(event.action)}
                                       </span>
                                       {typeof event.version === "number" && (
-                                        <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[10px] leading-none font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                                        <span className="font-mono inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 text-[10px] leading-none font-medium text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
                                           v{event.version}
                                         </span>
                                       )}
@@ -4716,7 +5042,7 @@ export default function ProjectDocumentsWorkspace({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9 !py-0 px-3.5 text-xs"
+                        className="h-9 px-3.5 !py-0 text-xs"
                         disabled={deleteDocumentMutation.isPending}
                         onClick={() => {
                           setConfirmingDelete(false);
@@ -4729,7 +5055,7 @@ export default function ProjectDocumentsWorkspace({
                         type="button"
                         variant="danger"
                         size="sm"
-                        className="h-9 !py-0 px-3.5 text-xs"
+                        className="h-9 px-3.5 !py-0 text-xs"
                         isLoading={deleteDocumentMutation.isPending}
                         onClick={() => void handleConfirmPermanentDelete()}
                       >
@@ -4756,7 +5082,7 @@ export default function ProjectDocumentsWorkspace({
                         type="button"
                         variant="outline"
                         size="sm"
-                        className="h-9 !py-0 px-3.5 text-xs"
+                        className="h-9 px-3.5 !py-0 text-xs"
                         onClick={() => setConfirmingArchive(false)}
                       >
                         {t("cancel")}
@@ -4765,7 +5091,7 @@ export default function ProjectDocumentsWorkspace({
                         type="button"
                         variant="danger"
                         size="sm"
-                        className="h-9 !py-0 px-3.5 text-xs"
+                        className="h-9 px-3.5 !py-0 text-xs"
                         isLoading={action.isPending}
                         onClick={() => void runAction("archive")}
                       >
@@ -4780,11 +5106,11 @@ export default function ProjectDocumentsWorkspace({
                         canDeleteDocument ||
                         Boolean(
                           isProjectLeader &&
-                            current.status === "APPROVED" &&
-                            detailPipelineForChunks &&
-                            (detailPipelineForChunks.phase === "ready" ||
-                              detailPipelineForChunks.phase === "paused" ||
-                              detailPipelineForChunks.phase === "processing"),
+                          current.status === "APPROVED" &&
+                          detailPipelineForChunks &&
+                          (detailPipelineForChunks.phase === "ready" ||
+                            detailPipelineForChunks.phase === "paused" ||
+                            detailPipelineForChunks.phase === "processing"),
                         )) && (
                         <button
                           type="button"
@@ -4807,7 +5133,7 @@ export default function ProjectDocumentsWorkspace({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-9 !py-0 px-3.5 text-xs"
+                            className="h-9 px-3.5 !py-0 text-xs"
                             onClick={() => {
                               setAgentSource({
                                 workflow: "PROJECT_DOCUMENT",
@@ -4825,7 +5151,7 @@ export default function ProjectDocumentsWorkspace({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-9 !py-0 px-3.5 text-xs"
+                            className="h-9 px-3.5 !py-0 text-xs"
                             onClick={() => {
                               setReplacementFile(null);
                               setReplacementNote(current.description ?? "");
@@ -4841,7 +5167,7 @@ export default function ProjectDocumentsWorkspace({
                         <Button
                           type="button"
                           size="sm"
-                          className="h-9 !py-0 px-3.5 text-xs"
+                          className="h-9 px-3.5 !py-0 text-xs"
                           isLoading={action.isPending}
                           onClick={() => void runAction("submit")}
                         >
@@ -4856,7 +5182,7 @@ export default function ProjectDocumentsWorkspace({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-9 !py-0 px-3.5 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
+                              className="h-9 px-3.5 !py-0 text-xs text-rose-600 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-500/10"
                               isLoading={action.isPending}
                               onClick={() => void runAction("reject")}
                             >
@@ -4866,7 +5192,7 @@ export default function ProjectDocumentsWorkspace({
                               type="button"
                               variant="outline"
                               size="sm"
-                              className="h-9 !py-0 px-3.5 text-xs"
+                              className="h-9 px-3.5 !py-0 text-xs"
                               isLoading={action.isPending}
                               onClick={() => void runAction("request-changes")}
                             >
@@ -4875,7 +5201,7 @@ export default function ProjectDocumentsWorkspace({
                             <Button
                               type="button"
                               size="sm"
-                              className="h-9 !py-0 px-4 text-xs"
+                              className="h-9 px-4 !py-0 text-xs"
                               isLoading={action.isPending}
                               onClick={() => void runAction("approve")}
                             >
@@ -4890,7 +5216,7 @@ export default function ProjectDocumentsWorkspace({
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-9 !py-0 px-3.5 text-xs"
+                            className="h-9 px-3.5 !py-0 text-xs"
                             onClick={closeDetailModal}
                           >
                             {t("close")}
@@ -4922,8 +5248,7 @@ export default function ProjectDocumentsWorkspace({
                 current && current.id === removalTarget.id
                   ? current
                   : removalTarget;
-              const targetDisplayName =
-                targetDoc.file?.name || targetDoc.title;
+              const targetDisplayName = targetDoc.file?.name || targetDoc.title;
               const targetLiveSync =
                 current && current.id === targetDoc.id
                   ? detailLiveSync
@@ -4935,15 +5260,15 @@ export default function ProjectDocumentsWorkspace({
               const targetStorageRef = targetDoc.storageReference;
               const targetIsOwner = Boolean(
                 cachedCurrentUser?.id &&
-                  cachedCurrentUser.id.toLowerCase() ===
-                    targetDoc.createdBy.toLowerCase(),
+                cachedCurrentUser.id.toLowerCase() ===
+                  targetDoc.createdBy.toLowerCase(),
               );
               const tier1Enabled = Boolean(
                 isProjectLeader &&
-                  targetDoc.status === "APPROVED" &&
-                  (targetPipeline.phase === "ready" ||
-                    targetPipeline.phase === "paused" ||
-                    targetPipeline.phase === "processing"),
+                targetDoc.status === "APPROVED" &&
+                (targetPipeline.phase === "ready" ||
+                  targetPipeline.phase === "paused" ||
+                  targetPipeline.phase === "processing"),
               );
               const targetHasApprovedVersion =
                 targetDoc.status === "APPROVED" ||
@@ -4954,31 +5279,33 @@ export default function ProjectDocumentsWorkspace({
                 (targetDoc.permissions.canConfigure ||
                   targetDoc.permissions.canReview ||
                   isProjectLeader) &&
-                  targetDoc.status !== "ARCHIVED" &&
-                  targetHasApprovedVersion,
+                targetDoc.status !== "ARCHIVED" &&
+                targetHasApprovedVersion,
               );
               const tier3Enabled = Boolean(
                 targetDoc.permissions.canDelete ||
-                  isProjectLeader ||
-                  (targetIsOwner &&
-                    targetDoc.status !== "APPROVED" &&
-                    targetDoc.status !== "ARCHIVED"),
+                isProjectLeader ||
+                (targetIsOwner &&
+                  targetDoc.status !== "APPROVED" &&
+                  targetDoc.status !== "ARCHIVED"),
               );
 
               const hasStoredObjects = Boolean(
                 targetDoc.file ||
-                  (targetStorageRef && targetStorageRef.objectCount > 0),
+                (targetStorageRef && targetStorageRef.objectCount > 0),
               );
               const isSharedOnly = Boolean(
                 targetStorageRef &&
-                  targetStorageRef.sharedObjectCount > 0 &&
-                  targetStorageRef.deletableObjectCount === 0,
+                targetStorageRef.sharedObjectCount > 0 &&
+                targetStorageRef.deletableObjectCount === 0,
               );
               const isMixedRefs = Boolean(
                 targetStorageRef &&
-                  targetStorageRef.sharedObjectCount > 0 &&
-                  targetStorageRef.deletableObjectCount > 0,
+                targetStorageRef.sharedObjectCount > 0 &&
+                targetStorageRef.deletableObjectCount > 0,
               );
+              const isCloudR2 =
+                targetStorageRef?.provider !== "LOCAL";
 
               return (
                 <div
@@ -4994,7 +5321,11 @@ export default function ProjectDocumentsWorkspace({
                         id="three-tier-removal-dialog-title"
                         className="text-base font-semibold tracking-tight text-gray-900 dark:text-white/95"
                       >
-                        {t("removeModalTitle")}
+                        {t(
+                          isCloudR2
+                            ? "removeModalTitle"
+                            : "removeModalTitleLocal",
+                        )}
                       </h2>
                       <p className="mt-1 truncate text-xs leading-relaxed text-gray-500 dark:text-gray-400">
                         {t("removeModalSubtitle", { name: targetDisplayName })}
@@ -5014,7 +5345,7 @@ export default function ProjectDocumentsWorkspace({
 
                   {/* Body */}
                   <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto px-6 py-5">
-                    {/* Cloudflare R2 Reference-Count Inspection Card */}
+                    {/* Storage Reference-Count Inspection Card */}
                     <div
                       className={`rounded-xl border p-3.5 text-xs ${
                         !hasStoredObjects
@@ -5035,15 +5366,24 @@ export default function ProjectDocumentsWorkspace({
                         <div className="min-w-0 flex-1 space-y-1">
                           {!hasStoredObjects ? (
                             <p className="font-medium">
-                              {t("r2RefStatusNoFile")}
+                              {t(
+                                isCloudR2
+                                  ? "r2RefStatusNoFile"
+                                  : "localRefStatusNoFile",
+                              )}
                             </p>
                           ) : isSharedOnly && targetStorageRef ? (
                             <>
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-semibold">
-                                  {t("r2RefStatusSharedTitle", {
-                                    refs: targetStorageRef.refCount,
-                                  })}
+                                  {t(
+                                    isCloudR2
+                                      ? "r2RefStatusSharedTitle"
+                                      : "localRefStatusSharedTitle",
+                                    {
+                                      refs: targetStorageRef.refCount,
+                                    },
+                                  )}
                                 </p>
                                 {targetStorageRef.sha256 && (
                                   <span className="font-mono text-[11px] opacity-75">
@@ -5053,32 +5393,51 @@ export default function ProjectDocumentsWorkspace({
                                 )}
                               </div>
                               <p className="leading-relaxed opacity-90">
-                                {t("r2RefStatusSharedDesc", {
-                                  external:
-                                    targetStorageRef.externalDocumentRefs,
-                                })}
+                                {t(
+                                  isCloudR2
+                                    ? "r2RefStatusSharedDesc"
+                                    : "localRefStatusSharedDesc",
+                                  {
+                                    external:
+                                      targetStorageRef.externalDocumentRefs,
+                                  },
+                                )}
                               </p>
                             </>
                           ) : isMixedRefs && targetStorageRef ? (
                             <>
                               <p className="font-semibold">
-                                {t("r2RefStatusMixedTitle", {
-                                  refs: targetStorageRef.refCount,
-                                })}
+                                {t(
+                                  isCloudR2
+                                    ? "r2RefStatusMixedTitle"
+                                    : "localRefStatusMixedTitle",
+                                  {
+                                    refs: targetStorageRef.refCount,
+                                  },
+                                )}
                               </p>
                               <p className="leading-relaxed opacity-90">
-                                {t("r2RefStatusMixedDesc", {
-                                  deletable:
-                                    targetStorageRef.deletableObjectCount,
-                                  shared: targetStorageRef.sharedObjectCount,
-                                })}
+                                {t(
+                                  isCloudR2
+                                    ? "r2RefStatusMixedDesc"
+                                    : "localRefStatusMixedDesc",
+                                  {
+                                    deletable:
+                                      targetStorageRef.deletableObjectCount,
+                                    shared: targetStorageRef.sharedObjectCount,
+                                  },
+                                )}
                               </p>
                             </>
                           ) : (
                             <>
                               <div className="flex flex-wrap items-center justify-between gap-2">
                                 <p className="font-semibold">
-                                  {t("r2RefStatusUniqueTitle")}
+                                  {t(
+                                    isCloudR2
+                                      ? "r2RefStatusUniqueTitle"
+                                      : "localRefStatusUniqueTitle",
+                                  )}
                                 </p>
                                 {(targetStorageRef?.sha256 ??
                                   targetLiveSync?.fileHash) && (
@@ -5093,10 +5452,16 @@ export default function ProjectDocumentsWorkspace({
                                 )}
                               </div>
                               <p className="leading-relaxed text-gray-600 dark:text-gray-300">
-                                {t("r2RefStatusUniqueDesc", {
-                                  count:
-                                    targetStorageRef?.deletableObjectCount ?? 1,
-                                })}
+                                {t(
+                                  isCloudR2
+                                    ? "r2RefStatusUniqueDesc"
+                                    : "localRefStatusUniqueDesc",
+                                  {
+                                    count:
+                                      targetStorageRef?.deletableObjectCount ??
+                                      1,
+                                  },
+                                )}
                               </p>
                             </>
                           )}
@@ -5125,18 +5490,18 @@ export default function ProjectDocumentsWorkspace({
                                 {t("tier1Title")}
                               </span>
                               <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                {t("tier1Badge")}
+                                {t(isCloudR2 ? "tier1Badge" : "tier1BadgeLocal")}
                               </span>
                             </div>
                             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                              {t("tier1Desc")}
+                              {t(isCloudR2 ? "tier1Desc" : "tier1DescLocal")}
                             </p>
                           </div>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-8 shrink-0 !py-0 px-3 text-xs"
+                            className="h-8 shrink-0 px-3 !py-0 text-xs"
                             disabled={
                               removalBusyTier !== null && removalBusyTier !== 1
                             }
@@ -5160,18 +5525,18 @@ export default function ProjectDocumentsWorkspace({
                                 {t("tier2Title")}
                               </span>
                               <span className="rounded-md border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                {t("tier2Badge")}
+                                {t(isCloudR2 ? "tier2Badge" : "tier2BadgeLocal")}
                               </span>
                             </div>
                             <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                              {t("tier2Desc")}
+                              {t(isCloudR2 ? "tier2Desc" : "tier2DescLocal")}
                             </p>
                           </div>
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-8 shrink-0 !py-0 px-3 text-xs"
+                            className="h-8 shrink-0 px-3 !py-0 text-xs"
                             disabled={
                               removalBusyTier !== null && removalBusyTier !== 2
                             }
@@ -5184,7 +5549,7 @@ export default function ProjectDocumentsWorkspace({
                       </div>
                     )}
 
-                    {/* Tier 3: Permanent Delete (DB + SAG + Ref-Counted Cloudflare R2) */}
+                    {/* Tier 3: Permanent Delete (DB + SAG + Ref-Counted Storage) */}
                     {tier3Enabled && (
                       <div className="rounded-xl border border-rose-200/90 bg-rose-50/35 p-4 dark:border-rose-500/30 dark:bg-rose-500/5">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -5192,7 +5557,7 @@ export default function ProjectDocumentsWorkspace({
                             <div className="flex flex-wrap items-center gap-2">
                               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-rose-700 dark:text-rose-300">
                                 <TrashBinIcon className="h-3.5 w-3.5" />
-                                {t("tier3Title")}
+                                {t(isCloudR2 ? "tier3Title" : "tier3TitleLocal")}
                               </span>
                               {hasStoredObjects && (
                                 <span
@@ -5204,19 +5569,23 @@ export default function ProjectDocumentsWorkspace({
                                 >
                                   {isSharedOnly
                                     ? t("tier3BadgeRetainSharedR2")
-                                    : t("tier3BadgeDeleteR2")}
+                                    : t(
+                                        isCloudR2
+                                          ? "tier3BadgeDeleteR2"
+                                          : "tier3BadgeDeleteLocal",
+                                      )}
                                 </span>
                               )}
                             </div>
                             <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
-                              {t("tier3Desc")}
+                              {t(isCloudR2 ? "tier3Desc" : "tier3DescLocal")}
                             </p>
                           </div>
                           <Button
                             type="button"
                             variant="danger"
                             size="sm"
-                            className="h-8 shrink-0 !py-0 px-3.5 text-xs"
+                            className="h-8 shrink-0 px-3.5 !py-0 text-xs"
                             disabled={
                               removalBusyTier !== null && removalBusyTier !== 3
                             }
@@ -5236,7 +5605,7 @@ export default function ProjectDocumentsWorkspace({
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-8 !py-0 px-3.5 text-xs"
+                      className="h-8 px-3.5 !py-0 text-xs"
                       disabled={removalBusyTier !== null}
                       onClick={closeRemovalModal}
                     >

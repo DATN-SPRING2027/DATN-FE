@@ -118,6 +118,7 @@ export default function WorkNoteComposer({
     startFreshDraft,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [autoApprove, setAutoApprove] = useState(true);
   const [panelToggle, setPanelToggle] = useState<boolean | null>(null);
   const [assistantTabState, setAssistantTab] = useState<AssistantTab | null>(null);
   const [toolbarAiOpen, setToolbarAiOpen] = useState(false);
@@ -217,6 +218,11 @@ export default function WorkNoteComposer({
   const hasFields = fields !== null;
   const fieldTitle = fields?.title ?? "";
   const fieldBody = fields?.contentMarkdown ?? "";
+  const trimmedBodyLen = fieldBody.trim().length;
+  const isShortContent = trimmedBodyLen > 0 && trimmedBodyLen < 30;
+  const effectiveAutoApprove = autoApprove && !isShortContent;
+  const canAutoApproveOnSave = autoApprove && trimmedBodyLen >= 30;
+  const showShortContentNudge = !source && autoApprove && isShortContent;
   const preSendSecurity = useMemo(
     () =>
       hasFields
@@ -1478,54 +1484,130 @@ export default function WorkNoteComposer({
                 </div>
 
                 {/* Region (6): Left-Column Pinned Final Action Bar */}
-                <footer className="flex shrink-0 flex-wrap items-center gap-2.5 border-t border-gray-200/80 bg-white px-4 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-900">
-                  <button
-                    type="button"
-                    disabled={!d || busy || editor.saving}
-                    onClick={() => setConfirmation("discard")}
-                    className="rounded-xl border border-error-200 bg-white px-4 py-2 text-sm font-semibold text-error-600 transition-colors hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-error-500/30 dark:bg-gray-900 dark:text-error-400 dark:hover:bg-error-500/10"
-                  >
-                    {t("discard")}
-                  </button>
-                  <span className="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t("retention")}
-                  </span>
-                  {d?.noteId && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setHistoryOpen((v) => !v)}
-                    >
-                      {t("history")}
-                    </Button>
-                  )}
+                <footer className="flex shrink-0 flex-col gap-2 border-t border-gray-200/80 bg-white px-4 py-2.5 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
                   {!source && (
-                    <button
-                      type="button"
-                      disabled={!d || editor.saving || busy || !!confirmation}
-                      onClick={() => void run(() => editor.persist())}
-                      className="rounded-xl border border-gray-200 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
-                    >
-                      {t("saveAsDraft")}
-                    </button>
+                    <div className="flex flex-wrap items-center justify-between gap-1.5">
+                      <button
+                        type="button"
+                        role="switch"
+                        aria-checked={effectiveAutoApprove}
+                        data-testid="composer-auto-approve-toggle"
+                        onClick={() => setAutoApprove((prev) => !prev)}
+                        className={`inline-flex min-h-7 items-center gap-1.5 rounded-md border px-2.5 py-0.5 text-[11px] font-medium whitespace-nowrap transition-colors ${
+                          effectiveAutoApprove
+                            ? "border-emerald-200/80 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                            : "border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/70 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
+                        }`}
+                      >
+                        <span
+                          aria-hidden="true"
+                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                            effectiveAutoApprove
+                              ? "bg-emerald-500"
+                              : "bg-amber-500"
+                          }`}
+                        />
+                        <span>
+                          {t(
+                            effectiveAutoApprove
+                              ? "autoApproveToggleOn"
+                              : "autoApproveToggleOff",
+                          )}
+                        </span>
+                        <span
+                          className={`rounded px-1 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${
+                            effectiveAutoApprove
+                              ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                              : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                          }`}
+                        >
+                          {t(
+                            effectiveAutoApprove
+                              ? "autoApproveBadgeOn"
+                              : "autoApproveBadgeOff",
+                          )}
+                        </span>
+                      </button>
+                      {showShortContentNudge && (
+                        <button
+                          type="button"
+                          data-testid="composer-short-content-nudge"
+                          onClick={() => setAutoApprove(false)}
+                          className="inline-flex min-h-6 items-center gap-1 rounded-md border border-amber-300/80 bg-amber-50/90 px-2 py-0.5 text-[11px] font-medium whitespace-nowrap text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200"
+                        >
+                          <span>
+                            {t("shortContentNudge", {
+                              count: trimmedBodyLen,
+                            })}
+                          </span>
+                        </button>
+                      )}
+                    </div>
                   )}
-                  <Button
-                    size="sm"
-                    disabled={
-                      !fields.title.trim() ||
-                      !fields.contentMarkdown.trim() ||
-                      editor.saving ||
-                      busy ||
-                      !!confirmation
-                    }
-                    onClick={() =>
-                      d?.hasAppliedRewrite
-                        ? setConfirmation("save")
-                        : void run(() => editor.save(false))
-                    }
-                  >
-                    {t(source ? "saveDraft" : "save")}
-                  </Button>
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={!d || busy || editor.saving}
+                        onClick={() => setConfirmation("discard")}
+                        className="rounded-lg border border-error-200 bg-white px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-error-600 transition-colors hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-error-500/30 dark:bg-gray-900 dark:text-error-400 dark:hover:bg-error-500/10"
+                      >
+                        {t("discard")}
+                      </button>
+                      {d?.noteId && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setHistoryOpen((v) => !v)}
+                        >
+                          {t("history")}
+                        </Button>
+                      )}
+                      {source && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {t("retention")}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center justify-end gap-1.5">
+                      {!source && (
+                        <button
+                          type="button"
+                          disabled={
+                            !d || editor.saving || busy || !!confirmation
+                          }
+                          onClick={() => void run(() => editor.persist())}
+                          className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold whitespace-nowrap text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                        >
+                          {t("saveAsDraft")}
+                        </button>
+                      )}
+                      <Button
+                        size="sm"
+                        disabled={
+                          !fields.title.trim() ||
+                          !fields.contentMarkdown.trim() ||
+                          editor.saving ||
+                          busy ||
+                          !!confirmation
+                        }
+                        onClick={() =>
+                          d?.hasAppliedRewrite
+                            ? setConfirmation("save")
+                            : void run(() =>
+                                editor.save(
+                                  false,
+                                  !source && !canAutoApproveOnSave
+                                    ? { autoApprove: false }
+                                    : undefined,
+                                ),
+                              )
+                        }
+                      >
+                        {t(source ? "saveDraft" : "save")}
+                      </Button>
+                    </div>
+                  </div>
                 </footer>
               </div>
 
@@ -2064,7 +2146,13 @@ export default function WorkNoteComposer({
                   disabled={busy || editor.saving}
                   onClick={() =>
                     void run(async () => {
-                      if (confirmation === "save") await editor.save(true);
+                      if (confirmation === "save")
+                        await editor.save(
+                          true,
+                          !source && !canAutoApproveOnSave
+                            ? { autoApprove: false }
+                            : undefined,
+                        );
                       else if (
                         confirmation === "restore" &&
                         restoreVersion !== null

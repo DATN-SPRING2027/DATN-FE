@@ -29,6 +29,14 @@ import {
   type TaskNoteInput,
 } from "@/lib/queries/work-notes/useWorkNotes";
 import WorkNoteAiChatSources from "./WorkNoteAiChatSources";
+import {
+  ApprovalStatusBadge,
+  CompactPipelineProgressCell,
+} from "./SagKnowledgePipelineCard";
+import {
+  UploadCheckIcon,
+  UploadProgressArcIcon,
+} from "./UploadIcons";
 
 const EMPTY_INPUT: TaskNoteInput = {
   title: "",
@@ -148,6 +156,7 @@ function TaskNotesContent({
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [removingNoteId, setRemovingNoteId] = useState<string | null>(null);
+  const [approvingNoteId, setApprovingNoteId] = useState<string | null>(null);
 
   const titleInputRef = useRef<HTMLInputElement>(null);
   const menuContainerRef = useRef<HTMLDivElement>(null);
@@ -174,6 +183,25 @@ function TaskNotesContent({
       workNoteKeys.project(projectId),
     ],
   );
+  const approveNote = useWorkNotesMutation(
+    (noteId: string) =>
+      workNotesApi.taskNoteAction(projectId, noteId, "approve"),
+    [
+      workNoteKeys.taskNotes(projectId, taskId),
+      workNoteKeys.project(projectId),
+    ],
+  );
+
+  async function handleQuickApprove(noteId: string) {
+    setApprovingNoteId(noteId);
+    try {
+      await approveNote.mutateAsync(noteId);
+    } catch {
+      // Handled via query refetch/state
+    } finally {
+      setApprovingNoteId(null);
+    }
+  }
 
   useEffect(() => {
     const map = getDraftMap(queryClient);
@@ -225,6 +253,15 @@ function TaskNotesContent({
   const [dismissedSplitSignal, setDismissedSplitSignal] = useState(
     splitControl?.savedSignal ?? 0,
   );
+  const [autoApprove, setAutoApprove] = useState(true);
+  const combinedBodyLen =
+    input.accomplishments.trim().length +
+    input.approach.trim().length +
+    input.reason.trim().length;
+  const isShortContent = combinedBodyLen > 0 && combinedBodyLen < 30;
+  const effectiveAutoApprove = autoApprove && !isShortContent;
+  const canAutoApproveOnSave = autoApprove && combinedBodyLen >= 30;
+  const showShortContentNudge = autoApprove && isShortContent;
   const currentSplitSignal = splitControl?.savedSignal ?? 0;
   const effectiveSavedBanner =
     showSavedBanner ||
@@ -349,11 +386,14 @@ function TaskNotesContent({
       return;
     }
     setValidationError("");
+    const payload = canAutoApproveOnSave
+      ? cleaned
+      : { ...cleaned, autoApprove: false };
     try {
       if (editingId) {
-        await update.mutateAsync({ noteId: editingId, value: cleaned });
+        await update.mutateAsync({ noteId: editingId, value: payload });
       } else {
-        await create.mutateAsync(cleaned);
+        await create.mutateAsync(payload);
       }
       setInput(EMPTY_INPUT);
       setEditingId(null);
@@ -618,9 +658,59 @@ function TaskNotesContent({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-900/50">
-            <span className="text-[11px] text-gray-500 dark:text-gray-400">
-              {t("composerHint")}
-            </span>
+            <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={effectiveAutoApprove}
+                data-testid="task-note-auto-approve-toggle"
+                onClick={() => setAutoApprove((prev) => !prev)}
+                className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition-colors ${
+                  effectiveAutoApprove
+                    ? "border-emerald-200/80 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                    : "border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/70 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
+                }`}
+              >
+                <span
+                  aria-hidden="true"
+                  className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                    effectiveAutoApprove ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
+                />
+                <span>
+                  {t(
+                    effectiveAutoApprove
+                      ? "autoApproveToggleOn"
+                      : "autoApproveToggleOff",
+                  )}
+                </span>
+                <span
+                  className={`rounded px-1 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${
+                    effectiveAutoApprove
+                      ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                      : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  }`}
+                >
+                  {t(
+                    effectiveAutoApprove
+                      ? "autoApproveBadgeOn"
+                      : "autoApproveBadgeOff",
+                  )}
+                </span>
+              </button>
+              {showShortContentNudge && (
+                <button
+                  type="button"
+                  data-testid="task-note-short-content-nudge"
+                  onClick={() => setAutoApprove(false)}
+                  className="inline-flex h-6 items-center gap-1 rounded-md border border-amber-300/80 bg-amber-50/90 px-2 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200"
+                >
+                  <span>
+                    {t("shortContentNudge", { count: combinedBodyLen })}
+                  </span>
+                </button>
+              )}
+            </div>
             <div className="ms-auto flex items-center gap-2">
               <Button
                 type="button"
@@ -729,6 +819,12 @@ function TaskNotesContent({
                         <h5 className="min-w-0 text-sm font-semibold break-words text-gray-900 dark:text-white/90">
                           {note.title}
                         </h5>
+                        <ApprovalStatusBadge
+                          status={note.reviewStatus ?? "PENDING_REVIEW"}
+                          label={t(
+                            `status.${note.reviewStatus ?? "PENDING_REVIEW"}`,
+                          )}
+                        />
                         {isBeingEdited && (
                           <span className="rounded bg-brand-50 px-1.5 py-0.5 text-[10px] font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
                             {t("editingBadge")}
@@ -868,8 +964,29 @@ function TaskNotesContent({
                     </dl>
                   )}
 
-                  {/* View details / Hide details toggle */}
-                  <div className="mt-2.5 flex items-center">
+                  {((note.reviewStatus ?? "PENDING_REVIEW") ===
+                    "CHANGES_REQUESTED" ||
+                    (note.reviewStatus ?? "PENDING_REVIEW") === "REJECTED") &&
+                    note.reviewComment && (
+                      <div className="mt-2.5 rounded-md border border-amber-200/80 bg-amber-50/60 px-3 py-2 text-xs text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                        <span className="font-semibold">
+                          {t("reviewerFeedbackLabel")}:
+                        </span>{" "}
+                        <span>{note.reviewComment}</span>
+                      </div>
+                    )}
+
+                  {(note.reviewStatus ?? "PENDING_REVIEW") === "APPROVED" && (
+                    <div className="mt-2.5">
+                      <CompactPipelineProgressCell
+                        status="APPROVED"
+                        knowledgeSync={note.knowledgeSync}
+                      />
+                    </div>
+                  )}
+
+                  {/* View details / Hide details toggle + Quick Approve */}
+                  <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2">
                     <button
                       type="button"
                       aria-expanded={isExpanded}
@@ -886,6 +1003,28 @@ function TaskNotesContent({
                         aria-hidden="true"
                       />
                     </button>
+
+                    {note.permissions.canReview &&
+                      (note.reviewStatus ?? "PENDING_REVIEW") ===
+                        "PENDING_REVIEW" && (
+                        <button
+                          type="button"
+                          disabled={approvingNoteId === note.id}
+                          aria-label={t("quickApproveAria", {
+                            title: note.title,
+                          })}
+                          title={t("quickApprove")}
+                          onClick={() => void handleQuickApprove(note.id)}
+                          className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50/90 px-2 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-500/30 dark:bg-emerald-500/15 dark:text-emerald-300 dark:hover:bg-emerald-500/25"
+                        >
+                          {approvingNoteId === note.id ? (
+                            <UploadProgressArcIcon className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <UploadCheckIcon className="h-3 w-3" />
+                          )}
+                          <span>{t("quickApprove")}</span>
+                        </button>
+                      )}
                   </div>
                 </article>
               </li>

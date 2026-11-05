@@ -1,9 +1,16 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { ApiError, apiClient } from "@/lib/api-client";
+import type { TaskNote } from "@/lib/queries/work-notes/useWorkNotes";
 import WorkNotesWorkspace from "./WorkNotesWorkspace";
 
 vi.mock("next/navigation", () => ({
@@ -107,7 +114,7 @@ describe("Project task notes", () => {
     api.mockReset();
   });
 
-  it("loads persisted Task Notes in compact explorer mode and expands details on demand", async () => {
+  it("loads persisted Task Notes in the Task-Grouped Split Workbench and switches between task groups and timeline", async () => {
     api.mockResolvedValue({
       data: [note],
       pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
@@ -117,34 +124,30 @@ describe("Project task notes", () => {
     expect(
       await screen.findByRole("heading", { name: "Invitation endpoint" }),
     ).toBeVisible();
-    expect(screen.getByText("Added the API route.")).toBeVisible();
-    expect(screen.getByText("FE-12")).toBeVisible();
-    const taskLinks = screen.getAllByRole("link", { name: /FE-12/ });
-    expect(taskLinks.length).toBeGreaterThanOrEqual(2);
-    for (const taskLink of taskLinks) {
-      expect(taskLink).toHaveAttribute(
-        "href",
-        `/projects/${projectId}/work/FE-12`,
-      );
-    }
-    expect(
-      screen.getByText("Authentication & session handling"),
-    ).toBeVisible();
-    expect(screen.getByText("Linked to task FE-12")).toBeVisible();
-    expect(
-      screen.queryByText("Used a transaction with an outbox."),
-    ).not.toBeInTheDocument();
+    expect(screen.getAllByText("Added the API route.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("FE-12").length).toBeGreaterThan(0);
 
-    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(
+      screen.getAllByText("Authentication & session handling").length,
+    ).toBeGreaterThan(0);
+    expect(screen.getByRole("link", { name: /FE-12/ })).toHaveAttribute(
+      "href",
+      `/projects/${projectId}/work/FE-12`,
+    );
+    expect(screen.queryByText("Linked to task FE-12")).not.toBeInTheDocument();
     expect(
       screen.getByText("Used a transaction with an outbox."),
     ).toBeVisible();
     expect(screen.getByText("Avoid duplicate invitations.")).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: "Show less" }));
+    fireEvent.click(screen.getByRole("button", { name: "Timeline" }));
     expect(
-      screen.queryByText("Used a transaction with an outbox."),
-    ).not.toBeInTheDocument();
+      screen.getByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Group by task" }));
+    expect(
+      screen.getByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
 
     expect(api).toHaveBeenCalledWith(
       `/capture/projects/${projectId}/work-notes?page=1&pageSize=50`,
@@ -333,5 +336,396 @@ describe("Project task notes", () => {
     expect(
       screen.queryByRole("heading", { name: "Redis rate-limit notes" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("enforces post-approval .md & SAG governance: hides Download .md while PENDING_REVIEW and shows Download .md + SAG chunks once APPROVED", async () => {
+    let currentNote = {
+      ...note,
+      contentSchemaVersion: 2 as const,
+      contentMarkdown: "## Token Validation\n\nVerified JWT signature rotation.",
+      reviewStatus: "PENDING_REVIEW" as const,
+      permissions: {
+        ...note.permissions,
+        canReview: true,
+      },
+    };
+
+    api.mockImplementation((async (path: string, options?: RequestInit) => {
+      if (path.endsWith("/work-notes?page=1&pageSize=50")) {
+        return {
+          data: [currentNote],
+          pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+        };
+      }
+      if (
+        options?.method === "POST" &&
+        path.endsWith(`/work-notes/${note.id}/approve`)
+      ) {
+        currentNote = {
+          ...currentNote,
+          reviewStatus: "APPROVED" as unknown as "PENDING_REVIEW",
+          file: {
+            name: "task-note-fe-12-invitation-endpoint-v1.md",
+            contentType: "text/markdown",
+            size: 512,
+            sha256: "a".repeat(64),
+          },
+          knowledgeSync: {
+            documentId: note.id,
+            version: 1,
+            status: "KNOWLEDGE_READY",
+            knowledgeReady: true,
+            searchReady: true,
+            progress: 100,
+            chunkCount: 2,
+          },
+        } as typeof currentNote;
+        return currentNote;
+      }
+      if (path.endsWith(`/work-notes/${note.id}/knowledge-status`)) {
+        return {
+          documentId: note.id,
+          version: 1,
+          status: "KNOWLEDGE_READY",
+          knowledgeReady: true,
+          searchReady: true,
+          progress: 100,
+          chunkCount: 2,
+        };
+      }
+      if (path.includes(`/work-notes/${note.id}/knowledge-chunks`)) {
+        return {
+          documentId: note.id,
+          version: 1,
+          sourceStage: "SEARCH_UNITS",
+          totalChunks: 2,
+          totalTokens: 84,
+          items: [
+            {
+              chunkId: "chunk-1",
+              ordinal: 1,
+              sectionPath: "Token Validation",
+              blockType: "paragraph",
+              pageFrom: 0,
+              pageTo: 0,
+              tokenCount: 42,
+              content: "Verified JWT signature rotation.",
+            },
+          ],
+        };
+      }
+      throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+    }) as never);
+
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+
+    // Open Review & SAG modal while PENDING_REVIEW -> NO Download .md button & NO fake SAG stepper!
+    fireEvent.click(screen.getByRole("button", { name: "Review & SAG" }));
+    const drawer = await screen.findByTestId("knowledge-governance-drawer");
+    expect(
+      within(drawer).getByText(/Stored in database only/i),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Cloudflare R2 & SAG Governance Gate"),
+    ).toBeVisible();
+    expect(screen.queryByText("Parse .md")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Download \.md/i }),
+    ).not.toBeInTheDocument();
+    // Rich Markdown renders `## Token Validation` as an actual heading!
+    expect(
+      screen.getByRole("heading", { name: "Token Validation" }),
+    ).toBeVisible();
+
+    // Approve inside modal -> transitions to APPROVED, reveals Download .md + 4-stage SAG + Chunks!
+    fireEvent.click(
+      screen.getByRole("button", { name: "Approve & Sync SAG" }),
+    );
+
+    expect(
+      (await screen.findAllByRole("button", { name: /Download \.md/i }))[0],
+    ).toBeVisible();
+    expect(
+      await screen.findByText("task-note-fe-12-invitation-endpoint-v1.md"),
+    ).toBeVisible();
+    expect(screen.getByText("Parse .md")).toBeVisible();
+    const chunksSection = await screen.findByLabelText("Extracted chunks");
+    expect(within(chunksSection).getByText("Token Validation")).toBeVisible();
+  });
+
+  it("supports SAG pause/resume/revoke, tiered R2 purge + reopen, and bulk batch approval", async () => {
+    const secondNote = {
+      ...note,
+      id: "751a2b3c4d5e6f7a8b9c0d99",
+      title: "Outbox consumer retry policy",
+      reviewStatus: "PENDING_REVIEW" as const,
+      permissions: {
+        ...note.permissions,
+        canReview: true,
+        canControlKnowledge: true,
+        canPurgeArtifact: true,
+        canDelete: true,
+      },
+    };
+    let firstNote: TaskNote = {
+      ...note,
+      reviewStatus: "PENDING_REVIEW",
+      permissions: {
+        ...note.permissions,
+        canReview: true,
+        canControlKnowledge: true,
+        canPurgeArtifact: true,
+        canDelete: true,
+      },
+    };
+    let listItems: TaskNote[] = [firstNote, secondNote];
+    const calledPaths: Array<{ method: string; path: string; body?: string }> = [];
+
+    api.mockImplementation((async (path: string, options?: RequestInit) => {
+      calledPaths.push({
+        method: options?.method ?? "GET",
+        path,
+        body: typeof options?.body === "string" ? options.body : undefined,
+      });
+
+      if (path.endsWith("/work-notes?page=1&pageSize=50")) {
+        return {
+          data: listItems,
+          pagination: {
+            page: 1,
+            pageSize: 50,
+            totalItems: listItems.length,
+            totalPages: 1,
+          },
+        };
+      }
+
+      if (
+        options?.method === "POST" &&
+        path.endsWith("/work-notes/bulk-action")
+      ) {
+        firstNote = {
+          ...firstNote,
+          reviewStatus: "APPROVED",
+          file: {
+            name: "task-note-fe-12-invitation-endpoint-v1.md",
+            contentType: "text/markdown",
+            size: 640,
+            sha256: "c".repeat(64),
+          },
+          storageReference: {
+            provider: "CLOUDFLARE_R2",
+            objectCount: 1,
+            deletableObjectCount: 1,
+            sharedObjectCount: 0,
+            refCount: 1,
+            externalDocumentRefs: 0,
+            willDeleteFromStorage: true,
+          },
+          knowledgeSync: {
+            documentId: firstNote.id,
+            sagDocumentId: "sag-doc-1",
+            version: 1,
+            status: "INDEXING",
+            currentStage: "EXTRACT",
+            progress: 60,
+            chunkCount: 0,
+          },
+        };
+        listItems = [
+          firstNote,
+          {
+            ...secondNote,
+            reviewStatus: "APPROVED",
+          },
+        ];
+        return {
+          action: "APPROVE",
+          requestedCount: 2,
+          succeededIds: [firstNote.id, secondNote.id],
+          failed: [],
+        };
+      }
+
+      if (path.endsWith(`/work-notes/${firstNote.id}/knowledge-status`)) {
+        return firstNote.knowledgeSync;
+      }
+
+      if (
+        options?.method === "POST" &&
+        path.endsWith(`/work-notes/${firstNote.id}/knowledge-control`)
+      ) {
+        const parsed = JSON.parse(String(options.body ?? "{}")) as {
+          action?: string;
+        };
+        const nextStatus =
+          parsed.action === "PAUSE"
+            ? {
+                documentId: firstNote.id,
+                sagDocumentId: "sag-doc-1",
+                version: 1,
+                status: "PAUSED",
+                currentStage: "EXTRACT",
+                progress: 60,
+              }
+            : {
+                documentId: firstNote.id,
+                sagDocumentId: "sag-doc-1",
+                version: 1,
+                status: "INDEXING",
+                currentStage: "EXTRACT",
+                progress: 60,
+              };
+        firstNote = { ...firstNote, knowledgeSync: nextStatus } as typeof firstNote;
+        listItems = [firstNote, listItems[1]!];
+        return nextStatus;
+      }
+
+      if (
+        options?.method === "DELETE" &&
+        path.includes(`/work-notes/${firstNote.id}/file`)
+      ) {
+        firstNote = {
+          ...firstNote,
+          reviewStatus: "CHANGES_REQUESTED",
+          file: undefined,
+        };
+        listItems = [firstNote, listItems[1]!];
+        return {
+          entityId: firstNote.id,
+          purgedFromR2: true,
+          retainedSharedR2: false,
+          revokedSag: true,
+          status: "CHANGES_REQUESTED",
+        };
+      }
+
+      throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+    }) as never);
+
+    mount();
+    expect(
+      await screen.findByRole("heading", { name: "Invitation endpoint" }),
+    ).toBeVisible();
+
+    // Select all -> triggers sticky BulkGovernanceBar -> batch approve 2 notes!
+    fireEvent.click(screen.getByLabelText("Select all (2)"));
+    const bulkApproveBtn = await screen.findByRole("button", {
+      name: "Approve & Sync (2)",
+    });
+    fireEvent.click(bulkApproveBtn);
+
+    expect(
+      await screen.findByText("Processed 2/2 items successfully."),
+    ).toBeVisible();
+    expect(
+      calledPaths.some(
+        (c) => c.method === "POST" && c.path.endsWith("/work-notes/bulk-action"),
+      ),
+    ).toBe(true);
+
+    // Open approved note modal -> Pause -> Resume -> R2 & Remove… -> Purge R2 & Reopen
+    const inspectButtons = await screen.findAllByRole("button", {
+      name: "Inspect .md & SAG",
+    });
+    fireEvent.click(inspectButtons[0]!);
+
+    const pauseBtn = await screen.findByRole("button", { name: "Pause" });
+    fireEvent.click(pauseBtn);
+
+    const resumeBtn = await screen.findByRole("button", { name: "Resume" });
+    fireEvent.click(resumeBtn);
+
+    fireEvent.click(await screen.findByRole("button", { name: "R2 & Remove…" }));
+    expect(
+      await screen.findByText("Manage SAG Index, Cloudflare R2 & Record"),
+    ).toBeVisible();
+
+    fireEvent.click(
+      screen.getByLabelText(
+        "Also reopen for author editing (move status to Changes Requested)",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Purge R2 & Reopen" }));
+
+    await waitFor(() => {
+      expect(
+        calledPaths.some(
+          (c) =>
+            c.method === "DELETE" &&
+            c.path.includes(`/work-notes/${firstNote.id}/file?reopen=true`),
+        ),
+      ).toBe(true);
+    });
+  });
+
+  it("renders SectionOutlineBar and clamps >18-line code blocks for long Markdown notes while hiding outline on short notes", async () => {
+    const codeLines = Array.from(
+      { length: 24 },
+      (_, idx) => `const step${idx + 1} = verifyToken(${idx + 1});`,
+    ).join("\n");
+    const longMarkdownNote: TaskNote = {
+      ...note,
+      id: "751a2b3c4d5e6f7a8b9c0d88",
+      title: "Architecture & SAG Outbox Deep Dive",
+      contentSchemaVersion: 2,
+      contentMarkdown: [
+        "## 1. Context & Problem",
+        "High-volume markdown ingestion requires strict approval gating.",
+        "## 2. Outbox Transaction Design",
+        "```ts",
+        codeLines,
+        "```",
+        "## 3. Benchmarks & Rollout",
+        "Latency stayed below 40ms p99.",
+      ].join("\n\n"),
+    };
+
+    api.mockResolvedValue({
+      data: [longMarkdownNote, secondNote],
+      pagination: { page: 1, pageSize: 50, totalItems: 2, totalPages: 1 },
+    });
+
+    mount();
+    expect(
+      await screen.findByRole("heading", {
+        name: "Architecture & SAG Outbox Deep Dive",
+      }),
+    ).toBeVisible();
+
+    const outlineNav = screen.getByTestId("section-outline-bar");
+    expect(outlineNav).toBeVisible();
+    expect(
+      within(outlineNav).getByRole("button", { name: "1. Context & Problem" }),
+    ).toBeVisible();
+    expect(
+      within(outlineNav).getByRole("button", { name: "3. Benchmarks & Rollout" }),
+    ).toBeVisible();
+
+    const expandCodeBtn = screen.getByRole("button", {
+      name: "Show all 26 lines",
+    });
+    expect(expandCodeBtn).toBeVisible();
+    fireEvent.click(expandCodeBtn);
+    expect(
+      screen.getByRole("button", { name: "Collapse code" }),
+    ).toBeVisible();
+
+    // Selecting the short legacy note hides SectionOutlineBar cleanly
+    fireEvent.click(
+      screen.getByRole("heading", { name: "Refactored sidebar navigation" }),
+    );
+    expect(screen.queryByTestId("section-outline-bar")).not.toBeInTheDocument();
+
+    // Resizable split column supports keyboard resize and double-click reset
+    const resizer = screen.getByTestId("split-workbench-resizer");
+    expect(resizer).toHaveAttribute("aria-valuenow", "360");
+    fireEvent.keyDown(resizer, { key: "ArrowRight" });
+    expect(resizer).toHaveAttribute("aria-valuenow", "376");
+    fireEvent.doubleClick(resizer);
+    expect(resizer).toHaveAttribute("aria-valuenow", "360");
   });
 });

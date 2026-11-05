@@ -501,7 +501,10 @@ export function useWorkNoteComposer(
       setAgentBusy(false);
     }
   }
-  async function save(confirmed: boolean) {
+  async function save(
+    confirmed: boolean,
+    options?: Readonly<{ autoApprove?: boolean }>,
+  ) {
     setError("");
     committing.current = true;
     setSaving(true);
@@ -513,6 +516,7 @@ export function useWorkNoteComposer(
         d.revision,
         confirmed,
         aiChatSource ?? null,
+        ...(options?.autoApprove !== undefined ? [options.autoApprove] : []),
       ]);
       if (saveRequest.current?.signature !== signature)
         saveRequest.current = { signature, operationId: crypto.randomUUID() };
@@ -521,6 +525,9 @@ export function useWorkNoteComposer(
         expectedRevision: d.revision,
         discardOriginalConfirmed: confirmed,
         ...(aiChatSource ? { aiChatSource } : {}),
+        ...(options?.autoApprove !== undefined
+          ? { autoApprove: options.autoApprove }
+          : {}),
       });
       closedDraft.current = true;
       alive.current = false;
