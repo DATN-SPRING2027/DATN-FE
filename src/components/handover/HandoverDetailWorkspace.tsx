@@ -14,6 +14,7 @@ import {
   useProjectMembersQuery,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import {
   useCancelHandoverMutation,
   useCompleteHandoverMutation,
@@ -204,6 +205,7 @@ export default function HandoverDetailWorkspace({
     },
     { allPages: true },
   );
+  const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
   const candidatesQuery = useProjectMemberCandidatesQuery(
     organizationId,
     projectId,
@@ -242,12 +244,78 @@ export default function HandoverDetailWorkspace({
   const membersById = useMemo(() => {
     const map = new Map<string, ProjectMembership>();
     for (const m of members) map.set(m.userId, m);
+    for (const leader of leadersQuery.data ?? []) {
+      if (!map.has(leader.userId)) {
+        map.set(leader.userId, {
+          id: `leader-${leader.userId}`,
+          organizationId,
+          projectId,
+          userId: leader.userId,
+          status: leader.status,
+          joinedAt: "",
+          user: {
+            id: leader.userId,
+            fullName: leader.fullName,
+            email: leader.email,
+            avatarUrl: leader.avatarUrl,
+          },
+        });
+      }
+    }
     return map;
-  }, [members]);
+  }, [leadersQuery.data, members, organizationId, projectId]);
+
+  const verifiedLeadersMap = useMemo(() => {
+    const map = new Map<string, HandoverMemberOption>();
+    for (const leader of leadersQuery.data ?? []) {
+      if (leader.status !== "ACTIVE") continue;
+      map.set(leader.userId, {
+        userId: leader.userId,
+        fullName:
+          leader.fullName.trim() ||
+          leader.email.trim() ||
+          `User ${leader.userId.slice(0, 6)}`,
+        email: leader.email.trim() || undefined,
+        avatarUrl: leader.avatarUrl,
+        status: "ACTIVE",
+        roleCode: "TEAM_LEADER",
+        isCurrentUser: Boolean(
+          currentUserId && leader.userId === currentUserId,
+        ),
+      });
+    }
+    for (const member of activeMembers) {
+      const rawRole = (member as { role?: unknown; roleCode?: unknown }).role ??
+        (member as { roleCode?: unknown }).roleCode;
+      const role = typeof rawRole === "string" ? rawRole.toUpperCase() : "";
+      if (
+        (role === "TEAM_LEADER" || role === "LEADER") &&
+        !map.has(member.userId)
+      ) {
+        map.set(member.userId, {
+          userId: member.userId,
+          fullName: formatMemberOptionLabel(member),
+          email: member.user?.email?.trim() || undefined,
+          avatarUrl: member.user?.avatarUrl ?? null,
+          status: member.status,
+          roleCode: "TEAM_LEADER",
+          isCurrentUser: Boolean(
+            currentUserId && member.userId === currentUserId,
+          ),
+        });
+      }
+    }
+    return map;
+  }, [activeMembers, currentUserId, leadersQuery.data]);
 
   const coordinatorSelectOptions = useMemo<readonly HandoverMemberOption[]>(
-    () =>
-      activeMembers
+    () => {
+      if (verifiedLeadersMap.size > 0) {
+        return Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+          a.fullName.localeCompare(b.fullName),
+        );
+      }
+      return activeMembers
         .map((m) => ({
           userId: m.userId,
           fullName: formatMemberOptionLabel(m),
@@ -257,8 +325,9 @@ export default function HandoverDetailWorkspace({
           roleCode: (m as { role?: string }).role,
           isCurrentUser: Boolean(currentUserId && m.userId === currentUserId),
         }))
-        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
-    [activeMembers, currentUserId],
+        .sort((a, b) => a.fullName.localeCompare(b.fullName));
+    },
+    [activeMembers, currentUserId, verifiedLeadersMap],
   );
 
   const encodedProjectId = encodeURIComponent(projectId);

@@ -103,10 +103,15 @@ function projectPath(projectId: string) {
 export function useProjectLeadersQuery(
   organizationId: string,
   projectId: string,
+  options: { enabled?: boolean } = {},
 ) {
   return useQuery({
     queryKey: projectLeaderKeys.scope(organizationId, projectId),
-    enabled: Boolean(organizationId && isResourceId(projectId)),
+    enabled: Boolean(
+      organizationId &&
+        isResourceId(projectId) &&
+        (options.enabled ?? true),
+    ),
     retry: false,
     staleTime: 15_000,
     gcTime: 120_000,
