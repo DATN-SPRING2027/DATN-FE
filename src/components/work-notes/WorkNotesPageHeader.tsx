@@ -80,9 +80,12 @@ export default function WorkNotesPageHeader({
         : t("reports.description");
 
   return (
-    <header className="mb-6 space-y-4">
+    <header className="mb-4 space-y-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
-        <nav aria-label={t("breadcrumb")} className="flex flex-wrap items-center gap-1.5">
+        <nav
+          aria-label={t("breadcrumb")}
+          className="flex flex-wrap items-center gap-1.5"
+        >
           <Link
             href="/projects"
             className="font-medium text-gray-500 transition-colors hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:text-gray-200"
@@ -102,7 +105,7 @@ export default function WorkNotesPageHeader({
             /
           </span>
           <span className="font-semibold text-gray-900 dark:text-white">
-            {t("title")}
+            {headingText}
           </span>
         </nav>
 
@@ -118,11 +121,11 @@ export default function WorkNotesPageHeader({
         </Link>
       </div>
 
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-gray-900 sm:text-2xl dark:text-white">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+        <h1 className="text-lg font-semibold tracking-tight text-gray-900 sm:text-xl dark:text-white">
           {headingText}
         </h1>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-gray-600 dark:text-gray-400">
+        <p className="max-w-2xl text-xs leading-5 text-gray-500 dark:text-gray-400">
           {descriptionText}
         </p>
       </div>
@@ -136,7 +139,7 @@ export default function WorkNotesPageHeader({
             key={link.id}
             href={link.href}
             aria-current={active === link.id ? "page" : undefined}
-            className={`shrink-0 border-b-2 px-3.5 py-2.5 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+            className={`shrink-0 border-b-2 px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
               active === link.id
                 ? "border-brand-500 text-brand-700 dark:text-brand-300"
                 : "border-transparent text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"

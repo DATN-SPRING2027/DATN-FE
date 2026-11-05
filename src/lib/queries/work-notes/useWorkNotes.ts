@@ -10,6 +10,8 @@ export type WorkNotePermissions = Readonly<{
   canSubmit: boolean;
   canReview: boolean;
   canConfigure: boolean;
+  canControlKnowledge?: boolean;
+  canPurgeArtifact?: boolean;
 }>;
 
 export type WorkNotesPage<T> = Readonly<{
@@ -27,6 +29,7 @@ export type TaskNoteInput = Readonly<{
   accomplishments: string;
   approach: string;
   reason: string;
+  autoApprove?: boolean;
 }>;
 
 export type TaskNoteAiChatCitation = Readonly<{
@@ -62,6 +65,19 @@ export type TaskNoteAiChatSourceInput = Omit<
   citations: readonly Omit<TaskNoteAiChatCitation, "documentName">[];
 };
 
+export type TaskNoteReviewStatus =
+  | "PENDING_REVIEW"
+  | "APPROVED"
+  | "CHANGES_REQUESTED"
+  | "REJECTED";
+
+export type ArtifactFileMetadata = Readonly<{
+  name: string;
+  contentType: string;
+  size: number;
+  sha256?: string;
+}>;
+
 export type TaskNote = Readonly<{
   title: string;
   accomplishments?: string;
@@ -80,6 +96,16 @@ export type TaskNote = Readonly<{
   authorName: string;
   type: "TASK_NOTE";
   status: "CONFIRMED";
+  reviewStatus?: TaskNoteReviewStatus;
+  submittedAt?: string;
+  reviewedBy?: string;
+  reviewerName?: string;
+  reviewedAt?: string;
+  reviewComment?: string;
+  reviewHistory?: readonly ReviewEvent[];
+  file?: ArtifactFileMetadata;
+  storageReference?: DocumentStorageReference;
+  knowledgeSync?: DocumentKnowledgeStatus;
   createdAt: string;
   updatedAt: string;
   permissions: WorkNotePermissions;
@@ -114,10 +140,7 @@ export type ProjectDocumentInput = Readonly<{
 }>;
 
 export type DocumentKnowledgeControlAction =
-  | "PAUSE"
-  | "RESUME"
-  | "REPROCESS"
-  | "REVOKE";
+  "PAUSE" | "RESUME" | "REPROCESS" | "REVOKE";
 
 export type DocumentKnowledgeStatus = Readonly<{
   documentId: string;
@@ -145,7 +168,10 @@ export type DocumentKnowledgeStatus = Readonly<{
   tokenUsage?: number;
   fileHash?: string;
   deduplicatedStorage?: boolean;
-  stageProgress?: Record<string, { status: string; duration_ms?: number }> | null;
+  stageProgress?: Record<
+    string,
+    { status: string; duration_ms?: number }
+  > | null;
   error?: Record<string, unknown> | string | null;
   lastError?: string | null;
   syncedAt?: string;
@@ -219,6 +245,48 @@ export type DeleteProjectDocumentResult = Readonly<{
   sagRevoked: boolean;
   r2DeletedKeys: number;
   r2RetainedSharedKeys: number;
+}>;
+
+export type PurgeArtifactResult = Readonly<{
+  entityId: string;
+  status: string;
+  sagRevoked: boolean;
+  r2DeletedKeys: number;
+  r2RetainedSharedKeys: number;
+}>;
+
+export type BulkTaskNoteGovernanceAction =
+  | "APPROVE"
+  | "REQUEST_CHANGES"
+  | "REJECT"
+  | "SYNC"
+  | "PAUSE"
+  | "RESUME"
+  | "REPROCESS"
+  | "REVOKE"
+  | "PURGE_ARTIFACT"
+  | "DELETE";
+
+export type BulkWorkReportGovernanceAction =
+  | "APPROVE"
+  | "REQUEST_CHANGES"
+  | "REJECT"
+  | "SYNC"
+  | "PAUSE"
+  | "RESUME"
+  | "REPROCESS"
+  | "REVOKE"
+  | "PURGE_ARTIFACT"
+  | "REOPEN";
+
+export type BulkGovernanceResult = Readonly<{
+  action: string;
+  requestedCount: number;
+  succeededIds: readonly string[];
+  failed: readonly Readonly<{
+    id: string;
+    message: string;
+  }>[];
 }>;
 
 export type ProjectDocumentSummary = Readonly<{
@@ -324,6 +392,11 @@ export type WorkReport = WorkReportInput &
   Readonly<{
     title?: string;
     contentMarkdown?: string;
+    accomplishments?: string;
+    approach?: string;
+    reason?: string;
+    blockers?: string;
+    nextSteps?: string;
     contentSchemaVersion?: 2;
     currentVersionNumber?: number;
     id: string;
@@ -340,9 +413,13 @@ export type WorkReport = WorkReportInput &
     updatedAt: string;
     submittedAt?: string;
     reviewedBy?: string;
+    reviewerName?: string;
     reviewedAt?: string;
     reviewComment?: string;
     reviewHistory: readonly ReviewEvent[];
+    file?: ArtifactFileMetadata;
+    storageReference?: DocumentStorageReference;
+    knowledgeSync?: DocumentKnowledgeStatus;
     permissions: WorkNotePermissions;
   }>;
 
@@ -379,6 +456,63 @@ type ListOptions = Readonly<{ page?: number; pageSize?: number }>;
 type DocumentAction =
   "submit" | "comment" | "approve" | "request-changes" | "reject" | "archive";
 type ReportAction = "submit" | "approve" | "request-changes" | "reject";
+type TaskNoteAction = "approve" | "request-changes" | "reject";
+
+async function downloadCaptureArtifactBlob(
+  basePath: string,
+  version?: number,
+): Promise<Blob> {
+  const urlParams = new URLSearchParams();
+  if (typeof version === "number") {
+    urlParams.set("version", String(version));
+  }
+  urlParams.set("format", "url");
+  try {
+    const descriptorResponse = await fetch(
+      `/api/backend${basePath}?${urlParams.toString()}`,
+      {
+        credentials: "include",
+        cache: "no-store",
+      },
+    );
+    if (descriptorResponse.ok) {
+      const descriptor =
+        (await descriptorResponse.json()) as DocumentDownloadUrlResponse;
+      if (descriptor.mode === "DIRECT_GET" && descriptor.downloadUrl) {
+        try {
+          const directResponse = await fetch(descriptor.downloadUrl, {
+            credentials: "omit",
+            cache: "no-store",
+          });
+          if (directResponse.ok) {
+            return directResponse.blob();
+          }
+        } catch {
+          // Fall through to authenticated proxy download if R2 CORS is not enabled in local dev
+        }
+      }
+    }
+  } catch {
+    // Fall through to proxy download
+  }
+
+  const proxyParams = new URLSearchParams();
+  if (typeof version === "number") {
+    proxyParams.set("version", String(version));
+  }
+  proxyParams.set("proxy", "true");
+  const response = await fetch(
+    `/api/backend${basePath}?${proxyParams.toString()}`,
+    {
+      credentials: "include",
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) {
+    throw new Error(`Could not download artifact file (${response.status}).`);
+  }
+  return response.blob();
+}
 
 export function csrfHeaders(): HeadersInit {
   if (typeof document === "undefined") return {};
@@ -415,6 +549,25 @@ export const workNoteKeys = {
     [...workNoteKeys.project(projectId), "task", taskId] as const,
   note: (projectId: string, noteId: string) =>
     [...workNoteKeys.project(projectId), "note", noteId] as const,
+  noteKnowledgeStatus: (projectId: string, noteId: string) =>
+    [
+      ...workNoteKeys.project(projectId),
+      "note",
+      noteId,
+      "knowledge-status",
+    ] as const,
+  noteKnowledgeChunks: (
+    projectId: string,
+    noteId: string,
+    version?: number,
+  ) =>
+    [
+      ...workNoteKeys.project(projectId),
+      "note",
+      noteId,
+      "knowledge-chunks",
+      version ?? "latest",
+    ] as const,
   projectNotes: (projectId: string, page: number) =>
     [...workNoteKeys.project(projectId), "list", page] as const,
   documents: (
@@ -467,6 +620,25 @@ export const workNoteKeys = {
     scope === "LEADER"
       ? ([...workNoteKeys.project(projectId), "settings", "LEADER"] as const)
       : ([...workNoteKeys.project(projectId), "settings"] as const),
+  reportKnowledgeStatus: (projectId: string, reportId: string) =>
+    [
+      ...workNoteKeys.project(projectId),
+      "report",
+      reportId,
+      "knowledge-status",
+    ] as const,
+  reportKnowledgeChunks: (
+    projectId: string,
+    reportId: string,
+    version?: number,
+  ) =>
+    [
+      ...workNoteKeys.project(projectId),
+      "report",
+      reportId,
+      "knowledge-chunks",
+      version ?? "latest",
+    ] as const,
 };
 
 export const workNotesApi = {
@@ -476,9 +648,18 @@ export const workNotesApi = {
       { signal, cache: "no-store" },
     );
   },
-  listProjectTaskNotes(projectId: string, page: number, signal?: AbortSignal) {
+  listProjectTaskNotes(
+    projectId: string,
+    page: number,
+    signal?: AbortSignal,
+    reviewStatus?: TaskNoteReviewStatus | "ALL",
+  ) {
+    const params = new URLSearchParams(listQuery({ page, pageSize: 50 }));
+    if (reviewStatus && reviewStatus !== "ALL") {
+      params.set("reviewStatus", reviewStatus);
+    }
     return apiClient<WorkNotesPage<TaskNote>>(
-      `${projectPath(projectId)}/work-notes?${listQuery({ page, pageSize: 50 })}`,
+      `${projectPath(projectId)}/work-notes?${params.toString()}`,
       { signal, cache: "no-store" },
     );
   },
@@ -486,6 +667,135 @@ export const workNotesApi = {
     return apiClient<TaskNote>(
       `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}`,
       { signal, cache: "no-store" },
+    );
+  },
+  taskNoteAction(
+    projectId: string,
+    noteId: string,
+    action: TaskNoteAction,
+    comment?: string,
+  ) {
+    return apiClient<TaskNote>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/${action}`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ ...(comment ? { comment } : {}) }),
+      },
+    );
+  },
+  getTaskNoteKnowledgeStatus(
+    projectId: string,
+    noteId: string,
+    signal?: AbortSignal,
+  ) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/knowledge-status`,
+      {
+        signal,
+        cache: "no-store",
+      },
+    );
+  },
+  getTaskNoteKnowledgeChunks(
+    projectId: string,
+    noteId: string,
+    options?: Readonly<{
+      limit?: number;
+      offset?: number;
+      signal?: AbortSignal;
+    }>,
+  ) {
+    const params = new URLSearchParams();
+    if (typeof options?.limit === "number") {
+      params.set("limit", String(options.limit));
+    }
+    if (typeof options?.offset === "number" && options.offset > 0) {
+      params.set("offset", String(options.offset));
+    }
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    return apiClient<DocumentKnowledgeChunksResponse>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/knowledge-chunks${query}`,
+      {
+        signal: options?.signal,
+        cache: "no-store",
+      },
+    );
+  },
+  syncTaskNoteToSag(projectId: string, noteId: string) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/knowledge-sync`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+      },
+    );
+  },
+  controlTaskNoteKnowledge(
+    projectId: string,
+    noteId: string,
+    action: DocumentKnowledgeControlAction,
+  ) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/knowledge-control`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ action }),
+      },
+    );
+  },
+  downloadTaskNoteFile(projectId: string, noteId: string) {
+    const basePath = `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/file`;
+    return downloadCaptureArtifactBlob(basePath);
+  },
+  deleteProjectTaskNote(projectId: string, noteId: string) {
+    return apiClient<PurgeArtifactResult>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}`,
+      {
+        method: "DELETE",
+        headers: csrfHeaders(),
+      },
+    );
+  },
+  purgeTaskNoteFile(
+    projectId: string,
+    noteId: string,
+    options?: Readonly<{ reopen?: boolean; comment?: string }>,
+  ) {
+    const query = options?.reopen ? "?reopen=true" : "";
+    return apiClient<PurgeArtifactResult>(
+      `${projectPath(projectId)}/work-notes/${encodeURIComponent(noteId)}/file${query}`,
+      {
+        method: "DELETE",
+        headers: csrfHeaders(),
+        ...(options?.comment || options?.reopen
+          ? {
+              body: JSON.stringify({
+                ...(options.reopen ? { reopen: true } : {}),
+                ...(options.comment ? { comment: options.comment } : {}),
+              }),
+            }
+          : {}),
+      },
+    );
+  },
+  bulkTaskNoteAction(
+    projectId: string,
+    input: Readonly<{
+      ids: readonly string[];
+      action: BulkTaskNoteGovernanceAction;
+      comment?: string;
+      reopen?: boolean;
+    }>,
+  ) {
+    return apiClient<BulkGovernanceResult>(
+      `${projectPath(projectId)}/work-notes/bulk-action`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
+      },
     );
   },
   createTaskNote(projectId: string, taskId: string, input: TaskNoteInput) {
@@ -666,7 +976,11 @@ export const workNotesApi = {
   getDocumentKnowledgeChunks(
     projectId: string,
     documentId: string,
-    options?: Readonly<{ limit?: number; offset?: number; signal?: AbortSignal }>,
+    options?: Readonly<{
+      limit?: number;
+      offset?: number;
+      signal?: AbortSignal;
+    }>,
   ) {
     const params = new URLSearchParams();
     if (typeof options?.limit === "number") {
@@ -707,61 +1021,13 @@ export const workNotesApi = {
       },
     );
   },
-  async downloadDocumentFile(
+  downloadDocumentFile(
     projectId: string,
     documentId: string,
     version?: number,
   ) {
     const basePath = `${projectPath(projectId)}/documents/${encodeURIComponent(documentId)}/file`;
-    const urlParams = new URLSearchParams();
-    if (typeof version === "number") {
-      urlParams.set("version", String(version));
-    }
-    urlParams.set("format", "url");
-    try {
-      const descriptorResponse = await fetch(
-        `/api/backend${basePath}?${urlParams.toString()}`,
-        {
-          credentials: "include",
-          cache: "no-store",
-        },
-      );
-      if (descriptorResponse.ok) {
-        const descriptor =
-          (await descriptorResponse.json()) as DocumentDownloadUrlResponse;
-        if (descriptor.mode === "DIRECT_GET" && descriptor.downloadUrl) {
-          try {
-            const directResponse = await fetch(descriptor.downloadUrl, {
-              credentials: "omit",
-              cache: "no-store",
-            });
-            if (directResponse.ok) {
-              return directResponse.blob();
-            }
-          } catch {
-            // Fall through to authenticated proxy download if R2 CORS is not enabled in local dev
-          }
-        }
-      }
-    } catch {
-      // Fall through to proxy download
-    }
-
-    const proxyParams = new URLSearchParams();
-    if (typeof version === "number") {
-      proxyParams.set("version", String(version));
-    }
-    proxyParams.set("proxy", "true");
-    const response = await fetch(
-      `/api/backend${basePath}?${proxyParams.toString()}`,
-      {
-        credentials: "include",
-        cache: "no-store",
-      },
-    );
-    if (!response.ok)
-      throw new Error(`Could not download document file (${response.status}).`);
-    return response.blob();
+    return downloadCaptureArtifactBlob(basePath, version);
   },
   documentAction(
     projectId: string,
@@ -875,6 +1141,7 @@ export const workNotesApi = {
     reportId: string,
     action: ReportAction,
     comment?: string,
+    options?: Readonly<{ autoApprove?: boolean }>,
   ) {
     return apiClient<WorkReport>(
       `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/${action}`,
@@ -885,7 +1152,114 @@ export const workNotesApi = {
         action === "request-changes" ||
         action === "reject"
           ? { body: JSON.stringify({ ...(comment ? { comment } : {}) }) }
+          : action === "submit" && options?.autoApprove !== undefined
+            ? { body: JSON.stringify({ autoApprove: options.autoApprove }) }
+            : {}),
+      },
+    );
+  },
+  getWorkReportKnowledgeStatus(
+    projectId: string,
+    reportId: string,
+    signal?: AbortSignal,
+  ) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/knowledge-status`,
+      {
+        signal,
+        cache: "no-store",
+      },
+    );
+  },
+  getWorkReportKnowledgeChunks(
+    projectId: string,
+    reportId: string,
+    options?: Readonly<{
+      limit?: number;
+      offset?: number;
+      signal?: AbortSignal;
+    }>,
+  ) {
+    const params = new URLSearchParams();
+    if (typeof options?.limit === "number") {
+      params.set("limit", String(options.limit));
+    }
+    if (typeof options?.offset === "number" && options.offset > 0) {
+      params.set("offset", String(options.offset));
+    }
+    const query = params.size > 0 ? `?${params.toString()}` : "";
+    return apiClient<DocumentKnowledgeChunksResponse>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/knowledge-chunks${query}`,
+      {
+        signal: options?.signal,
+        cache: "no-store",
+      },
+    );
+  },
+  syncWorkReportToSag(projectId: string, reportId: string) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/knowledge-sync`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+      },
+    );
+  },
+  controlWorkReportKnowledge(
+    projectId: string,
+    reportId: string,
+    action: DocumentKnowledgeControlAction,
+  ) {
+    return apiClient<DocumentKnowledgeStatus>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/knowledge-control`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify({ action }),
+      },
+    );
+  },
+  downloadWorkReportFile(projectId: string, reportId: string) {
+    const basePath = `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file`;
+    return downloadCaptureArtifactBlob(basePath);
+  },
+  purgeWorkReportFile(
+    projectId: string,
+    reportId: string,
+    options?: Readonly<{ reopen?: boolean; comment?: string }>,
+  ) {
+    const query = options?.reopen ? "?reopen=true" : "";
+    return apiClient<PurgeArtifactResult>(
+      `${projectPath(projectId)}/work-reports/${encodeURIComponent(reportId)}/file${query}`,
+      {
+        method: "DELETE",
+        headers: csrfHeaders(),
+        ...(options?.comment || options?.reopen
+          ? {
+              body: JSON.stringify({
+                ...(options.reopen ? { reopen: true } : {}),
+                ...(options.comment ? { comment: options.comment } : {}),
+              }),
+            }
           : {}),
+      },
+    );
+  },
+  bulkWorkReportAction(
+    projectId: string,
+    input: Readonly<{
+      ids: readonly string[];
+      action: BulkWorkReportGovernanceAction;
+      comment?: string;
+      reopen?: boolean;
+    }>,
+  ) {
+    return apiClient<BulkGovernanceResult>(
+      `${projectPath(projectId)}/work-reports/bulk-action`,
+      {
+        method: "POST",
+        headers: csrfHeaders(),
+        body: JSON.stringify(input),
       },
     );
   },
@@ -899,17 +1273,51 @@ export function useTaskNotesQuery(projectId: string, taskId: string) {
     enabled: isWorkNoteId(projectId) && isWorkNoteId(taskId),
     retry: false,
     staleTime: 0,
+    refetchInterval: (query) => {
+      const items = query.state.data?.data;
+      if (
+        items?.some(
+          (item) =>
+            (item.reviewStatus ?? "PENDING_REVIEW") === "APPROVED" &&
+            isKnowledgeSyncActive(item.knowledgeSync),
+        )
+      ) {
+        return 1200;
+      }
+      return false;
+    },
   });
 }
 
-export function useProjectTaskNotesQuery(projectId: string, page: number) {
+export function useProjectTaskNotesQuery(
+  projectId: string,
+  page: number,
+  reviewStatus?: TaskNoteReviewStatus | "ALL",
+) {
+  const key =
+    reviewStatus && reviewStatus !== "ALL"
+      ? ([...workNoteKeys.projectNotes(projectId, page), reviewStatus] as const)
+      : workNoteKeys.projectNotes(projectId, page);
   return useQuery({
-    queryKey: workNoteKeys.projectNotes(projectId, page),
+    queryKey: key,
     queryFn: ({ signal }) =>
-      workNotesApi.listProjectTaskNotes(projectId, page, signal),
+      workNotesApi.listProjectTaskNotes(projectId, page, signal, reviewStatus),
     enabled: isWorkNoteId(projectId),
     retry: false,
     staleTime: 0,
+    refetchInterval: (query) => {
+      const items = query.state.data?.data;
+      if (
+        items?.some(
+          (item) =>
+            (item.reviewStatus ?? "PENDING_REVIEW") === "APPROVED" &&
+            isKnowledgeSyncActive(item.knowledgeSync),
+        )
+      ) {
+        return 1200;
+      }
+      return false;
+    },
   });
 }
 
@@ -924,6 +1332,42 @@ export function useProjectTaskNoteQuery(projectId: string, noteId: string) {
   });
 }
 
+export function useTaskNoteKnowledgeStatusQuery(
+  projectId: string,
+  noteId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: workNoteKeys.noteKnowledgeStatus(projectId, noteId),
+    queryFn: ({ signal }) =>
+      workNotesApi.getTaskNoteKnowledgeStatus(projectId, noteId, signal),
+    enabled: isWorkNoteId(projectId) && isWorkNoteId(noteId) && enabled,
+    retry: false,
+    staleTime: 0,
+    refetchInterval: (query) =>
+      isKnowledgeSyncActive(query.state.data) ? 650 : false,
+  });
+}
+
+export function useTaskNoteKnowledgeChunksQuery(
+  projectId: string,
+  noteId: string,
+  enabled = true,
+  version?: number,
+) {
+  return useQuery({
+    queryKey: workNoteKeys.noteKnowledgeChunks(projectId, noteId, version),
+    queryFn: ({ signal }) =>
+      workNotesApi.getTaskNoteKnowledgeChunks(projectId, noteId, {
+        limit: 100,
+        signal,
+      }),
+    enabled: isWorkNoteId(projectId) && isWorkNoteId(noteId) && enabled,
+    retry: false,
+    staleTime: 30_000,
+  });
+}
+
 const ACTIVE_INGESTION_STATUSES = new Set([
   "QUEUED_OUTBOX",
   "QUEUED",
@@ -935,11 +1379,21 @@ const ACTIVE_INGESTION_STATUSES = new Set([
   "PROCESSING",
 ]);
 
-function isKnowledgeSyncActive(sync?: DocumentKnowledgeStatus): boolean {
+const SETTLED_KNOWLEDGE_STATUSES = new Set([
+  "DATA_READY",
+  "KNOWLEDGE_READY",
+  "READY",
+]);
+
+export function isKnowledgeSyncActive(sync?: DocumentKnowledgeStatus): boolean {
   if (!sync) return false;
   const normalized = (sync.status ?? "").toUpperCase();
   const stage = (sync.currentStage ?? "").toUpperCase();
   const docStatus = (sync.documentStatus ?? "").toUpperCase();
+  const knowledgeStatus = (sync.knowledgeStatus ?? "").toUpperCase();
+  const isKnowledgeSettled =
+    sync.knowledgeReady === true ||
+    SETTLED_KNOWLEDGE_STATUSES.has(knowledgeStatus);
 
   if (stage === "PAUSING" || docStatus === "PAUSING") {
     return true;
@@ -964,11 +1418,10 @@ function isKnowledgeSyncActive(sync?: DocumentKnowledgeStatus): boolean {
   }
   if (ACTIVE_INGESTION_STATUSES.has(normalized)) return true;
   if (
-    normalized === "SEARCH_READY" &&
-    sync.knowledgeReady === false &&
-    typeof sync.knowledgeStatus === "string" &&
-    ["PROCESSING", "EXTRACTING", "QUEUED", "RUNNING"].includes(
-      sync.knowledgeStatus.toUpperCase(),
+    (normalized === "SEARCH_READY" || sync.searchReady === true) &&
+    !isKnowledgeSettled &&
+    ["PROCESSING", "EXTRACTING", "QUEUED", "RUNNING", "PENDING"].includes(
+      knowledgeStatus,
     )
   ) {
     return true;
@@ -990,7 +1443,13 @@ export function useDocumentsQuery(
     staleTime: 0,
     refetchInterval: (query) => {
       const items = query.state.data?.data;
-      if (items?.some((item) => item.status === "APPROVED" && isKnowledgeSyncActive(item.knowledgeSync))) {
+      if (
+        items?.some(
+          (item) =>
+            item.status === "APPROVED" &&
+            isKnowledgeSyncActive(item.knowledgeSync),
+        )
+      ) {
         return 1200;
       }
       return false;
@@ -1159,7 +1618,10 @@ function uploadDocumentFileLegacyProxy(
     for (const [key, value] of Object.entries(csrf)) {
       xhr.setRequestHeader(key, value);
     }
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.setRequestHeader(
+      "Content-Type",
+      file.type || "application/octet-stream",
+    );
     xhr.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
     if (options?.sha256) {
       xhr.setRequestHeader("X-Content-Sha256", options.sha256);
@@ -1183,8 +1645,8 @@ function uploadDocumentFileLegacyProxy(
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && options?.onProgress) {
         const percent = Math.min(
-          100,
-          Math.round((event.loaded / Math.max(1, event.total)) * 100),
+          98,
+          Math.round((event.loaded / Math.max(1, event.total)) * 98),
         );
         options.onProgress(percent, event.loaded, event.total);
       }
@@ -1194,7 +1656,9 @@ function uploadDocumentFileLegacyProxy(
       options?.signal?.removeEventListener("abort", onAbort);
       if (xhr.status >= 200 && xhr.status < 300) {
         try {
-          resolve(JSON.parse(xhr.responseText) as ProjectDocument);
+          const parsed = JSON.parse(xhr.responseText) as ProjectDocument;
+          options?.onProgress?.(100, file.size, file.size);
+          resolve(parsed);
         } catch {
           reject(new Error("Invalid response payload from document upload."));
         }
@@ -1358,6 +1822,55 @@ export function useWorkReportsQuery(
     enabled: isWorkNoteId(projectId) && enabled,
     retry: false,
     staleTime: 0,
+    refetchInterval: (query) => {
+      const items = query.state.data?.data;
+      if (
+        items?.some(
+          (item) =>
+            item.status === "APPROVED" &&
+            isKnowledgeSyncActive(item.knowledgeSync),
+        )
+      ) {
+        return 1200;
+      }
+      return false;
+    },
+  });
+}
+
+export function useWorkReportKnowledgeStatusQuery(
+  projectId: string,
+  reportId: string,
+  enabled = true,
+) {
+  return useQuery({
+    queryKey: workNoteKeys.reportKnowledgeStatus(projectId, reportId),
+    queryFn: ({ signal }) =>
+      workNotesApi.getWorkReportKnowledgeStatus(projectId, reportId, signal),
+    enabled: isWorkNoteId(projectId) && isWorkNoteId(reportId) && enabled,
+    retry: false,
+    staleTime: 0,
+    refetchInterval: (query) =>
+      isKnowledgeSyncActive(query.state.data) ? 650 : false,
+  });
+}
+
+export function useWorkReportKnowledgeChunksQuery(
+  projectId: string,
+  reportId: string,
+  enabled = true,
+  version?: number,
+) {
+  return useQuery({
+    queryKey: workNoteKeys.reportKnowledgeChunks(projectId, reportId, version),
+    queryFn: ({ signal }) =>
+      workNotesApi.getWorkReportKnowledgeChunks(projectId, reportId, {
+        limit: 100,
+        signal,
+      }),
+    enabled: isWorkNoteId(projectId) && isWorkNoteId(reportId) && enabled,
+    retry: false,
+    staleTime: 30_000,
   });
 }
 

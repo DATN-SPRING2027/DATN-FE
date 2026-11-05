@@ -403,3 +403,57 @@ it("delegates New note and Edit to splitControl without opening a modal when hos
     vi.unstubAllEnvs();
   }
 });
+
+it("shows short-content guardrail (< 30 chars) and sends autoApprove: false when toggled to Pending Review in TaskNotesPanel", async () => {
+  api.mockImplementation(async (_path, options) => {
+    if (options?.method === "POST") {
+      return { ...note, reviewStatus: "PENDING_REVIEW" } as never;
+    }
+    return {
+      data: [],
+      pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+    } as never;
+  });
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Add first note" }));
+
+  fireEvent.change(await screen.findByLabelText("Title"), {
+    target: { value: "a" },
+  });
+  fireEvent.change(screen.getByLabelText("What was done"), {
+    target: { value: "a" },
+  });
+  fireEvent.change(screen.getByLabelText("How it was done"), {
+    target: { value: "a" },
+  });
+  fireEvent.change(screen.getByLabelText("Why this approach"), {
+    target: { value: "a" },
+  });
+
+  const toggle = screen.getByTestId("task-note-auto-approve-toggle");
+  expect(toggle).toHaveAttribute("aria-checked", "false");
+  expect(toggle).toHaveTextContent("PENDING_REVIEW");
+
+  const nudge = screen.getByTestId("task-note-short-content-nudge");
+  expect(nudge).toHaveTextContent("3/30");
+
+  // Saving directly while < 30 chars automatically sends autoApprove: false
+  fireEvent.click(screen.getByRole("button", { name: "Save note" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/tasks/${taskId}/notes`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          title: "a",
+          accomplishments: "a",
+          approach: "a",
+          reason: "a",
+          autoApprove: false,
+        }),
+      }),
+    ),
+  );
+});

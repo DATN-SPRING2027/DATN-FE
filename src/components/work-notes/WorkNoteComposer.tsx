@@ -118,6 +118,7 @@ export default function WorkNoteComposer({
     startFreshDraft,
   );
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [autoApprove, setAutoApprove] = useState(true);
   const [panelToggle, setPanelToggle] = useState<boolean | null>(null);
   const [assistantTabState, setAssistantTab] = useState<AssistantTab | null>(null);
   const [toolbarAiOpen, setToolbarAiOpen] = useState(false);
@@ -217,6 +218,11 @@ export default function WorkNoteComposer({
   const hasFields = fields !== null;
   const fieldTitle = fields?.title ?? "";
   const fieldBody = fields?.contentMarkdown ?? "";
+  const trimmedBodyLen = fieldBody.trim().length;
+  const isShortContent = trimmedBodyLen > 0 && trimmedBodyLen < 30;
+  const effectiveAutoApprove = autoApprove && !isShortContent;
+  const canAutoApproveOnSave = autoApprove && trimmedBodyLen >= 30;
+  const showShortContentNudge = !source && autoApprove && isShortContent;
   const preSendSecurity = useMemo(
     () =>
       hasFields
@@ -1487,9 +1493,69 @@ export default function WorkNoteComposer({
                   >
                     {t("discard")}
                   </button>
-                  <span className="min-w-0 flex-1 text-xs text-gray-500 dark:text-gray-400">
-                    {t("retention")}
-                  </span>
+                  <div className="min-w-0 flex-1 space-y-1 text-xs text-gray-500 dark:text-gray-400">
+                    {!source ? (
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={effectiveAutoApprove}
+                          data-testid="composer-auto-approve-toggle"
+                          onClick={() => setAutoApprove((prev) => !prev)}
+                          className={`inline-flex h-7 items-center gap-1.5 rounded-md border px-2.5 text-[11px] font-medium transition-colors ${
+                            effectiveAutoApprove
+                              ? "border-emerald-200/80 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-100/70 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-300"
+                              : "border-amber-200/80 bg-amber-50/70 text-amber-800 hover:bg-amber-100/70 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-300"
+                          }`}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                              effectiveAutoApprove
+                                ? "bg-emerald-500"
+                                : "bg-amber-500"
+                            }`}
+                          />
+                          <span>
+                            {t(
+                              effectiveAutoApprove
+                                ? "autoApproveToggleOn"
+                                : "autoApproveToggleOff",
+                            )}
+                          </span>
+                          <span
+                            className={`rounded px-1 py-0.5 font-mono text-[10px] font-semibold tabular-nums ${
+                              effectiveAutoApprove
+                                ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            }`}
+                          >
+                            {t(
+                              effectiveAutoApprove
+                                ? "autoApproveBadgeOn"
+                                : "autoApproveBadgeOff",
+                            )}
+                          </span>
+                        </button>
+                        {showShortContentNudge && (
+                          <button
+                            type="button"
+                            data-testid="composer-short-content-nudge"
+                            onClick={() => setAutoApprove(false)}
+                            className="inline-flex h-6 items-center gap-1 rounded-md border border-amber-300/80 bg-amber-50/90 px-2 text-[11px] font-medium text-amber-800 transition-colors hover:bg-amber-100 dark:border-amber-500/30 dark:bg-amber-500/15 dark:text-amber-200"
+                          >
+                            <span>
+                              {t("shortContentNudge", {
+                                count: trimmedBodyLen,
+                              })}
+                            </span>
+                          </button>
+                        )}
+                      </div>
+                    ) : (
+                      <p>{t("retention")}</p>
+                    )}
+                  </div>
                   {d?.noteId && (
                     <Button
                       size="sm"
@@ -1521,7 +1587,14 @@ export default function WorkNoteComposer({
                     onClick={() =>
                       d?.hasAppliedRewrite
                         ? setConfirmation("save")
-                        : void run(() => editor.save(false))
+                        : void run(() =>
+                            editor.save(
+                              false,
+                              !source && !canAutoApproveOnSave
+                                ? { autoApprove: false }
+                                : undefined,
+                            ),
+                          )
                     }
                   >
                     {t(source ? "saveDraft" : "save")}
@@ -2064,7 +2137,13 @@ export default function WorkNoteComposer({
                   disabled={busy || editor.saving}
                   onClick={() =>
                     void run(async () => {
-                      if (confirmation === "save") await editor.save(true);
+                      if (confirmation === "save")
+                        await editor.save(
+                          true,
+                          !source && !canAutoApproveOnSave
+                            ? { autoApprove: false }
+                            : undefined,
+                        );
                       else if (
                         confirmation === "restore" &&
                         restoreVersion !== null

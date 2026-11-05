@@ -211,6 +211,7 @@ export const agentApi = {
     value: RevisionOperation & {
       discardOriginalConfirmed: boolean;
       aiChatSource?: TaskNoteAiChatSourceInput;
+      autoApprove?: boolean;
     },
   ) =>
     mutate<Omit<TaskNote, "accomplishments" | "approach" | "reason">>(

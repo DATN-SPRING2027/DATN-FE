@@ -15,7 +15,9 @@ import type {
   DocumentKnowledgeStatus,
   ProjectDocument,
 } from "@/lib/queries/work-notes/useWorkNotes";
-import ProjectDocumentsWorkspace from "./ProjectDocumentsWorkspace";
+import ProjectDocumentsWorkspace, {
+  resolvePipelineDisplay,
+} from "./ProjectDocumentsWorkspace";
 
 vi.mock("@/lib/api-client", async (original) => ({
   ...(await original<typeof import("@/lib/api-client")>()),
@@ -252,9 +254,13 @@ it("supports Project Member 'Request document upload' flow with files embedded i
   fireEvent.drop(dropzoneFrame, {
     dataTransfer: {
       files: [
-        new File(["# System Architecture\nRBAC rules"], "system-architecture.md", {
-          type: "text/markdown",
-        }),
+        new File(
+          ["# System Architecture\nRBAC rules"],
+          "system-architecture.md",
+          {
+            type: "text/markdown",
+          },
+        ),
         new File(["PK\x03\x04"], "legacy-archive.zip", {
           type: "application/zip",
         }),
@@ -405,7 +411,9 @@ it("supports Project Leader 'Upload project documents' flow with SHA-256 dedupli
     await within(dialog).findByText("Already in project (duplicate SHA-256)"),
   ).toBeVisible();
 
-  fireEvent.click(within(dialog).getByRole("button", { name: "Upload 1 file" }));
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Upload 1 file" }),
+  );
   expect(
     await within(dialog).findByText("Uploaded · Processing started"),
   ).toBeVisible();
@@ -659,7 +667,9 @@ it("renders real SAG pipeline stages (5% -> 35% -> 65% -> Paused -> 85% -> 100%)
   expect(within(modal).getByText("85%")).toBeVisible();
 
   // Pause running pipeline -> renders Paused · 65% even though SAG version status is "RECEIVED"
-  fireEvent.click(within(modal).getByRole("button", { name: "Pause indexing" }));
+  fireEvent.click(
+    within(modal).getByRole("button", { name: "Pause indexing" }),
+  );
   expect(await within(modal).findByText("Paused")).toBeVisible();
   expect(within(modal).getByText("65%")).toBeVisible();
 
@@ -1149,9 +1159,7 @@ it("renders the two-column Document Detail Modal with SAG extracted chunks inspe
   expect(
     await within(dialog).findByText("Viewing Version 1 (Approved)"),
   ).toBeVisible();
-  expect(
-    within(dialog).getByText("Initial v1 database schema."),
-  ).toBeVisible();
+  expect(within(dialog).getByText("Initial v1 database schema.")).toBeVisible();
   expect(
     within(dialog).getAllByText("schema-v1.docx").length,
   ).toBeGreaterThanOrEqual(1);
@@ -1185,7 +1193,9 @@ it("renders the two-column Document Detail Modal with SAG extracted chunks inspe
   expect(await within(dialog).findByText("schema-v3.docx")).toBeVisible();
 
   fireEvent.click(within(dialog).getByRole("button", { name: "Upload v3" }));
-  expect((await within(dialog).findAllByText("v3")).length).toBeGreaterThanOrEqual(1);
+  expect(
+    (await within(dialog).findAllByText("v3")).length,
+  ).toBeGreaterThanOrEqual(1);
 });
 
 it("displays Cloudflare R2 SHA-256 reference-count badges and executes Tier 3 ref-count-safe permanent deletion", async () => {
@@ -1263,9 +1273,7 @@ it("displays Cloudflare R2 SHA-256 reference-count badges and executes Tier 3 re
   ).toBeVisible();
   expect(within(removalDialog).getByText("Ref-count safe")).toBeVisible();
   expect(
-    within(removalDialog).getByText(
-      "Tier 2 · Archive document (Governance)",
-    ),
+    within(removalDialog).getByText("Tier 2 · Archive document (Governance)"),
   ).toBeVisible();
   expect(
     within(removalDialog).getByText(
@@ -1281,4 +1289,196 @@ it("displays Cloudflare R2 SHA-256 reference-count badges and executes Tier 3 re
   expect(
     await screen.findByText(/safely retained 1 shared deduplicated R2 object/i),
   ).toBeVisible();
+});
+
+it("maps RECEIVE+loading to Receiving file, settles DATA_READY at 100%, keeps Member progress monotonic, and picks up files added mid-batch", async () => {
+  expect(
+    resolvePipelineDisplay("APPROVED", {
+      documentId,
+      version: 1,
+      status: "RECEIVED",
+      currentStage: "RECEIVE",
+      documentStatus: "loading",
+      searchReady: false,
+      knowledgeReady: false,
+      progress: 10,
+    }),
+  ).toMatchObject({
+    phase: "processing",
+    stageKey: "pipelineReceiving",
+    percent: 10,
+    stepIndex: 1,
+  });
+
+  expect(
+    resolvePipelineDisplay("APPROVED", {
+      documentId,
+      version: 1,
+      status: "SEARCH_READY",
+      searchStatus: "SEARCH_READY",
+      knowledgeStatus: "DATA_READY",
+      currentStage: "COMPLETE",
+      documentStatus: "ready",
+      searchReady: true,
+      knowledgeReady: false,
+      progress: 100,
+    }),
+  ).toMatchObject({
+    phase: "ready",
+    stageKey: "pipelineReady",
+    percent: 100,
+    stepIndex: 4,
+    isActive: false,
+  });
+
+  let resolveSubmitGate!: () => void;
+  const submitGate = new Promise<void>((res) => {
+    resolveSubmitGate = res;
+  });
+
+  let resolveFirstFilePut!: () => void;
+  const firstFilePutGate = new Promise<void>((res) => {
+    resolveFirstFilePut = res;
+  });
+
+  const dupBuf = new TextEncoder().encode("duplicate-bytes");
+  const dupDigest = await crypto.subtle.digest("SHA-256", dupBuf);
+  const dupHex = Array.from(new Uint8Array(dupDigest))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+
+  const existingDuplicateHashDoc: ProjectDocument = {
+    ...document,
+    id: "751a2b3c4d5e6f7a8b9c0d80",
+    status: "APPROVED",
+    knowledgeSync: {
+      documentId: "751a2b3c4d5e6f7a8b9c0d80",
+      version: 1,
+      status: "READY",
+      searchReady: true,
+      knowledgeReady: true,
+      progress: 100,
+      fileHash: dupHex,
+    },
+  };
+
+  const submittedIds: string[] = [];
+  let createdCount = 0;
+
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/documents?")) {
+      return {
+        data: [existingDuplicateHashDoc],
+        pagination: { page: 1, pageSize: 50, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (path.endsWith("/documents") && options?.method === "POST") {
+      createdCount += 1;
+      const body = JSON.parse(String(options.body)) as { title?: string };
+      const newId = `951a2b3c4d5e6f7a8b9c0d9${createdCount}`;
+      return {
+        ...document,
+        id: newId,
+        title: body.title ?? `doc-${createdCount}`,
+        status: "DRAFT",
+      } as never;
+    }
+    if (path.endsWith("/file") && options?.method === "PUT") {
+      const targetId = path.includes("951a2b3c4d5e6f7a8b9c0d91")
+        ? "951a2b3c4d5e6f7a8b9c0d91"
+        : "951a2b3c4d5e6f7a8b9c0d92";
+      if (targetId === "951a2b3c4d5e6f7a8b9c0d91") {
+        await firstFilePutGate;
+      }
+      return {
+        ...document,
+        id: targetId,
+        status: "DRAFT",
+      } as never;
+    }
+    if (path.endsWith("/submit") && options?.method === "POST") {
+      const targetId = path.includes("951a2b3c4d5e6f7a8b9c0d91")
+        ? "951a2b3c4d5e6f7a8b9c0d91"
+        : "951a2b3c4d5e6f7a8b9c0d92";
+      if (targetId === "951a2b3c4d5e6f7a8b9c0d91") {
+        await submitGate;
+      }
+      submittedIds.push(targetId);
+      return {
+        ...document,
+        id: targetId,
+        status: "PENDING_REVIEW",
+      } as never;
+    }
+    throw new Error(
+      `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
+    );
+  });
+
+  mount();
+
+  const requestBtns = await screen.findAllByRole("button", {
+    name: "Request document upload",
+  });
+  fireEvent.click(requestBtns[0]!);
+
+  const dialog = await screen.findByRole("dialog", {
+    name: "Request document upload",
+  });
+  const dropzoneFrame = dialog.querySelector("div.border-dashed")!;
+
+  fireEvent.drop(dropzoneFrame, {
+    dataTransfer: {
+      files: [
+        new File(["duplicate-bytes"], "already-indexed.md", {
+          type: "text/markdown",
+        }),
+        new File(["fresh-spec-1"], "fresh-spec-1.md", {
+          type: "text/markdown",
+        }),
+      ],
+    },
+  });
+
+  expect(
+    await within(dialog).findByText("Already in project (duplicate SHA-256)"),
+  ).toBeVisible();
+  expect(await within(dialog).findByText("Ready for request")).toBeVisible();
+
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Send request (1 file)" }),
+  );
+
+  // Mock PUT emits 50% mid-flight -> Member upload scales it to 46% (capped <= 92%, never 100%)
+  // AND toolbar badge shows 1/1 (never 2/2 counting the duplicate!)
+  expect(await within(dialog).findByText("Uploading 46%")).toBeVisible();
+  expect(within(dialog).queryByText("Uploading 100%")).not.toBeInTheDocument();
+  expect(await screen.findByText("Uploading 1/1 · 46%")).toBeVisible();
+
+  // Drop a second fresh file mid-batch while first file is still uploading!
+  fireEvent.drop(dropzoneFrame, {
+    dataTransfer: {
+      files: [
+        new File(["fresh-spec-2"], "fresh-spec-2.md", {
+          type: "text/markdown",
+        }),
+      ],
+    },
+  });
+
+  expect(await within(dialog).findByText("Ready for request")).toBeVisible();
+  expect(await screen.findByText(/Uploading 1\/2/i)).toBeVisible();
+
+  resolveFirstFilePut();
+  expect(await within(dialog).findByText("Sending request…")).toBeVisible();
+  expect(within(dialog).queryByText("Uploading 100%")).not.toBeInTheDocument();
+
+  resolveSubmitGate();
+
+  await waitFor(() =>
+    expect(submittedIds).toEqual([
+      "951a2b3c4d5e6f7a8b9c0d91",
+      "951a2b3c4d5e6f7a8b9c0d92",
+    ]),
+  );
 });

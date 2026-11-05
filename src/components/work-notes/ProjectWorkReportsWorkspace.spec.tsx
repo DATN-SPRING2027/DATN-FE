@@ -10,6 +10,7 @@ import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
 import { apiClient } from "@/lib/api-client";
+import type { WorkReport } from "@/lib/queries/work-notes/useWorkNotes";
 import ProjectWorkReportsWorkspace from "./ProjectWorkReportsWorkspace";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -198,7 +199,7 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
       /Completed the invitation route using an outbox transaction/,
     ),
   ).toBeVisible();
-  expect(screen.getByText("Author: Jordan Lee")).toBeVisible();
+  expect(screen.queryByText("Author: Jordan Lee")).not.toBeInTheDocument();
   expect(screen.queryByText("What was done")).not.toBeInTheDocument();
   expect(screen.queryByText("Attach file")).not.toBeInTheDocument();
 
@@ -214,6 +215,13 @@ it("shows mandatory read-only schedule for a Member and saves the current Period
   fireEvent.change(screen.getByLabelText(/Content/i), {
     target: { value: "Free-form note with updated delivery status." },
   });
+  fireEvent.click(screen.getByRole("tab", { name: "Preview .md" }));
+  expect(
+    screen.getByRole("heading", {
+      name: "Sprint 10 Invitation Flow (Updated)",
+    }),
+  ).toBeVisible();
+  fireEvent.click(screen.getByRole("tab", { name: "Write" }));
   fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
 
   await waitFor(() =>
@@ -574,6 +582,7 @@ it("allows a Reviewer to approve a submitted Pending Review report from the Spli
     ),
   ).not.toBeInTheDocument();
 
+  fireEvent.click(screen.getByRole("button", { name: "Add feedback" }));
   fireEvent.change(screen.getByLabelText("Review comment"), {
     target: { value: "Clean implementation, verified." },
   });
@@ -729,4 +738,391 @@ it("carries unsaved ReportEditor title and content into WorkNoteComposer when sw
   expect(
     screen.getAllByText("New report text not saved yet").length,
   ).toBeGreaterThan(0);
+});
+
+it("hides Download .md before approval and renders Download .md + SAG pipeline & extracted chunks once APPROVED", async () => {
+  let currentReport = {
+    ...report,
+    status: "PENDING_REVIEW" as const,
+    contentSchemaVersion: 2 as const,
+    contentMarkdown: "## Sprint Summary\n\nShipped R2 markdown sync.",
+    permissions: {
+      ...report.permissions,
+      canEdit: false,
+      canSubmit: false,
+      canReview: true,
+    },
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.endsWith("/work-report-settings")) {
+      return {
+        projectId,
+        actorRole: "LEADER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [currentReport],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (
+      options?.method === "POST" &&
+      path.endsWith(`/work-reports/${reportId}/approve`)
+    ) {
+      currentReport = {
+        ...currentReport,
+        status: "APPROVED" as unknown as "PENDING_REVIEW",
+        file: {
+          name: "work-report-member-sprint-10-v1.md",
+          contentType: "text/markdown",
+          size: 768,
+          sha256: "b".repeat(64),
+        },
+        knowledgeSync: {
+          documentId: reportId,
+          version: 1,
+          status: "KNOWLEDGE_READY",
+          knowledgeReady: true,
+          searchReady: true,
+          progress: 100,
+          chunkCount: 1,
+        },
+      } as typeof currentReport;
+      return currentReport as never;
+    }
+    if (path.endsWith(`/work-reports/${reportId}/knowledge-status`)) {
+      return {
+        documentId: reportId,
+        version: 1,
+        status: "KNOWLEDGE_READY",
+        knowledgeReady: true,
+        searchReady: true,
+        progress: 100,
+        chunkCount: 1,
+      } as never;
+    }
+    if (path.includes(`/work-reports/${reportId}/knowledge-chunks`)) {
+      return {
+        documentId: reportId,
+        version: 1,
+        sourceStage: "SEARCH_UNITS",
+        totalChunks: 1,
+        totalTokens: 52,
+        items: [
+          {
+            chunkId: "wr-chunk-1",
+            ordinal: 1,
+            sectionPath: "Sprint Summary",
+            blockType: "paragraph",
+            pageFrom: 0,
+            pageTo: 0,
+            tokenCount: 52,
+            content: "Shipped R2 markdown sync.",
+          },
+        ],
+      } as never;
+    }
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  });
+
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+
+  // While PENDING_REVIEW -> NO Download .md button & NO fake SAG stepper!
+  expect(
+    screen.queryByRole("button", { name: /Download \.md/i }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.getByRole("heading", { name: "Sprint Summary" }),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Inspect .md & SAG" }));
+  const drawer = await screen.findByTestId("knowledge-governance-drawer");
+  expect(
+    within(drawer).getByText(/Stored in database only/i),
+  ).toBeVisible();
+  expect(
+    screen.getByText("Cloudflare R2 & SAG Governance Gate"),
+  ).toBeVisible();
+  expect(screen.queryByText("Parse .md")).not.toBeInTheDocument();
+
+  // Reviewer clicks Approve -> transitions to APPROVED, reveals Download .md + 4-stage SAG + Extracted Chunk!
+  fireEvent.click(screen.getByRole("button", { name: "Approve" }));
+
+  expect(
+    (await screen.findAllByRole("button", { name: /Download \.md/i }))[0],
+  ).toBeVisible();
+  expect(
+    await screen.findByText("work-report-member-sprint-10-v1.md"),
+  ).toBeVisible();
+  expect(screen.getByText("Parse .md")).toBeVisible();
+  const chunksSection = await screen.findByLabelText("Extracted chunks");
+  expect(within(chunksSection).getByText("Sprint Summary")).toBeVisible();
+});
+
+it("supports bulk batch approval and R2 purge + reopen on Periodic Work Reports", async () => {
+  const secondReportId = "751a2b3c4d5e6f7a8b9c0d98";
+  let r1: WorkReport = {
+    ...report,
+    id: reportId,
+    memberName: "Jordan Lee",
+    status: "PENDING_REVIEW",
+    permissions: {
+      canCreate: false,
+      canEdit: false,
+      canSubmit: false,
+      canReview: true,
+      canConfigure: true,
+      canControlKnowledge: true,
+      canPurgeArtifact: true,
+    },
+  };
+  let r2: WorkReport = {
+    ...report,
+    id: secondReportId,
+    memberId: "851a2b3c4d5e6f7a8b9c0d99",
+    memberName: "Minh Tran",
+    title: "Sprint 10 QA Matrix",
+    status: "PENDING_REVIEW",
+    permissions: {
+      canCreate: false,
+      canEdit: false,
+      canSubmit: false,
+      canReview: true,
+      canConfigure: true,
+      canControlKnowledge: true,
+      canPurgeArtifact: true,
+    },
+  };
+  const requests: Array<{ method: string; path: string; body?: string }> = [];
+
+  api.mockImplementation(async (path, options) => {
+    requests.push({
+      method: options?.method ?? "GET",
+      path,
+      body: typeof options?.body === "string" ? options.body : undefined,
+    });
+
+    if (path.includes("/work-reports/settings")) {
+      return {
+        projectId,
+        actorRole: "LEADER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [r1, r2],
+        pagination: { page: 1, pageSize: 100, totalItems: 2, totalPages: 1 },
+      } as never;
+    }
+
+    if (
+      options?.method === "POST" &&
+      path.endsWith("/work-reports/bulk-action")
+    ) {
+      r1 = {
+        ...r1,
+        status: "APPROVED",
+        file: {
+          name: "work-report-member-jordan-v1.md",
+          contentType: "text/markdown",
+          size: 512,
+          sha256: "d".repeat(64),
+        },
+        storageReference: {
+          provider: "CLOUDFLARE_R2",
+          objectCount: 1,
+          deletableObjectCount: 0,
+          sharedObjectCount: 1,
+          refCount: 2,
+          externalDocumentRefs: 1,
+          willDeleteFromStorage: false,
+        },
+        knowledgeSync: {
+          documentId: r1.id,
+          sagDocumentId: "sag-wr-1",
+          version: 1,
+          status: "KNOWLEDGE_READY",
+          knowledgeReady: true,
+          searchReady: true,
+          progress: 100,
+          chunkCount: 0,
+        },
+      };
+      r2 = {
+        ...r2,
+        status: "APPROVED",
+      };
+      return {
+        action: "APPROVE",
+        requestedCount: 2,
+        succeededIds: [r1.id, r2.id],
+        failed: [],
+      } as never;
+    }
+
+    if (path.endsWith(`/work-reports/${r1.id}/knowledge-status`)) {
+      return r1.knowledgeSync as never;
+    }
+
+    if (path.includes(`/work-reports/${r1.id}/knowledge-chunks`)) {
+      return {
+        documentId: r1.id,
+        version: 1,
+        sourceStage: "SEARCH_UNITS",
+        totalChunks: 0,
+        totalTokens: 0,
+        items: [],
+      } as never;
+    }
+
+    if (
+      options?.method === "DELETE" &&
+      path.includes(`/work-reports/${r1.id}/file`)
+    ) {
+      r1 = {
+        ...r1,
+        status: "CHANGES_REQUESTED",
+        file: undefined,
+      };
+      return {
+        entityId: r1.id,
+        purgedFromR2: false,
+        retainedSharedR2: true,
+        revokedSag: true,
+        status: "CHANGES_REQUESTED",
+      } as never;
+    }
+
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  });
+
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+
+  // Select all in roster -> Bulk Approve & Sync (2)
+  fireEvent.click(screen.getByLabelText("Select all (2)"));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Approve & Sync (2)" }),
+  );
+
+  expect(
+    await screen.findByText("Processed 2/2 items successfully."),
+  ).toBeVisible();
+  expect(await screen.findByText("R2 · Shared (2)")).toBeVisible();
+
+  // Open slide-over inspector -> R2 & Remove… modal -> verify shared R2 badge -> Purge R2 & Reopen
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Inspect .md & SAG" }),
+  );
+  fireEvent.click(await screen.findByRole("button", { name: "R2 & Remove…" }));
+  expect(
+    await screen.findByText(/Cloudflare R2 · Deduplicated \(2 refs\)/i),
+  ).toBeVisible();
+
+  fireEvent.click(
+    screen.getByLabelText(
+      "Also reopen for author editing (move status to Changes Requested)",
+    ),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Purge R2 & Reopen" }));
+
+  await waitFor(() => {
+    expect(
+      requests.some(
+        (req) =>
+          req.method === "DELETE" &&
+          req.path.includes(`/work-reports/${r1.id}/file?reopen=true`),
+      ),
+    ).toBe(true);
+  });
+});
+
+it("shows Stageshow auto-approve toggle and short-content guardrail (< 30 chars) for Leader submitting a Work Report and passes autoApprove option", async () => {
+  const leaderReport = {
+    ...report,
+    title: "Short leader draft",
+    content: "wip",
+    permissions: {
+      canCreate: true,
+      canEdit: true,
+      canSubmit: true,
+      canReview: true,
+      canConfigure: true,
+    },
+  };
+
+  api.mockImplementation(async (path, options) => {
+    if (path.includes("/work-report-settings")) {
+      return {
+        projectId,
+        actorRole: "LEADER",
+        frequency: "WEEKLY",
+        effectiveAt: report.periodStart,
+        updatedBy: report.memberId,
+        history: [],
+        permissions: { canConfigure: true },
+      } as never;
+    }
+    if (path.includes("/work-reports?")) {
+      return {
+        data: [leaderReport],
+        pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+      } as never;
+    }
+    if (
+      path === `/capture/projects/${projectId}/work-reports` &&
+      options?.method === "POST"
+    ) {
+      return leaderReport as never;
+    }
+    if (path.endsWith("/submit") && options?.method === "POST") {
+      return { ...leaderReport, status: "PENDING_REVIEW" } as never;
+    }
+    throw new Error(`Unexpected request: ${options?.method ?? "GET"} ${path}`);
+  });
+
+  mount();
+  expect(
+    await screen.findByRole("heading", { name: "Jordan Lee" }),
+  ).toBeVisible();
+
+  fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
+
+  const toggle = screen.getByTestId("report-auto-approve-toggle");
+  expect(toggle).toHaveAttribute("aria-checked", "false");
+  expect(toggle).toHaveTextContent("PENDING_REVIEW");
+
+  const nudge = screen.getByTestId("report-short-content-nudge");
+  expect(nudge).toHaveTextContent("3/30");
+
+  // Submitting directly while < 30 chars automatically sends autoApprove: false
+  fireEvent.click(screen.getByRole("button", { name: "Submit report" }));
+
+  await waitFor(() =>
+    expect(api).toHaveBeenCalledWith(
+      `/capture/projects/${projectId}/work-reports/${reportId}/submit`,
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ autoApprove: false }),
+      }),
+    ),
+  );
 });

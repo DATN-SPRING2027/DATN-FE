@@ -2001,3 +2001,33 @@ it("renders explicit no-change badge and noChangesSummary in the live WorkNoteAg
   expect(within(proposalCard).getByText("Giữ nguyên nội dung")).toBeInTheDocument();
   expect(within(proposalCard).getByText("Không có thay đổi")).toBeInTheDocument();
 });
+
+it("shows Stageshow auto-approve toggle and short-content guardrail (< 30 chars) in WorkNoteComposer and sends autoApprove: false when opted out", async () => {
+  vi.mocked(agentApi.resume).mockResolvedValue({
+    ...base,
+    title: "Short title",
+    contentMarkdown: "a",
+  });
+
+  mount();
+  await screen.findByDisplayValue("a");
+
+  const toggle = screen.getByTestId("composer-auto-approve-toggle");
+  expect(toggle).toHaveAttribute("aria-checked", "false");
+  expect(toggle).toHaveTextContent("PENDING_REVIEW");
+
+  const nudge = screen.getByTestId("composer-short-content-nudge");
+  expect(nudge).toHaveTextContent("1/30");
+
+  // Saving directly while < 30 chars automatically sends autoApprove: false
+  fireEvent.click(screen.getByRole("button", { name: "Lưu ghi chú" }));
+  await waitFor(() =>
+    expect(agentApi.save).toHaveBeenCalledWith(
+      "651a2b3c4d5e6f7a8b9c0d21",
+      base.id,
+      expect.objectContaining({
+        autoApprove: false,
+      }),
+    ),
+  );
+});
