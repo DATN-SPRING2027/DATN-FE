@@ -122,6 +122,30 @@ describe("Notification MVP — Dropdown, Center, Deep-link & Safe Fallback", () 
     });
   });
 
+  it("does not query notifications or unread count while in ACCOUNT context before organization selection", async () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "507f1f77bcf86cd799439001",
+        email: "member@example.com",
+        name: "Member User",
+        context: "ACCOUNT",
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    renderWithProviders(
+      <>
+        <NotificationDropdown />
+        <NotificationsWorkspace />
+      </>,
+    );
+
+    fireEvent.click(screen.getByTestId("notification-bell-button"));
+
+    expect(api).not.toHaveBeenCalled();
+  });
+
   it("loads real notifications in dropdown, marks single item as read, and marks all as read with CSRF header", async () => {
     document.cookie = "continuum_csrf=test-csrf-token-123";
     const sampleNotifications = [

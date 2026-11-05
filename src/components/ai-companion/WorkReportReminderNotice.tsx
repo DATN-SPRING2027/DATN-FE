@@ -27,8 +27,13 @@ export default function WorkReportReminderNotice({
     return () => clearInterval(timer);
   }, []);
   const user = useCurrentUserQuery();
+  const organizationId =
+    user.data && "organizationId" in user.data
+      ? (user.data.organizationId ?? null)
+      : null;
   const authenticated =
-    Boolean(user.data?.id) && !isAccessOrResourceUnavailableError(user.error);
+    Boolean(user.data?.id && organizationId) &&
+    !isAccessOrResourceUnavailableError(user.error);
   const query = useNotificationsQuery({
     unreadOnly: true,
     limit: 100,

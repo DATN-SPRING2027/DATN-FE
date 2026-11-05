@@ -116,11 +116,12 @@ export default function NotificationsWorkspace() {
     useState<NotificationItem | null>(null);
 
   const isUnreadOnly = filter === "unread";
-  const unreadQuery = useUnreadNotificationCountQuery(Boolean(userId));
+  const hasOrganizationContext = Boolean(userId && organizationId);
+  const unreadQuery = useUnreadNotificationCountQuery(hasOrganizationContext);
   const infiniteQuery = useInfiniteNotificationsQuery({
     unreadOnly: isUnreadOnly,
     limit: 20,
-    enabled: Boolean(userId),
+    enabled: hasOrganizationContext,
   });
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
@@ -128,7 +129,14 @@ export default function NotificationsWorkspace() {
   const notificationsAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(infiniteQuery.error);
   const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
   const pages = notificationsAccessLost ? [] : (infiniteQuery.data?.pages ?? []);
-  const items = pages.flatMap((page) => page?.items ?? []);
+  const items = pages
+    .flatMap((page) => page?.items ?? [])
+    .filter(
+      (item) =>
+        !organizationId ||
+        !item.organizationId ||
+        item.organizationId === organizationId,
+    );
   const tPage = useTranslations("pageTitles");
   const unreadCount =
     (unreadAccessLost ? undefined : unreadQuery.data?.count) ?? pages[0]?.unreadCount ?? 0;

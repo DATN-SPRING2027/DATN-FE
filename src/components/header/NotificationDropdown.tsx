@@ -133,7 +133,7 @@ export default function NotificationDropdown() {
   const [resolveErrorItem, setResolveErrorItem] =
     useState<NotificationItem | null>(null);
 
-  const isAuthenticated = Boolean(userId);
+  const isAuthenticated = Boolean(userId && organizationId);
   const unreadQuery = useUnreadNotificationCountQuery(
     isAuthenticated && !isOpen,
     realtimeConnected,
@@ -149,7 +149,12 @@ export default function NotificationDropdown() {
   const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
   const visibleList = listAccessLost ? undefined : listQuery.data;
   const visibleUnreadCount = unreadAccessLost ? undefined : unreadQuery.data?.count;
-  const items = visibleList?.items ?? [];
+  const items = (visibleList?.items ?? []).filter(
+    (item) =>
+      !organizationId ||
+      !item.organizationId ||
+      item.organizationId === organizationId,
+  );
   const unreadCount = isOpen
     ? (visibleList?.unreadCount ?? visibleUnreadCount ?? 0)
     : (visibleUnreadCount ?? visibleList?.unreadCount ?? 0);
