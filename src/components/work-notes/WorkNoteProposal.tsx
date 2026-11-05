@@ -35,11 +35,17 @@ export default function WorkNoteProposal({
         {t("proposal")} ·{" "}
         {t(suggestion.scope === "selection" ? "selection" : "wholeNote")}
       </h3>
-      <ul className="list-inside list-disc text-sm text-gray-600 dark:text-gray-400">
-        {suggestion.changeSummary.map((line, i) => (
-          <li key={i}>{line}</li>
-        ))}
-      </ul>
+      {suggestion.changeSummary.length > 0 ? (
+        <ul className="list-inside list-disc text-sm text-gray-600 dark:text-gray-400">
+          {suggestion.changeSummary.map((line, i) => (
+            <li key={i}>{line}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          {t("noChangesSummary")}
+        </p>
+      )}
       <div className="grid gap-3 md:grid-cols-2">
         <div>
           <h4 className="mb-1 text-xs text-gray-500 dark:text-gray-400">

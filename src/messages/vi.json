@@ -4371,6 +4371,7 @@
       "diffBadgeChanges": "{count} điểm sửa",
       "diffBadgeNew": "Nội dung mới",
       "diffBadgeNoChange": "Giữ nguyên nội dung",
+      "noChangesSummary": "Không có thay đổi",
       "diffLegendRemoved": "Đã xoá",
       "diffLegendAdded": "Đã thêm",
       "diffWordsRemoved": "-{count} từ",
