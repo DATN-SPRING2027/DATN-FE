@@ -21,6 +21,9 @@ export type AiChatProjectSourceReadiness =
 
 export type AiChatProjectDocumentSource = Readonly<{
   documentId: string;
+  projectId?: string;
+  projectCode?: string;
+  projectName?: string;
   title: string;
   fileName?: string;
   type: string;

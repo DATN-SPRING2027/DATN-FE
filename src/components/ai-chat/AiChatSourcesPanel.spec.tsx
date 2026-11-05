@@ -211,4 +211,29 @@ describe("AiChatSourcesPanel", () => {
 
     expect(refreshButton).toHaveFocus();
   });
+
+  it("displays the project badge when source items include projectCode in All-Projects mode", () => {
+    sourceQueryMock.mockReturnValue({
+      data: {
+        ...response,
+        data: [
+          {
+            ...readySource,
+            projectId: "proj-core",
+            projectCode: "CORE",
+            projectName: "Continuum Core",
+          },
+        ],
+      },
+      isPending: false,
+      isFetching: false,
+      isError: false,
+      error: null,
+      refetch: vi.fn(),
+    });
+
+    renderPanel();
+
+    expect(screen.getByText("CORE")).toBeInTheDocument();
+  });
 });

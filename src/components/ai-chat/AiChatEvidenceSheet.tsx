@@ -1068,7 +1068,9 @@ export default function AiChatEvidenceSheet({
               {t("evidenceCloseAction")}
             </button>
 
-            {evidence.kind === "document" && resolvedContinuumDocId && (
+            {evidence.kind === "document" &&
+              resolvedContinuumDocId &&
+              projectId !== "all" && (
               <Link
                 href={buildProjectDocumentHref(
                   projectId,

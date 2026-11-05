@@ -240,7 +240,11 @@ export default function AiChatComposer({
                 </div>
 
                 <Link
-                  href={`/projects/${encodeURIComponent(projectId)}/documents`}
+                  href={
+                    projectId === "all"
+                      ? "/projects"
+                      : `/projects/${encodeURIComponent(projectId)}/documents`
+                  }
                   role="menuitem"
                   onClick={() => setIsPlusMenuOpen(false)}
                   className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"
@@ -253,7 +257,11 @@ export default function AiChatComposer({
                 </Link>
 
                 <Link
-                  href={`/projects/${encodeURIComponent(projectId)}/work-notes`}
+                  href={
+                    projectId === "all"
+                      ? "/projects"
+                      : `/projects/${encodeURIComponent(projectId)}/work-notes`
+                  }
                   role="menuitem"
                   onClick={() => setIsPlusMenuOpen(false)}
                   className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-white/10"

@@ -70,6 +70,8 @@ import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
 import AiChatSaveTaskNoteDialog from "./AiChatSaveTaskNoteDialog";
 import { resolveSessionCitationPreview } from "./citation-utils";
 
+export const AI_CHAT_ALL_PROJECTS_ID = "all";
+
 function isProjectOrAuthAccessError(error: unknown): error is ApiError {
   if (!isAccessOrResourceUnavailableError(error)) return false;
   if (error.status === 404 && error.code === "AI_CHAT_RESOURCE_NOT_FOUND") {
@@ -195,6 +197,9 @@ function AiChatWorkspaceContent() {
   const currentUserQuery = useCurrentUserQuery();
   const userId = currentUserQuery.data?.id ?? "";
   const organizationId = currentUserQuery.data?.organizationId ?? "";
+  const isOrganizationManager = Boolean(
+    currentUserQuery.data?.roles?.includes("ADMIN"),
+  );
 
   const activeProjectsQuery = useActiveOrganizationProjects(
     organizationId,
@@ -202,21 +207,52 @@ function AiChatWorkspaceContent() {
   );
   const projects = activeProjectsQuery.projects;
 
+  const allProjectsName = t("allProjectsName");
+  const allProjectsCode = t("allProjectsCode");
+  const allProjectsOption: Project | null = useMemo(() => {
+    if (!isOrganizationManager || projects.length === 0) return null;
+    return {
+      id: AI_CHAT_ALL_PROJECTS_ID,
+      organizationId,
+      name: allProjectsName,
+      code: allProjectsCode,
+      visibility: "PUBLIC",
+      status: "ACTIVE",
+      createdBy: userId,
+      createdAt: "",
+      updatedAt: "",
+    };
+  }, [
+    allProjectsCode,
+    allProjectsName,
+    isOrganizationManager,
+    organizationId,
+    projects.length,
+    userId,
+  ]);
+
+  const selectableProjects: readonly Project[] = useMemo(
+    () => (allProjectsOption ? [allProjectsOption, ...projects] : projects),
+    [allProjectsOption, projects],
+  );
+
   const urlProjectId = searchParams.get("projectId");
   const [manualProjectId, setManualProjectId] = useState<string | null>(null);
 
   const selectedProject: Project | null = useMemo(() => {
     if (projects.length === 0) return null;
     if (manualProjectId) {
-      const manualMatch = projects.find((p) => p.id === manualProjectId);
+      const manualMatch = selectableProjects.find(
+        (p) => p.id === manualProjectId,
+      );
       if (manualMatch) return manualMatch;
     }
     if (urlProjectId) {
-      const urlMatch = projects.find((p) => p.id === urlProjectId);
+      const urlMatch = selectableProjects.find((p) => p.id === urlProjectId);
       if (urlMatch) return urlMatch;
     }
     return projects[0] ?? null;
-  }, [projects, manualProjectId, urlProjectId]);
+  }, [projects, selectableProjects, manualProjectId, urlProjectId]);
 
   const projectId = selectedProject?.id ?? "";
   const pinnedStorageKey = `continuum.aiChat.pinned.${organizationId}.${projectId}`;
@@ -1749,13 +1785,17 @@ function AiChatWorkspaceContent() {
                       />
                       <div className="min-w-0 flex-1">
                         <div className="text-xs font-semibold text-gray-900 dark:text-white">
-                          {t("engineIsolationTitle")}
+                          {selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
+                            ? t("allProjectsIsolationTitle")
+                            : t("engineIsolationTitle")}
                         </div>
                         <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                          {t("engineIsolationDesc", {
-                            project: selectedProject.name,
-                            code: selectedProject.code,
-                          })}
+                          {selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
+                            ? t("allProjectsIsolationDesc")
+                            : t("engineIsolationDesc", {
+                                project: selectedProject.name,
+                                code: selectedProject.code,
+                              })}
                         </p>
                       </div>
                     </div>
@@ -1763,9 +1803,13 @@ function AiChatWorkspaceContent() {
 
                   <div className="mt-1.5 border-t border-gray-100 pt-1.5 dark:border-white/10">
                     <Link
-                      href={`/projects/${encodeURIComponent(
-                        selectedProject.id,
-                      )}/documents`}
+                      href={
+                        selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
+                          ? "/projects"
+                          : `/projects/${encodeURIComponent(
+                              selectedProject.id,
+                            )}/documents`
+                      }
                       onClick={() => setIsEngineMenuOpen(false)}
                       className="flex items-center justify-between rounded-xl px-2.5 py-2 text-xs font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:text-brand-300 dark:hover:bg-white/10"
                     >
@@ -1852,7 +1896,7 @@ function AiChatWorkspaceContent() {
 
               {isProjectMenuOpen && (
                 <AiChatProjectMenu
-                  projects={projects}
+                  projects={selectableProjects}
                   selectedProjectId={selectedProject.id}
                   placement="bottom"
                   testId="ai-chat-header-project-menu"
@@ -2034,13 +2078,16 @@ function AiChatWorkspaceContent() {
               void regenerateAnswer(msg, qMsg)
             }
             onBranchFromMessage={(msg) => void handleBranchFromMessage(msg)}
-            onSaveAnswerToTaskNote={(message, questionText, threadId) =>
-              setTaskNoteSaveTarget({
-                projectId: selectedProject.id,
-                threadId,
-                message,
-                questionText,
-              })
+            onSaveAnswerToTaskNote={
+              selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
+                ? undefined
+                : (message, questionText, threadId) =>
+                    setTaskNoteSaveTarget({
+                      projectId: selectedProject.id,
+                      threadId,
+                      message,
+                      questionText,
+                    })
             }
             onSelectParentThread={(parentId) => {
               setBranchNotice(null);
@@ -2059,7 +2106,7 @@ function AiChatWorkspaceContent() {
           projectId={selectedProject.id}
           projectCode={selectedProject.code}
           projectName={selectedProject.name}
-          projects={projects}
+          projects={selectableProjects}
           isStreaming={isStreaming}
           disabled={Boolean(queryAccessError)}
           validationError={validationError}

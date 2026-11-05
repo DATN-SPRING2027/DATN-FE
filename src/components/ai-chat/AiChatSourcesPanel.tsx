@@ -342,6 +342,14 @@ export default function AiChatSourcesPanel({
                         </p>
                       )}
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        {(source.projectCode || source.projectName) && (
+                          <span
+                            title={source.projectName ?? source.projectCode}
+                            className="inline-flex max-w-40 truncate rounded-full border border-brand-200 bg-brand-50/80 px-2 py-0.5 text-[10px] font-semibold text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-200"
+                          >
+                            {source.projectCode ?? source.projectName}
+                          </span>
+                        )}
                         <span
                           className={cn(
                             "inline-flex rounded-full border px-2 py-0.5 text-[10px] font-semibold",

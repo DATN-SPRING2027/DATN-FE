@@ -14,6 +14,7 @@ import AiChatWorkspace from "./AiChatWorkspace";
 const {
   replaceMock,
   useSearchParamsMock,
+  useCurrentUserMock,
   useActiveProjectsMock,
   useThreadsMock,
   useProjectSourcesMock,
@@ -28,6 +29,7 @@ const {
 } = vi.hoisted(() => ({
   replaceMock: vi.fn(),
   useSearchParamsMock: vi.fn(() => new URLSearchParams()),
+  useCurrentUserMock: vi.fn(),
   useActiveProjectsMock: vi.fn(),
   useThreadsMock: vi.fn(),
   useProjectSourcesMock: vi.fn(),
@@ -72,16 +74,7 @@ vi.mock("@tanstack/react-query", async () => {
 });
 
 vi.mock("@/lib/queries/auth/useAuth", () => ({
-  useCurrentUserQuery: () => ({
-    data: {
-      id: "user-1",
-      name: "Thang Developer",
-      email: "thang@continuum.ai",
-      organizationId: "org-1",
-      roles: ["ADMIN"],
-    },
-    isLoading: false,
-  }),
+  useCurrentUserQuery: () => useCurrentUserMock(),
 }));
 
 vi.mock("@/lib/queries/projects/useActiveOrganizationProjects", () => ({
@@ -181,6 +174,16 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
     branchThreadMutateAsync.mockReset();
     invalidateQueriesMock.mockReset().mockResolvedValue(undefined);
     useSearchParamsMock.mockReturnValue(new URLSearchParams());
+    useCurrentUserMock.mockReset().mockReturnValue({
+      data: {
+        id: "user-1",
+        name: "Thang Developer",
+        email: "thang@continuum.ai",
+        organizationId: "org-1",
+        roles: ["ADMIN"],
+      },
+      isLoading: false,
+    });
     useActiveProjectsMock.mockReset().mockReturnValue({
       projects: [
         {
@@ -1522,4 +1525,67 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       screen.queryByTestId("ai-chat-branch-toast"),
     ).not.toBeInTheDocument();
   });
+
+  it("shows 'All projects' option only for Organization Manager (ADMIN) and switches AI Chat scope to projectId=all", () => {
+    renderWorkspace();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Select project scope" }),
+    );
+    const menu = screen.getByTestId("ai-chat-header-project-menu");
+    expect(within(menu).getByText("All projects")).toBeInTheDocument();
+    expect(
+      within(menu).getByText("Org-wide · 2 projects"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(within(menu).getByText("All projects"));
+    expect(replaceMock).toHaveBeenCalledWith("/ai-chat?projectId=all");
+    expect(useThreadsMock).toHaveBeenLastCalledWith("org-1", "all", {
+      enabled: true,
+    });
+    expect(useProjectSourcesMock).toHaveBeenLastCalledWith(
+      "org-1",
+      "all",
+      1,
+      25,
+      { enabled: true },
+    );
+  });
+
+  it.each([
+    ["Leader", ["TEAM_LEADER"]],
+    ["Member", ["MEMBER"]],
+  ])(
+    "hides 'All projects' option and blocks ?projectId=all for non-manager role %s",
+    (_label, roles) => {
+      useCurrentUserMock.mockReturnValue({
+        data: {
+          id: "user-2",
+          name: "Project Contributor",
+          email: "member@continuum.ai",
+          organizationId: "org-1",
+          roles,
+        },
+        isLoading: false,
+      });
+      useSearchParamsMock.mockReturnValue(
+        new URLSearchParams("projectId=all"),
+      );
+
+      renderWorkspace();
+
+      // Falls back to first active project instead of "all"
+      expect(useThreadsMock).toHaveBeenLastCalledWith("org-1", "proj-core", {
+        enabled: true,
+      });
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Select project scope" }),
+      );
+      const menu = screen.getByTestId("ai-chat-header-project-menu");
+      expect(within(menu).queryByText("All projects")).not.toBeInTheDocument();
+      expect(within(menu).getByText("Continuum Core")).toBeInTheDocument();
+      expect(within(menu).getByText("Architecture Docs")).toBeInTheDocument();
+    },
+  );
 });

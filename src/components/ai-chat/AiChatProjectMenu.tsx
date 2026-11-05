@@ -25,6 +25,7 @@ export default function AiChatProjectMenu({
   const [projectFilter, setProjectFilter] = useState("");
 
   const trimmedFilter = projectFilter.trim().toLowerCase();
+  const singleProjectCount = projects.filter((proj) => proj.id !== "all").length;
   const filteredProjects = trimmedFilter
     ? projects.filter(
         (proj) =>
@@ -97,18 +98,20 @@ export default function AiChatProjectMenu({
                   <div className="truncate font-semibold">{proj.name}</div>
                   <div
                     className={cn(
-                      "mt-0.5 flex items-center gap-1.5 text-xs",
+                      "mt-0.5 flex items-center gap-1.5 text-xs tabular-nums",
                       isSelected
                         ? "text-brand-600/85 dark:text-brand-300/80"
                         : "text-gray-500 dark:text-gray-400",
                     )}
                   >
-                    <span>{proj.code}</span>
-                    <span>·</span>
-                    <span>
-                      {proj.visibility === "PRIVATE"
-                        ? t("visibilityPrivate")
-                        : t("visibilityPublic")}
+                    <span className="shrink-0">{proj.code}</span>
+                    <span className="shrink-0">·</span>
+                    <span className="truncate">
+                      {proj.id === "all"
+                        ? t("allProjectsMeta", { count: singleProjectCount })
+                        : proj.visibility === "PRIVATE"
+                          ? t("visibilityPrivate")
+                          : t("visibilityPublic")}
                     </span>
                   </div>
                 </div>
