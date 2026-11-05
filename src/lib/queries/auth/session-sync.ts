@@ -1,6 +1,7 @@
 export const AUTH_SESSION_CHANGE_STORAGE_KEY = "continuum:auth-session-change";
 
 const LOCAL_SESSION_CHANGE_EVENT = "continuum:auth-session-change-local";
+const LOCAL_SESSION_COOKIE_SYNC_EVENT = "continuum:auth-session-cookie-sync-local";
 const CSRF_COOKIE_PREFIX = "__Host-csrf=";
 
 function readCsrfCookie(): string | null {
@@ -9,6 +10,16 @@ function readCsrfCookie(): string | null {
     .map((part) => part.trim())
     .find((part) => part.startsWith(CSRF_COOKIE_PREFIX));
   return cookie?.slice(CSRF_COOKIE_PREFIX.length) ?? null;
+}
+
+/**
+ * Updates the tracked CSRF cookie snapshot in the current tab without clearing
+ * the active React Query cache or remounting QueryClientProvider. Use after
+ * in-session cookie rotations such as select-organization or token refresh.
+ */
+export function syncCurrentAuthSessionCookie(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(LOCAL_SESSION_COOKIE_SYNC_EVENT));
 }
 
 export function notifyAuthSessionChanged(): void {
@@ -28,6 +39,9 @@ export function subscribeToAuthSessionChanges(onChange: () => void): () => void 
   if (typeof window === "undefined") return () => undefined;
 
   let csrfCookie = readCsrfCookie();
+  const handleCookieSync = () => {
+    csrfCookie = readCsrfCookie();
+  };
   const handleSessionChange = () => {
     csrfCookie = readCsrfCookie();
     onChange();
@@ -45,12 +59,14 @@ export function subscribeToAuthSessionChanges(onChange: () => void): () => void 
     if (document.visibilityState === "visible") checkCookieSession();
   };
 
+  window.addEventListener(LOCAL_SESSION_COOKIE_SYNC_EVENT, handleCookieSync);
   window.addEventListener(LOCAL_SESSION_CHANGE_EVENT, handleSessionChange);
   window.addEventListener("storage", handleStorage);
   window.addEventListener("focus", checkCookieSession);
   document.addEventListener("visibilitychange", handleVisibilityChange);
 
   return () => {
+    window.removeEventListener(LOCAL_SESSION_COOKIE_SYNC_EVENT, handleCookieSync);
     window.removeEventListener(LOCAL_SESSION_CHANGE_EVENT, handleSessionChange);
     window.removeEventListener("storage", handleStorage);
     window.removeEventListener("focus", checkCookieSession);

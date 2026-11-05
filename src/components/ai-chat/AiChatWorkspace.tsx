@@ -160,6 +160,32 @@ function writePinnedThreadsToStorage(
   }
 }
 
+function readActiveThreadFromStorage(storageKey: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(storageKey);
+    return raw && raw.trim().length > 0 ? raw : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeActiveThreadToStorage(
+  storageKey: string,
+  threadId: string | null,
+): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (threadId) {
+      window.localStorage.setItem(storageKey, threadId);
+    } else {
+      window.localStorage.removeItem(storageKey);
+    }
+  } catch {
+    // Ignore storage quota errors.
+  }
+}
+
 function WorkspaceLoadingSkeleton({ label }: { label: string }) {
   return (
     <div
@@ -256,8 +282,11 @@ function AiChatWorkspaceContent() {
 
   const projectId = selectedProject?.id ?? "";
   const pinnedStorageKey = `continuum.aiChat.pinned.${organizationId}.${projectId}`;
+  const activeThreadStorageKey = `continuum.aiChat.activeThread.${organizationId}.${projectId}`;
 
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [activeThreadByScope, setActiveThreadByScope] = useState<
+    Record<string, string | null>
+  >({});
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isEngineMenuOpen, setIsEngineMenuOpen] = useState(false);
@@ -452,6 +481,49 @@ function AiChatWorkspaceContent() {
     return localOnly.length > 0 ? [...localOnly, ...serverList] : serverList;
   }, [currentScopeBranchedThreads, threadsQuery.data]);
 
+  const setActiveThreadId = useCallback(
+    (nextThreadId: string | null, targetScopeKey = activeThreadStorageKey) => {
+      if (!organizationId || !projectId) return;
+      writeActiveThreadToStorage(targetScopeKey, nextThreadId);
+      setActiveThreadByScope((prev) => ({
+        ...prev,
+        [targetScopeKey]: nextThreadId,
+      }));
+    },
+    [activeThreadStorageKey, organizationId, projectId],
+  );
+
+  const activeThreadId: string | null = useMemo(() => {
+    if (!organizationId || !projectId) return null;
+    if (
+      Object.prototype.hasOwnProperty.call(
+        activeThreadByScope,
+        activeThreadStorageKey,
+      )
+    ) {
+      return activeThreadByScope[activeThreadStorageKey] ?? null;
+    }
+    const storedThreadId = readActiveThreadFromStorage(activeThreadStorageKey);
+    if (!storedThreadId) return null;
+    if (threadsQuery.isLoading || threadsQuery.data === undefined) {
+      return storedThreadId;
+    }
+    const existsInThreads = effectiveThreads.some(
+      (item) => item.id === storedThreadId,
+    );
+    const hasLocalTurns = Boolean(localTurnsByThread[storedThreadId]?.length);
+    return existsInThreads || hasLocalTurns ? storedThreadId : null;
+  }, [
+    activeThreadByScope,
+    activeThreadStorageKey,
+    effectiveThreads,
+    localTurnsByThread,
+    organizationId,
+    projectId,
+    threadsQuery.data,
+    threadsQuery.isLoading,
+  ]);
+
   const activeThread: AiChatThread | null = useMemo(() => {
     if (!activeThreadId) return null;
     return (
@@ -564,7 +636,10 @@ function AiChatWorkspaceContent() {
       abortControllerRef.current = null;
       setIsStreaming(false);
       setManualProjectId(project.id);
-      setActiveThreadId(null);
+      setActiveThreadId(
+        null,
+        `continuum.aiChat.activeThread.${organizationId}.${project.id}`,
+      );
       setBranchNotice(null);
       setBranchingMessageId(null);
       setRetrievalStepsByMessageId({});
@@ -581,7 +656,7 @@ function AiChatWorkspaceContent() {
       nextParams.set("projectId", project.id);
       router.replace(`${pathname}?${nextParams.toString()}`);
     },
-    [pathname, router, searchParams],
+    [organizationId, pathname, router, searchParams, setActiveThreadId],
   );
 
   const handleStartNewChat = useCallback(() => {
@@ -598,19 +673,22 @@ function AiChatWorkspaceContent() {
     setIsEngineMenuOpen(false);
     setIsProjectMenuOpen(false);
     setIsComposerProjectMenuOpen(false);
-  }, []);
+  }, [setActiveThreadId]);
 
-  const handleSelectThread = useCallback((threadId: string) => {
-    branchNavEpochRef.current += 1;
-    abortControllerRef.current?.abort();
-    abortControllerRef.current = null;
-    setIsStreaming(false);
-    setActiveThreadId(threadId);
-    setBranchingMessageId(null);
-    setValidationError(null);
-    setPermissionBanner(null);
-    setHighlightedTurnId(null);
-  }, []);
+  const handleSelectThread = useCallback(
+    (threadId: string) => {
+      branchNavEpochRef.current += 1;
+      abortControllerRef.current?.abort();
+      abortControllerRef.current = null;
+      setIsStreaming(false);
+      setActiveThreadId(threadId);
+      setBranchingMessageId(null);
+      setValidationError(null);
+      setPermissionBanner(null);
+      setHighlightedTurnId(null);
+    },
+    [setActiveThreadId],
+  );
 
   const handleRenameThread = useCallback(
     async (threadId: string, title: string) => {
@@ -695,6 +773,7 @@ function AiChatWorkspaceContent() {
       organizationId,
       pinnedStorageKey,
       projectId,
+      setActiveThreadId,
     ],
   );
 
@@ -1149,6 +1228,7 @@ function AiChatWorkspaceContent() {
       reconcileAfterInterruptedStream,
       selectedProject,
       serverMessages,
+      setActiveThreadId,
       t,
       updateLocalTurn,
     ],
@@ -1529,6 +1609,7 @@ function AiChatWorkspaceContent() {
       pinnedStorageKey,
       queryClient,
       selectedProject,
+      setActiveThreadId,
       t,
     ],
   );

@@ -28,7 +28,12 @@ import {
   MinimizeIcon,
   ShootingStarIcon,
 } from "@/icons";
-import type { AiChatCitation } from "@/lib/queries/ai-chat/ai-chat.types";
+import type {
+  AiChatCitation,
+  AiChatProjectDocumentSource,
+  AiChatProjectDocumentSources,
+} from "@/lib/queries/ai-chat/ai-chat.types";
+import { apiClient } from "@/lib/api-client";
 import {
   workNotesApi,
   type DocumentKnowledgeChunk,
@@ -70,10 +75,14 @@ const docChunksCache = new Map<
   string,
   CachedEntry<readonly DocumentKnowledgeChunk[]>
 >();
+let allProjectSourcesCache: CachedEntry<
+  readonly AiChatProjectDocumentSource[]
+> | null = null;
 
 export function resetEvidenceSheetCachesForTests(): void {
   projectDocsCache.clear();
   docChunksCache.clear();
+  allProjectSourcesCache = null;
 }
 
 function clampDrawerWidth(raw: number): number {
@@ -238,11 +247,46 @@ function matchBestKnowledgeChunk(
 
 type HydratedCitationData = Readonly<{
   key: string;
+  projectId: string | null;
   continuumDocId: string | null;
   matchedChunk: DocumentKnowledgeChunk | null;
   prevChunk: DocumentKnowledgeChunk | null;
   nextChunk: DocumentKnowledgeChunk | null;
 }>;
+
+function matchAllProjectsDocumentSource(
+  sources: readonly AiChatProjectDocumentSource[],
+  citation: AiChatCitation,
+): { projectId: string; documentId: string } | null {
+  const candidates = [citation.documentId, citation.sagDocumentId].filter(
+    (id): id is string => Boolean(id),
+  );
+  for (const src of sources) {
+    if (
+      src.projectId &&
+      isContinuumDocumentId(src.projectId) &&
+      isContinuumDocumentId(src.documentId) &&
+      candidates.includes(src.documentId)
+    ) {
+      return { projectId: src.projectId, documentId: src.documentId };
+    }
+  }
+  const targetName = (citation.documentName ?? "").trim().toLowerCase();
+  if (targetName) {
+    const byName = sources.find(
+      (src) =>
+        src.projectId &&
+        isContinuumDocumentId(src.projectId) &&
+        isContinuumDocumentId(src.documentId) &&
+        (src.fileName?.trim().toLowerCase() === targetName ||
+          src.title.trim().toLowerCase() === targetName),
+    );
+    if (byName && byName.projectId) {
+      return { projectId: byName.projectId, documentId: byName.documentId };
+    }
+  }
+  return null;
+}
 
 export default function AiChatEvidenceSheet({
   evidence,
@@ -333,40 +377,96 @@ export default function AiChatEvidenceSheet({
   }, [evidence, selectedCitationNum]);
 
   const activeCitationLookupKey = activeDocumentCitation
-    ? `${projectId}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`
+    ? `${projectId}:${activeDocumentCitation.projectId ?? ""}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`
     : "";
 
   // Hydrate full unflattened canonical chunk & Continuum documentId for authorized project documents
   useEffect(() => {
-    if (!activeDocumentCitation || !isContinuumDocumentId(projectId)) {
+    if (!activeDocumentCitation) {
+      return;
+    }
+    const directProjectId =
+      activeDocumentCitation.projectId &&
+      isContinuumDocumentId(activeDocumentCitation.projectId)
+        ? activeDocumentCitation.projectId
+        : isContinuumDocumentId(projectId)
+          ? projectId
+          : null;
+
+    if (!directProjectId && projectId !== "all") {
       return;
     }
 
     const controller = new AbortController();
-    const lookupKey = `${projectId}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`;
+    const lookupKey = `${projectId}:${activeDocumentCitation.projectId ?? ""}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`;
 
     const runHydration = async () => {
+      let targetProjectId: string | null = directProjectId;
       let resolvedDocId: string | null = isContinuumDocumentId(
         activeDocumentCitation.documentId,
       )
         ? activeDocumentCitation.documentId
         : null;
 
+      if (!targetProjectId && projectId === "all") {
+        const now = Date.now();
+        let allSources: readonly AiChatProjectDocumentSource[] = [];
+        if (allProjectSourcesCache && allProjectSourcesCache.expiresAt > now) {
+          allSources = allProjectSourcesCache.data;
+        } else {
+          const collected: AiChatProjectDocumentSource[] = [];
+          const firstPage = await apiClient<AiChatProjectDocumentSources>(
+            "/ai-chat/projects/all/document-sources?page=1&pageSize=100",
+            { signal: controller.signal, cache: "no-store" },
+          );
+          collected.push(...(firstPage.data ?? []));
+          const totalPages = Math.min(firstPage.pagination?.totalPages ?? 1, 5);
+          for (let page = 2; page <= totalPages; page += 1) {
+            if (controller.signal.aborted) return;
+            const nextPage = await apiClient<AiChatProjectDocumentSources>(
+              `/ai-chat/projects/all/document-sources?page=${page}&pageSize=100`,
+              { signal: controller.signal, cache: "no-store" },
+            );
+            collected.push(...(nextPage.data ?? []));
+          }
+          allSources = collected;
+          allProjectSourcesCache = {
+            data: allSources,
+            expiresAt: Date.now() + CACHE_TTL_MS,
+          };
+        }
+        if (controller.signal.aborted) return;
+        const matchedSource = matchAllProjectsDocumentSource(
+          allSources,
+          activeDocumentCitation,
+        );
+        if (matchedSource) {
+          targetProjectId = matchedSource.projectId;
+          if (!resolvedDocId) {
+            resolvedDocId = matchedSource.documentId;
+          }
+        }
+      }
+
+      if (!targetProjectId || !isContinuumDocumentId(targetProjectId)) {
+        return;
+      }
+
       if (!resolvedDocId) {
         const now = Date.now();
-        const cachedDocs = projectDocsCache.get(projectId);
+        const cachedDocs = projectDocsCache.get(targetProjectId);
         let docs: readonly ProjectDocumentSummary[] = [];
         if (cachedDocs && cachedDocs.expiresAt > now) {
           docs = cachedDocs.data;
         } else {
           const page = await workNotesApi.listDocuments(
-            projectId,
+            targetProjectId,
             "APPROVED",
             1,
             controller.signal,
           );
           docs = page.data ?? [];
-          projectDocsCache.set(projectId, {
+          projectDocsCache.set(targetProjectId, {
             data: docs,
             expiresAt: Date.now() + CACHE_TTL_MS,
           });
@@ -379,14 +479,14 @@ export default function AiChatEvidenceSheet({
         return;
       }
 
-      const chunkCacheKey = `${projectId}:${resolvedDocId}`;
+      const chunkCacheKey = `${targetProjectId}:${resolvedDocId}`;
       const cachedChunks = docChunksCache.get(chunkCacheKey);
       let chunks: readonly DocumentKnowledgeChunk[] = [];
       if (cachedChunks && cachedChunks.expiresAt > Date.now()) {
         chunks = cachedChunks.data;
       } else {
         const resp = await workNotesApi.getDocumentKnowledgeChunks(
-          projectId,
+          targetProjectId,
           resolvedDocId,
           { limit: 100, signal: controller.signal },
         );
@@ -401,6 +501,7 @@ export default function AiChatEvidenceSheet({
       const matchedIdx = matchBestKnowledgeChunk(chunks, activeDocumentCitation);
       setHydrated({
         key: lookupKey,
+        projectId: targetProjectId,
         continuumDocId: resolvedDocId,
         matchedChunk: matchedIdx >= 0 ? (chunks[matchedIdx] ?? null) : null,
         prevChunk: matchedIdx > 0 ? (chunks[matchedIdx - 1] ?? null) : null,
@@ -422,6 +523,26 @@ export default function AiChatEvidenceSheet({
 
   const currentHydrated =
     hydrated && hydrated.key === activeCitationLookupKey ? hydrated : null;
+
+  const resolvedProjectId = useMemo(() => {
+    if (!activeDocumentCitation) return null;
+    if (
+      activeDocumentCitation.projectId &&
+      isContinuumDocumentId(activeDocumentCitation.projectId)
+    ) {
+      return activeDocumentCitation.projectId;
+    }
+    if (
+      currentHydrated?.projectId &&
+      isContinuumDocumentId(currentHydrated.projectId)
+    ) {
+      return currentHydrated.projectId;
+    }
+    if (projectId && projectId !== "all") {
+      return projectId;
+    }
+    return null;
+  }, [activeDocumentCitation, currentHydrated, projectId]);
 
   const resolvedContinuumDocId = useMemo(() => {
     if (!activeDocumentCitation) return null;
@@ -1070,10 +1191,10 @@ export default function AiChatEvidenceSheet({
 
             {evidence.kind === "document" &&
               resolvedContinuumDocId &&
-              projectId !== "all" && (
+              resolvedProjectId && (
               <Link
                 href={buildProjectDocumentHref(
-                  projectId,
+                  resolvedProjectId,
                   resolvedContinuumDocId,
                 )}
                 onClick={onClose}

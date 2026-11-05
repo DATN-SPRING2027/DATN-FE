@@ -7,6 +7,7 @@ import {
   parseRecipientInvitationPage,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { authKeys } from "./auth.keys";
+import { syncCurrentAuthSessionCookie } from "./session-sync";
 import type { CurrentUserResponse } from "./useAuth";
 
 export interface OrganizationOption {
@@ -130,6 +131,7 @@ export function useSelectOrganizationMutation() {
         body: JSON.stringify({ organizationId }),
       }),
     onSuccess: (data, organizationId) => {
+      syncCurrentAuthSessionCookie();
       const nextOrganizationId = data?.user?.organizationId || organizationId;
       queryClient.setQueryData<CurrentUserResponse | undefined>(
         authKeys.currentUser(),

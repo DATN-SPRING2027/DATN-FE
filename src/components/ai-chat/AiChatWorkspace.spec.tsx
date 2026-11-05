@@ -1588,4 +1588,86 @@ describe("AiChatWorkspace (ChatGPT-style UI + Real SAG BFF & ECCE integration)",
       expect(within(menu).getByText("Architecture Docs")).toBeInTheDocument();
     },
   );
+
+  it("persists the active thread across workspace remounts and clears it when clicking New chat", () => {
+    useMessagesInfiniteMock.mockImplementation(
+      (_orgId: string, _projId: string, threadId: string | null) => ({
+        data: {
+          pages: [
+            {
+              items:
+                threadId === "thread-1"
+                  ? [
+                      {
+                        id: "msg-persisted-1",
+                        role: "assistant",
+                        content: "Active conversation preserved across remount.",
+                        status: "ok",
+                        citations: [],
+                        sessionCitations: [],
+                        retrievalSteps: [],
+                        createdAt: "2026-10-28T10:05:00Z",
+                      },
+                    ]
+                  : [],
+              nextCursor: null,
+              hasMore: false,
+            } satisfies AiChatMessagePage,
+          ],
+        },
+        isLoading: false,
+        isError: false,
+        hasNextPage: false,
+        isFetchingNextPage: false,
+        fetchNextPage: vi.fn(),
+        refetch: vi.fn(),
+      }),
+    );
+
+    const firstRender = renderWorkspace();
+
+    // Initially starts in New chat hero state
+    expect(
+      screen.getByRole("heading", { name: "Ready when you are." }),
+    ).toBeInTheDocument();
+
+    // Select an active thread
+    fireEvent.click(
+      screen.getByRole("button", { name: "SAG BFF Security Review" }),
+    );
+    expect(
+      screen.getByText("Active conversation preserved across remount."),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(
+        "continuum.aiChat.activeThread.org-1.proj-core",
+      ),
+    ).toBe("thread-1");
+
+    // Unmount and remount workspace (simulating transient layout/session recovery or page reload)
+    firstRender.unmount();
+    renderWorkspace();
+
+    expect(
+      screen.getByText("Active conversation preserved across remount."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Ready when you are." }),
+    ).not.toBeInTheDocument();
+
+    // Clicking "New chat" clears the persisted thread and returns to hero state
+    const sidebar = screen.getByRole("complementary", {
+      name: "AI Chat conversation history",
+    });
+    fireEvent.click(within(sidebar).getByRole("button", { name: "New chat" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Ready when you are." }),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(
+        "continuum.aiChat.activeThread.org-1.proj-core",
+      ),
+    ).toBeNull();
+  });
 });
