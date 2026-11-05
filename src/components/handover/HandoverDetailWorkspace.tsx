@@ -14,6 +14,7 @@ import {
   useProjectMembersQuery,
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
+import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import {
   useCancelHandoverMutation,
   useCompleteHandoverMutation,
@@ -204,6 +205,7 @@ export default function HandoverDetailWorkspace({
     },
     { allPages: true },
   );
+  const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
   const candidatesQuery = useProjectMemberCandidatesQuery(
     organizationId,
     projectId,
@@ -242,23 +244,76 @@ export default function HandoverDetailWorkspace({
   const membersById = useMemo(() => {
     const map = new Map<string, ProjectMembership>();
     for (const m of members) map.set(m.userId, m);
+    for (const leader of leadersQuery.data ?? []) {
+      if (!map.has(leader.userId)) {
+        map.set(leader.userId, {
+          id: `leader-${leader.userId}`,
+          organizationId,
+          projectId,
+          userId: leader.userId,
+          status: leader.status,
+          joinedAt: "",
+          user: {
+            id: leader.userId,
+            fullName: leader.fullName,
+            email: leader.email,
+            avatarUrl: leader.avatarUrl,
+          },
+        });
+      }
+    }
     return map;
-  }, [members]);
+  }, [leadersQuery.data, members, organizationId, projectId]);
+
+  const verifiedLeadersMap = useMemo(() => {
+    const map = new Map<string, HandoverMemberOption>();
+    for (const leader of leadersQuery.data ?? []) {
+      if (leader.status !== "ACTIVE") continue;
+      map.set(leader.userId, {
+        userId: leader.userId,
+        fullName:
+          leader.fullName.trim() ||
+          leader.email.trim() ||
+          `User ${leader.userId.slice(0, 6)}`,
+        email: leader.email.trim() || undefined,
+        avatarUrl: leader.avatarUrl,
+        status: "ACTIVE",
+        roleCode: "TEAM_LEADER",
+        isCurrentUser: Boolean(
+          currentUserId && leader.userId === currentUserId,
+        ),
+      });
+    }
+    for (const member of activeMembers) {
+      const rawRole = (member as { role?: unknown; roleCode?: unknown }).role ??
+        (member as { roleCode?: unknown }).roleCode;
+      const role = typeof rawRole === "string" ? rawRole.toUpperCase() : "";
+      if (
+        (role === "TEAM_LEADER" || role === "LEADER") &&
+        !map.has(member.userId)
+      ) {
+        map.set(member.userId, {
+          userId: member.userId,
+          fullName: formatMemberOptionLabel(member),
+          email: member.user?.email?.trim() || undefined,
+          avatarUrl: member.user?.avatarUrl ?? null,
+          status: member.status,
+          roleCode: "TEAM_LEADER",
+          isCurrentUser: Boolean(
+            currentUserId && member.userId === currentUserId,
+          ),
+        });
+      }
+    }
+    return map;
+  }, [activeMembers, currentUserId, leadersQuery.data]);
 
   const coordinatorSelectOptions = useMemo<readonly HandoverMemberOption[]>(
     () =>
-      activeMembers
-        .map((m) => ({
-          userId: m.userId,
-          fullName: formatMemberOptionLabel(m),
-          email: m.user?.email?.trim() || undefined,
-          avatarUrl: m.user?.avatarUrl ?? null,
-          status: m.status,
-          roleCode: (m as { role?: string }).role,
-          isCurrentUser: Boolean(currentUserId && m.userId === currentUserId),
-        }))
-        .sort((a, b) => a.fullName.localeCompare(b.fullName)),
-    [activeMembers, currentUserId],
+      Array.from(verifiedLeadersMap.values()).sort((a, b) =>
+        a.fullName.localeCompare(b.fullName),
+      ),
+    [verifiedLeadersMap],
   );
 
   const encodedProjectId = encodeURIComponent(projectId);
@@ -322,13 +377,38 @@ export default function HandoverDetailWorkspace({
   const isSavingSuccessor =
     addProjectMemberMutation.isPending || setSuccessorMutation.isPending;
 
+  const isCoordinatorRecoveryOnly = useMemo(() => {
+    if (!isOrgManager || !handover) return false;
+    if (capabilities.some((cap) => cap !== "READ")) {
+      return false;
+    }
+    if (
+      currentUserId &&
+      ((activeMembers.some((member) => member.userId === currentUserId) &&
+        (currentUserId === handover.departingUserId ||
+          currentUserId === handover.successorUserId)) ||
+        verifiedLeadersMap.has(currentUserId))
+    ) {
+      return false;
+    }
+    return true;
+  }, [
+    activeMembers,
+    capabilities,
+    currentUserId,
+    handover,
+    isOrgManager,
+    verifiedLeadersMap,
+  ]);
+
   const resolvedTab: DetailTab = useMemo(() => {
+    if (isCoordinatorRecoveryOnly) return "published";
     if (activeTab) return activeTab;
     if (!publishedRevision && capabilities.includes("MANAGE")) {
       return "draft";
     }
     return "published";
-  }, [activeTab, publishedRevision, capabilities]);
+  }, [activeTab, publishedRevision, capabilities, isCoordinatorRecoveryOnly]);
 
   const viewerRolePill = useMemo(() => {
     if (!handover) return null;
@@ -387,7 +467,17 @@ export default function HandoverDetailWorkspace({
   };
 
   const openCoordinatorModal = () => {
-    setNextCoordinatorId(handover?.assignedLeaderId ?? "");
+    const currentLeaderId = handover?.assignedLeaderId ?? "";
+    const preselectedLeaderId =
+      currentLeaderId &&
+      (coordinatorSelectOptions.length === 0 ||
+        coordinatorSelectOptions.some((opt) => opt.userId === currentLeaderId))
+        ? currentLeaderId
+        : "";
+    setNextCoordinatorId(preselectedLeaderId);
+    if (handover?.version) {
+      setFallbackVersion(String(handover.version));
+    }
     setCoordinatorReason("");
     setModalError(null);
     setMoreMenuOpen(false);
@@ -1058,21 +1148,25 @@ export default function HandoverDetailWorkspace({
                         },
                       ]
                     : []),
-                  {
-                    id: "tasks" as const,
-                    label: t("detail.tabTasks"),
-                    icon: TaskIcon,
-                  },
-                  {
-                    id: "qa" as const,
-                    label: t("detail.tabQa"),
-                    icon: ChatIcon,
-                  },
-                  {
-                    id: "followups" as const,
-                    label: t("detail.tabFollowUps"),
-                    icon: HandShakeIcon,
-                  },
+                  ...(!isCoordinatorRecoveryOnly
+                    ? [
+                        {
+                          id: "tasks" as const,
+                          label: t("detail.tabTasks"),
+                          icon: TaskIcon,
+                        },
+                        {
+                          id: "qa" as const,
+                          label: t("detail.tabQa"),
+                          icon: ChatIcon,
+                        },
+                        {
+                          id: "followups" as const,
+                          label: t("detail.tabFollowUps"),
+                          icon: HandShakeIcon,
+                        },
+                      ]
+                    : []),
                 ] as const
               ).map((tab) => {
                 const TabIcon = tab.icon;
