@@ -7,6 +7,7 @@ import {
   isHiddenScopeMessage,
   isPersistedMessageId,
   selectLocalVoice,
+  splitAnswerSpeechSegments,
   stripAnswerToPlainSpeechText,
   validateDislike,
 } from "./answer-action-utils";
@@ -37,11 +38,80 @@ describe("answer action boundaries", () => {
     expect(grouped[1]!.versions.map((x) => x.id)).toEqual(["a", "a2"]);
   });
 
-  it("never sends answer text to a remote speech voice", () => {
-    const remote = { lang: "vi-VN", localService: false };
-    const local = { lang: "en-US", localService: true };
-    expect(selectLocalVoice([remote, local], "vi")).toBe(local);
-    expect(selectLocalVoice([remote], "vi")).toBeUndefined();
+  it("matches speech voices strictly by language and prioritizes Natural/Google voices over robotic offline fallbacks", () => {
+    const hoaiMyNatural = {
+      lang: "vi-VN",
+      localService: false,
+      name: "Microsoft HoaiMy Online (Natural) - Vietnamese (Vietnam)",
+    };
+    const googleVi = {
+      lang: "vi-VN",
+      localService: false,
+      name: "Google Tiếng Việt",
+    };
+    const microsoftAn = {
+      lang: "vi-VN",
+      localService: true,
+      name: "Microsoft An - Vietnamese (Vietnam)",
+    };
+    const microsoftDavid = {
+      lang: "en-US",
+      localService: true,
+      name: "Microsoft David Desktop - English (United States)",
+    };
+    const googleEn = {
+      lang: "en-US",
+      localService: false,
+      name: "Google US English",
+    };
+
+    // Never falls back to an English voice when requesting Vietnamese
+    expect(selectLocalVoice([microsoftDavid], "vi")).toBeUndefined();
+    // Prefers Natural > Google > Offline An for Vietnamese
+    expect(
+      selectLocalVoice([microsoftDavid, microsoftAn, googleVi, hoaiMyNatural], "vi"),
+    ).toBe(hoaiMyNatural);
+    expect(
+      selectLocalVoice([microsoftDavid, microsoftAn, googleVi], "vi"),
+    ).toBe(googleVi);
+    // Supports localOnly option for offline fallback
+    expect(
+      selectLocalVoice([googleVi, hoaiMyNatural, microsoftAn], "vi", {
+        localOnly: true,
+      }),
+    ).toBe(microsoftAn);
+    // Prefers Google US English over robotic Microsoft David for English
+    expect(selectLocalVoice([microsoftDavid, googleEn], "en")).toBe(googleEn);
+  });
+
+  it("segments mixed Vietnamese and English text so each language run uses its native voice", () => {
+    const mixedViSentence =
+      "Hiện tại ở cái chat AI, chức năng Mind Map trong scope all của Manager đã hoạt động ổn định.";
+    const segments = splitAnswerSpeechSegments(mixedViSentence, "vi");
+
+    expect(segments).toEqual([
+      { text: "Hiện tại ở cái", lang: "vi" },
+      { text: "chat AI,", lang: "en" },
+      { text: "chức năng", lang: "vi" },
+      { text: "Mind Map", lang: "en" },
+      { text: "trong", lang: "vi" },
+      { text: "scope all", lang: "en" },
+      { text: "của", lang: "vi" },
+      { text: "Manager", lang: "en" },
+      { text: "đã hoạt động ổn định.", lang: "vi" },
+    ]);
+
+    const englishWithViName =
+      "Based on the specification from Trần Kim Thắng, the authentication service validates bearer tokens across all endpoints.";
+    expect(detectAnswerSpeechLang(englishWithViName, "vi")).toBe("en");
+    expect(splitAnswerSpeechSegments(englishWithViName, "en")).toEqual([
+      { text: "Based on the specification from", lang: "en" },
+      { text: "Trần Kim Thắng,", lang: "vi" },
+      {
+        text: "the authentication service validates bearer tokens across all endpoints.",
+        lang: "en",
+      },
+    ]);
   });
 
   it("anchors legacy turns without replyToMessageId and chains regenerated versions", () => {

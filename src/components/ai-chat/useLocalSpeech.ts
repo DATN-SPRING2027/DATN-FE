@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   detectAnswerSpeechLang,
   selectLocalVoice,
+  splitAnswerSpeechSegments,
   stripAnswerToPlainSpeechText,
 } from "./answer-action-utils";
 
@@ -136,45 +137,105 @@ export function useLocalSpeech(locale: string) {
       }
 
       const preferredLang = detectAnswerSpeechLang(plainText, locale);
-      const localVoice = selectLocalVoice(voices, preferredLang);
-      if (!localVoice) {
+      const viVoice = selectLocalVoice(voices, "vi");
+      const enVoice = selectLocalVoice(voices, "en");
+      const viOfflineVoice = selectLocalVoice(voices, "vi", {
+        localOnly: true,
+      });
+      const enOfflineVoice = selectLocalVoice(voices, "en", {
+        localOnly: true,
+      });
+      const primaryVoice = preferredLang === "vi" ? viVoice : enVoice;
+
+      if (!primaryVoice) {
         setPreparingMessageId(null);
         setSpeechError({ messageId, kind: "unavailable" });
         return;
       }
 
-      try {
-        const utterance = new SpeechSynthesisUtterance(plainText);
-        utterance.voice = localVoice;
-        utterance.lang = localVoice.lang;
+      const segments = splitAnswerSpeechSegments(rawContent, locale);
+      const activeSegments =
+        segments.length > 0
+          ? segments
+          : [{ text: plainText, lang: preferredLang }];
 
-        utterance.onstart = () => {
-          if (requestIdRef.current !== currentRequestId) return;
+      const speakSegmentAt = (index: number, forceOfflineFallback: boolean) => {
+        if (requestIdRef.current !== currentRequestId) {
+          return;
+        }
+        const segment = activeSegments[index];
+        if (!segment) {
+          setPreparingMessageId(null);
+          setSpeakingMessageId(null);
+          return;
+        }
+
+        const targetVoice = forceOfflineFallback
+          ? segment.lang === "vi"
+            ? viOfflineVoice
+            : enOfflineVoice
+          : segment.lang === "vi"
+            ? viVoice
+            : enVoice;
+
+        try {
+          const utterance = new SpeechSynthesisUtterance(segment.text);
+          if (targetVoice) {
+            utterance.voice = targetVoice;
+            utterance.lang =
+              targetVoice.lang || (segment.lang === "vi" ? "vi-VN" : "en-US");
+          } else {
+            utterance.lang = segment.lang === "vi" ? "vi-VN" : "en-US";
+          }
+
+          utterance.onstart = () => {
+            if (requestIdRef.current !== currentRequestId) return;
+            setPreparingMessageId(null);
+            setSpeakingMessageId(messageId);
+          };
+          utterance.onend = () => {
+            if (requestIdRef.current !== currentRequestId) return;
+            if (index + 1 < activeSegments.length) {
+              speakSegmentAt(index + 1, false);
+              return;
+            }
+            setPreparingMessageId(null);
+            setSpeakingMessageId(null);
+          };
+          utterance.onerror = (event) => {
+            if (requestIdRef.current !== currentRequestId) return;
+            if (event.error === "canceled" || event.error === "interrupted") {
+              setPreparingMessageId(null);
+              setSpeakingMessageId(null);
+              return;
+            }
+            const offlineCandidate =
+              segment.lang === "vi" ? viOfflineVoice : enOfflineVoice;
+            if (
+              !forceOfflineFallback &&
+              targetVoice &&
+              !targetVoice.localService &&
+              offlineCandidate
+            ) {
+              speakSegmentAt(index, true);
+              return;
+            }
+            setPreparingMessageId(null);
+            setSpeakingMessageId(null);
+            setSpeechError({ messageId, kind: "failed" });
+          };
+
           setPreparingMessageId(null);
           setSpeakingMessageId(messageId);
-        };
-        utterance.onend = () => {
-          if (requestIdRef.current !== currentRequestId) return;
+          synth.speak(utterance);
+        } catch {
           setPreparingMessageId(null);
           setSpeakingMessageId(null);
-        };
-        utterance.onerror = (event) => {
-          if (requestIdRef.current !== currentRequestId) return;
-          setPreparingMessageId(null);
-          setSpeakingMessageId(null);
-          if (event.error !== "canceled" && event.error !== "interrupted") {
-            setSpeechError({ messageId, kind: "failed" });
-          }
-        };
+          setSpeechError({ messageId, kind: "failed" });
+        }
+      };
 
-        setPreparingMessageId(null);
-        setSpeakingMessageId(messageId);
-        synth.speak(utterance);
-      } catch {
-        setPreparingMessageId(null);
-        setSpeakingMessageId(null);
-        setSpeechError({ messageId, kind: "failed" });
-      }
+      speakSegmentAt(0, false);
     },
     [locale, preparingMessageId, speakingMessageId, stopSpeech],
   );
