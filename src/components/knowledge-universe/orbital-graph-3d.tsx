@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import * as React from "react";
 import * as THREE from "three";
@@ -653,7 +653,7 @@ export function OrbitalEventEntityGraph({
   const autoRotateRef = React.useRef(false);
   const selectionRef = React.useRef<EventEntitySelection | null>(null);
   const onOpenEventRef = React.useRef(onOpenEvent);
-  onOpenEventRef.current = onOpenEvent;
+  React.useEffect(() => { onOpenEventRef.current = onOpenEvent; }, [onOpenEvent]);
   const [selection, setSelection] =
     React.useState<EventEntitySelection | null>(null);
   const [autoRotate, setAutoRotate] = React.useState(false);
@@ -1577,17 +1577,6 @@ export function OrbitalEventEntityGraph({
                 <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-white/65">
                   {selection.value.summary}
                 </p>
-              )}
-              {selection.value.chunk_id && onOpenEvent && (
-                <div className="mt-2.5 flex justify-end">
-                  <button
-                    type="button"
-                    className="rounded-md border border-white/20 bg-white/10 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-white/20"
-                    onClick={() => onOpenEvent(selection.value)}
-                  >
-                    {t("viewOriginal")}
-                  </button>
-                </div>
               )}
             </>
           )}

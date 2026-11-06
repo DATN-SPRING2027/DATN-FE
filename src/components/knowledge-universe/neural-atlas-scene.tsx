@@ -79,7 +79,7 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
     const containerRef = React.useRef<HTMLDivElement>(null);
     const labelsRef = React.useRef<HTMLDivElement>(null);
     const latest = React.useRef(props);
-    latest.current = props;
+    React.useEffect(() => { latest.current = props; });
     const [hovered, setHovered] = React.useState<string | null>(null);
     const hoveringRegionRef = React.useRef(false);
     const positions = React.useRef(new Map<string, THREE.Vector3>());
@@ -113,7 +113,7 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       [props.neurons, props.regions, props.edges, props.filterMode],
     );
     const layoutRef = React.useRef(layout);
-    layoutRef.current = layout;
+    React.useEffect(() => { layoutRef.current = layout; }, [layout]);
 
     const moveCamera = React.useCallback(
       (position: THREE.Vector3, target: THREE.Vector3, animate = true) => {
@@ -358,7 +358,7 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       let frameId = 0;
       let lastFrame = 0;
       let visible = true;
-      const hit = (event: PointerEvent) => {
+      const hit = (event: MouseEvent) => {
         const bounds = renderer.domElement.getBoundingClientRect();
         pointer.set(
           ((event.clientX - bounds.left) / bounds.width) * 2 - 1,

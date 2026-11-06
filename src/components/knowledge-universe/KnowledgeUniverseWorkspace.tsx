@@ -43,7 +43,7 @@ import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveO
 import type { Project } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 import {
-  disambiguateUnitTitles,
+
   isNoisyTechnicalLabel,
   knowledgeDocumentTitle,
   knowledgePassage,
@@ -1343,7 +1343,7 @@ function KnowledgeUniverseContent() {
 
   const filteredClusters = React.useMemo(
     () =>
-      clusterChoices.filter((item) => matchesQuery(item.label)),
+      clusterChoices.filter((item) => !query || item.label.toLocaleLowerCase().includes(query)),
     [clusterChoices, query],
   );
 
