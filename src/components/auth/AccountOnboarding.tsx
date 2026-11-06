@@ -19,6 +19,7 @@ import OrganizationCreateForm from "./OrganizationCreateForm";
 import OrganizationInvitations from "./OrganizationInvitations";
 import OrganizationMembershipEvents from "./OrganizationMembershipEvents";
 import OrganizationTransition from "./OrganizationTransition";
+import AuthRobotLoadingStage from "./AuthRobotLoadingStage";
 import styles from "./auth-experience.module.css";
 
 function userInitials(name: string, email: string) {
@@ -109,19 +110,8 @@ export default function AccountOnboarding() {
         aria-label={t("checkingSession")}
         suppressHydrationWarning
       >
-        <div className="w-full max-w-lg space-y-4" suppressHydrationWarning>
-          <div
-            className="h-8 w-40 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800"
-            suppressHydrationWarning
-          />
-          <div
-            className="h-10 w-3/4 motion-safe:animate-pulse rounded-lg bg-gray-100 dark:bg-gray-800"
-            suppressHydrationWarning
-          />
-          <div
-            className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
-            suppressHydrationWarning
-          />
+        <div className="w-full max-w-lg" suppressHydrationWarning>
+          <AuthRobotLoadingStage variant="session-gate" />
         </div>
       </main>
     );
@@ -150,13 +140,10 @@ export default function AccountOnboarding() {
               aria-label={t("onboardingChecking")}
               suppressHydrationWarning
             >
-              {[0, 1].map((item) => (
-                <div
-                  key={item}
-                  className="h-18 motion-safe:animate-pulse rounded-2xl bg-gray-100 dark:bg-gray-800"
-                  suppressHydrationWarning
-                />
-              ))}
+              <AuthRobotLoadingStage
+                variant="organizations-scan"
+                userName={current.data.name}
+              />
             </div>
           )}
           {organizations.isError && !showCreateForm && (

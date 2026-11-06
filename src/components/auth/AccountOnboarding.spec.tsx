@@ -479,4 +479,38 @@ describe("account onboarding invitations", () => {
     await waitFor(() => expect(select).toHaveBeenCalledWith("org-created"));
     await waitFor(() => expect(replace).toHaveBeenCalledWith("/dashboard"));
   });
+
+  it("renders the 3D Robot loading stages while verifying the session or scanning organizations", () => {
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: undefined,
+      isError: false,
+    } as never);
+
+    const { rerender } = render(<AccountOnboarding />);
+    expect(
+      screen.getByTestId("auth-robot-stage-session-gate"),
+    ).toBeInTheDocument();
+
+    vi.mocked(useCurrentUserQuery).mockReturnValue({
+      data: {
+        id: "user-1",
+        email: "thang@example.com",
+        name: "Thang",
+        context: "ACCOUNT",
+      },
+      isError: false,
+    } as never);
+    vi.mocked(useOrganizationOptionsQuery).mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      isSuccess: false,
+      refetch: refetchOrganizations,
+    } as never);
+
+    rerender(<AccountOnboarding />);
+    expect(
+      screen.getByTestId("auth-robot-stage-organizations-scan"),
+    ).toBeInTheDocument();
+  });
 });
