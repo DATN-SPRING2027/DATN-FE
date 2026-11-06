@@ -38,7 +38,8 @@ export default function AdminLayout({
     pathname === "/ai-chat" || pathname.startsWith("/ai-chat/");
   const isHumanChat =
     pathname === "/chat" || pathname.startsWith("/chat/");
-  const isChat = isHumanChat || isAiChat;
+  const isKnowledge = pathname === "/knowledge" || pathname.startsWith("/knowledge/");
+  const isChat = isHumanChat || isAiChat || isKnowledge;
   const aiChatFloatingPadding = useFloatingChatStore((state) => {
     if (!isAiChat || !state.activeOrgId) return "";
     const openCount = state.openWindowsByOrg[state.activeOrgId]?.length ?? 0;
