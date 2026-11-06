@@ -17,9 +17,21 @@ function readCsrfCookie(): string | null {
  * the active React Query cache or remounting QueryClientProvider. Use after
  * in-session cookie rotations such as select-organization or token refresh.
  */
-export function syncCurrentAuthSessionCookie(): void {
+export function syncCurrentAuthSessionCookie(options?: {
+  broadcastToOtherTabs?: boolean;
+}): void {
   if (typeof window === "undefined") return;
   window.dispatchEvent(new Event(LOCAL_SESSION_COOKIE_SYNC_EVENT));
+
+  if (options?.broadcastToOtherTabs) {
+    try {
+      const marker =
+        window.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
+      window.localStorage.setItem(AUTH_SESSION_CHANGE_STORAGE_KEY, marker);
+    } catch {
+      // Cookie comparison on focus remains available if browser storage is disabled.
+    }
+  }
 }
 
 export function notifyAuthSessionChanged(): void {

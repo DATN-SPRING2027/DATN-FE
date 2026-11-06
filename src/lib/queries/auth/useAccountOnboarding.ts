@@ -7,11 +7,10 @@ import {
   parseRecipientInvitationPage,
 } from "@/lib/queries/organization-memberships/organization-memberships.contract";
 import { authKeys } from "./auth.keys";
-import {
-  notifyAuthSessionChanged,
-  syncCurrentAuthSessionCookie,
-} from "./session-sync";
+import { syncCurrentAuthSessionCookie } from "./session-sync";
 import type { CurrentUserResponse } from "./useAuth";
+import { useChatNavigation } from "@/stores/chat-navigation";
+import { useFloatingChatStore } from "@/stores/floating-chat";
 
 export interface OrganizationOption {
   id: string;
@@ -134,7 +133,12 @@ export function useSelectOrganizationMutation() {
         body: JSON.stringify({ organizationId }),
       }),
     onSuccess: (data, organizationId) => {
-      syncCurrentAuthSessionCookie();
+      // Sync the current tab's CSRF cookie snapshot and notify OTHER open tabs
+      // via localStorage without firing LOCAL_SESSION_CHANGE_EVENT in this tab.
+      // Firing LOCAL_SESSION_CHANGE_EVENT in this tab would cause AppProviders
+      // to call queryClient.clear() and increment sessionGeneration, unmounting
+      // AccountOnboarding / OrganizationTransition before router.replace("/dashboard") runs.
+      syncCurrentAuthSessionCookie({ broadcastToOtherTabs: true });
       const nextOrganizationId = data?.user?.organizationId || organizationId;
       queryClient.setQueryData<CurrentUserResponse | undefined>(
         authKeys.currentUser(),
@@ -175,7 +179,8 @@ export function useSelectOrganizationMutation() {
       queryClient.removeQueries({
         predicate: (query) => query.queryKey[0] !== "auth",
       });
-      notifyAuthSessionChanged();
+      useFloatingChatStore.getState().reset();
+      useChatNavigation.getState().clear();
     },
   });
 }

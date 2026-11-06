@@ -12,7 +12,10 @@ import {
   useCompletePasswordResetMutation,
 } from "./useAuth";
 import { authKeys } from "./auth.keys";
-import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "./session-sync";
+import {
+  AUTH_SESSION_CHANGE_STORAGE_KEY,
+  subscribeToAuthSessionChanges,
+} from "./session-sync";
 import { useSelectOrganizationMutation } from "./useAccountOnboarding";
 
 vi.mock("@/lib/api-client", () => ({
@@ -200,8 +203,11 @@ describe("auth query hooks", () => {
     );
   });
 
-  it("updates currentUser cache in-place and clears tenant queries when switching organizations", async () => {
+  it("updates currentUser cache in-place and clears tenant queries when switching organizations without triggering a current-tab session remount", async () => {
     window.localStorage.removeItem(AUTH_SESSION_CHANGE_STORAGE_KEY);
+    const onSessionResetInCurrentTab = vi.fn();
+    const unsubscribe = subscribeToAuthSessionChanges(onSessionResetInCurrentTab);
+
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -250,31 +256,38 @@ describe("auth query hooks", () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useSelectOrganizationMutation(), {
-      wrapper,
-    });
+    try {
+      const { result } = renderHook(() => useSelectOrganizationMutation(), {
+        wrapper,
+      });
 
-    await act(() => result.current.mutateAsync("org-2"));
+      await act(() => result.current.mutateAsync("org-2"));
 
-    expect(queryClient.getQueryData(authKeys.currentUser())).toEqual({
-      id: "user-1",
-      email: "admin@continuum.ai",
-      name: "Admin User",
-      context: "ORGANIZATION",
-      organizationId: "org-2",
-      roles: [],
-    });
-    expect(queryClient.getQueryData(["auth", "organizations"])).toEqual([
-      { id: "org-1", name: "DATN" },
-      { id: "org-2", name: "DATN Test" },
-    ]);
-    expect(queryClient.getQueryState(authKeys.currentUser())?.isInvalidated).toBe(
-      false,
-    );
-    expect(
-      queryClient.getQueryState(["auth", "organizations"])?.isInvalidated,
-    ).toBe(false);
-    expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
-    expect(window.localStorage.getItem(AUTH_SESSION_CHANGE_STORAGE_KEY)).toBeTruthy();
+      expect(onSessionResetInCurrentTab).not.toHaveBeenCalled();
+      expect(queryClient.getQueryData(authKeys.currentUser())).toEqual({
+        id: "user-1",
+        email: "admin@continuum.ai",
+        name: "Admin User",
+        context: "ORGANIZATION",
+        organizationId: "org-2",
+        roles: [],
+      });
+      expect(queryClient.getQueryData(["auth", "organizations"])).toEqual([
+        { id: "org-1", name: "DATN" },
+        { id: "org-2", name: "DATN Test" },
+      ]);
+      expect(
+        queryClient.getQueryState(authKeys.currentUser())?.isInvalidated,
+      ).toBe(false);
+      expect(
+        queryClient.getQueryState(["auth", "organizations"])?.isInvalidated,
+      ).toBe(false);
+      expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
+      expect(
+        window.localStorage.getItem(AUTH_SESSION_CHANGE_STORAGE_KEY),
+      ).toBeTruthy();
+    } finally {
+      unsubscribe();
+    }
   });
 });
