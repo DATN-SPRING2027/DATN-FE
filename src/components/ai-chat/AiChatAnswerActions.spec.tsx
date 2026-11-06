@@ -450,6 +450,114 @@ describe("AiChatAnswerActionBar (Copy, Like/Dislike, Read Aloud, Share, Try Agai
     vi.unstubAllGlobals();
   });
 
+  it("speaks mixed Vietnamese and English segments sequentially with matching voices and retries with offline fallback on error", async () => {
+    const spokenUtterances: Array<{
+      text: string;
+      lang: string;
+      voice: SpeechSynthesisVoice | null;
+      onstart: (() => void) | null;
+      onend: (() => void) | null;
+      onerror: ((e: { error: string }) => void) | null;
+    }> = [];
+
+    const googleViVoice = {
+      lang: "vi-VN",
+      localService: false,
+      name: "Google Tiếng Việt",
+      default: false,
+      voiceURI: "google-vi",
+    } as SpeechSynthesisVoice;
+    const offlineViVoice = {
+      lang: "vi-VN",
+      localService: true,
+      name: "Microsoft An - Vietnamese (Vietnam)",
+      default: false,
+      voiceURI: "ms-an-vi",
+    } as SpeechSynthesisVoice;
+    const googleEnVoice = {
+      lang: "en-US",
+      localService: false,
+      name: "Google US English",
+      default: true,
+      voiceURI: "google-en",
+    } as SpeechSynthesisVoice;
+
+    const fakeSynth = {
+      getVoices: vi.fn(() => [offlineViVoice, googleViVoice, googleEnVoice]),
+      speak: vi.fn((u) => {
+        spokenUtterances.push(u);
+      }),
+      cancel: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    };
+
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      writable: true,
+      value: fakeSynth,
+    });
+    class FakeUtterance {
+      text: string;
+      voice: SpeechSynthesisVoice | null = null;
+      lang = "";
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: ((e: { error: string }) => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    vi.stubGlobal("SpeechSynthesisUtterance", FakeUtterance);
+
+    const { result, unmount } = renderHook(() => useLocalSpeech("vi"));
+
+    await act(async () => {
+      await result.current.toggleSpeak(
+        "msg-bilingual",
+        "Chức năng Mind Map đã sẵn sàng.",
+      );
+    });
+
+    // Segment 1: "Chức năng" -> spoken with Google Tiếng Việt
+    expect(spokenUtterances).toHaveLength(1);
+    expect(spokenUtterances[0]?.text).toBe("Chức năng");
+    expect(spokenUtterances[0]?.voice).toBe(googleViVoice);
+
+    // Simulate online voice network error on Segment 1 -> automatically retries with offline Microsoft An
+    act(() => {
+      spokenUtterances[0]?.onerror?.({ error: "network" });
+    });
+    expect(spokenUtterances).toHaveLength(2);
+    expect(spokenUtterances[1]?.text).toBe("Chức năng");
+    expect(spokenUtterances[1]?.voice).toBe(offlineViVoice);
+
+    // Complete Segment 1 -> automatically advances to Segment 2 ("Mind Map" in English)
+    act(() => {
+      spokenUtterances[1]?.onend?.();
+    });
+    expect(spokenUtterances).toHaveLength(3);
+    expect(spokenUtterances[2]?.text).toBe("Mind Map");
+    expect(spokenUtterances[2]?.voice).toBe(googleEnVoice);
+
+    // Complete Segment 2 -> advances to Segment 3 ("đã sẵn sàng." in Vietnamese)
+    act(() => {
+      spokenUtterances[2]?.onend?.();
+    });
+    expect(spokenUtterances).toHaveLength(4);
+    expect(spokenUtterances[3]?.text).toBe("đã sẵn sàng.");
+    expect(spokenUtterances[3]?.voice).toBe(googleViVoice);
+
+    // Complete final segment -> speakingMessageId resets to null
+    act(() => {
+      spokenUtterances[3]?.onend?.();
+    });
+    expect(result.current.speakingMessageId).toBeNull();
+
+    unmount();
+    vi.unstubAllGlobals();
+  });
+
   it("opens More actions (⋯) popover with formatted timestamp, View sources, and Branch in new chat", () => {
     const onOpenSources = vi.fn();
     const onBranchInNewChat = vi.fn();
