@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import OrganizationChoices from "./OrganizationChoices";
 import OrganizationCreateForm from "./OrganizationCreateForm";
 import OrganizationInvitations from "./OrganizationInvitations";
+import OrganizationMembershipEvents from "./OrganizationMembershipEvents";
 import OrganizationTransition from "./OrganizationTransition";
 import styles from "./auth-experience.module.css";
 
@@ -224,6 +225,13 @@ export default function AccountOnboarding() {
                 />
               )}
             </>
+          )}
+
+          {canSelectOrganization && (
+            <OrganizationMembershipEvents
+              userId={current.data.id}
+              enabled={canSelectOrganization}
+            />
           )}
 
           <div className="flex items-center justify-between gap-3 border-t border-gray-200/80 pt-4 dark:border-gray-800">

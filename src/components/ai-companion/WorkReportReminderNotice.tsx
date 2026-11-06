@@ -27,14 +27,20 @@ export default function WorkReportReminderNotice({
     return () => clearInterval(timer);
   }, []);
   const user = useCurrentUserQuery();
+  const organizationId =
+    user.data && "organizationId" in user.data
+      ? (user.data.organizationId ?? null)
+      : null;
   const authenticated =
-    Boolean(user.data?.id) && !isAccessOrResourceUnavailableError(user.error);
+    Boolean(user.data?.id && organizationId) &&
+    !isAccessOrResourceUnavailableError(user.error);
   const query = useNotificationsQuery({
     unreadOnly: true,
     limit: 100,
     enabled: authenticated,
+    organizationId,
   });
-  const read = useMarkNotificationReadMutation();
+  const read = useMarkNotificationReadMutation(organizationId);
   const [dismissed, setDismissed] = useState<string[]>([]);
   const candidates =
     authenticated && !query.isError
@@ -48,7 +54,8 @@ export default function WorkReportReminderNotice({
             item.target.reportId &&
             item.target.url ===
               `/projects/${item.target.projectId}/work-reports` &&
-            item.organizationId === user.data?.organizationId,
+            (item.organizationId ?? item.target?.organizationId) ===
+              organizationId,
         ) ?? [])
       : [];
   const eligible = useQuery({
@@ -56,7 +63,7 @@ export default function WorkReportReminderNotice({
       "work-notes",
       "companion-reminders",
       user.data?.id,
-      user.data?.organizationId,
+      organizationId,
       candidates.map((item) => item.id),
     ],
     queryFn: async ({ signal }) => {

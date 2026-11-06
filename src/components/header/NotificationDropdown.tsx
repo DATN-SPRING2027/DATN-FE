@@ -32,7 +32,10 @@ import {
   resolveMaxOpenChatWindows,
   useFloatingChatStore,
 } from "@/stores/floating-chat";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import {
+  BackgroundRefreshError,
+  UpdatingStatus,
+} from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
   resolveDefaultTargetUrl,
@@ -103,10 +106,14 @@ export default function NotificationDropdown() {
     (state) => state.openConversation,
   );
   const currentUser = useCurrentUserQuery();
-  const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
-  const userId = currentUserAccessLost ? null : currentUser.data?.id ?? null;
+  const currentUserAccessLost = isAccessOrResourceUnavailableError(
+    currentUser.error,
+  );
+  const userId = currentUserAccessLost ? null : (currentUser.data?.id ?? null);
   const organizationId =
-    !currentUserAccessLost && currentUser.data && "organizationId" in currentUser.data
+    !currentUserAccessLost &&
+    currentUser.data &&
+    "organizationId" in currentUser.data
       ? (currentUser.data.organizationId ?? null)
       : null;
 
@@ -133,26 +140,43 @@ export default function NotificationDropdown() {
   const [resolveErrorItem, setResolveErrorItem] =
     useState<NotificationItem | null>(null);
 
-  const isAuthenticated = Boolean(userId);
+  const isAuthenticated = Boolean(userId && organizationId);
   const unreadQuery = useUnreadNotificationCountQuery(
     isAuthenticated && !isOpen,
     realtimeConnected,
+    organizationId,
   );
   const listQuery = useNotificationsQuery({
     limit: 12,
     enabled: isAuthenticated && isOpen,
+    organizationId,
   });
-  const markReadMutation = useMarkNotificationReadMutation();
-  const markAllReadMutation = useMarkAllNotificationsReadMutation();
+  const markReadMutation = useMarkNotificationReadMutation(organizationId);
+  const markAllReadMutation =
+    useMarkAllNotificationsReadMutation(organizationId);
 
-  const listAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(listQuery.error);
-  const unreadAccessLost = currentUserAccessLost || isAccessOrResourceUnavailableError(unreadQuery.error);
-  const visibleList = listAccessLost ? undefined : listQuery.data;
-  const visibleUnreadCount = unreadAccessLost ? undefined : unreadQuery.data?.count;
-  const items = visibleList?.items ?? [];
-  const unreadCount = isOpen
-    ? (visibleList?.unreadCount ?? visibleUnreadCount ?? 0)
-    : (visibleUnreadCount ?? visibleList?.unreadCount ?? 0);
+  const listAccessLost =
+    currentUserAccessLost ||
+    isAccessOrResourceUnavailableError(listQuery.error);
+  const unreadAccessLost =
+    currentUserAccessLost ||
+    isAccessOrResourceUnavailableError(unreadQuery.error);
+  const visibleList =
+    isAuthenticated && !listAccessLost ? listQuery.data : undefined;
+  const visibleUnreadCount =
+    isAuthenticated && !unreadAccessLost ? unreadQuery.data?.count : undefined;
+  const items = isAuthenticated
+    ? (visibleList?.items ?? []).filter((item) => {
+        const itemOrgId =
+          item.organizationId ?? item.target?.organizationId ?? null;
+        return !itemOrgId || itemOrgId === organizationId;
+      })
+    : [];
+  const unreadCount = isAuthenticated
+    ? isOpen
+      ? (visibleList?.unreadCount ?? visibleUnreadCount ?? 0)
+      : (visibleUnreadCount ?? visibleList?.unreadCount ?? 0)
+    : 0;
 
   function toggleDropdown() {
     setIsOpen((prev) => !prev);
@@ -172,7 +196,10 @@ export default function NotificationDropdown() {
     }
 
     try {
-      const resolution = await notificationsApi.resolveTarget(item.id);
+      const resolution = await notificationsApi.resolveTarget(
+        item.id,
+        organizationId,
+      );
       if (!resolution.available) {
         setUnavailableNotice(t("contentUnavailableTitle"));
         return;
@@ -243,7 +270,7 @@ export default function NotificationDropdown() {
         {unreadCount > 0 && (
           <span
             data-testid="notification-unread-badge"
-            className="absolute -top-1 -end-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-[11px] font-semibold text-white tabular-nums shadow-theme-xs"
+            className="absolute -end-1 -top-1 z-10 flex h-5 min-w-5 items-center justify-center rounded-full bg-brand-500 px-1 text-[11px] font-semibold text-white tabular-nums shadow-theme-xs"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -363,10 +390,10 @@ export default function NotificationDropdown() {
                   key={idx}
                   className="flex items-start gap-3 rounded-xl p-3"
                 >
-                  <div className="h-9 w-9 shrink-0 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800" />
+                  <div className="h-9 w-9 shrink-0 rounded-xl bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
                   <div className="flex-1 space-y-2">
-                    <div className="h-3.5 w-2/3 motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
-                    <div className="h-3 w-full motion-safe:animate-pulse rounded bg-gray-100 dark:bg-gray-800" />
+                    <div className="h-3.5 w-2/3 rounded bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
+                    <div className="h-3 w-full rounded bg-gray-100 motion-safe:animate-pulse dark:bg-gray-800" />
                   </div>
                 </div>
               ))}

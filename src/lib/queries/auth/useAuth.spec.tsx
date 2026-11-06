@@ -12,6 +12,7 @@ import {
   useCompletePasswordResetMutation,
 } from "./useAuth";
 import { authKeys } from "./auth.keys";
+import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "./session-sync";
 import { useSelectOrganizationMutation } from "./useAccountOnboarding";
 
 vi.mock("@/lib/api-client", () => ({
@@ -200,6 +201,7 @@ describe("auth query hooks", () => {
   });
 
   it("updates currentUser cache in-place and clears tenant queries when switching organizations", async () => {
+    window.localStorage.removeItem(AUTH_SESSION_CHANGE_STORAGE_KEY);
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
     });
@@ -273,5 +275,6 @@ describe("auth query hooks", () => {
       queryClient.getQueryState(["auth", "organizations"])?.isInvalidated,
     ).toBe(false);
     expect(queryClient.getQueryData(["projects", "org-1"])).toBeUndefined();
+    expect(window.localStorage.getItem(AUTH_SESSION_CHANGE_STORAGE_KEY)).toBeTruthy();
   });
 });

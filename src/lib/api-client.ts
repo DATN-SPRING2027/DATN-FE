@@ -3,7 +3,10 @@
  * Centralized HTTP client for communication with the BFF or backend boundary.
  */
 
-import { syncCurrentAuthSessionCookie } from "@/lib/queries/auth/session-sync";
+import {
+  notifyAuthSessionChanged,
+  syncCurrentAuthSessionCookie,
+} from "@/lib/queries/auth/session-sync";
 
 export function getServerApiBaseUrl(): string {
   const configuredBaseUrl =
@@ -194,6 +197,12 @@ export async function apiClient<T>(
       !Array.isArray(detail.details)
         ? detail.details
         : undefined;
+    if (
+      response.status === 409 &&
+      detail.code === "ORGANIZATION_CONTEXT_MISMATCH"
+    ) {
+      notifyAuthSessionChanged();
+    }
     throw new ApiError(
       response.status,
       detail.code,

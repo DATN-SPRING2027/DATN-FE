@@ -3,9 +3,11 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { StrictMode, type PropsWithChildren } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { ApiError } from "@/lib/api-client";
+import * as apiClientModule from "@/lib/api-client";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { chatApi } from "@/lib/queries/chat/useChat";
 import {
+  notificationsApi,
   useNotificationRealtimeSubscription,
   unreadNotificationPollingInterval,
 } from "./useNotifications";
@@ -61,6 +63,51 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   vi.useRealTimers();
+});
+
+it("binds each organization notification request to its expected organization", async () => {
+  const request = vi.spyOn(apiClientModule, "apiClient").mockResolvedValue({
+    items: [],
+    nextCursor: null,
+    unreadCount: 0,
+    count: 0,
+    updatedCount: 0,
+    readAt: new Date(0).toISOString(),
+    available: false,
+    target: null,
+  } as never);
+
+  await notificationsApi.list({ limit: 12 }, undefined, "org-1");
+  await notificationsApi.unreadCount("org-1");
+  await notificationsApi.markRead("notification-1", "org-1");
+  await notificationsApi.markAllRead("org-1");
+  await notificationsApi.resolveTarget("notification-1", "org-1");
+
+  for (const [, options] of request.mock.calls) {
+    expect(new Headers(options?.headers).get("X-Expected-Organization-Id")).toBe(
+      "org-1",
+    );
+  }
+  request.mockRestore();
+});
+
+it("loads account lifecycle events through the isolated account-events route", async () => {
+  const request = vi.spyOn(apiClientModule, "apiClient").mockResolvedValue({
+    items: [],
+    nextCursor: null,
+    unreadCount: 0,
+  } as never);
+
+  await notificationsApi.accountEvents({ limit: 20 });
+
+  expect(request).toHaveBeenCalledWith(
+    "/notifications/account-events?limit=20",
+    expect.objectContaining({ cache: "no-store" }),
+  );
+  expect(new Headers(request.mock.calls[0][1]?.headers).has(
+    "X-Expected-Organization-Id",
+  )).toBe(false);
+  request.mockRestore();
 });
 
 it("shares one ticket request across Strict Mode effect replay", async () => {
