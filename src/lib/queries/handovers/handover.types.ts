@@ -198,6 +198,15 @@ export interface DraftResource {
   etag: string;
 }
 
+export interface HandoverAiCoverageDto {
+  requestedSources: number;
+  includedSources: SourceRefDto[];
+  skippedSources: SourceRefDto[];
+  truncatedSources: SourceRefDto[];
+  totalEvidenceUnits?: number;
+  truncated: boolean;
+}
+
 export interface JobDto {
   id: string;
   handoverId: string;
@@ -206,6 +215,7 @@ export interface JobDto {
   inputDraftVersion: number;
   safeErrorCode: string | null;
   warnings?: HandoverAiWarning[];
+  coverage?: HandoverAiCoverageDto;
   createdAt: string;
 }
 
@@ -297,6 +307,7 @@ export interface HandoverAnswerDto {
   message: string;
   sections: AnswerSectionDto[];
   warnings?: HandoverAiWarning[];
+  coverage?: HandoverAiCoverageDto;
 }
 
 // Command Input Payloads

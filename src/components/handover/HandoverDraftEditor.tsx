@@ -928,7 +928,10 @@ export default function HandoverDraftEditor({
               </div>
 
               {jobQuery.data.state === "SUCCEEDED" && (
-                <HandoverAiCoverageWarning warnings={jobQuery.data.warnings} />
+                <HandoverAiCoverageWarning
+                  warnings={jobQuery.data.warnings}
+                  coverage={jobQuery.data.coverage}
+                />
               )}
 
               {jobQuery.data.state === "SUPERSEDED" && (
