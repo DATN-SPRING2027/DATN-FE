@@ -931,15 +931,6 @@ export default function HandoverDraftEditor({
                 <HandoverAiCoverageWarning
                   warnings={jobQuery.data.warnings}
                   coverage={jobQuery.data.coverage}
-                  usedSources={
-                    jobQuery.data.kind === "SOURCE_PROPOSAL"
-                      ? (candidatesQuery.data?.data ?? []).map((c) => c.source)
-                      : items.flatMap((it) => [
-                          ...it.sources,
-                          ...it.citations.map((c) => c.source),
-                        ])
-                  }
-                  allSources={selectedSources}
                 />
               )}
 

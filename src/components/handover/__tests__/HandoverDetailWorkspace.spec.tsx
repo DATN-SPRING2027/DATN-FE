@@ -459,6 +459,72 @@ describe("HandoverDetailWorkspace", () => {
     expect(screen.getByText(/WORK_REPORT:.*v3/)).toBeVisible();
   });
 
+  it("does not infer job coverage from candidate results or draft selection when coverage is unavailable", () => {
+    vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
+      data: {
+        detail: {
+          handover: makeSummary({ publishedRevisionId: null }),
+          capabilities: ["READ", "MANAGE"],
+          requiredPendingCount: 0,
+          canComplete: false,
+          publishedRevision: null,
+        },
+        etag: '"handover:test:1"',
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(useHandoversModule.useHandoverDraftQuery).mockReturnValue({
+      data: {
+        draft: {
+          handoverId: HANDOVER_ID,
+          draftVersion: 1,
+          items: [],
+          taskIds: [],
+          selectedSources: [
+            {
+              kind: "PROJECT_DOCUMENT",
+              id: "651a2b3c4d5e6f7a8b9c0d11",
+              version: "1",
+            },
+          ],
+        },
+        etag: `"handover:${HANDOVER_ID}:5"`,
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(useHandoversModule.useHandoverJobQuery).mockReturnValue({
+      data: {
+        id: "job-without-coverage",
+        handoverId: HANDOVER_ID,
+        kind: "GENERATION",
+        state: "SUCCEEDED",
+        warnings: ["AI_EVIDENCE_INCOMPLETE"],
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(useHandoversModule.useHandoverCandidatesQuery).mockReturnValue({
+      data: {
+        data: [
+          {
+            source: { kind: "PROJECT_DOCUMENT", id: "candidate-id", version: "1" },
+            title: "Candidate report",
+            reason: "Matches query",
+          },
+        ],
+      },
+      isPending: false,
+      isError: false,
+    } as never);
+
+    renderDetail();
+
+    expect(screen.getByText("Partial source coverage.")).toBeVisible();
+    expect(screen.queryAllByText(/Sources (used|skipped|shortened)/)).toHaveLength(0);
+  });
+
   it("shows coverage warnings beside a Q&A answer", async () => {
     vi.mocked(useHandoversModule.useHandoverDetailQuery).mockReturnValue({
       data: {

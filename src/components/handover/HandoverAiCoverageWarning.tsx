@@ -31,45 +31,23 @@ function dedupeSources(
 export default function HandoverAiCoverageWarning({
   warnings,
   coverage,
-  usedSources: fallbackUsedSources,
-  allSources: fallbackAllSources,
-  sourceLabels,
 }: {
   warnings?: readonly HandoverAiWarning[];
   coverage?: HandoverAiCoverageDto | null;
-  usedSources?: readonly SourceRefDto[];
-  allSources?: readonly SourceRefDto[];
-  sourceLabels?: ReadonlyMap<string, string>;
 }) {
   const t = useTranslations("handover.aiCoverage");
   if (!warnings?.includes("AI_EVIDENCE_INCOMPLETE")) return null;
 
-  const fallbackUsed = dedupeSources(fallbackUsedSources);
-  const fallbackAll = dedupeSources(fallbackAllSources);
-  const fallbackUsedKeys = new Set(fallbackUsed.map((s) => sourceRefKey(s)));
-  const fallbackSkipped = fallbackAll.filter(
-    (s) => !fallbackUsedKeys.has(sourceRefKey(s)),
+  const used = dedupeSources(coverage?.includedSources);
+  const usedKeys = new Set(used.map((s) => sourceRefKey(s)));
+  const skipped = dedupeSources(coverage?.skippedSources).filter(
+    (s) => !usedKeys.has(sourceRefKey(s)),
   );
-
-  const used = coverage
-    ? dedupeSources(coverage.includedSources)
-    : fallbackUsed.length > 0
-      ? fallbackUsed
-      : fallbackAll;
-  const skipped = coverage
-    ? dedupeSources(coverage.skippedSources)
-    : fallbackSkipped;
-  const truncated = coverage ? dedupeSources(coverage.truncatedSources) : [];
+  const truncated = dedupeSources(coverage?.truncatedSources);
   const hasSourceBreakdown =
     used.length > 0 || skipped.length > 0 || truncated.length > 0;
 
   const formatSourceLabel = (ref: SourceRefDto): string => {
-    const custom =
-      sourceLabels?.get(sourceRefKey(ref)) ??
-      sourceLabels?.get(`${ref.kind}:${ref.id.trim().toLowerCase()}`);
-    if (custom) {
-      return `${custom} (${ref.kind}:${formatShortId(ref.id)} v${ref.version})`;
-    }
     return `${ref.kind}:${formatShortId(ref.id)} v${ref.version}`;
   };
 

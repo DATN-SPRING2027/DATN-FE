@@ -147,9 +147,6 @@ export default function HandoverQaPanel({
           <HandoverAiCoverageWarning
             warnings={entry.a.warnings}
             coverage={entry.a.coverage}
-            usedSources={entry.a.sections.flatMap((sec) =>
-              sec.citations.map((cit) => cit.source),
-            )}
           />
 
           {entry.a.sections.length > 0 && (
