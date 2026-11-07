@@ -5974,7 +5974,11 @@
   "handover": {
     "aiCoverage": {
       "title": "Partial source coverage.",
-      "description": "Some source content was skipped or shortened to fit the AI evidence limit. Review the original sources and add any missing knowledge before publishing or completing the handover."
+      "description": "Some source content was skipped or shortened to fit the AI evidence limit. Review the original sources and add any missing knowledge before publishing or completing the handover.",
+      "usedSourcesLabel": "Sources used ({count}):",
+      "skippedSourcesLabel": "Sources skipped ({count}):",
+      "truncatedSourcesLabel": "Sources shortened ({count}):",
+      "noneLabel": "None"
     },
     "breadcrumb": "Breadcrumb",
     "projectsBreadcrumb": "Projects",

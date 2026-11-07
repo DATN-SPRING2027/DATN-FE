@@ -928,7 +928,19 @@ export default function HandoverDraftEditor({
               </div>
 
               {jobQuery.data.state === "SUCCEEDED" && (
-                <HandoverAiCoverageWarning warnings={jobQuery.data.warnings} />
+                <HandoverAiCoverageWarning
+                  warnings={jobQuery.data.warnings}
+                  coverage={jobQuery.data.coverage}
+                  usedSources={
+                    jobQuery.data.kind === "SOURCE_PROPOSAL"
+                      ? (candidatesQuery.data?.data ?? []).map((c) => c.source)
+                      : items.flatMap((it) => [
+                          ...it.sources,
+                          ...it.citations.map((c) => c.source),
+                        ])
+                  }
+                  allSources={selectedSources}
+                />
               )}
 
               {jobQuery.data.state === "SUPERSEDED" && (

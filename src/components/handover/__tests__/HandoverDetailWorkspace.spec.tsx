@@ -416,6 +416,31 @@ describe("HandoverDetailWorkspace", () => {
         kind: "GENERATION",
         state: "SUCCEEDED",
         warnings: ["AI_EVIDENCE_INCOMPLETE"],
+        coverage: {
+          requestedSources: 2,
+          includedSources: [
+            {
+              kind: "PROJECT_DOCUMENT",
+              id: "651a2b3c4d5e6f7a8b9c0d11",
+              version: "2",
+            },
+          ],
+          skippedSources: [
+            {
+              kind: "WORK_REPORT",
+              id: "651a2b3c4d5e6f7a8b9c0d22",
+              version: "3",
+            },
+          ],
+          truncatedSources: [
+            {
+              kind: "PROJECT_DOCUMENT",
+              id: "651a2b3c4d5e6f7a8b9c0d11",
+              version: "2",
+            },
+          ],
+          truncated: true,
+        },
       },
       isPending: false,
       isError: false,
@@ -425,6 +450,13 @@ describe("HandoverDetailWorkspace", () => {
     expect(
       screen.getByText(/Some source content was skipped or shortened/),
     ).toBeVisible();
+    expect(screen.getByText("Sources used (1):")).toBeVisible();
+    expect(screen.getByText("Sources skipped (1):")).toBeVisible();
+    expect(screen.getByText("Sources shortened (1):")).toBeVisible();
+    expect(
+      screen.getAllByText(/PROJECT_DOCUMENT:.*v2/).length,
+    ).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/WORK_REPORT:.*v3/)).toBeVisible();
   });
 
   it("shows coverage warnings beside a Q&A answer", async () => {
@@ -453,6 +485,25 @@ describe("HandoverDetailWorkspace", () => {
           revisionId: "rev-001",
           sections: [],
           warnings: ["AI_EVIDENCE_INCOMPLETE"],
+          coverage: {
+            requestedSources: 2,
+            includedSources: [
+              {
+                kind: "PROJECT_DOCUMENT",
+                id: "651a2b3c4d5e6f7a8b9c0d11",
+                version: "1",
+              },
+            ],
+            skippedSources: [
+              {
+                kind: "KNOWLEDGE_OBJECT",
+                id: "651a2b3c4d5e6f7a8b9c0d33",
+                version: "2",
+              },
+            ],
+            truncatedSources: [],
+            truncated: true,
+          },
         },
       }),
     } as never);
@@ -467,6 +518,10 @@ describe("HandoverDetailWorkspace", () => {
     await waitFor(() =>
       expect(screen.getByText("Partial source coverage.")).toBeVisible(),
     );
+    expect(screen.getByText("Sources used (1):")).toBeVisible();
+    expect(screen.getByText("Sources skipped (1):")).toBeVisible();
+    expect(screen.getByText(/PROJECT_DOCUMENT:.*v1/)).toBeVisible();
+    expect(screen.getByText(/KNOWLEDGE_OBJECT:.*v2/)).toBeVisible();
   });
 
   it("enforces fail-closed UNAVAILABLE item placeholder while allowing RECEIVE actions on AVAILABLE items", async () => {
