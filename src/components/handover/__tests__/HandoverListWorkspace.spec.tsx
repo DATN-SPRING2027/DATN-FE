@@ -21,7 +21,7 @@ import {
   useCreateHandoverMutation,
   useHandoversQuery,
 } from "@/lib/queries/handovers/useHandovers";
-import { setHandoverCoordinator } from "@/lib/queries/handovers/handover.service";
+import { autoBundleHandover, previewDepartingMember, setHandoverCoordinator } from "@/lib/queries/handovers/handover.service";
 import type { HandoverSummaryDto } from "@/lib/queries/handovers/handover.types";
 import HandoverListWorkspace from "../HandoverListWorkspace";
 
@@ -72,6 +72,8 @@ vi.mock("@/lib/queries/handovers/handover.service", async (importOriginal) => {
   return {
     ...actual,
     setHandoverCoordinator: vi.fn(),
+    previewDepartingMember: vi.fn(),
+    autoBundleHandover: vi.fn(),
   };
 });
 
@@ -121,6 +123,15 @@ function renderWorkspace() {
 
 describe("HandoverListWorkspace", () => {
   beforeEach(() => {
+    mockedHandovers.mockReturnValue({
+      data: { data: [], nextCursor: null },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(previewDepartingMember).mockReset().mockImplementation(async (projectId, departingUserId) => ({
+      projectId, departingUserId, relatedProjects: [], tasks: [], sources: [],
+    }));
+    vi.mocked(autoBundleHandover).mockReset().mockResolvedValue({ data: {} } as never);
     pushMock.mockReset();
     mockedSetCoordinator.mockReset();
 
@@ -234,6 +245,48 @@ describe("HandoverListWorkspace", () => {
     } as unknown as ReturnType<typeof useProjectLeadersQuery>);
   });
 
+  it("queries participant views using the signed-in actor filter", () => {
+    renderWorkspace();
+    fireEvent.click(screen.getByRole("button", { name: "My handovers" }));
+    expect(mockedHandovers).toHaveBeenLastCalledWith(PROJECT_ID, { participantRole: "DEPARTING" });
+    fireEvent.click(screen.getByRole("button", { name: "Assigned handovers" }));
+    expect(mockedHandovers).toHaveBeenLastCalledWith(PROJECT_ID, { participantRole: "SUCCESSOR" });
+  });
+
+  it("blocks creation until preview resolves and retries publication with the same empty selection", async () => {
+    let releasePreview: (() => void) | undefined;
+    vi.mocked(previewDepartingMember).mockImplementationOnce((projectId, departingUserId) =>
+      new Promise((resolve) => {
+        releasePreview = () => resolve({ projectId, departingUserId, relatedProjects: [], tasks: [], sources: [] });
+      }),
+    );
+    const handoverId = "69e923c77859fd1c702d4d77";
+    const create = vi.fn().mockResolvedValue({ data: { handoverId } });
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: create, reset: vi.fn(), isPending: false, isError: false,
+    } as never);
+    vi.mocked(autoBundleHandover).mockRejectedValueOnce(new Error("connection lost"));
+    renderWorkspace();
+    fireEvent.click(screen.getAllByRole("button", { name: /new handover/i })[0]!);
+    fireEvent.click(screen.getByRole("combobox", { name: /departing member \(a\)/i }));
+    fireEvent.click(within(screen.getByRole("listbox")).getByRole("option", { name: /an nguyen/i }));
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    expect(submit).toBeDisabled();
+    fireEvent.click(submit);
+    expect(create).not.toHaveBeenCalled();
+    await waitFor(() => expect(releasePreview).toBeDefined());
+    releasePreview?.();
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    const retry = await screen.findByRole("button", { name: "Retry publication" });
+    const intent = vi.mocked(autoBundleHandover).mock.calls[0];
+    expect(intent).toEqual([PROJECT_ID, handoverId, expect.any(String), { taskIds: [], selectedSources: [] }, expect.any(String)]);
+    fireEvent.click(retry);
+    await waitFor(() => expect(autoBundleHandover).toHaveBeenCalledTimes(2));
+    expect(vi.mocked(autoBundleHandover).mock.calls[1]).toEqual(intent);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
   it("allows B to be coordinator D and preserves B when the same coordinator is selected again", async () => {
     const addMember = vi.fn();
     mockedAddMember.mockReturnValue({
@@ -296,7 +349,9 @@ describe("HandoverListWorkspace", () => {
       }),
     );
     expect(recipient).toHaveTextContent("Leader Minh");
-    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -424,7 +479,9 @@ describe("HandoverListWorkspace", () => {
       ),
     ).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
 
     await waitFor(() => {
       expect(createMutate).toHaveBeenCalledTimes(1);
@@ -516,7 +573,9 @@ describe("HandoverListWorkspace", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
 
     await waitFor(() => {
       expect(createMutate).toHaveBeenCalledWith(
@@ -802,7 +861,9 @@ describe("HandoverListWorkspace", () => {
     expect(screen.getByText(/verified project leader/i)).toBeVisible();
 
     // Validation marks title aria-invalid when submitting prematurely
-    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
     const titleInput = screen.getByLabelText(/handover title/i);
     expect(titleInput).toHaveAttribute("aria-invalid", "true");
 
@@ -841,7 +902,8 @@ describe("HandoverListWorkspace", () => {
     fireEvent.click(screen.getByRole("button", { name: "+30d" }));
     expect(screen.getByText(/\(UTC\) · in 30d/i)).toBeVisible();
 
-    fireEvent.click(screen.getByRole("button", { name: /create handover/i }));
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
 
     await waitFor(() => {
       expect(createMutateAsync).toHaveBeenCalledWith(

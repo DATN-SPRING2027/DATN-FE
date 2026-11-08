@@ -6370,6 +6370,7 @@
       "state_CONFLICT": "Xung đột (Không ghi đè)",
       "state_FAILED": "Thất bại",
       "expectedVer": "Kỳ vọng v{version}",
+      "alreadyAssigned": "Đã được giao từ trước",
       "committedVer": "Đã ghi nhận v{version}"
     },
     "qa": {
@@ -6397,7 +6398,69 @@
       "resolutionNotePlaceholder": "Mô tả cách khoảng trống tri thức đã được bổ sung và xác minh…",
       "confirmResolveCta": "Xác nhận đã giải quyết"
     },
+    "participant": {
+      "viewsLabel": "Các chế độ xem bàn giao",
+      "views": {
+        "ALL": "Tất cả bàn giao",
+        "DEPARTING": "Bàn giao của tôi",
+        "SUCCESSOR": "Bàn giao được giao"
+      },
+      "previousPage": "Trang trước",
+      "nextPage": "Trang sau",
+      "manage": "Mở chế độ quản lý",
+      "addNote": "Bổ sung lưu ý",
+      "close": "Đóng",
+      "taskDue": "Hạn {date}",
+      "noDue": "Chưa có hạn",
+      "handoverDue": "Hạn bàn giao {date}",
+      "nextTasks": "Việc cần làm trước",
+      "departingTasks": "Việc còn dở",
+      "noNextTasks": "Chưa có task đã nhận cần tiếp tục.",
+      "noDepartingTasks": "Gói này không có việc còn dở.",
+      "allReceivedTasks": "Tất cả task đã nhận ({count})",
+      "receiptTitle": "Tiếp nhận bàn giao",
+      "accepted": "Bạn đã xác nhận tiếp nhận gói bàn giao này.",
+      "reviewSummary": "Xem nội dung và xác nhận bạn đã tiếp nhận gói.",
+      "waitingForPackage": "Leader đang chuẩn bị gói bàn giao cho bạn.",
+      "waitingForTransfer": "Bạn có thể xác nhận sau khi các task đã chọn được chuyển và kiểm tra.",
+      "accept": "Xác nhận đã tiếp nhận",
+      "sources": "Nguồn bàn giao",
+      "noSources": "Gói này chưa có nguồn nào bạn có thể xem.",
+      "reviewOrClarify": "Xem nội dung hoặc báo thiếu thông tin",
+      "reportMissing": "Báo thiếu thông tin",
+      "publishedSummary": "Tóm tắt đã xuất bản",
+      "noteVersionHint": "Lưu ý mới được lưu vào task. Leader có thể đưa lưu ý vào bản bàn giao tiếp theo.",
+      "refreshError": "Chưa cập nhật được gói bàn giao. Đang hiển thị dữ liệu lần tải trước.",
+      "disposition": {
+        "ALREADY_ASSIGNED": "Đã được giao trước đó",
+        "TRANSFERRED": "Đã chuyển cho bạn"
+      },
+      "sourceKind": {
+        "TASK_NOTE": "Ghi chú công việc",
+        "PROJECT_DOCUMENT": "Tài liệu dự án",
+        "WORK_REPORT": "Báo cáo công việc",
+        "KNOWLEDGE_OBJECT": "Mục tri thức"
+      },
+      "taskStatus": {
+        "TODO": "Cần làm",
+        "IN_PROGRESS": "Đang thực hiện",
+        "IN_REVIEW": "Đang xét duyệt",
+        "BLOCKED": "Bị chặn",
+        "DONE": "Hoàn thành",
+        "CANCELLED": "Đã hủy"
+      }
+    },
     "fiveStep": {
+      "previewError": "Chưa tải được bản xem trước bàn giao.",
+      "retryPreview": "Tải lại bản xem trước",
+      "bundleRetryError": "Đã có gói bàn giao nhưng chưa xuất bản được. Thử lại để giữ lựa chọn ban đầu.",
+      "retryBundle": "Thử xuất bản lại",
+      "successorUpdateReason": "Cập nhật từ màn hình tạo bàn giao.",
+      "quickTransferVerified": "Đã chuyển {count} task. Có {already} task đã giao cho {successor} từ trước.",
+      "quickTransferIncomplete": "Còn {count} task cần xử lý. Mở tab chuyển giao để xem chi tiết.",
+      "relatedTaskCount": "{count} task còn dở",
+      "relatedSourceCount": "{count} nguồn trong bản xem trước",
+      "noPinnedTasks": "Gói này không có task cần chuyển.",
       "bannerEyebrow": "Quy trình Bàn giao tinh gọn 5 bước",
       "step1Title": "1. Chọn người rời đi",
       "step1Desc": "Hệ thống tự tìm các Project & công việc liên quan",

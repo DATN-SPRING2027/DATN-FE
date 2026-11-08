@@ -45,6 +45,7 @@ function AvailableItemCard({
   capabilities,
   currentUserId,
   members,
+  participantCopy,
 }: {
   projectId: string;
   handover: HandoverSummaryDto;
@@ -54,8 +55,10 @@ function AvailableItemCard({
   capabilities: readonly HandoverCapability[];
   currentUserId: string;
   members: readonly ProjectMembership[];
+  participantCopy?: boolean;
 }) {
   const t = useTranslations("handover.published");
+  const tParticipant = useTranslations("handover.participant");
   const canReceive =
     capabilities.includes("RECEIVE") && handover.status === "OPEN";
   const canReview =
@@ -387,7 +390,7 @@ function AvailableItemCard({
                 isLoading={ackMutation.isPending}
                 onClick={() => void handleAcknowledge("NEEDS_CLARIFICATION")}
               >
-                {t("markClarifyCta")}
+                {participantCopy ? tParticipant("reportMissing") : t("markClarifyCta")}
               </Button>
             </div>
           </div>
@@ -651,6 +654,7 @@ export default function HandoverPublishedView({
   capabilities,
   currentUserId,
   members,
+  hidePackageAcceptance = false,
 }: {
   projectId: string;
   handover: HandoverSummaryDto;
@@ -659,6 +663,7 @@ export default function HandoverPublishedView({
   capabilities: readonly HandoverCapability[];
   currentUserId: string;
   members: readonly ProjectMembership[];
+  hidePackageAcceptance?: boolean;
 }) {
   const t = useTranslations("handover.published");
   const tDetail = useTranslations("handover.detail");
@@ -730,7 +735,7 @@ export default function HandoverPublishedView({
           )}
         </div>
 
-        {canReceive && (
+        {canReceive && !hidePackageAcceptance && (
           acceptBanner ? (
             <Badge color="success" size="sm">
               {tDetail("packageAcceptedBadge")}
@@ -802,6 +807,7 @@ export default function HandoverPublishedView({
               capabilities={capabilities}
               currentUserId={currentUserId}
               members={members}
+              participantCopy={hidePackageAcceptance}
             />
           );
         })}

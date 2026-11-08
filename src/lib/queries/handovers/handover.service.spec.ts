@@ -411,7 +411,7 @@ describe("handover.service", () => {
       "proj-1",
       "ho-1",
       '"handover:ho-1:1"',
-      { summaryNote: "Auto-bundle" },
+      {},
       "idem-ab-1",
     );
     expect(abRes.etag).toBe('"handover:ho-1:2"');

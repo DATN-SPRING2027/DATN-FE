@@ -147,6 +147,7 @@ async function runMutation<T>(
 }
 
 export interface HandoverListFilter {
+  participantRole?: "DEPARTING" | "SUCCESSOR";
   status?: HandoverStatus | "ALL";
   departingUserId?: string;
   successorUserId?: string;
@@ -160,10 +161,10 @@ export async function listHandovers(
   filter: HandoverListFilter = {},
   signal?: AbortSignal,
 ): Promise<HandoverListDto> {
-  // Backend GET /handovers strictly accepts only `cursor` and `limit` query parameters.
   const query = new URLSearchParams();
   if (filter.cursor) query.set("cursor", filter.cursor);
   if (filter.limit !== undefined) query.set("limit", String(filter.limit));
+  if (filter.participantRole) query.set("participantRole", filter.participantRole);
 
   const qs = query.toString();
   const response = await apiClient<HandoverListDto>(

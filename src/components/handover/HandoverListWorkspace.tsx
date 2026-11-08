@@ -102,7 +102,12 @@ export default function HandoverListWorkspace({
     null,
   );
 
-  const handoversQuery = useHandoversQuery(projectId, {});
+  const [participantRole, setParticipantRole] = useState<"DEPARTING" | "SUCCESSOR">();
+  const [cursors, setCursors] = useState<string[]>([]);
+  const handoversQuery = useHandoversQuery(projectId, {
+    ...(participantRole ? { participantRole } : {}),
+    ...(cursors.length ? { cursor: cursors.at(-1) } : {}),
+  });
 
   const members = useMemo(
     () => membersQuery.data?.data ?? [],
@@ -446,6 +451,25 @@ export default function HandoverListWorkspace({
         </div>
       </header>
 
+      <nav aria-label={t("participant.viewsLabel")} className="flex flex-wrap gap-2">
+        {([undefined, "DEPARTING", "SUCCESSOR"] as const).map((role) => (
+          <Button
+            key={role ?? "all"}
+            type="button"
+            size="sm"
+            variant={participantRole === role ? "primary" : "outline"}
+            aria-pressed={participantRole === role}
+            onClick={() => {
+              setParticipantRole(role);
+              setCursors([]);
+              setDepartingFilter("");
+            }}
+          >
+            {t(`participant.views.${role ?? "ALL"}`)}
+          </Button>
+        ))}
+      </nav>
+
       {/* Background Refresh Error */}
       {handoversQuery.isError && handoversQuery.data && (
         <BackgroundRefreshError
@@ -773,7 +797,7 @@ export default function HandoverListWorkspace({
                   </thead>
                   <tbody className="divide-y divide-gray-200 text-sm dark:divide-gray-800">
                     {filteredItems.map((item) => {
-                      const detailHref = `/projects/${encodedProjectId}/handover/${encodeURIComponent(item.id)}`;
+                      const detailHref = `/projects/${encodedProjectId}/handover/${encodeURIComponent(item.id)}${participantRole ? "?view=participant" : ""}`;
                       return (
                         <tr
                           key={item.id}
@@ -903,7 +927,7 @@ export default function HandoverListWorkspace({
               {/* Mobile & Tablet Cards (< 1024px) */}
               <div className="grid grid-cols-1 gap-3.5 md:grid-cols-2 lg:hidden">
                 {filteredItems.map((item) => {
-                  const detailHref = `/projects/${encodedProjectId}/handover/${encodeURIComponent(item.id)}`;
+                  const detailHref = `/projects/${encodedProjectId}/handover/${encodeURIComponent(item.id)}${participantRole ? "?view=participant" : ""}`;
                   return (
                     <article
                       key={item.id}
@@ -987,6 +1011,21 @@ export default function HandoverListWorkspace({
       )}
 
       {/* Create Handover Modal */}
+      {(cursors.length > 0 || handoversQuery.data?.nextCursor) && (
+        <div className="flex flex-wrap justify-end gap-2">
+          <Button type="button" size="sm" variant="outline" disabled={!cursors.length || handoversQuery.isFetching}
+            onClick={() => setCursors((previous) => previous.slice(0, -1))}>
+            {t("participant.previousPage")}
+          </Button>
+          <Button type="button" size="sm" variant="outline" disabled={!handoversQuery.data?.nextCursor || handoversQuery.isFetching}
+            onClick={() => {
+              const next = handoversQuery.data?.nextCursor;
+              if (next) setCursors((previous) => [...previous, next]);
+            }}>
+            {t("participant.nextPage")}
+          </Button>
+        </div>
+      )}
       <CreateHandoverModal
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}

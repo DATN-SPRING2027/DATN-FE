@@ -13,12 +13,14 @@ import { useCreateHandoverMutation } from "@/lib/queries/handovers/useHandovers"
 import {
   autoBundleHandover,
   formatHandoverEtag,
+  generateIdempotencyKey,
   listHandovers,
   previewDepartingMember,
   setHandoverSuccessor,
   updateHandoverMetadata,
 } from "@/lib/queries/handovers/handover.service";
 import type {
+  AutoBundleHandoverDto,
   DepartingMemberPreviewDto,
   HandoverSummaryDto,
   SourceRefDto,
@@ -225,6 +227,16 @@ export default function CreateHandoverModal({
   const [invalidField, setInvalidField] = useState<InvalidField>(null);
   const [isAutoBundling, setIsAutoBundling] = useState(false);
 
+  const [pendingBundle, setPendingBundle] = useState<{
+    id: string;
+    etag: string;
+    input: AutoBundleHandoverDto;
+    key: string;
+  } | null>(null);
+  const [bundleError, setBundleError] = useState<string | null>(null);
+  const [previewError, setPreviewError] = useState(false);
+  const [previewAttempt, setPreviewAttempt] = useState(0);
+
   // Step 2: Auto-discovered scope for selected departing member
   const [previewData, setPreviewData] =
     useState<DepartingMemberPreviewDto | null>(null);
@@ -243,6 +255,7 @@ export default function CreateHandoverModal({
     }
 
     const controller = new AbortController();
+    setPreviewError(false);
     setIsPreviewLoading(true);
     previewDepartingMember(projectId, cleanDeparting, controller.signal)
       .then((res) => {
@@ -262,6 +275,7 @@ export default function CreateHandoverModal({
       .catch(() => {
         if (controller.signal.aborted) return;
         setPreviewData(null);
+        setPreviewError(true);
       })
       .finally(() => {
         if (!controller.signal.aborted) {
@@ -270,7 +284,7 @@ export default function CreateHandoverModal({
       });
 
     return () => controller.abort();
-  }, [departingUserId, isOpen, projectId]);
+  }, [departingUserId, isOpen, previewAttempt, projectId]);
 
   const effectiveCoordinator = assignedLeaderId || defaultCoordinator;
 
@@ -337,6 +351,12 @@ export default function CreateHandoverModal({
   };
 
   const handleDepartingChange = (nextId: string) => {
+    if (nextId === departingUserId) return;
+    setPreviewData(null);
+    setPreviewError(false);
+    setIsPreviewLoading(Boolean(nextId));
+    setSelectedTaskIds([]);
+    setSelectedSourceKeys([]);
     setDepartingUserId(nextId);
     if (nextId && successorUserId === nextId) {
       setSuccessorUserId("");
@@ -372,8 +392,34 @@ export default function CreateHandoverModal({
     }
   };
 
+  const submitBundle = async (intent: NonNullable<typeof pendingBundle>) => {
+    setPendingBundle(intent);
+    setBundleError(null);
+    setIsAutoBundling(true);
+    try {
+      await autoBundleHandover(projectId, intent.id, intent.etag, intent.input, intent.key);
+      setPendingBundle(null);
+      setTitle("");
+      setTitleTouched(false);
+      setDepartingUserId("");
+      setSuccessorUserId("");
+      onCreated(intent.id);
+    } catch (error) {
+      setBundleError(extractHandoverErrorMessage(error, t5("bundleRetryError")));
+    } finally {
+      setIsAutoBundling(false);
+    }
+  };
+  const previewReady = !isPreviewLoading && !previewError &&
+    previewData?.departingUserId === departingUserId.trim();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    if (pendingBundle) {
+      await submitBundle(pendingBundle);
+      return;
+    }
     setValidationError(null);
     setAutoAddError(null);
     setInvalidField(null);
@@ -389,6 +435,7 @@ export default function CreateHandoverModal({
       setValidationError(t("validationDeparting"));
       return;
     }
+    if (!previewReady) return;
     if (!effectiveCoordinator.trim()) {
       setInvalidField("coordinator");
       setValidationError(t("validationCoordinator"));
@@ -433,73 +480,30 @@ export default function CreateHandoverModal({
         version: String(src.version),
       }));
 
+    const input = { taskIds: selectedTaskIds, selectedSources };
     const syncAndBundleExisting = async (existing: HandoverSummaryDto) => {
       setIsAutoBundling(true);
+      setBundleError(null);
       try {
         createMutation.reset();
         let currentEtag = formatHandoverEtag(existing.id, existing.version);
-        try {
-          if (
-            trimmedTitle !== existing.title ||
-            parsedDate.toISOString() !== existing.targetCompletionDate
-          ) {
-            const metaRes = await updateHandoverMetadata(
-              projectId,
-              existing.id,
-              currentEtag,
-              {
-                title: trimmedTitle,
-                targetCompletionDate: parsedDate.toISOString(),
-              },
-            );
-            currentEtag =
-              metaRes.etag ??
-              formatHandoverEtag(existing.id, metaRes.data.version);
-          }
-        } catch {
-          // ignore metadata sync error and continue
-        }
-
-        try {
-          if (cleanSuccessor !== existing.successorUserId) {
-            const succRes = await setHandoverSuccessor(
-              projectId,
-              existing.id,
-              currentEtag,
-              {
-                successorUserId: cleanSuccessor,
-                reason: "Updated from 5-step handover workspace setup",
-              },
-            );
-            currentEtag =
-              succRes.etag ??
-              formatHandoverEtag(existing.id, succRes.data.version);
-          }
-        } catch {
-          // ignore successor sync error and continue
-        }
-
-        try {
-          await autoBundleHandover(projectId, existing.id, currentEtag, {
-            taskIds:
-              previewData && selectedTaskIds.length > 0
-                ? selectedTaskIds
-                : undefined,
-            selectedSources:
-              previewData && selectedSources.length > 0
-                ? selectedSources
-                : undefined,
+        if (trimmedTitle !== existing.title || parsedDate.toISOString() !== existing.targetCompletionDate) {
+          const result = await updateHandoverMetadata(projectId, existing.id, currentEtag, {
+            title: trimmedTitle,
+            targetCompletionDate: parsedDate.toISOString(),
           });
-        } catch {
-          // Non-blocking fallback
+          currentEtag = result.etag ?? formatHandoverEtag(existing.id, result.data.version);
         }
-
-        setTitle("");
-        setTitleTouched(false);
-        setDepartingUserId("");
-        setSuccessorUserId("");
-        setInvalidField(null);
-        onCreated(existing.id);
+        if (cleanSuccessor !== existing.successorUserId) {
+          const result = await setHandoverSuccessor(projectId, existing.id, currentEtag, {
+            successorUserId: cleanSuccessor,
+            reason: t5("successorUpdateReason"),
+          });
+          currentEtag = result.etag ?? formatHandoverEtag(existing.id, result.data.version);
+        }
+        await submitBundle({ id: existing.id, etag: currentEtag, input, key: generateIdempotencyKey() });
+      } catch (error) {
+        setBundleError(extractHandoverErrorMessage(error, t5("bundleRetryError")));
       } finally {
         setIsAutoBundling(false);
       }
@@ -524,35 +528,12 @@ export default function CreateHandoverModal({
       });
 
       const createdId = result.data.handoverId;
-      if (/^[a-f0-9]{24}$/i.test(createdId)) {
-        setIsAutoBundling(true);
-        try {
-          const etag =
-            result.etag ??
-            formatHandoverEtag(createdId, result.data.version ?? 1);
-          await autoBundleHandover(projectId, createdId, etag, {
-            taskIds:
-              previewData && selectedTaskIds.length > 0
-                ? selectedTaskIds
-                : undefined,
-            selectedSources:
-              previewData && selectedSources.length > 0
-                ? selectedSources
-                : undefined,
-          });
-        } catch {
-          // Non-blocking fallback: detail workspace also has 1-Click Auto-Bundle button
-        } finally {
-          setIsAutoBundling(false);
-        }
-      }
-
-      setTitle("");
-      setTitleTouched(false);
-      setDepartingUserId("");
-      setSuccessorUserId("");
-      setInvalidField(null);
-      onCreated(createdId);
+      await submitBundle({
+        id: createdId,
+        etag: result.etag ?? formatHandoverEtag(createdId, result.data.version ?? 1),
+        input,
+        key: generateIdempotencyKey(),
+      });
     } catch (err) {
       const errStatus =
         err instanceof ApiError
@@ -594,7 +575,7 @@ export default function CreateHandoverModal({
       )
     : null;
 
-  const activeAlertMessage = validationError ?? autoAddError ?? serverError;
+  const activeAlertMessage = bundleError ?? validationError ?? autoAddError ?? serverError;
   const isCandidatesLoading =
     Boolean(organizationId) && candidatesQuery.isPending;
 
@@ -642,6 +623,7 @@ export default function CreateHandoverModal({
           </div>
         )}
 
+        <fieldset disabled={isSubmitting || Boolean(pendingBundle)} className="min-w-0 space-y-4">
         {/* 5-Step Streamlined Flow Header Strip */}
         <div className="rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
           <div className="flex flex-wrap items-center justify-between gap-2">
@@ -785,6 +767,15 @@ export default function CreateHandoverModal({
             >
               {t5("previewLoading")}
             </p>
+          ) : previewError ? (
+            <div role="alert" className="mt-2.5 flex flex-wrap items-center gap-2 text-sm text-error-700 dark:text-error-300">
+              <span>{t5("previewError")}</span>
+              <Button type="button" variant="outline" size="sm" onClick={() => {
+                setPreviewError(false);
+                setIsPreviewLoading(true);
+                setPreviewAttempt((attempt) => attempt + 1);
+              }}>{t5("retryPreview")}</Button>
+            </div>
           ) : previewData ? (
             <div className="mt-3 space-y-3">
               {/* Related Projects Strip */}
@@ -813,15 +804,14 @@ export default function CreateHandoverModal({
                             [{proj.key}] {proj.name}
                           </span>
                           <span className="text-gray-400">·</span>
-                          <span>{proj.unfinishedTaskCount} Tasks</span>
+                          <span>{t5("relatedTaskCount", { count: proj.unfinishedTaskCount })}</span>
                           <span className="text-gray-400">·</span>
                           <span>
-                            {proj.taskNoteCount +
+                            {t5("relatedSourceCount", { count: proj.taskNoteCount +
                               (proj.documentCount ??
                                 proj.projectDocumentCount ??
                                 0) +
-                              proj.workReportCount}{" "}
-                            Docs/Notes
+                              proj.workReportCount })}
                           </span>
                           {isCurrent && (
                             <Badge color="primary" size="sm">
@@ -1168,6 +1158,7 @@ export default function CreateHandoverModal({
           </div>
         </div>
 
+        </fieldset>
         {/* Sticky Footer Actions */}
         <div className="sticky bottom-0 z-10 -mx-5 -mb-5 space-y-2.5 rounded-b-2xl border-t border-gray-200/90 bg-white/95 px-5 py-3.5 backdrop-blur-xs sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900/95">
           {activeAlertMessage && (
@@ -1203,6 +1194,7 @@ export default function CreateHandoverModal({
                 variant="primary"
                 size="sm"
                 isLoading={isSubmitting}
+                disabled={Boolean(departingUserId) && !pendingBundle && !previewReady}
               >
                 {addProjectMemberMutation.isPending
                   ? t("submittingAutoAdd")
@@ -1210,7 +1202,7 @@ export default function CreateHandoverModal({
                     ? t5("autoBundling")
                     : createMutation.isPending
                       ? t("submitting")
-                      : t("submit")}
+                      : pendingBundle ? t5("retryBundle") : t("submit")}
               </Button>
             </div>
           </div>

@@ -6370,6 +6370,7 @@
       "state_CONFLICT": "Conflict (Not overwritten)",
       "state_FAILED": "Failed",
       "expectedVer": "Expected v{version}",
+      "alreadyAssigned": "Already assigned before transfer",
       "committedVer": "Committed v{version}"
     },
     "qa": {
@@ -6397,7 +6398,69 @@
       "resolutionNotePlaceholder": "Describe how the knowledge gap was closed and verified…",
       "confirmResolveCta": "Mark Resolved"
     },
+    "participant": {
+      "viewsLabel": "Handover views",
+      "views": {
+        "ALL": "All handovers",
+        "DEPARTING": "My handovers",
+        "SUCCESSOR": "Assigned handovers"
+      },
+      "previousPage": "Previous page",
+      "nextPage": "Next page",
+      "manage": "Open management view",
+      "addNote": "Add a handover note",
+      "close": "Close",
+      "taskDue": "Due {date}",
+      "noDue": "No deadline",
+      "handoverDue": "Handover due {date}",
+      "nextTasks": "What to do first",
+      "departingTasks": "Unfinished work",
+      "noNextTasks": "You have no unfinished transferred tasks to start.",
+      "noDepartingTasks": "There is no unfinished work in this handover.",
+      "allReceivedTasks": "All received tasks ({count})",
+      "receiptTitle": "Accept handover",
+      "accepted": "You have accepted this handover.",
+      "reviewSummary": "Review the package and confirm you have received it.",
+      "waitingForPackage": "The project leader is preparing your handover.",
+      "waitingForTransfer": "You can accept once the selected task transfers are verified.",
+      "accept": "Confirm receipt",
+      "sources": "Handover sources",
+      "noSources": "No sources are available to you in this handover.",
+      "reviewOrClarify": "Review package or report missing information",
+      "reportMissing": "Report missing information",
+      "publishedSummary": "Published summary",
+      "noteVersionHint": "New notes stay with the task. The project leader can include them in the next handover version.",
+      "refreshError": "Could not refresh the handover. The last available view is shown.",
+      "disposition": {
+        "ALREADY_ASSIGNED": "Already assigned to you",
+        "TRANSFERRED": "Transferred to you"
+      },
+      "sourceKind": {
+        "TASK_NOTE": "Task note",
+        "PROJECT_DOCUMENT": "Project document",
+        "WORK_REPORT": "Work report",
+        "KNOWLEDGE_OBJECT": "Knowledge item"
+      },
+      "taskStatus": {
+        "TODO": "To do",
+        "IN_PROGRESS": "In progress",
+        "IN_REVIEW": "In review",
+        "BLOCKED": "Blocked",
+        "DONE": "Done",
+        "CANCELLED": "Cancelled"
+      }
+    },
     "fiveStep": {
+      "previewError": "Could not load the handover preview.",
+      "retryPreview": "Retry preview",
+      "bundleRetryError": "The package exists, but publication failed. Retry to keep your original selection.",
+      "retryBundle": "Retry publication",
+      "successorUpdateReason": "Updated from handover setup.",
+      "quickTransferVerified": "{count} transferred and {already} already assigned to {successor}.",
+      "quickTransferIncomplete": "{count} tasks still need attention. Open the task transfer tab for details.",
+      "relatedTaskCount": "{count} unfinished tasks",
+      "relatedSourceCount": "{count} sources in preview",
+      "noPinnedTasks": "This package has no tasks to transfer.",
       "bannerEyebrow": "Streamlined 5-Step Handover Flow",
       "step1Title": "1. Departing Member",
       "step1Desc": "Select departing member & discover related projects",

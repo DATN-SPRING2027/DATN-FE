@@ -26,6 +26,7 @@ import {
 import {
   autoBundleHandover,
   formatHandoverEtag,
+  generateIdempotencyKey,
   previewDepartingMember,
   quickAcceptHandover,
   quickTransferHandoverTasks,
@@ -62,6 +63,7 @@ import HandoverMemberSelect, {
 } from "./HandoverMemberSelect";
 import HandoverDraftEditor from "./HandoverDraftEditor";
 import HandoverPublishedView from "./HandoverPublishedView";
+import HandoverParticipantWorkspace from "./HandoverParticipantWorkspace";
 import HandoverTaskTransfersPanel from "./HandoverTaskTransfersPanel";
 import HandoverQaPanel from "./HandoverQaPanel";
 import HandoverFollowUpsPanel from "./HandoverFollowUpsPanel";
@@ -153,9 +155,11 @@ function ParticipantAvatar({
 export default function HandoverDetailWorkspace({
   projectId,
   handoverId,
+  preferParticipant = false,
 }: {
   projectId: string;
   handoverId: string;
+  preferParticipant?: boolean;
 }) {
   const t = useTranslations("handover");
   const t5 = useTranslations("handover.fiveStep");
@@ -179,9 +183,6 @@ export default function HandoverDetailWorkspace({
   const [quickActionSuccess, setQuickActionSuccess] = useState<string | null>(
     null,
   );
-  const [tasksTransferredCount, setTasksTransferredCount] = useState<
-    number | null
-  >(null);
 
   // Lifecycle Modals
   const [modalMode, setModalMode] = useState<
@@ -381,11 +382,13 @@ export default function HandoverDetailWorkspace({
     handover?.status === "OPEN";
   const canReceive =
     capabilities.includes("RECEIVE") && handover?.status === "OPEN";
+  const participantView = detailResource?.detail.participantView;
+  const useParticipantView = Boolean(participantView && (!canManage || preferParticipant));
 
   // Fetch auto-aggregated departing member scope (Tasks, Task Notes, Documents, Work Reports, Related Projects)
   useEffect(() => {
     const depId = handover?.departingUserId?.trim() ?? "";
-    if (!/^[a-f0-9]{24}$/i.test(depId) || !/^[a-f0-9]{24}$/i.test(projectId)) {
+    if (!canManage || useParticipantView || !/^[a-f0-9]{24}$/i.test(depId) || !/^[a-f0-9]{24}$/i.test(projectId)) {
       return;
     }
     const controller = new AbortController();
@@ -399,7 +402,7 @@ export default function HandoverDetailWorkspace({
         // Non-blocking in test/restricted environments
       });
     return () => controller.abort();
-  }, [handover?.departingUserId, handover?.version, projectId]);
+  }, [canManage, useParticipantView, handover?.departingUserId, handover?.version, projectId]);
 
   const {
     options: successorOptions,
@@ -499,15 +502,37 @@ export default function HandoverDetailWorkspace({
     };
   }, [capabilities, currentUserId, handover, isOrgManager, t]);
 
+  const pendingQuickCommands = useRef(new Map<string, { etag: string; key: string }>());
+  async function runQuickCommand<T>(
+    operation: string,
+    command: (targetEtag: string, key: string) => Promise<T>,
+  ): Promise<T> {
+    const intent = pendingQuickCommands.current.get(operation) ?? {
+      etag: etag || formatHandoverEtag(handover!.id, handover!.version),
+      key: generateIdempotencyKey(),
+    };
+    pendingQuickCommands.current.set(operation, intent);
+    try {
+      const result = await command(intent.etag, intent.key);
+      pendingQuickCommands.current.delete(operation);
+      return result;
+    } catch (error) {
+      if (error instanceof ApiError && error.status >= 400 && error.status < 500) {
+        pendingQuickCommands.current.delete(operation);
+      }
+      throw error;
+    }
+  }
+
   const handleAutoBundleNow = async () => {
     if (!handover) return;
     setQuickActionError(null);
     setQuickActionSuccess(null);
     setIsAutoBundling(true);
     try {
-      const targetEtag =
-        etag || formatHandoverEtag(handover.id, handover.version);
-      await autoBundleHandover(projectId, handover.id, targetEtag, {});
+      await runQuickCommand("bundle", (targetEtag, key) =>
+        autoBundleHandover(projectId, handover.id, targetEtag, {}, key),
+      );
       setQuickActionSuccess(t5("autoBundleSuccessBanner"));
       setActiveTab("published");
       await detailQuery.refetch?.();
@@ -526,30 +551,29 @@ export default function HandoverDetailWorkspace({
     setQuickActionSuccess(null);
     setIsQuickTransferring(true);
     try {
-      const targetEtag =
-        etag || formatHandoverEtag(handover.id, handover.version);
-      const res = await quickTransferHandoverTasks(
-        projectId,
-        handover.id,
-        targetEtag,
-        {},
+      const res = await runQuickCommand("transfer", (targetEtag, key) =>
+        quickTransferHandoverTasks(projectId, handover.id, targetEtag, {}, key),
       );
       const committedCount = res.data.tasks.filter(
         (task) => task.state === "CONFIRMED",
       ).length;
-      setTasksTransferredCount(committedCount);
-      setQuickActionSuccess(
-        t5("quickTransferSuccessBanner", {
-          count: String(committedCount),
-          successor: successorDisplayName,
-        }),
-      );
-      await detailQuery.refetch?.();
-      if (handover.departingUserId) {
-        previewDepartingMember(projectId, handover.departingUserId)
-          .then(setPreviewData)
-          .catch(() => {});
+      const alreadyAssigned = res.data.tasks.filter((task) => task.disposition === "ALREADY_ASSIGNED").length;
+      if (res.data.state === "CONFIRMED") {
+        setQuickActionSuccess(
+          res.data.tasks.length === 0
+            ? t5("noPinnedTasks")
+            : t5("quickTransferVerified", {
+                count: committedCount - alreadyAssigned,
+                already: alreadyAssigned,
+                successor: successorDisplayName,
+              }),
+        );
+      } else {
+        setQuickActionError(t5("quickTransferIncomplete", {
+          count: res.data.tasks.length - committedCount,
+        }));
       }
+      await detailQuery.refetch?.();
     } catch (err) {
       setQuickActionError(
         extractHandoverErrorMessage(err, "Could not transfer unfinished tasks."),
@@ -565,9 +589,9 @@ export default function HandoverDetailWorkspace({
     setQuickActionSuccess(null);
     setIsQuickAccepting(true);
     try {
-      const targetEtag =
-        etag || formatHandoverEtag(handover.id, handover.version);
-      await quickAcceptHandover(projectId, handover.id, targetEtag, {});
+      await runQuickCommand("accept", (targetEtag, key) =>
+        quickAcceptHandover(projectId, handover.id, targetEtag, {}, key),
+      );
       setQuickActionSuccess(t5("quickAcceptSuccessBanner"));
       await detailQuery.refetch?.();
     } catch (err) {
@@ -789,7 +813,23 @@ export default function HandoverDetailWorkspace({
         )}
 
       {/* Main Loaded Workspace */}
-      {detailResource &&
+      {useParticipantView && participantView && handover && !isAccessDenied && (
+        <>
+          {detailQuery.isError && (
+            <BackgroundRefreshError retryLabel={t("retry")} onRetry={() => void detailQuery.refetch()}>
+              {t("participant.refreshError")}
+            </BackgroundRefreshError>
+          )}
+          <HandoverParticipantWorkspace projectId={projectId} handover={handover}
+            view={participantView} published={Boolean(publishedRevision)} canManage={canManage}
+            busy={isQuickAccepting} actionError={quickActionError} onAccept={() => void handleQuickAcceptNow()}>
+            <HandoverPublishedView projectId={projectId} handover={handover} publishedRevision={publishedRevision}
+              etag={etag} capabilities={capabilities.filter((capability) => capability === "READ" || capability === "RECEIVE")}
+              currentUserId={currentUserId} members={members} hidePackageAcceptance />
+          </HandoverParticipantWorkspace>
+        </>
+      )}
+      {!useParticipantView && detailResource &&
         handover &&
         (() => {
           const departingMember = membersById.get(handover.departingUserId);
@@ -853,6 +893,9 @@ export default function HandoverDetailWorkspace({
                       : t("detail.gateStepAccept");
 
           const previewTasks = previewData?.tasks ?? [];
+          const transferScope = detailResource.detail.taskTransfer;
+          const transferCount = transferScope?.selectedCount ?? previewTasks.length;
+          const transferComplete = Boolean(transferScope && transferCount > 0 && transferScope.verifiedCount === transferCount);
           const previewSources = previewData?.sources ?? [];
           const previewNotes = previewSources.filter(
             (s) => s.kind === "TASK_NOTE",
@@ -1431,10 +1474,7 @@ export default function HandoverDetailWorkspace({
                               <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                                 {t5("managerCardTitle")}
                               </h3>
-                              {(tasksTransferredCount !== null ||
-                                (previewData !== null &&
-                                  previewTasks.length === 0 &&
-                                  Boolean(handover.successorUserId))) && (
+                              {transferComplete && (
                                 <Badge color="success" size="sm">
                                   {t5("quickTransferDoneBadge")}
                                 </Badge>
@@ -1443,12 +1483,15 @@ export default function HandoverDetailWorkspace({
                             <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
                               {!handover.successorUserId
                                 ? t5("managerCardDescNoSuccessor")
-                                : previewData && previewTasks.length === 0
+                                : transferComplete && transferCount > 0
                                   ? t5("managerCardDescAllTransferred", {
                                       successor: successorName,
                                     })
+                                  : (transferScope || previewData !== null) &&
+                                      transferCount === 0
+                                    ? t5("noPinnedTasks")
                                   : t5("managerCardDescReady", {
-                                      count: String(previewTasks.length || 1),
+                                      count: String(transferCount),
                                       successor: successorName,
                                     })}
                             </p>
@@ -1462,8 +1505,8 @@ export default function HandoverDetailWorkspace({
                                 size="sm"
                                 disabled={
                                   !handover.successorUserId ||
-                                  (previewData !== null &&
-                                    previewTasks.length === 0)
+                                  transferComplete ||
+                                  (Boolean(transferScope) && transferCount === 0)
                                 }
                                 isLoading={isQuickTransferring}
                                 onClick={() =>
@@ -1472,9 +1515,9 @@ export default function HandoverDetailWorkspace({
                               >
                                 {isQuickTransferring
                                   ? t5("quickTransferring")
-                                  : previewTasks.length > 0
+                                  : transferCount > 0
                                     ? t5("quickTransferCta", {
-                                        count: String(previewTasks.length),
+                                        count: String(transferCount),
                                         successor: successorName,
                                       })
                                     : t5("quickTransferAllCta", {
@@ -1505,7 +1548,7 @@ export default function HandoverDetailWorkspace({
                             </p>
                           </div>
 
-                          {canReceive && (
+                          {canReceive && (participantView?.canQuickAccept ?? true) && (
                             <div className="flex flex-wrap items-center gap-2">
                               <Button
                                 type="button"
@@ -1648,13 +1691,12 @@ export default function HandoverDetailWorkspace({
                                     </span>
                                     <span className="text-gray-400">·</span>
                                     <span>
-                                      {proj.unfinishedTaskCount} Tasks ·{" "}
-                                      {proj.taskNoteCount +
+                                      {t5("relatedTaskCount", { count: proj.unfinishedTaskCount })} ·{" "}
+                                      {t5("relatedSourceCount", { count: proj.taskNoteCount +
                                         (proj.documentCount ??
                                           proj.projectDocumentCount ??
                                           0) +
-                                        proj.workReportCount}{" "}
-                                      Docs/Notes
+                                        proj.workReportCount })}
                                     </span>
                                   </span>
                                 ))}
