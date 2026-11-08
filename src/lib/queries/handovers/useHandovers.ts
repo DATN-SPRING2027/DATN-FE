@@ -762,3 +762,120 @@ export function useResolveHandoverFollowUpMutation(
     },
   });
 }
+
+
+export function useDepartingMemberPreviewQuery(
+  projectId: string,
+  departingUserId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  const cleanId = departingUserId?.trim() ?? "";
+  return useQuery({
+    queryKey: [
+      ...handoverKeys.project(projectId),
+      "departingPreview",
+      cleanId,
+    ] as const,
+    queryFn: ({ signal }) =>
+      import("./handover.service").then((m) =>
+        m.previewDepartingMember(projectId, cleanId, signal),
+      ),
+    enabled: Boolean(
+      projectId && /^[a-f0-9]{24}$/i.test(cleanId) && (options?.enabled ?? true),
+    ),
+    retry: false,
+    staleTime: 10_000,
+  });
+}
+
+export function useAutoBundleHandoverMutation(
+  projectId: string,
+  handoverId: string,
+) {
+  const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
+  return useMutation({
+    mutationFn: async (vars: {
+      etag: string;
+      input?: import("./handover.types").AutoBundleHandoverDto;
+      overrideHandoverId?: string;
+    }) => {
+      const targetId = vars.overrideHandoverId ?? handoverId;
+      const { autoBundleHandover } = await import("./handover.service");
+      return autoBundleHandover(
+        projectId,
+        targetId,
+        vars.etag,
+        vars.input ?? {},
+        getOrCreateKey({
+          op: "autoBundle",
+          projectId,
+          handoverId: targetId,
+          vars,
+        }),
+      );
+    },
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
+  });
+}
+
+export function useQuickAcceptHandoverMutation(
+  projectId: string,
+  handoverId: string,
+) {
+  const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
+  return useMutation({
+    mutationFn: async (vars: {
+      etag: string;
+      input?: import("./handover.types").QuickAcceptHandoverDto;
+    }) => {
+      const { quickAcceptHandover } = await import("./handover.service");
+      return quickAcceptHandover(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input ?? {},
+        getOrCreateKey({ op: "quickAccept", projectId, handoverId, vars }),
+      );
+    },
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+    },
+  });
+}
+
+export function useQuickTransferHandoverTasksMutation(
+  projectId: string,
+  handoverId: string,
+) {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateHandoverScope(projectId);
+  const { getOrCreateKey, clearKey } = useCommandIdempotencyKey();
+  return useMutation({
+    mutationFn: async (vars: {
+      etag: string;
+      input?: import("./handover.types").QuickTransferTasksDto;
+    }) => {
+      const { quickTransferHandoverTasks } = await import("./handover.service");
+      return quickTransferHandoverTasks(
+        projectId,
+        handoverId,
+        vars.etag,
+        vars.input ?? {},
+        getOrCreateKey({ op: "quickTransfer", projectId, handoverId, vars }),
+      );
+    },
+    onSuccess: async () => {
+      clearKey();
+      await invalidate();
+      await queryClient.invalidateQueries({
+        queryKey: ["tasks", "project", projectId],
+      });
+    },
+  });
+}

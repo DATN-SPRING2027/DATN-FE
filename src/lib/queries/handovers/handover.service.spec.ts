@@ -4,12 +4,16 @@ import {
   acceptHandoverPackage,
   acknowledgeHandoverItem,
   askHandoverQuestion,
+  autoBundleHandover,
   createHandover,
   formatFollowUpEtag,
   formatHandoverEtag,
   getHandover,
   listHandovers,
+  previewDepartingMember,
   publishHandoverRevision,
+  quickAcceptHandover,
+  quickTransferHandoverTasks,
   resolveHandoverFollowUp,
   setHandoverCoordinator,
   startHandoverTaskTransfer,
@@ -344,5 +348,99 @@ describe("handover.service", () => {
     expect(headers.get("If-Match")).toBe('"handover-followup:fu-55:1"');
     expect(headers.get("Idempotency-Key")).toBe("idem-fu-55");
     expect(res.etag).toBe('"handover-followup:fu-55:2"');
+  });
+
+  it("calls 5-step streamlined handover endpoints (departing-preview, auto-bundle, quick-accept, quick-transfer)", async () => {
+    mockedApiClient
+      .mockResolvedValueOnce({
+        departingUserId: "user-a",
+        projectId: "proj-1",
+        projects: [],
+        tasks: [],
+        taskNotes: [],
+        documents: [],
+        workReports: [],
+      })
+      .mockImplementationOnce(
+        async (_endpoint: string, options?: ApiRequestOptions) => {
+          options?.onResponseHeaders?.(new Headers({ etag: '"handover:ho-1:2"' }));
+          return {
+            operationId: "op-ab-1",
+            handoverId: "ho-1",
+            version: 2,
+            status: "OPEN",
+            revisionId: "rev-1",
+            replayed: false,
+          };
+        },
+      )
+      .mockImplementationOnce(
+        async (_endpoint: string, options?: ApiRequestOptions) => {
+          options?.onResponseHeaders?.(new Headers({ etag: '"handover:ho-1:3"' }));
+          return {
+            operationId: "op-qa-1",
+            handoverId: "ho-1",
+            version: 3,
+            status: "OPEN",
+            revisionId: "rev-1",
+            replayed: false,
+          };
+        },
+      )
+      .mockImplementationOnce(
+        async (_endpoint: string, options?: ApiRequestOptions) => {
+          options?.onResponseHeaders?.(new Headers({ etag: '"handover:ho-1:4"' }));
+          return {
+            operationId: "op-qt-1",
+            handoverId: "ho-1",
+            version: 4,
+            status: "OPEN",
+            revisionId: "rev-1",
+            replayed: false,
+          };
+        },
+      );
+
+    const preview = await previewDepartingMember("proj-1", "user-a");
+    expect(preview.departingUserId).toBe("user-a");
+    expect(mockedApiClient.mock.calls[0]?.[0]).toBe(
+      "/handover/projects/proj-1/handovers/departing-preview?departingUserId=user-a",
+    );
+
+    const abRes = await autoBundleHandover(
+      "proj-1",
+      "ho-1",
+      '"handover:ho-1:1"',
+      {},
+      "idem-ab-1",
+    );
+    expect(abRes.etag).toBe('"handover:ho-1:2"');
+    expect(mockedApiClient.mock.calls[1]?.[0]).toBe(
+      "/handover/projects/proj-1/handovers/ho-1/auto-bundle",
+    );
+
+    const qaRes = await quickAcceptHandover(
+      "proj-1",
+      "ho-1",
+      '"handover:ho-1:2"',
+      { note: "Accepted" },
+      "idem-qa-1",
+    );
+    expect(qaRes.etag).toBe('"handover:ho-1:3"');
+    expect(mockedApiClient.mock.calls[2]?.[0]).toBe(
+      "/handover/projects/proj-1/handovers/ho-1/quick-accept",
+    );
+
+    const qtRes = await quickTransferHandoverTasks(
+      "proj-1",
+      "ho-1",
+      '"handover:ho-1:3"',
+      {},
+      "idem-qt-1",
+    );
+    expect(qtRes.etag).toBe('"handover:ho-1:4"');
+    expect(mockedApiClient.mock.calls[3]?.[0]).toBe(
+      "/handover/projects/proj-1/handovers/ho-1/quick-transfer",
+    );
   });
 });

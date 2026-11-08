@@ -15,10 +15,12 @@ export function generateMetadata({
 
 export default async function ProjectHandoverDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ locale: string; projectId: string; handoverId: string }>;
+  searchParams: Promise<{ view?: string | string[] }>;
 }) {
-  const { locale, projectId, handoverId } = await params;
+  const [{ locale, projectId, handoverId }, { view }] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "handover" });
   return (
@@ -27,6 +29,7 @@ export default async function ProjectHandoverDetailPage({
         key={`${projectId}:${handoverId}`}
         projectId={projectId}
         handoverId={handoverId}
+        preferParticipant={view === "participant"}
       />
     </Suspense>
   );

@@ -147,6 +147,7 @@ async function runMutation<T>(
 }
 
 export interface HandoverListFilter {
+  participantRole?: "DEPARTING" | "SUCCESSOR";
   status?: HandoverStatus | "ALL";
   departingUserId?: string;
   successorUserId?: string;
@@ -160,10 +161,10 @@ export async function listHandovers(
   filter: HandoverListFilter = {},
   signal?: AbortSignal,
 ): Promise<HandoverListDto> {
-  // Backend GET /handovers strictly accepts only `cursor` and `limit` query parameters.
   const query = new URLSearchParams();
   if (filter.cursor) query.set("cursor", filter.cursor);
   if (filter.limit !== undefined) query.set("limit", String(filter.limit));
+  if (filter.participantRole) query.set("participantRole", filter.participantRole);
 
   const qs = query.toString();
   const response = await apiClient<HandoverListDto>(
@@ -715,5 +716,72 @@ export async function resolveHandoverFollowUp(
     "POST",
     input,
     { etag: followupEtag, idempotencyKey },
+  );
+}
+
+
+export async function previewDepartingMember(
+  projectId: string,
+  departingUserId: string,
+  signal?: AbortSignal,
+): Promise< import("./handover.types").DepartingMemberPreviewDto > {
+  const params = new URLSearchParams({ departingUserId });
+  return apiClient<import("./handover.types").DepartingMemberPreviewDto>(
+    `${projectHandoversPath(projectId, "/departing-preview")}?${params.toString()}`,
+    { cache: "no-store", signal },
+  );
+}
+
+export async function autoBundleHandover(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").AutoBundleHandoverDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<ReceiptDto>> {
+  return runMutation<ReceiptDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/auto-bundle`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
+  );
+}
+
+export async function quickAcceptHandover(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").QuickAcceptHandoverDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<ReceiptDto>> {
+  return runMutation<ReceiptDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/quick-accept`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
+  );
+}
+
+export async function quickTransferHandoverTasks(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").QuickTransferTasksDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<TransferDto>> {
+  return runMutation<TransferDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/quick-transfer`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
   );
 }

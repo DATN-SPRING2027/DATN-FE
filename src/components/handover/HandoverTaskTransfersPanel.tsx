@@ -327,6 +327,9 @@ export default function HandoverTaskTransfersPanel({
                             </span>
                           </div>
                           <div className="flex items-center gap-2">
+                            {child.disposition === "ALREADY_ASSIGNED" && (
+                              <span className="text-gray-600 dark:text-gray-400">{t("alreadyAssigned")}</span>
+                            )}
                             {child.safeErrorCode && (
                               <span className="font-mono text-error-600 dark:text-error-400">
                                 {child.safeErrorCode}
