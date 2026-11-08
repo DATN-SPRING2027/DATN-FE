@@ -44,6 +44,7 @@ import {
   CalenderIcon,
   ChatIcon,
   CheckCircleIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   CloseLineIcon,
   DocsIcon,
@@ -1637,51 +1638,8 @@ export default function HandoverDetailWorkspace({
                         >
                           {hasPreviewScope && previewData && (
                             <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <div>
-                                  <h2 className="text-sm font-semibold text-gray-900 sm:text-base dark:text-white">
-                                    {t5("unifiedScopeTitle")}
-                                  </h2>
-                                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                    {t5("unifiedScopeSubtitle", {
-                                      departing: departingName,
-                                    })}
-                                  </p>
-                                </div>
-
-                                {previewData.relatedProjects.length > 0 && (
-                                  <div className="flex flex-wrap gap-1.5">
-                                    {previewData.relatedProjects.map((proj) => (
-                                      <span
-                                        key={proj.projectId}
-                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-                                      >
-                                        <span>
-                                          [{proj.key}] {proj.name}
-                                        </span>
-                                        <span className="text-gray-400">·</span>
-                                        <span>
-                                          {t5("relatedTaskCount", {
-                                            count: proj.unfinishedTaskCount,
-                                          })}{" "}
-                                          ·{" "}
-                                          {t5("relatedSourceCount", {
-                                            count:
-                                              proj.taskNoteCount +
-                                              (proj.documentCount ??
-                                                proj.projectDocumentCount ??
-                                                0) +
-                                              proj.workReportCount,
-                                          })}
-                                        </span>
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-
                               {/* Filter Pills */}
-                              <div className="mt-3.5 flex flex-wrap gap-1.5">
+                              <div className="flex flex-wrap gap-2">
                                 {(
                                   [
                                     {
@@ -1726,9 +1684,9 @@ export default function HandoverDetailWorkspace({
                                       setScopeFilter(pill.id);
                                       setShowAllScopeItems(false);
                                     }}
-                                    className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums transition-colors ${
+                                    className={`cursor-pointer rounded-xl px-4 py-2 text-sm font-medium tabular-nums transition-all ${
                                       scopeFilter === pill.id
-                                        ? "bg-brand-600 text-white"
+                                        ? "bg-brand-600 text-white shadow-theme-xs"
                                         : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
                                     }`}
                                   >
@@ -1738,15 +1696,15 @@ export default function HandoverDetailWorkspace({
                               </div>
 
                               {/* Compact 1-Line Scope Items (Click to Expand Summary) */}
-                              <div className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200/80 bg-gray-50/40 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/30">
+                              <div className="mt-3.5 divide-y divide-gray-100 rounded-xl border border-gray-200/80 bg-gray-50/40 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/30">
                                 {visibleTasks.map((task) => (
                                   <div
                                     key={task.id ?? task.taskId ?? task.key}
-                                    className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 text-xs"
+                                    className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm"
                                   >
-                                    <div className="flex min-w-0 items-center gap-2">
+                                    <div className="flex min-w-0 items-center gap-2.5">
                                       <TaskIcon className="size-4 shrink-0 text-brand-600 dark:text-brand-400" />
-                                      <span className="shrink-0 whitespace-nowrap font-mono font-semibold text-gray-800 tabular-nums dark:text-gray-200">
+                                      <span className="shrink-0 whitespace-nowrap font-mono text-xs font-semibold text-gray-800 tabular-nums dark:text-gray-200">
                                         {task.key}
                                       </span>
                                       <span className="truncate font-medium text-gray-900 dark:text-white">
@@ -1782,16 +1740,16 @@ export default function HandoverDetailWorkspace({
                                   return (
                                     <div
                                       key={rowKey}
-                                      className="px-3.5 py-2.5 text-xs"
+                                      className="px-4 py-3 text-sm"
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-2">
-                                        <div className="flex min-w-0 items-center gap-2">
+                                        <div className="flex min-w-0 items-center gap-2.5">
                                           <DocsIcon className="size-4 shrink-0 text-success-600 dark:text-success-400" />
                                           <span className="truncate font-medium text-gray-900 dark:text-white">
                                             {src.title}
                                           </span>
                                         </div>
-                                        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                        <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
                                           <Badge color="info" size="sm">
                                             {src.kind === "PROJECT_DOCUMENT"
                                               ? "Document"
@@ -1811,17 +1769,26 @@ export default function HandoverDetailWorkspace({
                                                   [rowKey]: !prev[rowKey],
                                                 }))
                                               }
-                                              className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                                              className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
                                             >
-                                              {isSummaryOpen
-                                                ? t5("toggleSummaryHide")
-                                                : t5("toggleSummaryShow")}
+                                              <span>
+                                                {isSummaryOpen
+                                                  ? t5("toggleSummaryHide")
+                                                  : t5("toggleSummaryShow")}
+                                              </span>
+                                              <ChevronDownIcon
+                                                className={`size-3.5 transition-transform ${
+                                                  isSummaryOpen
+                                                    ? "rotate-180"
+                                                    : ""
+                                                }`}
+                                              />
                                             </button>
                                           )}
                                           {href && (
                                             <Link
                                               href={href}
-                                              className="font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                                              className="text-xs font-semibold text-brand-600 hover:underline sm:text-sm dark:text-brand-400"
                                             >
                                               {t5("openInWorkspace")}
                                             </Link>
@@ -1829,7 +1796,7 @@ export default function HandoverDetailWorkspace({
                                         </div>
                                       </div>
                                       {hasDistinctSummary && isSummaryOpen && (
-                                        <p className="mt-1.5 rounded-lg bg-white/80 px-3 py-2 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
+                                        <p className="mt-2 rounded-lg bg-white/80 px-3.5 py-2.5 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
                                           {src.summary}
                                         </p>
                                       )}
@@ -1840,19 +1807,26 @@ export default function HandoverDetailWorkspace({
 
                               {/* Show More / Show Less Toggle */}
                               {totalFilteredCount > 6 && (
-                                <div className="mt-2.5 flex justify-center">
+                                <div className="mt-3.5 flex justify-center">
                                   <button
                                     type="button"
                                     onClick={() =>
                                       setShowAllScopeItems((prev) => !prev)
                                     }
-                                    className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 tabular-nums transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-white px-5 py-2.5 text-sm font-medium text-gray-800 shadow-theme-xs tabular-nums transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                                   >
-                                    {showAllScopeItems
-                                      ? t5("showLessScopeItems")
-                                      : t5("showMoreScopeItems", {
-                                          count: String(hiddenCount),
-                                        })}
+                                    <span>
+                                      {showAllScopeItems
+                                        ? t5("showLessScopeItems")
+                                        : t5("showMoreScopeItems", {
+                                            count: String(hiddenCount),
+                                          })}
+                                    </span>
+                                    <ChevronDownIcon
+                                      className={`size-4 text-gray-500 transition-transform ${
+                                        showAllScopeItems ? "rotate-180" : ""
+                                      }`}
+                                    />
                                   </button>
                                 </div>
                               )}
@@ -1862,8 +1836,8 @@ export default function HandoverDetailWorkspace({
                           {/* When Unified Scope is already displayed above, collapse the raw Published Revision Checklist behind an on-demand toggle button */}
                           {hasPreviewScope && publishedRevision ? (
                             <div className="space-y-3">
-                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-white px-4 py-2.5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
-                                <span className="text-xs font-medium text-gray-600 tabular-nums dark:text-gray-300">
+                              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200/80 bg-white px-4 py-3 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+                                <span className="text-sm font-medium text-gray-700 tabular-nums dark:text-gray-300">
                                   {t("status.publishedRev", {
                                     number: String(publishedRevision.number),
                                   })}
@@ -1875,15 +1849,24 @@ export default function HandoverDetailWorkspace({
                                       (prev) => !prev,
                                     )
                                   }
-                                  className="cursor-pointer rounded-lg border border-gray-300 bg-gray-50 px-3 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-gray-700"
+                                  className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-gray-300 bg-gray-50 px-4 py-2 text-sm font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-gray-700"
                                 >
-                                  {showPublishedAuditChecklist
-                                    ? t5("togglePublishedAuditHide")
-                                    : t5("togglePublishedAuditShow", {
-                                        number: String(
-                                          publishedRevision.number,
-                                        ),
-                                      })}
+                                  <span>
+                                    {showPublishedAuditChecklist
+                                      ? t5("togglePublishedAuditHide")
+                                      : t5("togglePublishedAuditShow", {
+                                          number: String(
+                                            publishedRevision.number,
+                                          ),
+                                        })}
+                                  </span>
+                                  <ChevronDownIcon
+                                    className={`size-4 transition-transform ${
+                                      showPublishedAuditChecklist
+                                        ? "rotate-180"
+                                        : ""
+                                    }`}
+                                  />
                                 </button>
                               </div>
 
