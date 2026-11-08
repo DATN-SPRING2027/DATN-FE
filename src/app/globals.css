@@ -1802,3 +1802,128 @@ html.dark[data-keyboard-navigation="true"] :is(input, textarea, select):focus-vi
   background: rgba(148, 163, 184, 0.45);
   border-radius: 9999px;
 }
+
+
+/* ==========================================================================
+   Continuum AI — Token Usage Analytics (DeepSeek Harness + Codex Physics)
+   ========================================================================== */
+@keyframes cu-usage-grow {
+  from {
+    transform: scaleY(0);
+    opacity: 0;
+  }
+  to {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes cu-usage-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes cu-usage-cell {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes cu-usage-pop {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes cu-usage-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.cu-usage-card-enter {
+  animation: cu-usage-in 0.42s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+.cu-usage-popover-enter {
+  animation: cu-usage-pop 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+  transform-origin: 80% 0%;
+}
+
+.cu-usage-stack {
+  transform-origin: 50% 100%;
+  animation: cu-usage-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 14ms);
+  transition:
+    height 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.18s ease,
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cu-usage-stack > i {
+  display: block;
+  min-height: 3px;
+  border-radius: 5px;
+  transition: flex-grow 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cu-usage-col[data-active="true"] .cu-usage-stack {
+  transform: scaleX(1.06);
+}
+
+.cu-usage-bars[data-hover="true"] .cu-usage-col:not([data-active="true"]) .cu-usage-stack {
+  opacity: 0.3;
+}
+
+.cu-usage-track > span {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  transform-origin: 0 50%;
+  animation: cu-usage-fill 0.7s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  transition: width 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.cu-usage-heat-cell {
+  animation: cu-usage-cell 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+  animation-delay: calc(var(--w, 0) * 7ms + 120ms);
+  transition:
+    transform 0.14s cubic-bezier(0.22, 1, 0.36, 1),
+    background-color 0.22s ease,
+    box-shadow 0.14s ease;
+}
+
+.cu-usage-heat-cell:hover {
+  transform: scale(1.26);
+  z-index: 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cu-usage-card-enter,
+  .cu-usage-popover-enter,
+  .cu-usage-stack,
+  .cu-usage-track > span,
+  .cu-usage-heat-cell {
+    animation: none !important;
+    transition: none !important;
+  }
+}

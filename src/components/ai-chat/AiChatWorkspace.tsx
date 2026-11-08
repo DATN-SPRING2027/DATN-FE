@@ -24,6 +24,7 @@ import {
   ComposeChatIcon,
   LockIcon,
   MindMapIcon,
+  PieChartIcon,
   PlatformProjectsIcon,
   ShootingStarIcon,
   SidebarPanelIcon,
@@ -69,6 +70,7 @@ import { isPersistedMessageId } from "./answer-action-utils";
 import AiChatEvidenceSheet from "./AiChatEvidenceSheet";
 import AiChatSaveTaskNoteDialog from "./AiChatSaveTaskNoteDialog";
 import { resolveSessionCitationPreview } from "./citation-utils";
+import { useTokenUsageModalStore } from "@/components/token-usage/token-usage.store";
 
 export const AI_CHAT_ALL_PROJECTS_ID = "all";
 
@@ -1904,7 +1906,30 @@ function AiChatWorkspaceContent() {
           </div>
 
           {/* Top-Right: Studio Mind Map Toggle + Strict Single-Project Scope Pill */}
+          {/* Top-Right: Studio Mind Map Toggle + Token Usage + Strict Single-Project Scope Pill */}
           <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              data-testid="ai-chat-token-usage-trigger"
+              aria-label={t("tokenUsageButtonAria")}
+              onClick={() => {
+                setIsEngineMenuOpen(false);
+                setIsProjectMenuOpen(false);
+                setIsComposerProjectMenuOpen(false);
+                useTokenUsageModalStore.getState().openModal(
+                  selectedProject.id === AI_CHAT_ALL_PROJECTS_ID
+                    ? { scope: "organization", projectId: null }
+                    : { projectId: selectedProject.id },
+                );
+              }}
+              className="group/tu inline-flex items-center gap-1.5 rounded-full border border-gray-200/80 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-gray-100 hover:shadow-theme-xs active:translate-y-0 active:scale-96 sm:px-3 dark:border-white/10 dark:bg-gpt-popover dark:text-gray-200 dark:hover:bg-white/10"
+            >
+              <PieChartIcon
+                aria-hidden="true"
+                className="size-3.5 shrink-0 text-brand-500 transition-transform duration-200 group-hover/tu:scale-110 dark:text-brand-400"
+              />
+              <span className="hidden xsm:inline">{t("tokenUsageButton")}</span>
+            </button>
             <button
               type="button"
               data-testid="ai-chat-mind-map-trigger"

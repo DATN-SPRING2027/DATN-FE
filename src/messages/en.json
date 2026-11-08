@@ -1154,6 +1154,8 @@
       "generalDesc": "Language, time zone & personal preferences",
       "notificationTitle": "Notifications",
       "notificationDesc": "Email and in-app notification alerts",
+      "usageTitle": "Usage",
+      "usageDesc": "Token activity across projects & tasks",
       "adminHeading": "Admin settings",
       "leaderHeading": "Project leader settings",
       "workspaceHeading": "Workspace",
@@ -1281,7 +1283,8 @@
     "signOut": "Log out",
     "signOutErrorTitle": "Sign out failed",
     "signOutErrorMessage": "We couldn’t confirm sign out. Check your connection and try again.",
-    "signingOut": "Logging out…"
+    "signingOut": "Logging out…",
+    "tokenUsage": "Token Usage"
   },
   "auth": {
     "forgotPasswordLink": "Forgot password?",
@@ -2487,7 +2490,8 @@
       "defaultSettingsSubtitle": "You can change these later in project settings.",
       "organizationMembersScope": "Organization members",
       "infoCallout": "You can invite members and configure more settings after the project is created."
-    }
+    },
+    "tokenUsageButton": "Token Usage"
   },
   "projectLeaders": {
     "title": "Leaders",
@@ -5969,7 +5973,9 @@
     "allProjectsCode": "ALL",
     "allProjectsMeta": "Org-wide · {count} projects",
     "allProjectsIsolationTitle": "Organization-Wide Manager Scope",
-    "allProjectsIsolationDesc": "Searching across all active projects in your organization · Knowledge-only"
+    "allProjectsIsolationDesc": "Searching across all active projects in your organization · Knowledge-only",
+    "tokenUsageButton": "Token Usage",
+    "tokenUsageButtonAria": "View AI token usage statistics"
   },
   "handover": {
     "aiCoverage": {
@@ -6728,5 +6734,102 @@
     "uiImages": "Images",
     "uiModals": "Modals",
     "uiVideos": "Videos"
+  },
+  "TokenUsage": {
+    "modalTitle": "Usage",
+    "close": "Close",
+    "backToOverview": "Back to overview",
+    "tokenOnlySubtitle": "Measured in tokens only",
+    "personalScopeDesc": "Personal token usage",
+    "projectScopeDesc": "Project token usage",
+    "orgScopeDesc": "Organization token usage",
+    "allMyProjects": "All projects",
+    "selectProject": "Select project",
+    "projectLabel": "Project",
+    "memberLabel": "Member",
+    "aiTaskBadge": "Task",
+    "scopes": {
+      "personal": "Personal",
+      "project": "Project",
+      "organization": "Organization"
+    },
+    "ranges": {
+      "24h": "24 hours",
+      "7d": "7 days",
+      "30d": "30 days",
+      "12w": "12 weeks",
+      "12m": "12 months",
+      "custom": "Custom",
+      "last24h": "Last 24 hours",
+      "last7d": "Last 7 days",
+      "last30d": "Last 30 days",
+      "last12w": "Last 12 weeks",
+      "last12m": "Last 12 months"
+    },
+    "units": {
+      "perHour": "Per hour",
+      "perDay": "Per day",
+      "perWeek": "Per week",
+      "perMonth": "Per month"
+    },
+    "metrics": {
+      "tokens": "tokens",
+      "cacheHitRate": "Cache hit rate",
+      "cachedSub": "cached",
+      "output": "Output",
+      "inputSub": "input",
+      "calls": "Calls",
+      "callsLower": "calls",
+      "perCall": "call"
+    },
+    "chart": {
+      "title": "Tokens over time",
+      "byProject": "By project",
+      "byMember": "By member",
+      "byTask": "By task",
+      "empty": "No token activity in this time range"
+    },
+    "lists": {
+      "projectsTitle": "Projects",
+      "myProjectsTitle": "Projects",
+      "membersTitle": "Members",
+      "tasksTitle": "Tasks",
+      "empty": "No activity in this range"
+    },
+    "tasks": {
+      "ai_chat": "AI Chat",
+      "mind_map": "Mind Map",
+      "knowledge_sync": "Knowledge Sync",
+      "note_assessment": "Work Note Review",
+      "note_rewrite": "Work Note Copilot"
+    },
+    "heatmap": {
+      "title": "Activity",
+      "activeSummary": "Active on {count} days in the last year",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "cumulative": "Cumulative",
+      "light": "Light",
+      "heavy": "Heavy",
+      "lifetimeTokens": "Lifetime tokens",
+      "peakDailyTokens": "Peak tokens",
+      "longestStreak": "Longest streak",
+      "currentStreak": "Current streak"
+    },
+    "calendar": {
+      "thisMonth": "This month",
+      "lastMonth": "Last month",
+      "thisYear": "This year",
+      "selectStartDate": "Select start date",
+      "selectEndDate": "Select end date",
+      "daysUnit": "days",
+      "prevMonth": "Previous month",
+      "nextMonth": "Next month"
+    },
+    "profileCard": {
+      "title": "AI Token Usage",
+      "subtitle": "Track your personal token activity across AI Chat, Mind Map, SAG Sync, and Work Note Copilot",
+      "openDetail": "View detailed analytics"
+    }
   }
 }

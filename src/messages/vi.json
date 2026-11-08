@@ -1154,6 +1154,8 @@
       "generalDesc": "Ngôn ngữ, múi giờ và tùy chọn cá nhân",
       "notificationTitle": "Thông báo",
       "notificationDesc": "Cảnh báo thông báo qua email và trong ứng dụng",
+      "usageTitle": "Thống kê sử dụng",
+      "usageDesc": "Hoạt động token theo dự án và tác vụ",
       "adminHeading": "Cài đặt quản trị",
       "leaderHeading": "Cài đặt trưởng nhóm dự án",
       "workspaceHeading": "Không gian làm việc",
@@ -1281,7 +1283,8 @@
     "signOut": "Đăng xuất",
     "signOutErrorTitle": "Đăng xuất thất bại",
     "signOutErrorMessage": "Không thể xác nhận đăng xuất. Vui lòng kiểm tra kết nối mạng và thử lại.",
-    "signingOut": "Đang đăng xuất…"
+    "signingOut": "Đang đăng xuất…",
+    "tokenUsage": "Thống kê Token AI"
   },
   "auth": {
     "forgotPasswordLink": "Quên mật khẩu?",
@@ -2487,7 +2490,8 @@
       "defaultSettingsSubtitle": "Bạn có thể thay đổi các tùy chọn này sau trong phần cài đặt dự án.",
       "organizationMembersScope": "Thành viên tổ chức",
       "infoCallout": "Bạn có thể mời thêm thành viên và cấu hình chi tiết sau khi dự án được tạo."
-    }
+    },
+    "tokenUsageButton": "Thống kê Token AI"
   },
   "projectLeaders": {
     "title": "Trưởng nhóm",
@@ -5969,7 +5973,9 @@
     "allProjectsCode": "ALL",
     "allProjectsMeta": "Toàn tổ chức · {count} dự án",
     "allProjectsIsolationTitle": "Phạm vi Toàn tổ chức (Manager)",
-    "allProjectsIsolationDesc": "Truy vấn xuyên suốt toàn bộ dự án đang hoạt động trong tổ chức · Chỉ dựa trên tri thức"
+    "allProjectsIsolationDesc": "Truy vấn xuyên suốt toàn bộ dự án đang hoạt động trong tổ chức · Chỉ dựa trên tri thức",
+    "tokenUsageButton": "Token AI",
+    "tokenUsageButtonAria": "Xem thống kê mức sử dụng Token AI"
   },
   "handover": {
     "aiCoverage": {
@@ -6728,5 +6734,102 @@
     "uiImages": "Hình ảnh",
     "uiModals": "Hộp thoại",
     "uiVideos": "Video"
+  },
+  "TokenUsage": {
+    "modalTitle": "Mức sử dụng",
+    "close": "Đóng",
+    "backToOverview": "Quay lại",
+    "tokenOnlySubtitle": "Chỉ tính theo token",
+    "personalScopeDesc": "Token cá nhân",
+    "projectScopeDesc": "Token dự án",
+    "orgScopeDesc": "Token tổ chức",
+    "allMyProjects": "Tất cả dự án",
+    "selectProject": "Chọn dự án",
+    "projectLabel": "Dự án",
+    "memberLabel": "Thành viên",
+    "aiTaskBadge": "Tác vụ",
+    "scopes": {
+      "personal": "Cá nhân",
+      "project": "Dự án",
+      "organization": "Tổ chức"
+    },
+    "ranges": {
+      "24h": "24 giờ",
+      "7d": "7 ngày",
+      "30d": "30 ngày",
+      "12w": "12 tuần",
+      "12m": "12 tháng",
+      "custom": "Tùy chỉnh",
+      "last24h": "24 giờ qua",
+      "last7d": "7 ngày qua",
+      "last30d": "30 ngày qua",
+      "last12w": "12 tuần qua",
+      "last12m": "12 tháng qua"
+    },
+    "units": {
+      "perHour": "Mỗi giờ",
+      "perDay": "Mỗi ngày",
+      "perWeek": "Mỗi tuần",
+      "perMonth": "Mỗi tháng"
+    },
+    "metrics": {
+      "tokens": "tokens",
+      "cacheHitRate": "Tỷ lệ cache",
+      "cachedSub": "cache",
+      "output": "Đầu ra",
+      "inputSub": "đầu vào",
+      "calls": "Lượt gọi",
+      "callsLower": "lượt",
+      "perCall": "lượt"
+    },
+    "chart": {
+      "title": "Token theo thời gian",
+      "byProject": "Theo dự án",
+      "byMember": "Theo thành viên",
+      "byTask": "Theo tác vụ",
+      "empty": "Chưa có hoạt động trong khoảng thời gian này"
+    },
+    "lists": {
+      "projectsTitle": "Dự án",
+      "myProjectsTitle": "Dự án",
+      "membersTitle": "Thành viên",
+      "tasksTitle": "Tác vụ",
+      "empty": "Chưa có hoạt động"
+    },
+    "tasks": {
+      "ai_chat": "AI Chat",
+      "mind_map": "Mind Map",
+      "knowledge_sync": "Đồng bộ tri thức",
+      "note_assessment": "Đánh giá ghi chú",
+      "note_rewrite": "Biên tập ghi chú"
+    },
+    "heatmap": {
+      "title": "Hoạt động",
+      "activeSummary": "Hoạt động {count} ngày trong 1 năm qua",
+      "daily": "Theo ngày",
+      "weekly": "Theo tuần",
+      "cumulative": "Tích lũy",
+      "light": "Ít",
+      "heavy": "Nhiều",
+      "lifetimeTokens": "Tổng tích lũy",
+      "peakDailyTokens": "Đỉnh ngày",
+      "longestStreak": "Chuỗi dài nhất",
+      "currentStreak": "Chuỗi hiện tại"
+    },
+    "calendar": {
+      "thisMonth": "Tháng này",
+      "lastMonth": "Tháng trước",
+      "thisYear": "Năm nay",
+      "selectStartDate": "Chọn ngày bắt đầu",
+      "selectEndDate": "Chọn ngày kết thúc",
+      "daysUnit": "ngày",
+      "prevMonth": "Tháng trước",
+      "nextMonth": "Tháng tiếp theo"
+    },
+    "profileCard": {
+      "title": "Thống kê Token AI cá nhân",
+      "subtitle": "Theo dõi lượng token AI bạn đã sử dụng cho Hỏi đáp, Mind Map, Đồng bộ tri thức và Ghi chú",
+      "openDetail": "Xem thống kê chi tiết"
+    }
   }
 }
