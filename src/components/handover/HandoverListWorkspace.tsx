@@ -995,6 +995,7 @@ export default function HandoverListWorkspace({
         currentUserId={currentUser.data?.id}
         members={members}
         isMembersLoading={membersQuery.isPending}
+        existingOpenHandovers={openItems}
         onCreated={(handoverId) => {
           setIsCreateOpen(false);
           router.push(

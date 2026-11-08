@@ -20,6 +20,7 @@ import {
 } from "@/lib/queries/handovers/handover.service";
 import type {
   DepartingMemberPreviewDto,
+  HandoverSummaryDto,
   SourceRefDto,
 } from "@/lib/queries/handovers/handover.types";
 import Button from "@/components/ui/button/Button";
@@ -53,6 +54,7 @@ interface CreateHandoverModalProps {
   currentUserId?: string;
   members: readonly ProjectMembership[];
   isMembersLoading?: boolean;
+  existingOpenHandovers?: readonly HandoverSummaryDto[];
   onCreated: (handoverId: string) => void;
 }
 
@@ -114,6 +116,7 @@ export default function CreateHandoverModal({
   currentUserId,
   members,
   isMembersLoading = false,
+  existingOpenHandovers = [],
   onCreated,
 }: CreateHandoverModalProps) {
   const t = useTranslations("handover.createModal");
@@ -430,6 +433,86 @@ export default function CreateHandoverModal({
         version: String(src.version),
       }));
 
+    const syncAndBundleExisting = async (existing: HandoverSummaryDto) => {
+      setIsAutoBundling(true);
+      try {
+        createMutation.reset();
+        let currentEtag = formatHandoverEtag(existing.id, existing.version);
+        try {
+          if (
+            trimmedTitle !== existing.title ||
+            parsedDate.toISOString() !== existing.targetCompletionDate
+          ) {
+            const metaRes = await updateHandoverMetadata(
+              projectId,
+              existing.id,
+              currentEtag,
+              {
+                title: trimmedTitle,
+                targetCompletionDate: parsedDate.toISOString(),
+              },
+            );
+            currentEtag =
+              metaRes.etag ??
+              formatHandoverEtag(existing.id, metaRes.data.version);
+          }
+        } catch {
+          // ignore metadata sync error and continue
+        }
+
+        try {
+          if (cleanSuccessor !== existing.successorUserId) {
+            const succRes = await setHandoverSuccessor(
+              projectId,
+              existing.id,
+              currentEtag,
+              {
+                successorUserId: cleanSuccessor,
+                reason: "Updated from 5-step handover workspace setup",
+              },
+            );
+            currentEtag =
+              succRes.etag ??
+              formatHandoverEtag(existing.id, succRes.data.version);
+          }
+        } catch {
+          // ignore successor sync error and continue
+        }
+
+        try {
+          await autoBundleHandover(projectId, existing.id, currentEtag, {
+            taskIds:
+              previewData && selectedTaskIds.length > 0
+                ? selectedTaskIds
+                : undefined,
+            selectedSources:
+              previewData && selectedSources.length > 0
+                ? selectedSources
+                : undefined,
+          });
+        } catch {
+          // Non-blocking fallback
+        }
+
+        setTitle("");
+        setTitleTouched(false);
+        setDepartingUserId("");
+        setSuccessorUserId("");
+        setInvalidField(null);
+        onCreated(existing.id);
+      } finally {
+        setIsAutoBundling(false);
+      }
+    };
+
+    const preExistingOpen = existingOpenHandovers.find(
+      (h) => h.status === "OPEN" && h.departingUserId === departingUserId.trim(),
+    );
+    if (preExistingOpen) {
+      await syncAndBundleExisting(preExistingOpen);
+      return;
+    }
+
     try {
       const result = await createMutation.mutateAsync({
         title: trimmedTitle,
@@ -482,7 +565,6 @@ export default function CreateHandoverModal({
         errStatus === 409 ||
         errCode === "OPEN_HANDOVER_ALREADY_EXISTS"
       ) {
-        setIsAutoBundling(true);
         try {
           const existingList = await listHandovers(projectId, {
             limit: 50,
@@ -495,76 +577,11 @@ export default function CreateHandoverModal({
               h.departingUserId === departingUserId.trim(),
           );
           if (existing) {
-            createMutation.reset();
-            let currentEtag = formatHandoverEtag(existing.id, existing.version);
-            try {
-              if (
-                trimmedTitle !== existing.title ||
-                parsedDate.toISOString() !== existing.targetCompletionDate
-              ) {
-                const metaRes = await updateHandoverMetadata(
-                  projectId,
-                  existing.id,
-                  currentEtag,
-                  {
-                    title: trimmedTitle,
-                    targetCompletionDate: parsedDate.toISOString(),
-                  },
-                );
-                currentEtag =
-                  metaRes.etag ??
-                  formatHandoverEtag(existing.id, metaRes.data.version);
-              }
-            } catch {
-              // ignore metadata sync error and continue
-            }
-
-            try {
-              if (cleanSuccessor !== existing.successorUserId) {
-                const succRes = await setHandoverSuccessor(
-                  projectId,
-                  existing.id,
-                  currentEtag,
-                  {
-                    successorUserId: cleanSuccessor,
-                    reason: "Updated from 5-step handover workspace setup",
-                  },
-                );
-                currentEtag =
-                  succRes.etag ??
-                  formatHandoverEtag(existing.id, succRes.data.version);
-              }
-            } catch {
-              // ignore successor sync error and continue
-            }
-
-            try {
-              await autoBundleHandover(projectId, existing.id, currentEtag, {
-                taskIds:
-                  previewData && selectedTaskIds.length > 0
-                    ? selectedTaskIds
-                    : undefined,
-                selectedSources:
-                  previewData && selectedSources.length > 0
-                    ? selectedSources
-                    : undefined,
-              });
-            } catch {
-              // Non-blocking fallback
-            }
-
-            setTitle("");
-            setTitleTouched(false);
-            setDepartingUserId("");
-            setSuccessorUserId("");
-            setInvalidField(null);
-            onCreated(existing.id);
+            await syncAndBundleExisting(existing);
             return;
           }
         } catch {
           // Fall through to show error message
-        } finally {
-          setIsAutoBundling(false);
         }
       }
     }
