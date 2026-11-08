@@ -87,6 +87,15 @@ function computeUtcDayDelta(dateInput: string): number | null {
   return Math.round((parsed.getTime() - todayUtcMs) / (24 * 60 * 60 * 1000));
 }
 
+function isDefinitiveClientFailure(error: unknown): boolean {
+  return (
+    error instanceof ApiError &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    ![408, 425, 429].includes(error.status)
+  );
+}
+
 function getMembershipRole(member: ProjectMembership): string | undefined {
   const maybeRole = (member as { role?: unknown }).role;
   return typeof maybeRole === "string" && maybeRole.trim().length > 0
@@ -345,6 +354,7 @@ export default function CreateHandoverModal({
     setValidationError(null);
     setAutoAddError(null);
     setInvalidField(null);
+    if (!pendingBundle) setBundleError(null);
     createMutation.reset();
     addProjectMemberMutation.reset();
     onClose();
@@ -405,6 +415,7 @@ export default function CreateHandoverModal({
       setSuccessorUserId("");
       onCreated(intent.id);
     } catch (error) {
+      if (isDefinitiveClientFailure(error)) setPendingBundle(null);
       setBundleError(extractHandoverErrorMessage(error, t5("bundleRetryError")));
     } finally {
       setIsAutoBundling(false);
@@ -420,6 +431,7 @@ export default function CreateHandoverModal({
       await submitBundle(pendingBundle);
       return;
     }
+    setBundleError(null);
     setValidationError(null);
     setAutoAddError(null);
     setInvalidField(null);
@@ -503,7 +515,7 @@ export default function CreateHandoverModal({
         }
         await submitBundle({ id: existing.id, etag: currentEtag, input, key: generateIdempotencyKey() });
       } catch (error) {
-        setBundleError(extractHandoverErrorMessage(error, t5("bundleRetryError")));
+        setBundleError(extractHandoverErrorMessage(error, t5("bundleSetupError")));
       } finally {
         setIsAutoBundling(false);
       }

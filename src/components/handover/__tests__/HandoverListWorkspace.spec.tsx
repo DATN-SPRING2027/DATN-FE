@@ -21,7 +21,12 @@ import {
   useCreateHandoverMutation,
   useHandoversQuery,
 } from "@/lib/queries/handovers/useHandovers";
-import { autoBundleHandover, previewDepartingMember, setHandoverCoordinator } from "@/lib/queries/handovers/handover.service";
+import {
+  autoBundleHandover,
+  previewDepartingMember,
+  setHandoverCoordinator,
+  updateHandoverMetadata,
+} from "@/lib/queries/handovers/handover.service";
 import type { HandoverSummaryDto } from "@/lib/queries/handovers/handover.types";
 import HandoverListWorkspace from "../HandoverListWorkspace";
 
@@ -74,6 +79,7 @@ vi.mock("@/lib/queries/handovers/handover.service", async (importOriginal) => {
     setHandoverCoordinator: vi.fn(),
     previewDepartingMember: vi.fn(),
     autoBundleHandover: vi.fn(),
+    updateHandoverMetadata: vi.fn(),
   };
 });
 
@@ -132,6 +138,7 @@ describe("HandoverListWorkspace", () => {
       projectId, departingUserId, relatedProjects: [], tasks: [], sources: [],
     }));
     vi.mocked(autoBundleHandover).mockReset().mockResolvedValue({ data: {} } as never);
+    vi.mocked(updateHandoverMetadata).mockReset().mockResolvedValue({} as never);
     pushMock.mockReset();
     mockedSetCoordinator.mockReset();
 
@@ -284,6 +291,84 @@ describe("HandoverListWorkspace", () => {
     fireEvent.click(retry);
     await waitFor(() => expect(autoBundleHandover).toHaveBeenCalledTimes(2));
     expect(vi.mocked(autoBundleHandover).mock.calls[1]).toEqual(intent);
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a setup error before showing validation for the next submission", async () => {
+    mockedHandovers.mockReturnValue({
+      data: { data: [makeSummary()], nextCursor: null },
+      isPending: false,
+      isError: false,
+    } as never);
+    vi.mocked(updateHandoverMetadata).mockRejectedValue(undefined);
+    renderWorkspace();
+    fireEvent.click(screen.getAllByRole("button", { name: /new handover/i })[0]!);
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "Updated handover title" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: /departing member \(a\)/i }));
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /an nguyen/i,
+      }),
+    );
+
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    expect(
+      await screen.findAllByText(
+        "Could not prepare the handover package. Check the details and try again.",
+      ),
+    ).not.toHaveLength(0);
+
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "x" },
+    });
+    fireEvent.click(submit);
+    expect(
+      await screen.findAllByText(
+        "Enter a handover title between 3 and 200 characters.",
+      ),
+    ).not.toHaveLength(0);
+    expect(
+      screen.queryAllByText(
+        "Could not prepare the handover package. Check the details and try again.",
+      ),
+    ).toHaveLength(0);
+  });
+
+  it("unlocks the creation form after a definitive publication client error", async () => {
+    const handoverId = "69e923c77859fd1c702d4d77";
+    const create = vi.fn().mockResolvedValue({ data: { handoverId } });
+    mockedCreateMutation.mockReturnValue({
+      mutateAsync: create, reset: vi.fn(), isPending: false, isError: false,
+    } as never);
+    vi.mocked(autoBundleHandover).mockRejectedValueOnce(
+      new ApiError(422, "INVALID_SELECTION", "The selection is no longer valid."),
+    );
+    renderWorkspace();
+    fireEvent.click(screen.getAllByRole("button", { name: /new handover/i })[0]!);
+    fireEvent.change(screen.getByLabelText(/handover title/i), {
+      target: { value: "Handover with invalid source" },
+    });
+    fireEvent.click(screen.getByRole("combobox", { name: /departing member \(a\)/i }));
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: /an nguyen/i,
+      }),
+    );
+
+    const submit = screen.getByRole("button", { name: /create handover/i });
+    await waitFor(() => expect(submit).toBeEnabled());
+    fireEvent.click(submit);
+    expect(
+      await screen.findAllByText(/The selection is no longer valid\./),
+    ).not.toHaveLength(0);
+    expect(
+      screen.queryByRole("button", { name: "Retry publication" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByLabelText(/handover title/i)).toBeEnabled();
     expect(create).toHaveBeenCalledTimes(1);
   });
 

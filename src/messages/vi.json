@@ -6454,6 +6454,7 @@
       "previewError": "Chưa tải được bản xem trước bàn giao.",
       "retryPreview": "Tải lại bản xem trước",
       "bundleRetryError": "Đã có gói bàn giao nhưng chưa xuất bản được. Thử lại để giữ lựa chọn ban đầu.",
+      "bundleSetupError": "Chưa thể chuẩn bị gói bàn giao. Hãy kiểm tra thông tin rồi thử lại.",
       "retryBundle": "Thử xuất bản lại",
       "successorUpdateReason": "Cập nhật từ màn hình tạo bàn giao.",
       "quickTransferVerified": "Đã chuyển {count} task. Có {already} task đã giao cho {successor} từ trước.",

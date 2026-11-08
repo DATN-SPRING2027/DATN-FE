@@ -6454,6 +6454,7 @@
       "previewError": "Could not load the handover preview.",
       "retryPreview": "Retry preview",
       "bundleRetryError": "The package exists, but publication failed. Retry to keep your original selection.",
+      "bundleSetupError": "Could not prepare the handover package. Check the details and try again.",
       "retryBundle": "Retry publication",
       "successorUpdateReason": "Updated from handover setup.",
       "quickTransferVerified": "{count} transferred and {already} already assigned to {successor}.",
