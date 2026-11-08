@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   useAddProjectMember,
@@ -9,14 +9,25 @@ import {
 } from "@/lib/queries/projects/useProjectMembers";
 import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
 import { useCreateHandoverMutation } from "@/lib/queries/handovers/useHandovers";
+import {
+  autoBundleHandover,
+  formatHandoverEtag,
+  previewDepartingMember,
+} from "@/lib/queries/handovers/handover.service";
+import type {
+  DepartingMemberPreviewDto,
+  SourceRefDto,
+} from "@/lib/queries/handovers/handover.types";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import {
   AlertIcon,
   ArrowRightIcon,
   CheckCircleIcon,
+  DocsIcon,
   HandShakeIcon,
   LockIcon,
+  TaskIcon,
 } from "@/icons";
 import HandoverDialogShell from "./HandoverDialogShell";
 import HandoverDatePicker, { utcDateOffsetIso } from "./HandoverDatePicker";
@@ -102,6 +113,7 @@ export default function CreateHandoverModal({
   onCreated,
 }: CreateHandoverModalProps) {
   const t = useTranslations("handover.createModal");
+  const t5 = useTranslations("handover.fiveStep");
   const createMutation = useCreateHandoverMutation(projectId);
   const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
   const candidatesQuery = useProjectMemberCandidatesQuery(
@@ -196,6 +208,7 @@ export default function CreateHandoverModal({
   }, [coordinatorOptions, currentUserId]);
 
   const [title, setTitle] = useState("");
+  const [titleTouched, setTitleTouched] = useState(false);
   const [departingUserId, setDepartingUserId] = useState("");
   const [assignedLeaderId, setAssignedLeaderId] = useState("");
   const [successorUserId, setSuccessorUserId] = useState("");
@@ -203,6 +216,54 @@ export default function CreateHandoverModal({
   const [validationError, setValidationError] = useState<string | null>(null);
   const [autoAddError, setAutoAddError] = useState<string | null>(null);
   const [invalidField, setInvalidField] = useState<InvalidField>(null);
+  const [isAutoBundling, setIsAutoBundling] = useState(false);
+
+  // Step 2: Auto-discovered scope for selected departing member
+  const [previewData, setPreviewData] =
+    useState<DepartingMemberPreviewDto | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [selectedSourceKeys, setSelectedSourceKeys] = useState<string[]>([]);
+
+  useEffect(() => {
+    const cleanDeparting = departingUserId.trim();
+    if (!isOpen || !/^[a-f0-9]{24}$/i.test(cleanDeparting)) {
+      setPreviewData(null);
+      setIsPreviewLoading(false);
+      setSelectedTaskIds([]);
+      setSelectedSourceKeys([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    setIsPreviewLoading(true);
+    previewDepartingMember(projectId, cleanDeparting, controller.signal)
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        setPreviewData(res);
+        setSelectedTaskIds(
+          res.tasks
+            .map((task) => task.id ?? task.taskId ?? "")
+            .filter(Boolean),
+        );
+        setSelectedSourceKeys(
+          res.sources.map(
+            (src) => `${src.kind}:${src.id}:${String(src.version)}`,
+          ),
+        );
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setPreviewData(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setIsPreviewLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [departingUserId, isOpen, projectId]);
 
   const effectiveCoordinator = assignedLeaderId || defaultCoordinator;
 
@@ -254,7 +315,9 @@ export default function CreateHandoverModal({
   }, [dayDelta, t, targetDate]);
 
   const isSubmitting =
-    addProjectMemberMutation.isPending || createMutation.isPending;
+    addProjectMemberMutation.isPending ||
+    createMutation.isPending ||
+    isAutoBundling;
 
   const handleClose = () => {
     if (isSubmitting) return;
@@ -270,6 +333,14 @@ export default function CreateHandoverModal({
     setDepartingUserId(nextId);
     if (nextId && successorUserId === nextId) {
       setSuccessorUserId("");
+    }
+    const matched = departingOptions.find((m) => m.userId === nextId);
+    if (matched && (!title.trim() || !titleTouched)) {
+      const nextAutoTitle = `${t5("autoTitlePrefix")}${matched.fullName}`.slice(
+        0,
+        200,
+      );
+      setTitle(nextAutoTitle);
     }
     if (invalidField === "departing" || invalidField === "successor") {
       setInvalidField(null);
@@ -352,11 +423,48 @@ export default function CreateHandoverModal({
         teamId: null,
         targetCompletionDate: parsedDate.toISOString(),
       });
+
+      const createdId = result.data.handoverId;
+      if (/^[a-f0-9]{24}$/i.test(createdId)) {
+        setIsAutoBundling(true);
+        try {
+          const etag =
+            result.etag ??
+            formatHandoverEtag(createdId, result.data.version ?? 1);
+          const selectedSources: SourceRefDto[] = (previewData?.sources ?? [])
+            .filter((src) =>
+              selectedSourceKeys.includes(
+                `${src.kind}:${src.id}:${String(src.version)}`,
+              ),
+            )
+            .map((src) => ({
+              kind: src.kind,
+              id: src.id,
+              version: String(src.version),
+            }));
+          await autoBundleHandover(projectId, createdId, etag, {
+            taskIds:
+              previewData && selectedTaskIds.length > 0
+                ? selectedTaskIds
+                : undefined,
+            selectedSources:
+              previewData && selectedSources.length > 0
+                ? selectedSources
+                : undefined,
+          });
+        } catch {
+          // Non-blocking fallback: detail workspace also has 1-Click Auto-Bundle button
+        } finally {
+          setIsAutoBundling(false);
+        }
+      }
+
       setTitle("");
+      setTitleTouched(false);
       setDepartingUserId("");
       setSuccessorUserId("");
       setInvalidField(null);
-      onCreated(result.data.handoverId);
+      onCreated(createdId);
     } catch {
       // Mutation error displayed below
     }
@@ -372,6 +480,24 @@ export default function CreateHandoverModal({
   const activeAlertMessage = validationError ?? autoAddError ?? serverError;
   const isCandidatesLoading =
     Boolean(organizationId) && candidatesQuery.isPending;
+
+  const noteSourcesCount = useMemo(
+    () =>
+      (previewData?.sources ?? []).filter((s) => s.kind === "TASK_NOTE").length,
+    [previewData],
+  );
+  const docSourcesCount = useMemo(
+    () =>
+      (previewData?.sources ?? []).filter((s) => s.kind === "PROJECT_DOCUMENT")
+        .length,
+    [previewData],
+  );
+  const reportSourcesCount = useMemo(
+    () =>
+      (previewData?.sources ?? []).filter((s) => s.kind === "WORK_REPORT")
+        .length,
+    [previewData],
+  );
 
   return (
     <HandoverDialogShell
@@ -399,8 +525,421 @@ export default function CreateHandoverModal({
           </div>
         )}
 
-        {/* Zone 1: Package Scope & Target Completion Date */}
-        <div className="space-y-3.5">
+        {/* 5-Step Streamlined Flow Header Strip */}
+        <div className="rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-semibold tracking-wider text-brand-700 uppercase dark:text-brand-300">
+              {t5("bannerEyebrow")}
+            </span>
+            <div
+              aria-hidden="true"
+              className="flex flex-wrap items-center gap-1.5 text-xs font-medium"
+            >
+              <span
+                className={`rounded-md px-2 py-0.5 transition-colors ${
+                  departingUserId
+                    ? "bg-brand-600 text-white"
+                    : "bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+                }`}
+              >
+                {t5("step1Title")}
+              </span>
+              <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+              <span
+                className={`rounded-md px-2 py-0.5 transition-colors ${
+                  previewData
+                    ? "bg-brand-600 text-white"
+                    : "bg-white text-gray-700 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+                }`}
+              >
+                {t5("step2Title")}
+              </span>
+              <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+              <span
+                className={`rounded-md px-2 py-0.5 transition-colors ${
+                  successorUserId
+                    ? "bg-success-600 text-white"
+                    : "bg-white text-gray-700 ring-1 ring-dashed ring-gray-300 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
+                }`}
+              >
+                {t5("step3Title")}
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Step 1: Select Departing Member (A) */}
+        <div className="rounded-xl border border-gray-200/90 bg-gray-50/50 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label
+              htmlFor="handover-create-departing"
+              className="text-sm font-semibold text-gray-900 dark:text-white"
+            >
+              1. {t("departingLabel")} <span className="text-error-600">*</span>
+            </label>
+            <span className="text-xs">
+              {selectedDepartingMember?.status === "INACTIVE" ? (
+                <span className="font-medium text-warning-700 dark:text-warning-300">
+                  {t("departingSelectedDepartedHint")}
+                </span>
+              ) : selectedDepartingMember ? (
+                <span className="text-gray-500 dark:text-gray-400">
+                  {t("departingSelectedActiveHint")}
+                </span>
+              ) : (
+                <span className="text-gray-400 dark:text-gray-500">
+                  {t("departingRoleHint")}
+                </span>
+              )}
+            </span>
+          </div>
+
+          {departingOptions.length > 0 || isMembersLoading ? (
+            <HandoverMemberSelect
+              id="handover-create-departing"
+              value={departingUserId}
+              onChange={handleDepartingChange}
+              options={departingOptions}
+              placeholder={
+                isMembersLoading && departingOptions.length === 0
+                  ? t("loadingMembers")
+                  : t("selectDepartingPlaceholder")
+              }
+              disabled={isMembersLoading && departingOptions.length === 0}
+              searchPlaceholder={t("searchMembersPlaceholder")}
+              noMatchesLabel={t("noMatchingMembers")}
+              activeBadgeLabel={t("activeBadge")}
+              departedBadgeLabel={t("departedBadge")}
+              youBadgeLabel={t("youBadge")}
+              invalid={invalidField === "departing"}
+            />
+          ) : (
+            <input
+              id="handover-create-departing"
+              type="text"
+              value={departingUserId}
+              onChange={(e) => handleDepartingChange(e.target.value)}
+              placeholder={t("manualIdPlaceholder")}
+              aria-invalid={invalidField === "departing" || undefined}
+              className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+            />
+          )}
+        </div>
+
+        {/* Step 2: Auto-Aggregated Projects, Tasks, Task Notes, Documents & Work Reports */}
+        <div className="rounded-xl border border-gray-200/90 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900/70">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                {t5("step2Title")}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {t5("aggregatedScopeHint")}
+              </p>
+            </div>
+            {previewData && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs tabular-nums">
+                <Badge color="primary" size="sm">
+                  {t5("statTasks", {
+                    count: String(previewData.tasks.length),
+                  })}
+                </Badge>
+                <Badge color="info" size="sm">
+                  {t5("statNotes", { count: String(noteSourcesCount) })}
+                </Badge>
+                <Badge color="success" size="sm">
+                  {t5("statDocs", { count: String(docSourcesCount) })}
+                </Badge>
+                <Badge color="warning" size="sm">
+                  {t5("statReports", { count: String(reportSourcesCount) })}
+                </Badge>
+              </div>
+            )}
+          </div>
+
+          {!departingUserId ? (
+            <p className="mt-2.5 rounded-lg border border-dashed border-gray-200 bg-gray-50/70 px-3 py-2.5 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-400">
+              {t5("previewPrompt")}
+            </p>
+          ) : isPreviewLoading ? (
+            <p
+              role="status"
+              className="mt-2.5 rounded-lg border border-gray-200 bg-gray-50/70 px-3 py-2.5 text-xs text-gray-600 dark:border-gray-800 dark:bg-gray-800/40 dark:text-gray-300"
+            >
+              {t5("previewLoading")}
+            </p>
+          ) : previewData ? (
+            <div className="mt-3 space-y-3">
+              {/* Related Projects Strip */}
+              {previewData.relatedProjects.length > 0 && (
+                <div>
+                  <p className="text-[11px] font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                    {t5("relatedProjectsHeading", {
+                      count: String(previewData.relatedProjects.length),
+                    })}
+                  </p>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {previewData.relatedProjects.map((proj) => {
+                      const isCurrent =
+                        proj.projectId.toLowerCase() ===
+                        projectId.toLowerCase();
+                      return (
+                        <div
+                          key={proj.projectId}
+                          className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs tabular-nums ${
+                            isCurrent
+                              ? "border-brand-300 bg-brand-50/70 font-semibold text-brand-800 dark:border-brand-500/40 dark:bg-brand-500/15 dark:text-brand-200"
+                              : "border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                          }`}
+                        >
+                          <span>
+                            [{proj.key}] {proj.name}
+                          </span>
+                          <span className="text-gray-400">·</span>
+                          <span>{proj.unfinishedTaskCount} Tasks</span>
+                          <span className="text-gray-400">·</span>
+                          <span>
+                            {proj.taskNoteCount +
+                              (proj.documentCount ??
+                                proj.projectDocumentCount ??
+                                0) +
+                              proj.workReportCount}{" "}
+                            Docs/Notes
+                          </span>
+                          {isCurrent && (
+                            <Badge color="primary" size="sm">
+                              {t5("currentProjectBadge")}
+                            </Badge>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Checkable Unfinished Tasks & Sources in Current Project */}
+              {previewData.tasks.length === 0 &&
+              previewData.sources.length === 0 ? (
+                <p className="rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500 dark:bg-gray-800/50 dark:text-gray-400">
+                  {t5("emptyScopeNotice")}
+                </p>
+              ) : (
+                <div className="max-h-44 space-y-1.5 overflow-y-auto pe-1">
+                  {previewData.tasks.map((task) => {
+                    const tid = task.id ?? task.taskId ?? "";
+                    const checked = selectedTaskIds.includes(tid);
+                    return (
+                      <label
+                        key={tid || task.key}
+                        className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-200/80 bg-gray-50/60 px-2.5 py-1.5 text-xs hover:bg-gray-100/70 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) =>
+                              setSelectedTaskIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, tid]
+                                  : prev.filter((id) => id !== tid),
+                              )
+                            }
+                            className="size-3.5 rounded border-gray-300 text-brand-600"
+                          />
+                          <TaskIcon className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400" />
+                          <span className="shrink-0 whitespace-nowrap font-mono font-semibold text-gray-800 tabular-nums dark:text-gray-200">
+                            {task.key}
+                          </span>
+                          <span className="truncate text-gray-900 dark:text-white">
+                            {task.title}
+                          </span>
+                        </div>
+                        <Badge color="warning" size="sm">
+                          {task.status}
+                        </Badge>
+                      </label>
+                    );
+                  })}
+
+                  {previewData.sources.map((src) => {
+                    const key = `${src.kind}:${src.id}:${String(src.version)}`;
+                    const checked = selectedSourceKeys.includes(key);
+                    return (
+                      <label
+                        key={key}
+                        className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-gray-200/80 bg-gray-50/60 px-2.5 py-1.5 text-xs hover:bg-gray-100/70 dark:border-gray-800 dark:bg-gray-800/40 dark:hover:bg-gray-800"
+                      >
+                        <div className="flex min-w-0 items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(e) =>
+                              setSelectedSourceKeys((prev) =>
+                                e.target.checked
+                                  ? [...prev, key]
+                                  : prev.filter((k) => k !== key),
+                              )
+                            }
+                            className="size-3.5 rounded border-gray-300 text-brand-600"
+                          />
+                          <DocsIcon className="size-3.5 shrink-0 text-success-600 dark:text-success-400" />
+                          <span className="truncate font-medium text-gray-900 dark:text-white">
+                            {src.title}
+                          </span>
+                        </div>
+                        <span className="shrink-0 whitespace-nowrap">
+                          <Badge color="info" size="sm">
+                            {src.kind === "PROJECT_DOCUMENT"
+                              ? "Document"
+                              : src.kind === "TASK_NOTE"
+                                ? "Task Note"
+                                : src.kind === "WORK_REPORT"
+                                  ? "Work Report"
+                                  : src.kind}{" "}
+                            · v{src.version}
+                          </Badge>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Step 3: Select Successor (B) (or Pending Successor) + Coordinator (D) */}
+        <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2">
+          {/* Successor Recipient (B) */}
+          <div className="rounded-xl border border-gray-200/90 bg-gray-50/50 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label
+                htmlFor="handover-create-successor"
+                className="text-sm font-semibold text-gray-900 dark:text-white"
+              >
+                3. {t("successorLabel")}
+              </label>
+              <Badge color={successorUserId ? "success" : "warning"} size="sm">
+                {successorUserId ? t("activeBadge") : t("optionalBadge")}
+              </Badge>
+            </div>
+
+            {successorOptions.length > 0 ||
+            activeMembers.length > 0 ||
+            isMembersLoading ||
+            isCandidatesLoading ? (
+              <HandoverMemberSelect
+                id="handover-create-successor"
+                value={successorUserId}
+                onChange={handleSuccessorChange}
+                options={successorOptions}
+                placeholder={t("noSuccessorYet")}
+                allowEmpty
+                emptyOptionLabel={t("noSuccessorYet")}
+                emptyOptionHint={t("successorRoleHint")}
+                alwaysShowSearch={successorOptions.length >= 2}
+                disabled={
+                  isMembersLoading &&
+                  isCandidatesLoading &&
+                  successorOptions.length === 0
+                }
+                searchPlaceholder={t("searchOrgMembersPlaceholder")}
+                noMatchesLabel={t("noMatchingOrgMembers")}
+                activeBadgeLabel={t("activeBadge")}
+                departedBadgeLabel={t("departedBadge")}
+                youBadgeLabel={t("youBadge")}
+                inProjectBadgeLabel={t("inProjectBadge")}
+                orgCandidateBadgeLabel={t("orgCandidateBadge")}
+                projectGroupLabel={t("projectGroupHeading")}
+                orgCandidateGroupLabel={t("orgCandidateGroupHeading")}
+                invalid={invalidField === "successor"}
+              />
+            ) : (
+              <input
+                id="handover-create-successor"
+                type="text"
+                value={successorUserId}
+                onChange={(e) => handleSuccessorChange(e.target.value)}
+                placeholder={t("noSuccessorYet")}
+                aria-invalid={invalidField === "successor" || undefined}
+                className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            )}
+
+            {isSelectedSuccessorOrgCandidate && (
+              <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-blue-light-50/70 px-3 py-2 text-xs text-blue-light-700 ring-1 ring-blue-light-200/70 dark:bg-blue-light-500/10 dark:text-blue-light-300 dark:ring-blue-light-500/25">
+                <CheckCircleIcon
+                  className="mt-0.5 size-3.5 shrink-0"
+                  aria-hidden="true"
+                />
+                <span>{t("autoAddProjectNotice")}</span>
+              </p>
+            )}
+          </div>
+
+          {/* Coordinator Leader (D) */}
+          <div className="rounded-xl border border-gray-200/90 bg-gray-50/50 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <label
+                htmlFor="handover-create-coordinator"
+                className="text-sm font-medium text-gray-800 dark:text-gray-200"
+              >
+                {t("coordinatorLabel")}{" "}
+                <span className="text-error-600">*</span>
+              </label>
+              <span className="text-xs">
+                {isVerifiedLeaderSelected ? (
+                  <span className="inline-flex items-center gap-1 font-medium text-success-700 dark:text-success-400">
+                    <CheckCircleIcon
+                      className="size-3.5 shrink-0"
+                      aria-hidden="true"
+                    />
+                    {t("verifiedLeaderHint")}
+                  </span>
+                ) : (
+                  <span className="text-gray-400 dark:text-gray-500">
+                    {t("coordinatorRoleHint")}
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {coordinatorOptions.length > 0 || isMembersLoading ? (
+              <HandoverMemberSelect
+                id="handover-create-coordinator"
+                value={effectiveCoordinator}
+                onChange={handleCoordinatorChange}
+                options={coordinatorOptions}
+                placeholder={
+                  isMembersLoading && coordinatorOptions.length === 0
+                    ? t("loadingMembers")
+                    : t("selectCoordinatorPlaceholder")
+                }
+                disabled={isMembersLoading && coordinatorOptions.length === 0}
+                searchPlaceholder={t("searchMembersPlaceholder")}
+                noMatchesLabel={t("noMatchingMembers")}
+                activeBadgeLabel={t("activeBadge")}
+                departedBadgeLabel={t("departedBadge")}
+                youBadgeLabel={t("youBadge")}
+                invalid={invalidField === "coordinator"}
+              />
+            ) : (
+              <input
+                id="handover-create-coordinator"
+                type="text"
+                value={assignedLeaderId}
+                onChange={(e) => handleCoordinatorChange(e.target.value)}
+                placeholder={t("manualLeaderIdPlaceholder")}
+                aria-invalid={invalidField === "coordinator" || undefined}
+                className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
+              />
+            )}
+          </div>
+        </div>
+
+        {/* Handover Title & Target Date */}
+        <div className="grid grid-cols-1 gap-3.5 border-t border-gray-200/80 pt-3.5 sm:grid-cols-2 dark:border-gray-800">
           {/* Handover Title */}
           <div>
             <div className="flex items-center justify-between gap-2">
@@ -428,6 +967,7 @@ export default function CreateHandoverModal({
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
+                setTitleTouched(true);
                 if (invalidField === "title") {
                   setInvalidField(null);
                   setValidationError(null);
@@ -511,292 +1051,6 @@ export default function CreateHandoverModal({
           </div>
         </div>
 
-        {/* Zone 2: Connected Transition Participants Pipeline (A -> D -> B) */}
-        <div className="border-t border-gray-200/80 pt-3.5 dark:border-gray-800">
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
-            <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400">
-              {t("transitionFlowLabel")}
-            </span>
-
-            <div
-              aria-hidden="true"
-              className="flex flex-wrap items-center gap-1.5 text-xs font-medium"
-            >
-              <span
-                className={`rounded-md px-2 py-0.5 transition-colors ${
-                  departingUserId
-                    ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200/80 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
-                    : "bg-gray-100 text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700"
-                }`}
-              >
-                {t("flowStepDeparting")}
-              </span>
-              <ArrowRightIcon className="size-3.5 text-gray-400 rtl:rotate-180" />
-              <span
-                className={`rounded-md px-2 py-0.5 transition-colors ${
-                  effectiveCoordinator
-                    ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200/80 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
-                    : "bg-gray-100 text-gray-500 ring-1 ring-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-700"
-                }`}
-              >
-                {t("flowStepCoordinator")}
-              </span>
-              <ArrowRightIcon className="size-3.5 text-gray-400 rtl:rotate-180" />
-              <span
-                className={`rounded-md px-2 py-0.5 transition-colors ${
-                  successorUserId
-                    ? "bg-success-50 text-success-700 ring-1 ring-success-200/80 dark:bg-success-500/15 dark:text-success-300 dark:ring-success-500/30"
-                    : "bg-gray-50 text-gray-500 ring-1 ring-dashed ring-gray-300 dark:bg-gray-800/70 dark:text-gray-400 dark:ring-gray-700"
-                }`}
-              >
-                {t("flowStepSuccessor")}
-              </span>
-            </div>
-          </div>
-
-          <div className="space-y-0">
-            {/* Step 1: Departing Member (A) */}
-            <div className="flex gap-3">
-              <div
-                aria-hidden="true"
-                className="hidden shrink-0 flex-col items-center pt-1 sm:flex"
-              >
-                <span
-                  className={`inline-flex size-6.5 items-center justify-center rounded-full text-xs font-bold ring-1 transition-colors ${
-                    departingUserId
-                      ? "bg-brand-50 text-brand-700 ring-brand-200 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/40"
-                      : "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-                  }`}
-                >
-                  A
-                </span>
-                <span className="my-1 w-px flex-1 bg-gray-200 dark:bg-gray-800" />
-              </div>
-
-              <div className="min-w-0 flex-1 pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label
-                    htmlFor="handover-create-departing"
-                    className="text-sm font-medium text-gray-800 dark:text-gray-200"
-                  >
-                    {t("departingLabel")}{" "}
-                    <span className="text-error-600">*</span>
-                  </label>
-                  <span className="text-xs">
-                    {selectedDepartingMember?.status === "INACTIVE" ? (
-                      <span className="font-medium text-warning-700 dark:text-warning-300">
-                        {t("departingSelectedDepartedHint")}
-                      </span>
-                    ) : selectedDepartingMember ? (
-                      <span className="text-gray-500 dark:text-gray-400">
-                        {t("departingSelectedActiveHint")}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500">
-                        {t("departingRoleHint")}
-                      </span>
-                    )}
-                  </span>
-                </div>
-
-                {departingOptions.length > 0 || isMembersLoading ? (
-                  <HandoverMemberSelect
-                    id="handover-create-departing"
-                    value={departingUserId}
-                    onChange={handleDepartingChange}
-                    options={departingOptions}
-                    placeholder={
-                      isMembersLoading && departingOptions.length === 0
-                        ? t("loadingMembers")
-                        : t("selectDepartingPlaceholder")
-                    }
-                    disabled={isMembersLoading && departingOptions.length === 0}
-                    searchPlaceholder={t("searchMembersPlaceholder")}
-                    noMatchesLabel={t("noMatchingMembers")}
-                    activeBadgeLabel={t("activeBadge")}
-                    departedBadgeLabel={t("departedBadge")}
-                    youBadgeLabel={t("youBadge")}
-                    invalid={invalidField === "departing"}
-                  />
-                ) : (
-                  <input
-                    id="handover-create-departing"
-                    type="text"
-                    value={departingUserId}
-                    onChange={(e) => handleDepartingChange(e.target.value)}
-                    placeholder={t("manualIdPlaceholder")}
-                    aria-invalid={invalidField === "departing" || undefined}
-                    className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Step 2: Coordinator Leader (D) */}
-            <div className="flex gap-3">
-              <div
-                aria-hidden="true"
-                className="hidden shrink-0 flex-col items-center pt-1 sm:flex"
-              >
-                <span
-                  className={`inline-flex size-6.5 items-center justify-center rounded-full text-xs font-bold ring-1 transition-colors ${
-                    effectiveCoordinator
-                      ? "bg-brand-50 text-brand-700 ring-brand-200 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/40"
-                      : "bg-gray-100 text-gray-600 ring-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700"
-                  }`}
-                >
-                  D
-                </span>
-                <span className="my-1 w-px flex-1 bg-gray-200 dark:bg-gray-800" />
-              </div>
-
-              <div className="min-w-0 flex-1 pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label
-                    htmlFor="handover-create-coordinator"
-                    className="text-sm font-medium text-gray-800 dark:text-gray-200"
-                  >
-                    {t("coordinatorLabel")}{" "}
-                    <span className="text-error-600">*</span>
-                  </label>
-                  <span className="text-xs">
-                    {isVerifiedLeaderSelected ? (
-                      <span className="inline-flex items-center gap-1 font-medium text-success-700 dark:text-success-400">
-                        <CheckCircleIcon
-                          className="size-3.5 shrink-0"
-                          aria-hidden="true"
-                        />
-                        {t("verifiedLeaderHint")}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400 dark:text-gray-500">
-                        {t("coordinatorRoleHint")}
-                      </span>
-                    )}
-                  </span>
-                </div>
-
-                {coordinatorOptions.length > 0 || isMembersLoading ? (
-                  <HandoverMemberSelect
-                    id="handover-create-coordinator"
-                    value={effectiveCoordinator}
-                    onChange={handleCoordinatorChange}
-                    options={coordinatorOptions}
-                    placeholder={
-                      isMembersLoading && coordinatorOptions.length === 0
-                        ? t("loadingMembers")
-                        : t("selectCoordinatorPlaceholder")
-                    }
-                    disabled={
-                      isMembersLoading && coordinatorOptions.length === 0
-                    }
-                    searchPlaceholder={t("searchMembersPlaceholder")}
-                    noMatchesLabel={t("noMatchingMembers")}
-                    activeBadgeLabel={t("activeBadge")}
-                    departedBadgeLabel={t("departedBadge")}
-                    youBadgeLabel={t("youBadge")}
-                    invalid={invalidField === "coordinator"}
-                  />
-                ) : (
-                  <input
-                    id="handover-create-coordinator"
-                    type="text"
-                    value={assignedLeaderId}
-                    onChange={(e) => handleCoordinatorChange(e.target.value)}
-                    placeholder={t("manualLeaderIdPlaceholder")}
-                    aria-invalid={invalidField === "coordinator" || undefined}
-                    className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* Step 3: Successor Recipient (B) — Project + Organization Colleagues */}
-            <div className="flex gap-3">
-              <div
-                aria-hidden="true"
-                className="hidden shrink-0 flex-col items-center pt-1 sm:flex"
-              >
-                <span
-                  className={`inline-flex size-6.5 items-center justify-center rounded-full text-xs font-bold ring-1 transition-colors ${
-                    successorUserId
-                      ? "bg-success-50 text-success-700 ring-success-200 dark:bg-success-500/20 dark:text-success-300 dark:ring-success-500/40"
-                      : "bg-gray-50 text-gray-500 ring-dashed ring-gray-300 dark:bg-gray-800/70 dark:text-gray-400 dark:ring-gray-700"
-                  }`}
-                >
-                  B
-                </span>
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <label
-                    htmlFor="handover-create-successor"
-                    className="text-sm font-medium text-gray-800 dark:text-gray-200"
-                  >
-                    {t("successorLabel")}
-                  </label>
-                  <Badge color="light" size="sm">
-                    {t("optionalBadge")}
-                  </Badge>
-                </div>
-
-                {successorOptions.length > 0 ||
-                activeMembers.length > 0 ||
-                isMembersLoading ||
-                isCandidatesLoading ? (
-                  <HandoverMemberSelect
-                    id="handover-create-successor"
-                    value={successorUserId}
-                    onChange={handleSuccessorChange}
-                    options={successorOptions}
-                    placeholder={t("noSuccessorYet")}
-                    allowEmpty
-                    emptyOptionLabel={t("noSuccessorYet")}
-                    emptyOptionHint={t("successorRoleHint")}
-                    alwaysShowSearch={successorOptions.length >= 2}
-                    disabled={
-                      isMembersLoading &&
-                      isCandidatesLoading &&
-                      successorOptions.length === 0
-                    }
-                    searchPlaceholder={t("searchOrgMembersPlaceholder")}
-                    noMatchesLabel={t("noMatchingOrgMembers")}
-                    activeBadgeLabel={t("activeBadge")}
-                    departedBadgeLabel={t("departedBadge")}
-                    youBadgeLabel={t("youBadge")}
-                    inProjectBadgeLabel={t("inProjectBadge")}
-                    orgCandidateBadgeLabel={t("orgCandidateBadge")}
-                    projectGroupLabel={t("projectGroupHeading")}
-                    orgCandidateGroupLabel={t("orgCandidateGroupHeading")}
-                    invalid={invalidField === "successor"}
-                  />
-                ) : (
-                  <input
-                    id="handover-create-successor"
-                    type="text"
-                    value={successorUserId}
-                    onChange={(e) => handleSuccessorChange(e.target.value)}
-                    placeholder={t("noSuccessorYet")}
-                    aria-invalid={invalidField === "successor" || undefined}
-                    className="mt-1.5 min-h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 font-mono text-sm text-gray-900 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/15 focus:outline-none dark:border-gray-700 dark:bg-gray-800 dark:text-white"
-                  />
-                )}
-
-                {isSelectedSuccessorOrgCandidate && (
-                  <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-blue-light-50/70 px-3 py-2 text-xs text-blue-light-700 ring-1 ring-blue-light-200/70 dark:bg-blue-light-500/10 dark:text-blue-light-300 dark:ring-blue-light-500/25">
-                    <CheckCircleIcon
-                      className="mt-0.5 size-3.5 shrink-0"
-                      aria-hidden="true"
-                    />
-                    <span>{t("autoAddProjectNotice")}</span>
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
         {/* Sticky Footer Actions */}
         <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-gray-200/90 bg-white/95 px-5 py-3.5 backdrop-blur-xs sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900/95">
           <p className="hidden items-center gap-1.5 text-xs text-gray-500 sm:inline-flex dark:text-gray-400">
@@ -804,7 +1058,7 @@ export default function CreateHandoverModal({
               className="size-3.5 shrink-0 text-gray-400"
               aria-hidden="true"
             />
-            <span>{t("footerGovernanceHint")}</span>
+            <span>{t5("autoBundleNotice")}</span>
           </p>
 
           <div className="ms-auto flex flex-wrap items-center gap-2.5">
@@ -825,9 +1079,11 @@ export default function CreateHandoverModal({
             >
               {addProjectMemberMutation.isPending
                 ? t("submittingAutoAdd")
-                : createMutation.isPending
-                  ? t("submitting")
-                  : t("submit")}
+                : isAutoBundling
+                  ? t5("autoBundling")
+                  : createMutation.isPending
+                    ? t("submitting")
+                    : t("submit")}
             </Button>
           </div>
         </div>

@@ -26,6 +26,7 @@ export default function HandoverQaPanel({
   handover: HandoverSummaryDto;
 }) {
   const t = useTranslations("handover.qa");
+  const t5 = useTranslations("handover.fiveStep");
   const askMutation = useAskHandoverQuestionMutation(projectId, handover.id);
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<
@@ -43,10 +44,9 @@ export default function HandoverQaPanel({
     );
   }
 
-  const handleAsk = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const submitQuestion = async (rawQuestion: string) => {
     setLocalError(null);
-    const trimmed = question.trim();
+    const trimmed = rawQuestion.trim();
     if (!trimmed || !handover.publishedRevisionId) return;
 
     try {
@@ -63,6 +63,17 @@ export default function HandoverQaPanel({
       );
     }
   };
+
+  const handleAsk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitQuestion(question);
+  };
+
+  const starterPrompts = [
+    t5("qaPrompt1"),
+    t5("qaPrompt2"),
+    t5("qaPrompt3"),
+  ];
 
   return (
     <div className="space-y-5">
@@ -81,6 +92,29 @@ export default function HandoverQaPanel({
           </div>
         </div>
 
+        {/* Quick Starter Prompts for New Member */}
+        <div className="mt-3.5 space-y-1.5">
+          <p className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+            {t5("qaQuickPromptsLabel")}
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {starterPrompts.map((promptText, idx) => (
+              <button
+                key={idx}
+                type="button"
+                disabled={askMutation.isPending}
+                onClick={() => {
+                  setQuestion(promptText);
+                  void submitQuestion(promptText);
+                }}
+                className="cursor-pointer rounded-lg border border-brand-200/80 bg-brand-50/50 px-2.5 py-1 text-start text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100/70 disabled:opacity-50 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300 dark:hover:bg-brand-500/20"
+              >
+                {promptText}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <form onSubmit={handleAsk} className="mt-4 space-y-3">
           {localError && (
             <div
@@ -91,10 +125,7 @@ export default function HandoverQaPanel({
             </div>
           )}
 
-          <label
-            htmlFor="handover-qa-input"
-            className="sr-only"
-          >
+          <label htmlFor="handover-qa-input" className="sr-only">
             {t("questionLabel")}
           </label>
           <textarea
@@ -196,4 +227,3 @@ export default function HandoverQaPanel({
     </div>
   );
 }
-

@@ -717,3 +717,70 @@ export async function resolveHandoverFollowUp(
     { etag: followupEtag, idempotencyKey },
   );
 }
+
+
+export async function previewDepartingMember(
+  projectId: string,
+  departingUserId: string,
+  signal?: AbortSignal,
+): Promise< import("./handover.types").DepartingMemberPreviewDto > {
+  const params = new URLSearchParams({ departingUserId });
+  return apiClient<import("./handover.types").DepartingMemberPreviewDto>(
+    `${projectHandoversPath(projectId, "/departing-preview")}?${params.toString()}`,
+    { cache: "no-store", signal },
+  );
+}
+
+export async function autoBundleHandover(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").AutoBundleHandoverDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<ReceiptDto>> {
+  return runMutation<ReceiptDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/auto-bundle`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
+  );
+}
+
+export async function quickAcceptHandover(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").QuickAcceptHandoverDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<ReceiptDto>> {
+  return runMutation<ReceiptDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/quick-accept`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
+  );
+}
+
+export async function quickTransferHandoverTasks(
+  projectId: string,
+  handoverId: string,
+  etag: string,
+  input: import("./handover.types").QuickTransferTasksDto = {},
+  idempotencyKey?: string,
+): Promise<MutationResult<TransferDto>> {
+  return runMutation<TransferDto>(
+    projectHandoversPath(
+      projectId,
+      `/${encodeURIComponent(handoverId)}/quick-transfer`,
+    ),
+    "POST",
+    input,
+    { etag, idempotencyKey },
+  );
+}

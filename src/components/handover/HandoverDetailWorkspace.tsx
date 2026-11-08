@@ -23,7 +23,14 @@ import {
   useSetHandoverSuccessorMutation,
   useUpdateHandoverMetadataMutation,
 } from "@/lib/queries/handovers/useHandovers";
-import { formatHandoverEtag } from "@/lib/queries/handovers/handover.service";
+import {
+  autoBundleHandover,
+  formatHandoverEtag,
+  previewDepartingMember,
+  quickAcceptHandover,
+  quickTransferHandoverTasks,
+} from "@/lib/queries/handovers/handover.service";
+import type { DepartingMemberPreviewDto } from "@/lib/queries/handovers/handover.types";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import {
@@ -32,6 +39,7 @@ import {
 } from "@/components/ui/loading/AsyncStatus";
 import {
   AlertIcon,
+  ArrowRightIcon,
   BookOpenIcon,
   CalenderIcon,
   ChatIcon,
@@ -59,6 +67,7 @@ import HandoverQaPanel from "./HandoverQaPanel";
 import HandoverFollowUpsPanel from "./HandoverFollowUpsPanel";
 import {
   buildOrganizationSuccessorOptions,
+  buildSourceWorkspaceHref,
   ensureProjectMemberBeforeHandover,
   extractHandoverErrorMessage,
   formatMemberOptionLabel,
@@ -68,6 +77,7 @@ import {
 } from "./handover-ui.utils";
 
 type DetailTab = "published" | "draft" | "tasks" | "qa" | "followups";
+type ScopeFilter = "ALL" | "TASKS" | "TASK_NOTE" | "PROJECT_DOCUMENT" | "WORK_REPORT";
 
 function computeInitials(name: string): string {
   const clean = name.trim();
@@ -148,14 +158,30 @@ export default function HandoverDetailWorkspace({
   handoverId: string;
 }) {
   const t = useTranslations("handover");
+  const t5 = useTranslations("handover.fiveStep");
   const currentUser = useCurrentUserQuery();
   const organizationId = currentUser.data?.organizationId ?? "";
   const currentUserId = currentUser.data?.id ?? "";
   const isOrgManager = Boolean(currentUser.data?.roles?.includes("ADMIN"));
 
   const [activeTab, setActiveTab] = useState<DetailTab | null>(null);
+  const [scopeFilter, setScopeFilter] = useState<ScopeFilter>("ALL");
   const [moreMenuOpen, setMoreMenuOpen] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
+
+  // 5-Step Quick Action States
+  const [previewData, setPreviewData] =
+    useState<DepartingMemberPreviewDto | null>(null);
+  const [isAutoBundling, setIsAutoBundling] = useState(false);
+  const [isQuickTransferring, setIsQuickTransferring] = useState(false);
+  const [isQuickAccepting, setIsQuickAccepting] = useState(false);
+  const [quickActionError, setQuickActionError] = useState<string | null>(null);
+  const [quickActionSuccess, setQuickActionSuccess] = useState<string | null>(
+    null,
+  );
+  const [tasksTransferredCount, setTasksTransferredCount] = useState<
+    number | null
+  >(null);
 
   // Lifecycle Modals
   const [modalMode, setModalMode] = useState<
@@ -285,7 +311,8 @@ export default function HandoverDetailWorkspace({
       });
     }
     for (const member of activeMembers) {
-      const rawRole = (member as { role?: unknown; roleCode?: unknown }).role ??
+      const rawRole =
+        (member as { role?: unknown; roleCode?: unknown }).role ??
         (member as { roleCode?: unknown }).roleCode;
       const role = typeof rawRole === "string" ? rawRole.toUpperCase() : "";
       if (
@@ -349,6 +376,30 @@ export default function HandoverDetailWorkspace({
 
   const canManage =
     capabilities.includes("MANAGE") && handover?.status === "OPEN";
+  const canTransfer =
+    (capabilities.includes("TRANSFER") || capabilities.includes("MANAGE")) &&
+    handover?.status === "OPEN";
+  const canReceive =
+    capabilities.includes("RECEIVE") && handover?.status === "OPEN";
+
+  // Fetch auto-aggregated departing member scope (Tasks, Task Notes, Documents, Work Reports, Related Projects)
+  useEffect(() => {
+    const depId = handover?.departingUserId?.trim() ?? "";
+    if (!/^[a-f0-9]{24}$/i.test(depId) || !/^[a-f0-9]{24}$/i.test(projectId)) {
+      return;
+    }
+    const controller = new AbortController();
+    previewDepartingMember(projectId, depId, controller.signal)
+      .then((res) => {
+        if (!controller.signal.aborted) {
+          setPreviewData(res);
+        }
+      })
+      .catch(() => {
+        // Non-blocking in test/restricted environments
+      });
+    return () => controller.abort();
+  }, [handover?.departingUserId, handover?.version, projectId]);
 
   const {
     options: successorOptions,
@@ -447,6 +498,86 @@ export default function HandoverDetailWorkspace({
       color: "light" as const,
     };
   }, [capabilities, currentUserId, handover, isOrgManager, t]);
+
+  const handleAutoBundleNow = async () => {
+    if (!handover) return;
+    setQuickActionError(null);
+    setQuickActionSuccess(null);
+    setIsAutoBundling(true);
+    try {
+      const targetEtag =
+        etag || formatHandoverEtag(handover.id, handover.version);
+      await autoBundleHandover(projectId, handover.id, targetEtag, {});
+      setQuickActionSuccess(t5("autoBundleSuccessBanner"));
+      setActiveTab("published");
+      await detailQuery.refetch?.();
+    } catch (err) {
+      setQuickActionError(
+        extractHandoverErrorMessage(err, "Could not auto-bundle handover."),
+      );
+    } finally {
+      setIsAutoBundling(false);
+    }
+  };
+
+  const handleQuickTransferNow = async ( successorDisplayName: string ) => {
+    if (!handover) return;
+    setQuickActionError(null);
+    setQuickActionSuccess(null);
+    setIsQuickTransferring(true);
+    try {
+      const targetEtag =
+        etag || formatHandoverEtag(handover.id, handover.version);
+      const res = await quickTransferHandoverTasks(
+        projectId,
+        handover.id,
+        targetEtag,
+        {},
+      );
+      const committedCount = res.data.tasks.filter(
+        (task) => task.state === "CONFIRMED",
+      ).length;
+      setTasksTransferredCount(committedCount);
+      setQuickActionSuccess(
+        t5("quickTransferSuccessBanner", {
+          count: String(committedCount),
+          successor: successorDisplayName,
+        }),
+      );
+      await detailQuery.refetch?.();
+      if (handover.departingUserId) {
+        previewDepartingMember(projectId, handover.departingUserId)
+          .then(setPreviewData)
+          .catch(() => {});
+      }
+    } catch (err) {
+      setQuickActionError(
+        extractHandoverErrorMessage(err, "Could not transfer unfinished tasks."),
+      );
+    } finally {
+      setIsQuickTransferring(false);
+    }
+  };
+
+  const handleQuickAcceptNow = async () => {
+    if (!handover) return;
+    setQuickActionError(null);
+    setQuickActionSuccess(null);
+    setIsQuickAccepting(true);
+    try {
+      const targetEtag =
+        etag || formatHandoverEtag(handover.id, handover.version);
+      await quickAcceptHandover(projectId, handover.id, targetEtag, {});
+      setQuickActionSuccess(t5("quickAcceptSuccessBanner"));
+      await detailQuery.refetch?.();
+    } catch (err) {
+      setQuickActionError(
+        extractHandoverErrorMessage(err, "Could not confirm handover receipt."),
+      );
+    } finally {
+      setIsQuickAccepting(false);
+    }
+  };
 
   const openMetadataModal = () => {
     if (!handover) return;
@@ -658,595 +789,1079 @@ export default function HandoverDetailWorkspace({
         )}
 
       {/* Main Loaded Workspace */}
-      {detailResource && handover && (() => {
-        const departingMember = membersById.get(handover.departingUserId);
-        const coordinatorMember = membersById.get(handover.assignedLeaderId);
-        const successorMember = handover.successorUserId
-          ? membersById.get(handover.successorUserId)
-          : undefined;
+      {detailResource &&
+        handover &&
+        (() => {
+          const departingMember = membersById.get(handover.departingUserId);
+          const coordinatorMember = membersById.get(handover.assignedLeaderId);
+          const successorMember = handover.successorUserId
+            ? membersById.get(handover.successorUserId)
+            : undefined;
 
-        const departingName = resolveMemberName(
-          handover.departingUserId,
-          membersById,
-          "—",
-        );
-        const coordinatorName = resolveMemberName(
-          handover.assignedLeaderId,
-          membersById,
-          "—",
-        );
-        const successorName = resolveMemberName(
-          handover.successorUserId,
-          membersById,
-          t("status.unassignedSuccessor"),
-        );
+          const departingName = resolveMemberName(
+            handover.departingUserId,
+            membersById,
+            "—",
+          );
+          const coordinatorName = resolveMemberName(
+            handover.assignedLeaderId,
+            membersById,
+            "—",
+          );
+          const successorName = resolveMemberName(
+            handover.successorUserId,
+            membersById,
+            t("status.unassignedSuccessor"),
+          );
 
-        const daysRemaining = computeUtcDaysRemaining(
-          handover.targetCompletionDate,
-        );
-        const dueBadgeText =
-          handover.status !== "OPEN" || daysRemaining === null
-            ? null
-            : daysRemaining < 0
-              ? t("detail.dueOverdueDays", {
-                  days: String(Math.abs(daysRemaining)),
-                })
-              : daysRemaining === 0
-                ? t("detail.dueToday")
-                : t("detail.dueInDays", { days: String(daysRemaining) });
+          const daysRemaining = computeUtcDaysRemaining(
+            handover.targetCompletionDate,
+          );
+          const dueBadgeText =
+            handover.status !== "OPEN" || daysRemaining === null
+              ? null
+              : daysRemaining < 0
+                ? t("detail.dueOverdueDays", {
+                    days: String(Math.abs(daysRemaining)),
+                  })
+                : daysRemaining === 0
+                  ? t("detail.dueToday")
+                  : t("detail.dueInDays", { days: String(daysRemaining) });
 
-        const step1Done =
-          Boolean(publishedRevision) || handover.status === "COMPLETED";
-        const step2Done =
-          handover.status === "COMPLETED" || detailResource.detail.canComplete;
-        const step3Done = handover.status === "COMPLETED";
+          const step1Done =
+            Boolean(publishedRevision) || handover.status === "COMPLETED";
+          const step2Done =
+            handover.status === "COMPLETED" ||
+            detailResource.detail.canComplete;
+          const step3Done = handover.status === "COMPLETED";
 
-        const readinessStatusLabel =
-          handover.status === "COMPLETED"
-            ? t("detail.gateCompleted")
-            : handover.status === "CANCELLED"
-              ? t("detail.gateCancelled")
-              : detailResource.detail.canComplete
-                ? t("detail.gateStepReady")
-                : !publishedRevision
-                  ? t("detail.gateStepPublish")
-                  : detailResource.detail.requiredPendingCount > 0
-                    ? t("detail.gateStepVerify", {
-                        count: String(
-                          detailResource.detail.requiredPendingCount,
-                        ),
-                      })
-                    : t("detail.gateStepAccept");
+          const readinessStatusLabel =
+            handover.status === "COMPLETED"
+              ? t("detail.gateCompleted")
+              : handover.status === "CANCELLED"
+                ? t("detail.gateCancelled")
+                : detailResource.detail.canComplete
+                  ? t("detail.gateStepReady")
+                  : !publishedRevision
+                    ? t("detail.gateStepPublish")
+                    : detailResource.detail.requiredPendingCount > 0
+                      ? t("detail.gateStepVerify", {
+                          count: String(
+                            detailResource.detail.requiredPendingCount,
+                          ),
+                        })
+                      : t("detail.gateStepAccept");
 
-        return (
-          <>
-            {detailQuery.isError && (
-              <BackgroundRefreshError
-                retryLabel={t("retry")}
-                onRetry={() => void detailQuery.refetch()}
-              >
-                {t("loadErrorBody")}
-              </BackgroundRefreshError>
-            )}
+          const previewTasks = previewData?.tasks ?? [];
+          const previewSources = previewData?.sources ?? [];
+          const previewNotes = previewSources.filter(
+            (s) => s.kind === "TASK_NOTE",
+          );
+          const previewDocs = previewSources.filter(
+            (s) => s.kind === "PROJECT_DOCUMENT",
+          );
+          const previewReports = previewSources.filter(
+            (s) => s.kind === "WORK_REPORT",
+          );
 
-            {/* Executive Hero Governance Card */}
-            <header className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                {/* Title & Clean Status Strip */}
-                <div className="min-w-0 flex-1 space-y-2">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Badge color={statusBadgeColor(handover.status)} size="sm">
-                      {t(`status.${handover.status}`)}
-                    </Badge>
-                    {handover.overdue && handover.status === "OPEN" && (
-                      <Badge color="error" size="sm">
-                        {t("status.overdueBadge")}
+          const allReadableItemsUnderstood =
+            Boolean(publishedRevision) &&
+            publishedRevision!.items.every(
+              (item) =>
+                item.access === "UNAVAILABLE" ||
+                item.acknowledgement === "UNDERSTOOD",
+            ) &&
+            detailResource.detail.canComplete;
+
+          return (
+            <>
+              {detailQuery.isError && (
+                <BackgroundRefreshError
+                  retryLabel={t("retry")}
+                  onRetry={() => void detailQuery.refetch()}
+                >
+                  {t("loadErrorBody")}
+                </BackgroundRefreshError>
+              )}
+
+              {/* Executive Hero Governance Card */}
+              <header className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  {/* Title & Clean Status Strip */}
+                  <div className="min-w-0 flex-1 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge
+                        color={statusBadgeColor(handover.status)}
+                        size="sm"
+                      >
+                        {t(`status.${handover.status}`)}
                       </Badge>
-                    )}
-                    <Badge
-                      color={publishedRevision ? "success" : "light"}
-                      size="sm"
-                    >
-                      {publishedRevision
-                        ? t("status.publishedRev", {
-                            number: String(publishedRevision.number),
-                          })
-                        : t("status.unpublishedDraft", {
-                            version: String(handover.draftVersion),
-                          })}
-                    </Badge>
-                    {viewerRolePill && (
-                      <Badge color={viewerRolePill.color} size="sm">
-                        {viewerRolePill.label}
+                      {handover.overdue && handover.status === "OPEN" && (
+                        <Badge color="error" size="sm">
+                          {t("status.overdueBadge")}
+                        </Badge>
+                      )}
+                      <Badge
+                        color={publishedRevision ? "success" : "light"}
+                        size="sm"
+                      >
+                        {publishedRevision
+                          ? t("status.publishedRev", {
+                              number: String(publishedRevision.number),
+                            })
+                          : t("status.unpublishedDraft", {
+                              version: String(handover.draftVersion),
+                            })}
                       </Badge>
-                    )}
-                    <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">
-                      {t("detail.compactVersionMeta", {
-                        version: String(handover.version),
-                        epoch: String(handover.assignmentVersion),
-                      })}
-                    </span>
-                    {detailQuery.isFetching && !detailQuery.isPending && (
-                      <UpdatingStatus>{t("refreshing")}</UpdatingStatus>
-                    )}
+                      {viewerRolePill && (
+                        <Badge color={viewerRolePill.color} size="sm">
+                          {viewerRolePill.label}
+                        </Badge>
+                      )}
+                      <span className="text-xs text-gray-400 tabular-nums dark:text-gray-500">
+                        {t("detail.compactVersionMeta", {
+                          version: String(handover.version),
+                          epoch: String(handover.assignmentVersion),
+                        })}
+                      </span>
+                      {detailQuery.isFetching && !detailQuery.isPending && (
+                        <UpdatingStatus>{t("refreshing")}</UpdatingStatus>
+                      )}
+                    </div>
+
+                    <h1 className="text-xl font-semibold tracking-tight text-gray-900 [overflow-wrap:anywhere] sm:text-2xl dark:text-white">
+                      {handover.title}
+                    </h1>
                   </div>
 
-                  <h1 className="text-xl font-semibold tracking-tight text-gray-900 [overflow-wrap:anywhere] sm:text-2xl dark:text-white">
-                    {handover.title}
-                  </h1>
-                </div>
-
-                {/* Single-Line Executive Action Toolbar */}
-                {(canManage || isOrgManager) && handover.status === "OPEN" && (
-                  <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    {canManage && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-9 !px-3 !py-2 !text-xs"
-                        startIcon={<PencilIcon className="size-3.5" />}
-                        onClick={openMetadataModal}
-                      >
-                        {t("detail.editMetadataCta")}
-                      </Button>
-                    )}
-
-                    {canManage && (
-                      <Button
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        className="min-h-9 !px-3.5 !py-2 !text-xs"
-                        startIcon={<CheckCircleIcon className="size-3.5" />}
-                        disabled={!detailResource.detail.canComplete}
-                        onClick={openCompleteModal}
-                      >
-                        {t("detail.completeCta")}
-                      </Button>
-                    )}
-
-                    {!canManage && isOrgManager && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="min-h-9 !px-3 !py-2 !text-xs"
-                        onClick={openCoordinatorModal}
-                      >
-                        {t("detail.changeCoordinatorCta")}
-                      </Button>
-                    )}
-
-                    {/* Overflow Governance Menu (keeps destructive Cancel tucked safely away) */}
-                    {canManage && (
-                      <div ref={moreMenuRef} className="relative">
-                        <button
-                          type="button"
-                          aria-label={t("detail.moreActionsAria")}
-                          aria-haspopup="menu"
-                          aria-expanded={moreMenuOpen}
-                          onClick={() => setMoreMenuOpen((prev) => !prev)}
-                          className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg bg-white text-gray-600 shadow-theme-xs ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-3 focus-visible:ring-brand-500/20 focus-visible:outline-none dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-700 dark:hover:text-white"
-                        >
-                          <HorizontaLDots
-                            className="size-4.5"
-                            aria-hidden="true"
-                          />
-                        </button>
-
-                        {moreMenuOpen && (
-                          <div
-                            role="menu"
-                            aria-label={t("detail.moreActionsAria")}
-                            className="absolute end-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-xl ring-1 ring-gray-950/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+                  {/* Single-Line Executive Action Toolbar */}
+                  {(canManage || isOrgManager) &&
+                    handover.status === "OPEN" && (
+                      <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        {canManage && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-9 !px-3 !py-2 !text-xs"
+                            startIcon={<PencilIcon className="size-3.5" />}
+                            onClick={openMetadataModal}
                           >
+                            {t("detail.editMetadataCta")}
+                          </Button>
+                        )}
+
+                        {canManage && (
+                          <Button
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            className="min-h-9 !px-3.5 !py-2 !text-xs"
+                            startIcon={<CheckCircleIcon className="size-3.5" />}
+                            disabled={!detailResource.detail.canComplete}
+                            onClick={openCompleteModal}
+                          >
+                            {t("detail.completeCta")}
+                          </Button>
+                        )}
+
+                        {!canManage && isOrgManager && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="min-h-9 !px-3 !py-2 !text-xs"
+                            onClick={openCoordinatorModal}
+                          >
+                            {t("detail.changeCoordinatorCta")}
+                          </Button>
+                        )}
+
+                        {/* Overflow Governance Menu (keeps destructive Cancel tucked safely away) */}
+                        {canManage && (
+                          <div ref={moreMenuRef} className="relative">
                             <button
                               type="button"
-                              role="menuitem"
-                              onClick={openSuccessorModal}
-                              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                              aria-label={t("detail.moreActionsAria")}
+                              aria-haspopup="menu"
+                              aria-expanded={moreMenuOpen}
+                              onClick={() => setMoreMenuOpen((prev) => !prev)}
+                              className="inline-flex size-9 cursor-pointer items-center justify-center rounded-lg bg-white text-gray-600 shadow-theme-xs ring-1 ring-inset ring-gray-300 transition-colors hover:bg-gray-50 hover:text-gray-900 focus-visible:ring-3 focus-visible:ring-brand-500/20 focus-visible:outline-none dark:bg-gray-800 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-700 dark:hover:text-white"
                             >
-                              <UserCircleIcon
-                                className="size-4 shrink-0 text-gray-400"
+                              <HorizontaLDots
+                                className="size-4.5"
                                 aria-hidden="true"
                               />
-                              <span>{t("detail.assignSuccessorCta")}</span>
                             </button>
 
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={openCoordinatorModal}
-                              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
-                            >
-                              <GroupIcon
-                                className="size-4 shrink-0 text-gray-400"
-                                aria-hidden="true"
-                              />
-                              <span>{t("detail.changeCoordinatorCta")}</span>
-                            </button>
+                            {moreMenuOpen && (
+                              <div
+                                role="menu"
+                                aria-label={t("detail.moreActionsAria")}
+                                className="absolute end-0 top-full z-30 mt-1.5 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-xl ring-1 ring-gray-950/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={openSuccessorModal}
+                                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                                >
+                                  <UserCircleIcon
+                                    className="size-4 shrink-0 text-gray-400"
+                                    aria-hidden="true"
+                                  />
+                                  <span>{t("detail.assignSuccessorCta")}</span>
+                                </button>
 
-                            <div
-                              role="separator"
-                              className="my-1 border-t border-gray-100 dark:border-gray-800"
-                            />
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={openCoordinatorModal}
+                                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-200 dark:hover:bg-gray-800 dark:hover:text-white"
+                                >
+                                  <GroupIcon
+                                    className="size-4 shrink-0 text-gray-400"
+                                    aria-hidden="true"
+                                  />
+                                  <span>
+                                    {t("detail.changeCoordinatorCta")}
+                                  </span>
+                                </button>
 
-                            <button
-                              type="button"
-                              role="menuitem"
-                              onClick={openCancelModal}
-                              className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
-                            >
-                              <CloseLineIcon
-                                className="size-4 shrink-0"
-                                aria-hidden="true"
-                              />
-                              <span>{t("detail.cancelCta")}</span>
-                            </button>
+                                <div
+                                  role="separator"
+                                  className="my-1 border-t border-gray-100 dark:border-gray-800"
+                                />
+
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  onClick={openCancelModal}
+                                  className="flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-3 py-2 text-start text-xs font-medium text-error-600 transition-colors hover:bg-error-50 dark:text-error-400 dark:hover:bg-error-500/10"
+                                >
+                                  <CloseLineIcon
+                                    className="size-4 shrink-0"
+                                    aria-hidden="true"
+                                  />
+                                  <span>{t("detail.cancelCta")}</span>
+                                </button>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
-
-              {/* Unified 4-Card Transition Roles & Readiness Strip */}
-              <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-gray-100 pt-5 sm:grid-cols-2 xl:grid-cols-4 dark:border-gray-800">
-                {/* Card 1: Departing (A) */}
-                <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-gray-200/80 text-[10px] font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
-                        A
-                      </span>
-                      <span>{t("detail.cardDepartingLabel")}</span>
-                    </dt>
-                    {departingMember?.status === "INACTIVE" && (
-                      <Badge color="warning" size="sm">
-                        {t("createModal.departedBadge")}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <dd className="mt-2.5 flex items-center gap-2.5">
-                    <ParticipantAvatar
-                      member={departingMember}
-                      fallbackName={departingName}
-                      tone="departing"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                        {departingName}
-                      </p>
-                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                        {departingMember?.user?.email?.trim() ||
-                          (departingMember?.status === "INACTIVE"
-                            ? t("detail.memberDepartedSub")
-                            : t("detail.memberActiveSub"))}
-                      </p>
-                    </div>
-                  </dd>
                 </div>
 
-                {/* Card 2: Coordinator (D) */}
-                <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-700 ring-1 ring-brand-200/80 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/30">
-                        D
-                      </span>
-                      <span>{t("detail.cardCoordinatorLabel")}</span>
-                    </dt>
+                {/* Unified 4-Card Transition Roles & Readiness Strip */}
+                <dl className="mt-5 grid grid-cols-1 gap-3 border-t border-gray-100 pt-5 sm:grid-cols-2 xl:grid-cols-4 dark:border-gray-800">
+                  {/* Card 1: Departing (A) */}
+                  <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span className="inline-flex size-5 items-center justify-center rounded-full bg-gray-200/80 text-[10px] font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200">
+                          A
+                        </span>
+                        <span>{t("detail.cardDepartingLabel")}</span>
+                      </dt>
+                      {departingMember?.status === "INACTIVE" && (
+                        <Badge color="warning" size="sm">
+                          {t("createModal.departedBadge")}
+                        </Badge>
+                      )}
+                    </div>
 
-                    {(canManage ||
-                      (isOrgManager && handover.status === "OPEN")) && (
-                      <button
-                        type="button"
-                        aria-label={t("detail.changeCoordinatorCta")}
-                        onClick={openCoordinatorModal}
-                        className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:outline-none dark:text-brand-400 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
-                      >
-                        {t("detail.cardChangeShort")}
-                      </button>
-                    )}
+                    <dd className="mt-2.5 flex items-center gap-2.5">
+                      <ParticipantAvatar
+                        member={departingMember}
+                        fallbackName={departingName}
+                        tone="departing"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                          {departingName}
+                        </p>
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                          {departingMember?.user?.email?.trim() ||
+                            (departingMember?.status === "INACTIVE"
+                              ? t("detail.memberDepartedSub")
+                              : t("detail.memberActiveSub"))}
+                        </p>
+                      </div>
+                    </dd>
                   </div>
 
-                  <dd className="mt-2.5 flex items-center gap-2.5">
-                    <ParticipantAvatar
-                      member={coordinatorMember}
-                      fallbackName={coordinatorName}
-                      tone="coordinator"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                        {coordinatorName}
-                      </p>
-                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                        {coordinatorMember?.user?.email?.trim() ||
-                          t("createModal.verifiedLeaderHint")}
-                      </p>
-                    </div>
-                  </dd>
-                </div>
+                  {/* Card 2: Coordinator (D) */}
+                  <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span className="inline-flex size-5 items-center justify-center rounded-full bg-brand-50 text-[10px] font-bold text-brand-700 ring-1 ring-brand-200/80 dark:bg-brand-500/20 dark:text-brand-300 dark:ring-brand-500/30">
+                          D
+                        </span>
+                        <span>{t("detail.cardCoordinatorLabel")}</span>
+                      </dt>
 
-                {/* Card 3: Successor (B) */}
-                <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <span
-                        className={`inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold ring-1 ${
-                          handover.successorUserId
-                            ? "bg-success-50 text-success-700 ring-success-200/80 dark:bg-success-500/20 dark:text-success-300 dark:ring-success-500/30"
-                            : "bg-gray-100 text-gray-500 ring-dashed ring-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-600"
+                      {(canManage ||
+                        (isOrgManager && handover.status === "OPEN")) && (
+                        <button
+                          type="button"
+                          aria-label={t("detail.changeCoordinatorCta")}
+                          onClick={openCoordinatorModal}
+                          className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:outline-none dark:text-brand-400 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
+                        >
+                          {t("detail.cardChangeShort")}
+                        </button>
+                      )}
+                    </div>
+
+                    <dd className="mt-2.5 flex items-center gap-2.5">
+                      <ParticipantAvatar
+                        member={coordinatorMember}
+                        fallbackName={coordinatorName}
+                        tone="coordinator"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                          {coordinatorName}
+                        </p>
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                          {coordinatorMember?.user?.email?.trim() ||
+                            t("createModal.verifiedLeaderHint")}
+                        </p>
+                      </div>
+                    </dd>
+                  </div>
+
+                  {/* Card 3: Successor (B) */}
+                  <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <span
+                          className={`inline-flex size-5 items-center justify-center rounded-full text-[10px] font-bold ring-1 ${
+                            handover.successorUserId
+                              ? "bg-success-50 text-success-700 ring-success-200/80 dark:bg-success-500/20 dark:text-success-300 dark:ring-success-500/30"
+                              : "bg-gray-100 text-gray-500 ring-dashed ring-gray-300 dark:bg-gray-800 dark:text-gray-400 dark:ring-gray-600"
+                          }`}
+                        >
+                          B
+                        </span>
+                        <span>{t("detail.cardSuccessorLabel")}</span>
+                      </dt>
+
+                      {canManage && (
+                        <button
+                          type="button"
+                          aria-label={t("detail.assignSuccessorCta")}
+                          onClick={openSuccessorModal}
+                          className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:outline-none dark:text-brand-400 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
+                        >
+                          {handover.successorUserId
+                            ? t("detail.cardChangeShort")
+                            : t("detail.cardAssignShort")}
+                        </button>
+                      )}
+                    </div>
+
+                    <dd className="mt-2.5 flex items-center gap-2.5">
+                      {handover.successorUserId ? (
+                        <>
+                          <ParticipantAvatar
+                            member={successorMember}
+                            fallbackName={successorName}
+                            tone="successor"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                              {successorName}
+                            </p>
+                            <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                              {successorMember?.user?.email?.trim() ||
+                                t("detail.memberActiveSub")}
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span
+                            aria-hidden="true"
+                            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500"
+                          >
+                            <UserCircleIcon className="size-4.5" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-gray-600 dark:text-gray-300">
+                              {t("status.unassignedSuccessor")}
+                            </p>
+                            <p className="truncate text-xs text-gray-400 dark:text-gray-500">
+                              {t("detail.successorUnassignedSub")}
+                            </p>
+                          </div>
+                        </>
+                      )}
+                    </dd>
+                  </div>
+
+                  {/* Card 4: Target Date & Readiness Progress */}
+                  <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
+                    <div className="flex items-center justify-between gap-2">
+                      <dt className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                        <CalenderIcon
+                          className="size-3.5 shrink-0 text-gray-400"
+                          aria-hidden="true"
+                        />
+                        <span className="truncate">
+                          {t("detail.cardReadinessLabel")}
+                        </span>
+                      </dt>
+
+                      {dueBadgeText && (
+                        <span className="shrink-0 whitespace-nowrap tabular-nums">
+                          <Badge
+                            color={
+                              daysRemaining !== null && daysRemaining < 0
+                                ? "error"
+                                : daysRemaining !== null && daysRemaining <= 3
+                                  ? "warning"
+                                  : "light"
+                            }
+                            size="sm"
+                          >
+                            {dueBadgeText}
+                          </Badge>
+                        </span>
+                      )}
+                    </div>
+
+                    <dd className="mt-2.5 space-y-2">
+                      <div className="flex items-baseline justify-between gap-2">
+                        <span className="text-sm font-semibold text-gray-900 tabular-nums dark:text-white">
+                          {formatUtcDate(handover.targetCompletionDate)}
+                        </span>
+                      </div>
+
+                      {handover.status !== "CANCELLED" && (
+                        <div
+                          aria-hidden="true"
+                          className="grid grid-cols-3 gap-1"
+                        >
+                          <span
+                            className={`h-1.5 rounded-full transition-colors ${
+                              step1Done
+                                ? "bg-brand-500"
+                                : "bg-gray-200 dark:bg-gray-700"
+                            }`}
+                          />
+                          <span
+                            className={`h-1.5 rounded-full transition-colors ${
+                              step2Done
+                                ? "bg-brand-500"
+                                : step1Done
+                                  ? "bg-warning-400"
+                                  : "bg-gray-200 dark:bg-gray-700"
+                            }`}
+                          />
+                          <span
+                            className={`h-1.5 rounded-full transition-colors ${
+                              step3Done
+                                ? "bg-success-500"
+                                : detailResource.detail.canComplete
+                                  ? "bg-success-400"
+                                  : "bg-gray-200 dark:bg-gray-700"
+                            }`}
+                          />
+                        </div>
+                      )}
+
+                      <p
+                        className={`truncate text-xs font-medium tabular-nums ${
+                          handover.status === "COMPLETED" ||
+                          detailResource.detail.canComplete
+                            ? "text-success-700 dark:text-success-400"
+                            : handover.status === "CANCELLED"
+                              ? "text-gray-500 dark:text-gray-400"
+                              : "text-warning-700 dark:text-warning-300"
                         }`}
                       >
-                        B
-                      </span>
-                      <span>{t("detail.cardSuccessorLabel")}</span>
-                    </dt>
-
-                    {canManage && (
-                      <button
-                        type="button"
-                        aria-label={t("detail.assignSuccessorCta")}
-                        onClick={openSuccessorModal}
-                        className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-brand-600 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/30 focus-visible:outline-none dark:text-brand-400 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
-                      >
-                        {handover.successorUserId
-                          ? t("detail.cardChangeShort")
-                          : t("detail.cardAssignShort")}
-                      </button>
-                    )}
+                        {readinessStatusLabel}
+                      </p>
+                    </dd>
                   </div>
+                </dl>
 
-                  <dd className="mt-2.5 flex items-center gap-2.5">
-                    {handover.successorUserId ? (
-                      <>
-                        <ParticipantAvatar
-                          member={successorMember}
-                          fallbackName={successorName}
-                          tone="successor"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                            {successorName}
-                          </p>
-                          <p className="truncate text-xs text-gray-500 dark:text-gray-400">
-                            {successorMember?.user?.email?.trim() ||
-                              t("detail.memberActiveSub")}
-                          </p>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <span
-                          aria-hidden="true"
-                          className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border border-dashed border-gray-300 text-gray-400 dark:border-gray-600 dark:text-gray-500"
-                        >
-                          <UserCircleIcon className="size-4.5" />
+                {/* 5-Step Streamlined Handover Progress Pipeline */}
+                {!isCoordinatorRecoveryOnly && (
+                  <div className="mt-4 rounded-xl border border-brand-200/70 bg-brand-50/40 p-3.5 dark:border-brand-500/25 dark:bg-brand-500/10">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-[11px] font-semibold tracking-wider text-brand-700 uppercase dark:text-brand-300">
+                        {t5("bannerEyebrow")}
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 font-medium text-white">
+                          <CheckCircleIcon className="size-3" />
+                          <span>{t5("step1Title")}</span>
                         </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium text-gray-600 dark:text-gray-300">
-                            {t("status.unassignedSuccessor")}
-                          </p>
-                          <p className="truncate text-xs text-gray-400 dark:text-gray-500">
-                            {t("detail.successorUnassignedSub")}
+                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 font-medium text-white">
+                          <CheckCircleIcon className="size-3" />
+                          <span>{t5("step2Title")}</span>
+                        </span>
+                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
+                            handover.successorUserId
+                              ? "bg-brand-600 text-white"
+                              : "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-200"
+                          }`}
+                        >
+                          {handover.successorUserId && (
+                            <CheckCircleIcon className="size-3" />
+                          )}
+                          <span>{t5("step3Title")}</span>
+                        </span>
+                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
+                            publishedRevision
+                              ? "bg-brand-600 text-white"
+                              : "bg-white text-gray-700 ring-1 ring-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
+                          }`}
+                        >
+                          {publishedRevision && (
+                            <CheckCircleIcon className="size-3" />
+                          )}
+                          <span>{t5("step4Title")}</span>
+                        </span>
+                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
+                            handover.status === "COMPLETED"
+                              ? "bg-success-600 text-white"
+                              : detailResource.detail.canComplete
+                                ? "bg-success-100 text-success-800 dark:bg-success-500/20 dark:text-success-200"
+                                : "bg-white text-gray-700 ring-1 ring-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
+                          }`}
+                        >
+                          {handover.status === "COMPLETED" && (
+                            <CheckCircleIcon className="size-3" />
+                          )}
+                          <span>{t5("step5Title")}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </header>
+
+              {/* Step 5: 1-Click Auto-Bundle / Two-Way Confirmation & Task Transfer Card */}
+              {!isCoordinatorRecoveryOnly && handover.status === "OPEN" && (
+                <section className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+                  {quickActionError && (
+                    <div
+                      role="alert"
+                      className="mb-4 flex items-center gap-2 rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-xs text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+                    >
+                      <AlertIcon className="size-4 shrink-0" />
+                      <span>{quickActionError}</span>
+                    </div>
+                  )}
+
+                  {quickActionSuccess && (
+                    <div
+                      role="status"
+                      className="mb-4 flex items-center gap-2 rounded-xl border border-success-200 bg-success-50 px-4 py-2.5 text-xs text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
+                    >
+                      <CheckCircleIcon className="size-4 shrink-0" />
+                      <span>{quickActionSuccess}</span>
+                    </div>
+                  )}
+
+                  {!publishedRevision && canManage ? (
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="space-y-1">
+                        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                          {t5("autoBundleCardTitle")}
+                        </h2>
+                        <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
+                          {t5("autoBundleCardDesc")}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="primary"
+                        size="sm"
+                        isLoading={isAutoBundling}
+                        onClick={() => void handleAutoBundleNow()}
+                      >
+                        {isAutoBundling
+                          ? t5("autoBundling")
+                          : t5("autoBundleCta")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                            {t5("twoWayConfirmTitle")}
+                          </h2>
+                          <p className="text-xs text-gray-600 dark:text-gray-400">
+                            {t5("twoWayConfirmSubtitle")}
                           </p>
                         </div>
-                      </>
-                    )}
-                  </dd>
-                </div>
-
-                {/* Card 4: Target Date & Readiness Progress */}
-                <div className="flex flex-col justify-between rounded-xl border border-gray-200/75 bg-gray-50/60 p-3.5 dark:border-gray-800 dark:bg-gray-800/40">
-                  <div className="flex items-center justify-between gap-2">
-                    <dt className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
-                      <CalenderIcon
-                        className="size-3.5 shrink-0 text-gray-400"
-                        aria-hidden="true"
-                      />
-                      <span className="truncate">{t("detail.cardReadinessLabel")}</span>
-                    </dt>
-
-                    {dueBadgeText && (
-                      <span className="shrink-0 whitespace-nowrap tabular-nums">
-                        <Badge
-                          color={
-                            daysRemaining !== null && daysRemaining < 0
-                              ? "error"
-                              : daysRemaining !== null && daysRemaining <= 3
-                                ? "warning"
-                                : "light"
-                          }
-                          size="sm"
-                        >
-                          {dueBadgeText}
-                        </Badge>
-                      </span>
-                    )}
-                  </div>
-
-                  <dd className="mt-2.5 space-y-2">
-                    <div className="flex items-baseline justify-between gap-2">
-                      <span className="text-sm font-semibold text-gray-900 tabular-nums dark:text-white">
-                        {formatUtcDate(handover.targetCompletionDate)}
-                      </span>
-                    </div>
-
-                    {handover.status !== "CANCELLED" && (
-                      <div
-                        aria-hidden="true"
-                        className="grid grid-cols-3 gap-1"
-                      >
-                        <span
-                          className={`h-1.5 rounded-full transition-colors ${
-                            step1Done
-                              ? "bg-brand-500"
-                              : "bg-gray-200 dark:bg-gray-700"
-                          }`}
-                        />
-                        <span
-                          className={`h-1.5 rounded-full transition-colors ${
-                            step2Done
-                              ? "bg-brand-500"
-                              : step1Done
-                                ? "bg-warning-400"
-                                : "bg-gray-200 dark:bg-gray-700"
-                          }`}
-                        />
-                        <span
-                          className={`h-1.5 rounded-full transition-colors ${
-                            step3Done
-                              ? "bg-success-500"
-                              : detailResource.detail.canComplete
-                                ? "bg-success-400"
-                                : "bg-gray-200 dark:bg-gray-700"
-                          }`}
-                        />
+                        {canManage && (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            isLoading={isAutoBundling}
+                            onClick={() => void handleAutoBundleNow()}
+                          >
+                            {isAutoBundling
+                              ? t5("autoBundling")
+                              : t5("resyncBundleCta")}
+                          </Button>
+                        )}
                       </div>
-                    )}
 
-                    <p
-                      className={`truncate text-xs font-medium tabular-nums ${
-                        handover.status === "COMPLETED" ||
-                        detailResource.detail.canComplete
-                          ? "text-success-700 dark:text-success-400"
-                          : handover.status === "CANCELLED"
-                            ? "text-gray-500 dark:text-gray-400"
-                            : "text-warning-700 dark:text-warning-300"
+                      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
+                        {/* Box 1: Manager / Leader 1-Click Unfinished Task Transfer */}
+                        <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {t5("managerCardTitle")}
+                              </h3>
+                              {(tasksTransferredCount !== null ||
+                                (previewData !== null &&
+                                  previewTasks.length === 0 &&
+                                  Boolean(handover.successorUserId))) && (
+                                <Badge color="success" size="sm">
+                                  {t5("quickTransferDoneBadge")}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
+                              {!handover.successorUserId
+                                ? t5("managerCardDescNoSuccessor")
+                                : previewData && previewTasks.length === 0
+                                  ? t5("managerCardDescAllTransferred", {
+                                      successor: successorName,
+                                    })
+                                  : t5("managerCardDescReady", {
+                                      count: String(previewTasks.length || 1),
+                                      successor: successorName,
+                                    })}
+                            </p>
+                          </div>
+
+                          {canTransfer && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="primary"
+                                size="sm"
+                                disabled={
+                                  !handover.successorUserId ||
+                                  (previewData !== null &&
+                                    previewTasks.length === 0)
+                                }
+                                isLoading={isQuickTransferring}
+                                onClick={() =>
+                                  void handleQuickTransferNow(successorName)
+                                }
+                              >
+                                {isQuickTransferring
+                                  ? t5("quickTransferring")
+                                  : previewTasks.length > 0
+                                    ? t5("quickTransferCta", {
+                                        count: String(previewTasks.length),
+                                        successor: successorName,
+                                      })
+                                    : t5("quickTransferAllCta", {
+                                        successor: successorName,
+                                      })}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Box 2: Successor 1-Click Handover Acceptance */}
+                        <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/40">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                                {t5("successorCardTitle")}
+                              </h3>
+                              {allReadableItemsUnderstood && (
+                                <Badge color="success" size="sm">
+                                  {t5("quickAcceptDoneBadge")}
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
+                              {allReadableItemsUnderstood
+                                ? t5("successorCardDescAccepted")
+                                : t5("successorCardDescPending")}
+                            </p>
+                          </div>
+
+                          {canReceive && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <Button
+                                type="button"
+                                variant={
+                                  allReadableItemsUnderstood
+                                    ? "outline"
+                                    : "primary"
+                                }
+                                size="sm"
+                                isLoading={isQuickAccepting}
+                                onClick={() => void handleQuickAcceptNow()}
+                              >
+                                {isQuickAccepting
+                                  ? t5("quickAccepting")
+                                  : t5("quickAcceptCta")}
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </section>
+              )}
+
+              {/* Workspace Section Tabs */}
+              <nav
+                aria-label={t("detail.tabsAriaLabel")}
+                className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-gray-200/80 bg-white p-1 shadow-theme-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden dark:border-gray-800 dark:bg-gray-900"
+              >
+                {(
+                  [
+                    {
+                      id: "published" as const,
+                      label: t("detail.tabPublished"),
+                      icon: BookOpenIcon,
+                    },
+                    ...(capabilities.includes("MANAGE") &&
+                    handover.status === "OPEN"
+                      ? [
+                          {
+                            id: "draft" as const,
+                            label: t("detail.tabDraft"),
+                            icon: DocsIcon,
+                          },
+                        ]
+                      : []),
+                    ...(!isCoordinatorRecoveryOnly
+                      ? [
+                          {
+                            id: "tasks" as const,
+                            label: t("detail.tabTasks"),
+                            icon: TaskIcon,
+                          },
+                          {
+                            id: "qa" as const,
+                            label: t("detail.tabQa"),
+                            icon: ChatIcon,
+                          },
+                          {
+                            id: "followups" as const,
+                            label: t("detail.tabFollowUps"),
+                            icon: HandShakeIcon,
+                          },
+                        ]
+                      : []),
+                  ] as const
+                ).map((tab) => {
+                  const TabIcon = tab.icon;
+                  const isSelected = resolvedTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:gap-2 lg:px-3.5 lg:text-sm ${
+                        isSelected
+                          ? "bg-brand-50 text-brand-700 shadow-theme-xs ring-1 ring-brand-200/80 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
+                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-200"
                       }`}
                     >
-                      {readinessStatusLabel}
-                    </p>
-                  </dd>
-                </div>
-              </dl>
-            </header>
+                      <TabIcon
+                        className={`size-4 shrink-0 ${
+                          isSelected
+                            ? "text-brand-600 dark:text-brand-400"
+                            : "text-gray-400 dark:text-gray-500"
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span>{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </nav>
 
-            {/* Workspace Section Tabs */}
-            <nav
-              aria-label={t("detail.tabsAriaLabel")}
-              className="flex max-w-full gap-1 overflow-x-auto rounded-xl border border-gray-200/80 bg-white p-1 shadow-theme-xs [scrollbar-width:none] [&::-webkit-scrollbar]:hidden dark:border-gray-800 dark:bg-gray-900"
-            >
-              {(
-                [
-                  {
-                    id: "published" as const,
-                    label: t("detail.tabPublished"),
-                    icon: BookOpenIcon,
-                  },
-                  ...(capabilities.includes("MANAGE") &&
-                  handover.status === "OPEN"
-                    ? [
-                        {
-                          id: "draft" as const,
-                          label: t("detail.tabDraft"),
-                          icon: DocsIcon,
-                        },
-                      ]
-                    : []),
-                  ...(!isCoordinatorRecoveryOnly
-                    ? [
-                        {
-                          id: "tasks" as const,
-                          label: t("detail.tabTasks"),
-                          icon: TaskIcon,
-                        },
-                        {
-                          id: "qa" as const,
-                          label: t("detail.tabQa"),
-                          icon: ChatIcon,
-                        },
-                        {
-                          id: "followups" as const,
-                          label: t("detail.tabFollowUps"),
-                          icon: HandShakeIcon,
-                        },
-                      ]
-                    : []),
-                ] as const
-              ).map((tab) => {
-                const TabIcon = tab.icon;
-                const isSelected = resolvedTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 lg:gap-2 lg:px-3.5 lg:text-sm ${
-                      isSelected
-                        ? "bg-brand-50 text-brand-700 shadow-theme-xs ring-1 ring-brand-200/80 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-500/30"
-                        : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800/60 dark:hover:text-gray-200"
-                    }`}
-                  >
-                    <TabIcon
-                      className={`size-4 shrink-0 ${
-                        isSelected
-                          ? "text-brand-600 dark:text-brand-400"
-                          : "text-gray-400 dark:text-gray-500"
-                      }`}
-                      aria-hidden="true"
-                    />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
+              {/* Tab Panels */}
+              {resolvedTab === "published" &&
+                (isCoordinatorRecoveryOnly ? (
+                  <HandoverPublishedView
+                    projectId={projectId}
+                    handover={handover}
+                    publishedRevision={publishedRevision}
+                    etag={etag}
+                    capabilities={capabilities}
+                    currentUserId={currentUserId}
+                    members={members}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
+                    {/* Left Column (7/12): Unified Scope Explorer + Published Handover Package */}
+                    <div className="min-w-0 space-y-5 xl:col-span-7">
+                      {previewData &&
+                        (previewTasks.length > 0 ||
+                          previewSources.length > 0 ||
+                          previewData.relatedProjects.length > 0) && (
+                          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                                  {t5("unifiedScopeTitle")}
+                                </h2>
+                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                  {t5("unifiedScopeSubtitle", {
+                                    departing: departingName,
+                                  })}
+                                </p>
+                              </div>
+                            </div>
 
-            {/* Tab Panels */}
-            {resolvedTab === "published" && (
-              <HandoverPublishedView
-                projectId={projectId}
-                handover={handover}
-                publishedRevision={publishedRevision}
-                etag={etag}
-                capabilities={capabilities}
-                currentUserId={currentUserId}
-                members={members}
-              />
-            )}
+                            {/* Related Projects Strip */}
+                            {previewData.relatedProjects.length > 0 && (
+                              <div className="mt-3.5 flex flex-wrap gap-1.5">
+                                {previewData.relatedProjects.map((proj) => (
+                                  <span
+                                    key={proj.projectId}
+                                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                  >
+                                    <span>
+                                      [{proj.key}] {proj.name}
+                                    </span>
+                                    <span className="text-gray-400">·</span>
+                                    <span>
+                                      {proj.unfinishedTaskCount} Tasks ·{" "}
+                                      {proj.taskNoteCount +
+                                        (proj.documentCount ??
+                                          proj.projectDocumentCount ??
+                                          0) +
+                                        proj.workReportCount}{" "}
+                                      Docs/Notes
+                                    </span>
+                                  </span>
+                                ))}
+                              </div>
+                            )}
 
-            {resolvedTab === "draft" && capabilities.includes("MANAGE") && (
-              <HandoverDraftEditor
-                projectId={projectId}
-                handoverId={handover.id}
-                handoverEtag={etag}
-                isOpenStatus={handover.status === "OPEN"}
-                publishedRevision={publishedRevision}
-                currentUserId={currentUserId}
-                members={members}
-                onRevisionPublished={() => setActiveTab("published")}
-              />
-            )}
+                            {/* Filter Pills */}
+                            <div className="mt-4 flex flex-wrap gap-1.5">
+                              {(
+                                [
+                                  {
+                                    id: "ALL" as const,
+                                    label: t5("filterAll", {
+                                      count: String(
+                                        previewTasks.length +
+                                          previewSources.length,
+                                      ),
+                                    }),
+                                  },
+                                  {
+                                    id: "TASKS" as const,
+                                    label: t5("filterTasks", {
+                                      count: String(previewTasks.length),
+                                    }),
+                                  },
+                                  {
+                                    id: "TASK_NOTE" as const,
+                                    label: t5("filterTaskNotes", {
+                                      count: String(previewNotes.length),
+                                    }),
+                                  },
+                                  {
+                                    id: "PROJECT_DOCUMENT" as const,
+                                    label: t5("filterDocuments", {
+                                      count: String(previewDocs.length),
+                                    }),
+                                  },
+                                  {
+                                    id: "WORK_REPORT" as const,
+                                    label: t5("filterReports", {
+                                      count: String(previewReports.length),
+                                    }),
+                                  },
+                                ] as const
+                              ).map((pill) => (
+                                <button
+                                  key={pill.id}
+                                  type="button"
+                                  onClick={() => setScopeFilter(pill.id)}
+                                  className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums transition-colors ${
+                                    scopeFilter === pill.id
+                                      ? "bg-brand-600 text-white"
+                                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                  }`}
+                                >
+                                  {pill.label}
+                                </button>
+                              ))}
+                            </div>
 
-            {resolvedTab === "tasks" && (
-              <HandoverTaskTransfersPanel
-                projectId={projectId}
-                handover={handover}
-                etag={etag}
-                capabilities={capabilities}
-              />
-            )}
+                            {/* Filtered Scope Items */}
+                            <div className="mt-3.5 max-h-80 space-y-2 overflow-y-auto pe-1">
+                              {(scopeFilter === "ALL" ||
+                                scopeFilter === "TASKS") &&
+                                previewTasks.map((task) => (
+                                  <div
+                                    key={task.id ?? task.taskId ?? task.key}
+                                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/40"
+                                  >
+                                    <div className="flex min-w-0 items-center gap-2">
+                                      <TaskIcon className="size-4 shrink-0 text-brand-600 dark:text-brand-400" />
+                                      <span className="shrink-0 whitespace-nowrap font-mono font-semibold text-gray-800 tabular-nums dark:text-gray-200">
+                                        {task.key}
+                                      </span>
+                                      <span className="truncate font-medium text-gray-900 dark:text-white">
+                                        {task.title}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                      <Badge color="warning" size="sm">
+                                        {task.status}
+                                      </Badge>
+                                      <Badge color="light" size="sm">
+                                        {task.priority}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                ))}
 
-            {resolvedTab === "qa" && (
-              <HandoverQaPanel projectId={projectId} handover={handover} />
-            )}
+                              {previewSources
+                                .filter(
+                                  (src) =>
+                                    scopeFilter === "ALL" ||
+                                    src.kind === scopeFilter,
+                                )
+                                .map((src) => {
+                                  const href = buildSourceWorkspaceHref(
+                                    projectId,
+                                    src.kind,
+                                    src.id,
+                                  );
+                                  return (
+                                    <div
+                                      key={`${src.kind}:${src.id}`}
+                                      className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/40"
+                                    >
+                                      <div className="flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex min-w-0 items-center gap-2">
+                                          <DocsIcon className="size-4 shrink-0 text-success-600 dark:text-success-400" />
+                                          <span className="truncate font-semibold text-gray-900 dark:text-white">
+                                            {src.title}
+                                          </span>
+                                        </div>
+                                        <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">
+                                          <Badge color="info" size="sm">
+                                            {src.kind === "PROJECT_DOCUMENT"
+                                              ? "Document"
+                                              : src.kind === "TASK_NOTE"
+                                                ? "Task Note"
+                                                : src.kind === "WORK_REPORT"
+                                                  ? "Work Report"
+                                                  : src.kind}{" "}
+                                            · v{src.version}
+                                          </Badge>
+                                          {href && (
+                                            <Link
+                                              href={href}
+                                              className="font-semibold text-brand-600 hover:underline dark:text-brand-400"
+                                            >
+                                              {t5("openInWorkspace")}
+                                            </Link>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {src.summary && (
+                                        <p className="mt-1.5 line-clamp-2 text-gray-600 dark:text-gray-400">
+                                          {src.summary}
+                                        </p>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                            </div>
+                          </section>
+                        )}
 
-            {resolvedTab === "followups" && (
-              <HandoverFollowUpsPanel
-                projectId={projectId}
-                handoverId={handover.id}
-                capabilities={capabilities}
-                currentUserId={currentUserId}
-                membersById={membersById}
-              />
-            )}
-          </>
-        );
-      })()}
+                      <HandoverPublishedView
+                        projectId={projectId}
+                        handover={handover}
+                        publishedRevision={publishedRevision}
+                        etag={etag}
+                        capabilities={capabilities}
+                        currentUserId={currentUserId}
+                        members={members}
+                      />
+                    </div>
+
+                    {/* Right Column (5/12): Grounded AI Chat with Citations */}
+                    <div className="min-w-0 xl:col-span-5">
+                      <div className="xl:sticky xl:top-6">
+                        <HandoverQaPanel
+                          projectId={projectId}
+                          handover={handover}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+              {resolvedTab === "draft" && capabilities.includes("MANAGE") && (
+                <HandoverDraftEditor
+                  projectId={projectId}
+                  handoverId={handover.id}
+                  handoverEtag={etag}
+                  isOpenStatus={handover.status === "OPEN"}
+                  publishedRevision={publishedRevision}
+                  currentUserId={currentUserId}
+                  members={members}
+                  onRevisionPublished={() => setActiveTab("published")}
+                />
+              )}
+
+              {resolvedTab === "tasks" && (
+                <HandoverTaskTransfersPanel
+                  projectId={projectId}
+                  handover={handover}
+                  etag={etag}
+                  capabilities={capabilities}
+                />
+              )}
+
+              {resolvedTab === "qa" && (
+                <HandoverQaPanel projectId={projectId} handover={handover} />
+              )}
+
+              {resolvedTab === "followups" && (
+                <HandoverFollowUpsPanel
+                  projectId={projectId}
+                  handoverId={handover.id}
+                  capabilities={capabilities}
+                  currentUserId={currentUserId}
+                  membersById={membersById}
+                />
+              )}
+            </>
+          );
+        })()}
 
       {/* Lifecycle Governance Modals */}
       <HandoverDialogShell
