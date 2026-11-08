@@ -1,7 +1,10 @@
 "use client";
 
+import TokenUsageModal from "@/components/token-usage/TokenUsageModal";
+import { useTokenUsageModalStore } from "@/components/token-usage/token-usage.store";
 import { Dropdown } from "@/components/ui/dropdown/Dropdown";
 import { Link, usePathname } from "@/i18n/navigation";
+import { PieChartIcon } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
@@ -15,7 +18,8 @@ type SettingsItem = {
   id: string;
   title: string;
   description: string;
-  href: string;
+  href?: string;
+  onClick?: () => void;
   icon: React.ReactNode;
   showExternalIcon?: boolean;
 };
@@ -39,6 +43,7 @@ export default function HeaderSettingsDropdown({
   const projectId = /^\/projects\/([^/]+)/.exec(pathname)?.[1] ?? "";
   const projectAccess = useProjectManagementAccess(organizationId, projectId, isOpen && Boolean(organizationId && projectId));
   const isProjectLeader = !isManager && projectAccess.canUpdateProject;
+  const openTokenUsageModal = useTokenUsageModalStore((s) => s.openModal);
 
   const closeDropdown = () => setIsOpen(false);
 
@@ -92,6 +97,20 @@ export default function HeaderSettingsDropdown({
         </svg>
       ),
     },
+    ...(organizationId
+      ? [
+          {
+            id: "usage",
+            title: t("settingsMenu.usageTitle"),
+            description: t("settingsMenu.usageDesc"),
+            onClick: () => {
+              closeDropdown();
+              openTokenUsageModal();
+            },
+            icon: <PieChartIcon aria-hidden="true" className="size-[17px]" />,
+          } satisfies SettingsItem,
+        ]
+      : []),
   ];
 
   const spacesIcon = (
@@ -210,13 +229,9 @@ export default function HeaderSettingsDropdown({
       ? t("settingsMenu.leaderHeading")
       : t("settingsMenu.workspaceHeading");
 
-  const renderSettingsRow = (item: SettingsItem) => (
-    <li key={item.id}>
-      <Link
-        href={item.href}
-        onClick={closeDropdown}
-        className="group flex items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-100 dark:hover:bg-white/5"
-      >
+  const renderSettingsRow = (item: SettingsItem) => {
+    const rowContent = (
+      <>
         <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="shrink-0 text-gray-600 group-hover:text-gray-900 dark:text-gray-400 dark:group-hover:text-white">
             {item.icon}
@@ -247,9 +262,32 @@ export default function HeaderSettingsDropdown({
             <line x1="10" y1="14" x2="21" y2="3" />
           </svg>
         )}
-      </Link>
-    </li>
-  );
+      </>
+    );
+
+    return (
+      <li key={item.id}>
+        {item.onClick ? (
+          <button
+            type="button"
+            data-testid={`header-settings-${item.id}`}
+            onClick={item.onClick}
+            className="group flex w-full cursor-pointer items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-start transition-colors hover:bg-gray-100 dark:hover:bg-white/5"
+          >
+            {rowContent}
+          </button>
+        ) : (
+          <Link
+            href={item.href ?? "/profile"}
+            onClick={closeDropdown}
+            className="group flex items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 transition-colors hover:bg-gray-100 dark:hover:bg-white/5"
+          >
+            {rowContent}
+          </Link>
+        )}
+      </li>
+    );
+  };
 
   return (
     <div className="relative">
@@ -316,6 +354,7 @@ export default function HeaderSettingsDropdown({
           {workspaceItems.map(renderSettingsRow)}
         </ul>
       </Dropdown>
+      <TokenUsageModal />
     </div>
   );
 }
