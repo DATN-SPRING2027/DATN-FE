@@ -5974,7 +5974,11 @@
   "handover": {
     "aiCoverage": {
       "title": "Độ bao phủ nguồn một phần.",
-      "description": "Một số nội dung nguồn đã được bỏ qua hoặc rút gọn để vừa giới hạn minh chứng đầu vào của AI. Hãy đối chiếu với các nguồn gốc và bổ sung phần tri thức còn thiếu trước khi xuất bản hoặc hoàn tất bàn giao."
+      "description": "Một số nội dung nguồn đã được bỏ qua hoặc rút gọn để vừa giới hạn minh chứng đầu vào của AI. Hãy đối chiếu với các nguồn gốc và bổ sung phần tri thức còn thiếu trước khi xuất bản hoặc hoàn tất bàn giao.",
+      "usedSourcesLabel": "Nguồn đã dùng ({count}):",
+      "skippedSourcesLabel": "Nguồn bị bỏ qua ({count}):",
+      "truncatedSourcesLabel": "Nguồn bị rút gọn ({count}):",
+      "noneLabel": "Không có"
     },
     "breadcrumb": "Đường dẫn điều hướng",
     "projectsBreadcrumb": "Dự án",

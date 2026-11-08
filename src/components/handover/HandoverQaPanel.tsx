@@ -144,7 +144,10 @@ export default function HandoverQaPanel({
             {entry.a.message}
           </p>
 
-          <HandoverAiCoverageWarning warnings={entry.a.warnings} />
+          <HandoverAiCoverageWarning
+            warnings={entry.a.warnings}
+            coverage={entry.a.coverage}
+          />
 
           {entry.a.sections.length > 0 && (
             <div className="mt-3 space-y-2.5 border-t border-gray-100 pt-3 dark:border-gray-800">
