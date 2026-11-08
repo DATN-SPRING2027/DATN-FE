@@ -40,7 +40,6 @@ import {
 } from "@/components/ui/loading/AsyncStatus";
 import {
   AlertIcon,
-  ArrowRightIcon,
   BookOpenIcon,
   CalenderIcon,
   ChatIcon,
@@ -183,6 +182,13 @@ export default function HandoverDetailWorkspace({
   const [quickActionSuccess, setQuickActionSuccess] = useState<string | null>(
     null,
   );
+  const [isInlineAiOpen, setIsInlineAiOpen] = useState(false);
+  const [showAllScopeItems, setShowAllScopeItems] = useState(false);
+  const [expandedSummaries, setExpandedSummaries] = useState<
+    Record<string, boolean>
+  >({});
+  const [showPublishedAuditChecklist, setShowPublishedAuditChecklist] =
+    useState(false);
 
   // Lifecycle Modals
   const [modalMode, setModalMode] = useState<
@@ -1330,78 +1336,15 @@ export default function HandoverDetailWorkspace({
                     </dd>
                   </div>
                 </dl>
-
-                {/* 5-Step Streamlined Handover Progress Pipeline */}
-                {!isCoordinatorRecoveryOnly && (
-                  <div className="mt-4 rounded-xl border border-brand-200/70 bg-brand-50/40 p-3.5 dark:border-brand-500/25 dark:bg-brand-500/10">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="text-[11px] font-semibold tracking-wider text-brand-700 uppercase dark:text-brand-300">
-                        {t5("bannerEyebrow")}
-                      </span>
-                      <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 font-medium text-white">
-                          <CheckCircleIcon className="size-3" />
-                          <span>{t5("step1Title")}</span>
-                        </span>
-                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
-                        <span className="inline-flex items-center gap-1 rounded-md bg-brand-600 px-2 py-0.5 font-medium text-white">
-                          <CheckCircleIcon className="size-3" />
-                          <span>{t5("step2Title")}</span>
-                        </span>
-                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
-                            handover.successorUserId
-                              ? "bg-brand-600 text-white"
-                              : "bg-warning-100 text-warning-800 dark:bg-warning-500/20 dark:text-warning-200"
-                          }`}
-                        >
-                          {handover.successorUserId && (
-                            <CheckCircleIcon className="size-3" />
-                          )}
-                          <span>{t5("step3Title")}</span>
-                        </span>
-                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
-                            publishedRevision
-                              ? "bg-brand-600 text-white"
-                              : "bg-white text-gray-700 ring-1 ring-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
-                          }`}
-                        >
-                          {publishedRevision && (
-                            <CheckCircleIcon className="size-3" />
-                          )}
-                          <span>{t5("step4Title")}</span>
-                        </span>
-                        <ArrowRightIcon className="size-3 text-gray-400 rtl:rotate-180" />
-                        <span
-                          className={`inline-flex items-center gap-1 rounded-md px-2 py-0.5 font-medium ${
-                            handover.status === "COMPLETED"
-                              ? "bg-success-600 text-white"
-                              : detailResource.detail.canComplete
-                                ? "bg-success-100 text-success-800 dark:bg-success-500/20 dark:text-success-200"
-                                : "bg-white text-gray-700 ring-1 ring-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700"
-                          }`}
-                        >
-                          {handover.status === "COMPLETED" && (
-                            <CheckCircleIcon className="size-3" />
-                          )}
-                          <span>{t5("step5Title")}</span>
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </header>
 
-              {/* Step 5: 1-Click Auto-Bundle / Two-Way Confirmation & Task Transfer Card */}
+              {/* Compact 1-Line Action & Progressive Disclosure Bar */}
               {!isCoordinatorRecoveryOnly && handover.status === "OPEN" && (
-                <section className="rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
+                <section className="rounded-2xl border border-gray-200/90 bg-white px-4 py-3.5 shadow-theme-xs sm:px-5 dark:border-gray-800 dark:bg-gray-900">
                   {quickActionError && (
                     <div
                       role="alert"
-                      className="mb-4 flex items-center gap-2 rounded-xl border border-error-200 bg-error-50 px-4 py-2.5 text-xs text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
+                      className="mb-3 flex items-center gap-2 rounded-xl border border-error-200 bg-error-50 px-3.5 py-2 text-xs text-error-700 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300"
                     >
                       <AlertIcon className="size-4 shrink-0" />
                       <span>{quickActionError}</span>
@@ -1411,7 +1354,7 @@ export default function HandoverDetailWorkspace({
                   {quickActionSuccess && (
                     <div
                       role="status"
-                      className="mb-4 flex items-center gap-2 rounded-xl border border-success-200 bg-success-50 px-4 py-2.5 text-xs text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
+                      className="mb-3 flex items-center gap-2 rounded-xl border border-success-200 bg-success-50 px-3.5 py-2 text-xs text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
                     >
                       <CheckCircleIcon className="size-4 shrink-0" />
                       <span>{quickActionSuccess}</span>
@@ -1419,12 +1362,12 @@ export default function HandoverDetailWorkspace({
                   )}
 
                   {!publishedRevision && canManage ? (
-                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="space-y-1">
-                        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="min-w-0">
+                        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
                           {t5("autoBundleCardTitle")}
                         </h2>
-                        <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
                           {t5("autoBundleCardDesc")}
                         </p>
                       </div>
@@ -1441,16 +1384,105 @@ export default function HandoverDetailWorkspace({
                       </Button>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                            {t5("twoWayConfirmTitle")}
-                          </h2>
-                          <p className="text-xs text-gray-600 dark:text-gray-400">
-                            {t5("twoWayConfirmSubtitle")}
-                          </p>
-                        </div>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      {/* Left: Compact Status Pills */}
+                      <div className="flex flex-wrap items-center gap-2 text-xs">
+                        {!handover.successorUserId ? (
+                          <Badge color="warning" size="sm">
+                            {t5("managerCardDescNoSuccessor")}
+                          </Badge>
+                        ) : transferComplete && transferCount > 0 ? (
+                          <Badge color="success" size="sm">
+                            {t5("quickTransferDoneBadge")} ({transferCount})
+                          </Badge>
+                        ) : (transferScope || previewData !== null) &&
+                          transferCount === 0 ? (
+                          <Badge color="light" size="sm">
+                            {t5("noPinnedTasks")}
+                          </Badge>
+                        ) : (
+                          <Badge color="warning" size="sm">
+                            {t5("managerCardDescReady", {
+                              count: String(transferCount),
+                              successor: successorName,
+                            })}
+                          </Badge>
+                        )}
+
+                        {handover.successorUserId && (
+                          <Badge
+                            color={
+                              allReadableItemsUnderstood ? "success" : "warning"
+                            }
+                            size="sm"
+                          >
+                            {allReadableItemsUnderstood
+                              ? t5("quickAcceptDoneBadge")
+                              : t5("waitingForSuccessorBadge", {
+                                  successor: successorName,
+                                })}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {/* Right: On-Demand Action Buttons */}
+                      <div className="flex flex-wrap items-center gap-2">
+                        {canTransfer &&
+                          Boolean(handover.successorUserId) &&
+                          !transferComplete &&
+                          transferCount > 0 && (
+                            <Button
+                              type="button"
+                              variant="primary"
+                              size="sm"
+                              isLoading={isQuickTransferring}
+                              onClick={() =>
+                                void handleQuickTransferNow(successorName)
+                              }
+                            >
+                              {isQuickTransferring
+                                ? t5("quickTransferring")
+                                : t5("quickTransferCta", {
+                                    count: String(transferCount),
+                                    successor: successorName,
+                                  })}
+                            </Button>
+                          )}
+
+                        {canReceive &&
+                          (participantView?.canQuickAccept ?? true) && (
+                            <Button
+                              type="button"
+                              variant={
+                                allReadableItemsUnderstood
+                                  ? "outline"
+                                  : "primary"
+                              }
+                              size="sm"
+                              isLoading={isQuickAccepting}
+                              onClick={() => void handleQuickAcceptNow()}
+                            >
+                              {isQuickAccepting
+                                ? t5("quickAccepting")
+                                : t5("quickAcceptCta")}
+                            </Button>
+                          )}
+
+                        <Button
+                          type="button"
+                          variant={isInlineAiOpen ? "primary" : "outline"}
+                          size="sm"
+                          startIcon={<ChatIcon className="size-3.5" />}
+                          onClick={() => {
+                            setActiveTab("published");
+                            setIsInlineAiOpen((prev) => !prev);
+                          }}
+                        >
+                          {isInlineAiOpen
+                            ? t5("toggleAiChatHide")
+                            : t5("toggleAiChatShow")}
+                        </Button>
+
                         {canManage && (
                           <Button
                             type="button"
@@ -1464,110 +1496,6 @@ export default function HandoverDetailWorkspace({
                               : t5("resyncBundleCta")}
                           </Button>
                         )}
-                      </div>
-
-                      <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">
-                        {/* Box 1: Manager / Leader 1-Click Unfinished Task Transfer */}
-                        <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/40">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {t5("managerCardTitle")}
-                              </h3>
-                              {transferComplete && (
-                                <Badge color="success" size="sm">
-                                  {t5("quickTransferDoneBadge")}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
-                              {!handover.successorUserId
-                                ? t5("managerCardDescNoSuccessor")
-                                : transferComplete && transferCount > 0
-                                  ? t5("managerCardDescAllTransferred", {
-                                      successor: successorName,
-                                    })
-                                  : (transferScope || previewData !== null) &&
-                                      transferCount === 0
-                                    ? t5("noPinnedTasks")
-                                  : t5("managerCardDescReady", {
-                                      count: String(transferCount),
-                                      successor: successorName,
-                                    })}
-                            </p>
-                          </div>
-
-                          {canTransfer && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant="primary"
-                                size="sm"
-                                disabled={
-                                  !handover.successorUserId ||
-                                  transferComplete ||
-                                  (Boolean(transferScope) && transferCount === 0)
-                                }
-                                isLoading={isQuickTransferring}
-                                onClick={() =>
-                                  void handleQuickTransferNow(successorName)
-                                }
-                              >
-                                {isQuickTransferring
-                                  ? t5("quickTransferring")
-                                  : transferCount > 0
-                                    ? t5("quickTransferCta", {
-                                        count: String(transferCount),
-                                        successor: successorName,
-                                      })
-                                    : t5("quickTransferAllCta", {
-                                        successor: successorName,
-                                      })}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Box 2: Successor 1-Click Handover Acceptance */}
-                        <div className="flex flex-col justify-between gap-3 rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-gray-800/40">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between gap-2">
-                              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                                {t5("successorCardTitle")}
-                              </h3>
-                              {allReadableItemsUnderstood && (
-                                <Badge color="success" size="sm">
-                                  {t5("quickAcceptDoneBadge")}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs leading-5 text-gray-600 dark:text-gray-400">
-                              {allReadableItemsUnderstood
-                                ? t5("successorCardDescAccepted")
-                                : t5("successorCardDescPending")}
-                            </p>
-                          </div>
-
-                          {canReceive && (participantView?.canQuickAccept ?? true) && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <Button
-                                type="button"
-                                variant={
-                                  allReadableItemsUnderstood
-                                    ? "outline"
-                                    : "primary"
-                                }
-                                size="sm"
-                                isLoading={isQuickAccepting}
-                                onClick={() => void handleQuickAcceptNow()}
-                              >
-                                {isQuickAccepting
-                                  ? t5("quickAccepting")
-                                  : t5("quickAcceptCta")}
-                              </Button>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     </div>
                   )}
@@ -1657,114 +1585,164 @@ export default function HandoverDetailWorkspace({
                     members={members}
                   />
                 ) : (
-                  <div className="grid grid-cols-1 gap-5 xl:grid-cols-12">
-                    {/* Left Column (7/12): Unified Scope Explorer + Published Handover Package */}
-                    <div className="min-w-0 space-y-5 xl:col-span-7">
-                      {previewData &&
+                  (() => {
+                    const hasPreviewScope = Boolean(
+                      previewData &&
                         (previewTasks.length > 0 ||
                           previewSources.length > 0 ||
-                          previewData.relatedProjects.length > 0) && (
-                          <section className="rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div>
-                                <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-                                  {t5("unifiedScopeTitle")}
-                                </h2>
-                                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                                  {t5("unifiedScopeSubtitle", {
-                                    departing: departingName,
-                                  })}
-                                </p>
-                              </div>
-                            </div>
+                          previewData.relatedProjects.length > 0),
+                    );
+                    const filteredTasks =
+                      scopeFilter === "ALL" || scopeFilter === "TASKS"
+                        ? previewTasks
+                        : [];
+                    const filteredSources = previewSources.filter(
+                      (src) =>
+                        scopeFilter === "ALL" || src.kind === scopeFilter,
+                    );
+                    const totalFilteredCount =
+                      filteredTasks.length + filteredSources.length;
+                    const visibleTaskLimit = showAllScopeItems
+                      ? filteredTasks.length
+                      : Math.min(filteredTasks.length, 6);
+                    const remainingSlotForSources = showAllScopeItems
+                      ? filteredSources.length
+                      : Math.max(0, 6 - visibleTaskLimit);
+                    const visibleTasks = filteredTasks.slice(
+                      0,
+                      visibleTaskLimit,
+                    );
+                    const visibleSources = filteredSources.slice(
+                      0,
+                      remainingSlotForSources,
+                    );
+                    const hiddenCount =
+                      totalFilteredCount -
+                      (visibleTasks.length + visibleSources.length);
 
-                            {/* Related Projects Strip */}
-                            {previewData.relatedProjects.length > 0 && (
+                    return (
+                      <div
+                        className={
+                          isInlineAiOpen
+                            ? "grid grid-cols-1 gap-5 xl:grid-cols-12"
+                            : "space-y-4"
+                        }
+                      >
+                        <div
+                          className={
+                            isInlineAiOpen
+                              ? "min-w-0 space-y-4 xl:col-span-7"
+                              : "min-w-0 space-y-4"
+                          }
+                        >
+                          {hasPreviewScope && previewData && (
+                            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xs sm:p-5 dark:border-gray-800 dark:bg-gray-900">
+                              <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div>
+                                  <h2 className="text-sm font-semibold text-gray-900 sm:text-base dark:text-white">
+                                    {t5("unifiedScopeTitle")}
+                                  </h2>
+                                  <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                    {t5("unifiedScopeSubtitle", {
+                                      departing: departingName,
+                                    })}
+                                  </p>
+                                </div>
+
+                                {previewData.relatedProjects.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {previewData.relatedProjects.map((proj) => (
+                                      <span
+                                        key={proj.projectId}
+                                        className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                      >
+                                        <span>
+                                          [{proj.key}] {proj.name}
+                                        </span>
+                                        <span className="text-gray-400">·</span>
+                                        <span>
+                                          {t5("relatedTaskCount", {
+                                            count: proj.unfinishedTaskCount,
+                                          })}{" "}
+                                          ·{" "}
+                                          {t5("relatedSourceCount", {
+                                            count:
+                                              proj.taskNoteCount +
+                                              (proj.documentCount ??
+                                                proj.projectDocumentCount ??
+                                                0) +
+                                              proj.workReportCount,
+                                          })}
+                                        </span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+
+                              {/* Filter Pills */}
                               <div className="mt-3.5 flex flex-wrap gap-1.5">
-                                {previewData.relatedProjects.map((proj) => (
-                                  <span
-                                    key={proj.projectId}
-                                    className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-700 tabular-nums dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                {(
+                                  [
+                                    {
+                                      id: "ALL" as const,
+                                      label: t5("filterAll", {
+                                        count: String(
+                                          previewTasks.length +
+                                            previewSources.length,
+                                        ),
+                                      }),
+                                    },
+                                    {
+                                      id: "TASKS" as const,
+                                      label: t5("filterTasks", {
+                                        count: String(previewTasks.length),
+                                      }),
+                                    },
+                                    {
+                                      id: "TASK_NOTE" as const,
+                                      label: t5("filterTaskNotes", {
+                                        count: String(previewNotes.length),
+                                      }),
+                                    },
+                                    {
+                                      id: "PROJECT_DOCUMENT" as const,
+                                      label: t5("filterDocuments", {
+                                        count: String(previewDocs.length),
+                                      }),
+                                    },
+                                    {
+                                      id: "WORK_REPORT" as const,
+                                      label: t5("filterReports", {
+                                        count: String(previewReports.length),
+                                      }),
+                                    },
+                                  ] as const
+                                ).map((pill) => (
+                                  <button
+                                    key={pill.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setScopeFilter(pill.id);
+                                      setShowAllScopeItems(false);
+                                    }}
+                                    className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums transition-colors ${
+                                      scopeFilter === pill.id
+                                        ? "bg-brand-600 text-white"
+                                        : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                    }`}
                                   >
-                                    <span>
-                                      [{proj.key}] {proj.name}
-                                    </span>
-                                    <span className="text-gray-400">·</span>
-                                    <span>
-                                      {t5("relatedTaskCount", { count: proj.unfinishedTaskCount })} ·{" "}
-                                      {t5("relatedSourceCount", { count: proj.taskNoteCount +
-                                        (proj.documentCount ??
-                                          proj.projectDocumentCount ??
-                                          0) +
-                                        proj.workReportCount })}
-                                    </span>
-                                  </span>
+                                    {pill.label}
+                                  </button>
                                 ))}
                               </div>
-                            )}
 
-                            {/* Filter Pills */}
-                            <div className="mt-4 flex flex-wrap gap-1.5">
-                              {(
-                                [
-                                  {
-                                    id: "ALL" as const,
-                                    label: t5("filterAll", {
-                                      count: String(
-                                        previewTasks.length +
-                                          previewSources.length,
-                                      ),
-                                    }),
-                                  },
-                                  {
-                                    id: "TASKS" as const,
-                                    label: t5("filterTasks", {
-                                      count: String(previewTasks.length),
-                                    }),
-                                  },
-                                  {
-                                    id: "TASK_NOTE" as const,
-                                    label: t5("filterTaskNotes", {
-                                      count: String(previewNotes.length),
-                                    }),
-                                  },
-                                  {
-                                    id: "PROJECT_DOCUMENT" as const,
-                                    label: t5("filterDocuments", {
-                                      count: String(previewDocs.length),
-                                    }),
-                                  },
-                                  {
-                                    id: "WORK_REPORT" as const,
-                                    label: t5("filterReports", {
-                                      count: String(previewReports.length),
-                                    }),
-                                  },
-                                ] as const
-                              ).map((pill) => (
-                                <button
-                                  key={pill.id}
-                                  type="button"
-                                  onClick={() => setScopeFilter(pill.id)}
-                                  className={`cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium tabular-nums transition-colors ${
-                                    scopeFilter === pill.id
-                                      ? "bg-brand-600 text-white"
-                                      : "bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
-                                  }`}
-                                >
-                                  {pill.label}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Filtered Scope Items */}
-                            <div className="mt-3.5 max-h-80 space-y-2 overflow-y-auto pe-1">
-                              {(scopeFilter === "ALL" ||
-                                scopeFilter === "TASKS") &&
-                                previewTasks.map((task) => (
+                              {/* Compact 1-Line Scope Items (Click to Expand Summary) */}
+                              <div className="mt-3 divide-y divide-gray-100 rounded-xl border border-gray-200/80 bg-gray-50/40 dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-800/30">
+                                {visibleTasks.map((task) => (
                                   <div
                                     key={task.id ?? task.taskId ?? task.key}
-                                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/40"
+                                    className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 text-xs"
                                   >
                                     <div className="flex min-w-0 items-center gap-2">
                                       <TaskIcon className="size-4 shrink-0 text-brand-600 dark:text-brand-400" />
@@ -1786,27 +1764,30 @@ export default function HandoverDetailWorkspace({
                                   </div>
                                 ))}
 
-                              {previewSources
-                                .filter(
-                                  (src) =>
-                                    scopeFilter === "ALL" ||
-                                    src.kind === scopeFilter,
-                                )
-                                .map((src) => {
+                                {visibleSources.map((src) => {
+                                  const rowKey = `${src.kind}:${src.id}`;
                                   const href = buildSourceWorkspaceHref(
                                     projectId,
                                     src.kind,
                                     src.id,
                                   );
+                                  const hasDistinctSummary = Boolean(
+                                    src.summary &&
+                                      src.summary.trim() &&
+                                      src.summary.trim() !== src.title.trim(),
+                                  );
+                                  const isSummaryOpen = Boolean(
+                                    expandedSummaries[rowKey],
+                                  );
                                   return (
                                     <div
-                                      key={`${src.kind}:${src.id}`}
-                                      className="rounded-xl border border-gray-200/80 bg-gray-50/70 p-3 text-xs dark:border-gray-800 dark:bg-gray-800/40"
+                                      key={rowKey}
+                                      className="px-3.5 py-2.5 text-xs"
                                     >
                                       <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex min-w-0 items-center gap-2">
                                           <DocsIcon className="size-4 shrink-0 text-success-600 dark:text-success-400" />
-                                          <span className="truncate font-semibold text-gray-900 dark:text-white">
+                                          <span className="truncate font-medium text-gray-900 dark:text-white">
                                             {src.title}
                                           </span>
                                         </div>
@@ -1821,6 +1802,22 @@ export default function HandoverDetailWorkspace({
                                                   : src.kind}{" "}
                                             · v{src.version}
                                           </Badge>
+                                          {hasDistinctSummary && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setExpandedSummaries((prev) => ({
+                                                  ...prev,
+                                                  [rowKey]: !prev[rowKey],
+                                                }))
+                                              }
+                                              className="cursor-pointer rounded-md px-2 py-0.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-200/70 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                                            >
+                                              {isSummaryOpen
+                                                ? t5("toggleSummaryHide")
+                                                : t5("toggleSummaryShow")}
+                                            </button>
+                                          )}
                                           {href && (
                                             <Link
                                               href={href}
@@ -1831,39 +1828,104 @@ export default function HandoverDetailWorkspace({
                                           )}
                                         </div>
                                       </div>
-                                      {src.summary && (
-                                        <p className="mt-1.5 line-clamp-2 text-gray-600 dark:text-gray-400">
+                                      {hasDistinctSummary && isSummaryOpen && (
+                                        <p className="mt-1.5 rounded-lg bg-white/80 px-3 py-2 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
                                           {src.summary}
                                         </p>
                                       )}
                                     </div>
                                   );
                                 })}
+                              </div>
+
+                              {/* Show More / Show Less Toggle */}
+                              {totalFilteredCount > 6 && (
+                                <div className="mt-2.5 flex justify-center">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setShowAllScopeItems((prev) => !prev)
+                                    }
+                                    className="cursor-pointer rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs font-medium text-gray-700 tabular-nums transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                                  >
+                                    {showAllScopeItems
+                                      ? t5("showLessScopeItems")
+                                      : t5("showMoreScopeItems", {
+                                          count: String(hiddenCount),
+                                        })}
+                                  </button>
+                                </div>
+                              )}
+                            </section>
+                          )}
+
+                          {/* When Unified Scope is already displayed above, collapse the raw Published Revision Checklist behind an on-demand toggle button */}
+                          {hasPreviewScope && publishedRevision ? (
+                            <div className="space-y-3">
+                              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-white px-4 py-2.5 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">
+                                <span className="text-xs font-medium text-gray-600 tabular-nums dark:text-gray-300">
+                                  {t("status.publishedRev", {
+                                    number: String(publishedRevision.number),
+                                  })}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setShowPublishedAuditChecklist(
+                                      (prev) => !prev,
+                                    )
+                                  }
+                                  className="cursor-pointer rounded-lg border border-gray-300 bg-gray-50 px-3 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-gray-700"
+                                >
+                                  {showPublishedAuditChecklist
+                                    ? t5("togglePublishedAuditHide")
+                                    : t5("togglePublishedAuditShow", {
+                                        number: String(
+                                          publishedRevision.number,
+                                        ),
+                                      })}
+                                </button>
+                              </div>
+
+                              {showPublishedAuditChecklist && (
+                                <HandoverPublishedView
+                                  projectId={projectId}
+                                  handover={handover}
+                                  publishedRevision={publishedRevision}
+                                  etag={etag}
+                                  capabilities={capabilities}
+                                  currentUserId={currentUserId}
+                                  members={members}
+                                />
+                              )}
                             </div>
-                          </section>
+                          ) : (
+                            <HandoverPublishedView
+                              projectId={projectId}
+                              handover={handover}
+                              publishedRevision={publishedRevision}
+                              etag={etag}
+                              capabilities={capabilities}
+                              currentUserId={currentUserId}
+                              members={members}
+                            />
+                          )}
+                        </div>
+
+                        {/* On-Demand Right Column (5/12): Grounded AI Chat with Citations */}
+                        {isInlineAiOpen && (
+                          <div className="min-w-0 xl:col-span-5">
+                            <div className="xl:sticky xl:top-6">
+                              <HandoverQaPanel
+                                projectId={projectId}
+                                handover={handover}
+                              />
+                            </div>
+                          </div>
                         )}
-
-                      <HandoverPublishedView
-                        projectId={projectId}
-                        handover={handover}
-                        publishedRevision={publishedRevision}
-                        etag={etag}
-                        capabilities={capabilities}
-                        currentUserId={currentUserId}
-                        members={members}
-                      />
-                    </div>
-
-                    {/* Right Column (5/12): Grounded AI Chat with Citations */}
-                    <div className="min-w-0 xl:col-span-5">
-                      <div className="xl:sticky xl:top-6">
-                        <HandoverQaPanel
-                          projectId={projectId}
-                          handover={handover}
-                        />
                       </div>
-                    </div>
-                  </div>
+                    );
+                  })()
                 ))}
 
               {resolvedTab === "draft" && capabilities.includes("MANAGE") && (

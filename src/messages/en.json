@@ -6526,7 +6526,18 @@
       "qaPrompt2": "Which documents and task notes should I read first to take over safely?",
       "qaPrompt3": "What are the immediate next steps and verification requirements?",
       "advancedTabsToggleShow": "Show advanced governance tabs ({count})",
-      "advancedTabsToggleHide": "Return to Unified 1-Page View"
+      "advancedTabsToggleHide": "Return to Unified 1-Page View",
+      "toggleAiChatShow": "Ask AI with Citations",
+      "toggleAiChatHide": "Hide AI Chat",
+      "toggleSummaryShow": "Show summary",
+      "toggleSummaryHide": "Hide summary",
+      "showMoreScopeItems": "Show {count} more items in scope",
+      "showLessScopeItems": "Show fewer items",
+      "togglePublishedAuditShow": "Show item-level verification details (Revision #{number})",
+      "togglePublishedAuditHide": "Hide item-level verification details",
+      "toggleItemDetailsShow": "Show full content & source list ({count} citations)",
+      "toggleItemDetailsHide": "Collapse full content & source list",
+      "waitingForSuccessorBadge": "Waiting for {successor} to confirm"
     }
   },
   "legalCenter": {

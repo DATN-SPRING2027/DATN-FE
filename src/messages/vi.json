@@ -6526,7 +6526,18 @@
       "qaPrompt2": "Những tài liệu (Document) và ghi chú (Task Note) nào tôi cần đọc trước tiên?",
       "qaPrompt3": "Các bước tiếp theo cần thực hiện ngay khi tiếp nhận bàn giao này là gì?",
       "advancedTabsToggleShow": "Mở chế độ chi tiết nâng cao ({count} phân mục)",
-      "advancedTabsToggleHide": "Quay về 1 trang bàn giao tinh gọn"
+      "advancedTabsToggleHide": "Quay về 1 trang bàn giao tinh gọn",
+      "toggleAiChatShow": "Hỏi AI có dẫn chứng",
+      "toggleAiChatHide": "Ẩn khung Hỏi AI",
+      "toggleSummaryShow": "Xem tóm tắt",
+      "toggleSummaryHide": "Ẩn tóm tắt",
+      "showMoreScopeItems": "Xem thêm {count} mục trong gói bàn giao",
+      "showLessScopeItems": "Thu gọn danh sách",
+      "togglePublishedAuditShow": "Xem chi tiết kiểm duyệt từng hạng mục (Phiên bản #{number})",
+      "togglePublishedAuditHide": "Ẩn chi tiết kiểm duyệt từng hạng mục",
+      "toggleItemDetailsShow": "Xem danh sách nguồn & nội dung chi tiết ({count} trích dẫn)",
+      "toggleItemDetailsHide": "Thu gọn nội dung & nguồn trích dẫn",
+      "waitingForSuccessorBadge": "Chờ {successor} xác nhận tiếp nhận"
     }
   },
   "legalCenter": {

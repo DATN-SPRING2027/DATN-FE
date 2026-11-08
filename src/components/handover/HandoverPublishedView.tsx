@@ -58,6 +58,7 @@ function AvailableItemCard({
   participantCopy?: boolean;
 }) {
   const t = useTranslations("handover.published");
+  const t5 = useTranslations("handover.fiveStep");
   const tParticipant = useTranslations("handover.participant");
   const canReceive =
     capabilities.includes("RECEIVE") && handover.status === "OPEN";
@@ -84,6 +85,7 @@ function AvailableItemCard({
   );
 
   const [ackNote, setAckNote] = useState("");
+  const [isDetailsExpanded, setIsDetailsExpanded] = useState(false);
   const [showEvidenceList, setShowEvidenceList] = useState(
     item.evidenceRequired || item.evidenceReview !== "NOT_REQUIRED",
   );
@@ -300,55 +302,104 @@ function AvailableItemCard({
         {item.title}
       </h3>
 
-      {item.body && (
-        <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
-          {item.body}
-        </p>
-      )}
+      {(() => {
+        const isLongBundledItem =
+          Boolean(
+            item.body &&
+              (item.body.includes("\n- **[") || item.body.length > 280),
+          ) || item.citations.length > 4;
 
-      <div className="mt-4 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-800/50">
-        <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-          {t("requirementHeading")}
-        </h4>
-        <p className="mt-1 text-sm text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">
-          {item.requirement}
-        </p>
-      </div>
+        if (isLongBundledItem && !isDetailsExpanded) {
+          return (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200/80 bg-gray-50/70 px-3.5 py-2.5 dark:border-gray-800 dark:bg-gray-800/50">
+              <p className="text-xs text-gray-600 dark:text-gray-300">
+                {item.requirement}
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsDetailsExpanded(true)}
+                className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-brand-600 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-brand-400 dark:hover:bg-gray-700"
+              >
+                {t5("toggleItemDetailsShow", {
+                  count: String(item.citations.length),
+                })}
+              </button>
+            </div>
+          );
+        }
 
-      {/* Pinned Sources & Citations */}
-      <div className="mt-4">
-        <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-          {t("citationsHeading")}
-        </h4>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {item.citations.map((cit, idx) => {
-            const href = buildSourceWorkspaceHref(
-              projectId,
-              cit.source.kind,
-              cit.source.id,
-            );
-            const label = `${cit.source.kind} ${formatShortId(cit.source.id)} (v${cit.source.version}) · ${cit.locator.kind}: ${cit.locator.value}`;
-            return href ? (
-              <Link
-                key={`${idx}-${cit.source.id}`}
-                href={href}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/60 px-2.5 py-1 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100 [overflow-wrap:anywhere] dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
-              >
-                <DocsIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{label}</span>
-              </Link>
-            ) : (
-              <span
-                key={`${idx}-${cit.source.id}`}
-                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 [overflow-wrap:anywhere] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
-              >
-                <DocsIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{label}</span>
-              </span>
-            );
-          })}
-        </div>
-      </div>
+        return (
+          <>
+            {isLongBundledItem && (
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailsExpanded(false)}
+                  className="cursor-pointer rounded-lg border border-gray-300 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+                >
+                  {t5("toggleItemDetailsHide")}
+                </button>
+              </div>
+            )}
+
+            {item.body && (
+              <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
+                {item.body}
+              </p>
+            )}
+
+            <div className="mt-4 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-800/50">
+              <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("requirementHeading")}
+              </h4>
+              <p className="mt-1 text-sm text-gray-800 [overflow-wrap:anywhere] dark:text-gray-200">
+                {item.requirement}
+              </p>
+            </div>
+
+            {/* Pinned Sources & Citations */}
+            <div className="mt-4">
+              <h4 className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("citationsHeading")}
+              </h4>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {item.citations.map((cit, idx) => {
+                  const href = buildSourceWorkspaceHref(
+                    projectId,
+                    cit.source.kind,
+                    cit.source.id,
+                  );
+                  const label = `${cit.source.kind} ${formatShortId(cit.source.id)} (v${cit.source.version}) · ${cit.locator.kind}: ${cit.locator.value}`;
+                  return href ? (
+                    <Link
+                      key={`${idx}-${cit.source.id}`}
+                      href={href}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-brand-200 bg-brand-50/60 px-2.5 py-1 text-xs font-medium text-brand-700 transition-colors hover:bg-brand-100 [overflow-wrap:anywhere] dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-300"
+                    >
+                      <DocsIcon
+                        className="h-3.5 w-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>{label}</span>
+                    </Link>
+                  ) : (
+                    <span
+                      key={`${idx}-${cit.source.id}`}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-700 [overflow-wrap:anywhere] dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                    >
+                      <DocsIcon
+                        className="h-3.5 w-3.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>{label}</span>
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        );
+      })()}
 
       {localError && (
         <div
