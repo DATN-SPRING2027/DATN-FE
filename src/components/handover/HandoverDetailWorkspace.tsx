@@ -904,6 +904,11 @@ export default function HandoverDetailWorkspace({
           const transferCount = transferScope?.selectedCount ?? previewTasks.length;
           const transferComplete = Boolean(transferScope && transferCount > 0 && transferScope.verifiedCount === transferCount);
           const previewSources = previewData?.sources ?? [];
+          const sourceTitleMap: Record<string, string> = {};
+          for (const s of previewSources) {
+            sourceTitleMap[`${s.kind}:${s.id}`] = s.title;
+            sourceTitleMap[s.id] = s.title;
+          }
           const previewNotes = previewSources.filter(
             (s) => s.kind === "TASK_NOTE",
           );
@@ -1902,6 +1907,7 @@ export default function HandoverDetailWorkspace({
                               <HandoverQaPanel
                                 projectId={projectId}
                                 handover={handover}
+                                sourceTitles={sourceTitleMap}
                               />
                             </div>
                           </div>
@@ -1934,7 +1940,11 @@ export default function HandoverDetailWorkspace({
               )}
 
               {resolvedTab === "qa" && (
-                <HandoverQaPanel projectId={projectId} handover={handover} />
+                <HandoverQaPanel
+                  projectId={projectId}
+                  handover={handover}
+                  sourceTitles={sourceTitleMap}
+                />
               )}
 
               {resolvedTab === "followups" && (

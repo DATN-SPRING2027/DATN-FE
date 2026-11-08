@@ -6537,7 +6537,14 @@
       "togglePublishedAuditHide": "Hide item-level verification details",
       "toggleItemDetailsShow": "Show full content & source list ({count} citations)",
       "toggleItemDetailsHide": "Collapse full content & source list",
-      "waitingForSuccessorBadge": "Waiting for {successor} to confirm"
+      "waitingForSuccessorBadge": "Waiting for {successor} to confirm",
+      "qaGroundedSummary": "Extracted {count} relevant source(s) from this handover package.",
+      "qaInsufficientSummary": "Insufficient grounded evidence in your readable handover sources.",
+      "qaExpandExcerpt": "Show full excerpt",
+      "qaCollapseExcerpt": "Collapse",
+      "qaOpenSource": "Open source",
+      "qaSectionDefaultTitle": "Extracted passage #{index}",
+      "qaClearHistory": "Clear Q&A history"
     }
   },
   "legalCenter": {

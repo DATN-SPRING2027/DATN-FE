@@ -6537,7 +6537,14 @@
       "togglePublishedAuditHide": "Ẩn chi tiết kiểm duyệt từng hạng mục",
       "toggleItemDetailsShow": "Xem danh sách nguồn & nội dung chi tiết ({count} trích dẫn)",
       "toggleItemDetailsHide": "Thu gọn nội dung & nguồn trích dẫn",
-      "waitingForSuccessorBadge": "Chờ {successor} xác nhận tiếp nhận"
+      "waitingForSuccessorBadge": "Chờ {successor} xác nhận tiếp nhận",
+      "qaGroundedSummary": "Đã trích xuất {count} nguồn tài liệu phù hợp từ gói bàn giao.",
+      "qaInsufficientSummary": "Chưa tìm thấy đoạn trích dẫn đủ căn cứ trong các nguồn tài liệu bạn có quyền xem.",
+      "qaExpandExcerpt": "Xem chi tiết đoạn trích",
+      "qaCollapseExcerpt": "Thu gọn",
+      "qaOpenSource": "Mở tài liệu",
+      "qaSectionDefaultTitle": "Nội dung trích xuất #{index}",
+      "qaClearHistory": "Xóa lịch sử hỏi đáp"
     }
   },
   "legalCenter": {
