@@ -8,11 +8,15 @@ import {
   type ProjectMembership,
 } from "@/lib/queries/projects/useProjectMembers";
 import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders";
+import { ApiError } from "@/lib/api-client";
 import { useCreateHandoverMutation } from "@/lib/queries/handovers/useHandovers";
 import {
   autoBundleHandover,
   formatHandoverEtag,
+  listHandovers,
   previewDepartingMember,
+  setHandoverSuccessor,
+  updateHandoverMetadata,
 } from "@/lib/queries/handovers/handover.service";
 import type {
   DepartingMemberPreviewDto,
@@ -414,6 +418,18 @@ export default function CreateHandoverModal({
       return;
     }
 
+    const selectedSources: SourceRefDto[] = (previewData?.sources ?? [])
+      .filter((src) =>
+        selectedSourceKeys.includes(
+          `${src.kind}:${src.id}:${String(src.version)}`,
+        ),
+      )
+      .map((src) => ({
+        kind: src.kind,
+        id: src.id,
+        version: String(src.version),
+      }));
+
     try {
       const result = await createMutation.mutateAsync({
         title: trimmedTitle,
@@ -431,17 +447,6 @@ export default function CreateHandoverModal({
           const etag =
             result.etag ??
             formatHandoverEtag(createdId, result.data.version ?? 1);
-          const selectedSources: SourceRefDto[] = (previewData?.sources ?? [])
-            .filter((src) =>
-              selectedSourceKeys.includes(
-                `${src.kind}:${src.id}:${String(src.version)}`,
-              ),
-            )
-            .map((src) => ({
-              kind: src.kind,
-              id: src.id,
-              version: String(src.version),
-            }));
           await autoBundleHandover(projectId, createdId, etag, {
             taskIds:
               previewData && selectedTaskIds.length > 0
@@ -465,8 +470,103 @@ export default function CreateHandoverModal({
       setSuccessorUserId("");
       setInvalidField(null);
       onCreated(createdId);
-    } catch {
-      // Mutation error displayed below
+    } catch (err) {
+      const errStatus =
+        err instanceof ApiError
+          ? err.status
+          : (err as { status?: number })?.status;
+      const errCode =
+        err instanceof ApiError ? err.code : (err as { code?: string })?.code;
+
+      if (
+        errStatus === 409 ||
+        errCode === "OPEN_HANDOVER_ALREADY_EXISTS"
+      ) {
+        setIsAutoBundling(true);
+        try {
+          const existingList = await listHandovers(projectId, {
+            limit: 50,
+            status: "OPEN",
+            departingUserId: departingUserId.trim(),
+          });
+          const existing = existingList.data.find(
+            (h) =>
+              h.status === "OPEN" &&
+              h.departingUserId === departingUserId.trim(),
+          );
+          if (existing) {
+            createMutation.reset();
+            let currentEtag = formatHandoverEtag(existing.id, existing.version);
+            try {
+              if (
+                trimmedTitle !== existing.title ||
+                parsedDate.toISOString() !== existing.targetCompletionDate
+              ) {
+                const metaRes = await updateHandoverMetadata(
+                  projectId,
+                  existing.id,
+                  currentEtag,
+                  {
+                    title: trimmedTitle,
+                    targetCompletionDate: parsedDate.toISOString(),
+                  },
+                );
+                currentEtag =
+                  metaRes.etag ??
+                  formatHandoverEtag(existing.id, metaRes.data.version);
+              }
+            } catch {
+              // ignore metadata sync error and continue
+            }
+
+            try {
+              if (cleanSuccessor !== existing.successorUserId) {
+                const succRes = await setHandoverSuccessor(
+                  projectId,
+                  existing.id,
+                  currentEtag,
+                  {
+                    successorUserId: cleanSuccessor,
+                    reason: "Updated from 5-step handover workspace setup",
+                  },
+                );
+                currentEtag =
+                  succRes.etag ??
+                  formatHandoverEtag(existing.id, succRes.data.version);
+              }
+            } catch {
+              // ignore successor sync error and continue
+            }
+
+            try {
+              await autoBundleHandover(projectId, existing.id, currentEtag, {
+                taskIds:
+                  previewData && selectedTaskIds.length > 0
+                    ? selectedTaskIds
+                    : undefined,
+                selectedSources:
+                  previewData && selectedSources.length > 0
+                    ? selectedSources
+                    : undefined,
+              });
+            } catch {
+              // Non-blocking fallback
+            }
+
+            setTitle("");
+            setTitleTouched(false);
+            setDepartingUserId("");
+            setSuccessorUserId("");
+            setInvalidField(null);
+            onCreated(existing.id);
+            return;
+          }
+        } catch {
+          // Fall through to show error message
+        } finally {
+          setIsAutoBundling(false);
+        }
+      }
     }
   };
 
@@ -1052,39 +1152,50 @@ export default function CreateHandoverModal({
         </div>
 
         {/* Sticky Footer Actions */}
-        <div className="sticky bottom-0 z-10 -mx-5 -mb-5 flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-gray-200/90 bg-white/95 px-5 py-3.5 backdrop-blur-xs sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900/95">
-          <p className="hidden items-center gap-1.5 text-xs text-gray-500 sm:inline-flex dark:text-gray-400">
-            <LockIcon
-              className="size-3.5 shrink-0 text-gray-400"
-              aria-hidden="true"
-            />
-            <span>{t5("autoBundleNotice")}</span>
-          </p>
+        <div className="sticky bottom-0 z-10 -mx-5 -mb-5 space-y-2.5 rounded-b-2xl border-t border-gray-200/90 bg-white/95 px-5 py-3.5 backdrop-blur-xs sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900/95">
+          {activeAlertMessage && (
+            <div className="flex items-start gap-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 [overflow-wrap:anywhere] dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+              <AlertIcon
+                className="mt-0.5 size-4 shrink-0 text-error-600 dark:text-error-400"
+                aria-hidden="true"
+              />
+              <span>{activeAlertMessage}</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="hidden items-center gap-1.5 text-xs text-gray-500 sm:inline-flex dark:text-gray-400">
+              <LockIcon
+                className="size-3.5 shrink-0 text-gray-400"
+                aria-hidden="true"
+              />
+              <span>{t5("autoBundleNotice")}</span>
+            </p>
 
-          <div className="ms-auto flex flex-wrap items-center gap-2.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={handleClose}
-              disabled={isSubmitting}
-            >
-              {t("cancel")}
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={isSubmitting}
-            >
-              {addProjectMemberMutation.isPending
-                ? t("submittingAutoAdd")
-                : isAutoBundling
-                  ? t5("autoBundling")
-                  : createMutation.isPending
-                    ? t("submitting")
-                    : t("submit")}
-            </Button>
+            <div className="ms-auto flex flex-wrap items-center gap-2.5">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleClose}
+                disabled={isSubmitting}
+              >
+                {t("cancel")}
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                size="sm"
+                isLoading={isSubmitting}
+              >
+                {addProjectMemberMutation.isPending
+                  ? t("submittingAutoAdd")
+                  : isAutoBundling
+                    ? t5("autoBundling")
+                    : createMutation.isPending
+                      ? t("submitting")
+                      : t("submit")}
+              </Button>
+            </div>
           </div>
         </div>
       </form>
