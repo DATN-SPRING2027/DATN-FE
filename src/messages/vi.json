@@ -4146,6 +4146,8 @@
       "emptySlide": "Trang trình chiếu này không có nội dung văn bản.",
       "emptyText": "Tệp này đang trống.",
       "binaryNotice": "Trình duyệt không hỗ trợ xem trước trực tiếp định dạng tệp nhị phân này. Hãy dùng nút Tải xuống để mở tệp bằng ứng dụng chuyên dụng.",
+      "spreadsheetUnsupportedNotice": "Để bảo vệ an toàn, bản xem trước bảng tính Excel và OpenDocument hiện đã tắt. Hãy tải tệp xuống để mở bằng ứng dụng bảng tính đáng tin cậy.",
+      "spreadsheetTooLargeNotice": "Bản xem trước CSV/TSV giới hạn ở 5 MB, 10.000 dòng, 500 cột và 200.000 ô. Hãy tải tệp gốc xuống để xem.",
       "retryAction": "Thử xem trước lại"
     },
     "agent": {
