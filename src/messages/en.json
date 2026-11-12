@@ -4146,6 +4146,8 @@
       "emptySlide": "No text content on this slide.",
       "emptyText": "This file is empty.",
       "binaryNotice": "Direct browser preview is not available for this binary document format. Use Download to open the file in its native application.",
+      "spreadsheetUnsupportedNotice": "For security, Excel and OpenDocument spreadsheet previews are disabled. Use Download to open the original file in your trusted spreadsheet application.",
+      "spreadsheetTooLargeNotice": "CSV and TSV previews are limited to 5 MB, 10,000 rows, 500 columns, and 200,000 cells. Download the original file to view it.",
       "retryAction": "Retry preview"
     },
     "agent": {

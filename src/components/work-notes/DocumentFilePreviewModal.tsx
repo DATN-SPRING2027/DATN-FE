@@ -20,6 +20,8 @@ import {
 export type PreviewFileMode =
   | "docx"
   | "spreadsheet"
+  | "spreadsheetUnsupported"
+  | "spreadsheetTooLarge"
   | "pptx"
   | "pdf"
   | "image"
@@ -30,6 +32,11 @@ export interface SpreadsheetSheet {
   name: string;
   rows: string[][];
 }
+
+const MAX_SPREADSHEET_PREVIEW_BYTES = 5 * 1024 * 1024;
+const MAX_SPREADSHEET_PREVIEW_ROWS = 10_000;
+const MAX_SPREADSHEET_PREVIEW_COLUMNS = 500;
+const MAX_SPREADSHEET_PREVIEW_CELLS = 200_000;
 
 export interface PptxSlide {
   index: number;
@@ -88,13 +95,24 @@ export function detectPreviewFileMode(
   if (
     lower.endsWith(".xlsx") ||
     lower.endsWith(".xls") ||
-    lower.endsWith(".ods") ||
-    lower.endsWith(".csv") ||
-    lower.endsWith(".tsv") ||
+    lower.endsWith(".ods")
+  ) {
+    return "spreadsheetUnsupported";
+  }
+  if (lower.endsWith(".csv") || lower.endsWith(".tsv")) {
+    return "spreadsheet";
+  }
+  if (
     mime ===
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
     mime === "application/vnd.ms-excel" ||
-    mime === "application/vnd.oasis.opendocument.spreadsheet" ||
+    mime === "application/vnd.oasis.opendocument.spreadsheet"
+  ) {
+    return "spreadsheetUnsupported";
+  }
+  if (
+    lower.endsWith(".csv") ||
+    lower.endsWith(".tsv") ||
     mime === "text/csv" ||
     mime === "text/tab-separated-values"
   ) {
@@ -153,6 +171,69 @@ function getColumnLabel(colIndex: number): string {
     n = Math.floor(n / 26) - 1;
   }
   return label;
+}
+
+function parseDelimitedText(
+  text: string,
+  delimiter: string,
+): string[][] | null {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  let cellCount = 0;
+
+  const finishField = (): boolean => {
+    row.push(field);
+    field = "";
+    cellCount += 1;
+    return (
+      row.length <= MAX_SPREADSHEET_PREVIEW_COLUMNS &&
+      cellCount <= MAX_SPREADSHEET_PREVIEW_CELLS
+    );
+  };
+
+  const finishRow = (): boolean => {
+    rows.push(row);
+    row = [];
+    return rows.length <= MAX_SPREADSHEET_PREVIEW_ROWS;
+  };
+
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+
+    if (inQuotes) {
+      if (character === '"' && text[index + 1] === '"') {
+        field += '"';
+        index += 1;
+      } else if (character === '"') {
+        inQuotes = false;
+      } else {
+        field += character;
+      }
+      continue;
+    }
+
+    if (character === '"' && field.length === 0) {
+      inQuotes = true;
+    } else if (character === delimiter) {
+      if (!finishField()) return null;
+    } else if (character === "\n" || character === "\r") {
+      if (!finishField() || !finishRow()) return null;
+      if (character === "\r" && text[index + 1] === "\n") index += 1;
+    } else {
+      field += character;
+    }
+  }
+
+  if (
+    field.length > 0 ||
+    row.length > 0 ||
+    (text.length > 0 && !/[\r\n]$/.test(text))
+  ) {
+    if (!finishField() || !finishRow()) return null;
+  }
+  return rows;
 }
 
 async function readBlobArrayBuffer(blob: Blob): Promise<ArrayBuffer> {
@@ -268,8 +349,19 @@ export default function DocumentFilePreviewModal({
       return null;
     });
 
-    if (initialMode === "binary") {
-      setResolvedMode("binary");
+    if (
+      initialMode === "spreadsheet" &&
+      typeof fileSize === "number" &&
+      Number.isFinite(fileSize) &&
+      fileSize > MAX_SPREADSHEET_PREVIEW_BYTES
+    ) {
+      setResolvedMode("spreadsheetTooLarge");
+      setLoading(false);
+      return;
+    }
+
+    if (initialMode === "binary" || initialMode === "spreadsheetUnsupported") {
+      setResolvedMode(initialMode);
       setLoading(false);
       return;
     }
@@ -308,6 +400,30 @@ export default function DocumentFilePreviewModal({
         return;
       }
 
+      if (initialMode === "spreadsheet") {
+        if (blob.size > MAX_SPREADSHEET_PREVIEW_BYTES) {
+          setResolvedMode("spreadsheetTooLarge");
+          setLoading(false);
+          return;
+        }
+        const isTsv =
+          fileName.toLowerCase().endsWith(".tsv") ||
+          contentType?.split(";")[0]?.trim().toLowerCase() ===
+            "text/tab-separated-values";
+        const text = await blob.text();
+        const rows = parseDelimitedText(text, isTsv ? "\t" : ",");
+        if (!rows) {
+          setResolvedMode("spreadsheetTooLarge");
+          setLoading(false);
+          return;
+        }
+        setSheets([{ name: isTsv ? "TSV" : "CSV", rows }]);
+        setActiveSheetIdx(0);
+        setResolvedMode("spreadsheet");
+        setLoading(false);
+        return;
+      }
+
       const arrayBuffer = await readBlobArrayBuffer(blob);
 
       if (initialMode === "docx") {
@@ -326,43 +442,6 @@ export default function DocumentFilePreviewModal({
             setResolvedMode("binary");
           }
         }
-        setLoading(false);
-        return;
-      }
-
-      if (initialMode === "spreadsheet") {
-        const XLSX = await import("xlsx");
-        const isCsvOrTsv =
-          fileName.toLowerCase().endsWith(".csv") ||
-          fileName.toLowerCase().endsWith(".tsv");
-        const workbook = isCsvOrTsv
-          ? XLSX.read(new TextDecoder("utf-8").decode(arrayBuffer), {
-              type: "string",
-            })
-          : XLSX.read(arrayBuffer, { type: "array" });
-
-        const parsedSheets: SpreadsheetSheet[] = workbook.SheetNames.map(
-          (sheetName) => {
-            const worksheet = workbook.Sheets[sheetName];
-            const rawRows = XLSX.utils.sheet_to_json<
-              (string | number | boolean | null)[]
-            >(worksheet, {
-              header: 1,
-              defval: "",
-              raw: false,
-            });
-            const normalizedRows = rawRows.map((row) =>
-              Array.isArray(row) ? row.map((cell) => String(cell ?? "")) : [],
-            );
-            return {
-              name: sheetName,
-              rows: normalizedRows,
-            };
-          },
-        );
-        setSheets(parsedSheets);
-        setActiveSheetIdx(0);
-        setResolvedMode("spreadsheet");
         setLoading(false);
         return;
       }
@@ -416,7 +495,7 @@ export default function DocumentFilePreviewModal({
       }
       setLoading(false);
     }
-  }, [contentType, fetchBlob, fileName, isOpen, t]);
+  }, [contentType, fetchBlob, fileName, fileSize, isOpen, t]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -873,7 +952,11 @@ export default function DocumentFilePreviewModal({
                 <DocsIcon className="h-6 w-6" />
               </span>
               <p className="max-w-md text-sm text-gray-600 dark:text-gray-300">
-                {t("binaryNotice")}
+                {resolvedMode === "spreadsheetUnsupported"
+                  ? t("spreadsheetUnsupportedNotice")
+                  : resolvedMode === "spreadsheetTooLarge"
+                    ? t("spreadsheetTooLargeNotice")
+                    : t("binaryNotice")}
               </p>
               {downloadUrl ? (
                 <a
