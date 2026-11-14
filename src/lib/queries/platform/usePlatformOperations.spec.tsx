@@ -14,6 +14,7 @@ import {
   usePlatformUserSessionQuery,
   usePlatformUsersQuery,
   usePlatformServicesQuery,
+  usePlatformAiOperationsQuery,
 } from "./usePlatformOperations";
 
 vi.mock("@/lib/api-client", async (importOriginal) => {
@@ -446,4 +447,130 @@ describe("Platform service liveness contract", () => {
       }
     },
   );
+});
+
+describe("Platform AI operations telemetry contract", () => {
+  const baseAiPayload = {
+    id: "sag",
+    name: "SAG",
+    status: "READY",
+    availability: "AVAILABLE",
+    liveness: "ALIVE",
+    readiness: "READY",
+    dependencies: {
+      database: "AVAILABLE",
+      knowledgeRuntime: "READY",
+      retrieval: "READY",
+      modelProvider: "CONFIGURED",
+      processingJobs: "IDLE",
+      failedProcessingSummary: "HAS_FAILURES",
+    },
+    lastCheckedAt: "2026-11-14T11:22:00.000Z",
+    diagnosticsSummary:
+      "SAG metadata database, knowledge runtime, retrieval store, and operational summary report ready.",
+  };
+
+  it("parses live runtimeProfile, jobSummary, and corpusSummary from SAG telemetry", async () => {
+    mockedApiClient.mockReset();
+    mockedApiClient.mockResolvedValue({
+      ...baseAiPayload,
+      runtimeProfile: {
+        llmConfigured: true,
+        llmProvider: "openai",
+        llmModel: "Qwen/Qwen3-8B",
+        retrievalModel: "Qwen/Qwen3-Embedding-0.6B",
+        vectorStore: "qdrant",
+        parserProvider: "mineru",
+        workerConcurrency: 4,
+      },
+      jobSummary: {
+        queued: 1,
+        running: 2,
+        paused: 0,
+        succeeded: 352,
+        failed: 34,
+      },
+      corpusSummary: {
+        ready: 221,
+        processing: 3,
+        paused: 1,
+        failed: 0,
+      },
+    });
+
+    const { result } = renderHook(() => usePlatformAiOperationsQuery(true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.runtimeProfile).toEqual({
+      llmConfigured: true,
+      llmProvider: "openai",
+      llmModel: "Qwen/Qwen3-8B",
+      retrievalModel: "Qwen/Qwen3-Embedding-0.6B",
+      vectorStore: "qdrant",
+      parserProvider: "mineru",
+      workerConcurrency: 4,
+    });
+    expect(result.current.data?.jobSummary).toEqual({
+      queued: 1,
+      running: 2,
+      paused: 0,
+      succeeded: 352,
+      failed: 34,
+    });
+    expect(result.current.data?.corpusSummary).toEqual({
+      ready: 221,
+      processing: 3,
+      paused: 1,
+      failed: 0,
+    });
+  });
+
+  it("returns null telemetry summaries when omitted instead of fabricating zeroes", async () => {
+    mockedApiClient.mockReset();
+    mockedApiClient.mockResolvedValue(baseAiPayload);
+
+    const { result } = renderHook(() => usePlatformAiOperationsQuery(true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.runtimeProfile).toBeNull();
+    expect(result.current.data?.jobSummary).toBeNull();
+    expect(result.current.data?.corpusSummary).toBeNull();
+  });
+
+  it("scrubs secret-like or URL strings inside runtimeProfile identifiers to null", async () => {
+    mockedApiClient.mockReset();
+    mockedApiClient.mockResolvedValue({
+      ...baseAiPayload,
+      runtimeProfile: {
+        llmConfigured: true,
+        llmProvider: "https://internal.llm/v1",
+        llmModel: "sk-secret-api-key-value",
+        retrievalModel: "bearer token here",
+        vectorStore: "postgres://user:pass@localhost:5432/db",
+        parserProvider: "mineru",
+        workerConcurrency: 2,
+      },
+      jobSummary: null,
+      corpusSummary: null,
+    });
+
+    const { result } = renderHook(() => usePlatformAiOperationsQuery(true), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.runtimeProfile).toEqual({
+      llmConfigured: true,
+      llmProvider: null,
+      llmModel: null,
+      retrievalModel: null,
+      vectorStore: null,
+      parserProvider: "mineru",
+      workerConcurrency: 2,
+    });
+  });
 });

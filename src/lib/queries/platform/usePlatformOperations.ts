@@ -233,6 +233,42 @@ export type PlatformServiceRecord = Readonly<{
   lastCheckedAt: string | null;
   diagnosticsSummary: string;
 }>;
+export type PlatformAiRuntimeProfile = Readonly<{
+  llmConfigured: boolean;
+  llmProvider: string | null;
+  llmModel: string | null;
+  retrievalModel: string | null;
+  vectorStore: string | null;
+  parserProvider: string | null;
+  workerConcurrency: number;
+}>;
+export type PlatformAiJobSummary = Readonly<{
+  queued: number;
+  running: number;
+  paused: number;
+  succeeded: number;
+  failed: number;
+}>;
+export type PlatformAiCorpusSummary = Readonly<{
+  ready: number;
+  processing: number;
+  paused: number;
+  failed: number;
+}>;
+export type PlatformAiOperationsData = Readonly<{
+  id: "sag";
+  name: "SAG";
+  status: string;
+  availability: string;
+  liveness: string;
+  readiness: string;
+  dependencies: Readonly<Record<string, unknown>>;
+  runtimeProfile: PlatformAiRuntimeProfile | null;
+  jobSummary: PlatformAiJobSummary | null;
+  corpusSummary: PlatformAiCorpusSummary | null;
+  lastCheckedAt: string;
+  diagnosticsSummary: string;
+}>;
 export type PlatformQueueRecord = Readonly<{
   id: string;
   status: string;
@@ -1875,8 +1911,79 @@ export function usePlatformJobCommandMutation() {
     onError: (error) => invalidateOnConflict(client, error),
   });
 }
+function safeModelId(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (
+    !trimmed ||
+    trimmed.length > 120 ||
+    /\s/.test(trimmed) ||
+    /:\/\//.test(trimmed) ||
+    /key|secret|token|password|bearer|dsn|uri/i.test(trimmed)
+  )
+    return null;
+  return trimmed;
+}
+
+function safeNonNegativeInteger(value: unknown, minimum = 0): number | null {
+  return typeof value === "number" &&
+    Number.isSafeInteger(value) &&
+    value >= minimum
+    ? value
+    : null;
+}
+
+function safeRuntimeProfile(value: unknown): PlatformAiRuntimeProfile | null {
+  if (!isRecord(value) || typeof value.llmConfigured !== "boolean") return null;
+  const workerConcurrency = safeNonNegativeInteger(value.workerConcurrency, 1);
+  if (workerConcurrency === null) return null;
+  return {
+    llmConfigured: value.llmConfigured,
+    llmProvider: safeModelId(value.llmProvider),
+    llmModel: safeModelId(value.llmModel),
+    retrievalModel: safeModelId(value.retrievalModel),
+    vectorStore: safeModelId(value.vectorStore),
+    parserProvider: safeModelId(value.parserProvider),
+    workerConcurrency,
+  };
+}
+
+function safeJobSummary(value: unknown): PlatformAiJobSummary | null {
+  if (!isRecord(value)) return null;
+  const queued = safeNonNegativeInteger(value.queued);
+  const running = safeNonNegativeInteger(value.running);
+  const paused = safeNonNegativeInteger(value.paused);
+  const succeeded = safeNonNegativeInteger(value.succeeded);
+  const failed = safeNonNegativeInteger(value.failed);
+  if (
+    queued === null ||
+    running === null ||
+    paused === null ||
+    succeeded === null ||
+    failed === null
+  )
+    return null;
+  return { queued, running, paused, succeeded, failed };
+}
+
+function safeCorpusSummary(value: unknown): PlatformAiCorpusSummary | null {
+  if (!isRecord(value)) return null;
+  const ready = safeNonNegativeInteger(value.ready);
+  const processing = safeNonNegativeInteger(value.processing);
+  const paused = safeNonNegativeInteger(value.paused);
+  const failed = safeNonNegativeInteger(value.failed);
+  if (
+    ready === null ||
+    processing === null ||
+    paused === null ||
+    failed === null
+  )
+    return null;
+  return { ready, processing, paused, failed };
+}
+
 export function usePlatformAiOperationsQuery(enabled: boolean) {
-  return useQuery({
+  return useQuery<PlatformAiOperationsData>({
     queryKey: [...platformKeys.all, "ai-operations"],
     queryFn: async () => {
       const service = requireRecord(
@@ -1901,6 +2008,9 @@ export function usePlatformAiOperationsQuery(enabled: boolean) {
         liveness: service.liveness as string,
         readiness: service.readiness as string,
         dependencies: safeDependencyMap(service.dependencies),
+        runtimeProfile: safeRuntimeProfile(service.runtimeProfile),
+        jobSummary: safeJobSummary(service.jobSummary),
+        corpusSummary: safeCorpusSummary(service.corpusSummary),
         lastCheckedAt: requireTimestamp(service.lastCheckedAt),
         diagnosticsSummary: requireText(service.diagnosticsSummary, 300),
       };
