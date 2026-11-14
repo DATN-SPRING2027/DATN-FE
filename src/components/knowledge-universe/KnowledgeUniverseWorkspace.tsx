@@ -41,6 +41,7 @@ import type {
 } from "@/lib/queries/knowledge-universe/knowledge-universe.types";
 import { useActiveOrganizationProjects } from "@/lib/queries/projects/useActiveOrganizationProjects";
 import type { Project } from "@/lib/queries/projects/useProjects";
+import { useClientStateStore } from "@/stores/client-state";
 import { cn } from "@/utils";
 import {
 
@@ -136,6 +137,7 @@ function KnowledgeUniverseContent() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const searchParamsString = searchParams.toString();
 
   const currentUserQuery = useCurrentUserQuery();
   const organizationId = currentUserQuery.data?.organizationId ?? "";
@@ -146,9 +148,16 @@ function KnowledgeUniverseContent() {
   const projects = activeProjectsQuery.projects;
 
   const urlProjectId = searchParams.get("projectId");
-  const [manualProjectId, setManualProjectId] = React.useState<string | null>(
-    null,
+  const rememberedProjectId = useClientStateStore((state) =>
+    organizationId ? (state.selectedProjectByOrg[organizationId] ?? null) : null,
   );
+  const setSelectedProjectForOrg = useClientStateStore(
+    (state) => state.setSelectedProjectForOrg,
+  );
+  const [manualSwitch, setManualSwitch] = React.useState<{
+    projectId: string;
+    fromUrlProjectId: string | null;
+  } | null>(null);
 
   // Sync with AppSidebar project switcher so there is only one project selector in the UI
   React.useEffect(() => {
@@ -157,52 +166,101 @@ function KnowledgeUniverseContent() {
         event as CustomEvent<{ projectId?: string }>
       ).detail?.projectId;
       if (nextId) {
-        setManualProjectId(nextId);
+        setManualSwitch({
+          projectId: nextId,
+          fromUrlProjectId: urlProjectId,
+        });
         setSelected(null);
         setDetail(null);
         setActive(null);
+        setError("");
       }
+    };
+    const onPopState = () => {
+      setManualSwitch(null);
+      setSelected(null);
+      setDetail(null);
+      setActive(null);
     };
     window.addEventListener(
       "continuum:workspace-project-switch",
       onSidebarProjectSwitch,
     );
+    window.addEventListener("popstate", onPopState);
     return () => {
       window.removeEventListener(
         "continuum:workspace-project-switch",
         onSidebarProjectSwitch,
       );
+      window.removeEventListener("popstate", onPopState);
     };
-  }, []);
+  }, [urlProjectId]);
+
+  const manualProjectId =
+    manualSwitch && manualSwitch.fromUrlProjectId === urlProjectId
+      ? manualSwitch.projectId
+      : null;
+
+  const isLoadingMoreProjects =
+    !activeProjectsQuery.isComplete &&
+    (activeProjectsQuery.isLoading ||
+      activeProjectsQuery.hasNextPage ||
+      activeProjectsQuery.isFetchingNextPage);
 
   const selectedProject: Project | null = React.useMemo(() => {
     if (projects.length === 0) return null;
-    if (urlProjectId) {
-      const urlMatch = projects.find((p) => p.id === urlProjectId);
-      if (urlMatch) return urlMatch;
-    }
     if (manualProjectId) {
       const manualMatch = projects.find((p) => p.id === manualProjectId);
       if (manualMatch) return manualMatch;
+      if (isLoadingMoreProjects) return null;
+    }
+    if (urlProjectId) {
+      const urlMatch = projects.find((p) => p.id === urlProjectId);
+      if (urlMatch) return urlMatch;
+      if (isLoadingMoreProjects) return null;
+    }
+    if (rememberedProjectId) {
+      const rememberedMatch = projects.find(
+        (p) => p.id === rememberedProjectId,
+      );
+      if (rememberedMatch) return rememberedMatch;
+      if (isLoadingMoreProjects) return null;
     }
     return projects[0] ?? null;
-  }, [projects, manualProjectId, urlProjectId]);
+  }, [
+    projects,
+    manualProjectId,
+    urlProjectId,
+    rememberedProjectId,
+    isLoadingMoreProjects,
+  ]);
 
   const projectId = selectedProject?.id ?? "";
 
   React.useEffect(() => {
     if (!projectId) return;
+    if (organizationId) {
+      setSelectedProjectForOrg(organizationId, projectId);
+    }
     window.dispatchEvent(
       new CustomEvent("continuum:workspace-project-sync", {
         detail: { projectId },
       }),
     );
     if (urlProjectId !== projectId) {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams(searchParamsString);
       params.set("projectId", projectId);
       router.replace(`${pathname}?${params.toString()}`);
     }
-  }, [projectId, urlProjectId, pathname, router, searchParams]);
+  }, [
+    organizationId,
+    projectId,
+    urlProjectId,
+    pathname,
+    router,
+    searchParamsString,
+    setSelectedProjectForOrg,
+  ]);
 
   useDocumentTitle(
     formatAppTitle(

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AppSidebar, { SIDEBAR_NAV_WATCHDOG_MS } from "./AppSidebar";
 import { isPointInSafeTriangle } from "./SidebarFlyoutMenu";
 import { ApiError } from "@/lib/api-client";
+import { useClientStateStore } from "@/stores/client-state";
 
 const managementAccess = vi.hoisted(() => ({
   allowed: {} as Record<string, boolean>,
@@ -222,6 +223,10 @@ vi.mock("next-intl", () => ({
 
 describe("AppSidebar navigation", () => {
   beforeEach(() => {
+    useClientStateStore.setState({
+      activeProjectId: null,
+      selectedProjectByOrg: {},
+    });
     managementAccess.allowed = {};
     currentUser.error = undefined;
     replace.mockReset();
@@ -574,6 +579,62 @@ describe("AppSidebar navigation", () => {
     );
   });
 
+  it("keeps the user on /knowledge?projectId=<id> and dispatches workspace-project-switch when switching project from /knowledge", () => {
+    routeState.pathname = "/knowledge";
+    const switchListener = vi.fn();
+    window.addEventListener("continuum:workspace-project-switch", switchListener);
+    try {
+      render(<AppSidebar />);
+
+      fireEvent.click(screen.getByRole("button", { name: "Choose project" }));
+      const projectDropdown = screen.getByRole("region", { name: "Projects" });
+      fireEvent.click(
+        within(projectDropdown).getByRole("button", {
+          name: /AI Knowledge Engine/,
+        }),
+      );
+
+      expect(replace).toHaveBeenCalledWith(
+        "/knowledge?projectId=69e923c77859fd1c702d4c99",
+      );
+      expect(switchListener).toHaveBeenCalledTimes(1);
+      expect(
+        (switchListener.mock.calls[0][0] as CustomEvent<{ projectId: string }>)
+          .detail,
+      ).toEqual({ projectId: "69e923c77859fd1c702d4c99" });
+    } finally {
+      window.removeEventListener(
+        "continuum:workspace-project-switch",
+        switchListener,
+      );
+    }
+  });
+
+  it("remembers a project opened via /projects/<id>/* when navigating to organization-level routes like /knowledge or /chat", () => {
+    routeState.pathname = "/projects/69e923c77859fd1c702d4c99/overview";
+    const view = render(<AppSidebar />);
+
+    expect(
+      screen.getByRole("group", { name: "AI Knowledge Engine actions" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Knowledge" })).toHaveAttribute(
+      "href",
+      "/knowledge?projectId=69e923c77859fd1c702d4c99",
+    );
+
+    // Move to /chat (no projectId in pathname): sidebar must retain AI Knowledge Engine
+    routeState.pathname = "/chat";
+    view.rerender(<AppSidebar />);
+
+    expect(
+      screen.getByRole("group", { name: "AI Knowledge Engine actions" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Knowledge" })).toHaveAttribute(
+      "href",
+      "/knowledge?projectId=69e923c77859fd1c702d4c99",
+    );
+  });
+
   it("hides Organization Members and Settings from navigation when the user lacks organization.memberships.read", () => {
     currentUser.data = {
       ...currentUser.data,
@@ -640,7 +701,10 @@ describe("AppSidebar navigation", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
-    expect(screen.getByRole("link", { name: "Knowledge" })).toHaveAttribute("href", "/knowledge");
+    expect(screen.getByRole("link", { name: "Knowledge" })).toHaveAttribute(
+      "href",
+      "/knowledge?projectId=69e923c77859fd1c702d4c21",
+    );
     for (const label of ["Integrations"]) {
       const button = screen.getByRole("button", { name: label });
       expect(button).toBeDisabled();
