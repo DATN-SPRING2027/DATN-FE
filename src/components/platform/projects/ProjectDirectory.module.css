@@ -1,0 +1,55 @@
+.actionsCell {
+  white-space: nowrap;
+  text-align: end;
+  vertical-align: middle;
+}
+
+.rowActions {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.actionButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 5px;
+  height: 28px;
+  padding-block: 0;
+  padding-inline: 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.actionIcon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: block;
+}
+
+.actionLabel {
+  display: inline-grid;
+  align-items: center;
+  text-align: start;
+}
+
+.actionLabel > span,
+.actionLabel::after {
+  grid-area: 1 / 1;
+}
+
+.actionLabel::after {
+  content: attr(data-alt);
+  visibility: hidden;
+  pointer-events: none;
+  user-select: none;
+}

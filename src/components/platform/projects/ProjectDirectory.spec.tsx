@@ -126,12 +126,36 @@ describe("Project directory", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("11–12 of 12")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Lock project Zeta" }));
+    const lockZetaButton = screen.getByRole("button", {
+      name: "Lock project Zeta",
+    });
+    const unlockAlphaButton = screen.getByRole("button", {
+      name: "Unlock project Alpha",
+    });
+    expect(
+      lockZetaButton.querySelector("[data-alt='Unlock']"),
+    ).toBeInTheDocument();
+    expect(
+      unlockAlphaButton.querySelector("[data-alt='Lock']"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(lockZetaButton);
     fireEvent.click(screen.getByRole("button", { name: "Confirm lock" }));
     await waitFor(() =>
       expect(changeProjectMutateAsync).toHaveBeenCalledWith({
         projectId: "project-1",
         status: "ARCHIVED",
+        expectedUpdatedAt: "2026-10-27T00:00:00Z",
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+
+    fireEvent.click(unlockAlphaButton);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm unlock" }));
+    await waitFor(() =>
+      expect(changeProjectMutateAsync).toHaveBeenCalledWith({
+        projectId: "project-2",
+        status: "ACTIVE",
         expectedUpdatedAt: "2026-10-27T00:00:00Z",
         reasonCode: "ACCESS_REVIEW",
       }),

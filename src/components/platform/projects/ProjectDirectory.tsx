@@ -31,6 +31,7 @@ import {
 } from "../PlatformOperationsUi";
 import type { PlatformOperationsViewModel } from "../usePlatformOperationsViewModel";
 import jira from "../ui/jira.module.css";
+import styles from "./ProjectDirectory.module.css";
 
 const PROJECT_ERROR_CODES = new Set([
   "PROJECT_LOCKED",
@@ -445,13 +446,13 @@ export default function ProjectDirectory({
                       {date.format(new Date(project.createdAt))}
                     </time>
                   </TableCell>
-                  <TableCell>
-                    <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                  <TableCell className={styles.actionsCell}>
+                    <div className={styles.rowActions}>
                       <button
                         type="button"
                         onClick={() => setSelectedId(project.id)}
                         aria-label={t("detailsFor", { name: project.name })}
-                        className="rounded px-2 py-1 text-brand-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800"
+                        className={`${styles.actionButton} text-brand-600 hover:bg-gray-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-brand-400 dark:hover:bg-gray-800`}
                       >
                         {t("details")}
                       </button>
@@ -466,27 +467,35 @@ export default function ProjectDirectory({
                           }
                           className={
                             project.status === "ACTIVE"
-                              ? "inline-flex items-center gap-1 rounded px-2 py-1 text-amber-700 hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-amber-300 dark:hover:bg-amber-950/50"
-                              : "inline-flex items-center gap-1 rounded px-2 py-1 text-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-emerald-300 dark:hover:bg-emerald-950/50"
+                              ? `${styles.actionButton} text-amber-700 hover:bg-amber-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-amber-300 dark:hover:bg-amber-950/50`
+                              : `${styles.actionButton} text-emerald-700 hover:bg-emerald-50 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-emerald-300 dark:hover:bg-emerald-950/50`
                           }
                         >
                           {project.status === "ACTIVE" ? (
-                            <>
-                              <LockIcon
-                                aria-hidden="true"
-                                className="h-3.5 w-3.5"
-                              />
-                              <span>{t("lockAction")}</span>
-                            </>
+                            <LockIcon
+                              aria-hidden="true"
+                              className={styles.actionIcon}
+                            />
                           ) : (
-                            <>
-                              <CheckCircleIcon
-                                aria-hidden="true"
-                                className="h-3.5 w-3.5"
-                              />
-                              <span>{t("unlockAction")}</span>
-                            </>
+                            <CheckCircleIcon
+                              aria-hidden="true"
+                              className={styles.actionIcon}
+                            />
                           )}
+                          <span
+                            className={styles.actionLabel}
+                            data-alt={
+                              project.status === "ACTIVE"
+                                ? t("unlockAction")
+                                : t("lockAction")
+                            }
+                          >
+                            <span>
+                              {project.status === "ACTIVE"
+                                ? t("lockAction")
+                                : t("unlockAction")}
+                            </span>
+                          </span>
                         </button>
                       )}
                     </div>
