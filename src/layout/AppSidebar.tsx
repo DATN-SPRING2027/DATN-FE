@@ -38,6 +38,7 @@ import { tr } from "@/i18n/tr";
 import { cn } from "@/utils";
 import { isSidebarPathActive } from "@/utils/sidebar-active";
 import { canReadOrganizationMemberships } from "@/lib/queries/organization-memberships/organization-membership-permissions";
+import { useClientStateStore } from "@/stores/client-state";
 import SidebarAccountFooter from "./SidebarAccountFooter";
 import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
 import SidebarProjectSwitcher from "./SidebarProjectSwitcher";
@@ -102,6 +103,40 @@ function safeClampWidth(width: number): number {
   return Math.min(MAX_WIDTH, Math.max(MIN_WIDTH, Math.round(width)));
 }
 
+function isKnowledgeRoute(pathname: string): boolean {
+  return pathname === "/knowledge" || pathname.startsWith("/knowledge/");
+}
+
+function isInPlaceProjectSwitchRoute(pathname: string): boolean {
+  return (
+    pathname === "/workspace" ||
+    pathname.startsWith("/workspace/") ||
+    isKnowledgeRoute(pathname)
+  );
+}
+
+function hasReachedPendingTarget(
+  targetHref: string,
+  livePathname: string,
+  liveSearch: string,
+): boolean {
+  const expectedPathname = stripQueryAndHash(targetHref);
+  if (livePathname !== expectedPathname) return false;
+  const queryIdx = targetHref.indexOf("?");
+  if (queryIdx === -1) return true;
+  const hashIdx = targetHref.indexOf("#", queryIdx);
+  const rawTargetQuery =
+    hashIdx === -1
+      ? targetHref.slice(queryIdx + 1)
+      : targetHref.slice(queryIdx + 1, hashIdx);
+  const expectedParams = new URLSearchParams(rawTargetQuery);
+  const liveParams = new URLSearchParams(liveSearch);
+  for (const [key, value] of expectedParams.entries()) {
+    if (liveParams.get(key) !== value) return false;
+  }
+  return true;
+}
+
 function resolveProjectSwitchDestination(
   pathname: string,
   nextProjectId: string,
@@ -109,6 +144,9 @@ function resolveProjectSwitchDestination(
   const encodedId = encodeURIComponent(nextProjectId);
   if (pathname === "/workspace" || pathname.startsWith("/workspace/")) {
     return `/workspace?projectId=${encodedId}`;
+  }
+  if (isKnowledgeRoute(pathname)) {
+    return `/knowledge?projectId=${encodedId}`;
   }
   const match = /^\/projects\/([^/]+)(?:\/([^/?#]+))?/.exec(pathname);
   const currentProjectId = match?.[1];
@@ -219,13 +257,13 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     const timerId = window.setTimeout(() => {
       const livePathname =
         typeof window !== "undefined" ? window.location.pathname : pathname;
-      const liveFullHref =
-        typeof window !== "undefined"
-          ? `${window.location.pathname}${window.location.search}`
-          : pathname;
-      const alreadyReachedTarget = targetHasQuery
-        ? liveFullHref === pendingNav.targetHref
-        : livePathname === expectedPathname;
+      const liveSearch =
+        typeof window !== "undefined" ? window.location.search : "";
+      const alreadyReachedTarget = hasReachedPendingTarget(
+        pendingNav.targetHref,
+        livePathname,
+        liveSearch,
+      );
       if (!alreadyReachedTarget && isSafeInternalHref(pendingNav.targetHref)) {
         onHardNavigate(pendingNav.targetHref);
       } else {
@@ -269,18 +307,32 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     );
   }, [organizationId, projectsQuery.data?.data]);
 
-  const [selectedProjectByOrg, setSelectedProjectByOrg] = useState<
-    Record<string, string>
-  >({});
+  const selectedProjectByOrg = useClientStateStore(
+    (state) => state.selectedProjectByOrg,
+  );
+  const setSelectedProjectForOrg = useClientStateStore(
+    (state) => state.setSelectedProjectForOrg,
+  );
+
+  const activeProjectFromPath = useMemo(
+    () =>
+      activeProjectIdFromPath
+        ? (sidebarProjects.find(
+            (project) => project.id === activeProjectIdFromPath,
+          ) ?? null)
+        : null,
+    [activeProjectIdFromPath, sidebarProjects],
+  );
+
+  useEffect(() => {
+    if (organizationId && activeProjectFromPath) {
+      setSelectedProjectForOrg(organizationId, activeProjectFromPath.id);
+    }
+  }, [activeProjectFromPath, organizationId, setSelectedProjectForOrg]);
 
   const activeProject = useMemo<Project | null>(() => {
     if (!organizationId || sidebarProjects.length === 0) return null;
-    if (activeProjectIdFromPath) {
-      const fromPath = sidebarProjects.find(
-        (project) => project.id === activeProjectIdFromPath,
-      );
-      if (fromPath) return fromPath;
-    }
+    if (activeProjectFromPath) return activeProjectFromPath;
     const rememberedId = selectedProjectByOrg[organizationId];
     if (rememberedId) {
       const remembered = sidebarProjects.find(
@@ -290,7 +342,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     }
     return sidebarProjects[0] ?? null;
   }, [
-    activeProjectIdFromPath,
+    activeProjectFromPath,
     organizationId,
     selectedProjectByOrg,
     sidebarProjects,
@@ -392,11 +444,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         event as CustomEvent<{ projectId?: string }>
       ).detail?.projectId;
       if (nextId && organizationId) {
-        setSelectedProjectByOrg((prev) =>
-          prev[organizationId] === nextId
-            ? prev
-            : { ...prev, [organizationId]: nextId },
-        );
+        setSelectedProjectForOrg(organizationId, nextId);
       }
     };
     window.addEventListener(
@@ -409,19 +457,16 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         handleWorkspaceProjectSync,
       );
     };
-  }, [organizationId]);
+  }, [organizationId, setSelectedProjectForOrg]);
 
   const handleSelectProject = useCallback(
     (project: Project) => {
       if (organizationId) {
-        setSelectedProjectByOrg((prev) => ({
-          ...prev,
-          [organizationId]: project.id,
-        }));
+        setSelectedProjectForOrg(organizationId, project.id);
       }
       if (
         typeof window !== "undefined" &&
-        (pathname === "/workspace" || pathname.startsWith("/workspace/"))
+        isInPlaceProjectSwitchRoute(pathname)
       ) {
         window.dispatchEvent(
           new CustomEvent("continuum:workspace-project-switch", {
@@ -449,7 +494,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
         router.replace(destination);
       }
     },
-    [organizationId, pathname, router],
+    [organizationId, pathname, router, setSelectedProjectForOrg],
   );
 
   const handleResizeMouseDown = useCallback(
@@ -889,11 +934,18 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     const isPendingActive = activePendingItemId === itemId && !isItemActive;
     const isHovered = hoveredItemId === itemId && !isVisualActive;
 
+    const resolvedHref =
+      "path" in item
+        ? item.key === "knowledge" && activeProject
+          ? `${item.path}?projectId=${encodeURIComponent(activeProject.id)}`
+          : item.path
+        : undefined;
+
     return (
       <li key={item.key}>
-        {"path" in item ? (
+        {resolvedHref ? (
           <Link
-            href={item.path}
+            href={resolvedHref}
             aria-label={label}
             aria-current={isItemActive ? "page" : undefined}
             aria-busy={isPendingActive ? "true" : undefined}
@@ -906,7 +958,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
             onClick={(event) => {
               handleNavLinkClick(event, {
                 itemId,
-                targetHref: item.path,
+                targetHref: resolvedHref,
                 isCurrentlyActive: isItemActive,
               });
             }}
