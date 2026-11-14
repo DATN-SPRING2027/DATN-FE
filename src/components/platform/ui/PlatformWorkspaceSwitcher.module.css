@@ -1,11 +1,15 @@
 .switcher {
+  position: relative;
+  z-index: 40;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 6px;
-  padding: 0 4px 10px;
+  padding: 0 0 10px;
 }
 
 .selectorWrap {
   position: relative;
+  min-width: 0;
 }
 
 .trigger {
@@ -13,6 +17,7 @@
   align-items: center;
   gap: 9px;
   width: 100%;
+  min-width: 0;
   min-height: 44px;
   padding: 6px 9px;
   border: 1px solid var(--op-line, #dce4ee);
@@ -62,33 +67,6 @@
   height: 15px;
 }
 
-.projectBadge {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border: 1px solid #d5e2f5;
-  border-radius: 6px;
-  background: #ffffff;
-  color: var(--op-muted, #465f86);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 10px;
-  font-weight: 700;
-}
-
-.projectBadgeSelected {
-  border-color: #9ec3ff;
-  background: #e9f2ff;
-  color: #0052cc;
-}
-
-.projectBadge svg {
-  width: 14px;
-  height: 14px;
-}
-
 .triggerText {
   min-width: 0;
   flex: 1;
@@ -123,11 +101,6 @@
   color: var(--op-text, #07194d);
 }
 
-.valueMuted {
-  font-weight: 500;
-  color: var(--op-muted, #465f86);
-}
-
 .countPill {
   flex-shrink: 0;
   padding: 0 5px;
@@ -138,13 +111,6 @@
   line-height: 16px;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
-}
-
-.lockMini {
-  flex-shrink: 0;
-  width: 12px;
-  height: 12px;
-  color: #b45309;
 }
 
 .chevron {
@@ -162,11 +128,11 @@
 
 .popover {
   position: absolute;
-  inset-inline-start: 0;
+  inset-inline-start: -4px;
   top: calc(100% + 6px);
   z-index: 95;
-  width: max(100%, 272px);
-  max-width: min(320px, calc(100vw - 24px));
+  width: max(calc(100% + 4px), 276px);
+  max-width: min(320px, calc(100vw - 20px));
   padding: 8px;
   border: 1px solid var(--op-line, #dce4ee);
   border-radius: 10px;
@@ -279,10 +245,6 @@
   height: 14px;
 }
 
-.optionAvatarCode {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-}
-
 .optionBody {
   min-width: 0;
   flex: 1;
@@ -317,24 +279,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-.lockedTag {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  flex-shrink: 0;
-  padding: 1px 5px;
-  border-radius: 9999px;
-  background: #fef3c7;
-  color: #92400e;
-  font-size: 10px;
-  font-weight: 600;
-}
-
-.lockedTag svg {
-  width: 10px;
-  height: 10px;
-}
-
 .checkIcon {
   flex-shrink: 0;
   width: 15px;
@@ -352,31 +296,6 @@
   font-size: 12px;
   line-height: 18px;
   color: var(--op-muted, #465f86);
-}
-
-.hintCard {
-  display: grid;
-  gap: 8px;
-  padding: 6px;
-  font-size: 12px;
-  line-height: 18px;
-  color: var(--op-muted, #465f86);
-}
-
-.hintAction {
-  justify-self: start;
-  padding: 5px 10px;
-  border: 1px solid #0065ff;
-  border-radius: 6px;
-  background: #0065ff;
-  color: #ffffff;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.hintAction:hover {
-  background: #0052cc;
 }
 
 .retryAction {
@@ -416,18 +335,6 @@
 :global(.dark) .orgBadgeSelected {
   background: #2563eb;
   color: #ffffff;
-}
-
-:global(.dark) .projectBadge {
-  border-color: #34435a;
-  background: #101827;
-  color: #afbed6;
-}
-
-:global(.dark) .projectBadgeSelected {
-  border-color: #3b82f6;
-  background: #183452;
-  color: #8cc0ff;
 }
 
 :global(.dark) .countPill {
@@ -471,19 +378,15 @@
   color: #d6e2f5;
 }
 
-:global(.dark) .lockedTag {
-  background: rgb(245 158 11 / 0.16);
-  color: #fcd34d;
-}
-
 @media (max-width: 700px) {
   .switcher {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     padding: 0 0 8px;
   }
 
   .popover {
+    inset-inline-start: 0;
     width: 100%;
     min-width: 260px;
     max-width: min(360px, calc(100vw - 24px));
@@ -491,10 +394,6 @@
 }
 
 @media (max-width: 480px) {
-  .switcher {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .popover {
     width: 100%;
     max-width: none;

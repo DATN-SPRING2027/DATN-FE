@@ -6,8 +6,6 @@ import { useRouter } from "@/i18n/navigation";
 import {
   CheckCircleIcon,
   ChevronDownIcon,
-  FolderIcon,
-  LockIcon,
   PlatformBuildingIcon,
   SearchIcon,
 } from "@/icons";
@@ -15,12 +13,10 @@ import {
   usePlatformAllOrganizationsQuery,
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
-import { usePlatformAllOrganizationProjectsQuery } from "@/lib/queries/platform/usePlatformOperations";
 import {
   buildPlatformWorkspaceHref,
   syncWorkspaceUrlParams,
   useOrganizationUrlFilter,
-  useProjectUrlFilter,
 } from "./organizationUrlFilter";
 import styles from "./PlatformWorkspaceSwitcher.module.css";
 
@@ -31,11 +27,7 @@ function getOrganizationInitials(name: string): string {
   return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
 }
 
-function getProjectBadgeCode(code: string): string {
-  return code.trim().slice(0, 3).toUpperCase() || "PRJ";
-}
-
-/** Taskbar Organization and Project dropdown switchers under the Workspace group. */
+/** Taskbar Organization dropdown switcher under the Workspace group. */
 export default function PlatformWorkspaceSwitcher({
   activeSection,
   permissions,
@@ -55,31 +47,27 @@ export default function PlatformWorkspaceSwitcher({
   const canReadMemberships = permissions.includes(
     "platform.memberships.membership.read",
   );
+  const canSwitchWorkspace =
+    canReadOrganizations && (canReadProjects || canReadMemberships);
 
-  const selectedOrgId = useOrganizationUrlFilter(
-    canReadProjects || canReadMemberships,
-  );
-  const selectedProjectId = useProjectUrlFilter(
-    canReadProjects || canReadMemberships,
-  );
+  const selectedOrgId = useOrganizationUrlFilter(canSwitchWorkspace);
 
-  const [openMenu, setOpenMenu] = useState<null | "org" | "project">(null);
+  const [isOpen, setIsOpen] = useState(false);
   const [orgSearch, setOrgSearch] = useState("");
-  const [projectSearch, setProjectSearch] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!openMenu) return;
+    if (!isOpen) return;
 
     function handlePointerDown(event: PointerEvent) {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
-        setOpenMenu(null);
+        setIsOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        setOpenMenu(null);
+        setIsOpen(false);
       }
     }
 
@@ -89,32 +77,18 @@ export default function PlatformWorkspaceSwitcher({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [openMenu]);
+  }, [isOpen]);
 
-  const organizationsQuery = usePlatformAllOrganizationsQuery(
-    canReadOrganizations && (canReadProjects || canReadMemberships),
-  );
-  const orgProjectsQuery = usePlatformAllOrganizationProjectsQuery(
-    selectedOrgId,
-    canReadProjects && Boolean(selectedOrgId),
-  );
+  const organizationsQuery = usePlatformAllOrganizationsQuery(canSwitchWorkspace);
 
   const organizations = useMemo(
     () => organizationsQuery.data?.data ?? [],
     [organizationsQuery.data],
   );
-  const orgProjects = useMemo(
-    () => orgProjectsQuery.data?.data ?? [],
-    [orgProjectsQuery.data],
-  );
 
   const selectedOrg = useMemo(
     () => organizations.find((org) => org.id === selectedOrgId),
     [organizations, selectedOrgId],
-  );
-  const selectedProject = useMemo(
-    () => orgProjects.find((project) => project.id === selectedProjectId),
-    [orgProjects, selectedProjectId],
   );
 
   const filteredOrganizations = useMemo(() => {
@@ -127,17 +101,7 @@ export default function PlatformWorkspaceSwitcher({
     );
   }, [organizations, orgSearch]);
 
-  const filteredProjects = useMemo(() => {
-    const query = projectSearch.trim().toLowerCase();
-    if (!query) return orgProjects;
-    return orgProjects.filter(
-      (project) =>
-        project.name.toLowerCase().includes(query) ||
-        project.code.toLowerCase().includes(query),
-    );
-  }, [orgProjects, projectSearch]);
-
-  if (!canReadProjects && !canReadMemberships) return null;
+  if (!canSwitchWorkspace) return null;
 
   function navigateWorkspace(href: string) {
     if ("push" in router && typeof router.push === "function") {
@@ -149,9 +113,8 @@ export default function PlatformWorkspaceSwitcher({
 
   function handleSelectOrganization(organizationId: string) {
     syncWorkspaceUrlParams({ organizationId, projectId: "" });
-    setOpenMenu(null);
+    setIsOpen(false);
     setOrgSearch("");
-    setProjectSearch("");
 
     if (activeSection !== "projects" && activeSection !== "memberships") {
       const targetPath = canReadProjects
@@ -159,24 +122,6 @@ export default function PlatformWorkspaceSwitcher({
         : "/platform/memberships";
       navigateWorkspace(
         buildPlatformWorkspaceHref(targetPath, { organizationId }),
-      );
-    }
-  }
-
-  function handleSelectProject(projectId: string) {
-    syncWorkspaceUrlParams({
-      organizationId: selectedOrgId,
-      projectId,
-    });
-    setOpenMenu(null);
-    setProjectSearch("");
-
-    if (activeSection !== "projects") {
-      navigateWorkspace(
-        buildPlatformWorkspaceHref("/platform/projects", {
-          organizationId: selectedOrgId,
-          projectId,
-        }),
       );
     }
   }
@@ -189,404 +134,172 @@ export default function PlatformWorkspaceSwitcher({
         : selectedOrgId
       : t("workspaceSwitcher.allOrganizations");
 
-  const projectDisplayValue = !selectedOrgId
-    ? t("workspaceSwitcher.selectOrgFirst")
-    : selectedProject
-      ? selectedProject.name
-      : orgProjectsQuery.data
-        ? t("workspaceSwitcher.selectProjectCount", {
-            count: String(orgProjects.length),
-          })
-        : orgProjectsQuery.isPending
-          ? t("workspaceSwitcher.loadingProjects")
-          : t("workspaceSwitcher.selectProject");
-
   return (
     <div ref={rootRef} className={styles.switcher}>
-      {canReadOrganizations && (
-        <div className={styles.selectorWrap}>
-          <button
-            type="button"
-            aria-label={t("workspaceSwitcher.organizationSwitcherLabel")}
-            aria-haspopup="listbox"
-            aria-expanded={openMenu === "org"}
-            onClick={() => {
-              setProjectSearch("");
-              setOpenMenu((prev) => (prev === "org" ? null : "org"));
-            }}
-            className={`${styles.trigger} ${
-              openMenu === "org" ? styles.triggerOpen : ""
+      <div className={styles.selectorWrap}>
+        <button
+          type="button"
+          aria-label={t("workspaceSwitcher.organizationSwitcherLabel")}
+          aria-haspopup="listbox"
+          aria-expanded={isOpen}
+          onClick={() => setIsOpen((prev) => !prev)}
+          className={`${styles.trigger} ${isOpen ? styles.triggerOpen : ""}`}
+        >
+          <span
+            aria-hidden="true"
+            className={`${styles.orgBadge} ${
+              selectedOrg ? styles.orgBadgeSelected : ""
             }`}
           >
-            <span
-              aria-hidden="true"
-              className={`${styles.orgBadge} ${
-                selectedOrg ? styles.orgBadgeSelected : ""
-              }`}
-            >
-              {selectedOrg ? (
-                getOrganizationInitials(selectedOrg.name)
-              ) : (
-                <PlatformBuildingIcon />
+            {selectedOrg ? (
+              getOrganizationInitials(selectedOrg.name)
+            ) : (
+              <PlatformBuildingIcon />
+            )}
+          </span>
+          <span className={styles.triggerText}>
+            <span className={styles.microLabel}>
+              {t("workspaceSwitcher.organizationLabel")}
+            </span>
+            <span className={styles.valueRow}>
+              <span className={styles.valueText}>{orgDisplayValue}</span>
+              {!selectedOrg && organizations.length > 0 && (
+                <span className={styles.countPill}>
+                  {organizations.length}
+                </span>
               )}
             </span>
-            <span className={styles.triggerText}>
-              <span className={styles.microLabel}>
-                {t("workspaceSwitcher.organizationLabel")}
-              </span>
-              <span className={styles.valueRow}>
-                <span className={styles.valueText}>{orgDisplayValue}</span>
-                {!selectedOrg && organizations.length > 0 && (
-                  <span className={styles.countPill}>
-                    {organizations.length}
-                  </span>
-                )}
-              </span>
-            </span>
-            <ChevronDownIcon
-              aria-hidden="true"
-              className={`${styles.chevron} ${
-                openMenu === "org" ? styles.chevronOpen : ""
-              }`}
-            />
-          </button>
+          </span>
+          <ChevronDownIcon
+            aria-hidden="true"
+            className={`${styles.chevron} ${isOpen ? styles.chevronOpen : ""}`}
+          />
+        </button>
 
-          {openMenu === "org" && (
-            <div className={styles.popover}>
-              <div className={styles.popoverHeader}>
-                <span>{t("workspaceSwitcher.organizationListLabel")}</span>
-                {organizations.length > 0 && (
-                  <span className={styles.countPill}>
-                    {organizations.length}
-                  </span>
-                )}
-              </div>
-              <div className={styles.searchWrap}>
-                <SearchIcon aria-hidden="true" className={styles.searchIcon} />
-                <input
-                  type="search"
-                  value={orgSearch}
-                  autoFocus
-                  aria-label={t(
-                    "workspaceSwitcher.searchOrganizationsPlaceholder",
-                  )}
-                  placeholder={t(
-                    "workspaceSwitcher.searchOrganizationsPlaceholder",
-                  )}
-                  onChange={(event) => setOrgSearch(event.target.value)}
-                  className={styles.searchInput}
-                />
-              </div>
-
-              {!orgSearch.trim() && (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => handleSelectOrganization("")}
-                    className={`${styles.optionButton} ${
-                      !selectedOrgId ? styles.optionButtonActive : ""
-                    }`}
-                  >
-                    <span aria-hidden="true" className={styles.optionAvatar}>
-                      <PlatformBuildingIcon />
-                    </span>
-                    <span className={styles.optionBody}>
-                      <span className={styles.optionTitle}>
-                        {t("workspaceSwitcher.allOrganizationsOption")}
-                      </span>
-                    </span>
-                    {!selectedOrgId && (
-                      <CheckCircleIcon
-                        aria-hidden="true"
-                        className={styles.checkIcon}
-                      />
-                    )}
-                  </button>
-                  <div className={styles.divider} />
-                </>
-              )}
-
-              {organizationsQuery.isPending && !organizations.length ? (
-                <p className={styles.emptyState}>
-                  {t("workspaceSwitcher.loadingOrganizations")}
-                </p>
-              ) : organizationsQuery.isError && !organizations.length ? (
-                <div className={styles.emptyState}>
-                  <p>{t("workspaceSwitcher.organizationsLoadError")}</p>
-                  <button
-                    type="button"
-                    onClick={() => void organizationsQuery.refetch()}
-                    className={styles.retryAction}
-                  >
-                    {t("workspaceSwitcher.retry")}
-                  </button>
-                </div>
-              ) : filteredOrganizations.length ? (
-                <ul
-                  role="listbox"
-                  aria-label={t("workspaceSwitcher.organizationListLabel")}
-                  className={styles.optionList}
-                >
-                  {filteredOrganizations.map((org) => {
-                    const isSelected = org.id === selectedOrgId;
-                    return (
-                      <li key={org.id} role="presentation">
-                        <button
-                          type="button"
-                          role="option"
-                          aria-selected={isSelected}
-                          onClick={() => handleSelectOrganization(org.id)}
-                          className={`${styles.optionButton} ${
-                            isSelected ? styles.optionButtonActive : ""
-                          }`}
-                        >
-                          <span
-                            aria-hidden="true"
-                            className={styles.optionAvatar}
-                          >
-                            {getOrganizationInitials(org.name)}
-                          </span>
-                          <span className={styles.optionBody}>
-                            <span className={styles.optionTitleRow}>
-                              <span className={styles.optionTitle}>
-                                {org.name}
-                              </span>
-                            </span>
-                            <span className={styles.optionMeta}>
-                              {org.slug} · {org.plan}
-                            </span>
-                          </span>
-                          {isSelected && (
-                            <CheckCircleIcon
-                              aria-hidden="true"
-                              className={styles.checkIcon}
-                            />
-                          )}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className={styles.emptyState}>
-                  {t("workspaceSwitcher.noOrganizationsMatch")}
-                </p>
+        {isOpen && (
+          <div className={styles.popover}>
+            <div className={styles.popoverHeader}>
+              <span>{t("workspaceSwitcher.organizationListLabel")}</span>
+              {organizations.length > 0 && (
+                <span className={styles.countPill}>
+                  {organizations.length}
+                </span>
               )}
             </div>
-          )}
-        </div>
-      )}
+            <div className={styles.searchWrap}>
+              <SearchIcon aria-hidden="true" className={styles.searchIcon} />
+              <input
+                type="search"
+                value={orgSearch}
+                autoFocus
+                aria-label={t(
+                  "workspaceSwitcher.searchOrganizationsPlaceholder",
+                )}
+                placeholder={t(
+                  "workspaceSwitcher.searchOrganizationsPlaceholder",
+                )}
+                onChange={(event) => setOrgSearch(event.target.value)}
+                className={styles.searchInput}
+              />
+            </div>
 
-      {canReadProjects && (
-        <div className={styles.selectorWrap}>
-          <button
-            type="button"
-            aria-label={t("workspaceSwitcher.projectSwitcherLabel")}
-            aria-haspopup={selectedOrgId ? "listbox" : "dialog"}
-            aria-expanded={openMenu === "project"}
-            onClick={() => {
-              setOrgSearch("");
-              setOpenMenu((prev) => (prev === "project" ? null : "project"));
-            }}
-            className={`${styles.trigger} ${
-              openMenu === "project" ? styles.triggerOpen : ""
-            }`}
-          >
-            <span
-              aria-hidden="true"
-              className={`${styles.projectBadge} ${
-                selectedProject ? styles.projectBadgeSelected : ""
-              }`}
-            >
-              {selectedProject ? (
-                getProjectBadgeCode(selectedProject.code)
-              ) : (
-                <FolderIcon />
-              )}
-            </span>
-            <span className={styles.triggerText}>
-              <span className={styles.microLabel}>
-                {t("workspaceSwitcher.projectLabel")}
-              </span>
-              <span className={styles.valueRow}>
-                <span
-                  className={`${styles.valueText} ${
-                    !selectedOrgId ? styles.valueMuted : ""
+            {!orgSearch.trim() && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleSelectOrganization("")}
+                  className={`${styles.optionButton} ${
+                    !selectedOrgId ? styles.optionButtonActive : ""
                   }`}
                 >
-                  {projectDisplayValue}
-                </span>
-                {selectedProject?.status === "ARCHIVED" && (
-                  <LockIcon aria-hidden="true" className={styles.lockMini} />
-                )}
-              </span>
-            </span>
-            <ChevronDownIcon
-              aria-hidden="true"
-              className={`${styles.chevron} ${
-                openMenu === "project" ? styles.chevronOpen : ""
-              }`}
-            />
-          </button>
-
-          {openMenu === "project" && (
-            <div className={styles.popover}>
-              {!selectedOrgId ? (
-                <div className={styles.hintCard}>
-                  <p>{t("workspaceSwitcher.selectOrgFirstHint")}</p>
-                  {canReadOrganizations && (
-                    <button
-                      type="button"
-                      onClick={() => setOpenMenu("org")}
-                      className={styles.hintAction}
-                    >
-                      {t("workspaceSwitcher.chooseOrgAction")}
-                    </button>
-                  )}
-                </div>
-              ) : (
-                <>
-                  <div className={styles.popoverHeader}>
-                    <span>{t("workspaceSwitcher.projectListLabel")}</span>
-                    {orgProjects.length > 0 && (
-                      <span className={styles.countPill}>
-                        {orgProjects.length}
-                      </span>
-                    )}
-                  </div>
-                  <div className={styles.searchWrap}>
-                    <SearchIcon
+                  <span aria-hidden="true" className={styles.optionAvatar}>
+                    <PlatformBuildingIcon />
+                  </span>
+                  <span className={styles.optionBody}>
+                    <span className={styles.optionTitle}>
+                      {t("workspaceSwitcher.allOrganizationsOption")}
+                    </span>
+                  </span>
+                  {!selectedOrgId && (
+                    <CheckCircleIcon
                       aria-hidden="true"
-                      className={styles.searchIcon}
+                      className={styles.checkIcon}
                     />
-                    <input
-                      type="search"
-                      value={projectSearch}
-                      autoFocus
-                      aria-label={t(
-                        "workspaceSwitcher.searchProjectsPlaceholder",
-                      )}
-                      placeholder={t(
-                        "workspaceSwitcher.searchProjectsPlaceholder",
-                      )}
-                      onChange={(event) => setProjectSearch(event.target.value)}
-                      className={styles.searchInput}
-                    />
-                  </div>
+                  )}
+                </button>
+                <div className={styles.divider} />
+              </>
+            )}
 
-                  {selectedProjectId && !projectSearch.trim() && (
-                    <>
+            {organizationsQuery.isPending && !organizations.length ? (
+              <p className={styles.emptyState}>
+                {t("workspaceSwitcher.loadingOrganizations")}
+              </p>
+            ) : organizationsQuery.isError && !organizations.length ? (
+              <div className={styles.emptyState}>
+                <p>{t("workspaceSwitcher.organizationsLoadError")}</p>
+                <button
+                  type="button"
+                  onClick={() => void organizationsQuery.refetch()}
+                  className={styles.retryAction}
+                >
+                  {t("workspaceSwitcher.retry")}
+                </button>
+              </div>
+            ) : filteredOrganizations.length ? (
+              <ul
+                role="listbox"
+                aria-label={t("workspaceSwitcher.organizationListLabel")}
+                className={styles.optionList}
+              >
+                {filteredOrganizations.map((org) => {
+                  const isSelected = org.id === selectedOrgId;
+                  return (
+                    <li key={org.id} role="presentation">
                       <button
                         type="button"
-                        onClick={() => handleSelectProject("")}
-                        className={styles.optionButton}
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => handleSelectOrganization(org.id)}
+                        className={`${styles.optionButton} ${
+                          isSelected ? styles.optionButtonActive : ""
+                        }`}
                       >
-                        <span aria-hidden="true" className={styles.optionAvatar}>
-                          <FolderIcon />
+                        <span
+                          aria-hidden="true"
+                          className={styles.optionAvatar}
+                        >
+                          {getOrganizationInitials(org.name)}
                         </span>
                         <span className={styles.optionBody}>
-                          <span className={styles.optionTitle}>
-                            {t("workspaceSwitcher.allProjectsInOrg", {
-                              name: selectedOrg?.name ?? selectedOrgId,
-                            })}
+                          <span className={styles.optionTitleRow}>
+                            <span className={styles.optionTitle}>
+                              {org.name}
+                            </span>
+                          </span>
+                          <span className={styles.optionMeta}>
+                            {org.slug} · {org.plan}
                           </span>
                         </span>
+                        {isSelected && (
+                          <CheckCircleIcon
+                            aria-hidden="true"
+                            className={styles.checkIcon}
+                          />
+                        )}
                       </button>
-                      <div className={styles.divider} />
-                    </>
-                  )}
-
-                  {orgProjectsQuery.isPending && !orgProjects.length ? (
-                    <p className={styles.emptyState}>
-                      {t("workspaceSwitcher.loadingProjects")}
-                    </p>
-                  ) : orgProjectsQuery.isError && !orgProjects.length ? (
-                    <div className={styles.emptyState}>
-                      <p>{t("workspaceSwitcher.projectsLoadError")}</p>
-                      <button
-                        type="button"
-                        onClick={() => void orgProjectsQuery.refetch()}
-                        className={styles.retryAction}
-                      >
-                        {t("workspaceSwitcher.retry")}
-                      </button>
-                    </div>
-                  ) : !orgProjects.length ? (
-                    <p className={styles.emptyState}>
-                      {t("workspaceSwitcher.noProjectsInOrg")}
-                    </p>
-                  ) : filteredProjects.length ? (
-                    <ul
-                      role="listbox"
-                      aria-label={t("workspaceSwitcher.projectListLabel")}
-                      className={styles.optionList}
-                    >
-                      {filteredProjects.map((project) => {
-                        const isSelected = project.id === selectedProjectId;
-                        const isLocked = project.status === "ARCHIVED";
-                        return (
-                          <li key={project.id} role="presentation">
-                            <button
-                              type="button"
-                              role="option"
-                              aria-selected={isSelected}
-                              onClick={() => handleSelectProject(project.id)}
-                              className={`${styles.optionButton} ${
-                                isSelected ? styles.optionButtonActive : ""
-                              }`}
-                            >
-                              <span
-                                aria-hidden="true"
-                                className={`${styles.optionAvatar} ${styles.optionAvatarCode}`}
-                              >
-                                {getProjectBadgeCode(project.code)}
-                              </span>
-                              <span className={styles.optionBody}>
-                                <span className={styles.optionTitleRow}>
-                                  <span className={styles.optionTitle}>
-                                    {project.name}
-                                  </span>
-                                  {isLocked && (
-                                    <span className={styles.lockedTag}>
-                                      <LockIcon aria-hidden="true" />
-                                      <span>
-                                        {t("workspaceSwitcher.lockedBadge")}
-                                      </span>
-                                    </span>
-                                  )}
-                                </span>
-                                <span className={styles.optionMeta}>
-                                  <span>{project.code}</span>
-                                  <span>·</span>
-                                  <span>
-                                    {t("workspaceSwitcher.memberCountShort", {
-                                      count: String(project.memberCount),
-                                    })}
-                                  </span>
-                                </span>
-                              </span>
-                              {isSelected && (
-                                <CheckCircleIcon
-                                  aria-hidden="true"
-                                  className={styles.checkIcon}
-                                />
-                              )}
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className={styles.emptyState}>
-                      {t("workspaceSwitcher.noProjectsMatch")}
-                    </p>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className={styles.emptyState}>
+                {t("workspaceSwitcher.noOrganizationsMatch")}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

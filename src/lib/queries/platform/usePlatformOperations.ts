@@ -1342,69 +1342,6 @@ export function usePlatformProjectsQuery(
   });
 }
 
-export function usePlatformAllOrganizationProjectsQuery(
-  organizationId: string,
-  enabled: boolean,
-) {
-  return useQuery({
-    queryKey: [...platformKeys.all, "projects", "organization-all", organizationId],
-    queryFn: async () => {
-      const encodedOrgId = encodeURIComponent(organizationId);
-      const firstPage = parsePage(
-        await platformApiClient<unknown>(
-          `/iam/platform/projects?page=1&pageSize=100&organizationId=${encodedOrgId}`,
-          { cache: "no-store" },
-        ),
-        parseProject,
-      );
-      const totalPages = Math.min(firstPage.pagination.totalPages, 20);
-      const byId = new Map(firstPage.data.map((project) => [project.id, project]));
-
-      if (totalPages > 1) {
-        const pageNumbers = Array.from(
-          { length: totalPages - 1 },
-          (_, index) => index + 2,
-        );
-        const remainingPages = await Promise.all(
-          pageNumbers.map(async (page) =>
-            parsePage(
-              await platformApiClient<unknown>(
-                `/iam/platform/projects?page=${page}&pageSize=100&organizationId=${encodedOrgId}`,
-                { cache: "no-store" },
-              ),
-              parseProject,
-            ),
-          ),
-        );
-        for (const pageResult of remainingPages) {
-          for (const project of pageResult.data) {
-            if (!byId.has(project.id)) byId.set(project.id, project);
-          }
-        }
-      }
-
-      const sorted = Array.from(byId.values()).sort((left, right) =>
-        left.name.localeCompare(right.name, undefined, {
-          numeric: true,
-          sensitivity: "base",
-        }),
-      );
-
-      return {
-        data: sorted,
-        pagination: {
-          page: 1,
-          pageSize: sorted.length || 100,
-          totalItems: Math.max(firstPage.pagination.totalItems, sorted.length),
-          totalPages: 1,
-        },
-      };
-    },
-    enabled: enabled && idPattern.test(organizationId),
-    retry: false,
-    staleTime: 15_000,
-  });
-}
 export function usePlatformProjectQuery(projectId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...platformKeys.all, "project", projectId],

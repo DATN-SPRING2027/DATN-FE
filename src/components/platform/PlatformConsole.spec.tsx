@@ -234,16 +234,6 @@ const { operationHooks, operationState } = vi.hoisted(() => {
     isFetching: false,
     refetch: vi.fn(),
   };
-  const orgProjectsList = {
-    data: {
-      data: [] as unknown[],
-      pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 1 },
-    },
-    isError: false,
-    isPending: false,
-    isFetching: false,
-    refetch: vi.fn(),
-  };
   const state = {
     query,
     usersQuery,
@@ -253,7 +243,6 @@ const { operationHooks, operationState } = vi.hoisted(() => {
     dashboard,
     mutation,
     auditEvents,
-    orgProjectsList,
     auditEventsQuery: vi.fn(),
     operationQuery: vi.fn(),
   };
@@ -277,9 +266,6 @@ const { operationHooks, operationState } = vi.hoisted(() => {
       usePlatformRestoreUserMutation: vi.fn(() => mutation),
       usePlatformRevokeSessionMutation: vi.fn(() => mutation),
       usePlatformProjectsQuery: vi.fn(() => query),
-      usePlatformAllOrganizationProjectsQuery: vi.fn(
-        () => state.orgProjectsList,
-      ),
       usePlatformProjectQuery: vi.fn(() => state.projectDetailQuery),
       usePlatformChangeProjectMetadataMutation: vi.fn(() => mutation),
       usePlatformProjectMembershipsQuery: vi.fn(() => query),
@@ -529,13 +515,6 @@ describe("PlatformConsole", () => {
     operationState.projectDetailQuery.isError = false;
     operationState.projectDetailQuery.isPending = false;
     operationState.projectDetailQuery.refetch.mockReset();
-    operationState.orgProjectsList.data = {
-      data: [],
-      pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 1 },
-    };
-    operationState.orgProjectsList.isError = false;
-    operationState.orgProjectsList.isPending = false;
-    operationState.orgProjectsList.refetch.mockReset();
     operationState.mutation.mutateAsync.mockReset().mockResolvedValue({});
   });
 
@@ -1587,41 +1566,21 @@ describe("PlatformConsole", () => {
     );
   });
 
-  it("selects Organization and Project directly from the taskbar Workspace switchers", () => {
+  it("selects Organization from the taskbar Workspace switcher without rendering a duplicate Project dropdown", () => {
     pathname.value = "/platform/projects";
     session.data.permissions = [
       "platform.organizations.organization.read",
       "platform.projects.project.read",
       "platform.memberships.membership.read",
     ];
-    const coreLedger = {
-      id: "951a2b3c4d5e6f7a8b9c0d41",
-      name: "Core Ledger",
-      code: "CLG",
-      status: "ACTIVE" as const,
-      visibility: "PRIVATE" as const,
-      memberCount: 4,
-      teamCount: 1,
-      teams: [],
-      teamsTruncated: false,
-      createdBy: null,
-      organization: {
-        id: "651a2b3c4d5e6f7a8b9c0d21",
-        name: "North Star",
-        slug: "north-star",
-      },
-      leaders: [],
-      leadersTruncated: false,
-      createdAt: "2026-10-01T00:00:00.000Z",
-      updatedAt: "2026-10-02T00:00:00.000Z",
-    };
-    operationState.orgProjectsList.data = {
-      data: [coreLedger],
-      pagination: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
-    };
-    operationState.projectDetailQuery.data = coreLedger;
 
     render(<PlatformConsole />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "workspaceSwitcher.projectSwitcherLabel",
+      }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
@@ -1636,30 +1595,12 @@ describe("PlatformConsole", () => {
     expect(window.location.search).toContain(
       "organizationId=651a2b3c4d5e6f7a8b9c0d21",
     );
-    expect(
-      operationHooks.usePlatformAllOrganizationProjectsQuery,
-    ).toHaveBeenLastCalledWith("651a2b3c4d5e6f7a8b9c0d21", true);
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "workspaceSwitcher.projectSwitcherLabel",
+    expect(operationHooks.usePlatformProjectsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+        organizationId: "651a2b3c4d5e6f7a8b9c0d21",
       }),
-    );
-    const projectListbox = screen.getByRole("listbox", {
-      name: "workspaceSwitcher.projectListLabel",
-    });
-    fireEvent.click(
-      within(projectListbox).getByRole("option", { name: /Core Ledger/ }),
-    );
-
-    expect(window.location.search).toContain(
-      "organizationId=651a2b3c4d5e6f7a8b9c0d21",
-    );
-    expect(window.location.search).toContain(
-      "projectId=951a2b3c4d5e6f7a8b9c0d41",
-    );
-    expect(operationHooks.usePlatformProjectQuery).toHaveBeenLastCalledWith(
-      "951a2b3c4d5e6f7a8b9c0d41",
       true,
     );
   });
