@@ -443,6 +443,7 @@ export default function PlatformConsole() {
       {/* MEMBERSHIPS ROUTE */}
       {activeSection === "memberships" && (
         <PlatformMembershipDirectory
+          canReadOrganizations={canReadOrganizations}
           canReadMemberships={canReadMemberships}
           canSuspendMemberships={canSuspendMemberships}
           currentUserId={session.data.id}

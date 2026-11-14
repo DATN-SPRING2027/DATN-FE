@@ -947,10 +947,12 @@
   grid-template-columns: 280px minmax(0, 1fr);
 }
 .console .sidebar {
+  position: relative;
+  z-index: 35;
   padding: 18px 12px;
   background: var(--op-surface);
   border-inline-end: 1px solid var(--op-line);
-  overflow-y: auto;
+  overflow: visible;
 }
 .console .sidebar nav {
   display: block;
@@ -1020,15 +1022,26 @@
     grid-template-columns: minmax(0, 1fr);
   }
   .console .sidebar {
-    max-height: 220px;
+    position: relative;
+    z-index: 35;
+    max-height: none;
+    overflow: visible;
     border-inline-end: 0;
     border-bottom: 1px solid var(--op-line);
-    padding: 8px;
+    padding: 10px 12px;
   }
   .console .sidebar nav {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+  .sidebarGroupWorkspace {
+    grid-column: 1 / -1;
+  }
+  .workspaceLinksRow {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
   }
   .sidebarGroup + .sidebarGroup {
     margin-top: 0;

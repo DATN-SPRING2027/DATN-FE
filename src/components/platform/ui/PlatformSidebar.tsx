@@ -17,6 +17,11 @@ import {
   ListIcon,
   TimeIcon,
 } from "@/icons";
+import PlatformWorkspaceSwitcher from "./PlatformWorkspaceSwitcher";
+import {
+  buildPlatformWorkspaceHref,
+  useOrganizationUrlFilter,
+} from "./organizationUrlFilter";
 import styles from "./jira.module.css";
 
 const groups = [
@@ -86,33 +91,64 @@ export default function PlatformSidebar({
       ),
     }))
     .filter((group) => group.items.length > 0);
+  const hasWorkspaceGroup = visibleGroups.some(
+    (group) => group.label === "Workspace",
+  );
+  const selectedOrgId = useOrganizationUrlFilter(hasWorkspaceGroup);
 
   if (visibleGroups.length === 0) return null;
 
   return (
     <aside className={styles.sidebar}>
       <nav aria-label={t("operatorDesign.navigation")}>
-        {visibleGroups.map((group) => (
-          <div key={group.label ?? "primary"} className={styles.sidebarGroup}>
-            {group.label && (
-              <h2 className={styles.sidebarGroupLabel}>{group.label}</h2>
-            )}
-            {group.items.map(({ id, icon: Icon }) => (
+        {visibleGroups.map((group) => {
+          const isWorkspace = group.label === "Workspace";
+          const links = group.items.map(({ id, icon: Icon }) => {
+            const baseHref =
+              id === "dashboard" ? "/platform" : `/platform/${id}`;
+            const href = isWorkspace
+              ? buildPlatformWorkspaceHref(baseHref, {
+                  organizationId: selectedOrgId,
+                })
+              : baseHref;
+            return (
               <Link
                 key={id}
-                href={
-                  (id === "dashboard"
-                    ? "/platform"
-                    : `/platform/${id}`) as never
-                }
+                href={href as never}
                 aria-current={activeSection === id ? "page" : undefined}
               >
                 <Icon aria-hidden="true" />
                 <span>{t(`navigation.${id}`)}</span>
               </Link>
-            ))}
-          </div>
-        ))}
+            );
+          });
+
+          return (
+            <div
+              key={group.label ?? "primary"}
+              className={
+                isWorkspace
+                  ? `${styles.sidebarGroup} ${styles.sidebarGroupWorkspace}`
+                  : styles.sidebarGroup
+              }
+            >
+              {group.label && (
+                <h2 className={styles.sidebarGroupLabel}>{group.label}</h2>
+              )}
+              {isWorkspace && (
+                <PlatformWorkspaceSwitcher
+                  activeSection={activeSection}
+                  permissions={permissions}
+                />
+              )}
+              {isWorkspace ? (
+                <div className={styles.workspaceLinksRow}>{links}</div>
+              ) : (
+                links
+              )}
+            </div>
+          );
+        })}
       </nav>
     </aside>
   );

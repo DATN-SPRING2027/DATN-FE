@@ -3,13 +3,15 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { ApiError } from "@/lib/api-client";
 import {
-  usePlatformOrganizationsQuery,
+  usePlatformAllOrganizationsQuery,
   type PlatformPermission,
 } from "@/lib/queries/platform/usePlatformConsole";
 import {
+  usePlatformAddProjectMemberMutation,
   usePlatformAiOperationsQuery,
   usePlatformArchiveUserMutation,
   usePlatformRestoreUserMutation,
+  usePlatformChangeProjectMemberRoleMutation,
   usePlatformChangeProjectMetadataMutation,
   usePlatformChangeUserStatusMutation,
   usePlatformCreateIncidentMutation,
@@ -20,9 +22,12 @@ import {
   usePlatformIntegrationsQuery,
   usePlatformJobCommandMutation,
   usePlatformJobsQuery,
+  usePlatformProjectMemberCandidatesQuery,
+  usePlatformProjectMembershipsQuery,
   usePlatformProjectQuery,
   usePlatformProjectsQuery,
   usePlatformQueuesQuery,
+  usePlatformRemoveProjectMemberMutation,
   usePlatformRequestTraceQuery,
   usePlatformRevokeSessionMutation,
   usePlatformServicesQuery,
@@ -32,8 +37,15 @@ import {
   usePlatformUserSessionQuery,
   usePlatformUserSessionsQuery,
   usePlatformUsersQuery,
+  type PlatformProjectMemberRoleCode,
 } from "@/lib/queries/platform/usePlatformOperations";
 import type { PlatformOperationsProps } from "./PlatformOperationsTypes";
+import {
+  syncOrganizationUrlParam,
+  syncProjectUrlParam,
+  useOrganizationUrlFilter,
+  useProjectUrlFilter,
+} from "./ui/organizationUrlFilter";
 
 function has(
   permissions: readonly PlatformPermission[],
@@ -45,6 +57,18 @@ function has(
 function operationErrorMessage(error: unknown) {
   if (!(error instanceof ApiError))
     return "The operation could not be confirmed. Refresh the record before trying again.";
+  switch (error.code) {
+    case "PROJECT_LOCKED":
+      return "This project is currently locked. Unlock the project before managing memberships.";
+    case "LAST_PROJECT_LEADER_REQUIRED":
+      return "An active project must retain at least one Project Leader.";
+    case "PROJECT_MEMBER_ALREADY_EXISTS":
+      return "This user is already an active member of the project.";
+    case "PROJECT_MEMBER_ELIGIBILITY_REQUIRED":
+      return "Only active members of the owning organization can join this project.";
+    case "PROJECT_CODE_CONFLICT":
+      return "A project with this code already exists in the organization.";
+  }
   switch (error.status) {
     case 401:
       return "Your Platform session expired. Sign in again to continue.";
@@ -102,13 +126,31 @@ export function usePlatformOperationsViewModel({
   const [page, setPage] = useState(1);
   const [userPageSize, setUserPageSize] = useState(25);
   const [userOrganizationId, setUserOrganizationId] = useState("");
+  const projectOrganizationId = useOrganizationUrlFilter(
+    section === "projects",
+  );
+  const urlProjectId = useProjectUrlFilter(section === "projects");
+  const [projectVisibility, setProjectVisibilityState] = useState<
+    "" | "PUBLIC" | "PRIVATE"
+  >("");
+  const [lastErrorCode, setLastErrorCode] = useState("");
   const canFilterUserOrganizations = has(
     permissions,
     "platform.organizations.organization.read",
   );
-  const filterOrganizations = usePlatformOrganizationsQuery(
-    section === "users" && canReadUsers && canFilterUserOrganizations,
+  const filterOrganizations = usePlatformAllOrganizationsQuery(
+    canFilterUserOrganizations &&
+      ((section === "users" && canReadUsers) ||
+        (section === "projects" && canReadProjects)),
   );
+  function setProjectOrganizationId(nextOrganizationId: string) {
+    setPage(1);
+    syncOrganizationUrlParam(nextOrganizationId);
+  }
+  function setProjectVisibility(nextVisibility: "" | "PUBLIC" | "PRIVATE") {
+    setProjectVisibilityState(nextVisibility);
+    setPage(1);
+  }
   const [organizationPage, setOrganizationPage] = useState(1);
   const [sessionPage, setSessionPage] = useState(1);
   const [incidentHistoryPage, setIncidentHistoryPage] = useState(1);
@@ -120,7 +162,128 @@ export function usePlatformOperationsViewModel({
   function setStatus(nextStatus: string) {
     setStatusBySection((current) => ({ ...current, [section]: nextStatus }));
   }
-  const [selectedId, setSelectedId] = useState("");
+  const [selectedIdState, setSelectedIdState] = useState("");
+  const selectedId = section === "projects" ? urlProjectId : selectedIdState;
+  const [projectMemberScope, setProjectMemberScope] = useState<{
+    projectId: string;
+    page: number;
+    search: string;
+    status: "" | "ACTIVE" | "INACTIVE";
+    role: "" | PlatformProjectMemberRoleCode;
+    candidateSearch: string;
+  }>({
+    projectId: "",
+    page: 1,
+    search: "",
+    status: "",
+    role: "",
+    candidateSearch: "",
+  });
+  const activeMemberScope =
+    projectMemberScope.projectId === selectedId
+      ? projectMemberScope
+      : {
+          projectId: selectedId,
+          page: 1,
+          search: "",
+          status: "" as const,
+          role: "" as const,
+          candidateSearch: "",
+        };
+  const projectMemberPage = activeMemberScope.page;
+  const projectMemberSearch = activeMemberScope.search;
+  const projectMemberStatus = activeMemberScope.status;
+  const projectMemberRole = activeMemberScope.role;
+  const projectCandidateSearch = activeMemberScope.candidateSearch;
+
+  function setProjectMemberPage(nextPage: number) {
+    setProjectMemberScope((current) => {
+      const base =
+        current.projectId === selectedId
+          ? current
+          : {
+              projectId: selectedId,
+              page: 1,
+              search: "",
+              status: "" as const,
+              role: "" as const,
+              candidateSearch: "",
+            };
+      return { ...base, page: nextPage };
+    });
+  }
+  function setProjectMemberSearch(value: string) {
+    setProjectMemberScope((current) => {
+      const base =
+        current.projectId === selectedId
+          ? current
+          : {
+              projectId: selectedId,
+              page: 1,
+              search: "",
+              status: "" as const,
+              role: "" as const,
+              candidateSearch: "",
+            };
+      return { ...base, search: value, page: 1 };
+    });
+  }
+  function setProjectMemberStatus(value: "" | "ACTIVE" | "INACTIVE") {
+    setProjectMemberScope((current) => {
+      const base =
+        current.projectId === selectedId
+          ? current
+          : {
+              projectId: selectedId,
+              page: 1,
+              search: "",
+              status: "" as const,
+              role: "" as const,
+              candidateSearch: "",
+            };
+      return { ...base, status: value, page: 1 };
+    });
+  }
+  function setProjectMemberRole(value: "" | PlatformProjectMemberRoleCode) {
+    setProjectMemberScope((current) => {
+      const base =
+        current.projectId === selectedId
+          ? current
+          : {
+              projectId: selectedId,
+              page: 1,
+              search: "",
+              status: "" as const,
+              role: "" as const,
+              candidateSearch: "",
+            };
+      return { ...base, role: value, page: 1 };
+    });
+  }
+  function setProjectCandidateSearch(value: string) {
+    setProjectMemberScope((current) => {
+      const base =
+        current.projectId === selectedId
+          ? current
+          : {
+              projectId: selectedId,
+              page: 1,
+              search: "",
+              status: "" as const,
+              role: "" as const,
+              candidateSearch: "",
+            };
+      return { ...base, candidateSearch: value };
+    });
+  }
+  function setSelectedId(nextId: string) {
+    setSelectedIdState(nextId);
+    if (section === "projects") {
+      syncProjectUrlParam(nextId);
+      setFormMessage("");
+      setLastErrorCode("");
+    }
+  }
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [requestId, setRequestId] = useState("");
   const [traceId, setTraceId] = useState("");
@@ -197,8 +360,14 @@ export function usePlatformOperationsViewModel({
     {
       page,
       pageSize: 10,
+      organizationId: projectOrganizationId || undefined,
       search: search.trim() || undefined,
-      visibility: status ? (status as "PUBLIC" | "PRIVATE") : undefined,
+      visibility: projectVisibility || undefined,
+      status:
+        section === "projects" &&
+        (status === "ACTIVE" || status === "ARCHIVED")
+          ? status
+          : undefined,
     },
     section === "projects" && canReadProjects,
   );
@@ -207,6 +376,25 @@ export function usePlatformOperationsViewModel({
     section === "projects" && canReadProjects,
   );
   const changeProject = usePlatformChangeProjectMetadataMutation();
+  const projectMembers = usePlatformProjectMembershipsQuery(
+    selectedId,
+    {
+      page: projectMemberPage,
+      pageSize: 10,
+      search: projectMemberSearch.trim() || undefined,
+      status: projectMemberStatus || undefined,
+      roleCode: projectMemberRole || undefined,
+    },
+    section === "projects" && canReadProjects && Boolean(selectedId),
+  );
+  const projectMemberCandidates = usePlatformProjectMemberCandidatesQuery(
+    selectedId,
+    projectCandidateSearch,
+    section === "projects" && canManageProjects && Boolean(selectedId),
+  );
+  const addProjectMember = usePlatformAddProjectMemberMutation();
+  const changeProjectMemberRole = usePlatformChangeProjectMemberRoleMutation();
+  const removeProjectMember = usePlatformRemoveProjectMemberMutation();
   const services = usePlatformServicesQuery(
     section === "services" && canReadServices,
   );
@@ -249,6 +437,7 @@ export function usePlatformOperationsViewModel({
   ): Promise<boolean> {
     event.preventDefault();
     setFormMessage("");
+    setLastErrorCode("");
     try {
       await action();
       setFormMessage(
@@ -257,6 +446,7 @@ export function usePlatformOperationsViewModel({
       setNote("");
       return true;
     } catch (error) {
+      setLastErrorCode(error instanceof ApiError ? (error.code ?? "") : "");
       setFormMessage(operationErrorMessage(error));
       return false;
     }
@@ -265,6 +455,7 @@ export function usePlatformOperationsViewModel({
     action: () => Promise<unknown>,
   ): Promise<boolean> {
     setFormMessage("");
+    setLastErrorCode("");
     try {
       await action();
       setFormMessage(
@@ -273,6 +464,7 @@ export function usePlatformOperationsViewModel({
       setNote("");
       return true;
     } catch (error) {
+      setLastErrorCode(error instanceof ApiError ? (error.code ?? "") : "");
       setFormMessage(operationErrorMessage(error));
       return false;
     }
@@ -306,6 +498,22 @@ export function usePlatformOperationsViewModel({
     setUserPageSize,
     userOrganizationId,
     setUserOrganizationId,
+    projectOrganizationId,
+    setProjectOrganizationId,
+    projectVisibility,
+    setProjectVisibility,
+    projectMemberPage,
+    setProjectMemberPage,
+    projectMemberSearch,
+    setProjectMemberSearch,
+    projectMemberStatus,
+    setProjectMemberStatus,
+    projectMemberRole,
+    setProjectMemberRole,
+    projectCandidateSearch,
+    setProjectCandidateSearch,
+    lastErrorCode,
+    setLastErrorCode,
     canFilterUserOrganizations,
     filterOrganizations,
     organizationPage,
@@ -346,6 +554,11 @@ export function usePlatformOperationsViewModel({
     projects,
     selectedProject,
     changeProject,
+    projectMembers,
+    projectMemberCandidates,
+    addProjectMember,
+    changeProjectMemberRole,
+    removeProjectMember,
     services,
     queues,
     jobs,

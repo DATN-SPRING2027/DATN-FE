@@ -418,6 +418,66 @@ export function usePlatformOrganizationsQuery(
   });
 }
 
+export function usePlatformAllOrganizationsQuery(enabled: boolean) {
+  return useQuery({
+    queryKey: [...platformKeys.all, "organizations", "all"],
+    queryFn: async () => {
+      const firstPage = parsePage(
+        await platformApiClient<unknown>(
+          "/iam/platform/organizations?page=1&pageSize=100",
+          { cache: "no-store" },
+        ),
+        parseOrganization,
+      );
+      const totalPages = Math.min(firstPage.pagination.totalPages, 20);
+      const byId = new Map(firstPage.data.map((org) => [org.id, org]));
+
+      if (totalPages > 1) {
+        const pageNumbers = Array.from(
+          { length: totalPages - 1 },
+          (_, index) => index + 2,
+        );
+        const remainingPages = await Promise.all(
+          pageNumbers.map(async (page) =>
+            parsePage(
+              await platformApiClient<unknown>(
+                `/iam/platform/organizations?page=${page}&pageSize=100`,
+                { cache: "no-store" },
+              ),
+              parseOrganization,
+            ),
+          ),
+        );
+        for (const pageResult of remainingPages) {
+          for (const org of pageResult.data) {
+            if (!byId.has(org.id)) byId.set(org.id, org);
+          }
+        }
+      }
+
+      const sorted = Array.from(byId.values()).sort((left, right) =>
+        left.name.localeCompare(right.name, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        }),
+      );
+
+      return {
+        data: sorted,
+        pagination: {
+          page: 1,
+          pageSize: sorted.length || 100,
+          totalItems: Math.max(firstPage.pagination.totalItems, sorted.length),
+          totalPages: 1,
+        },
+      };
+    },
+    enabled,
+    retry: false,
+    staleTime: 15_000,
+  });
+}
+
 export function usePlatformOrganizationQuery(id: string, enabled: boolean) {
   return useQuery({
     queryKey: platformKeys.organization(id),
