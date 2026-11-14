@@ -6692,6 +6692,8 @@
     "title": "Knowledge Universe",
     "subtitle": "Explore project knowledge regions, semantic units, and cross-document connections in 3D.",
     "sourceNotice": "Displaying document-level source snapshots while the routing tree builds.",
+    "sourceSnapshotBadge": "Source view",
+    "syncingBadge": "Syncing index",
     "navigation": "Knowledge universe navigation",
     "overview": "Overview",
     "browse": "Browse",

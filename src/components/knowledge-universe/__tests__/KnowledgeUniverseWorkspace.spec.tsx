@@ -1,4 +1,4 @@
-import { act, fireEvent, render, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import KnowledgeUniverseWorkspace from "../KnowledgeUniverseWorkspace";
 import { useClientStateStore } from "@/stores/client-state";
@@ -76,8 +76,10 @@ vi.mock("@/i18n/navigation", () => ({
   useRouter: () => routerMock,
 }));
 
+const translate = (key: string) => key;
+
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => translate,
 }));
 
 vi.mock("@/lib/queries/auth/useAuth", () => ({
@@ -130,7 +132,19 @@ describe("KnowledgeUniverseWorkspace project synchronization", () => {
       project_id: projectId,
       trees: [],
     }));
-    clusterMock.mockReset();
+    clusterMock.mockReset().mockImplementation(
+      async (
+        projectId: string,
+        params: { tree_version: string; node_id: string },
+      ) => ({
+        project_id: projectId,
+        tree_version: params.tree_version,
+        node_id: params.node_id,
+        total: 0,
+        units: [],
+        edges: [],
+      }),
+    );
     detailMock.mockReset();
     searchMock.mockReset();
   });
@@ -221,5 +235,67 @@ describe("KnowledgeUniverseWorkspace project synchronization", () => {
         expect.any(AbortSignal),
       );
     });
+  });
+
+  it("does not cover the 3D scene with the centered stale overlay when SAG returns source-snapshot trees while status is stale", async () => {
+    overviewMock.mockResolvedValueOnce({
+      version: null,
+      status: "stale",
+      stale: true,
+      trees: [
+        {
+          project_id: "69e923c77859fd1c702d4c21",
+          tree_version: "source-1234",
+          projection: "source",
+          node_count: 1,
+          unit_count: 14,
+          source_count: 1,
+          nodes: [
+            {
+              id: "node-doc-1",
+              parent_id: null,
+              depth: 0,
+              label: "NHÓM 11 · Xây dựng hệ thống",
+              is_leaf: true,
+              unit_count: 14,
+              source_count: 1,
+              document_count: 1,
+              top_entities: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<KnowledgeUniverseWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("neural-atlas-scene")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("staleTitle")).not.toBeInTheDocument();
+    expect(screen.queryByText("staleHint")).not.toBeInTheDocument();
+    expect(screen.queryByText("openDocuments")).not.toBeInTheDocument();
+    expect(screen.getByText("sourceSnapshotBadge")).toBeInTheDocument();
+    expect(screen.getByLabelText("sourceNotice")).toBeInTheDocument();
+  });
+
+  it("still renders the centered stale empty state when status is stale and no trees are available", async () => {
+    overviewMock.mockResolvedValueOnce({
+      version: null,
+      status: "stale",
+      stale: true,
+      trees: [],
+    });
+
+    render(<KnowledgeUniverseWorkspace />);
+
+    await waitFor(() => {
+      expect(screen.getByText("staleTitle")).toBeInTheDocument();
+    });
+
+    expect(screen.getByText("staleHint")).toBeInTheDocument();
+    expect(screen.getByText("openDocuments")).toBeInTheDocument();
+    expect(screen.queryByTestId("neural-atlas-scene")).not.toBeInTheDocument();
   });
 });

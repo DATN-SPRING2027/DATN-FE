@@ -1324,10 +1324,15 @@ function KnowledgeUniverseContent() {
   }, [selected, clearSelection, navigate, current, active]);
 
   const status = manifest?.status ?? "ready";
-  const empty =
+  const empty = Boolean(manifest) && !loading && trees.length === 0;
+  const isIndexSyncing =
     Boolean(manifest) &&
     !loading &&
-    (trees.length === 0 || status !== "ready");
+    trees.length > 0 &&
+    (sourceProjection ||
+      status === "stale" ||
+      status === "building" ||
+      Boolean(manifest?.stale));
   const fallback = Boolean(sceneFailure);
 
   const visibleUnitList = React.useMemo(
@@ -1843,6 +1848,20 @@ function KnowledgeUniverseContent() {
               {visibleUnitList.length} units
             </span>
           ) : null}
+          {isIndexSyncing && (
+            <span
+              className={styles.syncBadge}
+              role="status"
+              data-universe-sync-badge="true"
+              title={t(sourceProjection ? "sourceNotice" : "staleHint")}
+              aria-label={t(sourceProjection ? "sourceNotice" : "staleHint")}
+            >
+              <span className={styles.syncDot} aria-hidden="true" />
+              <span className="hidden md:inline">
+                {t(sourceProjection ? "sourceSnapshotBadge" : "syncingBadge")}
+              </span>
+            </span>
+          )}
         </nav>
 
         {/* 3D Experience Switcher: Neural Atlas 3D vs Orbital Sphere 3D */}
@@ -1854,18 +1873,22 @@ function KnowledgeUniverseContent() {
           <button
             type="button"
             data-active={viewMode === "atlas"}
+            title={t("atlas.neuralAtlasMode")}
+            aria-label={t("atlas.neuralAtlasMode")}
             onClick={() => setViewMode("atlas")}
           >
             <Brain className="size-3.5" />
-            <span>{t("atlas.neuralAtlasMode")}</span>
+            <span className="hidden lg:inline">{t("atlas.neuralAtlasMode")}</span>
           </button>
           <button
             type="button"
             data-active={viewMode === "orbital"}
+            title={t("atlas.orbitalSphereMode")}
+            aria-label={t("atlas.orbitalSphereMode")}
             onClick={() => setViewMode("orbital")}
           >
             <Globe2 className="size-3.5" />
-            <span>{t("atlas.orbitalSphereMode")}</span>
+            <span className="hidden lg:inline">{t("atlas.orbitalSphereMode")}</span>
           </button>
         </div>
 
@@ -1927,7 +1950,7 @@ function KnowledgeUniverseContent() {
             {t(
               status === "failed"
                 ? "failedTitle"
-                : status === "stale"
+                : status === "stale" || status === "building"
                   ? "staleTitle"
                   : "emptyTitle",
             )}
@@ -1936,7 +1959,7 @@ function KnowledgeUniverseContent() {
             {t(
               status === "failed"
                 ? "failedHint"
-                : status === "stale"
+                : status === "stale" || status === "building"
                   ? "staleHint"
                   : "emptyHint",
             )}
