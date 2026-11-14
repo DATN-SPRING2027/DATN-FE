@@ -20,6 +20,9 @@ const successful = new Set([
   "AVAILABLE",
   "COMPLETED",
   "RESOLVED",
+  "CONFIGURED",
+  "IDLE",
+  "NONE",
 ]);
 const warning = new Set([
   "PENDING",
@@ -34,6 +37,8 @@ const warning = new Set([
   "ACKNOWLEDGED",
   "MEDIUM",
   "HIGH",
+  "UNCONFIGURED",
+  "HAS_FAILURES",
 ]);
 const danger = new Set([
   "SUSPENDED",
@@ -43,6 +48,7 @@ const danger = new Set([
   "CRITICAL",
   "REVOKED",
   "EXPIRED",
+  "UNAVAILABLE",
 ]);
 
 export default function StatusBadge({
