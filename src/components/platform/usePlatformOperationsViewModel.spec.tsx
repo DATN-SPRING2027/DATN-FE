@@ -139,4 +139,32 @@ describe("Platform operations view model filters", () => {
       ),
     );
   });
+
+  it("sends separated organizationId, visibility, and status query params for projects", async () => {
+    window.history.replaceState(null, "", "/platform/projects");
+    const orgId = "651a2b3c4d5e6f7a8b9c0d21";
+    const { result } = renderHook(
+      () =>
+        usePlatformOperationsViewModel({
+          section: "projects",
+          permissions,
+          operatorId: "651a2b3c4d5e6f7a8b9c0d1e",
+        }),
+      { wrapper: createWrapper() },
+    );
+
+    act(() => {
+      result.current.setProjectOrganizationId(orgId);
+      result.current.setProjectVisibility("PRIVATE");
+      result.current.setStatus("ARCHIVED");
+    });
+
+    await waitFor(() =>
+      expect(mockedApiClient).toHaveBeenCalledWith(
+        `/iam/platform/projects?page=1&pageSize=10&organizationId=${orgId}&visibility=PRIVATE&status=ARCHIVED`,
+        expect.objectContaining({ cache: "no-store" }),
+      ),
+    );
+    window.history.replaceState(null, "", "/");
+  });
 });

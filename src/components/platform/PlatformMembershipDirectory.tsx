@@ -12,11 +12,17 @@ import MembershipTable from "./memberships/MembershipTable";
 import { isReadAccessLost, QueryRefreshStatus } from "./PlatformOperationsUi";
 import styles from "./memberships/MembershipDirectory.module.css";
 import {
+  usePlatformAllOrganizationsQuery,
   usePlatformMembershipDirectoryQuery,
   type PlatformMembership,
 } from "@/lib/queries/platform/usePlatformConsole";
+import {
+  syncOrganizationUrlParam,
+  useOrganizationUrlFilter,
+} from "./ui/organizationUrlFilter";
 
 type Props = Readonly<{
+  canReadOrganizations?: boolean;
   canReadMemberships: boolean;
   canSuspendMemberships: boolean;
   currentUserId: string;
@@ -38,8 +44,12 @@ export default function PlatformMembershipDirectory(props: Props) {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<PlatformMembership["status"] | "">("");
+  const organizationId = useOrganizationUrlFilter(true);
+  const organizations = usePlatformAllOrganizationsQuery(
+    Boolean(props.canReadOrganizations) && props.canReadMemberships,
+  );
   // Keep a page scoped to its filters; changing scope cannot reuse the previous page.
-  const scope = JSON.stringify([search, status]);
+  const scope = JSON.stringify([search, status, organizationId]);
   const [pageState, setPageState] = useState({ scope, page: 1 });
   const page = pageState.scope === scope ? pageState.page : 1;
   useEffect(() => {
@@ -47,7 +57,7 @@ export default function PlatformMembershipDirectory(props: Props) {
     return () => clearTimeout(timer);
   }, [searchInput]);
   const memberships = usePlatformMembershipDirectoryQuery(
-    { page, search, status, organizationId: "" },
+    { page, search, status, organizationId },
     props.canReadMemberships,
   );
   const pagination = memberships.data?.pagination;
@@ -123,6 +133,22 @@ export default function PlatformMembershipDirectory(props: Props) {
               onChange={(event) => setSearchInput(event.target.value)}
             />
           </label>
+          {props.canReadOrganizations && (
+            <DirectorySelect
+              aria-label={t("memberships.organizationFilter")}
+              value={organizationId}
+              onChange={(event) => {
+                syncOrganizationUrlParam(event.target.value);
+              }}
+            >
+              <option value="">{t("memberships.allOrganizations")}</option>
+              {(organizations.data?.data ?? []).map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} ({org.slug})
+                </option>
+              ))}
+            </DirectorySelect>
+          )}
           <DirectorySelect
             aria-label={t("memberships.sortBy")}
             value={sort}
@@ -132,6 +158,20 @@ export default function PlatformMembershipDirectory(props: Props) {
             <option value="email">{t("memberships.sortEmail")}</option>
             <option value="updated">{t("memberships.sortUpdated")}</option>
           </DirectorySelect>
+          {(searchInput || status || organizationId) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchInput("");
+                setSearch("");
+                setStatus("");
+                syncOrganizationUrlParam("");
+              }}
+              className="rounded border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:text-gray-200 dark:hover:bg-gray-800"
+            >
+              {t("memberships.clearFilters")}
+            </button>
+          )}
         </div>
       )}
 

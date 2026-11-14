@@ -20,6 +20,10 @@ const sessionStatuses = new Set(["ACTIVE", "REVOKED", "EXPIRED"]);
 const sessionContexts = new Set(["ACCOUNT", "ORGANIZATION", "PLATFORM"]);
 const projectVisibilities = new Set(["PUBLIC", "PRIVATE"]);
 const projectStatuses = new Set(["ACTIVE", "ARCHIVED"]);
+const teamStatuses = new Set(["ACTIVE", "ARCHIVED"]);
+const projectMemberStatuses = new Set(["ACTIVE", "INACTIVE"]);
+const projectMemberRoles = new Set(["TEAM_LEADER", "MEMBER"]);
+const reasonCodes = new Set(["ACCESS_REVIEW", "SECURITY_INCIDENT"]);
 const serviceIds = new Set([
   "iam",
   "capture",
@@ -64,6 +68,9 @@ export const platformAuditActions = [
   "ORGANIZATION_MEMBERSHIP_SUSPENDED",
   "platform.organization.metadata.changed",
   "platform.project.metadata.changed",
+  "platform.project.member.added",
+  "platform.project.member.role_changed",
+  "platform.project.member.removed",
   "platform.incident.created",
   "platform.incident.acknowledged",
   "platform.incident.resolved",
@@ -111,6 +118,18 @@ export type PlatformUserRecord = Readonly<{
     effective: boolean;
   }>[];
 }>;
+export type PlatformProjectCreatorRecord = Readonly<{
+  id: string;
+  email: string;
+  fullName: string;
+}>;
+export type PlatformProjectTeamRecord = Readonly<{
+  id: string;
+  name: string;
+  code: string;
+  status: "ACTIVE" | "ARCHIVED";
+  memberCount: number;
+}>;
 export type PlatformProjectRecord = Readonly<{
   id: string;
   organization: Readonly<{ id: string; name: string; slug: string }>;
@@ -118,12 +137,44 @@ export type PlatformProjectRecord = Readonly<{
   code: string;
   visibility: "PUBLIC" | "PRIVATE";
   status: "ACTIVE" | "ARCHIVED";
+  createdBy: PlatformProjectCreatorRecord | null;
   memberCount: number;
   leaders: readonly Readonly<{ id: string; email: string; fullName: string }>[];
   leadersTruncated: boolean;
+  teamCount: number;
+  teams: readonly PlatformProjectTeamRecord[];
+  teamsTruncated: boolean;
   createdAt: string;
   updatedAt: string;
 }>;
+export type PlatformProjectMemberRoleCode = "TEAM_LEADER" | "MEMBER";
+export type PlatformProjectMemberRecord = Readonly<{
+  id: string;
+  projectId: string;
+  organizationId: string;
+  userId: string;
+  status: "ACTIVE" | "INACTIVE";
+  roleCode: PlatformProjectMemberRoleCode;
+  joinedAt: string | null;
+  user: Readonly<{
+    id: string;
+    email: string;
+    fullName: string;
+    accountStatus: string;
+  }> | null;
+}>;
+export type PlatformProjectMemberCandidateRecord = Readonly<{
+  userId: string;
+  email: string;
+  fullName: string;
+  accountStatus: string;
+}>;
+export type PlatformProjectMemberFilters = PlatformPageFilter &
+  Readonly<{
+    search?: string;
+    status?: "ACTIVE" | "INACTIVE";
+    roleCode?: PlatformProjectMemberRoleCode;
+  }>;
 export type PlatformOrganizationInvitation = Readonly<{
   id: string;
   membershipId?: string | null;
@@ -546,6 +597,39 @@ function parseProject(value: unknown): PlatformProjectRecord {
     row.leaders.length > 100
   )
     throw invalidResponse();
+  if (
+    row.teamsTruncated !== undefined &&
+    typeof row.teamsTruncated !== "boolean"
+  )
+    throw invalidResponse();
+  if (
+    row.teams !== undefined &&
+    (!Array.isArray(row.teams) || row.teams.length > 20)
+  )
+    throw invalidResponse();
+
+  let createdBy: PlatformProjectCreatorRecord | null = null;
+  if (row.createdBy !== undefined && row.createdBy !== null) {
+    const creator = requireRecord(row.createdBy);
+    createdBy = {
+      id: requireId(creator.id),
+      email: requireText(creator.email, 254),
+      fullName: requireText(creator.fullName, 200),
+    };
+  }
+
+  const teams: PlatformProjectTeamRecord[] = (row.teams ?? []).map((item) => {
+    const team = requireRecord(item);
+    if (!teamStatuses.has(String(team.status))) throw invalidResponse();
+    return {
+      id: requireId(team.id),
+      name: requireText(team.name, 200),
+      code: requireText(team.code, 100),
+      status: team.status as PlatformProjectTeamRecord["status"],
+      memberCount: requireInteger(team.memberCount),
+    };
+  });
+
   return {
     id: requireId(row.id),
     organization: {
@@ -557,6 +641,7 @@ function parseProject(value: unknown): PlatformProjectRecord {
     code: requireText(row.code, 100),
     visibility: row.visibility as PlatformProjectRecord["visibility"],
     status: row.status as PlatformProjectRecord["status"],
+    createdBy,
     memberCount: requireInteger(row.memberCount),
     leaders: row.leaders.map((item) => {
       const leader = requireRecord(item);
@@ -567,8 +652,55 @@ function parseProject(value: unknown): PlatformProjectRecord {
       };
     }),
     leadersTruncated: row.leadersTruncated,
+    teamCount:
+      row.teamCount === undefined ? teams.length : requireInteger(row.teamCount),
+    teams,
+    teamsTruncated: row.teamsTruncated ?? false,
     createdAt: requireTimestamp(row.createdAt),
     updatedAt: requireTimestamp(row.updatedAt),
+  };
+}
+function parseProjectMember(value: unknown): PlatformProjectMemberRecord {
+  const row = requireRecord(value);
+  if (
+    !projectMemberStatuses.has(String(row.status)) ||
+    !projectMemberRoles.has(String(row.roleCode))
+  )
+    throw invalidResponse();
+  let joinedAt: string | null = null;
+  if (row.joinedAt !== undefined && row.joinedAt !== null) {
+    joinedAt = requireTimestamp(row.joinedAt);
+  }
+  let user: PlatformProjectMemberRecord["user"] = null;
+  if (row.user !== undefined && row.user !== null) {
+    const profile = requireRecord(row.user);
+    user = {
+      id: requireId(profile.id),
+      email: requireText(profile.email, 254),
+      fullName: requireText(profile.fullName, 200),
+      accountStatus: requireText(profile.accountStatus, 40),
+    };
+  }
+  return {
+    id: requireId(row.id),
+    projectId: requireId(row.projectId),
+    organizationId: requireId(row.organizationId),
+    userId: requireId(row.userId),
+    status: row.status as PlatformProjectMemberRecord["status"],
+    roleCode: row.roleCode as PlatformProjectMemberRoleCode,
+    joinedAt,
+    user,
+  };
+}
+function parseProjectMemberCandidate(
+  value: unknown,
+): PlatformProjectMemberCandidateRecord {
+  const row = requireRecord(value);
+  return {
+    userId: requireId(row.userId),
+    email: requireText(row.email, 254),
+    fullName: requireText(row.fullName, 200),
+    accountStatus: requireText(row.accountStatus, 40),
   };
 }
 function parseOrganization(value: unknown) {
@@ -1209,6 +1341,7 @@ export function usePlatformProjectsQuery(
     retry: false,
   });
 }
+
 export function usePlatformProjectQuery(projectId: string, enabled: boolean) {
   return useQuery({
     queryKey: [...platformKeys.all, "project", projectId],
@@ -1232,6 +1365,7 @@ export function usePlatformChangeProjectMetadataMutation() {
         name?: string;
         code?: string;
         visibility?: "PUBLIC" | "PRIVATE";
+        status?: "ACTIVE" | "ARCHIVED";
         expectedUpdatedAt: string;
         reasonCode: "ACCESS_REVIEW" | "SECURITY_INCIDENT";
       }>,
@@ -1239,7 +1373,11 @@ export function usePlatformChangeProjectMetadataMutation() {
       if (
         !idPattern.test(input.projectId) ||
         !isTimestamp(input.expectedUpdatedAt) ||
-        (!input.name && !input.code && !input.visibility)
+        !reasonCodes.has(input.reasonCode) ||
+        (input.status !== undefined && !projectStatuses.has(input.status)) ||
+        (input.visibility !== undefined &&
+          !projectVisibilities.has(input.visibility)) ||
+        (!input.name && !input.code && !input.visibility && !input.status)
       )
         throw new ApiError(
           422,
@@ -1260,6 +1398,210 @@ export function usePlatformChangeProjectMetadataMutation() {
       );
       if (updated.id !== projectId) throw invalidResponse();
       return updated;
+    },
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
+export function usePlatformProjectMembershipsQuery(
+  projectId: string,
+  filters: PlatformProjectMemberFilters,
+  enabled: boolean,
+) {
+  const query = queryString({
+    ...pageValues(filters),
+    search: filters.search?.trim() || undefined,
+    status: filters.status,
+    roleCode: filters.roleCode,
+  });
+  return useQuery({
+    queryKey: [...platformKeys.all, "project", projectId, "memberships", query],
+    queryFn: async () =>
+      parsePage(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(projectId)}/memberships?${query}`,
+          { cache: "no-store" },
+        ),
+        parseProjectMember,
+      ),
+    enabled: enabled && idPattern.test(projectId),
+    retry: false,
+  });
+}
+
+export function usePlatformProjectMemberCandidatesQuery(
+  projectId: string,
+  search: string,
+  enabled: boolean,
+  limit = 20,
+) {
+  const query = queryString({
+    search: search.trim() || undefined,
+    limit,
+  });
+  return useQuery({
+    queryKey: [
+      ...platformKeys.all,
+      "project",
+      projectId,
+      "member-candidates",
+      query,
+    ],
+    queryFn: async () => {
+      const row = requireRecord(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(projectId)}/member-candidates${query ? `?${query}` : ""}`,
+          { cache: "no-store" },
+        ),
+      );
+      if (!Array.isArray(row.items) || row.items.length > 100)
+        throw invalidResponse();
+      return {
+        items: row.items.map(parseProjectMemberCandidate),
+        total: requireInteger(row.total),
+      };
+    },
+    enabled: enabled && idPattern.test(projectId),
+    retry: false,
+  });
+}
+
+export function usePlatformAddProjectMemberMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        projectId: string;
+        userId: string;
+        roleCode: PlatformProjectMemberRoleCode;
+        reasonCode: "ACCESS_REVIEW" | "SECURITY_INCIDENT";
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.projectId) ||
+        !idPattern.test(input.userId) ||
+        !projectMemberRoles.has(input.roleCode) ||
+        !reasonCodes.has(input.reasonCode)
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid project membership assignment",
+        );
+      const created = parseProjectMember(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(input.projectId)}/memberships`,
+          {
+            method: "POST",
+            headers: mutationHeaders(),
+            body: JSON.stringify({
+              userId: input.userId,
+              roleCode: input.roleCode,
+              reasonCode: input.reasonCode,
+            }),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (
+        created.projectId !== input.projectId ||
+        created.userId !== input.userId
+      )
+        throw invalidResponse();
+      return created;
+    },
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
+export function usePlatformChangeProjectMemberRoleMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        projectId: string;
+        membershipId: string;
+        roleCode: PlatformProjectMemberRoleCode;
+        reasonCode: "ACCESS_REVIEW" | "SECURITY_INCIDENT";
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.projectId) ||
+        !idPattern.test(input.membershipId) ||
+        !projectMemberRoles.has(input.roleCode) ||
+        !reasonCodes.has(input.reasonCode)
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid project membership role update",
+        );
+      const updated = parseProjectMember(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(input.projectId)}/memberships/${encodeURIComponent(input.membershipId)}/role`,
+          {
+            method: "PATCH",
+            headers: mutationHeaders(),
+            body: JSON.stringify({
+              roleCode: input.roleCode,
+              reasonCode: input.reasonCode,
+            }),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (
+        updated.projectId !== input.projectId ||
+        updated.id !== input.membershipId
+      )
+        throw invalidResponse();
+      return updated;
+    },
+    onSuccess: () => invalidateOperations(client),
+    onError: (error) => invalidateOnConflict(client, error),
+  });
+}
+
+export function usePlatformRemoveProjectMemberMutation() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async (
+      input: Readonly<{
+        projectId: string;
+        membershipId: string;
+        reasonCode: "ACCESS_REVIEW" | "SECURITY_INCIDENT";
+      }>,
+    ) => {
+      if (
+        !idPattern.test(input.projectId) ||
+        !idPattern.test(input.membershipId) ||
+        !reasonCodes.has(input.reasonCode)
+      )
+        throw new ApiError(
+          422,
+          "VALIDATION_FAILED",
+          "Invalid project membership removal",
+        );
+      const removed = parseProjectMember(
+        await platformApiClient<unknown>(
+          `/iam/platform/projects/${encodeURIComponent(input.projectId)}/memberships/${encodeURIComponent(input.membershipId)}/remove`,
+          {
+            method: "POST",
+            headers: mutationHeaders(),
+            body: JSON.stringify({ reasonCode: input.reasonCode }),
+            cache: "no-store",
+          },
+        ),
+      );
+      if (
+        removed.projectId !== input.projectId ||
+        removed.id !== input.membershipId ||
+        removed.status !== "INACTIVE"
+      )
+        throw invalidResponse();
+      return removed;
     },
     onSuccess: () => invalidateOperations(client),
     onError: (error) => invalidateOnConflict(client, error),

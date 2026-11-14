@@ -25,6 +25,7 @@ const {
   audit,
   logout,
   organizationListQuery,
+  allOrganizationsListQuery,
   membershipListQuery,
 } = vi.hoisted(() => ({
   routerReplace: vi.fn(),
@@ -141,6 +142,7 @@ const {
   },
   logout: { mutateAsync: vi.fn(), isPending: false },
   organizationListQuery: vi.fn(),
+  allOrganizationsListQuery: vi.fn(),
   membershipListQuery: vi.fn(),
 }));
 
@@ -175,6 +177,13 @@ const { operationHooks, operationState } = vi.hoisted(() => {
     refetch: vi.fn(),
   };
   const userDetailQuery = {
+    data: undefined as unknown,
+    isError: false,
+    isPending: false,
+    isFetching: false,
+    refetch: vi.fn(),
+  };
+  const projectDetailQuery = {
     data: undefined as unknown,
     isError: false,
     isPending: false,
@@ -229,6 +238,7 @@ const { operationHooks, operationState } = vi.hoisted(() => {
     query,
     usersQuery,
     userDetailQuery,
+    projectDetailQuery,
     list,
     dashboard,
     mutation,
@@ -256,8 +266,19 @@ const { operationHooks, operationState } = vi.hoisted(() => {
       usePlatformRestoreUserMutation: vi.fn(() => mutation),
       usePlatformRevokeSessionMutation: vi.fn(() => mutation),
       usePlatformProjectsQuery: vi.fn(() => query),
-      usePlatformProjectQuery: vi.fn(() => query),
+      usePlatformProjectQuery: vi.fn(() => state.projectDetailQuery),
       usePlatformChangeProjectMetadataMutation: vi.fn(() => mutation),
+      usePlatformProjectMembershipsQuery: vi.fn(() => query),
+      usePlatformProjectMemberCandidatesQuery: vi.fn(() => ({
+        data: { items: [], total: 0 },
+        isError: false,
+        isPending: false,
+        isFetching: false,
+        refetch: vi.fn(),
+      })),
+      usePlatformAddProjectMemberMutation: vi.fn(() => mutation),
+      usePlatformChangeProjectMemberRoleMutation: vi.fn(() => mutation),
+      usePlatformRemoveProjectMemberMutation: vi.fn(() => mutation),
       usePlatformServicesQuery: vi.fn(() => list),
       usePlatformQueuesQuery: vi.fn(() => list),
       usePlatformJobsQuery: vi.fn(() => query),
@@ -318,6 +339,10 @@ vi.mock("@/lib/queries/platform/usePlatformConsole", () => ({
   usePlatformLogoutMutation: () => logout,
   usePlatformOrganizationsQuery: (...args: unknown[]) => {
     organizationListQuery(...args);
+    return organizations;
+  },
+  usePlatformAllOrganizationsQuery: (...args: unknown[]) => {
+    allOrganizationsListQuery(...args);
     return organizations;
   },
   usePlatformOrganizationQuery: () => organization,
@@ -426,9 +451,11 @@ describe("PlatformConsole", () => {
       Reflect.deleteProperty(HTMLDialogElement.prototype, "showModal");
     }
     originalDialogShowModal = undefined;
+    window.history.replaceState(null, "", "/");
   });
 
   beforeEach(() => {
+    window.history.replaceState(null, "", "/");
     session.isStale = false;
     session.refetch.mockReset();
     routerReplace.mockReset();
@@ -450,6 +477,7 @@ describe("PlatformConsole", () => {
     organizations.data.pagination.page = 1;
     organizations.data.pagination.totalPages = 1;
     organizationListQuery.mockClear();
+    allOrganizationsListQuery.mockClear();
     organization.isError = false;
     organization.isPending = false;
     memberships.refetch.mockReset();
@@ -483,6 +511,10 @@ describe("PlatformConsole", () => {
     operationState.userDetailQuery.isError = false;
     operationState.userDetailQuery.isPending = false;
     operationState.userDetailQuery.refetch.mockReset();
+    operationState.projectDetailQuery.data = undefined;
+    operationState.projectDetailQuery.isError = false;
+    operationState.projectDetailQuery.isPending = false;
+    operationState.projectDetailQuery.refetch.mockReset();
     operationState.mutation.mutateAsync.mockReset().mockResolvedValue({});
   });
 
@@ -1481,5 +1513,95 @@ describe("PlatformConsole", () => {
     expect(
       screen.queryByRole("button", { name: "refresh" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("filters Projects and Memberships using the Workspace organization dropdown", () => {
+    pathname.value = "/platform/projects";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.projects.project.read",
+      "platform.memberships.membership.read",
+    ];
+    const { rerender } = render(<PlatformConsole />);
+
+    expect(allOrganizationsListQuery).toHaveBeenLastCalledWith(true);
+    const projectOrgSelect = screen.getByRole("combobox", {
+      name: "organizationFilter",
+    });
+    expect(
+      within(projectOrgSelect).getByRole("option", {
+        name: "North Star (north-star)",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.change(projectOrgSelect, {
+      target: { value: "651a2b3c4d5e6f7a8b9c0d21" },
+    });
+    expect(operationHooks.usePlatformProjectsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+        organizationId: "651a2b3c4d5e6f7a8b9c0d21",
+      }),
+      true,
+    );
+    expect(window.location.search).toContain(
+      "organizationId=651a2b3c4d5e6f7a8b9c0d21",
+    );
+
+    pathname.value = "/platform/memberships";
+    rerender(<PlatformConsole />);
+    const membershipOrgSelect = screen.getByRole("combobox", {
+      name: "memberships.organizationFilter",
+    });
+    expect(membershipOrgSelect).toHaveValue("651a2b3c4d5e6f7a8b9c0d21");
+    expect(membershipListQuery).toHaveBeenLastCalledWith(
+      {
+        page: 1,
+        search: "",
+        status: "",
+        organizationId: "651a2b3c4d5e6f7a8b9c0d21",
+      },
+      true,
+    );
+  });
+
+  it("selects Organization from the taskbar Workspace switcher without rendering a duplicate Project dropdown", () => {
+    pathname.value = "/platform/projects";
+    session.data.permissions = [
+      "platform.organizations.organization.read",
+      "platform.projects.project.read",
+      "platform.memberships.membership.read",
+    ];
+
+    render(<PlatformConsole />);
+
+    expect(
+      screen.queryByRole("button", {
+        name: "workspaceSwitcher.projectSwitcherLabel",
+      }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "workspaceSwitcher.organizationSwitcherLabel",
+      }),
+    );
+    const orgListbox = screen.getByRole("listbox", {
+      name: "workspaceSwitcher.organizationListLabel",
+    });
+    fireEvent.click(within(orgListbox).getByRole("option", { name: /North Star/ }));
+
+    expect(window.location.search).toContain(
+      "organizationId=651a2b3c4d5e6f7a8b9c0d21",
+    );
+    expect(operationHooks.usePlatformProjectsQuery).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 1,
+        pageSize: 10,
+        organizationId: "651a2b3c4d5e6f7a8b9c0d21",
+      }),
+      true,
+    );
   });
 });

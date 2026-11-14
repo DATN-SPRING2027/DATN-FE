@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -13,20 +13,65 @@ function setup(error?: ApiError) {
     code: "ZT",
     visibility: "PRIVATE",
     status: "ACTIVE",
+    createdBy: null,
     memberCount: 3,
+    leaders: [],
+    leadersTruncated: false,
+    teamCount: 2,
+    teams: [],
+    teamsTruncated: false,
     organization: { id: "org-1", name: "Acme", slug: "acme" },
     createdAt: "2026-10-26T00:00:00Z",
+    updatedAt: "2026-10-27T00:00:00Z",
   };
+  const changeProjectMutateAsync = vi.fn().mockResolvedValue(project);
   const model = {
     search: "",
     status: "",
+    projectOrganizationId: "",
+    projectVisibility: "",
+    canFilterUserOrganizations: true,
+    canManageProjects: true,
     setSearch: vi.fn(),
     setStatus: vi.fn(),
+    setProjectOrganizationId: vi.fn(),
+    setProjectVisibility: vi.fn(),
     setPage: vi.fn(),
     setSelectedId: vi.fn(),
+    changeProject: {
+      mutateAsync: changeProjectMutateAsync,
+      isPending: false,
+    },
+    runOperation: vi.fn(async (action: () => Promise<unknown>) => {
+      await action();
+      return true;
+    }),
+    filterOrganizations: {
+      data: {
+        data: [
+          {
+            id: "org-1",
+            name: "Acme",
+            slug: "acme",
+            plan: "FREE",
+            createdAt: "2026-10-01T00:00:00.000Z",
+            updatedAt: "2026-10-01T00:00:00.000Z",
+          },
+          {
+            id: "org-2",
+            name: "Beta Corp",
+            slug: "beta",
+            plan: "ENTERPRISE",
+            createdAt: "2026-10-01T00:00:00.000Z",
+            updatedAt: "2026-10-01T00:00:00.000Z",
+          },
+        ],
+        pagination: { page: 1, pageSize: 100, totalItems: 2, totalPages: 1 },
+      },
+    },
     projects: {
       data: {
-        data: [project, { ...project, id: "project-2", name: "Alpha" }],
+        data: [project, { ...project, id: "project-2", name: "Alpha", status: "ARCHIVED" }],
         pagination: { page: 2, pageSize: 10, totalItems: 12, totalPages: 2 },
       },
       isFetching: false,
@@ -42,30 +87,79 @@ function setup(error?: ApiError) {
       <ProjectDirectory model={model} />
     </NextIntlClientProvider>,
   );
-  return model;
+  return { model, changeProjectMutateAsync };
 }
 
 describe("Project directory", () => {
-  it("resets pagination when changing server filters and opens the selected project", () => {
-    const model = setup();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Public" }),
-    );
-    expect(model.setStatus).toHaveBeenCalledWith("PUBLIC");
+  it("supports status tabs, workspace organization dropdown, visibility select, search, and project locking", async () => {
+    const { model, changeProjectMutateAsync } = setup();
+
+    fireEvent.click(screen.getByRole("button", { name: "Locked" }));
+    expect(model.setStatus).toHaveBeenCalledWith("ARCHIVED");
     expect(model.setPage).toHaveBeenCalledWith(1);
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Filter by organization" }),
+      { target: { value: "org-2" } },
+    );
+    expect(model.setProjectOrganizationId).toHaveBeenCalledWith("org-2");
+
+    fireEvent.change(
+      screen.getByRole("combobox", { name: "Project visibility" }),
+      { target: { value: "PUBLIC" } },
+    );
+    expect(model.setProjectVisibility).toHaveBeenCalledWith("PUBLIC");
+
     fireEvent.change(screen.getByRole("searchbox"), {
       target: { value: "ZT" },
     });
     expect(model.setSearch).toHaveBeenCalledWith("ZT");
+
     fireEvent.click(
       screen.getByRole("button", { name: "View details for Zeta" }),
     );
     expect(model.setSelectedId).toHaveBeenCalledWith("project-1");
+
     const rows = screen.getAllByRole("row");
     expect(
       within(rows[1]).getByRole("button", { name: "Alpha" }),
     ).toBeInTheDocument();
     expect(screen.getByText("11–12 of 12")).toBeInTheDocument();
+
+    const lockZetaButton = screen.getByRole("button", {
+      name: "Lock project Zeta",
+    });
+    const unlockAlphaButton = screen.getByRole("button", {
+      name: "Unlock project Alpha",
+    });
+    expect(
+      lockZetaButton.querySelector("[data-alt='Unlock']"),
+    ).toBeInTheDocument();
+    expect(
+      unlockAlphaButton.querySelector("[data-alt='Lock']"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(lockZetaButton);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm lock" }));
+    await waitFor(() =>
+      expect(changeProjectMutateAsync).toHaveBeenCalledWith({
+        projectId: "project-1",
+        status: "ARCHIVED",
+        expectedUpdatedAt: "2026-10-27T00:00:00Z",
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
+
+    fireEvent.click(unlockAlphaButton);
+    fireEvent.click(screen.getByRole("button", { name: "Confirm unlock" }));
+    await waitFor(() =>
+      expect(changeProjectMutateAsync).toHaveBeenCalledWith({
+        projectId: "project-2",
+        status: "ACTIVE",
+        expectedUpdatedAt: "2026-10-27T00:00:00Z",
+        reasonCode: "ACCESS_REVIEW",
+      }),
+    );
   });
 
   it("hides cached projects and pagination after access is revoked", () => {

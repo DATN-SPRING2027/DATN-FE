@@ -1,0 +1,401 @@
+.switcher {
+  position: relative;
+  z-index: 40;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 6px;
+  padding: 0 0 10px;
+}
+
+.selectorWrap {
+  position: relative;
+  min-width: 0;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 6px 9px;
+  border: 1px solid var(--op-line, #dce4ee);
+  border-radius: 8px;
+  background: var(--op-panel, #f8fafc);
+  color: var(--op-text, #07194d);
+  text-align: start;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.trigger:hover {
+  border-color: #b7c8e0;
+  background: #f1f5fb;
+}
+
+.triggerOpen {
+  border-color: var(--op-accent, #0065ff);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px rgb(0 101 255 / 0.14);
+}
+
+.orgBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  background: #e7f2ff;
+  color: #0052cc;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.orgBadgeSelected {
+  background: #0065ff;
+  color: #ffffff;
+}
+
+.orgBadge svg {
+  width: 15px;
+  height: 15px;
+}
+
+.triggerText {
+  min-width: 0;
+  flex: 1;
+}
+
+.microLabel {
+  display: block;
+  font-size: 9.5px;
+  line-height: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--op-muted, #465f86);
+}
+
+.valueRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-top: 1px;
+}
+
+.valueText {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  line-height: 17px;
+  font-weight: 600;
+  color: var(--op-text, #07194d);
+}
+
+.countPill {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 9999px;
+  background: #e7f2ff;
+  color: #0052cc;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.chevron {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  color: var(--op-muted, #465f86);
+  transition: transform 160ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+  color: var(--op-accent, #0065ff);
+}
+
+.popover {
+  position: absolute;
+  inset-inline-start: -4px;
+  top: calc(100% + 6px);
+  z-index: 95;
+  width: max(calc(100% + 4px), 276px);
+  max-width: min(320px, calc(100vw - 20px));
+  padding: 8px;
+  border: 1px solid var(--op-line, #dce4ee);
+  border-radius: 10px;
+  background: var(--op-surface, #ffffff);
+  color: var(--op-text, #07194d);
+  box-shadow:
+    0 14px 32px rgb(7 25 77 / 0.14),
+    0 2px 8px rgb(7 25 77 / 0.06);
+}
+
+.popoverHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 6px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--op-muted, #465f86);
+}
+
+.searchWrap {
+  position: relative;
+  margin-bottom: 6px;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-inline-start: 9px;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  color: var(--op-muted, #465f86);
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 30px;
+  padding-inline: 28px 8px;
+  border: 1px solid var(--op-line, #dce4ee);
+  border-radius: 6px;
+  background: var(--op-panel, #f8fafc);
+  color: var(--op-text, #07194d);
+  font-size: 12px;
+}
+
+.searchInput:focus {
+  outline: none;
+  border-color: var(--op-accent, #0065ff);
+  background: #ffffff;
+}
+
+.optionList {
+  max-height: 236px;
+  overflow-y: auto;
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.optionButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--op-text, #07194d);
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 140ms ease;
+}
+
+.optionButton:hover {
+  background: #f1f5fb;
+}
+
+.optionButtonActive {
+  background: #e9f2ff;
+  color: #0052cc;
+}
+
+.optionButtonActive:hover {
+  background: #dcebff;
+}
+
+.optionAvatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: #eef2f7;
+  color: #344054;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.optionAvatar svg {
+  width: 14px;
+  height: 14px;
+}
+
+.optionBody {
+  min-width: 0;
+  flex: 1;
+}
+
+.optionTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.optionTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  line-height: 16px;
+  font-weight: 600;
+}
+
+.optionMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  line-height: 14px;
+  color: var(--op-muted, #465f86);
+  font-variant-numeric: tabular-nums;
+}
+
+.checkIcon {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  color: #0065ff;
+}
+
+.divider {
+  margin: 4px 0;
+  border-top: 1px solid var(--op-line-subtle, #e9eef5);
+}
+
+.emptyState {
+  padding: 10px 8px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--op-muted, #465f86);
+}
+
+.retryAction {
+  margin-top: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--op-line, #dce4ee);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--op-accent, #0065ff);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+:global(.dark) .trigger {
+  border-color: var(--op-line, #34435a);
+  background: var(--op-panel, #142034);
+  color: var(--op-text, #edf3ff);
+}
+
+:global(.dark) .trigger:hover {
+  border-color: #4f6485;
+  background: #1a2942;
+}
+
+:global(.dark) .triggerOpen {
+  border-color: #72abff;
+  background: #182337;
+  box-shadow: 0 0 0 2px rgb(114 171 255 / 0.18);
+}
+
+:global(.dark) .orgBadge {
+  background: #183452;
+  color: #8cc0ff;
+}
+
+:global(.dark) .orgBadgeSelected {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+:global(.dark) .countPill {
+  background: #183452;
+  color: #a7ceff;
+}
+
+:global(.dark) .popover {
+  border-color: var(--op-line, #34435a);
+  background: #182337;
+  color: #edf3ff;
+  box-shadow: 0 16px 36px rgb(0 0 0 / 0.45);
+}
+
+:global(.dark) .searchInput {
+  border-color: #34435a;
+  background: #101827;
+  color: #edf3ff;
+}
+
+:global(.dark) .searchInput:focus {
+  border-color: #72abff;
+  background: #0d1522;
+}
+
+:global(.dark) .optionButton {
+  color: #edf3ff;
+}
+
+:global(.dark) .optionButton:hover {
+  background: #23334d;
+}
+
+:global(.dark) .optionButtonActive {
+  background: #183452;
+  color: #a7ceff;
+}
+
+:global(.dark) .optionAvatar {
+  background: #23334d;
+  color: #d6e2f5;
+}
+
+@media (max-width: 700px) {
+  .switcher {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    padding: 0 0 8px;
+  }
+
+  .popover {
+    inset-inline-start: 0;
+    width: 100%;
+    min-width: 260px;
+    max-width: min(360px, calc(100vw - 24px));
+  }
+}
+
+@media (max-width: 480px) {
+  .popover {
+    width: 100%;
+    max-width: none;
+  }
+}
