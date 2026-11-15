@@ -73,7 +73,7 @@ export default function WorkNoteComposer({
   projectId,
   taskId = "",
   taskKey,
-  canAutoApprove = true,
+  canAutoApprove = false,
   noteId,
   onClose,
   onSaved,

@@ -170,16 +170,17 @@ const VI_NOTIFICATION_MESSAGE_RULES: ReadonlyArray<{
     format: () => "Bạn đã được nhắc đến trong cuộc trò chuyện",
   },
   {
-    pattern: /^(.+) submitted Task Note "(.+)" \(v(\d+)\) for approval\.$/,
+    pattern: /^(.+) submitted Task Note "([\s\S]+)" \(v(\d+)\) for approval\.$/,
     format: (actor, title, ver) =>
       `${translateActorVi(actor)} đã gửi ghi chú công việc "${title}" (v${ver}) chờ xét duyệt.`,
   },
   {
-    pattern: /^Reviewer feedback on "(.+)": ([\s\S]+)$/,
+    pattern: /^Reviewer feedback on "([\s\S]+?)": ([\s\S]+)$/,
     format: (title, comment) => `Phản hồi xét duyệt cho "${title}": ${comment}`,
   },
   {
-    pattern: /^Your Task Note "(.+)" was (approved|changes requested|rejected)\.$/i,
+    pattern:
+      /^Your Task Note "([\s\S]+)" was (approved|changes requested|rejected)\.$/i,
     format: (title, outcome) =>
       `Ghi chú công việc "${title}" của bạn ${translateReviewOutcomeVi(outcome)}.`,
   },

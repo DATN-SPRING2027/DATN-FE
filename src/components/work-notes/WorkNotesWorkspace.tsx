@@ -1610,7 +1610,7 @@ export default function WorkNotesWorkspace({
     "h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-2 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-36 sm:px-6 lg:px-8">
       <WorkNotesPageHeader projectId={projectId} active="tasks" />
 
       {unavailableDeepLink && (

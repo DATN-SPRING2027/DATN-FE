@@ -191,9 +191,7 @@ export async function ensureProjectMemberBeforeHandover(input: {
 }
 
 function resolveDateLocale(locale?: string): string {
-  const active =
-    locale ||
-    (typeof document !== "undefined" ? document.documentElement.lang : "");
+  const active = locale ?? "";
   return active === "vi" || active.startsWith("vi-") ? "vi-VN" : "en-US";
 }
 
@@ -320,20 +318,20 @@ export function formatHandoverTaskStatus(
   status: string,
   locale?: string,
 ): string {
-  if (resolveDateLocale(locale) !== "vi-VN") return status;
+  const isVi = resolveDateLocale(locale) === "vi-VN";
   switch (status.trim().toUpperCase()) {
     case "TODO":
-      return "Cần làm";
+      return isVi ? "Cần làm" : "To do";
     case "IN_PROGRESS":
-      return "Đang thực hiện";
+      return isVi ? "Đang thực hiện" : "In progress";
     case "IN_REVIEW":
-      return "Đang xét duyệt";
+      return isVi ? "Đang xét duyệt" : "In review";
     case "DONE":
-      return "Hoàn thành";
+      return isVi ? "Hoàn thành" : "Done";
     case "BLOCKED":
-      return "Bị chặn";
+      return isVi ? "Bị chặn" : "Blocked";
     case "CANCELLED":
-      return "Đã hủy";
+      return isVi ? "Đã hủy" : "Cancelled";
     default:
       return status;
   }
@@ -343,17 +341,17 @@ export function formatHandoverTaskPriority(
   priority: string,
   locale?: string,
 ): string {
-  if (resolveDateLocale(locale) !== "vi-VN") return priority;
+  const isVi = resolveDateLocale(locale) === "vi-VN";
   switch (priority.trim().toUpperCase()) {
     case "LOW":
-      return "Thấp";
+      return isVi ? "Thấp" : "Low";
     case "MEDIUM":
-      return "Trung bình";
+      return isVi ? "Trung bình" : "Medium";
     case "HIGH":
-      return "Cao";
+      return isVi ? "Cao" : "High";
     case "URGENT":
     case "CRITICAL":
-      return "Khẩn cấp";
+      return isVi ? "Khẩn cấp" : "Urgent";
     default:
       return priority;
   }

@@ -107,6 +107,8 @@ export default function CreateOrganizationDialog(
               onChange={(event) => {
                 p.setLookupEmail(event.target.value);
                 p.setSelectedUser(null);
+                setLookupFailed(false);
+                setFailed(false);
               }}
             />
             <Button

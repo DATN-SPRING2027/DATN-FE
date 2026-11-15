@@ -23,8 +23,15 @@ function subscribeReducedMotion(onStoreChange: () => void): () => void {
     return () => {};
   }
   const mql = window.matchMedia(REDUCED_MOTION_QUERY);
-  mql.addEventListener("change", onStoreChange);
-  return () => mql.removeEventListener("change", onStoreChange);
+  if (typeof mql?.addEventListener === "function") {
+    mql.addEventListener("change", onStoreChange);
+    return () => mql.removeEventListener("change", onStoreChange);
+  }
+  if (typeof mql?.addListener === "function") {
+    mql.addListener(onStoreChange);
+    return () => mql.removeListener(onStoreChange);
+  }
+  return () => {};
 }
 
 function getReducedMotionSnapshot(): boolean {

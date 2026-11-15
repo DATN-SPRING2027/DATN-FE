@@ -121,11 +121,10 @@ it("keeps freeform canonical v2 Report content without wiping document links and
 
   fireEvent.click(screen.getByRole("button", { name: "Edit report" }));
   expect(
-    screen.queryByRole("textbox", { name: /Title/i }),
+    screen.queryByRole("button", { name: "Edit text with Agent" }),
   ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "Save draft" }),
-  ).not.toBeInTheDocument();
+  expect(screen.getByLabelText(/Title/i)).toHaveValue("Investigation");
+  expect(screen.getByRole("button", { name: "Save draft" })).toBeVisible();
 
   // First submit rejects -> alert error is surfaced and editor stays open
   fireEvent.click(screen.getByRole("button", { name: "Submit report" }));

@@ -6,9 +6,19 @@ import styles from "../ui/platformCharts.module.css";
 const VI_SNAPSHOT_LABELS: Record<string, string> = {
   total: "Tổng số",
   active: "Đang hoạt động",
-  pending: "Chờ xác minh",
+  pending: "Chờ chấp nhận lời mời",
+  pendingInvite: "Chờ chấp nhận lời mời",
   suspended: "Đã tạm ngưng",
   removed: "Đã gỡ",
+};
+
+const EN_SNAPSHOT_LABELS: Record<string, string> = {
+  total: "Total",
+  active: "Active",
+  pending: "Pending invitation",
+  pendingInvite: "Pending invitation",
+  suspended: "Suspended",
+  removed: "Removed",
 };
 
 export default function RevenueCostsCard({
@@ -25,7 +35,11 @@ export default function RevenueCostsCard({
       <dl className="sr-only" aria-label={t("liveDashboard.snapshot")}>
         {Object.entries(data).map(([key, value]) => (
           <div key={key}>
-            <dt>{isVi ? (VI_SNAPSHOT_LABELS[key] ?? key) : key}</dt>
+            <dt>
+              {isVi
+                ? (VI_SNAPSHOT_LABELS[key] ?? key)
+                : (EN_SNAPSHOT_LABELS[key] ?? key)}
+            </dt>
             <dd>{value}</dd>
           </div>
         ))}

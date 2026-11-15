@@ -74,6 +74,7 @@ export type PlatformUser = Readonly<{
   email: string;
   fullName: string;
   status: "ACTIVE" | "SUSPENDED" | "PENDING_INVITE";
+  isPlatformOperator?: boolean;
 }>;
 export type PlatformMembership = Readonly<{
   id: string;
@@ -256,6 +257,7 @@ function parsePlatformUser(value: unknown): PlatformUser {
     email: value.email,
     fullName: value.fullName,
     status: value.status as PlatformUser["status"],
+    ...(value.isPlatformOperator === true ? { isPlatformOperator: true } : {}),
   };
 }
 

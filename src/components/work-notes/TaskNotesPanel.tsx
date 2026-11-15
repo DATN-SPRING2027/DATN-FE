@@ -109,7 +109,7 @@ export default function TaskNotesPanel({
   projectId,
   taskId,
   taskKey,
-  canAutoApprove = true,
+  canAutoApprove = false,
   splitControl,
 }: {
   projectId: string;

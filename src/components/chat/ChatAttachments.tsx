@@ -76,9 +76,9 @@ function ChatDocumentAttachment({
       href={url || undefined}
       download={attachment.name}
       target={url ? "_blank" : undefined}
-      rel={url ? "noreferrer" : undefined}
+      rel={url ? "noopener noreferrer" : undefined}
       aria-disabled={!url}
-      className="mt-2 flex max-w-72 items-center gap-2 rounded-xl border border-current/20 px-2.5 py-2 text-xs opacity-90 transition-opacity hover:opacity-100"
+      className={`mt-2 flex max-w-72 items-center gap-2 rounded-xl border border-current/20 px-2.5 py-2 text-xs opacity-90 transition-opacity hover:opacity-100${!url ? " pointer-events-none cursor-wait opacity-60" : ""}`}
     >
       <span aria-hidden="true" className="text-base">
         ▤

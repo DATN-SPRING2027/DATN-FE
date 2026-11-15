@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { useTranslations } from "next-intl";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { CheckCircleIcon, CloseLineIcon } from "@/icons";
 
 export type CreatedTaskToastData = Readonly<{
@@ -23,7 +24,7 @@ export function WorkCreatedTaskToast({
   onDismiss: () => void;
 }) {
   const t = useTranslations("work");
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useHydratedReducedMotion();
   const [isPaused, setIsPaused] = useState(false);
 
   useEffect(() => {

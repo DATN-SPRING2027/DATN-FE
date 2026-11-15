@@ -263,7 +263,7 @@ function ScopedProjectMembers({
   }
 
   return (
-    <div className="@container min-w-0 space-y-6 pb-20">
+    <div className="@container min-w-0 space-y-6 pb-40">
       {notice && <MemberNotification message={t(notice)} />}
       {(members.isError || add.isError || remove.isError) && (
         <Button
@@ -586,20 +586,6 @@ function ScopedProjectMembers({
                   {t("closeAdd")}
                 </button>
               </div>
-              {canManageLeaders && (
-                <label className="flex cursor-pointer items-center gap-2.5 rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2.5 text-xs font-medium text-brand-800 dark:border-brand-500/25 dark:bg-brand-500/10 dark:text-brand-300">
-                  <input
-                    type="checkbox"
-                    checked={appointLeaderOnAdd}
-                    disabled={busy}
-                    onChange={(event) =>
-                      setAppointLeaderOnAdd(event.target.checked)
-                    }
-                    className="size-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span>{t("appointAsLeaderAfterAddLabel")}</span>
-                </label>
-              )}
               <MemberAddForm
                 key={addFormVersion}
                 organizationId={organizationId}
@@ -612,7 +598,8 @@ function ScopedProjectMembers({
                   setAppointLeaderOnAdd(role === "TEAM_LEADER")
                 }
                 onAdd={(userId, role) => {
-                  const effectiveRole = role ?? (appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER");
+                  const effectiveRole =
+                    role ?? (appointLeaderOnAdd ? "TEAM_LEADER" : "MEMBER");
                   const shouldAppoint = effectiveRole === "TEAM_LEADER";
                   if (
                     mutationInFlight.current ||
@@ -632,37 +619,15 @@ function ScopedProjectMembers({
                       onSuccess: () => {
                         setPage(1);
                         setAddFormVersion((version) => version + 1);
-                        if (shouldAppoint && canManageLeaders) {
-                          leaderActions.assign.mutate(userId, {
-                            onSuccess: () => {
-                              setNotice("leaderAppointed");
-                              setAppointLeaderOnAdd(false);
-                            },
-                            onError: () => {
-                              leaderActions.assign.reset();
-                              setNotice("leaderAppointed");
-                              setAppointLeaderOnAdd(false);
-                              void leaders.refetch();
-                            },
-                            onSettled: () => {
-                              mutationInFlight.current = false;
-                            },
-                          });
-                        } else if (shouldAppoint) {
+                        if (shouldAppoint) {
                           setNotice("leaderAppointed");
                           setAppointLeaderOnAdd(false);
-                          void leaders.refetch();
                         } else {
                           setNotice("added");
                         }
                       },
-                      onError: () => {
-                        mutationInFlight.current = false;
-                      },
                       onSettled: () => {
-                        if (!(shouldAppoint && canManageLeaders)) {
-                          mutationInFlight.current = false;
-                        }
+                        mutationInFlight.current = false;
                       },
                     },
                   );
@@ -761,7 +726,7 @@ export default function ProjectMembers({
       />
     );
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-28">
       {user.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
       {user.isRefetchError && !invalidIdentity && (
         <BackgroundRefreshError

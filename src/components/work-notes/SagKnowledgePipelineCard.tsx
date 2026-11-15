@@ -1623,7 +1623,7 @@ export function PinnedReviewDecisionBar({
     <div
       data-testid="pinned-review-decision-bar"
       data-review-status={status}
-      className="shrink-0 border-t border-gray-200/90 bg-gray-50/85 px-4 py-2 sm:px-5 dark:border-gray-800 dark:bg-gray-900/90"
+      className="shrink-0 border-t border-gray-200/90 bg-gray-50/85 py-2 ps-4 pe-20 sm:ps-5 sm:pe-24 dark:border-gray-800 dark:bg-gray-900/90"
     >
       {showCommentRow ? (
         <div className="mb-2 space-y-1.5">
@@ -1766,7 +1766,7 @@ export function KnowledgeTelemetryDock({
   return (
     <div
       data-testid="knowledge-telemetry-dock"
-      className="flex shrink-0 items-center justify-between gap-2.5 border-t border-gray-100 bg-gray-50/75 px-4 py-2 sm:px-5 dark:border-gray-800 dark:bg-gray-900/80"
+      className="flex shrink-0 items-center justify-between gap-2.5 border-t border-gray-100 bg-gray-50/75 py-2 ps-4 pe-20 sm:ps-5 sm:pe-24 dark:border-gray-800 dark:bg-gray-900/80"
     >
       {isApproved ? (
         <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-xs">

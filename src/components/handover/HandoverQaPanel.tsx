@@ -31,13 +31,12 @@ function parseAndCleanSectionText(
     text = bracketMatch[2].trim();
   }
 
-  // Strip raw code-fence markers and noisy ASCII banner lines (====, ----)
+  // Strip noisy ASCII banner lines (====, ----) while preserving fenced code blocks
   const cleaned = text
-    .replace(/```[a-zA-Z0-9_-]*|'''[a-zA-Z0-9_-]*/g, " ")
+    .replace(/'''([a-zA-Z0-9_-]*)/g, "```$1")
     .replace(/[#\s]*={3,}[#\s]*/g, "\n")
     .replace(/[#\s]*-{4,}[#\s]*/g, "\n")
     .replace(/\s*#\s*(\d+\.\s+[^\n#]+?)\s*#/g, "\n• $1: ")
-    .replace(/[ \t]{2,}/g, " ")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 

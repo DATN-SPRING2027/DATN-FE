@@ -53,7 +53,11 @@ const note = {
   },
 };
 
-function mount(customClient?: QueryClient, customTaskId = taskId) {
+function mount(
+  customClient?: QueryClient,
+  customTaskId = taskId,
+  canAutoApprove?: boolean,
+) {
   const client =
     customClient ??
     new QueryClient({
@@ -64,7 +68,11 @@ function mount(customClient?: QueryClient, customTaskId = taskId) {
     ...render(
       <QueryClientProvider client={client}>
         <NextIntlClientProvider locale="en" messages={messages}>
-          <TaskNotesPanel projectId={projectId} taskId={customTaskId} />
+          <TaskNotesPanel
+            projectId={projectId}
+            taskId={customTaskId}
+            canAutoApprove={canAutoApprove}
+          />
         </NextIntlClientProvider>
       </QueryClientProvider>,
     ),
@@ -404,6 +412,21 @@ it("delegates New note and Edit to splitControl without opening a modal when hos
   }
 });
 
+it("hides the auto-approve toggle by default (fail-closed) when canAutoApprove is omitted", async () => {
+  api.mockResolvedValue({
+    data: [],
+    pagination: { page: 1, pageSize: 100, totalItems: 0, totalPages: 0 },
+  } as never);
+
+  mount();
+  fireEvent.click(await screen.findByRole("button", { name: "Add first note" }));
+  await screen.findByLabelText("Title");
+
+  expect(
+    screen.queryByTestId("task-note-auto-approve-toggle"),
+  ).not.toBeInTheDocument();
+});
+
 it("shows short-content guardrail (< 30 chars) and sends autoApprove: false when toggled to Pending Review in TaskNotesPanel", async () => {
   api.mockImplementation(async (_path, options) => {
     if (options?.method === "POST") {
@@ -415,7 +438,7 @@ it("shows short-content guardrail (< 30 chars) and sends autoApprove: false when
     } as never;
   });
 
-  mount();
+  mount(undefined, taskId, true);
   fireEvent.click(await screen.findByRole("button", { name: "Add first note" }));
 
   fireEvent.change(await screen.findByLabelText("Title"), {

@@ -46,6 +46,7 @@ import {
   ensureProjectMemberBeforeHandover,
   extractHandoverErrorMessage,
   formatHandoverSourceKind,
+  formatHandoverTaskStatus,
   formatMemberOptionLabel,
 } from "./handover-ui.utils";
 
@@ -878,7 +879,7 @@ export default function CreateHandoverModal({
                           </span>
                         </div>
                         <Badge color="warning" size="sm">
-                          {task.status}
+                          {formatHandoverTaskStatus(task.status, localeCode)}
                         </Badge>
                       </label>
                     );

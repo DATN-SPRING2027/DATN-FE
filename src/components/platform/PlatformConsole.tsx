@@ -252,6 +252,7 @@ export default function PlatformConsole() {
     try {
       const user = await lookup.mutateAsync(trimmedEmail);
       if (
+        user.isPlatformOperator === true ||
         (session.data?.id && user.id === session.data.id) ||
         (session.data?.email &&
           user.email.toLowerCase() === session.data.email.toLowerCase())
@@ -442,7 +443,12 @@ export default function PlatformConsole() {
             organizationPlan={organizationPlan}
             setOrganizationPlan={setOrganizationPlan}
             lookupEmail={lookupEmail}
-            setLookupEmail={setLookupEmail}
+            setLookupEmail={(value) => {
+              setLookupEmail(value);
+              setLookupErrorKey(undefined);
+              setCreateErrorKey(undefined);
+              setOperationMessage("");
+            }}
             selectedUser={selectedUser}
             setSelectedUser={setSelectedUser}
             runLookup={runLookup}
@@ -455,7 +461,14 @@ export default function PlatformConsole() {
             changeOrganizationMetadata={changeOrganizationMetadata}
             setOperationMessage={setOperationMessage}
             isCreateModalOpen={isCreateModalOpen}
-            setIsCreateModalOpen={setIsCreateModalOpen}
+            setIsCreateModalOpen={(open) => {
+              if (!open) {
+                setLookupErrorKey(undefined);
+                setCreateErrorKey(undefined);
+                setOperationMessage("");
+              }
+              setIsCreateModalOpen(open);
+            }}
           />
 
           {!canReadOrganizations &&

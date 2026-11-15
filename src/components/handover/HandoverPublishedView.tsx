@@ -373,10 +373,10 @@ function AvailableItemCard({
                     cit.source.kind,
                     cit.source.id,
                   );
-                  const kindLabel =
-                    localeCode === "vi"
-                      ? formatHandoverSourceKind(cit.source.kind, localeCode)
-                      : cit.source.kind;
+                  const kindLabel = formatHandoverSourceKind(
+                    cit.source.kind,
+                    localeCode,
+                  );
                   const label = `${kindLabel} ${formatShortId(cit.source.id)} (v${cit.source.version}) · ${cit.locator.kind}: ${cit.locator.value}`;
                   return href ? (
                     <Link
@@ -512,7 +512,7 @@ function AvailableItemCard({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="tabular-nums text-gray-500 dark:text-gray-400">
-                      {formatUtcDateTime(ev.createdAt)} · Epoch #
+                      {formatUtcDateTime(ev.createdAt, localeCode)} · Epoch #
                       {ev.assignmentVersion}
                     </span>
                     <Badge
@@ -726,6 +726,8 @@ export default function HandoverPublishedView({
 }) {
   const t = useTranslations("handover.published");
   const tDetail = useTranslations("handover.detail");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const acceptMutation = useAcceptHandoverPackageMutation(
     projectId,
     handover.id,
@@ -768,7 +770,7 @@ export default function HandoverPublishedView({
           </div>
           <p className="text-xs text-gray-600 dark:text-gray-300">
             {t("publishedAtMeta", {
-              date: formatUtcDateTime(publishedRevision.publishedAt),
+              date: formatUtcDateTime(publishedRevision.publishedAt, localeCode),
             })}{" "}
             · {tDetail("packageAcceptedNote")}
           </p>

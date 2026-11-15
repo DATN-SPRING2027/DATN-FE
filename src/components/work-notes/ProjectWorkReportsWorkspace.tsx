@@ -27,6 +27,11 @@ import {
   ApiError,
   isAccessOrResourceUnavailableError,
 } from "@/lib/api-client";
+import { authKeys } from "@/lib/queries/auth/auth.keys";
+import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
+import type { ProjectLeader } from "@/lib/queries/projects/useProjectLeaders";
+import type { ProjectMemberPage } from "@/lib/queries/projects/useProjectMembers";
+import type { ProjectList } from "@/lib/queries/projects/useProjects";
 import { cn } from "@/utils";
 import {
   isKnowledgeSyncActive,
@@ -127,9 +132,47 @@ function initialsFromName(name: string): string {
 }
 
 function reportBodyText(report: WorkReport): string {
-  return report.contentSchemaVersion === 2
-    ? (report.contentMarkdown ?? report.content ?? "")
-    : (report.content ?? report.contentMarkdown ?? "");
+  const freeform =
+    report.contentSchemaVersion === 2
+      ? (report.contentMarkdown ?? report.content ?? "")
+      : (report.content ?? report.contentMarkdown ?? "");
+  if (freeform.trim()) return freeform;
+
+  const legacySections: string[] = [];
+  if (report.accomplishments?.trim()) {
+    legacySections.push(`### Accomplishments\n${report.accomplishments.trim()}`);
+  }
+  if (report.approach?.trim()) {
+    legacySections.push(`### Approach\n${report.approach.trim()}`);
+  }
+  if (report.reason?.trim()) {
+    legacySections.push(`### Context\n${report.reason.trim()}`);
+  }
+  if (report.blockers?.trim()) {
+    legacySections.push(`### Blockers\n${report.blockers.trim()}`);
+  }
+  if (report.nextSteps?.trim()) {
+    legacySections.push(`### Next steps\n${report.nextSteps.trim()}`);
+  }
+  return legacySections.length > 0 ? legacySections.join("\n\n") : freeform;
+}
+
+function resolveReportMemberName(
+  report: Pick<WorkReport, "memberId" | "memberName">,
+  memberDirectory: ReadonlyMap<string, string>,
+  fallbackLabel: string,
+): string {
+  const rawName = (report.memberName ?? "").trim();
+  if (rawName && !isHexObjectId(rawName)) {
+    return rawName;
+  }
+  const mapped = report.memberId
+    ? memberDirectory.get(report.memberId.trim().toLowerCase())
+    : undefined;
+  if (mapped && !isHexObjectId(mapped)) {
+    return mapped;
+  }
+  return fallbackLabel;
 }
 
 function hasReportContent(report: WorkReport): boolean {
@@ -219,6 +262,7 @@ function MiniProgressDots({
 
 function ReportEditor({
   report,
+  displayMemberName,
   effectiveStatus,
   initialDraft,
   canAutoApprove = false,
@@ -234,6 +278,7 @@ function ReportEditor({
   onAgent,
 }: {
   report: WorkReport;
+  displayMemberName: string;
   effectiveStatus: WorkReportStatus;
   initialDraft?: WorkReportInput;
   canAutoApprove?: boolean;
@@ -263,9 +308,7 @@ function ReportEditor({
   const [editorMode, setEditorMode] = useState<"write" | "preview">("write");
   const [validationError, setValidationError] = useState("");
   const [autoApprove, setAutoApprove] = useState(true);
-  const trimmedBodyLen = (
-    report.contentSchemaVersion === 2 ? reportBodyText(report) : form.content
-  ).trim().length;
+  const trimmedBodyLen = form.content.trim().length;
   const isShortContent = trimmedBodyLen > 0 && trimmedBodyLen < 30;
   const effectiveAutoApprove = autoApprove && !isShortContent;
   const canAutoApproveOnSubmit = autoApprove && trimmedBodyLen >= 30;
@@ -278,19 +321,14 @@ function ReportEditor({
   }
 
   async function persist(saveOnly: boolean) {
-    const cleaned: WorkReportInput =
-      report.contentSchemaVersion === 2
-        ? {
-            title: (report.title ?? "").trim(),
-            content: reportBodyText(report).trim(),
-          }
-        : {
-            title: form.title.trim(),
-            content: form.content.trim(),
-          };
+    const cleaned: WorkReportInput = {
+      title: form.title.trim(),
+      content: form.content.trim(),
+    };
     if (
-      report.contentSchemaVersion !== 2 &&
-      (!cleaned.title || !cleaned.content)
+      saveOnly
+        ? !cleaned.title && !cleaned.content
+        : !cleaned.title || !cleaned.content
     ) {
       setValidationError(t("coreRequired"));
       return;
@@ -306,6 +344,7 @@ function ReportEditor({
 
   return (
     <form
+      noValidate
       onSubmit={(event) => void submit(event, true)}
       className="flex h-full min-h-[480px] flex-col overflow-hidden bg-white dark:bg-gray-900"
     >
@@ -325,14 +364,14 @@ function ReportEditor({
             <span
               className={cn(
                 "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-semibold ring-1 ring-inset",
-                getReportAvatarTone(report.memberId || report.memberName),
+                getReportAvatarTone(report.memberId || displayMemberName),
               )}
             >
-              {initialsFromName(report.memberName)}
+              {initialsFromName(displayMemberName)}
             </span>
 
             <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-white">
-              {report.memberName}
+              {displayMemberName}
             </h2>
 
             <ApprovalStatusBadge
@@ -355,44 +394,42 @@ function ReportEditor({
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">
-            {report.contentSchemaVersion !== 2 && (
-              <div
-                role="tablist"
-                aria-label={t("title")}
-                className="inline-flex h-8 items-center rounded-lg bg-gray-100/90 p-0.5 ring-1 ring-inset ring-gray-200/75 dark:bg-gray-800 dark:ring-gray-700"
+            <div
+              role="tablist"
+              aria-label={t("title")}
+              className="inline-flex h-8 items-center rounded-lg bg-gray-100/90 p-0.5 ring-1 ring-inset ring-gray-200/75 dark:bg-gray-800 dark:ring-gray-700"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={editorMode === "write"}
+                onClick={() => setEditorMode("write")}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-all",
+                  editorMode === "write"
+                    ? "bg-white text-gray-900 shadow-theme-xs ring-1 ring-gray-200/70 dark:bg-gray-900 dark:text-white dark:ring-gray-700"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
+                )}
               >
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={editorMode === "write"}
-                  onClick={() => setEditorMode("write")}
-                  className={cn(
-                    "inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-all",
-                    editorMode === "write"
-                      ? "bg-white text-gray-900 shadow-theme-xs ring-1 ring-gray-200/70 dark:bg-gray-900 dark:text-white dark:ring-gray-700"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-                  )}
-                >
-                  <FileEdit className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{t("editorWriteTab")}</span>
-                </button>
-                <button
-                  type="button"
-                  role="tab"
-                  aria-selected={editorMode === "preview"}
-                  onClick={() => setEditorMode("preview")}
-                  className={cn(
-                    "inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-all",
-                    editorMode === "preview"
-                      ? "bg-white text-gray-900 shadow-theme-xs ring-1 ring-gray-200/70 dark:bg-gray-900 dark:text-white dark:ring-gray-700"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-                  )}
-                >
-                  <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{t("editorPreviewTab")}</span>
-                </button>
-              </div>
-            )}
+                <FileEdit className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{t("editorWriteTab")}</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={editorMode === "preview"}
+                onClick={() => setEditorMode("preview")}
+                className={cn(
+                  "inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition-all",
+                  editorMode === "preview"
+                    ? "bg-white text-gray-900 shadow-theme-xs ring-1 ring-gray-200/70 dark:bg-gray-900 dark:text-white dark:ring-gray-700"
+                    : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
+                )}
+              >
+                <Eye className="h-3.5 w-3.5" aria-hidden="true" />
+                <span>{t("editorPreviewTab")}</span>
+              </button>
+            </div>
 
             {onAgent && (
               <Button
@@ -400,10 +437,7 @@ function ReportEditor({
                 size="sm"
                 variant="outline"
                 onClick={() => {
-                  if (
-                    report.contentSchemaVersion !== 2 &&
-                    (form.title !== baseTitle || form.content !== baseContent)
-                  ) {
+                  if (form.title !== baseTitle || form.content !== baseContent) {
                     onAgent({
                       title: form.title,
                       contentMarkdown: form.content,
@@ -446,17 +480,7 @@ function ReportEditor({
 
       {/* Bounded Scrollable Editor Body */}
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-5 py-5 sm:px-6">
-        {report.contentSchemaVersion === 2 ? (
-          <div className="space-y-3 rounded-xl border border-gray-200 bg-gray-50/40 p-4 dark:border-gray-800 dark:bg-gray-950/40">
-            <p className="text-base font-semibold text-gray-900 dark:text-white">
-              {report.title}
-            </p>
-            <MarkdownDocumentView
-              markdown={reportBodyText(report)}
-              omitTopHeading={report.title}
-            />
-          </div>
-        ) : editorMode === "preview" ? (
+        {editorMode === "preview" ? (
           form.title.trim() || form.content.trim() ? (
             <div className="space-y-4">
               {form.title.trim() && (
@@ -477,14 +501,19 @@ function ReportEditor({
         ) : (
           <>
             <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-              <span>
-                {t("reportTitleLabel")}
-                <span className="ms-0.5 text-error-600">*</span>
+              <span className="flex items-center justify-between gap-2">
+                <span>
+                  {t("reportTitleLabel")}
+                  <span className="ms-0.5 text-error-600">*</span>
+                </span>
+                <span className="font-mono text-[11px] font-normal tabular-nums text-gray-400 dark:text-gray-500">
+                  {form.title.length}/300
+                </span>
               </span>
               <input
                 type="text"
                 required
-                maxLength={240}
+                maxLength={300}
                 placeholder={t("reportTitlePlaceholder")}
                 value={form.title}
                 onChange={(event) =>
@@ -498,13 +527,18 @@ function ReportEditor({
             </label>
 
             <label className="grid min-w-0 gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-300">
-              <span>
-                {t("reportContentLabel")}
-                <span className="ms-0.5 text-error-600">*</span>
+              <span className="flex items-center justify-between gap-2">
+                <span>
+                  {t("reportContentLabel")}
+                  <span className="ms-0.5 text-error-600">*</span>
+                </span>
+                <span className="font-mono text-[11px] font-normal tabular-nums text-gray-400 dark:text-gray-500">
+                  {form.content.length.toLocaleString()}/30,000
+                </span>
               </span>
               <textarea
                 required
-                maxLength={100000}
+                maxLength={30000}
                 rows={12}
                 placeholder={t("reportContentPlaceholder")}
                 value={form.content}
@@ -595,16 +629,14 @@ function ReportEditor({
               {t("closeEditor")}
             </Button>
           )}
-          {report.contentSchemaVersion !== 2 && (
-            <Button
-              type="submit"
-              variant="outline"
-              size="sm"
-              isLoading={isSaving}
-            >
-              {t("saveDraft")}
-            </Button>
-          )}
+          <Button
+            type="submit"
+            variant="outline"
+            size="sm"
+            isLoading={isSaving}
+          >
+            {t("saveDraft")}
+          </Button>
           <Button
             type="button"
             size="sm"
@@ -672,6 +704,11 @@ function WorkReportReadingPane({
   const isApproved = report.status === "APPROVED";
   const versionNo = report.currentVersionNumber ?? 1;
   const canDownloadR2 = isApproved && Boolean(report.file);
+  const displayMemberName = resolveReportMemberName(
+    report,
+    memberDirectory,
+    common("documents.authorActor"),
+  );
 
   const statusQuery = useWorkReportKnowledgeStatusQuery(
     projectId,
@@ -700,15 +737,15 @@ function WorkReportReadingPane({
     const periodLabel = `${report.periodStart.slice(0, 10)} → ${report.periodEnd.slice(0, 10)}`;
     return buildClientMarkdownPreview({
       kind: "WORK_REPORT",
-      title: report.title?.trim() || `${report.memberName}`,
+      title: report.title?.trim() || displayMemberName,
       version: versionNo,
-      authorName: report.memberName,
+      authorName: displayMemberName,
       scope: report.reportScope ?? activeScope,
       frequency: report.frequency,
       periodLabel,
       contentMarkdown: reportBodyText(report),
     });
-  }, [report, activeScope, versionNo]);
+  }, [report, activeScope, versionNo, displayMemberName]);
 
   const outlineItems = useMemo(
     () =>
@@ -971,13 +1008,13 @@ function WorkReportReadingPane({
               <span
                 className={cn(
                   "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9.5px] font-semibold ring-1 ring-inset",
-                  getReportAvatarTone(report.memberId || report.memberName),
+                  getReportAvatarTone(report.memberId || displayMemberName),
                 )}
               >
-                {initialsFromName(report.memberName)}
+                {initialsFromName(displayMemberName)}
               </span>
               <h2 className="text-xs font-semibold text-gray-800 dark:text-gray-200">
-                {report.memberName}
+                {displayMemberName}
               </h2>
 
               <span aria-hidden="true">·</span>
@@ -1034,13 +1071,13 @@ function WorkReportReadingPane({
             <span
               className={cn(
                 "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10.5px] font-semibold ring-1 ring-inset",
-                getReportAvatarTone(report.memberId || report.memberName),
+                getReportAvatarTone(report.memberId || displayMemberName),
               )}
             >
-              {initialsFromName(report.memberName)}
+              {initialsFromName(displayMemberName)}
             </span>
             <h2 className="text-base font-semibold tracking-tight text-gray-900 dark:text-white">
-              {report.memberName}
+              {displayMemberName}
             </h2>
             <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
               ·{" "}
@@ -1199,7 +1236,7 @@ function WorkReportReadingPane({
       <KnowledgeGovernanceDrawer
         isOpen={isInspectorOpen}
         onClose={() => setIsInspectorOpen(false)}
-        title={report.title?.trim() || report.memberName}
+        title={report.title?.trim() || displayMemberName}
         status={effectiveStatus}
         statusLabel={t(`status.${effectiveStatus}`)}
         version={versionNo}
@@ -1304,16 +1341,62 @@ export default function ProjectWorkReportsWorkspace({
 
   const memberDirectory = useMemo(() => {
     const map = new Map<string, string>();
-    for (const r of allScopeReports) {
-      if (r.memberId && r.memberName) {
-        map.set(r.memberId, r.memberName);
-      }
-      if (r.reviewedBy && r.reviewerName) {
-        map.set(r.reviewedBy, r.reviewerName);
+    const registerPerson = (id?: string, label?: string | null) => {
+      const cleanId = (id ?? "").trim();
+      const cleanLabel = (label ?? "").trim();
+      if (!cleanId || !cleanLabel || isHexObjectId(cleanLabel)) return;
+      map.set(cleanId, cleanLabel);
+      map.set(cleanId.toLowerCase(), cleanLabel);
+    };
+
+    const cachedUser = queryClient.getQueryData<CurrentUserResponse>(
+      authKeys.currentUser(),
+    );
+    if (cachedUser?.id) {
+      registerPerson(cachedUser.id, cachedUser.name || cachedUser.email);
+    }
+
+    const projectQueries = queryClient.getQueriesData<ProjectList>({
+      queryKey: ["projects"],
+    });
+    for (const [, data] of projectQueries) {
+      for (const proj of data?.data ?? []) {
+        for (const leader of proj.leaders ?? []) {
+          registerPerson(leader.userId, leader.fullName || leader.email);
+        }
+        for (const preview of proj.memberPreviews ?? []) {
+          registerPerson(preview.userId, preview.fullName || preview.email);
+        }
       }
     }
+
+    const memberQueries = queryClient.getQueriesData<ProjectMemberPage>({
+      queryKey: ["project-members"],
+    });
+    for (const [, pageData] of memberQueries) {
+      for (const member of pageData?.data ?? []) {
+        registerPerson(
+          member.userId,
+          member.user?.fullName || member.user?.email,
+        );
+      }
+    }
+
+    const leaderQueries = queryClient.getQueriesData<readonly ProjectLeader[]>({
+      queryKey: ["project-leaders"],
+    });
+    for (const [, leaderList] of leaderQueries) {
+      for (const leader of leaderList ?? []) {
+        registerPerson(leader.userId, leader.fullName || leader.email);
+      }
+    }
+
+    for (const r of allScopeReports) {
+      registerPerson(r.memberId, r.memberName);
+      registerPerson(r.reviewedBy, r.reviewerName);
+    }
     return map;
-  }, [allScopeReports]);
+  }, [allScopeReports, queryClient]);
 
   const [mountNow] = useState(() => Date.now());
   const currentTime = Math.max(mountNow, reportsQuery.dataUpdatedAt);
@@ -1427,10 +1510,16 @@ export default function ProjectWorkReportsWorkspace({
 
   const filteredReports = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
+    const authorFallback = common("documents.authorActor");
     return periodReports.filter((report) => {
+      const displayName = resolveReportMemberName(
+        report,
+        memberDirectory,
+        authorFallback,
+      );
       if (
         query &&
-        !report.memberName.toLowerCase().includes(query) &&
+        !displayName.toLowerCase().includes(query) &&
         !(report.title ?? "").toLowerCase().includes(query) &&
         !reportBodyText(report).toLowerCase().includes(query)
       ) {
@@ -1453,7 +1542,14 @@ export default function ProjectWorkReportsWorkspace({
       }
       return report.status === statusFilter;
     });
-  }, [periodReports, searchQuery, statusFilter, currentTime]);
+  }, [
+    periodReports,
+    searchQuery,
+    statusFilter,
+    currentTime,
+    memberDirectory,
+    common,
+  ]);
 
   const sortedReports = useMemo(() => {
     function priority(report: WorkReport): number {
@@ -1656,9 +1752,6 @@ export default function ProjectWorkReportsWorkspace({
     saveReport.reset();
     updateReport.reset();
     reportAction.reset();
-    if (report.contentSchemaVersion === 2) {
-      return report;
-    }
     return report.id === editableCurrentReport?.id
       ? saveReport.mutateAsync(input)
       : updateReport.mutateAsync({ id: report.id, input });
@@ -1673,10 +1766,13 @@ export default function ProjectWorkReportsWorkspace({
       saveReport.reset();
       updateReport.reset();
       reportAction.reset();
-      const saved =
-        report.contentSchemaVersion === 2
-          ? report
-          : await saveReportDraft(report, input);
+      const unchangedCanonicalDraft =
+        report.contentSchemaVersion === 2 &&
+        input.title === (report.title ?? "").trim() &&
+        input.content === reportBodyText(report).trim();
+      const saved = unchangedCanonicalDraft
+        ? report
+        : await saveReportDraft(report, input);
       await reportAction.mutateAsync({
         id: saved.id,
         action: "submit",
@@ -1777,7 +1873,13 @@ export default function ProjectWorkReportsWorkspace({
               checked={isChecked}
               onChange={() => toggleSelectReport(item.id)}
               aria-label={tg("selectItemAria", {
-                title: reportTitle || item.memberName,
+                title:
+                  reportTitle ||
+                  resolveReportMemberName(
+                    item,
+                    memberDirectory,
+                    common("documents.authorActor"),
+                  ),
               })}
               className="h-3.5 w-3.5 cursor-pointer rounded border-gray-300 accent-brand-500 text-brand-600 focus:ring-brand-500/20"
             />
@@ -1805,7 +1907,13 @@ export default function ProjectWorkReportsWorkspace({
                 avatarTone,
               )}
             >
-              {initialsFromName(item.memberName)}
+              {initialsFromName(
+                resolveReportMemberName(
+                  item,
+                  memberDirectory,
+                  common("documents.authorActor"),
+                ),
+              )}
             </span>
             <div className="min-w-0">
               <div
@@ -1820,7 +1928,11 @@ export default function ProjectWorkReportsWorkspace({
                       : "text-gray-500 dark:text-gray-400",
                 )}
               >
-                {item.memberName}
+                {resolveReportMemberName(
+                  item,
+                  memberDirectory,
+                  common("documents.authorActor"),
+                )}
                 {item.permissions.canEdit ? ` ${t("youSuffix")}` : ""}
               </div>
               {(reportTitle || effectivePeriod === "ALL") && (
@@ -1877,7 +1989,7 @@ export default function ProjectWorkReportsWorkspace({
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-20 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-36 sm:px-6 lg:px-8">
       <WorkNotesPageHeader projectId={projectId} active="reports" />
 
       <div className="space-y-3">
@@ -2485,6 +2597,11 @@ export default function ProjectWorkReportsWorkspace({
                           <ReportEditor
                             key={`${reportVersionKey}-${activeOverride?.seq ?? 0}`}
                             report={selectedReport}
+                            displayMemberName={resolveReportMemberName(
+                              selectedReport,
+                              memberDirectory,
+                              common("documents.authorActor"),
+                            )}
                             effectiveStatus={resolveEffectiveStatus(
                               selectedReport,
                               currentTime,
@@ -2504,8 +2621,7 @@ export default function ProjectWorkReportsWorkspace({
                             onAgent={
                               process.env
                                 .NEXT_PUBLIC_WORKNOTE_SHARED_EDITOR_ENABLED ===
-                                "true" ||
-                              selectedReport.contentSchemaVersion === 2
+                              "true"
                                 ? (draft) => {
                                     setAgentReportSeed(draft ?? null);
                                     setAgentReportId(selectedReport.id);
@@ -2596,6 +2712,18 @@ export default function ProjectWorkReportsWorkspace({
         <WorkNoteComposer
           projectId={projectId}
           source={{ workflow: "WORK_REPORT", resourceId: agentReportId }}
+          canAutoApprove={
+            canSwitchLeaderTier ||
+            activeScope === "LEADER" ||
+            Boolean(
+              allScopeReports.find((r) => r.id === agentReportId)?.permissions
+                .canReview,
+            ) ||
+            Boolean(
+              allScopeReports.find((r) => r.id === agentReportId)?.permissions
+                .canConfigure,
+            )
+          }
           initialFields={agentReportSeed ?? undefined}
           onClose={(persistedFields) => {
             const closedId = agentReportId;

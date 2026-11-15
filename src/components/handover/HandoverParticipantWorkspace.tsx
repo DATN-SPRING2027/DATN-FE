@@ -25,10 +25,12 @@ function TaskRows({
   projectId,
   tasks,
   openNote,
+  localeCode,
 }: {
   projectId: string;
   tasks: ParticipantTask[];
   openNote: (task: ParticipantTask) => void;
+  localeCode: string;
 }) {
   const t = useTranslations("handover.participant");
   return (
@@ -54,7 +56,9 @@ function TaskRows({
               </span>
               <span className="tabular-nums">
                 {task.dueDate
-                  ? t("taskDue", { date: formatUtcDate(task.dueDate) })
+                  ? t("taskDue", {
+                      date: formatUtcDate(task.dueDate, localeCode),
+                    })
                   : t("noDue")}
               </span>
               {task.disposition !== "DEPARTING" && (
@@ -100,6 +104,8 @@ export default function HandoverParticipantWorkspace({
   children: ReactNode;
 }) {
   const t = useTranslations("handover.participant");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const [noteTask, setNoteTask] = useState<ParticipantTask | null>(null);
   const isSuccessor = view.role === "SUCCESSOR";
   const tasks = [...view.tasks].sort((a, b) => {
@@ -133,7 +139,7 @@ export default function HandoverParticipantWorkspace({
             </h1>
             <p className="text-sm text-gray-600 tabular-nums dark:text-gray-400">
               {t("handoverDue", {
-                date: formatUtcDate(handover.targetCompletionDate),
+                date: formatUtcDate(handover.targetCompletionDate, localeCode),
               })}
             </p>
           </div>
@@ -158,6 +164,7 @@ export default function HandoverParticipantWorkspace({
                 projectId={projectId}
                 tasks={isSuccessor ? nextTasks : tasks}
                 openNote={setNoteTask}
+                localeCode={localeCode}
               />
             ) : (
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
@@ -173,6 +180,7 @@ export default function HandoverParticipantWorkspace({
                   projectId={projectId}
                   tasks={tasks}
                   openNote={setNoteTask}
+                  localeCode={localeCode}
                 />
               </details>
             )}
@@ -275,7 +283,12 @@ export default function HandoverParticipantWorkspace({
         size="xl"
       >
         {noteTask && (
-          <TaskNotesPanel projectId={projectId} taskId={noteTask.id} />
+          <TaskNotesPanel
+            projectId={projectId}
+            taskId={noteTask.id}
+            taskKey={noteTask.key}
+            canAutoApprove={canManage}
+          />
         )}
       </HandoverDialogShell>
     </div>

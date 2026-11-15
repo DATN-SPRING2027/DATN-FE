@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -22,12 +21,9 @@ import {
   CheckLineIcon,
   CloseLineIcon,
   DocsIcon,
-  DownloadIcon,
   InfoIcon,
-  MoreDotIcon,
   PaperPlaneIcon,
   TrashBinIcon,
-  UserCircleIcon,
 } from "@/icons";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
@@ -682,7 +678,6 @@ export default function ProjectDocumentsWorkspace({
     number | null
   >(null);
   const [showActionSuccess, setShowActionSuccess] = useState(false);
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -1790,7 +1785,6 @@ export default function ProjectDocumentsWorkspace({
       }
       setReviewComment("");
       setConfirmingArchive(false);
-      setMoreActionsOpen(false);
       setShowActionSuccess(true);
     } catch {
       // Mutation error is displayed in the modal.
@@ -1844,7 +1838,6 @@ export default function ProjectDocumentsWorkspace({
   }
 
   function openRemovalModal(target: ProjectDocumentSummary) {
-    setMoreActionsOpen(false);
     setConfirmingDelete(false);
     setConfirmingArchive(false);
     setRemovalModalError("");
@@ -1969,7 +1962,6 @@ export default function ProjectDocumentsWorkspace({
     setSelected(document);
     setSelectedVersionNumber(null);
     setShowActionSuccess(false);
-    setMoreActionsOpen(false);
     setConfirmingArchive(false);
     setConfirmingDelete(false);
     setConfirmingRevokeSag(false);
@@ -1995,7 +1987,6 @@ export default function ProjectDocumentsWorkspace({
     setSelected(null);
     setSelectedVersionNumber(null);
     setShowActionSuccess(false);
-    setMoreActionsOpen(false);
     setConfirmingArchive(false);
     setConfirmingDelete(false);
     setConfirmingRevokeSag(false);
@@ -5640,6 +5631,7 @@ export default function ProjectDocumentsWorkspace({
         <WorkNoteComposer
           projectId={projectId}
           source={agentSource}
+          canAutoApprove={isProjectLeader}
           onClose={() => setAgentSource(null)}
           onSaved={() => setAgentSource(null)}
         />

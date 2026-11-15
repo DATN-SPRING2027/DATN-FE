@@ -1296,7 +1296,10 @@ export default function HandoverDetailWorkspace({
                     <dd className="mt-2.5 space-y-2">
                       <div className="flex items-baseline justify-between gap-2">
                         <span className="text-sm font-semibold text-gray-900 tabular-nums dark:text-white">
-                          {formatUtcDate(handover.targetCompletionDate)}
+                          {formatUtcDate(
+                            handover.targetCompletionDate,
+                            localeCode,
+                          )}
                         </span>
                       </div>
 
