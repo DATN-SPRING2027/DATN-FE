@@ -56,6 +56,7 @@ export type WorkItemSplitReferencePaneProps = {
   mode: "modal" | "page";
   isMaximized: boolean;
   isPreview: boolean;
+  canAutoApproveNotes?: boolean;
   mutationError?: string | null;
   onDismissMutationError?: () => void;
   splitControl: TaskNotesSplitControl;
@@ -89,6 +90,7 @@ export default function WorkItemSplitReferencePane({
   mode,
   isMaximized,
   isPreview,
+  canAutoApproveNotes = true,
   mutationError,
   onDismissMutationError,
   splitControl,
@@ -435,7 +437,12 @@ export default function WorkItemSplitReferencePane({
                 `Subtask detail layer • Child of ${item.key} (${item.title})`,
                 { key: item.key, title: item.title },
               )
-            : t("detailPreviewHint")}
+            : isPreview
+              ? t("detailPreviewHint")
+              : t("detailConnectedHint", {
+                  key: item.key,
+                  title: item.title,
+                })}
         </p>
       </header>
 
@@ -1072,6 +1079,8 @@ export default function WorkItemSplitReferencePane({
               <TaskNotesPanel
                 projectId={projectId}
                 taskId={activeSubtask ? activeSubtask.id : item.id}
+                taskKey={activeSubtask ? activeSubtask.key : item.key}
+                canAutoApprove={canAutoApproveNotes}
                 splitControl={splitControl}
               />
             )}

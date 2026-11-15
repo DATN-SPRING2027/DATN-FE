@@ -296,3 +296,65 @@ export function buildSourceWorkspaceHref(
       return null;
   }
 }
+
+export function formatHandoverSourceKind(
+  kind: string,
+  locale?: string,
+): string {
+  const isVi = resolveDateLocale(locale) === "vi-VN";
+  switch (kind) {
+    case "PROJECT_DOCUMENT":
+      return isVi ? "Tài liệu" : "Document";
+    case "TASK_NOTE":
+      return isVi ? "Ghi chú công việc" : "Task Note";
+    case "WORK_REPORT":
+      return isVi ? "Báo cáo công việc" : "Work Report";
+    case "KNOWLEDGE_OBJECT":
+      return isVi ? "Tri thức" : "Knowledge";
+    default:
+      return kind;
+  }
+}
+
+export function formatHandoverTaskStatus(
+  status: string,
+  locale?: string,
+): string {
+  if (resolveDateLocale(locale) !== "vi-VN") return status;
+  switch (status.trim().toUpperCase()) {
+    case "TODO":
+      return "Cần làm";
+    case "IN_PROGRESS":
+      return "Đang thực hiện";
+    case "IN_REVIEW":
+      return "Đang xét duyệt";
+    case "DONE":
+      return "Hoàn thành";
+    case "BLOCKED":
+      return "Bị chặn";
+    case "CANCELLED":
+      return "Đã hủy";
+    default:
+      return status;
+  }
+}
+
+export function formatHandoverTaskPriority(
+  priority: string,
+  locale?: string,
+): string {
+  if (resolveDateLocale(locale) !== "vi-VN") return priority;
+  switch (priority.trim().toUpperCase()) {
+    case "LOW":
+      return "Thấp";
+    case "MEDIUM":
+      return "Trung bình";
+    case "HIGH":
+      return "Cao";
+    case "URGENT":
+    case "CRITICAL":
+      return "Khẩn cấp";
+    default:
+      return priority;
+  }
+}

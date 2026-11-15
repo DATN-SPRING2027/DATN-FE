@@ -489,8 +489,8 @@ export default function WorkItemCreateDialog({
           {/* Project Pill / Switcher */}
           {projects && projects.length > 1 && onProjectChange ? (
             <div className="inline-flex items-center gap-1.5 rounded-md border border-gray-200/80 bg-gray-50/80 px-2 py-1 text-xs font-semibold text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200">
-              <span className="inline-flex h-4 items-center justify-center rounded-xs bg-brand-600 px-1 font-mono text-[10px] font-bold text-white">
-                {badgeCode.slice(0, 4)}
+              <span className="inline-flex h-4 items-center justify-center rounded-xs bg-brand-600 px-1 font-mono text-[10px] font-bold whitespace-nowrap text-white">
+                {badgeCode}
               </span>
               <select
                 aria-label="Target project"
@@ -510,8 +510,8 @@ export default function WorkItemCreateDialog({
               title={projectName || displayProjectLabel}
               className="inline-flex max-w-52 items-center gap-1.5 truncate rounded-md px-1.5 py-1 text-xs font-semibold text-gray-700 dark:text-gray-200"
             >
-              <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-xs bg-brand-600 px-1 font-mono text-[10px] font-bold text-white">
-                {badgeCode.slice(0, 4)}
+              <span className="inline-flex h-4 shrink-0 items-center justify-center rounded-xs bg-brand-600 px-1 font-mono text-[10px] font-bold whitespace-nowrap text-white">
+                {badgeCode}
               </span>
               <span className="truncate">
                 {projectName || displayProjectLabel}

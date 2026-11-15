@@ -130,6 +130,8 @@ export default function ContinuumAiCompanion({
   const pathname = usePathname();
   const isHumanChatPage =
     pathname === "/chat" || pathname.startsWith("/chat/");
+  const hasBottomRightPageActions =
+    pathname.endsWith("/work-reports") || pathname.endsWith("/members");
   const openChatWindowCount = useFloatingChatStore((state) =>
     state.activeOrgId
       ? (state.openWindowsByOrg[state.activeOrgId]?.length ?? 0)
@@ -473,8 +475,13 @@ export default function ContinuumAiCompanion({
       : "";
 
   const hideGreetingBubble =
-    (openChatWindowCount > 0 || isLauncherOpen || isHumanChatPage) &&
+    (openChatWindowCount > 0 ||
+      isLauncherOpen ||
+      isHumanChatPage ||
+      hasBottomRightPageActions) &&
     !chatNotice;
+  const effectiveMinimized =
+    isMinimized || (hasBottomRightPageActions && !chatNotice);
 
   // Default anchor: sits right beside the bottom-right Floating Chat button,
   // and glides smoothly further inline-start (or above on medium screens) when mini chat boxes or launcher expand.
@@ -488,7 +495,9 @@ export default function ContinuumAiCompanion({
         ? "max-sm:hidden end-20 bottom-4 sm:end-108 lg:end-24 lg:bottom-116 xl:end-195 xl:bottom-5"
         : openChatWindowCount === 1
           ? "max-sm:hidden end-20 bottom-4 sm:end-108 sm:bottom-5"
-          : "end-20 bottom-4 sm:end-24 sm:bottom-5";
+          : hasBottomRightPageActions && effectiveMinimized
+            ? "end-4 bottom-21 sm:end-5 sm:bottom-22"
+            : "end-20 bottom-4 sm:end-24 sm:bottom-5";
 
   const defaultPanelOffsetClass = isHumanChatPage
     ? "end-3 bottom-24 sm:end-6 sm:bottom-24"
@@ -525,7 +534,7 @@ export default function ContinuumAiCompanion({
           } ${helpShiftClass}`}
         >
           <WorkReportReminderNotice visible={!isOpen} />
-          {isMinimized ? (
+          {effectiveMinimized ? (
             <button
               type="button"
               onClick={(event) => {

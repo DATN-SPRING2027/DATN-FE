@@ -14,6 +14,8 @@ const x = (i: number) => 38 + (i / lastDay) * 670;
 const y = (v: number) => 283 - (v / 100) * 270;
 export default function ReferenceTrend({ title }: { title: string }) {
   const t = useTranslations("platformConsole");
+  const common = useTranslations("common");
+  const dateLocale = common("localeCode") === "vi" ? "vi-VN" : "en-US";
   const dataId = useId();
   const [hover, setHover] = useState(6),
     [visible, setVisible] = useState([true, true, true]),
@@ -30,7 +32,7 @@ export default function ReferenceTrend({ title }: { title: string }) {
     t("referenceCharts.suspended"),
   ];
   const date = (day: number) =>
-    new Date(Date.UTC(2025, 3, day + 1)).toLocaleDateString("en-US", {
+    new Date(Date.UTC(2025, 3, day + 1)).toLocaleDateString(dateLocale, {
       day: "numeric",
       month: "short",
       year: "numeric",

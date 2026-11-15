@@ -1,13 +1,14 @@
 "use client";
 
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { Modal } from "@/components/ui/modal";
 import Button from "@/components/ui/button/Button";
 import {
   ANIMATE_UI_BUTTON_SPRING,
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "@/components/ui/button/buttonMotion";
 import { cn } from "@/utils";
@@ -16,7 +17,7 @@ export default function HeaderUpdateButton() {
   const t = useTranslations("header");
   const [isOpen, setIsOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
 
   const handleClose = () => {

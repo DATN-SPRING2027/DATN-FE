@@ -67,11 +67,15 @@ import HandoverParticipantWorkspace from "./HandoverParticipantWorkspace";
 import HandoverTaskTransfersPanel from "./HandoverTaskTransfersPanel";
 import HandoverQaPanel from "./HandoverQaPanel";
 import HandoverFollowUpsPanel from "./HandoverFollowUpsPanel";
+import { MarkdownDocumentView } from "@/components/work-notes/MarkdownArtifactStrip";
 import {
   buildOrganizationSuccessorOptions,
   buildSourceWorkspaceHref,
   ensureProjectMemberBeforeHandover,
   extractHandoverErrorMessage,
+  formatHandoverSourceKind,
+  formatHandoverTaskPriority,
+  formatHandoverTaskStatus,
   formatMemberOptionLabel,
   formatUtcDate,
   resolveMemberName,
@@ -163,6 +167,8 @@ export default function HandoverDetailWorkspace({
 }) {
   const t = useTranslations("handover");
   const t5 = useTranslations("handover.fiveStep");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const currentUser = useCurrentUserQuery();
   const organizationId = currentUser.data?.organizationId ?? "";
   const currentUserId = currentUser.data?.id ?? "";
@@ -1718,10 +1724,16 @@ export default function HandoverDetailWorkspace({
                                     </div>
                                     <div className="flex items-center gap-1.5">
                                       <Badge color="warning" size="sm">
-                                        {task.status}
+                                        {formatHandoverTaskStatus(
+                                          task.status,
+                                          localeCode,
+                                        )}
                                       </Badge>
                                       <Badge color="light" size="sm">
-                                        {task.priority}
+                                        {formatHandoverTaskPriority(
+                                          task.priority,
+                                          localeCode,
+                                        )}
                                       </Badge>
                                     </div>
                                   </div>
@@ -1756,13 +1768,10 @@ export default function HandoverDetailWorkspace({
                                         </div>
                                         <div className="flex shrink-0 items-center gap-2.5 whitespace-nowrap">
                                           <Badge color="info" size="sm">
-                                            {src.kind === "PROJECT_DOCUMENT"
-                                              ? "Document"
-                                              : src.kind === "TASK_NOTE"
-                                                ? "Task Note"
-                                                : src.kind === "WORK_REPORT"
-                                                  ? "Work Report"
-                                                  : src.kind}{" "}
+                                            {formatHandoverSourceKind(
+                                              src.kind,
+                                              localeCode,
+                                            )}{" "}
                                             · v{src.version}
                                           </Badge>
                                           {hasDistinctSummary && (
@@ -1801,9 +1810,12 @@ export default function HandoverDetailWorkspace({
                                         </div>
                                       </div>
                                       {hasDistinctSummary && isSummaryOpen && (
-                                        <p className="mt-2 rounded-lg bg-white/80 px-3.5 py-2.5 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
-                                          {src.summary}
-                                        </p>
+                                        <div className="mt-2 rounded-lg bg-white/80 px-3.5 py-2.5 text-xs leading-5 text-gray-600 dark:bg-gray-900/60 dark:text-gray-300">
+                                          <MarkdownDocumentView
+                                            markdown={src.summary ?? ""}
+                                            compact
+                                          />
+                                        </div>
                                       )}
                                     </div>
                                   );

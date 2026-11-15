@@ -8,12 +8,13 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { cn } from "@/utils";
 import {
   ANIMATE_UI_BUTTON_SPRING,
   ANIMATE_UI_ICON_SPRING,
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "./buttonMotion";
 
@@ -95,7 +96,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
   },
   ref,
 ) {
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
   const isDisabled = disabled || isLoading;
 

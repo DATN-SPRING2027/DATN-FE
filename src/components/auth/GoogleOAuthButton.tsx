@@ -1,16 +1,17 @@
 "use client";
 
 import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { GoogleIcon } from "@/icons";
 import {
   ANIMATE_UI_BUTTON_SPRING,
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "@/components/ui/button/buttonMotion";
 
 export default function GoogleOAuthButton({ label }: { label: string }) {
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
 
   const handlePointerDown = useCallback(

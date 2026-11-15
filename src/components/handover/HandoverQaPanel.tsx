@@ -47,20 +47,8 @@ function parseAndCleanSectionText(
   };
 }
 
-function formatSourceKindLabel(kind: string): string {
-  switch (kind) {
-    case "PROJECT_DOCUMENT":
-      return "Document";
-    case "TASK_NOTE":
-      return "Task Note";
-    case "WORK_REPORT":
-      return "Work Report";
-    case "KNOWLEDGE_OBJECT":
-      return "Knowledge";
-    default:
-      return kind;
-  }
-}
+import { MarkdownDocumentView } from "@/components/work-notes/MarkdownArtifactStrip";
+import { formatHandoverSourceKind } from "./handover-ui.utils";
 
 export default function HandoverQaPanel({
   projectId,
@@ -73,6 +61,8 @@ export default function HandoverQaPanel({
 }) {
   const t = useTranslations("handover.qa");
   const t5 = useTranslations("handover.fiveStep");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const askMutation = useAskHandoverQuestionMutation(projectId, handover.id);
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<
@@ -334,8 +324,9 @@ export default function HandoverQaPanel({
                         <div className="flex shrink-0 items-center gap-2">
                           {primaryCitation && (
                             <Badge color="info" size="sm">
-                              {formatSourceKindLabel(
+                              {formatHandoverSourceKind(
                                 primaryCitation.source.kind,
+                                localeCode,
                               )}{" "}
                               · v{primaryCitation.source.version}
                             </Badge>
@@ -355,13 +346,19 @@ export default function HandoverQaPanel({
                       {/* Excerpt Body with 3-Line Clamp & Expand Button */}
                       {!isRedundantBody && (
                         <div className="mt-2.5 ps-8.5">
-                          <p
-                            className={`whitespace-pre-line text-sm leading-6 text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300 ${
-                              !isExpanded && isLongExcerpt ? "line-clamp-3" : ""
-                            }`}
-                          >
-                            {body}
-                          </p>
+                          {isExpanded ? (
+                            <div className="text-sm leading-6 text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
+                              <MarkdownDocumentView markdown={body} compact />
+                            </div>
+                          ) : (
+                            <p
+                              className={`whitespace-pre-line text-sm leading-6 text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300 ${
+                                isLongExcerpt ? "line-clamp-3" : ""
+                              }`}
+                            >
+                              {body}
+                            </p>
+                          )}
 
                           {isLongExcerpt && (
                             <button

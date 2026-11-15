@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
 } from "react";
 import { useTranslations } from "next-intl";
+import { Link } from "@/i18n/navigation";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import { Modal } from "@/components/ui/modal";
@@ -1245,7 +1246,19 @@ export default function OrganizationInvitationCreateDialog({
                       <button type="button" className="font-medium underline" onClick={() => void projectsQuery.refetch()}>{t("retryLoad")}</button>
                     </div>
                   ) : projectsQuery.projects.length === 0 ? (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{t("inviteProjectsEmpty")}</p>
+                    <div className="space-y-2 rounded-xl border border-warning-200 bg-warning-50/70 p-3 text-xs text-warning-900 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-200">
+                      <p className="font-semibold">{t("inviteProjectsEmpty")}</p>
+                      <p className="text-warning-800 dark:text-warning-300/90">
+                        {t("inviteProjectsEmptyLeaderHint")}
+                      </p>
+                      <Link
+                        href="/projects"
+                        onClick={onClose}
+                        className="inline-flex items-center font-semibold text-brand-600 underline hover:text-brand-700 dark:text-brand-400"
+                      >
+                        {t("inviteProjectsCreateFirstCta")}
+                      </Link>
+                    </div>
                   ) : (
                     <div className="max-h-40 space-y-1 overflow-y-auto rounded-xl border border-gray-300 bg-white p-2 dark:border-gray-700 dark:bg-gray-900">
                       {projectsQuery.projects.map((project) => (

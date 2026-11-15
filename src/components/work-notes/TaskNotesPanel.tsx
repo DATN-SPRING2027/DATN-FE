@@ -108,10 +108,14 @@ export type TaskNotesSplitControl = {
 export default function TaskNotesPanel({
   projectId,
   taskId,
+  taskKey,
+  canAutoApprove = true,
   splitControl,
 }: {
   projectId: string;
   taskId: string;
+  taskKey?: string;
+  canAutoApprove?: boolean;
   splitControl?: TaskNotesSplitControl;
 }) {
   return (
@@ -119,6 +123,8 @@ export default function TaskNotesPanel({
       key={`${projectId}:${taskId}`}
       projectId={projectId}
       taskId={taskId}
+      taskKey={taskKey}
+      canAutoApprove={canAutoApprove}
       splitControl={splitControl}
     />
   );
@@ -127,10 +133,14 @@ export default function TaskNotesPanel({
 function TaskNotesContent({
   projectId,
   taskId,
+  taskKey,
+  canAutoApprove,
   splitControl,
 }: {
   projectId: string;
   taskId: string;
+  taskKey?: string;
+  canAutoApprove: boolean;
   splitControl?: TaskNotesSplitControl;
 }) {
   const t = useTranslations("workNotes.taskNotes");
@@ -259,9 +269,11 @@ function TaskNotesContent({
     input.approach.trim().length +
     input.reason.trim().length;
   const isShortContent = combinedBodyLen > 0 && combinedBodyLen < 30;
-  const effectiveAutoApprove = autoApprove && !isShortContent;
-  const canAutoApproveOnSave = autoApprove && combinedBodyLen >= 30;
-  const showShortContentNudge = autoApprove && isShortContent;
+  const effectiveAutoApprove = canAutoApprove && autoApprove && !isShortContent;
+  const canAutoApproveOnSave =
+    canAutoApprove && autoApprove && combinedBodyLen >= 30;
+  const showShortContentNudge =
+    canAutoApprove && autoApprove && isShortContent;
   const currentSplitSignal = splitControl?.savedSignal ?? 0;
   const effectiveSavedBanner =
     showSavedBanner ||
@@ -511,6 +523,8 @@ function TaskNotesContent({
           key={`${projectId}:${taskId}:${editingId ?? "new"}`}
           projectId={projectId}
           taskId={taskId}
+          taskKey={taskKey}
+          canAutoApprove={canAutoApprove}
           noteId={editingId ?? undefined}
           onClose={handleCloseComposer}
           onSaved={() => {
@@ -658,6 +672,7 @@ function TaskNotesContent({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 bg-gray-50/60 px-4 py-2.5 dark:border-gray-800 dark:bg-gray-900/50">
+            {canAutoApprove && (
             <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
               <button
                 type="button"
@@ -711,6 +726,7 @@ function TaskNotesContent({
                 </button>
               )}
             </div>
+            )}
             <div className="ms-auto flex items-center gap-2">
               <Button
                 type="button"

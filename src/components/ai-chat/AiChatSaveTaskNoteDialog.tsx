@@ -203,6 +203,7 @@ export default function AiChatSaveTaskNoteDialog({
               key={`${message.id}:${taskId}`}
               projectId={projectId}
               taskId={taskId}
+              taskKey={selectedTask.key}
               onClose={(persisted) => {
                 if (persisted) {
                   setTitle(persisted.title);

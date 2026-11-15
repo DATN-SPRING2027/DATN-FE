@@ -45,6 +45,7 @@ import {
   buildOrganizationSuccessorOptions,
   ensureProjectMemberBeforeHandover,
   extractHandoverErrorMessage,
+  formatHandoverSourceKind,
   formatMemberOptionLabel,
 } from "./handover-ui.utils";
 
@@ -132,6 +133,8 @@ export default function CreateHandoverModal({
 }: CreateHandoverModalProps) {
   const t = useTranslations("handover.createModal");
   const t5 = useTranslations("handover.fiveStep");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const createMutation = useCreateHandoverMutation(projectId);
   const leadersQuery = useProjectLeadersQuery(organizationId, projectId);
   const candidatesQuery = useProjectMemberCandidatesQuery(
@@ -909,14 +912,8 @@ export default function CreateHandoverModal({
                         </div>
                         <span className="shrink-0 whitespace-nowrap">
                           <Badge color="info" size="sm">
-                            {src.kind === "PROJECT_DOCUMENT"
-                              ? "Document"
-                              : src.kind === "TASK_NOTE"
-                                ? "Task Note"
-                                : src.kind === "WORK_REPORT"
-                                  ? "Work Report"
-                                  : src.kind}{" "}
-                            · v{src.version}
+                            {formatHandoverSourceKind(src.kind, localeCode)} · v
+                            {src.version}
                           </Badge>
                         </span>
                       </label>

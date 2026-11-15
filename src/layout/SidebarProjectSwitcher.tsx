@@ -9,7 +9,8 @@ import {
   SearchIcon,
 } from "@/icons/index";
 import type { Project } from "@/lib/queries/projects/useProjects";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useTranslations } from "next-intl";
 import { cn } from "@/utils";
 
@@ -55,7 +56,7 @@ export default function SidebarProjectSwitcher({
   onOpenChange,
 }: SidebarProjectSwitcherProps) {
   const t = useTranslations("sidebar");
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useHydratedReducedMotion();
   const [internalOpen, setInternalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const isOpen = controlledOpen ?? internalOpen;

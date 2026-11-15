@@ -263,7 +263,7 @@ function ScopedProjectMembers({
   }
 
   return (
-    <div className="@container min-w-0 space-y-6">
+    <div className="@container min-w-0 space-y-6 pb-20">
       {notice && <MemberNotification message={t(notice)} />}
       {(members.isError || add.isError || remove.isError) && (
         <Button
@@ -487,7 +487,7 @@ function ScopedProjectMembers({
               onRemove={requestRemoval}
               onToggleLeader={handleToggleLeader}
             />
-            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 dark:border-gray-800">
+            <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 px-5 py-4 sm:pe-48 dark:border-gray-800">
               <p className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
                 {t("pageOf", {
                   page: memberPage.pagination.page,
@@ -624,6 +624,8 @@ function ScopedProjectMembers({
                     return;
                   mutationInFlight.current = true;
                   setNotice(undefined);
+                  leaderActions.assign.reset();
+                  leaderActions.revoke.reset();
                   add.mutate(
                     shouldAppoint ? { userId, role: "TEAM_LEADER" } : userId,
                     {
@@ -637,8 +639,10 @@ function ScopedProjectMembers({
                               setAppointLeaderOnAdd(false);
                             },
                             onError: () => {
+                              leaderActions.assign.reset();
                               setNotice("leaderAppointed");
                               setAppointLeaderOnAdd(false);
+                              void leaders.refetch();
                             },
                             onSettled: () => {
                               mutationInFlight.current = false;

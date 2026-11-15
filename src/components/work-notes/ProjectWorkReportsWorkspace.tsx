@@ -23,7 +23,10 @@ import {
   SearchIcon,
   UserCircleIcon,
 } from "@/icons";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import {
+  ApiError,
+  isAccessOrResourceUnavailableError,
+} from "@/lib/api-client";
 import { cn } from "@/utils";
 import {
   isKnowledgeSyncActive,
@@ -586,7 +589,7 @@ function ReportEditor({
             )}
           </div>
         )}
-        <div className="ms-auto flex flex-wrap items-center gap-2">
+        <div className="ms-auto flex flex-wrap items-center gap-2 sm:pe-24">
           {onClose && (
             <Button type="button" variant="outline" size="sm" onClick={onClose}>
               {t("closeEditor")}
@@ -1705,14 +1708,18 @@ export default function ProjectWorkReportsWorkspace({
     }
   }
 
+  const rawReportError =
+    saveReport.error ?? updateReport.error ?? reportAction.error;
   const reportError =
-    saveReport.error instanceof Error
-      ? saveReport.error.message
-      : updateReport.error instanceof Error
-        ? updateReport.error.message
-        : reportAction.error instanceof Error
-          ? reportAction.error.message
-          : "";
+    rawReportError instanceof ApiError &&
+    (rawReportError.code === "VALIDATION_FAILED" ||
+      rawReportError.message === "Request validation failed.")
+      ? t("validationFailed")
+      : rawReportError instanceof Error
+        ? rawReportError.message === "Request validation failed."
+          ? t("validationFailed")
+          : rawReportError.message
+        : "";
 
   const submittedInPeriod =
     periodMetrics.approved + periodMetrics.pendingReview;
@@ -1870,7 +1877,7 @@ export default function ProjectWorkReportsWorkspace({
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-2 sm:px-6 lg:px-8">
+    <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-20 sm:px-6 lg:px-8">
       <WorkNotesPageHeader projectId={projectId} active="reports" />
 
       <div className="space-y-3">

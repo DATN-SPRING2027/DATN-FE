@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
+  localizeNotificationCopy,
   resolveDefaultTargetUrl,
   resolveNotificationCategory,
 } from "../notifications/notification-utils";
@@ -438,6 +439,10 @@ export default function NotificationDropdown() {
             <ul className="flex flex-col gap-1">
               {items.map((item) => {
                 const isUnread = !item.readAt;
+                const localized = localizeNotificationCopy(
+                  item,
+                  common("localeCode"),
+                );
                 return (
                   <li key={item.id}>
                     <div
@@ -457,14 +462,14 @@ export default function NotificationDropdown() {
                       >
                         <div className="flex items-center justify-between gap-2">
                           <span className="truncate text-xs font-semibold text-gray-800 dark:text-white/90">
-                            {item.title}
+                            {localized.title}
                           </span>
                           <span className="shrink-0 text-[11px] text-gray-500 tabular-nums dark:text-gray-400">
                             {formatRelativeNotificationTime(item.createdAt, t)}
                           </span>
                         </div>
                         <p className="mt-0.5 line-clamp-2 text-xs text-gray-600 dark:text-gray-300">
-                          {item.message}
+                          {localized.message}
                         </p>
                       </button>
 

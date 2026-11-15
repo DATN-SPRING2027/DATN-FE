@@ -8,7 +8,8 @@ import { useSelectOrganizationMutation } from "@/lib/queries/auth/useAccountOnbo
 import OrganizationTransition from "@/components/auth/OrganizationTransition";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
 import { CheckCircleIcon, ChevronDownIcon } from "@/icons/index";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/utils";
@@ -77,7 +78,7 @@ export default function SidebarOrganizationSwitcher({
   const pathname = usePathname();
   const router = useRouter();
   const select = useSelectOrganizationMutation();
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useHydratedReducedMotion();
   const [internalOpen, setInternalOpen] = useState(false);
   const isOpen = controlledOpen ?? internalOpen;
   const setIsOpen = useCallback(

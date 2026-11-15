@@ -355,6 +355,23 @@
 .surface.surface.surface button {
   background: var(--color-white);
   border-color: var(--color-gray-200);
+  color: var(--color-gray-800);
+}
+.surface.surface.surface button[type="submit"] {
+  background: #0c66e4;
+  border-color: #0c66e4;
+  color: #ffffff;
+}
+.surface.surface.surface button[type="submit"]:hover:not(:disabled) {
+  background: #0055cc;
+  border-color: #0055cc;
+}
+.surface.surface.surface button:disabled,
+.surface.surface.surface button[type="submit"]:disabled {
+  background: #f1f2f4;
+  border-color: #dce4ee;
+  color: #626f86;
+  cursor: not-allowed;
 }
 .surface.surface.surface :is(h2, .recordTitle) {
   font-size: 1.125rem;
@@ -441,6 +458,22 @@
   .surface.surface.surface
   :is(div, section, span, p, dl, dt, dd, ul, li) {
   background-color: transparent;
+}
+:global(.dark) .surface.surface.surface button {
+  background: #1f2d42;
+  border-color: #34435a;
+  color: #edf3ff;
+}
+:global(.dark) .surface.surface.surface button[type="submit"] {
+  background: #0c66e4;
+  border-color: #0c66e4;
+  color: #ffffff;
+}
+:global(.dark) .surface.surface.surface button:disabled,
+:global(.dark) .surface.surface.surface button[type="submit"]:disabled {
+  background: #243349;
+  border-color: #34435a;
+  color: #8c9db8;
 }
 
 .surface .heading { border-bottom: 1px solid var(--op-line, #dce4ee); }

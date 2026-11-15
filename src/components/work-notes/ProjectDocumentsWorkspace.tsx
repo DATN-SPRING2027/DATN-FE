@@ -5212,15 +5212,34 @@ export default function ProjectDocumentsWorkspace({
 
                       {!current.permissions.canReview &&
                         !current.permissions.canSubmit && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 px-3.5 !py-0 text-xs"
-                            onClick={closeDetailModal}
-                          >
-                            {t("close")}
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-2.5">
+                            {current.status === "PENDING_REVIEW" &&
+                              !isViewingHistoricalVersion && (
+                                <span
+                                  role="status"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                  title={t("selfReviewRestrictedDescription")}
+                                >
+                                  <span>
+                                    {current.createdBy &&
+                                    cachedCurrentUser?.id &&
+                                    current.createdBy.toLowerCase() ===
+                                      cachedCurrentUser.id.toLowerCase()
+                                      ? t("selfReviewRestrictedTitle")
+                                      : t("pendingLeaderReviewTitle")}
+                                  </span>
+                                </span>
+                              )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 px-3.5 !py-0 text-xs"
+                              onClick={closeDetailModal}
+                            >
+                              {t("close")}
+                            </Button>
+                          </div>
                         )}
                     </div>
                   </div>

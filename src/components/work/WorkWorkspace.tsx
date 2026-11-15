@@ -3963,6 +3963,7 @@ export default function WorkWorkspace({
           mode="page"
           projectId={projectId}
           isPreview={!isRealProject}
+          canAutoApproveNotes={!isRealProject || canManageWork}
           item={fullPageWorkItem}
           allItems={itemsWithPermissions}
           people={projectPeople}
@@ -4341,6 +4342,7 @@ export default function WorkWorkspace({
           mode="modal"
           projectId={projectId}
           isPreview={!isRealProject}
+          canAutoApproveNotes={!isRealProject || canManageWork}
           item={activeWorkItem}
           allItems={itemsWithPermissions}
           people={projectPeople}

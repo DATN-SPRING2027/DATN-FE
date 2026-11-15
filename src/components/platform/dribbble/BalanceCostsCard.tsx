@@ -4,12 +4,22 @@ import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatform
 import { referenceBars } from "./reference-series";
 import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/platformCharts.module.css";
+const VI_USER_SNAPSHOT_LABELS: Record<string, string> = {
+  total: "Tổng số",
+  active: "Đang hoạt động",
+  pendingVerification: "Chờ xác minh",
+  suspended: "Đã tạm ngưng",
+  platformOperators: "Vận hành Hệ thống",
+};
+
 export default function BalanceCostsCard({
   data,
 }: {
   data: PlatformDashboardRecord["users"];
 }) {
   const t = useTranslations("platformConsole");
+  const common = useTranslations("common");
+  const isVi = common("localeCode") === "vi";
   return (
     <section className={`${styles.panel} ${styles.smallCard}`}>
       <div className={styles.cardHeading}>
@@ -74,7 +84,7 @@ export default function BalanceCostsCard({
       <dl className="sr-only" aria-label={t("liveDashboard.snapshot")}>
         {Object.entries(data).map(([key, value]) => (
           <div key={key}>
-            <dt>{key}</dt>
+            <dt>{isVi ? (VI_USER_SNAPSHOT_LABELS[key] ?? key) : key}</dt>
             <dd>{value}</dd>
           </div>
         ))}

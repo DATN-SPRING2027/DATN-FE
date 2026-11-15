@@ -18,6 +18,7 @@ import {
 } from "@/lib/queries/handovers/useHandovers";
 import {
   extractHandoverErrorMessage,
+  formatHandoverTaskStatus,
   formatShortId,
   transferBadgeColor,
 } from "./handover-ui.utils";
@@ -34,6 +35,8 @@ export default function HandoverTaskTransfersPanel({
   capabilities: readonly HandoverCapability[];
 }) {
   const t = useTranslations("handover.transfers");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const canTransfer =
     capabilities.includes("TRANSFER") &&
     handover.status === "OPEN" &&
@@ -102,7 +105,11 @@ export default function HandoverTaskTransfersPanel({
       );
 
     if (payloadTasks.length === 0) {
-      setLocalError("Select at least one task to transfer.");
+      setLocalError(
+        localeCode === "vi"
+          ? "Vui lòng chọn ít nhất một công việc để chuyển giao."
+          : "Select at least one task to transfer.",
+      );
       return;
     }
 
@@ -118,7 +125,12 @@ export default function HandoverTaskTransfersPanel({
       setSelectedTaskIds([]);
     } catch (err) {
       setLocalError(
-        extractHandoverErrorMessage(err, "Could not dispatch task transfer."),
+        extractHandoverErrorMessage(
+          err,
+          localeCode === "vi"
+            ? "Không thể gửi lệnh chuyển giao công việc."
+            : "Could not dispatch task transfer.",
+        ),
       );
     }
   };
@@ -207,7 +219,8 @@ export default function HandoverTaskTransfersPanel({
                           <span className="truncate">{task.title}</span>
                         </div>
                         <p className="mt-0.5 tabular-nums text-gray-500 dark:text-gray-400">
-                          {task.status} · v{task.version}
+                          {formatHandoverTaskStatus(task.status, localeCode)} · v
+                          {task.version}
                         </p>
                       </div>
                     </label>
@@ -261,11 +274,13 @@ export default function HandoverTaskTransfersPanel({
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2 text-xs tabular-nums">
                       <span className="font-mono font-semibold text-gray-800 dark:text-gray-200">
-                        Batch {formatShortId(tr.id)}
+                        {localeCode === "vi" ? "Đợt" : "Batch"}{" "}
+                        {formatShortId(tr.id)}
                       </span>
                       <span className="text-gray-400">·</span>
                       <span className="text-gray-500 dark:text-gray-400">
-                        Epoch #{tr.assignmentVersion}
+                        {localeCode === "vi" ? "Chu kỳ" : "Epoch"} #
+                        {tr.assignmentVersion}
                       </span>
                       <Badge color={transferBadgeColor(tr.state)} size="sm">
                         {t(`state_${tr.state}`)}

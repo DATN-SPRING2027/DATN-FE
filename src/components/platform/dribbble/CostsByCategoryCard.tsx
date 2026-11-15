@@ -17,6 +17,8 @@ export default function CostsByCategoryCard({
   data: PlatformDashboardRecord["projects"];
 }) {
   const t = useTranslations("platformConsole");
+  const common = useTranslations("common");
+  const numberLocale = common("localeCode") === "vi" ? "vi-VN" : "en-US";
   return (
     <section className={`${styles.panel} ${styles.smallCard}`}>
       <div className={styles.cardHeading}>
@@ -45,7 +47,7 @@ export default function CostsByCategoryCard({
       </dl>
       <p className={styles.realTotal}>
         {t("liveDashboard.realTotal")}:{" "}
-        <strong>{data.total.toLocaleString("en-US")}</strong>
+        <strong>{data.total.toLocaleString(numberLocale)}</strong>
       </p>
     </section>
   );

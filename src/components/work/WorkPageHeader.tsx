@@ -397,7 +397,7 @@ export default function WorkPageHeader({
       <button
         type="button"
         onClick={handleShareSpace}
-        title="Share space"
+        title={t("shareSpace")}
         className="inline-flex h-8 cursor-pointer items-center justify-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <svg
@@ -416,13 +416,13 @@ export default function WorkPageHeader({
           <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
         </svg>
         <span className="hidden sm:inline">
-          {copiedLink ? "✓ Link copied" : "Share space"}
+          {copiedLink ? t("linkCopied") : t("shareSpace")}
         </span>
       </button>
       <button
         type="button"
         onClick={() => setAutomationsOpen(true)}
-        title="Automations"
+        title={t("automations")}
         className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
       >
         <MonoIcon name="bolt" size={14} />
@@ -432,7 +432,7 @@ export default function WorkPageHeader({
           type="button"
           onClick={onToggleFullscreen}
           aria-pressed={isFullscreen}
-          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          title={isFullscreen ? t("exitFullscreen") : t("fullscreen")}
           className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded border border-gray-200 bg-white text-gray-700 transition hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
         >
           <MonoIcon name="maximize" size={14} />
