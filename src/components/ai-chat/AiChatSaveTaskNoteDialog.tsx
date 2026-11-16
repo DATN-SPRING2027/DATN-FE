@@ -71,6 +71,7 @@ export default function AiChatSaveTaskNoteDialog({
   threadId,
   message,
   questionText,
+  canAutoApprove = false,
   onClose,
   onSaved,
 }: {
@@ -78,6 +79,7 @@ export default function AiChatSaveTaskNoteDialog({
   threadId: string;
   message: AiChatMessage;
   questionText: string;
+  canAutoApprove?: boolean;
   onClose: () => void;
   onSaved: (result?: unknown) => void;
 }) {
@@ -203,6 +205,8 @@ export default function AiChatSaveTaskNoteDialog({
               key={`${message.id}:${taskId}`}
               projectId={projectId}
               taskId={taskId}
+              taskKey={selectedTask.key}
+              canAutoApprove={canAutoApprove}
               onClose={(persisted) => {
                 if (persisted) {
                   setTitle(persisted.title);

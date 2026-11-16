@@ -1,13 +1,16 @@
 "use client";
 
 import React from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useTheme } from "@/context/ThemeContext";
-import { ANIMATE_UI_BUTTON_SPRING } from "@/components/ui/button/buttonMotion";
+import {
+  ANIMATE_UI_BUTTON_SPRING,
+  useHydratedReducedMotion,
+} from "@/components/ui/button/buttonMotion";
 
 export const ThemeToggleButton: React.FC = () => {
   const { toggleTheme } = useTheme();
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
 
   const motionStateProps = shouldReduceMotion
     ? undefined

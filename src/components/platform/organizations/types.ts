@@ -46,6 +46,8 @@ export type PlatformOrganizationsViewProps = {
   ) => Promise<boolean>;
   createOrganizationPending: boolean;
   lookupPending: boolean;
+  lookupErrorKey?: string;
+  createErrorKey?: string;
 
   // Detail view & Metadata edit
   organization: {

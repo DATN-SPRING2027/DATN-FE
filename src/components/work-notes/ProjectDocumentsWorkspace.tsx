@@ -5,7 +5,6 @@ import {
   useMemo,
   useRef,
   useState,
-  type DragEvent,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
@@ -22,12 +21,9 @@ import {
   CheckLineIcon,
   CloseLineIcon,
   DocsIcon,
-  DownloadIcon,
   InfoIcon,
-  MoreDotIcon,
   PaperPlaneIcon,
   TrashBinIcon,
-  UserCircleIcon,
 } from "@/icons";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
@@ -682,7 +678,6 @@ export default function ProjectDocumentsWorkspace({
     number | null
   >(null);
   const [showActionSuccess, setShowActionSuccess] = useState(false);
-  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteError, setDeleteError] = useState("");
@@ -1790,7 +1785,6 @@ export default function ProjectDocumentsWorkspace({
       }
       setReviewComment("");
       setConfirmingArchive(false);
-      setMoreActionsOpen(false);
       setShowActionSuccess(true);
     } catch {
       // Mutation error is displayed in the modal.
@@ -1844,7 +1838,6 @@ export default function ProjectDocumentsWorkspace({
   }
 
   function openRemovalModal(target: ProjectDocumentSummary) {
-    setMoreActionsOpen(false);
     setConfirmingDelete(false);
     setConfirmingArchive(false);
     setRemovalModalError("");
@@ -1969,7 +1962,6 @@ export default function ProjectDocumentsWorkspace({
     setSelected(document);
     setSelectedVersionNumber(null);
     setShowActionSuccess(false);
-    setMoreActionsOpen(false);
     setConfirmingArchive(false);
     setConfirmingDelete(false);
     setConfirmingRevokeSag(false);
@@ -1995,7 +1987,6 @@ export default function ProjectDocumentsWorkspace({
     setSelected(null);
     setSelectedVersionNumber(null);
     setShowActionSuccess(false);
-    setMoreActionsOpen(false);
     setConfirmingArchive(false);
     setConfirmingDelete(false);
     setConfirmingRevokeSag(false);
@@ -5212,15 +5203,34 @@ export default function ProjectDocumentsWorkspace({
 
                       {!current.permissions.canReview &&
                         !current.permissions.canSubmit && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-9 px-3.5 !py-0 text-xs"
-                            onClick={closeDetailModal}
-                          >
-                            {t("close")}
-                          </Button>
+                          <div className="flex flex-wrap items-center justify-end gap-2.5">
+                            {current.status === "PENDING_REVIEW" &&
+                              !isViewingHistoricalVersion && (
+                                <span
+                                  role="status"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50/80 px-2.5 py-1.5 text-xs font-medium text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                                  title={t("selfReviewRestrictedDescription")}
+                                >
+                                  <span>
+                                    {current.createdBy &&
+                                    cachedCurrentUser?.id &&
+                                    current.createdBy.toLowerCase() ===
+                                      cachedCurrentUser.id.toLowerCase()
+                                      ? t("selfReviewRestrictedTitle")
+                                      : t("pendingLeaderReviewTitle")}
+                                  </span>
+                                </span>
+                              )}
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-9 px-3.5 !py-0 text-xs"
+                              onClick={closeDetailModal}
+                            >
+                              {t("close")}
+                            </Button>
+                          </div>
                         )}
                     </div>
                   </div>
@@ -5621,6 +5631,7 @@ export default function ProjectDocumentsWorkspace({
         <WorkNoteComposer
           projectId={projectId}
           source={agentSource}
+          canAutoApprove={isProjectLeader}
           onClose={() => setAgentSource(null)}
           onSaved={() => setAgentSource(null)}
         />

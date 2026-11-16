@@ -79,7 +79,7 @@ export default function HeaderSettingsDropdown({
       id: "notifications",
       title: t("settingsMenu.notificationTitle"),
       description: t("settingsMenu.notificationDesc"),
-      href: "/chat",
+      href: "/notifications",
       icon: (
         <svg
           aria-hidden="true"

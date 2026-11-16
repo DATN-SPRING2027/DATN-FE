@@ -2301,6 +2301,18 @@ function AiChatWorkspaceContent() {
           threadId={taskNoteSaveTarget.threadId}
           message={taskNoteSaveTarget.message}
           questionText={taskNoteSaveTarget.questionText}
+          canAutoApprove={
+            isOrganizationManager ||
+            Boolean(
+              userId &&
+                projects
+                  .find((proj) => proj.id === taskNoteSaveTarget.projectId)
+                  ?.leaders?.some(
+                    (leader) =>
+                      leader.userId?.toLowerCase() === userId.toLowerCase(),
+                  ),
+            )
+          }
           onClose={() => setTaskNoteSaveTarget(null)}
           onSaved={() => {
             setTaskNoteSaveTarget(null);

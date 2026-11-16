@@ -33,7 +33,16 @@ function formatRelativeDays(isoDate: string, locale = "en"): string {
   const parsed = Date.parse(isoDate);
   if (!Number.isFinite(parsed)) return rtf.format(-1, "day");
   const diffMs = Math.max(0, Date.now() - parsed);
-  const diffDays = Math.max(1, Math.floor(diffMs / 86_400_000));
+  if (diffMs < 60_000) {
+    return rtf.format(-Math.max(1, Math.floor(diffMs / 1_000)), "second");
+  }
+  if (diffMs < 3_600_000) {
+    return rtf.format(-Math.floor(diffMs / 60_000), "minute");
+  }
+  if (diffMs < 86_400_000) {
+    return rtf.format(-Math.floor(diffMs / 3_600_000), "hour");
+  }
+  const diffDays = Math.floor(diffMs / 86_400_000);
   return rtf.format(-diffDays, "day");
 }
 

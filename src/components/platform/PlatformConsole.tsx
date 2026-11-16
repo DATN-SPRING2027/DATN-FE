@@ -65,6 +65,21 @@ function has(
   return Boolean(session?.permissions.includes(permission));
 }
 
+function resolveCreateOrgErrorKey(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "PLATFORM_OPERATOR_CANNOT_BE_FIRST_ADMIN") {
+      return "errors.operatorCannotBeFirstAdmin";
+    }
+    if (
+      error.code === "ORGANIZATION_SLUG_CONFLICT" ||
+      error.code === "CONFLICT"
+    ) {
+      return "errors.organizationSlugConflict";
+    }
+  }
+  return "errors.organizationCreate";
+}
+
 function apiMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
   if (error.status === 403) return fallback;
@@ -142,6 +157,8 @@ export default function PlatformConsole() {
     null,
   );
   const [operationMessage, setOperationMessage] = useState("");
+  const [lookupErrorKey, setLookupErrorKey] = useState<string | undefined>();
+  const [createErrorKey, setCreateErrorKey] = useState<string | undefined>();
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const effectiveSelectedOrganizationId =
     routeOrganizationId ||
@@ -220,9 +237,30 @@ export default function PlatformConsole() {
     if (!canCreateOrganization || !canLookupUsers || lookup.isPending)
       return false;
     setOperationMessage("");
+    setLookupErrorKey(undefined);
+    setCreateErrorKey(undefined);
     setSelectedUser(null);
+    const trimmedEmail = lookupEmail.trim();
+    if (
+      session.data?.email &&
+      trimmedEmail.toLowerCase() === session.data.email.toLowerCase()
+    ) {
+      setLookupErrorKey("errors.operatorCannotBeFirstAdmin");
+      setOperationMessage(t("errors.operatorCannotBeFirstAdmin"));
+      return false;
+    }
     try {
-      const user = await lookup.mutateAsync(lookupEmail.trim());
+      const user = await lookup.mutateAsync(trimmedEmail);
+      if (
+        user.isPlatformOperator === true ||
+        (session.data?.id && user.id === session.data.id) ||
+        (session.data?.email &&
+          user.email.toLowerCase() === session.data.email.toLowerCase())
+      ) {
+        setLookupErrorKey("errors.operatorCannotBeFirstAdmin");
+        setOperationMessage(t("errors.operatorCannotBeFirstAdmin"));
+        return false;
+      }
       setSelectedUser({
         id: user.id,
         email: user.email,
@@ -230,6 +268,7 @@ export default function PlatformConsole() {
       });
       return true;
     } catch {
+      setLookupErrorKey("errors.userLookup");
       setOperationMessage(t("errors.userLookup"));
       return false;
     }
@@ -238,6 +277,7 @@ export default function PlatformConsole() {
   async function runCreateOrganization(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setOperationMessage("");
+    setCreateErrorKey(undefined);
     if (
       !canCreateOrganization ||
       !canLookupUsers ||
@@ -263,7 +303,9 @@ export default function PlatformConsole() {
       setLookupEmail("");
       return true;
     } catch (error) {
-      setOperationMessage(apiMessage(error, t("errors.organizationCreate")));
+      const errorKey = resolveCreateOrgErrorKey(error);
+      setCreateErrorKey(errorKey);
+      setOperationMessage(apiMessage(error, t(errorKey)));
       return false;
     }
   }
@@ -401,18 +443,32 @@ export default function PlatformConsole() {
             organizationPlan={organizationPlan}
             setOrganizationPlan={setOrganizationPlan}
             lookupEmail={lookupEmail}
-            setLookupEmail={setLookupEmail}
+            setLookupEmail={(value) => {
+              setLookupEmail(value);
+              setLookupErrorKey(undefined);
+              setCreateErrorKey(undefined);
+              setOperationMessage("");
+            }}
             selectedUser={selectedUser}
             setSelectedUser={setSelectedUser}
             runLookup={runLookup}
             runCreateOrganization={runCreateOrganization}
             createOrganizationPending={createOrganization.isPending}
             lookupPending={lookup.isPending}
+            lookupErrorKey={lookupErrorKey}
+            createErrorKey={createErrorKey}
             organization={organization}
             changeOrganizationMetadata={changeOrganizationMetadata}
             setOperationMessage={setOperationMessage}
             isCreateModalOpen={isCreateModalOpen}
-            setIsCreateModalOpen={setIsCreateModalOpen}
+            setIsCreateModalOpen={(open) => {
+              if (!open) {
+                setLookupErrorKey(undefined);
+                setCreateErrorKey(undefined);
+                setOperationMessage("");
+              }
+              setIsCreateModalOpen(open);
+            }}
           />
 
           {!canReadOrganizations &&

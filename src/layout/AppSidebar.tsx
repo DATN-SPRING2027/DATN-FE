@@ -8,7 +8,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { LayoutGroup, motion, useReducedMotion } from "motion/react";
+import { LayoutGroup, motion } from "motion/react";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useOrganizationOptionsQuery } from "@/lib/queries/auth/useAccountOnboarding";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
@@ -204,7 +205,7 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   const pathname = usePathname();
   const router = useRouter();
   const t = useTranslations("sidebar");
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useHydratedReducedMotion();
   const currentUser = useCurrentUserQuery();
   const visibleUser = isAccessOrResourceUnavailableError(currentUser.error)
     ? undefined

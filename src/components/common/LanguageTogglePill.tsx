@@ -2,7 +2,7 @@
 
 import { useCallback, useContext, useRef, type PointerEvent as ReactPointerEvent } from "react";
 import { AppRouterContext } from "next/dist/shared/lib/app-router-context.shared-runtime";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import type { Locale } from "@/i18n/routing";
 import * as Icons from "@/icons";
@@ -11,6 +11,7 @@ import { cn } from "@/utils";
 import {
   ANIMATE_UI_BUTTON_SPRING,
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "@/components/ui/button/buttonMotion";
 
@@ -45,7 +46,7 @@ export default function LanguageTogglePill({
 }) {
   const t = useTranslations("common");
   const router = useContext(AppRouterContext);
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
 
   const resolvedCode = tr(t, "localeCode", "en");

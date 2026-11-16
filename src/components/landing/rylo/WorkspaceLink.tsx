@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useRef, type PointerEvent as ReactPointerEvent } from "react";
-import { useReducedMotion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
 import { useSignInSessionQuery } from "@/lib/queries/auth/useSharedSignIn";
 import {
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "@/components/ui/button/buttonMotion";
 import styles from "./landing.module.css";
@@ -27,7 +27,7 @@ export default function WorkspaceLink({
 }: WorkspaceLinkProps) {
   const t = useTranslations("landingRylo");
   const session = useSignInSessionQuery();
-  const shouldReduceMotion = useReducedMotion();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const rippleRef = useRef<ButtonRippleHandle>(null);
 
   const handlePointerDown = useCallback(

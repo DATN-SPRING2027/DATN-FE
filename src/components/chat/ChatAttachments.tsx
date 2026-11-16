@@ -51,15 +51,34 @@ function ChatDocumentAttachment({
   conversationId,
   attachment,
 }: Readonly<{ conversationId: string; attachment: ChatAttachment }>) {
+  const t = useTranslations("chat");
   const { url, failed } = useAttachmentUrl(conversationId, attachment.id);
+  if (failed) {
+    return (
+      <div
+        role="status"
+        className="mt-2 flex max-w-72 cursor-not-allowed items-center gap-2 rounded-xl border border-current/20 px-2.5 py-2 text-xs opacity-75"
+      >
+        <span aria-hidden="true" className="text-base">
+          ▤
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium">{attachment.name}</span>
+          <span className="block truncate opacity-75">
+            {t("attachmentUnavailable")}
+          </span>
+        </span>
+      </div>
+    );
+  }
   return (
     <a
       href={url || undefined}
       download={attachment.name}
       target={url ? "_blank" : undefined}
-      rel={url ? "noreferrer" : undefined}
+      rel={url ? "noopener noreferrer" : undefined}
       aria-disabled={!url}
-      className="mt-2 flex max-w-72 items-center gap-2 rounded-xl border border-current/20 px-2.5 py-2 text-xs opacity-90 transition-opacity hover:opacity-100"
+      className={`mt-2 flex max-w-72 items-center gap-2 rounded-xl border border-current/20 px-2.5 py-2 text-xs opacity-90 transition-opacity hover:opacity-100${!url ? " pointer-events-none cursor-wait opacity-60" : ""}`}
     >
       <span aria-hidden="true" className="text-base">
         ▤
@@ -68,7 +87,7 @@ function ChatDocumentAttachment({
         <span className="block truncate font-medium">{attachment.name}</span>
         <span className="opacity-70">{formatSize(attachment.size)}</span>
       </span>
-      <span aria-hidden="true">{failed ? "!" : url ? "↓" : "…"}</span>
+      <span aria-hidden="true">{url ? "↓" : "…"}</span>
     </a>
   );
 }

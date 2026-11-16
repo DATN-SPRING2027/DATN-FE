@@ -60,6 +60,8 @@ export default function HandoverListWorkspace({
 }) {
   const t = useTranslations("handover");
   const tPage = useTranslations("pageTitles");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const router = useRouter();
   const currentUser = useCurrentUserQuery();
   const organizationId = currentUser.data?.organizationId ?? "";
@@ -886,7 +888,12 @@ export default function HandoverListWorkspace({
                           </td>
 
                           <td className="px-4 py-4 align-top text-xs whitespace-nowrap text-gray-700 tabular-nums dark:text-gray-300">
-                            <div>{formatUtcDate(item.targetCompletionDate)}</div>
+                            <div>
+                              {formatUtcDate(
+                                item.targetCompletionDate,
+                                localeCode,
+                              )}
+                            </div>
                             {item.overdue && item.status === "OPEN" && (
                               <div className="mt-1">
                                 <Badge color="error" size="sm">
@@ -949,7 +956,10 @@ export default function HandoverListWorkspace({
                             )}
                           </div>
                           <span className="text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                            {formatUtcDate(item.targetCompletionDate)}
+                            {formatUtcDate(
+                              item.targetCompletionDate,
+                              localeCode,
+                            )}
                           </span>
                         </div>
 

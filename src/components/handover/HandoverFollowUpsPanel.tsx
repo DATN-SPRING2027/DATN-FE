@@ -36,6 +36,8 @@ export default function HandoverFollowUpsPanel({
   membersById: ReadonlyMap<string, ProjectMembership>;
 }) {
   const t = useTranslations("handover.followUps");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const followUpsQuery = useHandoverFollowUpsQuery(projectId, handoverId);
   const resolveMutation = useResolveHandoverFollowUpMutation(
     projectId,
@@ -119,7 +121,8 @@ export default function HandoverFollowUpsPanel({
                       : t("statusOpen")}
                   </Badge>
                   <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
-                    v{fu.version} · {t("duePrefix")} {formatUtcDate(fu.dueAt)}
+                    v{fu.version} · {t("duePrefix")}{" "}
+                    {formatUtcDate(fu.dueAt, localeCode)}
                   </span>
                 </div>
                 <p className="text-sm font-medium text-gray-900 [overflow-wrap:anywhere] dark:text-white">
@@ -131,7 +134,7 @@ export default function HandoverFollowUpsPanel({
                     {resolveMemberName(fu.ownerUserId, membersById, "—")}
                   </span>
                   {fu.resolvedAt
-                    ? ` · Resolved ${formatUtcDateTime(fu.resolvedAt)}`
+                    ? ` · Resolved ${formatUtcDateTime(fu.resolvedAt, localeCode)}`
                     : ""}
                 </p>
               </div>

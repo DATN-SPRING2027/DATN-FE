@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/loading/AsyncStatus";
 import {
   formatRelativeNotificationTime,
+  localizeNotificationCopy,
   resolveDefaultTargetUrl,
   resolveNotificationCategory,
 } from "./notification-utils";
@@ -446,6 +447,10 @@ export default function NotificationsWorkspace() {
             {items.map((item) => {
               const isUnread = !item.readAt;
               const category = resolveNotificationCategory(item);
+              const localized = localizeNotificationCopy(
+                item,
+                common("localeCode"),
+              );
               return (
                 <li
                   key={item.id}
@@ -469,7 +474,7 @@ export default function NotificationsWorkspace() {
                           {t(`categories.${category}`)}
                         </span>
                         <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {item.title}
+                          {localized.title}
                         </span>
                         {isUnread && (
                           <span
@@ -479,7 +484,7 @@ export default function NotificationsWorkspace() {
                         )}
                       </div>
                       <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                        {item.message}
+                        {localized.message}
                       </p>
                       <span className="mt-1.5 block text-xs text-gray-500 tabular-nums dark:text-gray-400">
                         {formatRelativeNotificationTime(item.createdAt, t)}

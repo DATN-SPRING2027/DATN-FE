@@ -130,6 +130,9 @@ export default function ContinuumAiCompanion({
   const pathname = usePathname();
   const isHumanChatPage =
     pathname === "/chat" || pathname.startsWith("/chat/");
+  const hasBottomRightPageActions = /\/(work-reports|members)\/?$/.test(
+    pathname,
+  );
   const openChatWindowCount = useFloatingChatStore((state) =>
     state.activeOrgId
       ? (state.openWindowsByOrg[state.activeOrgId]?.length ?? 0)
@@ -473,8 +476,12 @@ export default function ContinuumAiCompanion({
       : "";
 
   const hideGreetingBubble =
-    (openChatWindowCount > 0 || isLauncherOpen || isHumanChatPage) &&
+    (openChatWindowCount > 0 ||
+      isLauncherOpen ||
+      isHumanChatPage ||
+      hasBottomRightPageActions) &&
     !chatNotice;
+  const effectiveMinimized = isMinimized || hasBottomRightPageActions;
 
   // Default anchor: sits right beside the bottom-right Floating Chat button,
   // and glides smoothly further inline-start (or above on medium screens) when mini chat boxes or launcher expand.
@@ -488,7 +495,9 @@ export default function ContinuumAiCompanion({
         ? "max-sm:hidden end-20 bottom-4 sm:end-108 lg:end-24 lg:bottom-116 xl:end-195 xl:bottom-5"
         : openChatWindowCount === 1
           ? "max-sm:hidden end-20 bottom-4 sm:end-108 sm:bottom-5"
-          : "end-20 bottom-4 sm:end-24 sm:bottom-5";
+          : hasBottomRightPageActions && effectiveMinimized
+            ? "end-4 bottom-21 sm:end-5 sm:bottom-22"
+            : "end-20 bottom-4 sm:end-24 sm:bottom-5";
 
   const defaultPanelOffsetClass = isHumanChatPage
     ? "end-3 bottom-24 sm:end-6 sm:bottom-24"
@@ -525,25 +534,39 @@ export default function ContinuumAiCompanion({
           } ${helpShiftClass}`}
         >
           <WorkReportReminderNotice visible={!isOpen} />
-          {isMinimized ? (
-            <button
-              type="button"
-              onClick={(event) => {
-                if (suppressNextClickRef.current) {
-                  event.preventDefault();
-                  event.stopPropagation();
-                  suppressNextClickRef.current = false;
-                  return;
-                }
-                setIsMinimized(false);
-                setIsOpen(true);
-              }}
-              aria-label="Open Continuum AI Companion"
-              className="inline-flex cursor-grab items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 active:cursor-grabbing dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
+          {effectiveMinimized ? (
+            <div
+              className={`flex flex-col ${
+                isOnLeftHalf ? "items-start" : "items-end"
+              }`}
             >
-              <span className="h-2 w-2 rounded-full bg-brand-500" />
-              <span>{companionPillLabel}</span>
-            </button>
+              {chatNotice && (
+                <div className="mb-1 flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/95 px-3 py-1 text-xs font-medium text-gray-700 shadow-md backdrop-blur dark:border-emerald-500/30 dark:bg-gray-900/95 dark:text-gray-200">
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
+                  <span role="status" aria-live="polite">
+                    {t("chatCompleted")}
+                  </span>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={(event) => {
+                  if (suppressNextClickRef.current) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    suppressNextClickRef.current = false;
+                    return;
+                  }
+                  setIsMinimized(false);
+                  setIsOpen(true);
+                }}
+                aria-label="Open Continuum AI Companion"
+                className="inline-flex cursor-grab items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 active:cursor-grabbing dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
+              >
+                <span className="h-2 w-2 rounded-full bg-brand-500" />
+                <span>{companionPillLabel}</span>
+              </button>
+            </div>
           ) : (
             <div
               className={`group relative flex flex-col ${

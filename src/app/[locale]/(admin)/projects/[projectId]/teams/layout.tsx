@@ -1,13 +1,21 @@
-import { notFound } from "next/navigation";
+import { redirect } from "@/i18n/navigation";
 import { teamDevelopmentEnabled } from "@/lib/teams-development";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
-export default function TeamDevelopmentLayout({
+export default async function TeamDevelopmentLayout({
   children,
+  params,
 }: {
   children: ReactNode;
+  params: Promise<{ locale: string; projectId: string }>;
 }) {
-  if (!teamDevelopmentEnabled()) notFound();
+  if (!teamDevelopmentEnabled()) {
+    const { locale, projectId } = await params;
+    redirect({
+      href: `/projects/${encodeURIComponent(projectId)}/members`,
+      locale,
+    });
+  }
   return children;
 }

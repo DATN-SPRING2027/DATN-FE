@@ -43,7 +43,7 @@ export default function CreateOrganizationDialog(
             role="alert"
             className="text-sm text-error-600 dark:text-error-400"
           >
-            {t("errors.organizationCreate")}
+            {t(p.createErrorKey || "errors.organizationCreate")}
           </p>
         )}
         <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
@@ -107,6 +107,8 @@ export default function CreateOrganizationDialog(
               onChange={(event) => {
                 p.setLookupEmail(event.target.value);
                 p.setSelectedUser(null);
+                setLookupFailed(false);
+                setFailed(false);
               }}
             />
             <Button
@@ -130,7 +132,7 @@ export default function CreateOrganizationDialog(
                 role="alert"
                 className="text-sm text-error-600 dark:text-error-400"
               >
-                {t("errors.userLookup")}
+                {t(p.lookupErrorKey || "errors.userLookup")}
               </p>
             )}
             {selected && (

@@ -10,7 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
   type ReactNode,
 } from "react";
-import { motion, useReducedMotion } from "motion/react";
+import { motion } from "motion/react";
 import { useTranslations } from "next-intl";
 import { CheckLineIcon, CopyIcon } from "@/icons";
 import { cn } from "@/utils";
@@ -18,6 +18,7 @@ import {
   ANIMATE_UI_BUTTON_SPRING,
   ANIMATE_UI_ICON_SPRING,
   ButtonRippleLayer,
+  useHydratedReducedMotion,
   type ButtonRippleHandle,
 } from "./buttonMotion";
 
@@ -74,7 +75,7 @@ const CopyButton = forwardRef<HTMLButtonElement, CopyButtonProps>(
     ref,
   ) {
     const t = useTranslations("common");
-    const shouldReduceMotion = useReducedMotion();
+    const shouldReduceMotion = useHydratedReducedMotion();
     const [copied, setCopied] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const rippleRef = useRef<ButtonRippleHandle>(null);

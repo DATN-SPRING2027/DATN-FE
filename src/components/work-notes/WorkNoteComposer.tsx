@@ -72,6 +72,8 @@ type AssistantTab = "chat" | "assessment" | "suggestions" | "context";
 export default function WorkNoteComposer({
   projectId,
   taskId = "",
+  taskKey,
+  canAutoApprove = false,
   noteId,
   onClose,
   onSaved,
@@ -88,6 +90,8 @@ export default function WorkNoteComposer({
 }: {
   projectId: string;
   taskId?: string;
+  taskKey?: string;
+  canAutoApprove?: boolean;
   noteId?: string;
   onClose: (persistedFields?: {
     title: string;
@@ -220,9 +224,11 @@ export default function WorkNoteComposer({
   const fieldBody = fields?.contentMarkdown ?? "";
   const trimmedBodyLen = fieldBody.trim().length;
   const isShortContent = trimmedBodyLen > 0 && trimmedBodyLen < 30;
-  const effectiveAutoApprove = autoApprove && !isShortContent;
-  const canAutoApproveOnSave = autoApprove && trimmedBodyLen >= 30;
-  const showShortContentNudge = !source && autoApprove && isShortContent;
+  const effectiveAutoApprove = canAutoApprove && autoApprove && !isShortContent;
+  const canAutoApproveOnSave =
+    canAutoApprove && autoApprove && trimmedBodyLen >= 30;
+  const showShortContentNudge =
+    !source && canAutoApprove && autoApprove && isShortContent;
   const preSendSecurity = useMemo(
     () =>
       hasFields
@@ -878,7 +884,9 @@ export default function WorkNoteComposer({
                     ? "documentContext"
                     : "reportContext",
                 )
-              : t("context", { task: taskId.slice(-6) })}
+              : t("context", {
+                  task: taskKey?.trim() ? taskKey.trim() : taskId.slice(-6),
+                })}
           </span>
           {!source && (
             <ExternalLink
@@ -1011,10 +1019,22 @@ export default function WorkNoteComposer({
                 <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5 lg:overflow-y-auto">
                   <div>
                     <h3 className="text-base font-bold text-gray-900 dark:text-gray-100">
-                      {t("noteSectionTitle")}
+                      {t(
+                        source?.workflow === "PROJECT_DOCUMENT"
+                          ? "documentSectionTitle"
+                          : source?.workflow === "WORK_REPORT"
+                            ? "reportSectionTitle"
+                            : "noteSectionTitle",
+                      )}
                     </h3>
                     <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                      {t("noteSectionSubtitle")}
+                      {t(
+                        source?.workflow === "PROJECT_DOCUMENT"
+                          ? "documentSectionSubtitle"
+                          : source?.workflow === "WORK_REPORT"
+                            ? "reportSectionSubtitle"
+                            : "noteSectionSubtitle",
+                      )}
                     </p>
                   </div>
 
@@ -1023,7 +1043,13 @@ export default function WorkNoteComposer({
                     <span className="sr-only">{t("noteTitle")}</span>
                     <input
                       value={fields.title}
-                      placeholder={t("noteTitlePlaceholder")}
+                      placeholder={t(
+                        source?.workflow === "PROJECT_DOCUMENT"
+                          ? "documentTitlePlaceholder"
+                          : source?.workflow === "WORK_REPORT"
+                            ? "reportTitlePlaceholder"
+                            : "noteTitlePlaceholder",
+                      )}
                       maxLength={
                         source?.workflow === "PROJECT_DOCUMENT" ? 240 : 300
                       }
@@ -1485,7 +1511,7 @@ export default function WorkNoteComposer({
 
                 {/* Region (6): Left-Column Pinned Final Action Bar */}
                 <footer className="flex shrink-0 flex-col gap-2 border-t border-gray-200/80 bg-white px-4 py-2.5 sm:px-5 dark:border-gray-800 dark:bg-gray-900">
-                  {!source && (
+                  {!source && canAutoApprove && (
                     <div className="flex flex-wrap items-center justify-between gap-1.5">
                       <button
                         type="button"
@@ -1688,7 +1714,11 @@ export default function WorkNoteComposer({
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                         {t(
                           assistantTab === "chat"
-                            ? "assistantSubtitle"
+                            ? source?.workflow === "PROJECT_DOCUMENT"
+                              ? "documentAssistantSubtitle"
+                              : source?.workflow === "WORK_REPORT"
+                                ? "reportAssistantSubtitle"
+                                : "assistantSubtitle"
                             : assistantTab === "assessment"
                               ? "assistantAssessmentSubtitle"
                               : "assistantSuggestionsSubtitle",

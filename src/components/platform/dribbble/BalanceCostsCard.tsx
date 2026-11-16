@@ -4,12 +4,32 @@ import type { PlatformDashboardRecord } from "@/lib/queries/platform/usePlatform
 import { referenceBars } from "./reference-series";
 import SimulationBadge from "../ui/SimulationBadge";
 import styles from "../ui/platformCharts.module.css";
+const VI_USER_SNAPSHOT_LABELS: Record<string, string> = {
+  total: "Tổng số",
+  active: "Đang hoạt động",
+  pendingInvite: "Chờ chấp nhận lời mời",
+  pendingVerification: "Chờ xác minh",
+  suspended: "Đã tạm ngưng",
+  platformOperators: "Quản trị viên Hệ thống",
+};
+
+const EN_USER_SNAPSHOT_LABELS: Record<string, string> = {
+  total: "Total",
+  active: "Active",
+  pendingInvite: "Pending invitation",
+  pendingVerification: "Pending verification",
+  suspended: "Suspended",
+  platformOperators: "Admin",
+};
+
 export default function BalanceCostsCard({
   data,
 }: {
   data: PlatformDashboardRecord["users"];
 }) {
   const t = useTranslations("platformConsole");
+  const common = useTranslations("common");
+  const isVi = common("localeCode") === "vi";
   return (
     <section className={`${styles.panel} ${styles.smallCard}`}>
       <div className={styles.cardHeading}>
@@ -74,7 +94,11 @@ export default function BalanceCostsCard({
       <dl className="sr-only" aria-label={t("liveDashboard.snapshot")}>
         {Object.entries(data).map(([key, value]) => (
           <div key={key}>
-            <dt>{key}</dt>
+            <dt>
+              {isVi
+                ? (VI_USER_SNAPSHOT_LABELS[key] ?? key)
+                : (EN_USER_SNAPSHOT_LABELS[key] ?? key)}
+            </dt>
             <dd>{value}</dd>
           </div>
         ))}

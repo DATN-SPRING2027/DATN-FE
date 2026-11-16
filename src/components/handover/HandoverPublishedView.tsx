@@ -28,9 +28,11 @@ import {
   useReviewHandoverEvidenceMutation,
   useSubmitHandoverEvidenceMutation,
 } from "@/lib/queries/handovers/useHandovers";
+import { MarkdownDocumentView } from "@/components/work-notes/MarkdownArtifactStrip";
 import {
   buildSourceWorkspaceHref,
   extractHandoverErrorMessage,
+  formatHandoverSourceKind,
   formatMemberOptionLabel,
   formatShortId,
   formatUtcDateTime,
@@ -59,6 +61,8 @@ function AvailableItemCard({
 }) {
   const t = useTranslations("handover.published");
   const t5 = useTranslations("handover.fiveStep");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const tParticipant = useTranslations("handover.participant");
   const canReceive =
     capabilities.includes("RECEIVE") && handover.status === "OPEN";
@@ -343,9 +347,9 @@ function AvailableItemCard({
             )}
 
             {item.body && (
-              <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
-                {item.body}
-              </p>
+              <div className="mt-2 text-sm leading-6 text-gray-700 [overflow-wrap:anywhere] dark:text-gray-300">
+                <MarkdownDocumentView markdown={item.body} compact />
+              </div>
             )}
 
             <div className="mt-4 rounded-xl border border-gray-200/80 bg-gray-50/70 p-3.5 dark:border-gray-800 dark:bg-gray-800/50">
@@ -369,7 +373,11 @@ function AvailableItemCard({
                     cit.source.kind,
                     cit.source.id,
                   );
-                  const label = `${cit.source.kind} ${formatShortId(cit.source.id)} (v${cit.source.version}) · ${cit.locator.kind}: ${cit.locator.value}`;
+                  const kindLabel = formatHandoverSourceKind(
+                    cit.source.kind,
+                    localeCode,
+                  );
+                  const label = `${kindLabel} ${formatShortId(cit.source.id)} (v${cit.source.version}) · ${cit.locator.kind}: ${cit.locator.value}`;
                   return href ? (
                     <Link
                       key={`${idx}-${cit.source.id}`}
@@ -504,7 +512,7 @@ function AvailableItemCard({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <span className="tabular-nums text-gray-500 dark:text-gray-400">
-                      {formatUtcDateTime(ev.createdAt)} · Epoch #
+                      {formatUtcDateTime(ev.createdAt, localeCode)} · Epoch #
                       {ev.assignmentVersion}
                     </span>
                     <Badge
@@ -718,6 +726,8 @@ export default function HandoverPublishedView({
 }) {
   const t = useTranslations("handover.published");
   const tDetail = useTranslations("handover.detail");
+  const common = useTranslations("common");
+  const localeCode = common("localeCode");
   const acceptMutation = useAcceptHandoverPackageMutation(
     projectId,
     handover.id,
@@ -760,7 +770,7 @@ export default function HandoverPublishedView({
           </div>
           <p className="text-xs text-gray-600 dark:text-gray-300">
             {t("publishedAtMeta", {
-              date: formatUtcDateTime(publishedRevision.publishedAt),
+              date: formatUtcDateTime(publishedRevision.publishedAt, localeCode),
             })}{" "}
             · {tDetail("packageAcceptedNote")}
           </p>

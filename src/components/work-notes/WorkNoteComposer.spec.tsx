@@ -111,6 +111,7 @@ function mount(
   source?: EditorSourceIdentity,
   options?: {
     locale?: "vi" | "en";
+    canAutoApprove?: boolean;
     initialFields?: { title: string; contentMarkdown: string };
     startFreshDraft?: boolean;
     onSaved?: (result?: unknown) => void;
@@ -135,6 +136,7 @@ function mount(
       >
         <WorkNoteComposer
           source={source}
+          canAutoApprove={options?.canAutoApprove ?? true}
           initialFields={options?.initialFields}
           startFreshDraft={options?.startFreshDraft}
           projectId="651a2b3c4d5e6f7a8b9c0d21"
@@ -2030,4 +2032,32 @@ it("shows Stageshow auto-approve toggle and short-content guardrail (< 30 chars)
       }),
     ),
   );
+});
+
+it("defaults canAutoApprove to false so standard Members do not see the auto-approve toggle", async () => {
+  render(
+    <QueryClientProvider
+      client={
+        new QueryClient({
+          defaultOptions: {
+            queries: { retry: false },
+            mutations: { retry: false },
+          },
+        })
+      }
+    >
+      <NextIntlClientProvider locale="vi" messages={messages}>
+        <WorkNoteComposer
+          projectId="651a2b3c4d5e6f7a8b9c0d21"
+          taskId={base.taskId}
+          onClose={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    </QueryClientProvider>,
+  );
+  await screen.findByDisplayValue("We have not tested the queue.");
+  expect(
+    screen.queryByTestId("composer-auto-approve-toggle"),
+  ).not.toBeInTheDocument();
 });

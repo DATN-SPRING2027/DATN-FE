@@ -475,7 +475,10 @@ function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode {
 
     if (token.startsWith("~~") && token.endsWith("~~") && token.length >= 4) {
       return (
-        <del key={key} className="text-gray-400 line-through">
+        <del
+          key={key}
+          className="text-gray-500 line-through dark:text-gray-400"
+        >
           {token.slice(2, -2)}
         </del>
       );
@@ -491,7 +494,7 @@ function renderInlineMarkdown(text: string, keyPrefix: string): ReactNode {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="font-medium text-gray-900 underline decoration-gray-400 underline-offset-2 hover:decoration-gray-900 dark:text-gray-100"
+          className="font-medium text-gray-900 underline decoration-gray-400 underline-offset-2 hover:decoration-gray-900 dark:text-gray-100 dark:hover:decoration-gray-100"
         >
           {label}
         </a>

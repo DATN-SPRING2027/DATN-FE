@@ -263,6 +263,7 @@ export default function WorkItemDetailDialog({
   people,
   currentUserPerson,
   isPreview = true,
+  canAutoApproveNotes = true,
   activityError = null,
   mutationError = null,
   onDismissMutationError,
@@ -299,6 +300,7 @@ export default function WorkItemDetailDialog({
   people?: readonly WorkPerson[];
   currentUserPerson?: WorkPerson | null;
   isPreview?: boolean;
+  canAutoApproveNotes?: boolean;
   activityError?: string | null;
   mutationError?: string | null;
   onDismissMutationError?: () => void;
@@ -1395,7 +1397,12 @@ export default function WorkItemDetailDialog({
           <p id="work-detail-description" className="sr-only">
             {activeSubtask
               ? `Subtask detail layer • Child of ${item.key} (${item.title})`
-              : t("detailPreviewHint")}
+              : isPreview
+                ? t("detailPreviewHint")
+                : t("detailConnectedHint", {
+                    key: item.key,
+                    title: item.title,
+                  })}
           </p>
         </div>
 
@@ -2283,6 +2290,8 @@ export default function WorkItemDetailDialog({
                       <TaskNotesPanel
                         projectId={projectId}
                         taskId={activeSubtask.id}
+                        taskKey={activeSubtask.key}
+                        canAutoApprove={canAutoApproveNotes}
                         splitControl={buildSplitControl(activeSubtask.id)}
                       />
                     )}
@@ -4421,6 +4430,8 @@ export default function WorkItemDetailDialog({
                   <TaskNotesPanel
                     projectId={projectId}
                     taskId={item.id}
+                    taskKey={item.key}
+                    canAutoApprove={canAutoApproveNotes}
                     splitControl={buildSplitControl(item.id)}
                   />
                 )}
@@ -4681,9 +4692,9 @@ export default function WorkItemDetailDialog({
                 </button>
               </section>
 
-              <p className="sr-only">
-                {t("detailPreviewNotice")}
-              </p>
+              {isPreview && (
+                <p className="sr-only">{t("detailPreviewNotice")}</p>
+              )}
             </aside>
           </div>
           )}
@@ -4734,6 +4745,7 @@ export default function WorkItemDetailDialog({
               isPreview={isPreview}
               mutationError={mutationError}
               onDismissMutationError={onDismissMutationError}
+              canAutoApproveNotes={canAutoApproveNotes}
               splitControl={buildSplitControl(activeSplitComposer.taskId)}
               onExpandFullView={() => setSplitTaskFullView(true)}
               onClose={onClose}
@@ -4816,6 +4828,12 @@ export default function WorkItemDetailDialog({
             initialPanelOpen={true}
             projectId={projectId}
             taskId={activeSplitComposer.taskId}
+            taskKey={
+              activeSubtask?.id === activeSplitComposer.taskId
+                ? activeSubtask.key
+                : item.key
+            }
+            canAutoApprove={canAutoApproveNotes}
             noteId={activeSplitComposer.noteId}
             dismissSignal={splitDismissSignal}
             onPanelOpenChange={setSplitAiOpen}

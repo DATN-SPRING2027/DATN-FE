@@ -352,9 +352,34 @@
   :is(input:not([type="checkbox"]), select, textarea, header, aside) {
   background: var(--color-white);
 }
-.surface.surface.surface button {
+.surface.surface.surface
+  button:not(.close):not([class*="bg-rose-"]):not([class*="bg-error-"]) {
   background: var(--color-white);
   border-color: var(--color-gray-200);
+  color: var(--color-gray-800);
+}
+.surface.surface.surface
+  button:not(.close):not([type="submit"]):not([class*="bg-rose-"]):not(
+    [class*="bg-error-"]
+  ):hover:not(:disabled) {
+  background: #f7f8f9;
+}
+.surface.surface.surface button[type="submit"] {
+  background: #0c66e4;
+  border-color: #0c66e4;
+  color: #ffffff;
+}
+.surface.surface.surface button[type="submit"]:hover:not(:disabled) {
+  background: #0055cc;
+  border-color: #0055cc;
+}
+.surface.surface.surface button:not(.close):disabled,
+.surface.surface.surface button[type="submit"]:disabled {
+  background: #f1f2f4;
+  border-color: #dce4ee;
+  color: #596773;
+  opacity: 1;
+  cursor: not-allowed;
 }
 .surface.surface.surface :is(h2, .recordTitle) {
   font-size: 1.125rem;
@@ -441,6 +466,40 @@
   .surface.surface.surface
   :is(div, section, span, p, dl, dt, dd, ul, li) {
   background-color: transparent;
+}
+:global(.dark)
+  .surface.surface.surface
+  button:not(.close):not([class*="bg-rose-"]):not([class*="bg-error-"]) {
+  background: #1f2d42;
+  border-color: #34435a;
+  color: #edf3ff;
+}
+:global(.dark)
+  .surface.surface.surface
+  button:not(.close):not([type="submit"]):not([class*="bg-rose-"]):not(
+    [class*="bg-error-"]
+  ):hover:not(:disabled) {
+  background: #28374d;
+  border-color: #455875;
+}
+:global(.dark) .surface.surface.surface button[type="submit"] {
+  background: #0c66e4;
+  border-color: #0c66e4;
+  color: #ffffff;
+}
+:global(.dark)
+  .surface.surface.surface
+  button[type="submit"]:hover:not(:disabled) {
+  background: #388bff;
+  border-color: #388bff;
+}
+:global(.dark) .surface.surface.surface button:not(.close):disabled,
+:global(.dark) .surface.surface.surface button[type="submit"]:disabled {
+  background: #243349;
+  border-color: #34435a;
+  color: #9fadbc;
+  opacity: 1;
+  cursor: not-allowed;
 }
 
 .surface .heading { border-bottom: 1px solid var(--op-line, #dce4ee); }

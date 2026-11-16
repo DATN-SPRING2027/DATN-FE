@@ -67,44 +67,44 @@ export default function MemberDirectory({
   }
 
   return (
-    <div className="w-full max-w-full p-3 sm:p-4 lg:p-0">
-      <Table className="block w-full min-w-0 table-fixed text-start lg:table lg:min-w-full">
+    <div className="w-full max-w-full p-3 sm:p-4 @5xl:overflow-x-auto @5xl:p-0">
+      <Table className="block w-full min-w-0 text-start @5xl:table @5xl:min-w-[980px] @5xl:table-auto">
         <caption className="sr-only">{t("list")}</caption>
-        <TableHeader className="hidden bg-gray-50/75 dark:bg-white/2 lg:table-header-group">
+        <TableHeader className="hidden bg-gray-50/75 dark:bg-white/2 @5xl:table-header-group">
           <TableRow className="border-b border-gray-100 dark:border-gray-800">
             <TableCell
               isHeader
-              className="w-[26%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="px-5 py-3 text-start text-xs font-semibold tracking-wider whitespace-nowrap text-gray-500 uppercase dark:text-gray-400"
             >
               {t("memberColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[23%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="px-5 py-3 text-start text-xs font-semibold tracking-wider whitespace-nowrap text-gray-500 uppercase dark:text-gray-400"
             >
               {t("accessLevel")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[13%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="px-5 py-3 text-start text-xs font-semibold tracking-wider whitespace-nowrap text-gray-500 uppercase dark:text-gray-400"
             >
               {t("joinedAt")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[10%] px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="px-5 py-3 text-start text-xs font-semibold tracking-wider whitespace-nowrap text-gray-500 uppercase dark:text-gray-400"
             >
               {t("statusColumn")}
             </TableCell>
             <TableCell
               isHeader
-              className="w-[28%] px-5 py-3 text-end text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+              className="px-5 py-3 text-end text-xs font-semibold tracking-wider whitespace-nowrap text-gray-500 uppercase dark:text-gray-400"
             >
               {t("actions")}
             </TableCell>
           </TableRow>
         </TableHeader>
-        <TableBody className="block w-full space-y-3 lg:table-row-group lg:space-y-0 lg:divide-y lg:divide-gray-100 dark:lg:divide-gray-800">
+        <TableBody className="block w-full space-y-3 @5xl:table-row-group @5xl:space-y-0 @5xl:divide-y @5xl:divide-gray-100 dark:@5xl:divide-gray-800">
           {members.map((member) => {
             const isLeader =
               leaderRoleStatus === "ready" &&
@@ -121,13 +121,13 @@ export default function MemberDirectory({
             return (
               <TableRow
                 key={member.id}
-                className={`grid w-full grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 lg:table-row lg:rounded-none lg:border-x-0 lg:border-b-0 lg:border-t lg:border-gray-100 lg:p-0 dark:lg:border-gray-800 ${
+                className={`grid w-full grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-gray-200 bg-white p-4 transition-colors hover:bg-gray-50/80 dark:border-gray-800 dark:bg-gray-900 dark:hover:bg-gray-800/50 @5xl:table-row @5xl:rounded-none @5xl:border-x-0 @5xl:border-b-0 @5xl:border-t @5xl:border-gray-100 @5xl:p-0 dark:@5xl:border-gray-800 ${
                   selectedId === member.id
                     ? "bg-brand-50/50 dark:bg-brand-500/10"
                     : ""
                 }`}
               >
-                <TableCell className="col-span-2 px-0 py-0 align-middle lg:table-cell lg:px-5 lg:py-3.5">
+                <TableCell className="col-span-2 px-0 py-0 align-middle @5xl:max-w-[260px] @5xl:table-cell @5xl:px-5 @5xl:py-3.5">
                   <div className="flex min-w-0 items-center gap-3">
                     {member.user?.avatarUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -166,11 +166,11 @@ export default function MemberDirectory({
                   </div>
                 </TableCell>
 
-                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:px-5 lg:py-3.5">
-                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle @5xl:table-cell @5xl:px-5 @5xl:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 @5xl:sr-only">
                     {t("accessLevel")}
                   </span>
-                  <div className="flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap lg:justify-start">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 @5xl:flex-nowrap @5xl:justify-start">
                     {leaderRoleStatus === "loading" && (
                       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-1 text-xs font-medium whitespace-nowrap text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                         {t("leaderRoleLoading")}
@@ -202,13 +202,13 @@ export default function MemberDirectory({
                   </div>
                 </TableCell>
 
-                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 lg:table-cell lg:px-5 lg:py-3.5">
-                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle text-sm whitespace-nowrap text-gray-600 dark:text-gray-300 @5xl:table-cell @5xl:px-5 @5xl:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 @5xl:sr-only">
                     {t("joinedAt")}
                   </span>
                   <time
                     dateTime={member.joinedAt}
-                    className="text-xs font-medium tabular-nums sm:text-sm lg:font-normal"
+                    className="text-xs font-medium tabular-nums sm:text-sm @5xl:font-normal"
                   >
                     {format.dateTime(new Date(member.joinedAt), {
                       dateStyle: "medium",
@@ -217,8 +217,8 @@ export default function MemberDirectory({
                   </time>
                 </TableCell>
 
-                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle lg:table-cell lg:justify-start lg:px-5 lg:py-3.5">
-                  <span className="text-xs font-medium text-gray-500 lg:sr-only">
+                <TableCell className="col-span-2 flex items-center justify-between gap-2 px-0 py-1 align-middle @5xl:table-cell @5xl:justify-start @5xl:px-5 @5xl:py-3.5">
+                  <span className="text-xs font-medium text-gray-500 @5xl:sr-only">
                     {t("statusColumn")}
                   </span>
                   <span
@@ -240,8 +240,8 @@ export default function MemberDirectory({
                   </span>
                 </TableCell>
 
-                <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 lg:table-cell lg:border-0 lg:px-5 lg:py-3.5 lg:pt-0">
-                  <div className="flex flex-wrap items-center justify-end gap-1.5 lg:flex-nowrap">
+                <TableCell className="col-span-2 flex items-center justify-end border-t border-gray-100 pt-3 text-end align-middle dark:border-gray-800 @5xl:table-cell @5xl:border-0 @5xl:px-5 @5xl:py-3.5 @5xl:pt-0">
+                  <div className="flex flex-wrap items-center justify-end gap-1.5 @5xl:flex-nowrap">
                     <button
                       type="button"
                       disabled={disabled}

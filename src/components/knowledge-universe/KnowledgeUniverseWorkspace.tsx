@@ -20,7 +20,7 @@ import {
   Search,
   X,
 } from "lucide-react";
-import { useReducedMotion } from "motion/react";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useTranslations } from "next-intl";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Link, usePathname, useRouter } from "@/i18n/navigation";
@@ -133,7 +133,7 @@ function formatCorticalRegionLabel(
 function KnowledgeUniverseContent() {
   const t = useTranslations("knowledgeUniverse");
   const tPage = useTranslations("pageTitles");
-  const reducedMotion = useReducedMotion();
+  const reducedMotion = useHydratedReducedMotion();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();

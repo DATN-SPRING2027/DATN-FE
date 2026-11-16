@@ -191,9 +191,7 @@ export async function ensureProjectMemberBeforeHandover(input: {
 }
 
 function resolveDateLocale(locale?: string): string {
-  const active =
-    locale ||
-    (typeof document !== "undefined" ? document.documentElement.lang : "");
+  const active = locale ?? "";
   return active === "vi" || active.startsWith("vi-") ? "vi-VN" : "en-US";
 }
 
@@ -294,5 +292,67 @@ export function buildSourceWorkspaceHref(
       return `/projects/${encodedProj}/work-reports?reportId=${encodedSrc}`;
     case "KNOWLEDGE_OBJECT":
       return null;
+  }
+}
+
+export function formatHandoverSourceKind(
+  kind: string,
+  locale?: string,
+): string {
+  const isVi = resolveDateLocale(locale) === "vi-VN";
+  switch (kind) {
+    case "PROJECT_DOCUMENT":
+      return isVi ? "Tài liệu" : "Document";
+    case "TASK_NOTE":
+      return isVi ? "Ghi chú công việc" : "Task Note";
+    case "WORK_REPORT":
+      return isVi ? "Báo cáo công việc" : "Work Report";
+    case "KNOWLEDGE_OBJECT":
+      return isVi ? "Tri thức" : "Knowledge";
+    default:
+      return kind;
+  }
+}
+
+export function formatHandoverTaskStatus(
+  status: string,
+  locale?: string,
+): string {
+  const isVi = resolveDateLocale(locale) === "vi-VN";
+  switch (status.trim().toUpperCase()) {
+    case "TODO":
+      return isVi ? "Cần làm" : "To do";
+    case "IN_PROGRESS":
+      return isVi ? "Đang thực hiện" : "In progress";
+    case "IN_REVIEW":
+      return isVi ? "Đang xét duyệt" : "In review";
+    case "DONE":
+      return isVi ? "Hoàn thành" : "Done";
+    case "BLOCKED":
+      return isVi ? "Bị chặn" : "Blocked";
+    case "CANCELLED":
+      return isVi ? "Đã hủy" : "Cancelled";
+    default:
+      return status;
+  }
+}
+
+export function formatHandoverTaskPriority(
+  priority: string,
+  locale?: string,
+): string {
+  const isVi = resolveDateLocale(locale) === "vi-VN";
+  switch (priority.trim().toUpperCase()) {
+    case "LOW":
+      return isVi ? "Thấp" : "Low";
+    case "MEDIUM":
+      return isVi ? "Trung bình" : "Medium";
+    case "HIGH":
+      return isVi ? "Cao" : "High";
+    case "URGENT":
+    case "CRITICAL":
+      return isVi ? "Khẩn cấp" : "Urgent";
+    default:
+      return priority;
   }
 }
