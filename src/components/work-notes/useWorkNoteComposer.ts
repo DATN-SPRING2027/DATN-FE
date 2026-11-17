@@ -477,6 +477,14 @@ export function useWorkNoteComposer(
       assessmentOperation.current = null;
       return result;
     } catch (e) {
+      if (
+        alive.current &&
+        e instanceof ApiError &&
+        e.code === "ASSESSMENT_FAILED"
+      ) {
+        // The server records this operation as FAILED, so a retry needs a new ID.
+        assessmentOperation.current = null;
+      }
       if (alive.current && e instanceof ApiError && e.status === 409) {
         const current = client.getQueryData<AgentDraft>(key);
         if (current?.assessment)
@@ -494,7 +502,7 @@ export function useWorkNoteComposer(
             },
           });
       }
-      setError(e instanceof Error ? e.message : ta("requestFailed"));
+      setError(e instanceof ApiError && e.code === "ASSESSMENT_FAILED" ? ta("requestFailed") : e instanceof Error ? e.message : ta("requestFailed"));
       throw e;
     } finally {
       assessmentPending.current = false;

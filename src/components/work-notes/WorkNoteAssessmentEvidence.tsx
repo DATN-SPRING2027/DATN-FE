@@ -1,14 +1,14 @@
 "use client";
 
-import { ChevronDown, Info, Pencil } from "lucide-react";
+import { ChevronDown, Pencil } from "lucide-react";
 import { useTranslations } from "next-intl";
+import WorkNoteAssessmentSummary from "./WorkNoteAssessmentSummary";
 import Badge from "@/components/ui/badge/Badge";
 import type {
   HistoryFactStatus,
   HistoryRelation,
 } from "@/lib/queries/work-notes/work-note-agent.api";
 import {
-  deriveTaskCompletionStatus,
   type AssessmentClaimHistoryMeta,
   type AssessmentGap,
   type AssessmentHistoryMetadata,
@@ -82,7 +82,7 @@ function HistoryMetaBadges({
       </span>
       <span
         data-testid="assessment-history-date"
-        className="tabular-nums text-gray-500 dark:text-gray-400"
+        className="text-gray-500 tabular-nums dark:text-gray-400"
       >
         {t("historySource.dateLabel", { date: formatHistoryDate(meta.date) })}
       </span>
@@ -142,8 +142,10 @@ export default function WorkNoteAssessmentEvidence({
   value,
   canCorrect,
   onCorrectionRequest,
+  showSummary = true,
 }: {
   value: AssessmentView;
+  showSummary?: boolean;
   canCorrect: boolean;
   onCorrectionRequest: (id: string) => void;
 }) {
@@ -157,176 +159,94 @@ export default function WorkNoteAssessmentEvidence({
       return `🔒 ${label}`;
     });
 
-  const taskCompletion = deriveTaskCompletionStatus(value);
-  const purposeLabel = t(`purposes.${value.purpose}`);
-  const showIncompleteTaskAdequateNote =
-    value.noteAdequacy === "ENOUGH_FOR_PURPOSE" &&
-    taskCompletion !== "CRITERIA_REPORTED_MET";
-
   const detailCount =
     value.taskUnderstanding.requirements.length + value.claims.length;
   const sourceCount = value.contextManifest.sources.length;
 
   return (
     <div className="space-y-3">
-      {/* 1. Compact 3-Row Summary Card (never squished into 3 skinny columns) */}
-      <section
-        aria-label={t("conclusionsTitle")}
-        className="space-y-2.5 rounded-xl border border-gray-200/90 bg-gray-50/60 p-3 dark:border-gray-800 dark:bg-gray-900/50"
-      >
-        <h4 className="text-[11px] font-bold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-          {t("summaryHeading")}
-        </h4>
-        <div className="divide-y divide-gray-200/70 dark:divide-gray-800">
-          <div className="flex items-center justify-between gap-2 pb-2">
-            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-              {t("conclusions.noteAdequacy", { purpose: purposeLabel })}
-            </span>
-            <Badge
-              size="sm"
-              color={
-                value.noteAdequacy === "ENOUGH_FOR_PURPOSE"
-                  ? "success"
-                  : value.noteAdequacy === "CONTRADICTORY"
-                    ? "error"
-                    : "warning"
-              }
-            >
-              {t(`adequacyStatus.${value.noteAdequacy}`)}
-            </Badge>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 py-2">
-            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-              {t("conclusions.taskCompletion")}
-            </span>
-            <Badge
-              size="sm"
-              color={
-                taskCompletion === "CRITERIA_REPORTED_MET"
-                  ? "success"
-                  : taskCompletion === "CRITERIA_CONTRADICTED"
-                    ? "error"
-                    : "warning"
-              }
-            >
-              {t(`taskCompletionStatus.${taskCompletion}`)}
-            </Badge>
-          </div>
-
-          <div className="flex items-center justify-between gap-2 pt-2">
-            <span className="text-xs font-medium text-gray-800 dark:text-gray-200">
-              {t("conclusions.taskClarity")}
-            </span>
-            <Badge
-              size="sm"
-              color={
-                value.taskContextStatus === "CLEAR"
-                  ? "success"
-                  : value.taskContextStatus === "PARTIAL"
-                    ? "warning"
-                    : "error"
-              }
-            >
-              {t(`taskStatus.${value.taskContextStatus}`)}
-            </Badge>
-          </div>
-        </div>
-
-        {showIncompleteTaskAdequateNote && (
-          <div
-            role="note"
-            className="flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50/70 p-2.5 text-xs leading-relaxed text-brand-900 dark:border-brand-500/30 dark:bg-brand-500/10 dark:text-brand-200"
-          >
-            <Info className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            <span>
-              {t("adequateNoteIncompleteTaskNotice", { purpose: purposeLabel })}
-            </span>
-          </div>
-        )}
-      </section>
-
-      {/* 2. Actionable Points / Information Gaps (clean cards, short Correct trigger) */}
-      {value.gaps.length > 0 && (
-        <div className="space-y-2">
-          <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200">
-            {t("openGapsHeading", { count: value.gaps.length })}
-          </h4>
-          <div className="space-y-2">
-            {value.gaps.map((gap) => (
-              <div
-                key={gap.id}
-                data-testid={`assessment-gap-${gap.kind}`}
-                className={`space-y-1.5 rounded-xl border p-3 text-xs ${gapCardClass(gap.kind)}`}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <Badge
-                      size="sm"
-                      color={
-                        gap.kind === "HISTORICAL_CONFLICT" ||
-                        gap.kind === "CONTRADICTION"
-                          ? "error"
-                          : gap.kind === "OUTDATED_INFO"
-                            ? "warning"
-                            : "light"
-                      }
-                    >
-                      {t(`gapKind.${gap.kind}`)}
-                    </Badge>
-                    {gap.impact === "BLOCKING" && gap.status === "open" && (
-                      <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold text-warning-800 dark:bg-warning-500/20 dark:text-warning-300">
-                        {t("importantBadge")}
-                      </span>
-                    )}
-                    {gap.status !== "open" && (
-                      <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                        {t(`gapStatus.${gap.status}`)}
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    disabled={!canCorrect}
-                    aria-label={t("correctGap", {
-                      text: formatMasked(gap.target),
-                    })}
-                    onClick={() => onCorrectionRequest(gap.id)}
-                    className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/15"
-                  >
-                    <Pencil className="size-3" aria-hidden="true" />
-                    <span>{t("correctShort")}</span>
-                  </button>
-                </div>
-
-                <p className="font-medium leading-relaxed text-gray-900 dark:text-gray-100">
-                  {formatMasked(gap.target)}
-                </p>
-
-                <SourceQuotes
-                  refs={gap.sourceRefs}
-                  value={value}
-                  formatMasked={formatMasked}
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 3. Progressive Disclosure Accordion: Comparison Details (Requirements + Claims) */}
+      {showSummary && <WorkNoteAssessmentSummary value={value} />}
       <details
         data-testid="assessment-details-accordion"
         className="group rounded-xl border border-gray-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
       >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white">
-          <span>{t("detailsAccordion", { count: detailCount })}</span>
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-3 text-xs font-semibold text-gray-700 dark:text-gray-200">
+          <span>
+            {t("detailsAndSources", { count: detailCount + sourceCount })}
+          </span>
           <ChevronDown
-            className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+            className="size-4 shrink-0 transition-transform group-open:rotate-180"
             aria-hidden="true"
           />
         </summary>
+        {/* 2. Actionable Points / Information Gaps (clean cards, short Correct trigger) */}
+        {value.gaps.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-gray-800 dark:text-gray-200">
+              {t("openGapsHeading", { count: value.gaps.length })}
+            </h4>
+            <div className="space-y-2">
+              {value.gaps.map((gap) => (
+                <div
+                  key={gap.id}
+                  data-testid={`assessment-gap-${gap.kind}`}
+                  className={`space-y-1.5 rounded-xl border p-3 text-xs ${gapCardClass(gap.kind)}`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        size="sm"
+                        color={
+                          gap.kind === "HISTORICAL_CONFLICT" ||
+                          gap.kind === "CONTRADICTION"
+                            ? "error"
+                            : gap.kind === "OUTDATED_INFO"
+                              ? "warning"
+                              : "light"
+                        }
+                      >
+                        {t(`gapKind.${gap.kind}`)}
+                      </Badge>
+                      {gap.impact === "BLOCKING" && gap.status === "open" && (
+                        <span className="rounded bg-warning-100 px-1.5 py-0.5 text-[10px] font-semibold text-warning-800 dark:bg-warning-500/20 dark:text-warning-300">
+                          {t("importantBadge")}
+                        </span>
+                      )}
+                      {gap.status !== "open" && (
+                        <span className="rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-300">
+                          {t(`gapStatus.${gap.status}`)}
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={!canCorrect}
+                      aria-label={t("correctGap", {
+                        text: formatMasked(gap.target),
+                      })}
+                      onClick={() => onCorrectionRequest(gap.id)}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium text-brand-600 transition-colors hover:bg-brand-50 disabled:cursor-not-allowed disabled:opacity-40 dark:text-brand-400 dark:hover:bg-brand-500/15"
+                    >
+                      <Pencil className="size-3" aria-hidden="true" />
+                      <span>{t("correctShort")}</span>
+                    </button>
+                  </div>
+
+                  <p className="leading-relaxed font-medium text-gray-900 dark:text-gray-100">
+                    {formatMasked(gap.target)}
+                  </p>
+
+                  <SourceQuotes
+                    refs={gap.sourceRefs}
+                    value={value}
+                    formatMasked={formatMasked}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className="space-y-3.5 border-t border-gray-100 px-3 py-3 text-xs dark:border-gray-800">
           {/* Task Understanding */}
@@ -422,7 +342,7 @@ export default function WorkNoteAssessmentEvidence({
                     className="space-y-1.5 rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-800/40"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <p className="flex-1 font-medium leading-relaxed break-words whitespace-pre-wrap text-gray-900 dark:text-gray-100">
+                      <p className="flex-1 leading-relaxed font-medium break-words whitespace-pre-wrap text-gray-900 dark:text-gray-100">
                         {formatMasked(claim.text)}
                       </p>
                       <button
@@ -458,67 +378,68 @@ export default function WorkNoteAssessmentEvidence({
             </div>
           )}
         </div>
-      </details>
+        {/* 4. Progressive Disclosure Accordion: Referenced Sources (Manifest — Closed by default) */}
+        <details
+          data-testid="assessment-sources-accordion"
+          className="group rounded-xl border border-gray-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
+        >
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white">
+            <span>{t("sourcesAccordion", { count: sourceCount })}</span>
+            <ChevronDown
+              className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
+              aria-hidden="true"
+            />
+          </summary>
 
-      {/* 4. Progressive Disclosure Accordion: Referenced Sources (Manifest — Closed by default) */}
-      <details
-        data-testid="assessment-sources-accordion"
-        className="group rounded-xl border border-gray-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
-      >
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 dark:text-gray-200 dark:hover:text-white">
-          <span>{t("sourcesAccordion", { count: sourceCount })}</span>
-          <ChevronDown
-            className="size-4 shrink-0 text-gray-400 transition-transform group-open:rotate-180"
-            aria-hidden="true"
-          />
-        </summary>
-
-        <div className="space-y-2 border-t border-gray-100 px-3 py-3 text-xs dark:border-gray-800">
-          <p className="text-[11px] text-gray-500 dark:text-gray-400">
-            {t("acquisition", {
-              status: t(`load.${value.contextManifest.acquisitionStatus}`),
-            })}
-          </p>
-          <ul className="space-y-2">
-            {value.contextManifest.sources.map((source) => (
-              <li
-                key={source.id}
-                data-testid={
-                  source.kind === "HISTORY"
-                    ? "assessment-manifest-history-item"
-                    : undefined
-                }
-                className="rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-800/40"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-1.5">
-                  <span className="font-medium text-gray-800 dark:text-gray-100">
-                    {formatMasked(source.label)}
-                  </span>
-                  <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                    {t(`load.${source.loadStatus}`)} ·{" "}
-                    {t(source.includedInRequest ? "included" : "excluded")}
-                  </span>
-                </div>
-                {source.kind === "HISTORY" && source.history && (
-                  <>
-                    <HistoryMetaBadges meta={source.history} />
-                    <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
-                      {t("historySource.notCurrentEvidence")}
-                    </p>
-                  </>
-                )}
-                <details className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
-                  <summary className="cursor-pointer font-medium hover:text-brand-600 dark:hover:text-brand-300">
-                    {t("readSource")}
-                  </summary>
-                  <pre className="mt-1.5 max-h-32 overflow-auto rounded bg-white p-2 font-sans break-words whitespace-pre-wrap text-gray-700 dark:bg-gray-900 dark:text-gray-300">
-                    {source.text ? formatMasked(source.text) : t("emptySource")}
-                  </pre>
-                </details>
-              </li>
-            ))}
-          </ul>
-        </div>
+          <div className="space-y-2 border-t border-gray-100 px-3 py-3 text-xs dark:border-gray-800">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              {t("acquisition", {
+                status: t(`load.${value.contextManifest.acquisitionStatus}`),
+              })}
+            </p>
+            <ul className="space-y-2">
+              {value.contextManifest.sources.map((source) => (
+                <li
+                  key={source.id}
+                  data-testid={
+                    source.kind === "HISTORY"
+                      ? "assessment-manifest-history-item"
+                      : undefined
+                  }
+                  className="rounded-lg border border-gray-100 bg-gray-50/60 p-2.5 dark:border-gray-800 dark:bg-gray-800/40"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-1.5">
+                    <span className="font-medium text-gray-800 dark:text-gray-100">
+                      {formatMasked(source.label)}
+                    </span>
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                      {t(`load.${source.loadStatus}`)} ·{" "}
+                      {t(source.includedInRequest ? "included" : "excluded")}
+                    </span>
+                  </div>
+                  {source.kind === "HISTORY" && source.history && (
+                    <>
+                      <HistoryMetaBadges meta={source.history} />
+                      <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                        {t("historySource.notCurrentEvidence")}
+                      </p>
+                    </>
+                  )}
+                  <details className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    <summary className="cursor-pointer font-medium hover:text-brand-600 dark:hover:text-brand-300">
+                      {t("readSource")}
+                    </summary>
+                    <pre className="mt-1.5 max-h-32 overflow-auto rounded bg-white p-2 font-sans break-words whitespace-pre-wrap text-gray-700 dark:bg-gray-900 dark:text-gray-300">
+                      {source.text
+                        ? formatMasked(source.text)
+                        : t("emptySource")}
+                    </pre>
+                  </details>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </details>
       </details>
     </div>
   );

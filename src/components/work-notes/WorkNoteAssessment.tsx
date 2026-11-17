@@ -2,9 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
-  CheckCircle2,
   ChevronDown,
-  ClipboardCheck,
   HelpCircle,
   History,
   RotateCcw,
@@ -12,7 +10,7 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import Badge from "@/components/ui/badge/Badge";
+import WorkNoteAssessmentSummary from "./WorkNoteAssessmentSummary";
 import WorkNoteAssessmentEvidence from "./WorkNoteAssessmentEvidence";
 import { formatMaskedSensitiveText } from "./WorkNoteSecurityNotice";
 import {
@@ -26,6 +24,7 @@ export type WorkNoteAssessmentProps = {
   value?: AssessmentView | null;
   stale: boolean;
   busy: boolean;
+  failed?: boolean;
   onAssess: (purpose: AssessmentPurpose) => void;
   onReply: (
     disposition: "answered" | "unknown" | "skipped",
@@ -52,6 +51,7 @@ export default function WorkNoteAssessment({
   value,
   stale,
   busy,
+  failed = false,
   onAssess,
   onReply,
   onRewrite,
@@ -87,15 +87,16 @@ export default function WorkNoteAssessment({
 
   const purposeChanged = !!value && purpose !== value.purpose;
   const isStale = stale || purposeChanged || value?.state === "stale";
-  const state = busy ? "analyzing" : isStale ? "stale" : value?.state;
 
   const can = (action: string) =>
     !busy &&
+    !failed &&
     !!value?.allowedActions.includes(action) &&
     (!isStale || ["correct", "feedback", "reset", "manual"].includes(action)) &&
     !(purposeChanged && action === "correct");
 
-  const question = !manual && !isStale ? value?.nextQuestion : null;
+  const obsolete = failed || value?.state === "error" || isStale;
+  const question = !manual && !obsolete && !busy ? value?.nextQuestion : null;
   const answer =
     answerBuffer?.questionId === question?.id ? (answerBuffer?.text ?? "") : "";
 
@@ -106,60 +107,31 @@ export default function WorkNoteAssessment({
   const showResetPanel = resetOpen || purposeChanged;
 
   return (
-    <section
-      aria-label={t("title")}
-      className="space-y-3.5 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-2xs dark:border-gray-800 dark:bg-gray-900"
-    >
-      {/* 1. Clean Header + Friendly Localized Status Badge */}
-      <div className="flex items-start justify-between gap-2.5">
-        <div className="flex min-w-0 items-start gap-2.5">
-          <span
-            aria-hidden="true"
-            className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
-          >
-            <ClipboardCheck className="size-4" aria-hidden="true" />
-          </span>
-          <div className="min-w-0">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-gray-100">
-              {t("title")}
-            </h3>
-            <p className="mt-0.5 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-              {state ? t(`stateHelp.${state}`) : t("introShort")}
-            </p>
-          </div>
-        </div>
-        {state && (
-          <span
-            role="status"
-            aria-live="polite"
-            data-testid="assessment-state-badge"
-            className="shrink-0"
-          >
-            <Badge
-              size="sm"
-              color={
-                state === "ready_to_edit"
-                  ? "success"
-                  : state === "error" || state === "contradiction"
-                    ? "error"
-                    : "warning"
-              }
-            >
-              {t(`stateLabels.${state}`)}
-            </Badge>
-          </span>
-        )}
-      </div>
-
+    <section aria-label={t("title")} className="space-y-4">
+      {(busy || obsolete || !value) && (
+        <p
+          role="status"
+          data-testid="assessment-state-badge"
+          className="text-xs leading-relaxed text-gray-600 dark:text-gray-300"
+        >
+          {busy
+            ? t("stateHelp.analyzing")
+            : obsolete
+              ? t(
+                  failed || value?.state === "error"
+                    ? "stateHelp.error"
+                    : "stateHelp.stale",
+                )
+              : t("introShort")}
+        </p>
+      )}
       {/* 2. Compact Purpose Selector + Check Action */}
       <div className="space-y-2">
-        <label className="block text-[11px] font-semibold text-gray-600 dark:text-gray-300">
-          {t("purpose")}
-        </label>
+        <label className="sr-only">{t("purpose")}</label>
         <div className="flex flex-wrap items-center gap-2">
           <select
             aria-label={t("purpose")}
-            className="min-w-44 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
+            className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-medium text-gray-900 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100"
             value={purpose}
             disabled={busy}
             onChange={(e) => {
@@ -200,6 +172,7 @@ export default function WorkNoteAssessment({
 
       {value && (
         <>
+          {!obsolete && !busy && <WorkNoteAssessmentSummary value={value} />}
           {/* 3. TOP PRIORITY: Active Clarification Question (immediately visible without scrolling!) */}
           {question && (
             <section
@@ -211,7 +184,7 @@ export default function WorkNoteAssessment({
                 <span className="text-xs font-bold">{t("questionBadge")}</span>
               </div>
 
-              <h4 className="text-xs font-bold leading-relaxed text-gray-900 dark:text-gray-100">
+              <h4 className="text-xs leading-relaxed font-bold text-gray-900 dark:text-gray-100">
                 {formatMasked(question.text)}
               </h4>
 
@@ -337,29 +310,10 @@ export default function WorkNoteAssessment({
             </section>
           )}
 
-          {/* 3B. Ready-to-Rewrite Callout when sufficient */}
-          {!question && can("rewrite") && (
-            <div className="space-y-2.5 rounded-xl border border-success-200 bg-success-50/70 p-3.5 dark:border-success-500/30 dark:bg-success-500/10">
-              <div className="flex items-start gap-2">
-                <CheckCircle2
-                  className="mt-0.5 size-4 shrink-0 text-success-600 dark:text-success-400"
-                  aria-hidden="true"
-                />
-                <div className="space-y-0.5 text-xs">
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">
-                    {t("readyBannerTitle", {
-                      purpose: t(`purposes.${value.purpose}`),
-                    })}
-                  </p>
-                  <p className="leading-relaxed text-gray-600 dark:text-gray-300">
-                    {t("readyBannerHint")}
-                  </p>
-                </div>
-              </div>
-              <Button size="sm" onClick={onRewrite}>
-                {t("rewrite")}
-              </Button>
-            </div>
+          {!question && !obsolete && can("rewrite") && (
+            <Button size="sm" variant="outline" onClick={onRewrite}>
+              {t("rewrite")}
+            </Button>
           )}
 
           {/* Inline Correction Form (opens right in view when user clicks Correct on any item) */}
@@ -473,15 +427,35 @@ export default function WorkNoteAssessment({
             </fieldset>
           )}
 
-          {/* 4. Summary + Open Gaps + Collapsed Deep-Dive Accordions */}
-          <WorkNoteAssessmentEvidence
-            value={value}
-            canCorrect={can("correct")}
-            onCorrectionRequest={(target) => {
-              setCorrectionTarget(target);
-              setCorrectionText("");
-            }}
-          />
+          {obsolete ? (
+            <details
+              data-testid="assessment-previous-result"
+              className="space-y-2 text-xs text-gray-500 dark:text-gray-400"
+            >
+              <summary className="cursor-pointer">
+                {t("previousResult")}
+              </summary>
+              <p>{t("previousResultHint")}</p>
+              <WorkNoteAssessmentEvidence
+                value={value}
+                canCorrect={false}
+                showSummary={false}
+                onCorrectionRequest={() => {}}
+              />
+            </details>
+          ) : (
+            !busy && (
+              <WorkNoteAssessmentEvidence
+                value={value}
+                showSummary={false}
+                canCorrect={can("correct")}
+                onCorrectionRequest={(target) => {
+                  setCorrectionTarget(target);
+                  setCorrectionText("");
+                }}
+              />
+            )
+          )}
 
           {/* 5. Secondary Actions & Quality Feedback Accordion (Closed by default) */}
           <details

@@ -1947,7 +1947,7 @@ export default function WorkWorkspace({
         type: input.type,
         labels: normalizedLabels,
       });
-      setAnnouncement(t("createAdded"));
+      setAnnouncement(t(isRealProject ? "createSaving" : "createAdded"));
       return;
     }
     const tempId = `preview-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
@@ -1986,7 +1986,7 @@ export default function WorkWorkspace({
       };
       return [item, ...current];
     });
-    setAnnouncement(t("createAdded"));
+    setAnnouncement(t(isRealProject ? "createSaving" : "createAdded"));
 
     if (isRealProject) {
       const creationPromise = (async (): Promise<string | null> => {
@@ -2012,6 +2012,7 @@ export default function WorkWorkspace({
               ? { sprintId: input.sprintId }
               : {}),
           });
+          setAnnouncement(t("createSaved"));
           taskVersionsRef.current.set(created.id, created.version);
           taskBackendStatusesRef.current.set(created.id, created.status ?? "TODO");
           resolvedIdsRef.current.set(tempId, created.id);
