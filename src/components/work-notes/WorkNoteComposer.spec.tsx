@@ -1541,6 +1541,48 @@ it("wires WorkNoteAssessment inside AI Assistant for Task Notes when enabled, su
   await waitFor(() => expect(agentApi.save).toHaveBeenCalledOnce());
 });
 
+it("retries a failed Work Note reply with a fresh operation ID", async () => {
+  vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
+  vi.mocked(assessmentApi.assess).mockResolvedValue({
+    ...structuredClone(assessmentFixture),
+    sourceRevision: 2,
+  });
+  vi.mocked(assessmentApi.reply)
+    .mockRejectedValueOnce(
+      new ApiError(
+        502,
+        "ASSESSMENT_FAILED",
+        "Assessment could not be completed safely.",
+      ),
+    )
+    .mockResolvedValueOnce({
+      ...structuredClone(assessmentFixture),
+      revision: 2,
+      sourceRevision: 2,
+      state: "paused",
+      nextQuestion: null,
+      noteAdequacy: "UNDETERMINED",
+      allowedActions: ["correct", "reset", "manual", "feedback"],
+    });
+
+  mount(undefined, { locale: "en" });
+  const contentInput = await screen.findByLabelText("Content");
+  fireEvent.change(contentInput, {
+    target: { value: "Changed note, still untested." },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "AI Assistant" }));
+  fireEvent.click(screen.getByRole("button", { name: "Check information" }));
+  await screen.findByText("Which retry behavior was implemented?");
+
+  fireEvent.click(screen.getByRole("button", { name: "I do not know" }));
+  await screen.findByRole("alert");
+  fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+
+  await waitFor(() => expect(assessmentApi.reply).toHaveBeenCalledTimes(2));
+  const calls = vi.mocked(assessmentApi.reply).mock.calls;
+  expect(calls[1][3].operationId).not.toBe(calls[0][3].operationId);
+});
+
 it("auto-reveals a resumed Task assessment, surfaces rewrite proposals in Chat without auto-applying, handles 409 staleness, and excludes Work Reports", async () => {
   vi.stubEnv("NEXT_PUBLIC_WORKNOTE_ASSESSMENT_ENABLED", "true");
   const ready = {
@@ -1636,7 +1678,7 @@ it("auto-reveals a resumed Task assessment, surfaces rewrite proposals in Chat w
     }),
   );
   await screen.findByText("The Task context changed");
-  expect(screen.getByText("Needs recheck", { exact: true })).toBeInTheDocument();
+  expect(screen.getByTestId("assessment-previous-result")).not.toHaveAttribute("open");
   expect(screen.getByRole("button", { name: "Save note" })).toBeEnabled();
   second.unmount();
 

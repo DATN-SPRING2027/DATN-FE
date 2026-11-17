@@ -140,7 +140,7 @@ it("sends typed unknown/skipped without answer content and permits free text or 
 it("does not rewrite stale information, but keeps explicit manual editing, reset and feedback available", () => {
   const props = mount({ stale: true });
   expect(screen.getByTestId("assessment-state-badge")).toHaveTextContent(
-    "Cần kiểm tra lại",
+    "Ghi chú hoặc ngữ cảnh Task đã thay đổi",
   );
   expect(screen.queryByText("stale")).not.toBeInTheDocument();
   expect(
@@ -319,24 +319,10 @@ it("clearly separates adequate Progress note from incomplete overall Task criter
   const conclusions = screen.getByRole("region", {
     name: "Ba kết luận đánh giá độc lập",
   });
-  expect(within(conclusions).getByText("Độ rõ của Task")).toBeInTheDocument();
-  expect(
-    within(conclusions).getByText("Độ đầy đủ của ghi chú (Cập nhật tiến độ)"),
-  ).toBeInTheDocument();
-  expect(
-    within(conclusions).getByText("Mức đáp ứng tiêu chí Task"),
-  ).toBeInTheDocument();
-  expect(
-    within(conclusions).getByText("Đủ cho mục đích hiện tại"),
-  ).toBeInTheDocument();
-  expect(
-    within(conclusions).getByText("Tiêu chí Task chưa hoàn tất"),
-  ).toBeInTheDocument();
-  expect(
-    screen.getByText(
-      /Ghi chú này đã đủ thông tin cho mục đích Cập nhật tiến độ, dù các tiêu chí nghiệm thu tổng thể của Task vẫn chưa hoàn tất/,
-    ),
-  ).toBeInTheDocument();
+  expect(within(conclusions).getByText("Đủ thông tin cho Cập nhật tiến độ")).toBeInTheDocument();
+  expect(within(conclusions).getByText("Tiêu chí Task chưa hoàn tất")).toBeInTheDocument();
+  expect(screen.queryByText("TÓM TẮT KẾT QUẢ")).not.toBeInTheDocument();
+
 });
 
 it("renders English assessment copy when mounted with en.json", () => {
@@ -636,4 +622,11 @@ it("formats server-masked [[WN_SEC:...]] placeholders in assessment question tex
   expect(region).toHaveTextContent("🔒 mật khẩu");
   expect(region).toHaveTextContent("🔒 token");
   expect(region).toHaveTextContent("🔒 email");
+});
+
+it("collapses previous conclusions and removes reply actions after a failed check", () => {
+  mount({ failed: true });
+  expect(screen.getByTestId("assessment-previous-result")).not.toHaveAttribute("open");
+  expect(screen.queryByLabelText("Câu trả lời của bạn")).not.toBeInTheDocument();
+  expect(screen.queryByRole("region", { name: "Ba kết luận đánh giá độc lập" })).not.toBeInTheDocument();
 });

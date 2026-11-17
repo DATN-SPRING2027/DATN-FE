@@ -387,9 +387,8 @@ export default function WorkNoteComposer({
       }
     } catch (error) {
       retryAction.current = () => requestAssessment(action, revealProposal);
-      editor.setError(
-        error instanceof Error ? error.message : t("requestFailed"),
-      );
+      // assessmentAction already exposes localized API failures.
+      if (!(error instanceof Error)) editor.setError(t("requestFailed"));
     }
   }
 
@@ -1799,6 +1798,7 @@ export default function WorkNoteComposer({
                       <WorkNoteAssessment
                         key={d?.assessment?.id ?? "new-assessment"}
                         value={d?.assessment}
+                        failed={!!editor.error}
                         stale={
                           editor.dirty ||
                           (!!d?.assessment &&
