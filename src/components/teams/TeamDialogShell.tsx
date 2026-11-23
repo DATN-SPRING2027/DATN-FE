@@ -96,7 +96,6 @@ export default function TeamDialogShell({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      backdropClassName="bg-gray-900/40 dark:bg-gray-950/55"
       showCloseButton={false}
       className={`mx-4 max-h-[min(90vh,48rem)] w-full ${maxWidth} overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-900`}
     >

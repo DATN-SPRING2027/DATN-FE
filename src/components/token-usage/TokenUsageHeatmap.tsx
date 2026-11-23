@@ -27,6 +27,7 @@ interface TokenUsageHeatmapProps {
     readonly longestStreak: string;
     readonly currentStreak: string;
     readonly daysUnit: string;
+    readonly dayUnitSingular?: string;
   };
 }
 
@@ -207,7 +208,10 @@ export default function TokenUsageHeatmap({
         </div>
         <div className="flex flex-col items-center justify-center px-3 py-1 text-center">
           <span className="text-sm font-semibold tracking-tight tabular-nums text-gray-900 dark:text-white">
-            {heatmap.longestStreak} {labels.daysUnit}
+            {heatmap.longestStreak}{" "}
+            {heatmap.longestStreak === 1 && labels.dayUnitSingular
+              ? labels.dayUnitSingular
+              : labels.daysUnit}
           </span>
           <span className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
             {labels.longestStreak}
@@ -215,7 +219,10 @@ export default function TokenUsageHeatmap({
         </div>
         <div className="flex flex-col items-center justify-center px-3 py-1 text-center">
           <span className="text-sm font-semibold tracking-tight tabular-nums text-gray-900 dark:text-white">
-            {heatmap.currentStreak} {labels.daysUnit}
+            {heatmap.currentStreak}{" "}
+            {heatmap.currentStreak === 1 && labels.dayUnitSingular
+              ? labels.dayUnitSingular
+              : labels.daysUnit}
           </span>
           <span className="mt-0.5 text-[11px] text-gray-400 dark:text-gray-500">
             {labels.currentStreak}

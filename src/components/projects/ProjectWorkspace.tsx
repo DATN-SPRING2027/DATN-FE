@@ -85,7 +85,7 @@ function TableMemberStack({
   return (
     <div className="flex items-center gap-1.5">
       {visible.length > 0 && (
-        <div className="flex -space-x-2">
+        <div className="flex -space-x-1">
           {visible.map((member, idx) => (
             <MemberAvatarWithHoverCard
               key={member.userId}
@@ -345,14 +345,15 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
             <input
               id="project-search"
               type="search"
+              aria-label={t("searchProjects")}
               value={search}
               onChange={(event) => setSearch(event.target.value)}
               placeholder={t("searchPlaceholder")}
-              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-12 text-xs sm:text-sm text-gray-800 shadow-theme-xs transition-all placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
+              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 sm:pe-12 text-xs sm:text-sm text-gray-800 shadow-theme-xs transition-[border-color,background-color,box-shadow] placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
             />
             <span
               aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 end-2.5 flex items-center"
+              className="pointer-events-none absolute inset-y-0 end-2.5 hidden items-center sm:flex"
             >
               <kbd className="rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-sans text-[10px] font-medium text-gray-400 shadow-2xs dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
                 ⌘K
@@ -373,7 +374,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                   event.target.value as "all" | Project["visibility"],
                 )
               }
-              className="h-9 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs outline-none focus-visible:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              className="h-9 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs leading-none font-medium text-gray-700 shadow-theme-xs outline-none focus-visible:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             >
               <option value="all">{t("allVisibility")}</option>
               <option value="PRIVATE">{t("PRIVATE")}</option>
@@ -390,7 +391,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               onChange={(event) =>
                 setSort(event.target.value as "updated" | "name" | "code")
               }
-              className="h-9 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs outline-none focus-visible:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+              className="h-9 cursor-pointer rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs leading-none font-medium text-gray-700 shadow-theme-xs outline-none focus-visible:border-brand-300 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
             >
               <option value="updated">{t("sortUpdated")}</option>
               <option value="name">{t("sortName")}</option>

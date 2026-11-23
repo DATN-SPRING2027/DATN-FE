@@ -86,15 +86,14 @@ export default function MemberRemoveConfirmation({
   );
   if (!isOpen) return content;
   return (
-    <div className="[&_.modal>div:first-child]:bg-gray-900/50 [&_.modal>div:first-child]:backdrop-blur-xs">
-      <Modal
-        isOpen={isOpen}
-        onClose={() => {
-          if (!pending) onCancel();
-        }}
-        showCloseButton={false}
-        className="m-4 max-w-lg"
-      >
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        if (!pending) onCancel();
+      }}
+      showCloseButton={false}
+      className="m-4 max-w-lg"
+    >
         <div
           ref={dialog}
           role="dialog"
@@ -128,7 +127,6 @@ export default function MemberRemoveConfirmation({
         >
           {content}
         </div>
-      </Modal>
-    </div>
+    </Modal>
   );
 }

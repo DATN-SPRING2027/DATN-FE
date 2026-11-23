@@ -1057,7 +1057,6 @@ export default function HandoverListWorkspace({
       <Modal
         isOpen={isCoordModalOpen}
         onClose={() => setIsCoordModalOpen(false)}
-        backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
         className="max-w-lg border border-gray-200/90 p-6 shadow-theme-xl ring-1 ring-gray-950/5 sm:p-8 dark:border-gray-800 dark:ring-white/10"
       >
         <div className="pe-8">

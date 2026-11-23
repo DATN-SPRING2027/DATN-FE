@@ -738,7 +738,7 @@ export function ProjectMemberAvatarGroup({
   return (
     <div className="flex items-center gap-1.5">
       {visibleMembers.length > 0 && (
-        <div className="flex -space-x-2">
+        <div className="flex -space-x-1">
           {visibleMembers.map((member, idx) => (
             <MemberAvatarWithHoverCard
               key={member.key}

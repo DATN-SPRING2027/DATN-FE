@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import { createPortal } from "react-dom";
 import { useFormatter, useTranslations } from "next-intl";
 import {
@@ -245,6 +246,7 @@ export function SagKnowledgePipelineCard({
   const tg = useTranslations("workNotes.governance");
   const [confirmingRevoke, setConfirmingRevoke] = useState(false);
   const [isLifecycleModalOpen, setIsLifecycleModalOpen] = useState(false);
+  const lifecycleDialogRef = useRef<HTMLDivElement>(null);
   const [reopenOnPurge, setReopenOnPurge] = useState(false);
   const [reopenComment, setReopenComment] = useState("");
   const [isModalActionBusy, setIsModalActionBusy] = useState(false);
@@ -252,6 +254,7 @@ export function SagKnowledgePipelineCard({
   const normalizedStatus = normalizeToDocumentStatus(status);
   const isApproved = normalizedStatus === "APPROVED";
   const isFlush = variant === "flush";
+  useDialogFocus(lifecycleDialogRef, isApproved && isLifecycleModalOpen);
 
   // Pre-approval: Honest Governance Gate (NEVER show fake 4-step SAG progress bar!)
   if (!isApproved) {
@@ -682,10 +685,16 @@ export function SagKnowledgePipelineCard({
             if (!isModalActionBusy) setIsLifecycleModalOpen(false);
           }}
           showCloseButton={false}
-          backdropClassName="bg-gray-950/40 backdrop-blur-[4px]"
           className="max-w-xl overflow-hidden rounded-2xl border border-gray-200/90 shadow-theme-xl dark:border-gray-800"
         >
-          <div className="divide-y divide-gray-200 dark:divide-gray-800">
+          <div
+            ref={lifecycleDialogRef}
+            role="dialog"
+            aria-modal="true"
+            aria-label={tg("lifecycleModalTitle")}
+            tabIndex={-1}
+            className="divide-y divide-gray-200 dark:divide-gray-800"
+          >
             {/* Header */}
             <div className="flex items-start justify-between gap-3 bg-gray-50/70 px-5 py-3.5 dark:bg-gray-900/70">
               <div className="min-w-0">
@@ -1939,6 +1948,8 @@ export function KnowledgeGovernanceDrawer({
     "knowledge",
   );
   const [copiedSha, setCopiedSha] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(drawerRef, isOpen);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -1978,15 +1989,19 @@ export function KnowledgeGovernanceDrawer({
 
   const drawerNode = (
     <div
+      ref={drawerRef}
       role="dialog"
+      aria-modal="true"
       aria-label={tg("inspectDrawerTitle")}
+      tabIndex={-1}
       data-testid="knowledge-governance-drawer"
-      className="fixed inset-0 z-[99900] flex justify-end"
+      className="fixed inset-0 z-[99900] flex justify-end overscroll-contain"
     >
       <div
+        aria-hidden="true"
         data-testid="knowledge-drawer-backdrop"
         onClick={onClose}
-        className="fixed inset-0 bg-gray-950/30 backdrop-blur-[1px] transition-opacity"
+        className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] transition-opacity dark:bg-gray-950/60"
       />
 
       <div className="relative z-10 flex h-full w-full max-w-[480px] flex-col border-s border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">

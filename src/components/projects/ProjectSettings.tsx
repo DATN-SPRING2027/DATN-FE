@@ -561,18 +561,17 @@ export default function ProjectSettings({
           </div>
 
           {canDelete && (
-            <div className="[&_.modal>div:first-child]:bg-gray-900/40 [&_.modal>div:first-child]:backdrop-blur-xs">
-              <Modal
-                isOpen={deleteModal.isOpen}
-                onClose={() => {
-                  if (!deleteMutation.isPending) {
-                    deleteMutation.reset();
-                    deleteModal.closeModal();
-                  }
-                }}
-                showCloseButton={false}
-                className="m-4 max-w-lg p-6"
-              >
+            <Modal
+              isOpen={deleteModal.isOpen}
+              onClose={() => {
+                if (!deleteMutation.isPending) {
+                  deleteMutation.reset();
+                  deleteModal.closeModal();
+                }
+              }}
+              showCloseButton={false}
+              className="m-4 max-w-lg p-6"
+            >
                 <div
                   role="dialog"
                   aria-modal="true"
@@ -652,8 +651,7 @@ export default function ProjectSettings({
                     </Button>
                   </div>
                 </div>
-              </Modal>
-            </div>
+            </Modal>
           )}
         </section>
       </div>

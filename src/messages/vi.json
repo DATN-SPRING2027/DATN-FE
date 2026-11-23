@@ -13,6 +13,7 @@
     "aiUnavailable": "Dịch vụ AI chưa thể hoàn tất câu trả lời. Câu hỏi được giữ trong ô nhập để bạn thử lại.",
     "reminderBody": "Báo cáo công việc của bạn đến hạn {remaining}. Hãy hoàn thành và nộp báo cáo nhé.",
     "chatCompleted": "AI Chat đã trả lời xong câu hỏi của bạn.",
+    "minimize": "Thu gọn trợ lý AI",
     "settingsTitle": "Nhắc báo cáo qua bot AI",
     "settingsHelp": "Nhắc người viết báo cáo qua bot AI và Email, kể cả khi đóng ứng dụng. Áp dụng riêng cho dự án và tầng báo cáo này. Ngừng nhắc sau khi nộp.",
     "leadTime": "Nhắc trước hạn nộp",
@@ -1177,6 +1178,8 @@
   "header": {
     "searchPlaceholder": "Tìm kiếm hoặc nhập lệnh...",
     "toggleSidebar": "Ẩn/hiện thanh bên",
+    "toggleMenu": "Mở rộng thanh công cụ",
+    "toggleTheme": "Chuyển giao diện sáng/tối",
     "update": "Cập nhật",
     "help": "Trợ giúp",
     "settings": "Cài đặt",
@@ -1313,6 +1316,7 @@
     }
   },
   "userDropdown": {
+    "accountMenu": "Menu tài khoản",
     "profile": "Hồ sơ cá nhân",
     "editProfile": "Chỉnh sửa hồ sơ",
     "accountSettings": "Cài đặt tài khoản",
@@ -6969,7 +6973,8 @@
       "lifetimeTokens": "Tổng tích lũy",
       "peakDailyTokens": "Đỉnh ngày",
       "longestStreak": "Chuỗi dài nhất",
-      "currentStreak": "Chuỗi hiện tại"
+      "currentStreak": "Chuỗi hiện tại",
+      "dayUnitSingular": "ngày"
     },
     "calendar": {
       "thisMonth": "Tháng này",

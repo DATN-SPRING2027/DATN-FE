@@ -224,7 +224,7 @@ export default function ProjectCard({
             </p>
             <div className="mt-2 flex min-w-0 items-center gap-1.5">
               {visibleMembers.length > 0 && (
-                <div className="flex -space-x-2">
+                <div className="flex -space-x-1">
                   {visibleMembers.map((member, idx) => (
                     <MemberAvatarWithHoverCard
                       key={member.userId}

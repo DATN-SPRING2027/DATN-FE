@@ -2142,7 +2142,7 @@ export default function WorkNoteComposer({
               trap(e);
               if (e.key === "Tab") e.stopPropagation();
             }}
-            className="absolute inset-0 z-40 flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-[2px]"
+            className="absolute inset-0 z-40 flex items-center justify-center bg-gray-950/40 p-4 backdrop-blur-[3px] dark:bg-gray-950/60"
           >
             <div className="w-full max-w-md space-y-4 rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl dark:border-gray-800 dark:bg-gray-900">
               <h3 id="agent-confirm-title" className="text-lg font-bold">

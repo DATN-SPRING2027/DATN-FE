@@ -355,14 +355,15 @@ it("creates from the list in a modal and refreshes the contract-backed directory
   );
   expect(push).not.toHaveBeenCalled();
 });
-it("dims the page behind Team dialogs without applying blur", async () => {
+it("dims the page behind Team dialogs with moderate blur", async () => {
   vi.spyOn(globalThis, "fetch").mockResolvedValue(response(list()));
   mount();
   await screen.findByText("Engineering");
   fireEvent.click(screen.getByRole("button", { name: "Create team" }));
   const backdrop = document.querySelector(".modal > div");
-  expect(backdrop).toHaveClass("bg-gray-900/40");
-  expect(backdrop?.className).not.toContain("backdrop-blur");
+  expect(backdrop).toHaveClass("bg-gray-950/40");
+  expect(backdrop?.className).toContain("backdrop-blur-[3px]");
+  expect(backdrop?.className).not.toContain("backdrop-blur-[32px]");
 });
 it("opens a row detail dialog, then edits only contract-editable fields", async () => {
   const fetch = vi

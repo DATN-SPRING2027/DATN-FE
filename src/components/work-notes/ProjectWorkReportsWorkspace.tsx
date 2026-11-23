@@ -2203,7 +2203,7 @@ export default function ProjectWorkReportsWorkspace({
                     setEditingReportId("");
                     setSelectedBulkIds(new Set());
                   }}
-                  className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-semibold tabular-nums text-gray-800 shadow-theme-xs transition outline-none hover:border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+                  className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs leading-none font-semibold tabular-nums text-gray-800 shadow-theme-xs transition outline-none hover:border-gray-300 focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
                 >
                   {periods.map((item) => (
                     <option key={item.key} value={item.key}>

@@ -2168,7 +2168,7 @@ export default function ProjectDocumentsWorkspace({
                 setFilter(event.target.value as DocumentStatus | "ALL");
                 setPage(1);
               }}
-              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs leading-none font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               {STATUSES.map((status) => (
                 <option key={status} value={status}>
@@ -2897,7 +2897,6 @@ export default function ProjectDocumentsWorkspace({
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onBackdropClick={() => setUploadModalOpen(false)}
-        backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
         className="mx-3 max-w-xl overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800"
       >
@@ -3371,7 +3370,6 @@ export default function ProjectDocumentsWorkspace({
         onBackdropClick={() => {
           if (!removalTarget) closeDetailModal();
         }}
-        backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
         className={`overflow-hidden border border-gray-200 shadow-theme-lg dark:border-gray-800 ${
           isReplacingVersion
@@ -5248,7 +5246,6 @@ export default function ProjectDocumentsWorkspace({
         isOpen={Boolean(removalTarget)}
         onClose={closeRemovalModal}
         onBackdropClick={closeRemovalModal}
-        backdropClassName="bg-gray-900/45 backdrop-blur-[2px] dark:bg-gray-950/70"
         showCloseButton={false}
         className="mx-3 max-w-xl overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800"
       >

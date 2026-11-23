@@ -125,7 +125,7 @@ export const SidebarProvider: React.FC<{ children: React.ReactNode }> = ({
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      if (!mobile) {
+      if (window.innerWidth >= 1280) {
         setIsMobileOpen(false);
       }
     };

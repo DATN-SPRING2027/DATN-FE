@@ -12,14 +12,13 @@ import { useProjectManagementAccess } from "@/lib/queries/projects/useProjectSet
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 import type React from "react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 type SettingsItem = {
   id: string;
   title: string;
   description: string;
   href?: string;
-  onClick?: () => void;
   icon: React.ReactNode;
   showExternalIcon?: boolean;
 };
@@ -31,6 +30,7 @@ export default function HeaderSettingsDropdown({
 }) {
   const t = useTranslations("header");
   const [isOpen, setIsOpen] = useState(false);
+  const settingsButtonRef = useRef<HTMLButtonElement>(null);
   const currentUser = useCurrentUserQuery();
   const currentUserAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
   const visibleCurrentUser = currentUserAccessLost ? undefined : currentUser.data;
@@ -46,6 +46,12 @@ export default function HeaderSettingsDropdown({
   const openTokenUsageModal = useTokenUsageModalStore((s) => s.openModal);
 
   const closeDropdown = () => setIsOpen(false);
+
+  const openUsage = () => {
+    settingsButtonRef.current?.focus({ preventScroll: true });
+    closeDropdown();
+    openTokenUsageModal();
+  };
 
   const handleSearchShortcutClick = () => {
     closeDropdown();
@@ -103,10 +109,6 @@ export default function HeaderSettingsDropdown({
             id: "usage",
             title: t("settingsMenu.usageTitle"),
             description: t("settingsMenu.usageDesc"),
-            onClick: () => {
-              closeDropdown();
-              openTokenUsageModal();
-            },
             icon: <PieChartIcon aria-hidden="true" className="size-[17px]" />,
           } satisfies SettingsItem,
         ]
@@ -267,11 +269,11 @@ export default function HeaderSettingsDropdown({
 
     return (
       <li key={item.id}>
-        {item.onClick ? (
+        {item.id === "usage" ? (
           <button
             type="button"
             data-testid={`header-settings-${item.id}`}
-            onClick={item.onClick}
+            onClick={openUsage}
             className="group flex w-full cursor-pointer items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-start transition-colors hover:bg-gray-100 dark:hover:bg-white/5"
           >
             {rowContent}
@@ -292,6 +294,7 @@ export default function HeaderSettingsDropdown({
   return (
     <div className="relative">
       <button
+        ref={settingsButtonRef}
         type="button"
         aria-label={t("settings")}
         title={t("settings")}

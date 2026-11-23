@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useOptionalSidebar } from "@/context/SidebarContext";
+import { MinusIcon } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useFloatingChatStore } from "@/stores/floating-chat";
@@ -148,6 +149,11 @@ export default function ContinuumAiCompanion({
   const requestController = useRef<AbortController | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const minimizedTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isMinimized) minimizedTriggerRef.current?.focus({ preventScroll: true });
+  }, [isMinimized]);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
@@ -472,7 +478,7 @@ export default function ContinuumAiCompanion({
 
   const helpShiftClass =
     isHelpOpen && !position
-      ? "lg:-translate-x-80 rtl:lg:translate-x-80 max-lg:pointer-events-none max-lg:opacity-0"
+      ? "max-lg:invisible lg:-translate-x-80 rtl:lg:translate-x-80"
       : "";
 
   const hideGreetingBubble =
@@ -496,8 +502,8 @@ export default function ContinuumAiCompanion({
         : openChatWindowCount === 1
           ? "max-sm:hidden end-20 bottom-4 sm:end-108 sm:bottom-5"
           : hasBottomRightPageActions && effectiveMinimized
-            ? "end-4 bottom-21 sm:end-5 sm:bottom-22"
-            : "end-20 bottom-4 sm:end-24 sm:bottom-5";
+            ? "end-4 bottom-20 sm:end-5 sm:bottom-20"
+            : "end-20 bottom-3 sm:end-24 sm:bottom-4";
 
   const defaultPanelOffsetClass = isHumanChatPage
     ? "end-3 bottom-24 sm:end-6 sm:bottom-24"
@@ -525,18 +531,20 @@ export default function ContinuumAiCompanion({
               ? { left: `${position.x}px`, top: `${position.y}px` }
               : undefined
           }
-          className={`fixed z-30 flex touch-none flex-col select-none ${
+          className={`pointer-events-none fixed z-30 flex touch-none flex-col select-none ${
             isDragging
               ? "cursor-grabbing"
-              : "cursor-grab transition-[inset-inline-end,bottom,transform] duration-200 ease-out"
+              : "transition-[inset-inline-end,bottom,transform] duration-200 ease-out"
           } ${isOnLeftHalf ? "items-start" : "items-end"} ${
             position ? "" : defaultDockOffsetClass
           } ${helpShiftClass}`}
         >
-          <WorkReportReminderNotice visible={!isOpen} />
+          <div className="pointer-events-auto">
+            <WorkReportReminderNotice visible={!isOpen} />
+          </div>
           {effectiveMinimized ? (
             <div
-              className={`flex flex-col ${
+              className={`pointer-events-auto flex flex-col ${
                 isOnLeftHalf ? "items-start" : "items-end"
               }`}
             >
@@ -549,6 +557,7 @@ export default function ContinuumAiCompanion({
                 </div>
               )}
               <button
+                ref={minimizedTriggerRef}
                 type="button"
                 onClick={(event) => {
                   if (suppressNextClickRef.current) {
@@ -573,14 +582,18 @@ export default function ContinuumAiCompanion({
                 isOnLeftHalf ? "items-start" : "items-end"
               }`}
             >
-              {/* Greeting bubble above the floating 3D robot */}
+              {/* Greeting bubble above the floating 3D robot — reveals on hover/focus or AI completion notice so it never occludes page CTAs */}
               <div
-                className={`mb-1 items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-3 py-1.5 text-xs font-medium text-gray-700 shadow-md backdrop-blur transition group-hover:border-brand-300 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
-                  hideGreetingBubble ? "hidden" : "flex"
+                className={`pointer-events-none mb-1 max-w-[calc(100vw-6.5rem)] items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-2.5 py-1 text-[11px] leading-snug font-medium text-gray-700 shadow-md backdrop-blur transition-[opacity,border-color,transform] duration-150 group-hover:border-brand-300 sm:max-w-[235px] dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
+                  hideGreetingBubble
+                    ? "hidden"
+                    : chatNotice
+                      ? "flex opacity-100"
+                      : "hidden translate-y-1 opacity-0 sm:flex group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                 } ${isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"}`}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <span role="status" aria-live="polite">
+                <span role="status" aria-live="polite" className="min-w-0">
                   {chatNotice ? (
                     t("chatCompleted")
                   ) : isEn ? (
@@ -589,18 +602,6 @@ export default function ContinuumAiCompanion({
                     "Xin chào! Cần mình tóm tắt dự án không?"
                   )}
                 </span>
-                <button
-                  type="button"
-                  data-no-drag="true"
-                  aria-label="Minimize AI Companion"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsMinimized(true);
-                  }}
-                  className="ms-1 cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                >
-                  ×
-                </button>
               </div>
 
               {/* 3D Robot Floating Trigger (Click to open, Hold & Drag to move anywhere) */}
@@ -621,20 +622,29 @@ export default function ContinuumAiCompanion({
                     : "Bấm để mở Trợ lý AI · Nhấn giữ chuột để kéo đi mọi nơi"
                 }
                 aria-label="Open Continuum AI Companion"
-                className={`relative flex h-28 w-28 flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-32 sm:w-32 ${
+                className={`pointer-events-auto relative flex h-16 w-16 flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-20 sm:w-20 ${
                   isDragging
                     ? "scale-105 cursor-grabbing"
                     : "cursor-grab hover:scale-105"
                 }`}
               >
-                <div className="pointer-events-none absolute inset-0 rounded-full bg-brand-500/10 blur-xl transition group-hover:bg-brand-500/20" />
-                <div className="pointer-events-none h-24 w-24 sm:h-28 sm:w-28">
+                <div className="pointer-events-none absolute inset-0 rounded-full bg-brand-500/10 blur-lg transition group-hover:bg-brand-500/20" />
+                <div className="pointer-events-none h-14 w-14 sm:h-16 sm:w-16">
                   <Robot3D status={displayRobotStatus} interactiveMouse />
                 </div>
-                <span className="relative z-10 -mt-2 inline-flex items-center gap-1.5 rounded-full border border-brand-200 bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-brand-700 shadow-sm dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300">
+                <span className="relative z-10 -mt-1.5 inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white/95 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-brand-700 shadow-sm dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300">
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
                   {companionPillLabel}
                 </span>
+              </button>
+              <button
+                type="button"
+                data-no-drag="true"
+                aria-label={t("minimize")}
+                onClick={() => setIsMinimized(true)}
+                className="pointer-events-auto absolute end-0 bottom-10 z-20 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 sm:bottom-12 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                <MinusIcon aria-hidden="true" className="size-3.5" />
               </button>
             </div>
           )}

@@ -707,7 +707,6 @@ export default function PlatformUsersDirectory({
               <Modal
                 isOpen={editModalOpen}
                 onClose={closeEditProfile}
-                backdropClassName="bg-gray-950/45"
                 showCloseButton={false}
                 className={`${dialogStyles.surface} ${dialogStyles.userSurface} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.edit}`}
               >
@@ -820,7 +819,6 @@ export default function PlatformUsersDirectory({
 
               <Modal
                 isOpen={statusModalOpen}
-                backdropClassName="bg-gray-950/45"
                 onClose={closeStatusConfirmation}
                 showCloseButton={false}
                 className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}
@@ -892,7 +890,6 @@ export default function PlatformUsersDirectory({
 
               <Modal
                 isOpen={archiveModalOpen}
-                backdropClassName="bg-gray-950/45"
                 onClose={closeArchiveConfirmation}
                 showCloseButton={false}
                 className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}
@@ -976,7 +973,6 @@ export default function PlatformUsersDirectory({
 
               <Modal
                 isOpen={restoreModalOpen}
-                backdropClassName="bg-gray-950/45"
                 onClose={closeRestoreConfirmation}
                 showCloseButton={false}
                 className={`${dialogStyles.surface} ${dialogStyles.confirmation} ${userModal.frame} ${platformFont.variable} ${jiraTheme.modalTheme} ${userModal.confirm}`}

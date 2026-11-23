@@ -1,7 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import {
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import {
   BookOpenIcon,
   CalenderIcon,
@@ -96,6 +104,9 @@ function TokenUsageModalContent({
 }) {
   const t = useTranslations("TokenUsage");
   const locale = useLocale();
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, true);
 
   const currentUserQuery = useCurrentUserQuery();
   const organizationId = currentUserQuery.data?.organizationId ?? "";
@@ -280,7 +291,14 @@ function TokenUsageModalContent({
       className="mx-3 w-full max-w-[940px] overflow-hidden rounded-2xl border border-gray-200/90 bg-white p-0 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900"
     >
       {/* Explicit Flex Height Container inside Modal's inner div */}
-      <div className="flex max-h-[85vh] flex-col overflow-hidden bg-white dark:bg-gray-900">
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        tabIndex={-1}
+        className="flex max-h-[85vh] flex-col overflow-hidden bg-white dark:bg-gray-900"
+      >
         {/* Minimal Header: "Usage" on left, Scope + Close on right */}
         <div className="flex shrink-0 items-center justify-between gap-3 px-6 pt-5 pb-3">
           <div className="flex items-center gap-2">
@@ -299,7 +317,10 @@ function TokenUsageModalContent({
                 <ChevronLeftIcon className="size-3.5" />
               </button>
             )}
-            <h2 className="text-[17px] font-semibold tracking-tight text-gray-900 dark:text-white">
+            <h2
+              id={titleId}
+              className="text-[17px] font-semibold tracking-tight text-gray-900 dark:text-white"
+            >
               {focusedMeta ? focusedMeta.title : t("modalTitle")}
             </h2>
           </div>
@@ -608,6 +629,7 @@ function TokenUsageModalContent({
                 longestStreak: t("heatmap.longestStreak"),
                 currentStreak: t("heatmap.currentStreak"),
                 daysUnit: t("calendar.daysUnit"),
+                dayUnitSingular: t("heatmap.dayUnitSingular"),
               }}
             />
 

@@ -89,7 +89,6 @@ export default function WorkAiCopilotDialog({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      backdropClassName="bg-gray-900/15 backdrop-blur-[1px] dark:bg-gray-950/25"
       showCloseButton={false}
       className="mx-4 max-w-xl p-0 shadow-theme-lg !rounded-none [&_*]:!rounded-none"
     >

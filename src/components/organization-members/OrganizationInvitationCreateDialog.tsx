@@ -490,7 +490,7 @@ export default function OrganizationInvitationCreateDialog({
             aria-modal="true"
             aria-labelledby={`${titleId}-confirm-dismiss-title`}
             aria-describedby={`${titleId}-confirm-dismiss-desc`}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4 backdrop-blur-[3px] dark:bg-gray-950/60"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900">
@@ -548,7 +548,7 @@ export default function OrganizationInvitationCreateDialog({
                 type="button"
                 onClick={onClose}
                 aria-label={t("close")}
-                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
@@ -628,7 +628,7 @@ export default function OrganizationInvitationCreateDialog({
                 type="button"
                 onClick={onClose}
                 aria-label={t("close")}
-                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
@@ -696,7 +696,7 @@ export default function OrganizationInvitationCreateDialog({
                 type="button"
                 onClick={onClose}
                 aria-label={t("close")}
-                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
@@ -740,7 +740,7 @@ export default function OrganizationInvitationCreateDialog({
                 type="button"
                 onClick={onClose}
                 aria-label={t("close")}
-                className="rounded-lg p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×
@@ -830,7 +830,7 @@ export default function OrganizationInvitationCreateDialog({
                 onClick={onClose}
                 disabled={isPending}
                 aria-label={t("close")}
-                className="rounded-lg p-1.5 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
                 <span aria-hidden="true" className="text-lg leading-none">
                   ×

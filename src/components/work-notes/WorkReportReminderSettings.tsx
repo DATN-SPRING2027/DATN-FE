@@ -78,7 +78,7 @@ export default function WorkReportReminderSettings({
             value={selection}
             disabled={mutation.isPending}
             onChange={(event) => setSelection(event.target.value)}
-            className="h-7 cursor-pointer bg-transparent pe-1 text-xs font-medium text-gray-800 outline-none disabled:opacity-50 dark:bg-gray-900 dark:text-gray-100"
+            className="h-7 cursor-pointer bg-transparent py-1 pe-1 text-xs leading-none font-medium text-gray-800 outline-none disabled:opacity-50 dark:bg-gray-900 dark:text-gray-100"
           >
             {OPTIONS.map((value) => (
               <option key={value} value={value}>

@@ -129,7 +129,7 @@ function MembershipStatusSelect({ value, disabled, onChange }: { value: Membersh
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value as MembershipStatusFilter)}
-        className="h-9 cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs sm:text-sm font-medium text-gray-700 shadow-theme-xs transition-colors hover:border-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
+        className="h-9 cursor-pointer rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs sm:text-sm leading-none font-medium text-gray-700 shadow-theme-xs transition-colors hover:border-gray-400 focus:border-brand-400 focus:ring-2 focus:ring-brand-500/10 focus:outline-hidden disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-gray-600"
       >
         <option value="ALL">{t("allStatuses")}</option>
         <option value="PENDING_INVITE">{t("PENDING_INVITE")}</option>

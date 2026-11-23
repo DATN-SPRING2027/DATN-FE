@@ -35,6 +35,10 @@
 .surface :is(input:not([type="checkbox"]), select, textarea) {
   border-radius: 4px;
 }
+.surface select {
+  padding-block: 0.5rem;
+  line-height: 1.25;
+}
 .surface button {
   border-radius: 4px;
 }
@@ -105,8 +109,11 @@
   margin: 7vh auto 24px;
 }
 .native::backdrop {
-  background: rgb(9 16 36 / 48%);
-  backdrop-filter: none;
+  background: rgb(12 17 29 / 40%);
+  backdrop-filter: blur(3px);
+}
+:global(.dark) .native::backdrop {
+  background: rgb(12 17 29 / 60%);
 }
 .native > header {
   background: #fff;

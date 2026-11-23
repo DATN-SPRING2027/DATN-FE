@@ -667,7 +667,7 @@ export default function AiChatEvidenceSheet({
         aria-label={t("closeDialog")}
         onClick={handleRequestClose}
         className={cn(
-          "fixed inset-0 bg-gray-950/50 backdrop-blur-xs lg:bg-gray-950/12 lg:backdrop-blur-none dark:lg:bg-black/35",
+          "fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60 lg:bg-gray-950/12 lg:backdrop-blur-none dark:lg:bg-gray-950/35",
           isClosing ? "continuum-backdrop-exit" : "continuum-backdrop-enter",
         )}
       />

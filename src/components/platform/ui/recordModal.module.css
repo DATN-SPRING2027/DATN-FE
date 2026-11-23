@@ -21,7 +21,11 @@
   display: none;
 }
 .dialog::backdrop {
-  background: color-mix(in srgb, var(--color-gray-950) 45%, transparent);
+  background: color-mix(in srgb, var(--color-gray-950) 40%, transparent);
+  backdrop-filter: blur(3px);
+}
+:global(.dark) .dialog::backdrop {
+  background: color-mix(in srgb, var(--color-gray-950) 60%, transparent);
 }
 .header {
   display: flex;

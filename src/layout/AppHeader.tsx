@@ -2,6 +2,7 @@
 
 import NotificationDropdown from "@/components/header/NotificationDropdown";
 import BrandLogo from "@/components/common/BrandLogo";
+import { ThemeToggleButton } from "@/components/common/ThemeToggleButton";
 import HeaderHelpDrawer from "@/components/header/HeaderHelpDrawer";
 import HeaderSettingsDropdown from "@/components/header/HeaderSettingsDropdown";
 import HeaderUpdateButton from "@/components/header/HeaderUpdateButton";
@@ -483,8 +484,11 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
           </Link>
 
           <button
+            type="button"
             onClick={toggleApplicationMenu}
-            className="z-99999 flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 xl:hidden dark:text-gray-400 dark:hover:bg-gray-800"
+            aria-label={tr(t, "toggleMenu", "Toggle header menu")}
+            aria-expanded={isApplicationMenuOpen}
+            className="z-99999 flex h-10 w-10 items-center justify-center rounded-lg text-gray-700 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 xl:hidden dark:text-gray-400 dark:hover:bg-gray-800"
           >
             <svg
               width="24"
@@ -547,6 +551,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
               <input
                 ref={inputRef}
                 type="text"
+                aria-label={t("searchPlaceholder")}
                 value={searchQuery}
                 onFocus={() => setIsSearchOpen(true)}
                 onChange={(event) => {
@@ -698,7 +703,13 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
             {/* 2. Notifications */}
             <NotificationDropdown />
 
-            {/* 3. Help (Question mark in circle -> opens right Help sidebar) */}
+            {/* 3. Theme Toggle (1-click Light/Dark mode) */}
+            <ThemeToggleButton
+              ariaLabel={tr(t, "toggleTheme", "Toggle color theme")}
+              className="h-10 w-10 border-gray-200 text-gray-600 dark:border-gray-700 dark:text-gray-300"
+            />
+
+            {/* 4. Help (Question mark in circle -> opens right Help sidebar) */}
             <HeaderHelpDrawer />
 
             {/* 4. Settings (Gear icon dropdown with role-based sections) */}

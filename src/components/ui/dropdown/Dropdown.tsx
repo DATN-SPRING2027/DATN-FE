@@ -5,6 +5,7 @@ import type React from "react";
 import { useEffect, useRef } from "react";
 
 interface DropdownProps {
+  id?: string;
   isOpen: boolean;
   onClose: () => void;
   children: React.ReactNode;
@@ -12,6 +13,7 @@ interface DropdownProps {
 }
 
 export const Dropdown: React.FC<DropdownProps> = ({
+  id,
   isOpen,
   onClose,
   children,
@@ -46,6 +48,7 @@ export const Dropdown: React.FC<DropdownProps> = ({
 
   return (
     <div
+      id={id}
       ref={dropdownRef}
       className={cn(
         "absolute inset-e-0 z-40 mbs-2 rounded-xl border border-gray-200 bg-white shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark",
