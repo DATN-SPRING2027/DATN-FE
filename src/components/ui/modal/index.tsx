@@ -4,6 +4,9 @@ import { CloseIcon } from "@/icons";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
+export const MODAL_BACKDROP_CLASS =
+  "bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60";
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,7 +25,7 @@ export const Modal: React.FC<ModalProps> = ({
   onBackdropClick,
   children,
   className,
-  backdropClassName = "bg-gray-950/40 backdrop-blur-[2px] dark:bg-gray-950/65",
+  backdropClassName = MODAL_BACKDROP_CLASS,
   showCloseButton = true, // Default to true for backwards compatibility
   closeLabel = "Close",
   isFullscreen = false,

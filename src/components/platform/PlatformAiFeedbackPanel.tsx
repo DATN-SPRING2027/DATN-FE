@@ -660,7 +660,7 @@ export default function PlatformAiFeedbackPanel({
             type="button"
             aria-label={t("closeDialog")}
             onClick={() => setInspectedRow(null)}
-            className="fixed inset-0 bg-gray-950/65 backdrop-blur-xs"
+            className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60"
           />
           <div
             role="dialog"

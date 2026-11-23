@@ -74,7 +74,6 @@ export default function OrganizationDialog({
         if (!pending) onClose();
       }}
       showCloseButton={false}
-      backdropClassName="bg-gray-950/45"
       className={`${dialog.surface} ${platformFont.variable} ${detail ? dialog.detailSurface : ""}`}
     >
       <div

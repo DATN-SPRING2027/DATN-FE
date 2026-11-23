@@ -572,7 +572,7 @@ export default function DocumentFilePreviewModal({
     >
       <div
         data-testid="document-preview-backdrop"
-        className="fixed inset-0 bg-gray-950/60 backdrop-blur-xs"
+        className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60"
         onClick={onClose}
       />
 

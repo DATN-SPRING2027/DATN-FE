@@ -116,7 +116,6 @@ export default function HandoverDialogShell({
       isOpen={isOpen}
       onClose={safeClose}
       showCloseButton={false}
-      backdropClassName="bg-gray-950/40 backdrop-blur-[2px] dark:bg-gray-950/65"
       className={`mx-auto w-full ${SIZE_CLASSES[size]} overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xl ring-1 ring-gray-950/5 dark:border-gray-800 dark:bg-gray-900 dark:ring-white/10`}
     >
       <div

@@ -39,15 +39,14 @@ export default function ProjectPublicationDialog({
     };
   }, [isOpen]);
   return (
-    <div className="[&_.modal>div:first-child]:bg-gray-900/35 [&_.modal>div:first-child]:backdrop-blur-none">
-      <Modal
-        isOpen={isOpen}
-        onClose={() => {
-          if (!pending) onClose();
-        }}
-        showCloseButton={false}
-        className="max-w-lg p-6"
-      >
+    <Modal
+      isOpen={isOpen}
+      onClose={() => {
+        if (!pending) onClose();
+      }}
+      showCloseButton={false}
+      className="max-w-lg p-6"
+    >
         <div
           ref={dialog}
           role="dialog"
@@ -109,7 +108,6 @@ export default function ProjectPublicationDialog({
             </Button>
           </div>
         </div>
-      </Modal>
-    </div>
+    </Modal>
   );
 }

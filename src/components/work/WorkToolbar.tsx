@@ -1060,7 +1060,6 @@ export default function WorkToolbar({
       <Modal
         isOpen={chartModalOpen}
         onClose={() => setChartModalOpen(false)}
-        backdropClassName="bg-gray-900/15 backdrop-blur-[1px]"
         showCloseButton={false}
         className="mx-4 max-w-lg p-5 shadow-theme-lg"
       >
@@ -1159,7 +1158,6 @@ export default function WorkToolbar({
       <Modal
         isOpen={formatRulesModalOpen}
         onClose={() => setFormatRulesModalOpen(false)}
-        backdropClassName="bg-gray-900/15 backdrop-blur-[1px]"
         showCloseButton={false}
         className="mx-4 max-w-md p-5 shadow-theme-lg"
       >
@@ -1232,7 +1230,6 @@ export default function WorkToolbar({
       <Modal
         isOpen={importCsvModalOpen}
         onClose={closeCsvImportModal}
-        backdropClassName="bg-gray-900/15 backdrop-blur-[1px]"
         showCloseButton={false}
         className="mx-4 max-w-md p-5 shadow-theme-lg"
       >
@@ -1307,7 +1304,6 @@ export default function WorkToolbar({
       <Modal
         isOpen={feedbackModalOpen}
         onClose={() => setFeedbackModalOpen(false)}
-        backdropClassName="bg-gray-900/15 backdrop-blur-[1px]"
         showCloseButton={false}
         className="mx-4 max-w-md p-5 shadow-theme-lg"
       >

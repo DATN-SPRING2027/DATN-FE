@@ -468,7 +468,7 @@ export default function AiChatSidebar({
           type="button"
           aria-label={t("closeSidebar")}
           onClick={onCloseMobile}
-          className="absolute inset-0 z-30 bg-gray-950/60 backdrop-blur-xs md:hidden"
+          className="absolute inset-0 z-30 bg-gray-950/40 backdrop-blur-[3px] md:hidden dark:bg-gray-950/60"
         />
       )}
 

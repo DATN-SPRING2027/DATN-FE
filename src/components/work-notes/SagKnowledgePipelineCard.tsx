@@ -682,7 +682,6 @@ export function SagKnowledgePipelineCard({
             if (!isModalActionBusy) setIsLifecycleModalOpen(false);
           }}
           showCloseButton={false}
-          backdropClassName="bg-gray-950/40 backdrop-blur-[4px]"
           className="max-w-xl overflow-hidden rounded-2xl border border-gray-200/90 shadow-theme-xl dark:border-gray-800"
         >
           <div className="divide-y divide-gray-200 dark:divide-gray-800">
@@ -1988,7 +1987,7 @@ export function KnowledgeGovernanceDrawer({
         aria-hidden="true"
         data-testid="knowledge-drawer-backdrop"
         onClick={onClose}
-        className="fixed inset-0 bg-gray-950/35 backdrop-blur-[2px] transition-opacity dark:bg-gray-950/60"
+        className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] transition-opacity dark:bg-gray-950/60"
       />
 
       <div className="relative z-10 flex h-full w-full max-w-[480px] flex-col border-s border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">

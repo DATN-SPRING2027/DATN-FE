@@ -1492,7 +1492,6 @@ export default function WorkItemCreateDialog({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
       className="mx-4 max-w-2xl overflow-visible rounded-xl p-0 shadow-theme-lg"
     >

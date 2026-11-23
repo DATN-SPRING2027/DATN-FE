@@ -1172,7 +1172,7 @@ export default function AiChatMindMapPanel({
           aria-label={t("mindMapExitFullscreen")}
           onClick={handleToggleFullscreen}
           className={cn(
-            "fixed inset-0 bg-gray-950/70 backdrop-blur-xs",
+            "fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60",
             isClosingFullscreen
               ? "continuum-backdrop-exit"
               : "continuum-backdrop-enter",

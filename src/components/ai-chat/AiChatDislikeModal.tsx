@@ -87,7 +87,7 @@ export default function AiChatDislikeModal({
         aria-label={t("closeDialog")}
         disabled={isSubmitting}
         onClick={onClose}
-        className="fixed inset-0 bg-gray-950/65 backdrop-blur-xs"
+        className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60"
       />
       <div
         role="dialog"

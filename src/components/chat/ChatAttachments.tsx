@@ -252,7 +252,7 @@ function ChatImageLightbox({
       role="dialog"
       aria-modal="true"
       aria-label={currentAttachment.name}
-      className="fixed inset-0 z-99999 flex flex-col items-center justify-center bg-black/85 p-4 backdrop-blur-md select-none"
+      className="fixed inset-0 z-99999 flex flex-col items-center justify-center bg-gray-950/70 p-4 backdrop-blur-[3px] select-none"
       onClick={onClose}
     >
       {/* Header bar */}

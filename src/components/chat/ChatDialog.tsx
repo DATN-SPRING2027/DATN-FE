@@ -68,7 +68,6 @@ export default function ChatDialog({
       isOpen
       onClose={onClose}
       showCloseButton={false}
-      backdropClassName="bg-gray-950/35"
       className={
         side
           ? "!ms-auto !h-dvh !w-full !max-w-sm !rounded-none border-s border-gray-200 dark:border-gray-800"

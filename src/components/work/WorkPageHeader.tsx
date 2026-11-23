@@ -524,7 +524,7 @@ export default function WorkPageHeader({
           role="dialog"
           aria-modal="true"
           aria-label="Jira Automation Rules"
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50 p-4 backdrop-blur-[1px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4 backdrop-blur-[3px] dark:bg-gray-950/60"
         >
           <div className="w-full max-w-lg rounded-md border border-gray-200 bg-white p-6 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
             <div className="flex items-center justify-between border-b border-gray-100 pb-3 dark:border-gray-800">

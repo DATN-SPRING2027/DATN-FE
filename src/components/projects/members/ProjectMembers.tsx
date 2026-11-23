@@ -524,13 +524,12 @@ function ScopedProjectMembers({
           </>
         ) : null}
       </section>
-      <div className="[&_.modal>div:first-child]:bg-gray-900/35 [&_.modal>div:first-child]:backdrop-blur-none">
-        <Modal
-          isOpen={addModalOpen}
-          onClose={closeAddModal}
-          showCloseButton={false}
-          className="mx-4 max-w-2xl"
-        >
+      <Modal
+        isOpen={addModalOpen}
+        onClose={closeAddModal}
+        showCloseButton={false}
+        className="mx-4 max-w-2xl"
+      >
           <div
             ref={addDialog}
             role="dialog"
@@ -637,8 +636,7 @@ function ScopedProjectMembers({
               {add.isError && <MemberError error={add.error} action="add" />}
             </section>
           </div>
-        </Modal>
-      </div>
+      </Modal>
       {focusedMember && (
         <div className="grid gap-4 @2xl:grid-cols-2">
           <MemberDetails

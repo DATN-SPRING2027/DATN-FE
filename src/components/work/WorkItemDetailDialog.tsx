@@ -4880,7 +4880,6 @@ export default function WorkItemDetailDialog({
             ? () => setSplitDismissSignal((cur) => cur + 1)
             : undefined
       }
-      backdropClassName="bg-gray-900/20 backdrop-blur-[1px] dark:bg-gray-950/35"
       showCloseButton={false}
       className={`overflow-hidden p-0 shadow-theme-lg ${
         isSplitOpen

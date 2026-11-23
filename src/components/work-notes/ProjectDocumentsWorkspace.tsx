@@ -2897,7 +2897,6 @@ export default function ProjectDocumentsWorkspace({
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
         onBackdropClick={() => setUploadModalOpen(false)}
-        backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
         className="mx-3 max-w-xl overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800"
       >
@@ -3371,7 +3370,6 @@ export default function ProjectDocumentsWorkspace({
         onBackdropClick={() => {
           if (!removalTarget) closeDetailModal();
         }}
-        backdropClassName="bg-gray-900/35 backdrop-blur-[2px] dark:bg-gray-950/60"
         showCloseButton={false}
         className={`overflow-hidden border border-gray-200 shadow-theme-lg dark:border-gray-800 ${
           isReplacingVersion
@@ -5248,7 +5246,6 @@ export default function ProjectDocumentsWorkspace({
         isOpen={Boolean(removalTarget)}
         onClose={closeRemovalModal}
         onBackdropClick={closeRemovalModal}
-        backdropClassName="bg-gray-900/45 backdrop-blur-[2px] dark:bg-gray-950/70"
         showCloseButton={false}
         className="mx-3 max-w-xl overflow-hidden rounded-xl border border-gray-200 shadow-theme-lg dark:border-gray-800"
       >

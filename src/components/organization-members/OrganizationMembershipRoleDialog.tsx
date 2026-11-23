@@ -120,7 +120,7 @@ export default function OrganizationMembershipRoleDialog({
             aria-modal="true"
             aria-labelledby={`${titleId}-confirm-dismiss-title`}
             aria-describedby={`${titleId}-confirm-dismiss-desc`}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-[2px]"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4 backdrop-blur-[3px] dark:bg-gray-950/60"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900">
