@@ -10,7 +10,10 @@ import ContinuumAiCompanion from "./ContinuumAiCompanion";
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string) =>
-    key === "chatCompleted" ? "Your AI Chat answer is ready." : key,
+    ({
+      chatCompleted: "Your AI Chat answer is ready.",
+      minimize: "Minimize AI Companion",
+    })[key] ?? key,
 }));
 vi.mock("./WorkReportReminderNotice", () => ({ default: () => null }));
 

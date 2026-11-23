@@ -662,10 +662,10 @@ export default function WorkPageHeader({
           </button>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2 py-1 pe-1">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 py-1 pe-1">
           {hideProjectBanner && projectSelectorControl}
           {itemCount !== undefined && (
-            <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+            <span className="text-xs font-medium tabular-nums text-gray-500 dark:text-gray-400">
               {t("workItemCount", { count: itemCount })}
             </span>
           )}

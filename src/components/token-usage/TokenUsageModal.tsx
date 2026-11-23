@@ -9,6 +9,7 @@ import {
   type ComponentType,
 } from "react";
 import { useLocale, useTranslations } from "next-intl";
+import { useDialogFocus } from "@/hooks/useDialogFocus";
 import {
   BookOpenIcon,
   CalenderIcon,
@@ -104,6 +105,8 @@ function TokenUsageModalContent({
   const t = useTranslations("TokenUsage");
   const locale = useLocale();
   const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(dialogRef, true);
 
   const currentUserQuery = useCurrentUserQuery();
   const organizationId = currentUserQuery.data?.organizationId ?? "";
@@ -289,9 +292,11 @@ function TokenUsageModalContent({
     >
       {/* Explicit Flex Height Container inside Modal's inner div */}
       <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
+        tabIndex={-1}
         className="flex max-h-[85vh] flex-col overflow-hidden bg-white dark:bg-gray-900"
       >
         {/* Minimal Header: "Usage" on left, Scope + Close on right */}

@@ -13,6 +13,7 @@
     "aiUnavailable": "Dịch vụ AI chưa thể hoàn tất câu trả lời. Câu hỏi được giữ trong ô nhập để bạn thử lại.",
     "reminderBody": "Báo cáo công việc của bạn đến hạn {remaining}. Hãy hoàn thành và nộp báo cáo nhé.",
     "chatCompleted": "AI Chat đã trả lời xong câu hỏi của bạn.",
+    "minimize": "Thu gọn trợ lý AI",
     "settingsTitle": "Nhắc báo cáo qua bot AI",
     "settingsHelp": "Nhắc người viết báo cáo qua bot AI và Email, kể cả khi đóng ứng dụng. Áp dụng riêng cho dự án và tầng báo cáo này. Ngừng nhắc sau khi nộp.",
     "leadTime": "Nhắc trước hạn nộp",

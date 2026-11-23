@@ -1,6 +1,7 @@
 "use client";
 
 import { CloseIcon } from "@/icons";
+import { useTranslations } from "next-intl";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
@@ -19,6 +20,11 @@ interface ModalProps {
   isFullscreen?: boolean; // Default to false for backwards compatibility
 }
 
+function DefaultCloseLabel() {
+  const t = useTranslations("common");
+  return <span className="sr-only">{t("close")}</span>;
+}
+
 export const Modal: React.FC<ModalProps> = ({
   isOpen,
   onClose,
@@ -27,7 +33,7 @@ export const Modal: React.FC<ModalProps> = ({
   className,
   backdropClassName = MODAL_BACKDROP_CLASS,
   showCloseButton = true, // Default to true for backwards compatibility
-  closeLabel = "Close",
+  closeLabel,
   isFullscreen = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
@@ -93,6 +99,7 @@ export const Modal: React.FC<ModalProps> = ({
             className="inset-e-3 sm:inset-e-6 absolute top-3 z-999 flex h-9.5 w-9.5 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 sm:top-6 sm:h-11 sm:w-11 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white"
           >
             <CloseIcon aria-hidden="true" className="size-5" />
+            {closeLabel === undefined && <DefaultCloseLabel />}
           </button>
         )}
         <div>{children}</div>

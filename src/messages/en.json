@@ -13,6 +13,7 @@
     "aiUnavailable": "The AI service could not finish your answer. Your question is kept below; please try again.",
     "reminderBody": "Your Work Report is due {remaining}. Please complete and submit it.",
     "chatCompleted": "Your AI Chat answer is ready.",
+    "minimize": "Minimize AI Companion",
     "settingsTitle": "AI bot reminders",
     "settingsHelp": "Remind report authors in the AI bot and by email, even when the app is closed. Applies to this project and reporting tier. Reminders stop after submission.",
     "leadTime": "Remind before deadline",

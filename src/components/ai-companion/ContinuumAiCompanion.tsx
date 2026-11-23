@@ -10,6 +10,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { useOptionalSidebar } from "@/context/SidebarContext";
+import { MinusIcon } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
 import { useFloatingChatStore } from "@/stores/floating-chat";
@@ -148,6 +149,11 @@ export default function ContinuumAiCompanion({
   const requestController = useRef<AbortController | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
+  const minimizedTriggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (isMinimized) minimizedTriggerRef.current?.focus({ preventScroll: true });
+  }, [isMinimized]);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
@@ -472,7 +478,7 @@ export default function ContinuumAiCompanion({
 
   const helpShiftClass =
     isHelpOpen && !position
-      ? "lg:-translate-x-80 rtl:lg:translate-x-80 max-lg:pointer-events-none max-lg:opacity-0"
+      ? "max-lg:invisible lg:-translate-x-80 rtl:lg:translate-x-80"
       : "";
 
   const hideGreetingBubble =
@@ -551,6 +557,7 @@ export default function ContinuumAiCompanion({
                 </div>
               )}
               <button
+                ref={minimizedTriggerRef}
                 type="button"
                 onClick={(event) => {
                   if (suppressNextClickRef.current) {
@@ -577,12 +584,12 @@ export default function ContinuumAiCompanion({
             >
               {/* Greeting bubble above the floating 3D robot — reveals on hover/focus or AI completion notice so it never occludes page CTAs */}
               <div
-                className={`mb-1 max-w-[calc(100vw-6.5rem)] items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-2.5 py-1 text-[11px] leading-snug font-medium text-gray-700 shadow-md backdrop-blur transition-[opacity,border-color,transform] duration-150 group-hover:border-brand-300 sm:max-w-[235px] dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
+                className={`pointer-events-none mb-1 max-w-[calc(100vw-6.5rem)] items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-2.5 py-1 text-[11px] leading-snug font-medium text-gray-700 shadow-md backdrop-blur transition-[opacity,border-color,transform] duration-150 group-hover:border-brand-300 sm:max-w-[235px] dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
                   hideGreetingBubble
                     ? "hidden"
                     : chatNotice
-                      ? "flex opacity-100 pointer-events-auto"
-                      : "hidden sm:flex opacity-0 pointer-events-none translate-y-1 group-hover:opacity-100 group-hover:pointer-events-auto group-hover:translate-y-0 group-focus-within:opacity-100 group-focus-within:pointer-events-auto group-focus-within:translate-y-0"
+                      ? "flex opacity-100"
+                      : "hidden translate-y-1 opacity-0 sm:flex group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
                 } ${isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"}`}
               >
                 <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
@@ -595,18 +602,6 @@ export default function ContinuumAiCompanion({
                     "Xin chào! Cần mình tóm tắt dự án không?"
                   )}
                 </span>
-                <button
-                  type="button"
-                  data-no-drag="true"
-                  aria-label="Minimize AI Companion"
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    setIsMinimized(true);
-                  }}
-                  className="ms-1 shrink-0 cursor-pointer rounded p-0.5 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-                >
-                  ×
-                </button>
               </div>
 
               {/* 3D Robot Floating Trigger (Click to open, Hold & Drag to move anywhere) */}
@@ -641,6 +636,15 @@ export default function ContinuumAiCompanion({
                   <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
                   {companionPillLabel}
                 </span>
+              </button>
+              <button
+                type="button"
+                data-no-drag="true"
+                aria-label={t("minimize")}
+                onClick={() => setIsMinimized(true)}
+                className="pointer-events-auto absolute end-0 bottom-10 z-20 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 sm:bottom-12 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
+              >
+                <MinusIcon aria-hidden="true" className="size-3.5" />
               </button>
             </div>
           )}

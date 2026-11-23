@@ -36,6 +36,21 @@ describe("logout feedback & language switcher", () => {
     vi.useRealTimers();
   });
 
+  it("closes the account disclosure on Escape and returns focus to its trigger", () => {
+    render(
+      <AppProviders>
+        <UserDropdown user={{ id: "user", name: "User", email: "user@example.test", context: "ACCOUNT" }} />
+      </AppProviders>,
+    );
+    const trigger = screen.getByRole("button", { name: "User" });
+    fireEvent.click(trigger);
+    const profile = screen.getByText("profile");
+    expect(document.getElementById(trigger.getAttribute("aria-controls")!)).toContainElement(profile);
+    fireEvent.keyDown(profile, { key: "Escape" });
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveFocus();
+  });
+
   it("lists English and Tiếng Việt in the language submenu and switches locale on selection", async () => {
     vi.spyOn(global, "fetch").mockImplementation(async (url) => {
       if (String(url).endsWith("/auth/me")) {

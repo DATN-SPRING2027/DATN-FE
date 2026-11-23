@@ -20,7 +20,7 @@ import { useFloatingChatStore } from "@/stores/floating-chat";
 import { resetChatWsCooldown } from "@/components/chat/floating/chat-shared-helpers";
 import { cn } from "@/utils";
 import { useLocale, useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { Dropdown } from "../ui/dropdown/Dropdown";
 import { DropdownItem } from "../ui/dropdown/DropdownItem";
 
@@ -56,6 +56,8 @@ export default function UserDropdown({
   const pathname = usePathname();
   const { themeMode, setThemeMode } = useSafeTheme();
   const [isOpen, setIsOpen] = useState(false);
+  const dropdownId = useId();
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
   const [isSubDropdownOpen, setIsSubDropdownOpen] = useState(false);
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
 
@@ -149,12 +151,21 @@ export default function UserDropdown({
   ];
 
   return (
-    <div className={cn("relative", className)}>
+    <div
+      className={cn("relative", className)}
+      onKeyDown={(event) => {
+        if (event.key !== "Escape" || !isOpen) return;
+        event.stopPropagation();
+        closeDropdown();
+        dropdownTriggerRef.current?.focus();
+      }}
+    >
       <button
+        ref={dropdownTriggerRef}
         type="button"
         aria-label={displayName || t("accountMenu")}
         aria-expanded={isOpen}
-        aria-haspopup="menu"
+        aria-controls={isOpen ? dropdownId : undefined}
         onClick={toggleDropdown}
         className="dropdown-toggle flex items-center rounded-full text-gray-700 transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400"
       >
@@ -168,6 +179,7 @@ export default function UserDropdown({
       </button>
 
       <Dropdown
+        id={dropdownId}
         isOpen={isOpen}
         onClose={closeDropdown}
         className="absolute inset-e-0 mt-3 flex w-72 flex-col rounded-2xl border border-gray-200 bg-white p-2 shadow-theme-lg dark:border-gray-800 dark:bg-gray-dark"

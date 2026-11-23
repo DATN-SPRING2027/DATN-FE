@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
+import viMessages from "@/messages/vi.json";
 import { Modal, MODAL_BACKDROP_CLASS } from "./index";
 
 describe("Modal", () => {
@@ -7,9 +9,11 @@ describe("Modal", () => {
     const onClose = vi.fn();
 
     render(
-      <Modal isOpen onClose={onClose} closeLabel="Close dialog">
-        <p>Modal content</p>
-      </Modal>,
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen onClose={onClose} closeLabel="Close dialog">
+          <p>Modal content</p>
+        </Modal>
+      </NextIntlClientProvider>,
     );
 
     const backdrop = screen.getByTestId("modal-backdrop");
@@ -33,11 +37,14 @@ describe("Modal", () => {
     const onClose = vi.fn();
 
     render(
-      <Modal isOpen onClose={onClose}>
-        <p>Body</p>
-      </Modal>,
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen onClose={onClose}>
+          <p>Body</p>
+        </Modal>
+      </NextIntlClientProvider>,
     );
 
+    expect(screen.getByRole("button", { name: viMessages.common.close })).toBeInTheDocument();
     fireEvent.keyDown(document, { key: "Escape" });
     fireEvent.click(screen.getByTestId("modal-backdrop"));
     expect(onClose).toHaveBeenCalledTimes(2);

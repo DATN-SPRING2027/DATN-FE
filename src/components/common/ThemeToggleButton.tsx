@@ -2,6 +2,7 @@
 
 import React from "react";
 import { motion } from "motion/react";
+import { useTranslations } from "next-intl";
 import { useTheme } from "@/context/ThemeContext";
 import { cn } from "@/utils";
 import {
@@ -26,7 +27,9 @@ export const ThemeToggleButton: React.FC<{
   ariaLabel?: string;
   title?: string;
   className?: string;
-}> = ({ ariaLabel = "Toggle color theme", title, className }) => {
+}> = ({ ariaLabel, title, className }) => {
+  const t = useTranslations("header");
+  const label = ariaLabel ?? t("toggleTheme");
   const { toggleTheme } = useSafeThemeToggle();
   const shouldReduceMotion = useHydratedReducedMotion();
 
@@ -41,8 +44,8 @@ export const ThemeToggleButton: React.FC<{
     <motion.button
       type="button"
       data-slot="button"
-      aria-label={ariaLabel}
-      title={title ?? ariaLabel}
+      aria-label={label}
+      title={title ?? label}
       onClick={toggleTheme}
       transition={ANIMATE_UI_BUTTON_SPRING}
       {...motionStateProps}
