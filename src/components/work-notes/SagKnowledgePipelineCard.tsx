@@ -1979,14 +1979,16 @@ export function KnowledgeGovernanceDrawer({
   const drawerNode = (
     <div
       role="dialog"
+      aria-modal="true"
       aria-label={tg("inspectDrawerTitle")}
       data-testid="knowledge-governance-drawer"
-      className="fixed inset-0 z-[99900] flex justify-end"
+      className="fixed inset-0 z-[99900] flex justify-end overscroll-contain"
     >
       <div
+        aria-hidden="true"
         data-testid="knowledge-drawer-backdrop"
         onClick={onClose}
-        className="fixed inset-0 bg-gray-950/30 backdrop-blur-[1px] transition-opacity"
+        className="fixed inset-0 bg-gray-950/35 backdrop-blur-[2px] transition-opacity dark:bg-gray-950/60"
       />
 
       <div className="relative z-10 flex h-full w-full max-w-[480px] flex-col border-s border-gray-200 bg-white shadow-2xl dark:border-gray-800 dark:bg-gray-900">

@@ -580,8 +580,9 @@ function ScopedProjectMembers({
                 <button
                   type="button"
                   disabled={busy}
+                  aria-label={t("closeAdd")}
                   onClick={closeAddModal}
-                  className="shrink-0 rounded-md px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
+                  className="shrink-0 rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
                 >
                   {t("closeAdd")}
                 </button>

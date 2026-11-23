@@ -371,7 +371,7 @@ export default function WorkPageHeader({
             }
             onProjectChange(event.target.value);
           }}
-          className="h-8 max-w-[14rem] cursor-pointer truncate rounded border border-gray-200 bg-white ps-2.5 pe-7 text-xs font-medium text-gray-700 outline-none focus-visible:border-brand-300 sm:max-w-[18rem] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
+          className="h-8 max-w-[13rem] cursor-pointer truncate rounded border border-gray-200 bg-white py-1.5 ps-2.5 pe-7 text-xs leading-none font-medium text-gray-700 outline-none focus-visible:border-brand-300 sm:max-w-[15rem] dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300"
         >
           {projects.map((item) => (
             <option key={item.id} value={item.id}>
@@ -607,10 +607,10 @@ export default function WorkPageHeader({
       )}
 
       {/* Top-level View Tab Bar (sits flush at the top of the workspace) */}
-      <div className="flex items-center justify-between gap-2 overflow-x-auto border-b border-gray-200 dark:border-gray-800">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5 border-b border-gray-200 dark:border-gray-800">
         <div
           ref={viewsGroupRef}
-          className="relative flex min-w-max items-center gap-0.5"
+          className="no-scrollbar relative flex min-w-0 max-w-full items-center gap-0.5 overflow-x-auto"
           role="group"
           aria-label={t("viewsLabel")}
         >

@@ -216,6 +216,25 @@
     }
   }
 
+  html {
+    color-scheme: light;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+
+  select:not([multiple]):not([size]) {
+    vertical-align: middle;
+  }
+
+  select.appearance-none:not([multiple]):not([size]) {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background-image: none;
+  }
+
   body {
     @apply relative z-1 bg-gray-50 font-outfit font-normal;
   }

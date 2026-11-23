@@ -278,4 +278,29 @@ describe("AppHeader", () => {
       screen.queryByText("settingsMenu.userManagementTitle"),
     ).not.toBeInTheDocument();
   });
+
+  it("exposes accessible search input, mobile menu button, and 1-click color theme toggle", async () => {
+    mockSessionFetch(["ADMIN"]);
+    renderHeader();
+
+    expect(
+      screen.getByRole("textbox", { name: "searchPlaceholder" }),
+    ).toBeInTheDocument();
+
+    const themeButton = screen.getByRole("button", {
+      name: "Toggle color theme",
+    });
+    expect(themeButton).toBeInTheDocument();
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+
+    fireEvent.click(themeButton);
+    await waitFor(() =>
+      expect(document.documentElement.classList.contains("dark")).toBe(true),
+    );
+
+    fireEvent.click(themeButton);
+    await waitFor(() =>
+      expect(document.documentElement.classList.contains("dark")).toBe(false),
+    );
+  });
 });

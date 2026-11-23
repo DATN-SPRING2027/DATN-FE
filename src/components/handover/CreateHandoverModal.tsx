@@ -613,6 +613,57 @@ export default function CreateHandoverModal({
     [previewData],
   );
 
+  const footerContent = (
+    <div className="space-y-2.5">
+      {activeAlertMessage && (
+        <div className="flex items-start gap-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 [overflow-wrap:anywhere] dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
+          <AlertIcon
+            className="mt-0.5 size-4 shrink-0 text-error-600 dark:text-error-400"
+            aria-hidden="true"
+          />
+          <span>{activeAlertMessage}</span>
+        </div>
+      )}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="hidden items-center gap-1.5 text-xs text-gray-500 sm:inline-flex dark:text-gray-400">
+          <LockIcon
+            className="size-3.5 shrink-0 text-gray-400"
+            aria-hidden="true"
+          />
+          <span>{t5("autoBundleNotice")}</span>
+        </p>
+
+        <div className="ms-auto flex flex-wrap items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleClose}
+            disabled={isSubmitting}
+          >
+            {t("cancel")}
+          </Button>
+          <Button
+            type="submit"
+            form="handover-create-form"
+            variant="primary"
+            size="sm"
+            isLoading={isSubmitting}
+            disabled={Boolean(departingUserId) && !pendingBundle && !previewReady}
+          >
+            {addProjectMemberMutation.isPending
+              ? t("submittingAutoAdd")
+              : isAutoBundling
+                ? t5("autoBundling")
+                : createMutation.isPending
+                  ? t("submitting")
+                  : pendingBundle ? t5("retryBundle") : t("submit")}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <HandoverDialogShell
       isOpen={isOpen}
@@ -624,8 +675,14 @@ export default function CreateHandoverModal({
       size="lg"
       disableClose={isSubmitting}
       focusField
+      footer={footerContent}
     >
-      <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+      <form
+        id="handover-create-form"
+        onSubmit={handleSubmit}
+        className="space-y-3"
+        noValidate
+      >
         {activeAlertMessage && (
           <div
             role="alert"
@@ -639,9 +696,9 @@ export default function CreateHandoverModal({
           </div>
         )}
 
-        <fieldset disabled={isSubmitting || Boolean(pendingBundle)} className="min-w-0 space-y-4">
+        <fieldset disabled={isSubmitting || Boolean(pendingBundle)} className="min-w-0 space-y-3">
         {/* 5-Step Streamlined Flow Header Strip */}
-        <div className="rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2.5 dark:border-brand-500/30 dark:bg-brand-500/10">
+        <div className="rounded-xl border border-brand-200/80 bg-brand-50/50 px-3.5 py-2 dark:border-brand-500/30 dark:bg-brand-500/10">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-[11px] font-semibold tracking-wider text-brand-700 uppercase dark:text-brand-300">
               {t5("bannerEyebrow")}
@@ -1169,54 +1226,6 @@ export default function CreateHandoverModal({
         </div>
 
         </fieldset>
-        {/* Sticky Footer Actions */}
-        <div className="sticky bottom-0 z-10 -mx-5 -mb-5 space-y-2.5 rounded-b-2xl border-t border-gray-200/90 bg-white/95 px-5 py-3.5 backdrop-blur-xs sm:-mx-6 sm:-mb-6 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900/95">
-          {activeAlertMessage && (
-            <div className="flex items-start gap-2 rounded-lg border border-error-200 bg-error-50 px-3 py-2 text-xs font-medium text-error-700 [overflow-wrap:anywhere] dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300">
-              <AlertIcon
-                className="mt-0.5 size-4 shrink-0 text-error-600 dark:text-error-400"
-                aria-hidden="true"
-              />
-              <span>{activeAlertMessage}</span>
-            </div>
-          )}
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="hidden items-center gap-1.5 text-xs text-gray-500 sm:inline-flex dark:text-gray-400">
-              <LockIcon
-                className="size-3.5 shrink-0 text-gray-400"
-                aria-hidden="true"
-              />
-              <span>{t5("autoBundleNotice")}</span>
-            </p>
-
-            <div className="ms-auto flex flex-wrap items-center gap-2.5">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleClose}
-                disabled={isSubmitting}
-              >
-                {t("cancel")}
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                isLoading={isSubmitting}
-                disabled={Boolean(departingUserId) && !pendingBundle && !previewReady}
-              >
-                {addProjectMemberMutation.isPending
-                  ? t("submittingAutoAdd")
-                  : isAutoBundling
-                    ? t5("autoBundling")
-                    : createMutation.isPending
-                      ? t("submitting")
-                      : pendingBundle ? t5("retryBundle") : t("submit")}
-              </Button>
-            </div>
-          </div>
-        </div>
       </form>
     </HandoverDialogShell>
   );

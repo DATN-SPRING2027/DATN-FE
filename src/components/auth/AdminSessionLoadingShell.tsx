@@ -29,7 +29,7 @@ export default function AdminSessionLoadingShell({
   const t = useTranslations("auth");
   const pageMargin = isMobileOpen
     ? "ms-0"
-    : "lg:ms-[var(--sidebar-offset)]";
+    : "xl:ms-[var(--sidebar-offset)]";
 
   return (
     <div

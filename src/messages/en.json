@@ -1177,6 +1177,8 @@
   "header": {
     "searchPlaceholder": "Search or type command...",
     "toggleSidebar": "Toggle Sidebar",
+    "toggleMenu": "Toggle header menu",
+    "toggleTheme": "Toggle color theme",
     "update": "Update",
     "help": "Help",
     "settings": "Settings",
@@ -1313,6 +1315,7 @@
     }
   },
   "userDropdown": {
+    "accountMenu": "Account menu",
     "profile": "Profile",
     "editProfile": "Edit profile",
     "accountSettings": "Account settings",
@@ -3950,7 +3953,7 @@
       "allPeriods": "All periods ({count})",
       "periodSelectLabel": "Select reporting period",
       "noActiveCycleArchive": "No active cycle · Archive",
-      "pastOverdueAlert": "{count} overdue report from a previous period",
+      "pastOverdueAlert": "{count, plural, one {# overdue report from a previous period} other {# overdue reports from previous periods}}",
       "inspectOverdue": "Inspect",
       "filterTabs": {
         "all": "All",
@@ -6960,7 +6963,7 @@
     },
     "heatmap": {
       "title": "Activity",
-      "activeSummary": "Active on {count} days in the last year",
+      "activeSummary": "{count, plural, one {Active on # day in the last year} other {Active on # days in the last year}}",
       "daily": "Daily",
       "weekly": "Weekly",
       "cumulative": "Cumulative",
@@ -6969,7 +6972,8 @@
       "lifetimeTokens": "Lifetime tokens",
       "peakDailyTokens": "Peak tokens",
       "longestStreak": "Longest streak",
-      "currentStreak": "Current streak"
+      "currentStreak": "Current streak",
+      "dayUnitSingular": "day"
     },
     "calendar": {
       "thisMonth": "This month",

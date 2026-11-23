@@ -2168,7 +2168,7 @@ export default function ProjectDocumentsWorkspace({
                 setFilter(event.target.value as DocumentStatus | "ALL");
                 setPage(1);
               }}
-              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
+              className="h-9 min-w-38 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs leading-none font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-200"
             >
               {STATUSES.map((status) => (
                 <option key={status} value={status}>

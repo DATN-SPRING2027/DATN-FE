@@ -1607,7 +1607,7 @@ export default function WorkNotesWorkspace({
   };
 
   const selectControlClass =
-    "h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
+    "h-8 rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs leading-none font-medium text-gray-700 shadow-theme-xs transition outline-none focus:border-brand-300 focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200";
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 pt-3 pb-36 sm:px-6 lg:px-8">
@@ -1944,7 +1944,7 @@ export default function WorkNotesWorkspace({
             data-testid="task-notes-split-workbench"
             onKeyDown={handleQueueKeyNavigation}
             className={cn(
-              "flex flex-col lg:h-[calc(100dvh-22.5rem)] lg:min-h-[430px] lg:max-h-[760px] lg:flex-row lg:overflow-hidden",
+              "flex flex-col lg:h-[calc(100dvh-26rem)] lg:min-h-[380px] lg:max-h-[620px] lg:flex-row lg:overflow-hidden",
               mobileDetailOpen &&
                 "max-lg:h-[calc(100dvh-16rem)] max-lg:min-h-[440px] max-lg:overflow-hidden",
             )}

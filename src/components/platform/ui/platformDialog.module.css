@@ -35,6 +35,10 @@
 .surface :is(input:not([type="checkbox"]), select, textarea) {
   border-radius: 4px;
 }
+.surface select {
+  padding-block: 0.5rem;
+  line-height: 1.25;
+}
 .surface button {
   border-radius: 4px;
 }

@@ -5,7 +5,6 @@ import { useTranslations } from"next-intl";
 import { tr } from "@/i18n/tr";
 import { Modal } from"@/components/ui/modal";
 import {
-  ChevronDownIcon,
   FilterIcon,
   GridIcon,
   SearchIcon,
@@ -657,7 +656,7 @@ export default function WorkToolbar({
                 onGroupByChange(event.target.value as WorkGroupBy)
               }
               aria-label={t("groupByLabel")}
-              className="max-w-28 cursor-pointer bg-transparent text-xs font-semibold text-gray-800 outline-none dark:text-gray-200"
+              className="max-w-28 cursor-pointer bg-transparent py-0 text-xs leading-5 font-semibold text-gray-800 outline-none dark:text-gray-200"
             >
               <option value="NONE">{t("groupBy.none")}</option>
               <option value="STATUS">{t("groupBy.status")}</option>
@@ -669,27 +668,21 @@ export default function WorkToolbar({
           {/* Status Scope Select */}
           <label className="inline-flex h-8 items-center gap-1.5 rounded border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300">
             <span>{t("status")}:</span>
-            <span className="relative inline-flex items-center">
-              <select
-                id="work-status-scope"
-                value={status}
-                onChange={(event) =>
-                  onStatusChange(event.target.value as WorkStatus | "ALL")
-                }
-                aria-label={t("statusScope")}
-                className="max-w-28 cursor-pointer appearance-none bg-transparent pe-4 text-xs font-semibold text-gray-800 outline-none dark:text-gray-200"
-              >
-                <option value="ALL">{t("allStatuses")}</option>
-                <option value="TODO">{t("statuses.TODO")}</option>
-                <option value="IN_PROGRESS">{t("statuses.IN_PROGRESS")}</option>
-                <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
-                <option value="DONE">{t("statuses.DONE")}</option>
-              </select>
-              <ChevronDownIcon
-                className="pointer-events-none absolute end-0 h-3.5 w-3.5 text-gray-500 dark:text-gray-400"
-                aria-hidden="true"
-              />
-            </span>
+            <select
+              id="work-status-scope"
+              value={status}
+              onChange={(event) =>
+                onStatusChange(event.target.value as WorkStatus | "ALL")
+              }
+              aria-label={t("statusScope")}
+              className="max-w-28 cursor-pointer bg-transparent py-0 text-xs leading-5 font-semibold text-gray-800 outline-none dark:text-gray-200"
+            >
+              <option value="ALL">{t("allStatuses")}</option>
+              <option value="TODO">{t("statuses.TODO")}</option>
+              <option value="IN_PROGRESS">{t("statuses.IN_PROGRESS")}</option>
+              <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
+              <option value="DONE">{t("statuses.DONE")}</option>
+            </select>
           </label>
 
           {/* Right-side Jira Square Toolbar Buttons: Refresh [🔄] & View Settings [···] */}

@@ -152,6 +152,9 @@ export default function UserDropdown({
     <div className={cn("relative", className)}>
       <button
         type="button"
+        aria-label={displayName || t("accountMenu")}
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
         onClick={toggleDropdown}
         className="dropdown-toggle flex items-center rounded-full text-gray-700 transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400"
       >

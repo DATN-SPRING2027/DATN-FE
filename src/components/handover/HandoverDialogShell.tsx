@@ -21,6 +21,7 @@ export interface HandoverDialogShellProps {
   destructive?: boolean;
   disableClose?: boolean;
   focusField?: boolean;
+  footer?: ReactNode;
   children: ReactNode;
 }
 
@@ -41,6 +42,7 @@ export default function HandoverDialogShell({
   destructive = false,
   disableClose = false,
   focusField = false,
+  footer,
   children,
 }: HandoverDialogShellProps) {
   const titleId = useId();
@@ -114,8 +116,8 @@ export default function HandoverDialogShell({
       isOpen={isOpen}
       onClose={safeClose}
       showCloseButton={false}
-      backdropClassName="bg-gray-950/45 backdrop-blur-xs dark:bg-gray-950/70"
-      className={`mx-auto max-h-[min(92vh,52rem)] w-full ${SIZE_CLASSES[size]} overflow-y-auto rounded-2xl border border-gray-200/90 bg-white shadow-theme-xl ring-1 ring-gray-950/5 dark:border-gray-800 dark:bg-gray-900 dark:ring-white/10`}
+      backdropClassName="bg-gray-950/40 backdrop-blur-[2px] dark:bg-gray-950/65"
+      className={`mx-auto w-full ${SIZE_CLASSES[size]} overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xl ring-1 ring-gray-950/5 dark:border-gray-800 dark:bg-gray-900 dark:ring-white/10`}
     >
       <div
         ref={dialogRef}
@@ -125,8 +127,9 @@ export default function HandoverDialogShell({
         aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         onKeyDown={handleKeyDown}
+        className="flex max-h-[min(88dvh,48rem)] flex-col overflow-hidden"
       >
-        <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-gray-100 bg-white/95 px-5 py-4 pe-14 backdrop-blur-xs sm:px-6 sm:py-5 dark:border-gray-800 dark:bg-gray-900/95">
+        <header className="relative z-10 flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 bg-white px-5 py-3.5 pe-14 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex min-w-0 items-start gap-3">
             {icon && (
               <div
@@ -175,7 +178,15 @@ export default function HandoverDialogShell({
           </button>
         </header>
 
-        <div className="px-5 py-5 sm:px-6 sm:py-6">{children}</div>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6 sm:py-5">
+          {children}
+        </div>
+
+        {footer && (
+          <footer className="shrink-0 border-t border-gray-200/90 bg-white px-5 py-3.5 sm:px-6 sm:py-4 dark:border-gray-800 dark:bg-gray-900">
+            {footer}
+          </footer>
+        )}
       </div>
     </Modal>
   );

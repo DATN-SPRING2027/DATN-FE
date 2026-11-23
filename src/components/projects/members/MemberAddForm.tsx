@@ -164,9 +164,9 @@ export default function MemberAddForm({
                     ? "member-search-failure"
                     : "member-add-hint"
               }
-              className="pl-10"
+              className="ps-10"
             />
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+            <div className="pointer-events-none absolute inset-y-0 start-0 flex items-center ps-3 text-gray-400">
               <SearchIcon aria-hidden="true" className="size-4" />
             </div>
           </div>
@@ -247,7 +247,7 @@ export default function MemberAddForm({
             )}
 
           {!isFetching && !isError && visibleCandidates.length > 0 && (
-            <div className="max-h-60 space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-60 space-y-2 overflow-y-auto overscroll-contain pe-1 pb-1">
               {visibleCandidates.map((candidate) => {
                 const isSelected =
                   selectedCandidate?.userId === candidate.userId;

@@ -150,7 +150,7 @@ export default function AdminLayout({
 
   const mainContentMargin = isMobileOpen
     ? "ms-0"
-    : "lg:ms-[var(--sidebar-offset)]";
+    : "xl:ms-[var(--sidebar-offset)]";
   const helpContentMargin = isHelpOpen ? "lg:me-80" : "me-0";
 
   return (
@@ -191,7 +191,7 @@ export default function AdminLayout({
             className={
               isChat
                 ? `continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden transition-[padding] duration-200 ease-out ${aiChatFloatingPadding}`
-                : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6"
+                : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 pb-24 md:p-6 md:pb-28"
             }
           >
             {currentUser.data && currentUser.isFetching && (
