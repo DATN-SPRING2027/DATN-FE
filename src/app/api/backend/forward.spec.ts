@@ -375,4 +375,51 @@ describe("BFF AI Chat SSE streaming", () => {
     expect(response.headers.get("mcp-session-id")).toBe("sess-closed");
     expect(response.headers.get("cache-control")).toBe("no-store");
   });
+
+  it("buffers POST /api/backend/mcp JSON-RPC payloads as Uint8Array without duplex and relays 401 WWW-Authenticate", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32001, message: "Authentication required." },
+        },
+        {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer realm="continuum-mcp"',
+          },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const payload = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    const req = new NextRequest("http://localhost:3000/api/backend/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(payload)),
+      },
+      body: payload,
+    });
+
+    const response = await POST(req, {
+      params: Promise.resolve({ path: ["mcp"] }),
+    });
+
+    const forwardedInit = fetchMock.mock.calls[0]?.[1] as RequestInit & {
+      duplex?: string;
+    };
+    const forwardedHeaders = new Headers(forwardedInit?.headers);
+
+    expect(forwardedInit.body).toBeInstanceOf(Uint8Array);
+    expect(forwardedInit.duplex).toBeUndefined();
+    expect(forwardedHeaders.has("content-length")).toBe(false);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toBe(
+      'Bearer realm="continuum-mcp"',
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
 });

@@ -58,7 +58,18 @@ export async function forwardBackendRequest(
     (request.method !== "DELETE" ||
       Boolean(contentLength && contentLength !== "0")) &&
     request.body !== null;
-  const body = streamBody ? request.body : undefined;
+  let body: BodyInit | undefined;
+  let usesReadableStream = false;
+  if (streamBody) {
+    if (isMcpRequest) {
+      // Buffer JSON-RPC payloads as Uint8Array so Node undici handles 401 WWW-Authenticate retries cleanly.
+      body = new Uint8Array(await request.arrayBuffer());
+      headers.delete("content-length");
+    } else {
+      body = request.body;
+      usesReadableStream = true;
+    }
+  }
   let backendResponse: Response;
   try {
     backendResponse = await fetch(
@@ -67,7 +78,7 @@ export async function forwardBackendRequest(
         method: request.method,
         headers,
         body,
-        ...(streamBody ? { duplex: "half" } : {}),
+        ...(usesReadableStream ? { duplex: "half" } : {}),
         ...(request.signal ? { signal: request.signal } : {}),
         cache: "no-store",
         redirect: options.redirect ?? "manual",
