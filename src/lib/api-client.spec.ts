@@ -5,6 +5,7 @@ import {
   getApiBaseUrl,
   getServerApiBaseUrl,
   logoutSession,
+  setExpectedOrganizationId,
 } from "./api-client";
 import { AUTH_SESSION_CHANGE_STORAGE_KEY } from "./queries/auth/session-sync";
 
@@ -14,11 +15,13 @@ describe("apiClient", () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...originalEnv };
+    setExpectedOrganizationId(null);
     window.localStorage.removeItem("continuum:auth-refresh-at");
     window.localStorage.removeItem("continuum:auth-refresh-lease");
   });
 
   afterEach(() => {
+    setExpectedOrganizationId(null);
     process.env = originalEnv;
     vi.restoreAllMocks();
   });
@@ -451,6 +454,27 @@ describe("apiClient", () => {
         status: 401,
         sessionRecoveryFailed: false,
       });
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/iam/projects")).toHaveLength(1);
+    });
+
+    it("aborts safe GET retry if organization context changes while session recovery is in flight", async () => {
+      setExpectedOrganizationId("org-a");
+      let finishRefresh!: (res: Response) => void;
+      const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+        if (url === "/api/v1/auth/refresh") {
+          return new Promise<Response>((resolve) => {
+            finishRefresh = resolve;
+          });
+        }
+        return new Response(JSON.stringify({ code: "UNAUTHORIZED" }), { status: 401 });
+      });
+
+      const pendingGet = apiClient("/iam/projects");
+      await vi.waitFor(() => expect(finishRefresh).toBeDefined());
+      setExpectedOrganizationId("org-b");
+      finishRefresh(new Response('{"status":"refreshed"}', { status: 200 }));
+
+      await expect(pendingGet).rejects.toMatchObject({ status: 401 });
       expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/iam/projects")).toHaveLength(1);
     });
   });

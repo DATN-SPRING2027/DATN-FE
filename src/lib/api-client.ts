@@ -465,6 +465,8 @@ export async function apiClient<T>(
     credentials: "include",
   };
   const generation = sessionGeneration;
+  const initialOrgId = expectedOrganizationId;
+  const initialUserId = activeUserIdHint;
   let response = await fetch(url, requestOptions);
   let recovered = false;
 
@@ -480,8 +482,16 @@ export async function apiClient<T>(
     if (generation === sessionGeneration) {
       await recoverAuthSession();
     }
-    if (logoutInFlight) {
-      throw new ApiError(401, "AUTHENTICATION_FAILED", "Session ended during recovery.");
+    if (
+      logoutInFlight ||
+      expectedOrganizationId !== initialOrgId ||
+      activeUserIdHint !== initialUserId
+    ) {
+      throw new ApiError(
+        401,
+        "AUTHENTICATION_FAILED",
+        "Session or organization context changed during recovery.",
+      );
     }
     recovered = true;
     try {
