@@ -927,6 +927,13 @@ export default function LegalCenterView({ initialTab }: LegalCenterViewProps) {
               {ui.homeCta}
             </Link>
             <Link
+              href="/docs"
+              className="hover:text-gray-900 dark:hover:text-white"
+            >
+              {(ui as { docsCta?: string }).docsCta ??
+                (docLang === "vi" ? "Tài liệu nhà phát triển" : "Developer Docs")}
+            </Link>
+            <Link
               href="/terms"
               onClick={(event) => handleTabSwitch(event, "terms")}
               className="hover:text-gray-900 dark:hover:text-white"

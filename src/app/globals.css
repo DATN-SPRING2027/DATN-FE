@@ -224,6 +224,77 @@
     color-scheme: dark;
   }
 
+  ::-webkit-scrollbar,
+  :root::-webkit-scrollbar,
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-button,
+  :root::-webkit-scrollbar-button,
+  html::-webkit-scrollbar-button,
+  body::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  ::-webkit-scrollbar-track,
+  :root::-webkit-scrollbar-track,
+  html::-webkit-scrollbar-track,
+  body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-corner,
+  :root::-webkit-scrollbar-corner,
+  html::-webkit-scrollbar-corner,
+  body::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb,
+  :root::-webkit-scrollbar-thumb,
+  html::-webkit-scrollbar-thumb,
+  body::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    background-color: rgba(100, 116, 139, 0.45);
+  }
+
+  ::-webkit-scrollbar-thumb:hover,
+  :root::-webkit-scrollbar-thumb:hover,
+  html::-webkit-scrollbar-thumb:hover,
+  body::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(71, 84, 103, 0.72);
+  }
+
+  .dark ::-webkit-scrollbar-thumb,
+  html.dark::-webkit-scrollbar-thumb,
+  .dark body::-webkit-scrollbar-thumb {
+    background-color: rgba(148, 163, 184, 0.35);
+  }
+
+  .dark ::-webkit-scrollbar-thumb:hover,
+  html.dark::-webkit-scrollbar-thumb:hover,
+  .dark body::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.6);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    html {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(100, 116, 139, 0.5) transparent;
+    }
+
+    html.dark {
+      scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+    }
+  }
+
   select:not([multiple]):not([size]) {
     vertical-align: middle;
   }
@@ -353,15 +424,67 @@
 
 @utility custom-scrollbar {
   &::-webkit-scrollbar {
-    @apply size-1.5;
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-button {
+    display: none;
+    width: 0;
+    height: 0;
   }
 
   &::-webkit-scrollbar-track {
-    @apply rounded-full;
+    background: transparent;
+    border-radius: 9999px;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
   }
 
   &::-webkit-scrollbar-thumb {
-    @apply rounded-full bg-gray-200 dark:bg-gray-700;
+    border-radius: 9999px;
+    background-color: rgba(100, 116, 139, 0.52);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(71, 84, 103, 0.78);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(100, 116, 139, 0.55) transparent;
+  }
+}
+
+@utility custom-scrollbar-dark {
+  &::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 9999px;
+  }
+
+  &::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: rgba(148, 163, 184, 0.28);
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background-color: rgba(148, 163, 184, 0.52);
+  }
+
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
   }
 }
 
@@ -392,7 +515,17 @@
 }
 
 .dark .custom-scrollbar::-webkit-scrollbar-thumb {
-  background-color: #344054;
+  background-color: rgba(71, 84, 103, 0.7);
+}
+
+.dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(148, 163, 184, 0.65);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  .dark .custom-scrollbar {
+    scrollbar-color: rgba(71, 84, 103, 0.75) transparent;
+  }
 }
 
 @layer utilities {
@@ -1808,18 +1941,31 @@ html.dark[data-keyboard-navigation="true"] :is(input, textarea, select):focus-vi
   height: 0 !important;
 }
 
-[role="dialog"] .evidence-diagram-scroll {
-  scrollbar-width: thin !important;
-  scrollbar-color: rgba(148, 163, 184, 0.45) transparent !important;
-}
-[role="dialog"] .evidence-diagram-scroll::-webkit-scrollbar {
+[role="dialog"] .evidence-diagram-scroll::-webkit-scrollbar,
+[role="dialog"] .custom-scrollbar-modal::-webkit-scrollbar {
   display: block !important;
   height: 6px !important;
   width: 6px !important;
 }
-[role="dialog"] .evidence-diagram-scroll::-webkit-scrollbar-thumb {
+[role="dialog"] .evidence-diagram-scroll::-webkit-scrollbar-track,
+[role="dialog"] .custom-scrollbar-modal::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+[role="dialog"] .evidence-diagram-scroll::-webkit-scrollbar-thumb,
+[role="dialog"] .custom-scrollbar-modal::-webkit-scrollbar-thumb {
   background: rgba(148, 163, 184, 0.45);
   border-radius: 9999px;
+}
+[role="dialog"] .custom-scrollbar-modal::-webkit-scrollbar-thumb:hover {
+  background: rgba(102, 112, 133, 0.72);
+}
+
+@supports not selector(::-webkit-scrollbar) {
+  [role="dialog"] .evidence-diagram-scroll,
+  [role="dialog"] .custom-scrollbar-modal {
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(148, 163, 184, 0.45) transparent !important;
+  }
 }
 
 

@@ -1,0 +1,108 @@
+/* ==========================================================================
+   Continuum Engineering Work-Note & Architectural Specification Ledger (/docs)
+   ========================================================================== */
+
+.notebookCanvas {
+  position: relative;
+  background-color: #fcfcfd;
+  background-image:
+    radial-gradient(
+      90% 420px at 50% 0%,
+      rgba(70, 95, 255, 0.055),
+      transparent 75%
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 31px,
+      rgba(70, 95, 255, 0.068) 31px,
+      rgba(70, 95, 255, 0.068) 32px
+    );
+  background-position: top center, 0 0;
+}
+
+:global(.dark) .notebookCanvas {
+  background-color: #0b101b;
+  background-image:
+    radial-gradient(
+      90% 420px at 50% 0%,
+      rgba(70, 95, 255, 0.11),
+      transparent 75%
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0px,
+      transparent 31px,
+      rgba(117, 146, 255, 0.072) 31px,
+      rgba(117, 146, 255, 0.072) 32px
+    );
+}
+
+.notebookSheet {
+  position: relative;
+}
+
+@media (min-width: 1024px) {
+  .notebookSheet::before {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: 0.75rem;
+    width: 3px;
+    pointer-events: none;
+    border-inline-start: 1px solid rgba(70, 95, 255, 0.15);
+    border-inline-end: 1px solid rgba(70, 95, 255, 0.08);
+  }
+
+  :global(.dark) .notebookSheet::before {
+    border-inline-start-color: rgba(117, 146, 255, 0.16);
+    border-inline-end-color: rgba(117, 146, 255, 0.08);
+  }
+}
+
+.heroNoteMotif {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .heroNoteMotif {
+    display: block;
+    position: absolute;
+    top: 1.5rem;
+    inset-inline-end: 2rem;
+    width: 18.5rem;
+    pointer-events: none;
+    user-select: none;
+    color: rgba(54, 65, 245, 0.42);
+    opacity: 0.78;
+    -webkit-mask-image: radial-gradient(
+      115% 95% at 88% 38%,
+      rgba(0, 0, 0, 0.95) 20%,
+      rgba(0, 0, 0, 0.48) 65%,
+      transparent 100%
+    );
+    mask-image: radial-gradient(
+      115% 95% at 88% 38%,
+      rgba(0, 0, 0, 0.95) 20%,
+      rgba(0, 0, 0, 0.48) 65%,
+      transparent 100%
+    );
+  }
+
+  :global(.dark) .heroNoteMotif {
+    color: rgba(117, 146, 255, 0.46);
+    opacity: 0.74;
+  }
+}
+
+@media print {
+  .notebookCanvas {
+    background-color: #ffffff;
+    background-image: none;
+  }
+
+  .notebookSheet::before,
+  .heroNoteMotif {
+    display: none;
+  }
+}

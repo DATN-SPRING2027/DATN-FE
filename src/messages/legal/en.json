@@ -12,6 +12,7 @@
     "signInCta": "Sign in",
     "signUpCta": "Create account",
     "homeCta": "Home",
+    "docsCta": "Developer Docs",
     "searchPlaceholder": "Search clauses (e.g., Handover, Google OAuth, AI, 365 days…)",
     "searchAriaLabel": "Search legal clauses",
     "clearSearchAria": "Clear search query",

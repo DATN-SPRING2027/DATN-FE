@@ -35,7 +35,8 @@ function resolveSwitchDestination(
   if (
     pathname === "/dashboard" ||
     pathname === "/calendar" ||
-    pathname === "/profile"
+    pathname === "/profile" ||
+    pathname === "/organization/integrations"
   ) {
     return pathname;
   }

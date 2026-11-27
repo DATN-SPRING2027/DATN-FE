@@ -12,6 +12,7 @@
     "signInCta": "Đăng nhập",
     "signUpCta": "Tạo tài khoản",
     "homeCta": "Trang chủ",
+    "docsCta": "Tài liệu nhà phát triển",
     "searchPlaceholder": "Tìm nhanh điều khoản (VD: Bàn giao, Google OAuth, AI, 365 ngày…)",
     "searchAriaLabel": "Tìm kiếm nội dung điều khoản",
     "clearSearchAria": "Xóa từ khóa tìm kiếm",

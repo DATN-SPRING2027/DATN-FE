@@ -249,6 +249,7 @@ describe("AppSidebar navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Members" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Integrations" })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("navigation", { name: "Project navigation" }),
     ).not.toBeInTheDocument();
@@ -471,7 +472,16 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Dashboard", "Projects", "Chat", "Knowledge", "AI Chat", "Members", "Settings"]);
+    ).toEqual([
+      "Dashboard",
+      "Projects",
+      "Chat",
+      "Knowledge",
+      "AI Chat",
+      "Members",
+      "Integrations",
+      "Settings",
+    ]);
     expect(within(nav).getByRole("region", { name: "Organization" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
@@ -647,7 +657,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Projects", "Chat", "Knowledge", "AI Chat"]);
+    ).toEqual(["Projects", "Chat", "Knowledge", "AI Chat", "Integrations"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -680,7 +690,7 @@ describe("AppSidebar navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const controls = [
       ...within(nav).getAllByRole("link"),
-      ...within(nav).getAllByRole("button"),
+      ...within(nav).queryAllByRole("button"),
     ];
 
     expect(
@@ -697,7 +707,7 @@ describe("AppSidebar navigation", () => {
     ).toBe(false);
   });
 
-  it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
+  it("renders Knowledge and Integrations as accessible routed links with dark-mode legible text", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
@@ -705,11 +715,10 @@ describe("AppSidebar navigation", () => {
       "href",
       "/knowledge?projectId=69e923c77859fd1c702d4c21",
     );
-    for (const label of ["Integrations"]) {
-      const button = screen.getByRole("button", { name: label });
-      expect(button).toBeDisabled();
-      expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
-    }
+    expect(screen.getByRole("link", { name: "Integrations" })).toHaveAttribute(
+      "href",
+      "/organization/integrations",
+    );
   });
 
   it("shows the signed-in account and redirects only after a successful sign-out", async () => {
