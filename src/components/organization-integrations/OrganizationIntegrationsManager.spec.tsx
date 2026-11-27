@@ -727,4 +727,99 @@ describe("OrganizationIntegrationsManager", () => {
     ).not.toBeInTheDocument();
     expect(revokeBtn).toHaveFocus();
   });
+
+  it("applies custom scrollbars, supports Wrap toggle on code snippets, and filters/searches the key ledger", async () => {
+    const keys: McpApiKeyView[] = [
+      {
+        id: "key-1",
+        name: "Workstation CLI",
+        keyPrefix: "ctm_mcp_a8F3k9xZ",
+        scope: "FULL_OPERATIONS",
+        allowedProjectIds: null,
+        organizationId,
+        userId: memberUserId,
+        createdAt: "2026-11-01T00:00:00.000Z",
+        expiresAt: null,
+        lastUsedAt: "2026-11-20T00:00:00.000Z",
+        revokedAt: null,
+        status: "ACTIVE",
+      },
+      {
+        id: "key-2",
+        name: "Legacy Cursor Key",
+        keyPrefix: "ctm_mcp_OldRevoked",
+        scope: "READ_ONLY",
+        allowedProjectIds: null,
+        organizationId,
+        userId: memberUserId,
+        createdAt: "2026-10-01T00:00:00.000Z",
+        expiresAt: null,
+        lastUsedAt: null,
+        revokedAt: "2026-10-15T00:00:00.000Z",
+        status: "REVOKED",
+      },
+    ];
+
+    api.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/me") {
+        return {
+          id: memberUserId,
+          email: "member@continuum.ai",
+          name: "Linh Member",
+          organizationId,
+          roles: ["MEMBER"],
+        };
+      }
+      if (String(endpoint).startsWith("/iam/projects")) {
+        return { data: [], pagination: { page: 1, pageSize: 100 } };
+      }
+      if (endpoint === "/iam/mcp-api-keys") {
+        return {
+          items: keys,
+          mcpEndpointPath: "/api/v1/mcp",
+          protocolVersion: "2025-03-26",
+          toolCount: 36,
+        };
+      }
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    mount();
+    expect(await screen.findByText("Workstation CLI")).toBeInTheDocument();
+    expect(screen.getByText("Legacy Cursor Key")).toBeInTheDocument();
+
+    // Custom scrollbar classes on table wrapper & IDE code <pre>
+    const tableWrapper = screen.getByRole("table").parentElement!;
+    expect(tableWrapper).toHaveClass("custom-scrollbar");
+
+    const codePre = screen.getByTestId("mcp-ide-config-pre");
+    expect(codePre).toHaveClass("custom-scrollbar-dark");
+    expect(codePre).not.toHaveClass("whitespace-pre-wrap");
+
+    // Wrap toggle toggles aria-pressed and whitespace-pre-wrap
+    const wrapBtn = screen.getByRole("button", {
+      name: "Wrap lines in code block",
+    });
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(wrapBtn);
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "true");
+    expect(codePre).toHaveClass("whitespace-pre-wrap");
+
+    // Filter Revoked
+    fireEvent.click(screen.getByRole("button", { name: /^Revoked \(1\)/i }));
+    expect(screen.queryByText("Workstation CLI")).not.toBeInTheDocument();
+    expect(screen.getByText("Legacy Cursor Key")).toBeInTheDocument();
+
+    // Search miss & Reset filters
+    const searchInput = screen.getByRole("searchbox", {
+      name: /Search keys by label or prefix/i,
+    });
+    fireEvent.change(searchInput, { target: { value: "nonexistent-key" } });
+    expect(
+      screen.getByText("No MCP API keys match your filter."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
+    expect(screen.getByText("Workstation CLI")).toBeInTheDocument();
+    expect(screen.getByText("Legacy Cursor Key")).toBeInTheDocument();
+  });
 });

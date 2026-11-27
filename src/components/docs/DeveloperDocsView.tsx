@@ -1094,9 +1094,45 @@ export default function DeveloperDocsView() {
                 <p className="font-mono text-[11px] font-semibold tracking-[0.14em] text-gray-500 uppercase dark:text-gray-400">
                   {ui.endpointCardHeading}
                 </p>
-                <code className="mt-2.5 block truncate rounded-none border-s-2 border-brand-600 bg-gray-950 px-3 py-2 font-mono text-[11px] text-emerald-300 dark:border-brand-400">
-                  POST /api/v1/mcp
-                </code>
+                <div className="mt-2.5 flex items-center justify-between gap-2 rounded-none border-y border-s-2 border-gray-200/90 border-s-brand-600 bg-white/85 px-3 py-2 dark:border-gray-800 dark:border-s-brand-400 dark:bg-gray-900/80">
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    <span className="shrink-0 font-mono text-[10px] font-bold tracking-wider text-brand-700 uppercase dark:text-brand-300">
+                      POST
+                    </span>
+                    <code
+                      title={selectedEndpointUrl}
+                      className="min-w-0 flex-1 truncate font-mono text-[11px] font-semibold text-gray-900 dark:text-emerald-300"
+                    >
+                      /api/v1/mcp
+                    </code>
+                  </div>
+                  <button
+                    type="button"
+                    aria-label={
+                      docLang === "vi"
+                        ? "Sao chép điểm cuối MCP"
+                        : "Copy MCP endpoint"
+                    }
+                    title={
+                      docLang === "vi"
+                        ? "Sao chép điểm cuối MCP"
+                        : "Copy MCP endpoint"
+                    }
+                    onClick={() =>
+                      void handleCopy("sidebar-endpoint", selectedEndpointUrl)
+                    }
+                    className="inline-flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-brand-50 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:text-gray-400 dark:hover:bg-brand-500/15 dark:hover:text-brand-300"
+                  >
+                    {copiedId === "sidebar-endpoint" ? (
+                      <CheckLineIcon
+                        className="size-3.5 text-success-600 dark:text-success-400"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CopyIcon className="size-3.5" aria-hidden="true" />
+                    )}
+                  </button>
+                </div>
                 <Link
                   href={keysDestinationHref}
                   className="mt-3.5 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-full bg-brand-50/90 px-3.5 py-1.5 text-xs font-semibold text-brand-700 ring-1 ring-brand-600/20 ring-inset transition-colors hover:bg-brand-100 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25 dark:hover:bg-brand-500/25"
@@ -1316,7 +1352,7 @@ export default function DeveloperDocsView() {
                 {corpus.quickstart.subtitle}
               </p>
 
-              <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
+              <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
                 {/* Left Column: Hairline Stepper + Frameless Endpoint Pill Group */}
                 <div className="min-w-0 space-y-6 lg:col-span-5">
                   <ol className="space-y-5 border-s border-gray-300 ps-5 dark:border-gray-700">
@@ -1391,7 +1427,7 @@ export default function DeveloperDocsView() {
                     <div
                       role="tablist"
                       aria-label={corpus.quickstart.configuratorTitle}
-                      className="flex flex-wrap gap-1.5 border-b border-gray-800 bg-gray-900/95 px-3 py-2.5"
+                      className="custom-scrollbar-dark flex items-center gap-1 overflow-x-auto border-b border-gray-800 bg-gray-900/95 px-3 py-2 whitespace-nowrap"
                     >
                       {MCP_IDE_CLIENT_SPECS.map((spec, idx) => {
                         const selected = spec.id === activeIdeSpec.id;
@@ -1412,7 +1448,7 @@ export default function DeveloperDocsView() {
                               handleIdeTabKeyDown(event, idx)
                             }
                             className={cn(
-                              "cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
+                              "shrink-0 cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
                               selected
                                 ? "bg-brand-600 text-white"
                                 : "text-gray-400 hover:bg-gray-800 hover:text-gray-100",
@@ -1430,8 +1466,11 @@ export default function DeveloperDocsView() {
                       aria-labelledby={`docs-ide-tab-${activeIdeSpec.id}`}
                       className="min-w-0"
                     >
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2">
-                        <span className="min-w-0 truncate font-mono text-xs text-slate-400">
+                      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2">
+                        <span
+                          title={activeIdeSpec.targetFile}
+                          className="min-w-0 flex-1 truncate font-mono text-xs text-slate-400"
+                        >
                           {ui.targetFileLabel}{" "}
                           <span className="text-slate-200">
                             {activeIdeSpec.targetFile}
@@ -1445,7 +1484,7 @@ export default function DeveloperDocsView() {
                               quickstartSnippet,
                             )
                           }
-                          className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-gray-800 px-3 text-xs font-semibold text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
+                          className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-gray-800 px-3 text-xs font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
                         >
                           {copiedId === `quickstart-${activeIdeSpec.id}` ? (
                             <>
@@ -1471,7 +1510,7 @@ export default function DeveloperDocsView() {
 
                       <pre
                         data-testid="docs-ide-config-pre"
-                        className="max-w-full overflow-x-auto rounded-none p-4 font-mono text-xs leading-6 text-slate-100"
+                        className="custom-scrollbar-dark max-w-full overflow-x-auto rounded-none p-4 font-mono text-xs leading-6 text-slate-100"
                       >
                         <code>
                           {renderSyntaxTintedSnippet(
@@ -1545,7 +1584,7 @@ export default function DeveloperDocsView() {
               <h3 className="mt-7 mb-3 text-sm font-semibold text-gray-900 dark:text-white">
                 {corpus.security.tiersTitle}
               </h3>
-              <div className="max-w-full overflow-x-auto rounded-none border-y border-gray-200/90 bg-white/55 dark:border-gray-800 dark:bg-gray-950/45">
+              <div className="custom-scrollbar max-w-full overflow-x-auto rounded-none border-y border-gray-200/90 bg-white/55 dark:border-gray-800 dark:bg-gray-950/45">
                 <table className="w-full min-w-[560px] divide-y divide-gray-200/90 text-start text-xs dark:divide-gray-800">
                   <thead className="bg-gray-100/60 dark:bg-gray-900/60">
                     <tr>
@@ -1864,7 +1903,7 @@ export default function DeveloperDocsView() {
                                   {ui.noParamsNote}
                                 </p>
                               ) : (
-                                <div className="max-w-full overflow-x-auto rounded-none border-y border-gray-200/90 bg-white/60 dark:border-gray-800 dark:bg-gray-950/55">
+                                <div className="custom-scrollbar max-w-full overflow-x-auto rounded-none border-y border-gray-200/90 bg-white/60 dark:border-gray-800 dark:bg-gray-950/55">
                                   <table className="w-full min-w-[520px] divide-y divide-gray-200/90 text-start text-xs dark:divide-gray-800">
                                     <thead className="bg-gray-100/60 dark:bg-gray-900/60">
                                       <tr>
@@ -1958,7 +1997,7 @@ export default function DeveloperDocsView() {
                                   )}
                                 </button>
                               </div>
-                              <pre className="max-w-full overflow-x-auto rounded-none p-3.5 font-mono text-xs leading-5.5 text-slate-100">
+                              <pre className="custom-scrollbar-dark max-w-full overflow-x-auto rounded-none p-3.5 font-mono text-xs leading-5.5 text-slate-100">
                                 <code>
                                   {renderSyntaxTintedSnippet(
                                     rpcPayload,

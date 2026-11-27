@@ -411,4 +411,25 @@ describe("DeveloperDocsView", () => {
     expect(searchInput).toHaveValue("");
     expect(document.getElementById("docs-mobile-toc")).toBeInTheDocument();
   });
+
+  it("applies custom-scrollbar-dark on the IDE terminal & copies sidebar MCP endpoint without breaking unique Copy button", async () => {
+    renderDocs("en");
+
+    const codePre = screen.getByTestId("docs-ide-config-pre");
+    expect(codePre).toHaveClass("custom-scrollbar-dark");
+
+    // Quickstart Copy button stays unique
+    expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+
+    // Sidebar MCP endpoint copy works cleanly
+    const sidebarCopy = screen.getByRole("button", {
+      name: "Copy MCP endpoint",
+    });
+    fireEvent.click(sidebarCopy);
+    await waitFor(() => {
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        expect.stringContaining("/api/"),
+      );
+    });
+  });
 });

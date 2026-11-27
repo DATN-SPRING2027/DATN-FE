@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { motion } from "motion/react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
@@ -39,6 +40,11 @@ import {
 import PageBreadcrumb from "@/components/common/PageBreadCrumb";
 import Alert from "@/components/ui/alert/Alert";
 import Button from "@/components/ui/button/Button";
+import {
+  ANIMATE_UI_BUTTON_SPRING,
+  ANIMATE_UI_ICON_SPRING,
+  useHydratedReducedMotion,
+} from "@/components/ui/button/buttonMotion";
 import {
   BackgroundRefreshError,
   UpdatingStatus,
@@ -139,6 +145,7 @@ function StatusBadge({
 function renderSyntaxTintedSnippet(
   snippet: string,
   language: "json" | "bash",
+  wrapCode = false,
 ): ReactNode {
   if (language === "json") {
     const lines = snippet.split("\n");
@@ -147,47 +154,55 @@ function renderSyntaxTintedSnippet(
       const keyValueMatch = /^(\s*)("(?:\\.|[^"\\])*")(\s*:\s*)(.*)$/.exec(
         line,
       );
+      let lineContent: ReactNode;
       if (keyValueMatch) {
         const [, indent, keyToken, colon, rest] = keyValueMatch;
         const strValMatch = /^("(?:\\.|[^"\\])*")(,?)$/.exec(rest);
         if (strValMatch) {
-          return (
-            <span key={lineIdx}>
+          lineContent = (
+            <>
               {indent}
               <span className="text-slate-300">{keyToken}</span>
               <span className="text-slate-500">{colon}</span>
               <span className="text-emerald-300">{strValMatch[1]}</span>
               <span className="text-slate-400">{strValMatch[2]}</span>
-              {nl}
-            </span>
+            </>
+          );
+        } else {
+          lineContent = (
+            <>
+              {indent}
+              <span className="text-slate-300">{keyToken}</span>
+              <span className="text-slate-500">{colon}</span>
+              <span className="text-slate-200">{rest}</span>
+            </>
           );
         }
-        return (
-          <span key={lineIdx}>
-            {indent}
-            <span className="text-slate-300">{keyToken}</span>
-            <span className="text-slate-500">{colon}</span>
-            <span className="text-slate-200">{rest}</span>
-            {nl}
-          </span>
-        );
-      }
-
-      const arrayStringMatch = /^(\s*)("(?:\\.|[^"\\])*")(,?)$/.exec(line);
-      if (arrayStringMatch) {
-        return (
-          <span key={lineIdx}>
-            {arrayStringMatch[1]}
-            <span className="text-emerald-300">{arrayStringMatch[2]}</span>
-            <span className="text-slate-400">{arrayStringMatch[3]}</span>
-            {nl}
-          </span>
-        );
+      } else {
+        const arrayStringMatch = /^(\s*)("(?:\\.|[^"\\])*")(,?)$/.exec(line);
+        if (arrayStringMatch) {
+          lineContent = (
+            <>
+              {arrayStringMatch[1]}
+              <span className="text-emerald-300">{arrayStringMatch[2]}</span>
+              <span className="text-slate-400">{arrayStringMatch[3]}</span>
+            </>
+          );
+        } else {
+          lineContent = <span className="text-slate-400">{line}</span>;
+        }
       }
 
       return (
-        <span key={lineIdx} className="text-slate-400">
-          {line}
+        <span
+          key={lineIdx}
+          data-line={lineIdx + 1}
+          className={cn(
+            "block before:me-4 before:inline-block before:w-5 before:text-right before:text-slate-500 before:select-none before:content-[attr(data-line)]",
+            wrapCode && "break-all",
+          )}
+        >
+          {lineContent}
           {nl}
         </span>
       );
@@ -195,42 +210,53 @@ function renderSyntaxTintedSnippet(
   }
 
   const tokens = snippet.match(/"(?:\\.|[^"\\])*"|\s+|\S+/g) ?? [snippet];
-  return tokens.map((token, idx) => {
-    if (/^\s+$/.test(token)) {
-      return <span key={idx}>{token}</span>;
-    }
-    if (idx === 0) {
-      return (
-        <span key={idx} className="font-semibold text-sky-300">
-          {token}
-        </span>
-      );
-    }
-    if (token.startsWith("-")) {
-      return (
-        <span key={idx} className="text-sky-300">
-          {token}
-        </span>
-      );
-    }
-    if (token.startsWith('"')) {
-      return (
-        <span key={idx} className="text-emerald-300">
-          {token}
-        </span>
-      );
-    }
-    return (
-      <span key={idx} className="text-slate-200">
-        {token}
-      </span>
-    );
-  });
+  return (
+    <span
+      data-prompt="$"
+      className={cn(
+        "block before:me-2.5 before:font-semibold before:text-brand-400 before:select-none before:content-[attr(data-prompt)]",
+        wrapCode && "break-all",
+      )}
+    >
+      {tokens.map((token, idx) => {
+        if (/^\s+$/.test(token)) {
+          return <span key={idx}>{token}</span>;
+        }
+        if (idx === 0) {
+          return (
+            <span key={idx} className="font-semibold text-sky-300">
+              {token}
+            </span>
+          );
+        }
+        if (token.startsWith("-")) {
+          return (
+            <span key={idx} className="text-sky-300">
+              {token}
+            </span>
+          );
+        }
+        if (token.startsWith('"')) {
+          return (
+            <span key={idx} className="text-emerald-300">
+              {token}
+            </span>
+          );
+        }
+        return (
+          <span key={idx} className="text-slate-200">
+            {token}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 export default function OrganizationIntegrationsManager() {
   const t = useTranslations("organizationIntegrations");
   const format = useFormatter();
+  const shouldReduceMotion = useHydratedReducedMotion();
   const currentUser = useCurrentUserQuery();
   const userAccessLost = isAccessOrResourceUnavailableError(currentUser.error);
   const user = userAccessLost ? undefined : currentUser.data;
@@ -328,6 +354,11 @@ export default function OrganizationIntegrationsManager() {
 
   const [activeIdeClient, setActiveIdeClient] =
     useState<McpIdeClientId>("antigravity");
+  const [keyStatusFilter, setKeyStatusFilter] = useState<
+    "ALL" | "ACTIVE" | "REVOKED"
+  >("ALL");
+  const [keySearchQuery, setKeySearchQuery] = useState("");
+  const [wrapCode, setWrapCode] = useState(false);
   const [copiedTarget, setCopiedTarget] = useState<string | null>(null);
   const [copyFailed, setCopyFailed] = useState<boolean>(false);
   const [copyAnnouncement, setCopyAnnouncement] = useState<string>("");
@@ -368,6 +399,8 @@ export default function OrganizationIntegrationsManager() {
     setSelectedProjectIds([]);
     setProjectSearchQuery("");
     setExpirationPreset("90");
+    setKeyStatusFilter("ALL");
+    setKeySearchQuery("");
     setFormValidationError(null);
     setCopiedTarget(null);
     setCopyFailed(false);
@@ -748,6 +781,17 @@ export default function OrganizationIntegrationsManager() {
 
   const keys = visibleData?.items ?? [];
   const activeKeyCount = keys.filter((k) => k.status === "ACTIVE").length;
+  const revokedKeyCount = keys.filter((k) => k.status !== "ACTIVE").length;
+  const normalizedKeyQuery = keySearchQuery.trim().toLowerCase();
+  const filteredKeys = keys.filter((item) => {
+    if (keyStatusFilter === "ACTIVE" && item.status !== "ACTIVE") return false;
+    if (keyStatusFilter === "REVOKED" && item.status === "ACTIVE") return false;
+    if (!normalizedKeyQuery) return true;
+    return (
+      item.name.toLowerCase().includes(normalizedKeyQuery) ||
+      item.keyPrefix.toLowerCase().includes(normalizedKeyQuery)
+    );
+  });
   const protocolVersion = visibleData?.protocolVersion ?? "2025-03-26";
   const toolCount = visibleData?.toolCount ?? 36;
   const { directEndpointUrl, bffEndpointUrl } = resolvePublicMcpEndpoints(
@@ -910,52 +954,137 @@ export default function OrganizationIntegrationsManager() {
         </BackgroundRefreshError>
       )}
 
-      {/* 1. Compact Enterprise MCP Gateway Status Strip (keeps Personal Keys above the fold) */}
+      {/* 1. Precision Enterprise MCP Gateway Control Card */}
       <section
         aria-label={t("heroTitle")}
-        className="flex flex-col gap-3 rounded-xl border border-gray-200/90 bg-white px-4 py-3 shadow-theme-xs sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-gray-800 dark:bg-gray-900"
+        className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
       >
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 tabular-nums dark:text-gray-300">
-          <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-gray-900 dark:text-white">
+        <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-gray-800 dark:bg-gray-950/60">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-600 tabular-nums dark:text-gray-300">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-success-700 ring-1 ring-success-600/20 ring-inset dark:bg-success-500/10 dark:text-success-300 dark:ring-success-400/25">
+              <span
+                aria-hidden="true"
+                className="size-1.5 shrink-0 rounded-full bg-success-500"
+              />
+              <span>{t("gatewayOnlineLabel")}</span>
+            </span>
+            <span className="font-mono font-semibold text-gray-900 dark:text-white">
+              {t("protocolBadge", { version: protocolVersion })}
+            </span>
             <span
               aria-hidden="true"
-              className="size-2 shrink-0 rounded-full bg-success-500"
+              className="hidden text-gray-300 sm:inline dark:text-gray-700"
+            >
+              ·
+            </span>
+            <span className="font-mono">{t("toolsBadge", { count: toolCount })}</span>
+            <span
+              aria-hidden="true"
+              className="hidden text-gray-300 sm:inline dark:text-gray-700"
+            >
+              ·
+            </span>
+            <span className="inline-flex items-center gap-1 font-mono text-gray-600 dark:text-gray-400">
+              <LockIcon className="size-3 shrink-0" aria-hidden="true" />
+              <span>{t("securityBadge")}</span>
+            </span>
+          </div>
+
+          <Link
+            href="/docs"
+            className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg bg-white px-3 text-xs font-semibold whitespace-nowrap text-gray-800 ring-1 ring-gray-200/90 ring-inset transition-colors hover:bg-gray-50 sm:self-center dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
+          >
+            <DocsIcon
+              className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
+              aria-hidden="true"
             />
-            <span>{t("protocolBadge", { version: protocolVersion })}</span>
-          </span>
-          <span
-            aria-hidden="true"
-            className="hidden text-gray-300 sm:inline dark:text-gray-700"
-          >
-            ·
-          </span>
-          <span className="font-mono">{t("toolsBadge", { count: toolCount })}</span>
-          <span
-            aria-hidden="true"
-            className="hidden text-gray-300 sm:inline dark:text-gray-700"
-          >
-            ·
-          </span>
-          <span className="inline-flex items-center gap-1 font-mono text-gray-600 dark:text-gray-400">
-            <LockIcon className="size-3 shrink-0" aria-hidden="true" />
-            <span>{t("securityBadge")}</span>
-          </span>
+            <span>{t("exploreDocsCta")}</span>
+            <ArrowRightIcon
+              className="size-3.5 shrink-0 rtl:rotate-180"
+              aria-hidden="true"
+            />
+          </Link>
         </div>
 
-        <Link
-          href="/docs"
-          className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg bg-gray-50 px-3 text-xs font-semibold whitespace-nowrap text-gray-800 ring-1 ring-gray-200/90 ring-inset transition-colors hover:bg-gray-100 sm:self-center dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
-        >
-          <DocsIcon
-            className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-            aria-hidden="true"
-          />
-          <span>{t("exploreDocsCta")}</span>
-          <ArrowRightIcon
-            className="size-3.5 shrink-0 rtl:rotate-180"
-            aria-hidden="true"
-          />
-        </Link>
+        <dl className="grid grid-cols-2 divide-y divide-gray-100 text-xs lg:grid-cols-4 lg:divide-x lg:divide-y-0 dark:divide-gray-800">
+          <div className="px-4 py-3 sm:px-5">
+            <dt className="font-medium text-gray-500 dark:text-gray-400">
+              {t("statActiveKeysLabel")}
+            </dt>
+            <dd className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
+              <span className="text-lg font-bold text-gray-900 dark:text-white">
+                {activeKeyCount}
+              </span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                / {keys.length}
+              </span>
+            </dd>
+          </div>
+          <div className="px-4 py-3 sm:px-5">
+            <dt className="font-medium text-gray-500 dark:text-gray-400">
+              {t("statToolsLabel")}
+            </dt>
+            <dd className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
+              <span className="text-lg font-bold text-brand-600 dark:text-brand-400">
+                {toolCount}
+              </span>
+              <span className="text-[11px] text-gray-500 dark:text-gray-400">
+                6 {t("statSubsystemsLabel")}
+              </span>
+            </dd>
+          </div>
+          <div className="col-span-2 px-4 py-3 sm:px-5">
+            <dt className="font-medium text-gray-500 dark:text-gray-400">
+              {endpointMode === "direct"
+                ? t("directEndpointLabel")
+                : t("bffEndpointLabel")}
+            </dt>
+            <dd className="mt-1 flex items-center justify-between gap-2">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
+                  POST
+                </span>
+                <code
+                  title={selectedEndpointUrl}
+                  className="min-w-0 truncate font-mono text-xs font-medium text-gray-900 dark:text-gray-100"
+                >
+                  {selectedEndpointUrl}
+                </code>
+              </div>
+              <button
+                type="button"
+                aria-label={t("copyEndpointAria", {
+                  label:
+                    endpointMode === "direct"
+                      ? t("directEndpointLabel")
+                      : t("bffEndpointLabel"),
+                })}
+                onClick={() =>
+                  void copyText(
+                    "gateway-endpoint",
+                    selectedEndpointUrl,
+                    t("copiedBadge"),
+                  )
+                }
+                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 text-[11px] font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700"
+              >
+                {copiedTarget === "gateway-endpoint" ? (
+                  <CheckLineIcon
+                    className="size-3 text-success-600 dark:text-success-400"
+                    aria-hidden="true"
+                  />
+                ) : (
+                  <CopyIcon className="size-3" aria-hidden="true" />
+                )}
+                <span>
+                  {copiedTarget === "gateway-endpoint"
+                    ? t("copiedBadge")
+                    : t("copyButton")}
+                </span>
+              </button>
+            </dd>
+          </div>
+        </dl>
       </section>
 
       {/* 2. One-Time Secret Reveal Vault Callout */}
@@ -964,7 +1093,7 @@ export default function OrganizationIntegrationsManager() {
           role="region"
           aria-labelledby="mcp-secret-vault-heading"
           data-testid="mcp-secret-reveal-vault"
-          className="rounded-2xl border border-success-500/70 bg-success-50/50 p-5 shadow-theme-sm sm:p-6 dark:border-success-400/50 dark:bg-success-500/[0.08]"
+          className="continuum-stagger-1 rounded-2xl border border-success-500/70 bg-success-50/50 p-5 shadow-theme-sm sm:p-6 dark:border-success-400/50 dark:bg-success-500/[0.08]"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1.5">
@@ -1010,10 +1139,10 @@ export default function OrganizationIntegrationsManager() {
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-gray-900/15 bg-gray-950 p-3.5 sm:flex-row sm:items-center sm:justify-between dark:border-white/15">
+          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-success-500/35 bg-gray-950 p-3.5 shadow-[inset_0_1px_0_rgba(52,211,153,0.16)] sm:flex-row sm:items-center sm:justify-between dark:border-success-400/30">
             <code
               data-testid="mcp-raw-secret-value"
-              className="min-w-0 flex-1 font-mono text-xs break-all text-emerald-300 select-all sm:text-sm"
+              className="custom-scrollbar-dark min-w-0 flex-1 overflow-x-auto font-mono text-xs break-all text-emerald-300 select-all sm:text-sm"
             >
               {mintedSecret.rawKey}
             </code>
@@ -1050,7 +1179,7 @@ export default function OrganizationIntegrationsManager() {
         aria-labelledby="mcp-keys-ledger-heading"
         className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
       >
-        <div className="flex flex-col gap-3 border-b border-gray-100 p-5 sm:flex-row sm:items-center sm:justify-between sm:px-6 dark:border-gray-800">
+        <div className="flex flex-col gap-3 border-b border-gray-100 p-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between dark:border-gray-800">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2
@@ -1069,32 +1198,146 @@ export default function OrganizationIntegrationsManager() {
               {t("ledgerSubtitle")}
             </p>
           </div>
+
+          {keys.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div
+                role="group"
+                aria-label={t("colStatus")}
+                className="inline-flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5 dark:bg-gray-950"
+              >
+                {(
+                  [
+                    { id: "ALL" as const, label: t("filterAll"), count: keys.length },
+                    {
+                      id: "ACTIVE" as const,
+                      label: t("filterActive"),
+                      count: activeKeyCount,
+                    },
+                    {
+                      id: "REVOKED" as const,
+                      label: t("filterRevoked"),
+                      count: revokedKeyCount,
+                    },
+                  ] as const
+                ).map((pill) => {
+                  const active = keyStatusFilter === pill.id;
+                  return (
+                    <button
+                      key={pill.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => setKeyStatusFilter(pill.id)}
+                      className={cn(
+                        "cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors",
+                        active
+                          ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white"
+                          : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
+                      )}
+                    >
+                      {pill.label} ({pill.count})
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+                <SearchIcon
+                  aria-hidden="true"
+                  className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
+                />
+                <input
+                  type="search"
+                  value={keySearchQuery}
+                  onChange={(event) => setKeySearchQuery(event.target.value)}
+                  placeholder={t("searchKeysPlaceholder")}
+                  aria-label={t("searchKeysPlaceholder")}
+                  className="h-8 w-full rounded-lg border border-gray-200 bg-gray-50/70 ps-8 pe-7 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-900"
+                />
+                {keySearchQuery && (
+                  <button
+                    type="button"
+                    aria-label={t("clearKeySearchAria")}
+                    onClick={() => setKeySearchQuery("")}
+                    className="absolute end-1 top-1/2 inline-flex size-5 -translate-y-1/2 cursor-pointer items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                  >
+                    <CloseLineIcon className="size-3" aria-hidden="true" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {keys.length === 0 ? (
-          <div className="p-8 text-center sm:p-10">
-            <div className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-500/15 dark:text-brand-300">
-              <PlugInIcon className="size-5" aria-hidden="true" />
-            </div>
-            <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
-              {t("emptyKeysTitle")}
-            </h3>
-            <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
-              {t("emptyKeysDesc")}
-            </p>
-            <div className="mt-4">
-              <Button
-                type="button"
-                size="sm"
-                onClick={(event) => openCreateModal(event.currentTarget)}
-              >
-                <PlusIcon className="size-3.5 shrink-0" aria-hidden="true" />
-                <span>{t("createKeyCta")}</span>
-              </Button>
+          <div className="p-6 sm:p-8">
+            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center sm:p-8 dark:border-gray-800 dark:bg-gray-950/40">
+              <div className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-brand-600/15 ring-inset dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
+                <PlugInIcon className="size-5" aria-hidden="true" />
+              </div>
+              <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
+                {t("emptyKeysTitle")}
+              </h3>
+              <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
+                {t("emptyKeysDesc")}
+              </p>
+              <div className="mt-4">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={(event) => openCreateModal(event.currentTarget)}
+                >
+                  <PlusIcon className="size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{t("createKeyCta")}</span>
+                </Button>
+              </div>
+
+              <ol className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-3 border-t border-dashed border-gray-200 pt-6 text-start md:grid-cols-3 dark:border-gray-800">
+                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                    {t("emptyStep1Title")}
+                  </p>
+                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
+                    {t("emptyStep1Desc")}
+                  </p>
+                </li>
+                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                    {t("emptyStep2Title")}
+                  </p>
+                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
+                    {t("emptyStep2Desc")}
+                  </p>
+                </li>
+                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
+                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                    {t("emptyStep3Title")}
+                  </p>
+                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
+                    {t("emptyStep3Desc")}
+                  </p>
+                </li>
+              </ol>
             </div>
           </div>
+        ) : filteredKeys.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {t("noMatchingKeys")}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setKeyStatusFilter("ALL");
+                setKeySearchQuery("");
+              }}
+              className="mt-3 inline-flex h-8 cursor-pointer items-center rounded-lg bg-gray-100 px-3 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+            >
+              {t("resetKeyFilters")}
+            </button>
+          </div>
         ) : (
-          <div className="max-w-full overflow-x-auto">
+          <div className="custom-scrollbar max-w-full overflow-x-auto">
             <table className="w-full min-w-[780px] divide-y divide-gray-200 text-start text-sm dark:divide-gray-800">
               <thead className="bg-gray-50/80 dark:bg-gray-950/60">
                 <tr>
@@ -1143,7 +1386,7 @@ export default function OrganizationIntegrationsManager() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
-                {keys.map((item) => {
+                {filteredKeys.map((item) => {
                   const projectIds = item.allowedProjectIds;
                   const resolvedProjectCodes = projectIds
                     ? projectIds
@@ -1162,6 +1405,7 @@ export default function OrganizationIntegrationsManager() {
                         })
                         .join(", ")
                     : undefined;
+                  const prefixCopyId = `prefix-${item.id}`;
 
                   return (
                     <tr
@@ -1172,9 +1416,31 @@ export default function OrganizationIntegrationsManager() {
                         <p className="font-medium text-gray-900 dark:text-white">
                           {item.name}
                         </p>
-                        <code className="mt-0.5 inline-block rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 dark:bg-gray-800 dark:text-gray-300">
-                          {item.keyPrefix}••••
-                        </code>
+                        <button
+                          type="button"
+                          aria-label={t("copyPrefixAria", { name: item.name })}
+                          onClick={() =>
+                            void copyText(
+                              prefixCopyId,
+                              item.keyPrefix,
+                              t("copiedPrefixToast"),
+                            )
+                          }
+                          className="mt-1 inline-flex cursor-pointer items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 transition-colors hover:bg-gray-200/80 hover:text-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                        >
+                          <code>{item.keyPrefix}••••</code>
+                          {copiedTarget === prefixCopyId ? (
+                            <CheckLineIcon
+                              className="size-3 text-success-600 dark:text-success-400"
+                              aria-hidden="true"
+                            />
+                          ) : (
+                            <CopyIcon
+                              className="size-3 opacity-70"
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
                       </td>
                       <td className="px-4 py-3.5">
                         <ScopeBadge
@@ -1322,51 +1588,67 @@ export default function OrganizationIntegrationsManager() {
             aria-label={t("endpointModeLabel")}
             className="inline-flex max-w-full shrink-0 flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-950"
           >
-            <button
-              type="button"
-              aria-pressed={endpointMode === "direct"}
-              onClick={() => {
-                userToggledEndpointRef.current = true;
-                setEndpointMode("direct");
-              }}
-              className={cn(
-                "cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                endpointMode === "direct"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              {t("endpointModeDirect")}
-            </button>
-            <button
-              type="button"
-              aria-pressed={endpointMode === "bff"}
-              onClick={() => {
-                userToggledEndpointRef.current = true;
-                setEndpointMode("bff");
-              }}
-              className={cn(
-                "cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                endpointMode === "bff"
-                  ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white"
-                  : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-              )}
-            >
-              {t("endpointModeBff")}
-            </button>
+            {(
+              [
+                { id: "direct" as const, label: t("endpointModeDirect") },
+                { id: "bff" as const, label: t("endpointModeBff") },
+              ] as const
+            ).map((option) => {
+              const active = endpointMode === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    userToggledEndpointRef.current = true;
+                    setEndpointMode(option.id);
+                  }}
+                  className={cn(
+                    "relative cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
+                    active
+                      ? "text-gray-900 dark:text-white"
+                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
+                  )}
+                >
+                  {active &&
+                    (shouldReduceMotion ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-lg bg-white shadow-theme-xs dark:bg-gray-800"
+                      />
+                    ) : (
+                      <motion.span
+                        layoutId="org-mcp-endpoint-pill"
+                        transition={ANIMATE_UI_BUTTON_SPRING}
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-lg bg-white shadow-theme-xs dark:bg-gray-800"
+                      />
+                    ))}
+                  <span className="relative z-1">{option.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Compact Copyable Endpoint URL Row */}
         <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-gray-50 px-3.5 py-2.5 ring-1 ring-gray-200/80 ring-inset dark:bg-gray-950/70 dark:ring-gray-800">
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+            <span
+              aria-hidden="true"
+              className="size-1.5 shrink-0 rounded-full bg-success-500"
+            />
             <span className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
               {endpointMode === "direct"
                 ? t("directEndpointLabel")
                 : t("bffEndpointLabel")}
               :
             </span>
-            <code className="min-w-0 truncate font-mono text-xs text-gray-900 dark:text-gray-100">
+            <code
+              title={selectedEndpointUrl}
+              className="min-w-0 truncate font-mono text-xs text-gray-900 dark:text-gray-100"
+            >
               {selectedEndpointUrl}
             </code>
           </div>
@@ -1407,11 +1689,11 @@ export default function OrganizationIntegrationsManager() {
         </div>
 
         {/* WAI-ARIA IDE Tabs + Tabpanel */}
-        <div className="mt-4 overflow-hidden rounded-xl border border-gray-800 bg-gray-950">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-gray-800/95 bg-gray-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
           <div
             role="tablist"
             aria-label={t("quickSetupTitle")}
-            className="flex flex-wrap gap-1 border-b border-gray-800 bg-gray-900/95 p-2"
+            className="custom-scrollbar-dark flex items-center gap-1 overflow-x-auto border-b border-gray-800/90 bg-gray-900/95 px-2.5 py-2 whitespace-nowrap"
           >
             {MCP_IDE_CLIENT_SPECS.map((spec, idx) => {
               const isSelected = spec.id === activeClientSpec.id;
@@ -1430,13 +1712,27 @@ export default function OrganizationIntegrationsManager() {
                   onClick={() => setActiveIdeClient(spec.id)}
                   onKeyDown={(event) => handleIdeTabKeyDown(event, idx)}
                   className={cn(
-                    "cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
+                    "relative shrink-0 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
                     isSelected
-                      ? "bg-brand-600 text-white"
-                      : "text-gray-400 hover:bg-gray-800 hover:text-gray-100",
+                      ? "text-white"
+                      : "text-gray-400 hover:bg-gray-800/80 hover:text-gray-100",
                   )}
                 >
-                  {spec.label}
+                  {isSelected &&
+                    (shouldReduceMotion ? (
+                      <span
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-lg bg-brand-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                      />
+                    ) : (
+                      <motion.span
+                        layoutId="org-mcp-ide-active-pill"
+                        transition={ANIMATE_UI_BUTTON_SPRING}
+                        aria-hidden="true"
+                        className="absolute inset-0 rounded-lg bg-brand-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
+                      />
+                    ))}
+                  <span className="relative z-1">{spec.label}</span>
                 </button>
               );
             })}
@@ -1448,47 +1744,89 @@ export default function OrganizationIntegrationsManager() {
             aria-labelledby={`org-mcp-ide-tab-${activeClientSpec.id}`}
             className="min-w-0"
           >
-            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2.5">
-              <span className="min-w-0 truncate font-mono text-xs text-slate-300">
+            <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2.5">
+              <span
+                title={activeClientSpec.targetFile}
+                className="min-w-0 flex-1 truncate font-mono text-xs text-slate-300"
+              >
                 {t("configFileHint", { target: activeClientSpec.targetFile })}
               </span>
-              <button
-                type="button"
-                onClick={() =>
-                  void copyText(
-                    `ide-${activeClientSpec.id}`,
-                    renderedSnippet,
-                    t("copiedSnippetCta"),
-                  )
-                }
-                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-gray-800 px-2.5 text-xs font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
-              >
-                {copiedTarget === `ide-${activeClientSpec.id}` ? (
-                  <>
-                    <CheckLineIcon
-                      className="size-3.5 text-emerald-400"
-                      aria-hidden="true"
-                    />
-                    <span className="text-emerald-300">
-                      {t("copiedSnippetCta")}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <CopyIcon className="size-3.5" aria-hidden="true" />
-                    <span>{t("copySnippetCta")}</span>
-                  </>
-                )}
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <button
+                  type="button"
+                  aria-pressed={wrapCode}
+                  aria-label={t("wrapCodeAria")}
+                  onClick={() => setWrapCode((prev) => !prev)}
+                  className={cn(
+                    "inline-flex h-7 shrink-0 cursor-pointer items-center rounded-md px-2.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset transition-colors",
+                    wrapCode
+                      ? "bg-brand-600/25 text-brand-200 ring-brand-400/50"
+                      : "bg-gray-800/80 text-gray-300 ring-gray-700 hover:bg-gray-700 hover:text-white",
+                  )}
+                >
+                  {t("wrapCodeLabel")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    void copyText(
+                      `ide-${activeClientSpec.id}`,
+                      renderedSnippet,
+                      t("copiedSnippetCta"),
+                    )
+                  }
+                  className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-gray-800 px-2.5 text-xs font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
+                >
+                  <motion.span
+                    key={
+                      copiedTarget === `ide-${activeClientSpec.id}`
+                        ? "copied"
+                        : "copy"
+                    }
+                    initial={
+                      shouldReduceMotion
+                        ? false
+                        : { scale: 0.6, opacity: 0 }
+                    }
+                    animate={{ scale: 1, opacity: 1 }}
+                    transition={ANIMATE_UI_ICON_SPRING}
+                    className="inline-flex items-center justify-center"
+                  >
+                    {copiedTarget === `ide-${activeClientSpec.id}` ? (
+                      <CheckLineIcon
+                        className="size-3.5 text-emerald-400"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <CopyIcon className="size-3.5" aria-hidden="true" />
+                    )}
+                  </motion.span>
+                  <span
+                    className={
+                      copiedTarget === `ide-${activeClientSpec.id}`
+                        ? "text-emerald-300"
+                        : undefined
+                    }
+                  >
+                    {copiedTarget === `ide-${activeClientSpec.id}`
+                      ? t("copiedSnippetCta")
+                      : t("copySnippetCta")}
+                  </span>
+                </button>
+              </div>
             </div>
             <pre
               data-testid="mcp-ide-config-pre"
-              className="max-w-full overflow-x-auto p-4 font-mono text-xs leading-6 text-slate-100"
+              className={cn(
+                "custom-scrollbar-dark max-w-full overflow-x-auto p-4 font-mono text-xs leading-6 text-slate-100",
+                wrapCode && "whitespace-pre-wrap",
+              )}
             >
               <code>
                 {renderSyntaxTintedSnippet(
                   renderedSnippet,
                   activeClientSpec.language,
+                  wrapCode,
                 )}
               </code>
             </pre>
@@ -1502,7 +1840,7 @@ export default function OrganizationIntegrationsManager() {
           <div
             data-testid="mcp-create-modal-backdrop"
             onClick={closeCreateModal}
-            className="fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-3 backdrop-blur-[3px] sm:items-center sm:p-4 dark:bg-gray-950/65"
+            className="continuum-backdrop-enter fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-3 backdrop-blur-[3px] sm:items-center sm:p-4 dark:bg-gray-950/65"
           >
             <div
               ref={createDialogRef}
@@ -1511,7 +1849,7 @@ export default function OrganizationIntegrationsManager() {
               aria-labelledby="create-mcp-key-dialog-title"
               aria-describedby="create-mcp-key-dialog-desc"
               onClick={(event) => event.stopPropagation()}
-              className="relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:max-h-[min(90dvh,760px)] dark:border-gray-800 dark:bg-gray-900"
+              className="continuum-sheet-enter relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:max-h-[min(92dvh,810px)] dark:border-gray-800 dark:bg-gray-900"
             >
               <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6 dark:border-gray-800">
                 <div>
@@ -1544,7 +1882,7 @@ export default function OrganizationIntegrationsManager() {
                 className="flex min-h-0 flex-1 flex-col overflow-hidden"
                 noValidate
               >
-                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+                <div className="custom-scrollbar-modal min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
                   {formValidationError && (
                     <div role="alert">
                       <Alert
@@ -1571,7 +1909,7 @@ export default function OrganizationIntegrationsManager() {
                       <Label htmlFor="mcp-key-name-input">
                         {t("keyNameLabel")}
                       </Label>
-                      <span className="mb-1 text-xs text-gray-400 tabular-nums">
+                      <span className="mb-1 text-xs text-gray-500 tabular-nums dark:text-gray-400">
                         {keyName.trim().length}/80
                       </span>
                     </div>
@@ -1607,18 +1945,21 @@ export default function OrganizationIntegrationsManager() {
                             value: "FULL_OPERATIONS" as const,
                             title: t("scopeFullOpsTitle"),
                             desc: t("scopeFullOpsDesc"),
+                            toolBadge: t("tierToolCountFull"),
                             code: "FULL_OPERATIONS",
                           },
                           {
                             value: "READ_WRITE" as const,
                             title: t("scopeReadWriteTitle"),
                             desc: t("scopeReadWriteDesc"),
+                            toolBadge: t("tierToolCountReadWrite"),
                             code: "READ_WRITE",
                           },
                           {
                             value: "READ_ONLY" as const,
                             title: t("scopeReadOnlyTitle"),
                             desc: t("scopeReadOnlyDesc"),
+                            toolBadge: t("tierToolCountReadOnly"),
                             code: "READ_ONLY",
                           },
                         ] as const
@@ -1638,9 +1979,14 @@ export default function OrganizationIntegrationsManager() {
                                 : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700",
                             )}
                           >
-                            <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
-                              {tier.code}
-                            </code>
+                            <div className="flex w-full items-center justify-between gap-1.5">
+                              <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                                {tier.code}
+                              </code>
+                              <span className="font-mono text-[10px] font-semibold text-gray-500 tabular-nums dark:text-gray-400">
+                                {tier.toolBadge}
+                              </span>
+                            </div>
                             <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
                               {tier.title}
                             </span>
@@ -1775,7 +2121,7 @@ export default function OrganizationIntegrationsManager() {
                               </div>
                             )}
 
-                            <ul className="max-h-40 space-y-1 overflow-y-auto">
+                            <ul className="custom-scrollbar-modal max-h-40 space-y-1 overflow-y-auto pe-1">
                               {filteredModalProjects.map((proj) => {
                                 const checked = selectedProjectIds.includes(
                                   proj.id,
@@ -1865,7 +2211,7 @@ export default function OrganizationIntegrationsManager() {
           <div
             data-testid="mcp-revoke-modal-backdrop"
             onClick={closeRevokeModal}
-            className="fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-4 backdrop-blur-[3px] sm:items-center dark:bg-gray-950/65"
+            className="continuum-backdrop-enter fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-4 backdrop-blur-[3px] sm:items-center dark:bg-gray-950/65"
           >
             <div
               ref={revokeDialogRef}
@@ -1874,7 +2220,7 @@ export default function OrganizationIntegrationsManager() {
               aria-labelledby="revoke-mcp-key-dialog-title"
               aria-describedby="revoke-mcp-key-dialog-desc"
               onClick={(event) => event.stopPropagation()}
-              className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl sm:p-6 dark:border-gray-800 dark:bg-gray-900"
+              className="continuum-sheet-enter relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl sm:p-6 dark:border-gray-800 dark:bg-gray-900"
             >
               <h2
                 id="revoke-mcp-key-dialog-title"
