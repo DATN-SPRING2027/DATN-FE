@@ -250,6 +250,7 @@ describe("AppSidebar navigation", () => {
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
     expect(within(nav).queryByRole("link", { name: "Members" })).not.toBeInTheDocument();
+    expect(within(nav).queryByRole("link", { name: "Integrations" })).not.toBeInTheDocument();
     expect(
       screen.queryByRole("navigation", { name: "Project navigation" }),
     ).not.toBeInTheDocument();
@@ -472,7 +473,16 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Dashboard", "Projects", "Chat", "Knowledge", "AI Chat", "Members", "Settings"]);
+    ).toEqual([
+      "Dashboard",
+      "Projects",
+      "Chat",
+      "Knowledge",
+      "AI Chat",
+      "Members",
+      "Integrations",
+      "Settings",
+    ]);
     expect(within(nav).getByRole("region", { name: "Organization" })).toBeInTheDocument();
     expect(
       within(nav).queryByRole("button", { name: "Work Notes" }),
@@ -648,7 +658,7 @@ describe("AppSidebar navigation", () => {
       within(nav)
         .getAllByRole("link")
         .map((link) => link.textContent?.trim()),
-    ).toEqual(["Projects", "Chat", "Knowledge", "AI Chat"]);
+    ).toEqual(["Projects", "Chat", "Knowledge", "AI Chat", "Integrations"]);
     expect(
       within(nav).queryByRole("link", { name: "Members" }),
     ).not.toBeInTheDocument();
@@ -698,7 +708,7 @@ describe("AppSidebar navigation", () => {
     ).toBe(false);
   });
 
-  it("routes Knowledge to active project and removes dead placeholder Integrations button", () => {
+  it("renders Knowledge and Integrations as accessible routed links with dark-mode legible text", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
@@ -706,9 +716,10 @@ describe("AppSidebar navigation", () => {
       "href",
       "/knowledge?projectId=69e923c77859fd1c702d4c21",
     );
-    expect(
-      screen.queryByRole("button", { name: "Integrations" }),
-    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Integrations" })).toHaveAttribute(
+      "href",
+      "/organization/integrations",
+    );
   });
 
   it("shows the signed-in account and redirects only after a successful sign-out", async () => {

@@ -3,7 +3,7 @@ import { isIP } from 'node:net';
 
 export const BFF_API_BASE_PATH = '/api/backend';
 
-const forwardedHeaders = [
+export const FORWARDED_REQUEST_HEADERS = [
   'accept',
   'authorization',
   'content-length',
@@ -19,7 +19,12 @@ const forwardedHeaders = [
   'traceparent',
   'tracestate',
   'x-request-id',
-];
+  'mcp-session-id',
+  'mcp-protocol-version',
+  'last-event-id',
+] as const;
+
+const forwardedHeaders: readonly string[] = FORWARDED_REQUEST_HEADERS;
 
 export function buildBackendUrl(
   baseUrl: string,

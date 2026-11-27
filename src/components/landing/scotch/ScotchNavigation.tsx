@@ -63,6 +63,28 @@ export default function ScotchNavigation({
               {t(label)}
             </a>
           ))}
+          <Link
+            href="/docs"
+            className={styles.docsGlassButton}
+            data-testid="scotch-docs-glass-link"
+            onClick={() => setOpen(false)}
+          >
+            <span className={styles.docsGlassLabel}>{t("docsLink")}</span>
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 16 16"
+              fill="none"
+              className={styles.docsGlassIcon}
+            >
+              <path
+                d="M4.5 11.5L11.5 4.5M11.5 4.5H6.25M11.5 4.5V9.75"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </Link>
           <div className={styles.mobileActions}>
             {isCheckingSession ? (
               <div className={styles.authLoadingSkeleton} aria-busy="true">

@@ -158,10 +158,42 @@ describe("AppHeader", () => {
     expect(
       screen.getByRole("complementary", { name: "helpDrawer.title" }),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /helpDrawer\.developerDocs/i }),
+    ).toHaveAttribute("href", "/docs");
+    expect(
+      screen.getByRole("link", { name: /helpDrawer\.mcpIntegrations/i }),
+    ).toHaveAttribute("href", "/organization/integrations");
     fireEvent.click(
       screen.getByRole("button", { name: "helpDrawer.keyboardShortcuts" }),
     );
     expect(screen.getByText("helpDrawer.shortcutSearch")).toBeInTheDocument();
+  });
+
+  it("exposes /docs and /organization/integrations in Cmd/Ctrl+K quick search", async () => {
+    mockSessionFetch(["MEMBER"]);
+    renderHeader();
+
+    const searchInput = screen.getByPlaceholderText("searchPlaceholder");
+    await waitFor(() =>
+      expect(screen.getByText("Phuc Nguyen")).toBeInTheDocument(),
+    );
+
+    fireEvent.focus(searchInput);
+    fireEvent.change(searchInput, { target: { value: "cursor" } });
+    const resultsRegion = screen.getByRole("region", { name: "System features" });
+    expect(
+      within(resultsRegion).getByRole("link", {
+        name: /MCP Integrations & API Keys/i,
+      }),
+    ).toHaveAttribute("href", "/organization/integrations");
+
+    fireEvent.change(searchInput, { target: { value: "developer mcp" } });
+    expect(
+      within(resultsRegion).getByRole("link", {
+        name: /Developer & MCP Docs/i,
+      }),
+    ).toHaveAttribute("href", "/docs");
   });
 
   it("debounces project search and requests suggestions with the search query", async () => {

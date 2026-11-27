@@ -295,4 +295,174 @@ describe("BFF AI Chat SSE streaming", () => {
       requestId: "req-timeout-1",
     });
   });
+
+  it("relays MCP Streamable HTTP request and response headers on /api/backend/mcp", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json(
+        { jsonrpc: "2.0", id: 1, result: { protocolVersion: "2025-03-26" } },
+        {
+          status: 200,
+          headers: {
+            "mcp-session-id": "sess-99",
+            "mcp-protocol-version": "2025-03-26",
+            allow: "POST, DELETE, OPTIONS",
+          },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new NextRequest("http://localhost:3000/api/backend/mcp", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer ctm_mcp_testsecret",
+        "content-type": "application/json",
+        "mcp-session-id": "sess-99",
+        "mcp-protocol-version": "2025-03-26",
+        "last-event-id": "evt-7",
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+    });
+
+    const response = await POST(req, {
+      params: Promise.resolve({ path: ["mcp"] }),
+    });
+
+    const forwardedHeaders = new Headers(
+      (fetchMock.mock.calls[0]?.[1] as RequestInit)?.headers,
+    );
+    expect(forwardedHeaders.get("authorization")).toBe(
+      "Bearer ctm_mcp_testsecret",
+    );
+    expect(forwardedHeaders.get("mcp-session-id")).toBe("sess-99");
+    expect(forwardedHeaders.get("mcp-protocol-version")).toBe("2025-03-26");
+    expect(forwardedHeaders.get("last-event-id")).toBe("evt-7");
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("mcp-session-id")).toBe("sess-99");
+    expect(response.headers.get("mcp-protocol-version")).toBe("2025-03-26");
+    expect(response.headers.get("allow")).toBe("POST, DELETE, OPTIONS");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("returns JSON-RPC 2.0 503 error envelope when /api/backend/mcp upstream fetch fails", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockRejectedValueOnce(new TypeError("fetch failed")),
+    );
+
+    const req = new NextRequest("http://localhost:3000/api/backend/mcp", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    });
+
+    const response = await POST(req, {
+      params: Promise.resolve({ path: ["mcp"] }),
+    });
+
+    expect(response.status).toBe(503);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32000,
+        message: "Continuum MCP backend is temporarily unavailable.",
+      },
+    });
+  });
+
+  it("handles 204 No Content safely with null response body and omits streamBody on empty DELETE", async () => {
+    const nonNullEmptyStream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.close();
+      },
+    });
+    const fakeUpstream204 = {
+      status: 204,
+      body: nonNullEmptyStream,
+      headers: {
+        get: (name: string) =>
+          name === "mcp-session-id" ? "sess-closed" : null,
+        getSetCookie: () => [] as string[],
+      },
+    } as unknown as Response;
+
+    const fetchMock = vi.fn().mockResolvedValueOnce(fakeUpstream204);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const req = new NextRequest("http://localhost:3000/api/backend/mcp", {
+      method: "DELETE",
+      headers: {
+        "mcp-session-id": "sess-closed",
+        "content-length": "0",
+      },
+      body: new ReadableStream({
+        start(c) {
+          c.close();
+        },
+      }),
+      duplex: "half",
+    });
+
+    const response = await forwardBackendRequest(req, ["mcp"]);
+    const forwardedInit = fetchMock.mock.calls[0]?.[1] as RequestInit & {
+      duplex?: string;
+    };
+
+    expect(forwardedInit.body).toBeUndefined();
+    expect(forwardedInit.duplex).toBeUndefined();
+    expect(response.status).toBe(204);
+    expect(response.body).toBeNull();
+    expect(response.headers.get("mcp-session-id")).toBe("sess-closed");
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("buffers POST /api/backend/mcp JSON-RPC payloads as Uint8Array without duplex and relays 401 WWW-Authenticate", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(
+      Response.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: { code: -32001, message: "Authentication required." },
+        },
+        {
+          status: 401,
+          headers: {
+            "www-authenticate": 'Bearer realm="continuum-mcp"',
+          },
+        },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const payload = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" });
+    const req = new NextRequest("http://localhost:3000/api/backend/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(payload)),
+      },
+      body: payload,
+    });
+
+    const response = await POST(req, {
+      params: Promise.resolve({ path: ["mcp"] }),
+    });
+
+    const forwardedInit = fetchMock.mock.calls[0]?.[1] as RequestInit & {
+      duplex?: string;
+    };
+    const forwardedHeaders = new Headers(forwardedInit?.headers);
+
+    expect(forwardedInit.body).toBeInstanceOf(Uint8Array);
+    expect(forwardedInit.duplex).toBeUndefined();
+    expect(forwardedHeaders.has("content-length")).toBe(false);
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toBe(
+      'Bearer realm="continuum-mcp"',
+    );
+    expect(response.headers.get("cache-control")).toBe("no-store");
+  });
 });

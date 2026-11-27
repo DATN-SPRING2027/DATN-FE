@@ -237,7 +237,31 @@ describe("Scotch landing interactions", () => {
 
     expect(screen.getAllByRole("link", { name: "Sign in" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("link", { name: "Get started" }).length).toBeGreaterThan(0);
+    const docsLink = screen.getByRole("link", { name: "Docs" });
+    expect(docsLink).toHaveAttribute("href", "/docs");
+    expect(docsLink).toHaveAttribute("data-testid", "scotch-docs-glass-link");
+    const docsIcon = docsLink.querySelector("svg");
+    expect(docsIcon).not.toBeNull();
+    expect(docsIcon).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByTestId("user-dropdown")).not.toBeInTheDocument();
+  });
+
+  it("closes the mobile navigation drawer when the glassy Docs button is clicked", () => {
+    vi.mocked(useSignInSessionQuery).mockReturnValue({
+      data: undefined,
+      isPending: false,
+    } as never);
+
+    show(<ScotchNavigation />);
+
+    const toggle = screen.getByRole("button", { name: "Open navigation" });
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+
+    const docsLink = screen.getByTestId("scotch-docs-glass-link");
+    expect(docsLink).toBe(screen.getByRole("link", { name: "Docs" }));
+    fireEvent.click(docsLink);
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
   });
 
   it("hides Sign in link and renders UserDropdown with preloaded user when user is authenticated", () => {

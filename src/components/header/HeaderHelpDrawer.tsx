@@ -2,11 +2,19 @@
 
 import { useSidebar } from "@/context/SidebarContext";
 import { Link } from "@/i18n/navigation";
-import { ChatIcon, CloseIcon, FolderIcon, HelpCircleIcon, SearchIcon } from "@/icons";
+import {
+  ChatIcon,
+  CloseIcon,
+  DocsIcon,
+  FolderIcon,
+  HelpCircleIcon,
+  PlugInIcon,
+  SearchIcon,
+} from "@/icons";
 import { cn } from "@/utils";
 import { useTranslations } from "next-intl";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type HelpLinkItem = {
   id: string;
@@ -25,24 +33,28 @@ export default function HeaderHelpDrawer() {
   const isOpen =
     typeof setIsHelpOpen === "function" ? Boolean(isHelpOpen) : fallbackOpen;
 
-  const updateOpen = (nextOpen: boolean) => {
-    if (typeof setIsHelpOpen === "function") {
-      setIsHelpOpen(nextOpen);
-    } else {
-      setFallbackOpen(nextOpen);
-    }
-  };
+  const updateOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (typeof setIsHelpOpen === "function") {
+        setIsHelpOpen(nextOpen);
+      } else {
+        setFallbackOpen(nextOpen);
+      }
+    },
+    [setIsHelpOpen],
+  );
+
+  const handleClose = useCallback(() => {
+    updateOpen(false);
+    setActivePanel(null);
+  }, [updateOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        if (typeof setIsHelpOpen === "function") {
-          setIsHelpOpen(false);
-        } else {
-          setFallbackOpen(false);
-        }
+        handleClose();
       }
     };
 
@@ -50,14 +62,22 @@ export default function HeaderHelpDrawer() {
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, setIsHelpOpen]);
-
-  const handleClose = () => {
-    updateOpen(false);
-    setActivePanel(null);
-  };
+  }, [isOpen, handleClose]);
 
   const helpItems: HelpLinkItem[] = [
+    {
+      id: "mcp-integrations",
+      label: t("helpDrawer.mcpIntegrations"),
+      href: "/organization/integrations",
+      icon: (
+        <PlugInIcon
+          viewBox="0.5 0.5 23 23"
+          preserveAspectRatio="xMidYMid meet"
+          className="size-[18px] shrink-0"
+          aria-hidden="true"
+        />
+      ),
+    },
     {
       id: "projects",
       label: t("helpDrawer.projects"),
@@ -140,6 +160,28 @@ export default function HeaderHelpDrawer() {
 
           {/* Scrollable Help Links */}
           <div className="custom-scrollbar flex-1 overflow-y-auto px-3 py-3">
+            <Link
+              href="/docs"
+              onClick={handleClose}
+              className="group mb-2.5 flex items-start gap-2.5 rounded-xl border border-brand-200/80 bg-brand-50/60 p-3 transition-colors hover:border-brand-300 hover:bg-brand-50 dark:border-brand-500/25 dark:bg-brand-500/10 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/15"
+            >
+              <span className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white shadow-theme-xs dark:bg-brand-500">
+                <DocsIcon
+                  viewBox="0.5 0.5 23 23"
+                  className="size-4 shrink-0"
+                  aria-hidden="true"
+                />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[13px] leading-4 font-semibold text-gray-900 dark:text-white">
+                  {t("helpDrawer.developerDocs")}
+                </span>
+                <span className="mt-1 block text-[11px] leading-4 text-gray-600 dark:text-gray-300">
+                  {t("helpDrawer.developerDocsDesc")}
+                </span>
+              </span>
+            </Link>
+
             <ul className="flex flex-col gap-1">
               {helpItems.map((item) => (
                 <li key={item.id}>
@@ -157,6 +199,16 @@ export default function HeaderHelpDrawer() {
                   ) : (
                     <button
                       type="button"
+                      aria-expanded={
+                        item.id === "keyboard-shortcuts"
+                          ? activePanel === "shortcuts"
+                          : undefined
+                      }
+                      aria-controls={
+                        item.id === "keyboard-shortcuts"
+                          ? "header-help-shortcuts-panel"
+                          : undefined
+                      }
                       onClick={item.onClick}
                       className={cn(
                         "group flex h-9 w-full items-center gap-2.5 rounded-lg px-3 py-2 text-start text-[13px] leading-5 font-medium transition-colors",
@@ -186,7 +238,10 @@ export default function HeaderHelpDrawer() {
 
             {/* Inline Keyboard Shortcuts Panel */}
             {activePanel === "shortcuts" && (
-              <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-white/3">
+              <div
+                id="header-help-shortcuts-panel"
+                className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-white/3"
+              >
                 <p className="mb-2 text-xs font-semibold text-gray-800 dark:text-gray-200">
                   {t("helpDrawer.keyboardShortcuts")}
                 </p>
