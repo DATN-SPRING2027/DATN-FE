@@ -635,4 +635,96 @@ describe("OrganizationIntegrationsManager", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Clear" }));
     expect(within(dialog).queryByText("1 selected")).not.toBeInTheDocument();
   });
+
+  it("portals create & revoke modal backdrops to document.body at z-99999 and closes on backdrop click", async () => {
+    const activeKey: McpApiKeyView = {
+      id: "key-existing-1",
+      name: "Workstation CLI",
+      keyPrefix: "ctm_mcp_a8F3k9xZ",
+      scope: "READ_ONLY",
+      allowedProjectIds: null,
+      organizationId,
+      userId: memberUserId,
+      createdAt: "2026-11-01T00:00:00.000Z",
+      expiresAt: null,
+      lastUsedAt: null,
+      revokedAt: null,
+      status: "ACTIVE",
+    };
+
+    api.mockImplementation(async (endpoint) => {
+      if (endpoint === "/auth/me") {
+        return {
+          id: memberUserId,
+          email: "member@continuum.ai",
+          name: "Linh Member",
+          organizationId,
+          roles: ["MEMBER"],
+        };
+      }
+      if (String(endpoint).startsWith("/iam/projects")) {
+        return { data: [], pagination: { page: 1, pageSize: 100 } };
+      }
+      if (endpoint === "/iam/mcp-api-keys") {
+        return {
+          items: [activeKey],
+          mcpEndpointPath: "/api/v1/mcp",
+          protocolVersion: "2025-03-26",
+          toolCount: 28,
+        };
+      }
+      throw new Error(`Unexpected endpoint: ${endpoint}`);
+    });
+
+    const { container } = mount();
+    await screen.findByText("Workstation CLI");
+
+    // 1. Create Modal portals to document.body with z-99999 above AdminLayout & floating widgets
+    const openBtn = screen.getAllByRole("button", {
+      name: /Create Personal MCP API Key/i,
+    })[0];
+    openBtn.focus();
+    fireEvent.click(openBtn);
+
+    const createBackdrop = screen.getByTestId("mcp-create-modal-backdrop");
+    expect(createBackdrop.parentElement).toBe(document.body);
+    expect(container.contains(createBackdrop)).toBe(false);
+    expect(createBackdrop).toHaveClass("z-99999");
+
+    const createDialog = within(createBackdrop).getByRole("dialog", {
+      name: "Create Personal MCP API Key",
+    });
+    // Clicking inside dialog must keep modal open
+    fireEvent.click(createDialog);
+    expect(screen.getByTestId("mcp-create-modal-backdrop")).toBeInTheDocument();
+
+    // Clicking backdrop closes modal and restores trigger focus
+    fireEvent.click(createBackdrop);
+    expect(
+      screen.queryByTestId("mcp-create-modal-backdrop"),
+    ).not.toBeInTheDocument();
+    expect(openBtn).toHaveFocus();
+
+    // 2. Revoke Modal portals to document.body with z-99999 and closes on backdrop click
+    const revokeBtn = screen.getByRole("button", { name: "Revoke" });
+    revokeBtn.focus();
+    fireEvent.click(revokeBtn);
+
+    const revokeBackdrop = screen.getByTestId("mcp-revoke-modal-backdrop");
+    expect(revokeBackdrop.parentElement).toBe(document.body);
+    expect(container.contains(revokeBackdrop)).toBe(false);
+    expect(revokeBackdrop).toHaveClass("z-99999");
+
+    const revokeDialog = within(revokeBackdrop).getByRole("dialog", {
+      name: "Revoke MCP API key?",
+    });
+    fireEvent.click(revokeDialog);
+    expect(screen.getByTestId("mcp-revoke-modal-backdrop")).toBeInTheDocument();
+
+    fireEvent.click(revokeBackdrop);
+    expect(
+      screen.queryByTestId("mcp-revoke-modal-backdrop"),
+    ).not.toBeInTheDocument();
+    expect(revokeBtn).toHaveFocus();
+  });
 });

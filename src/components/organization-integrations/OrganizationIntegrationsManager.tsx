@@ -10,6 +10,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { useFormatter, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { ApiError, isAccessOrResourceUnavailableError } from "@/lib/api-client";
@@ -47,7 +48,7 @@ import {
   ArrowRightIcon,
   CheckCircleIcon,
   CheckLineIcon,
-  CloseIcon,
+  CloseLineIcon,
   CopyIcon,
   DocsIcon,
   InfoIcon,
@@ -59,6 +60,13 @@ import {
 } from "@/icons";
 import { cn } from "@/utils";
 import { writeClipboardText } from "@/utils/clipboard";
+
+function renderModalPortal(node: ReactNode): ReactNode {
+  if (typeof document === "undefined") {
+    return node;
+  }
+  return createPortal(node, document.body);
+}
 
 type ExpirationPreset = "30" | "90" | "365" | "never";
 
@@ -1489,420 +1497,436 @@ export default function OrganizationIntegrationsManager() {
       </section>
 
       {/* 5. Create MCP API Key Modal */}
-      {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-xs">
+      {isCreateModalOpen &&
+        renderModalPortal(
           <div
-            ref={createDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-mcp-key-dialog-title"
-            aria-describedby="create-mcp-key-dialog-desc"
-            className="max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-lg sm:p-6 dark:border-gray-800 dark:bg-gray-900"
+            data-testid="mcp-create-modal-backdrop"
+            onClick={closeCreateModal}
+            className="fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-3 backdrop-blur-[3px] sm:items-center sm:p-4 dark:bg-gray-950/65"
           >
-            <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-4 dark:border-gray-800">
-              <div>
-                <h2
-                  id="create-mcp-key-dialog-title"
-                  className="text-lg font-semibold text-gray-900 dark:text-white"
-                >
-                  {t("createModalTitle")}
-                </h2>
-                <p
-                  id="create-mcp-key-dialog-desc"
-                  className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400"
-                >
-                  {t("createModalSubtitle")}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label={t("closeModalAria")}
-                disabled={createMutation.isPending}
-                onClick={closeCreateModal}
-                className="inline-flex size-8 cursor-pointer items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
-              >
-                <CloseIcon className="size-4" aria-hidden="true" />
-              </button>
-            </div>
-
-            {formValidationError && (
-              <div className="mt-4" role="alert">
-                <Alert
-                  variant="warning"
-                  title={t("errorTitle")}
-                  message={formValidationError}
-                />
-              </div>
-            )}
-
-            {createMutation.isError && (
-              <div className="mt-4" role="alert">
-                <Alert
-                  variant="error"
-                  title={t("errorTitle")}
-                  message={resolveErrorMessage(createMutation.error)}
-                />
-              </div>
-            )}
-
-            <form
-              onSubmit={handleCreateSubmit}
-              className="mt-5 space-y-5"
-              noValidate
+            <div
+              ref={createDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-mcp-key-dialog-title"
+              aria-describedby="create-mcp-key-dialog-desc"
+              onClick={(event) => event.stopPropagation()}
+              className="relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:max-h-[min(90dvh,760px)] dark:border-gray-800 dark:bg-gray-900"
             >
-              {/* Key Name */}
-              <div>
-                <div className="flex items-center justify-between gap-2">
-                  <Label htmlFor="mcp-key-name-input">
-                    {t("keyNameLabel")}
-                  </Label>
-                  <span className="mb-1 text-xs text-gray-400 tabular-nums">
-                    {keyName.trim().length}/80
-                  </span>
+              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6 dark:border-gray-800">
+                <div>
+                  <h2
+                    id="create-mcp-key-dialog-title"
+                    className="text-lg font-semibold text-gray-900 dark:text-white"
+                  >
+                    {t("createModalTitle")}
+                  </h2>
+                  <p
+                    id="create-mcp-key-dialog-desc"
+                    className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400"
+                  >
+                    {t("createModalSubtitle")}
+                  </p>
                 </div>
-                <input
-                  ref={keyNameInputRef}
-                  id="mcp-key-name-input"
-                  type="text"
-                  maxLength={80}
-                  required
-                  value={keyName}
+                <button
+                  type="button"
+                  aria-label={t("closeModalAria")}
                   disabled={createMutation.isPending}
-                  onChange={(event) => {
-                    setKeyName(event.target.value);
-                    setFormValidationError(null);
-                  }}
-                  placeholder={t("keyNamePlaceholder")}
-                  className="h-11 w-full rounded-xl border border-gray-300 bg-transparent px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                />
-                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                  {t("keyNameHelp")}
-                </p>
+                  onClick={closeCreateModal}
+                  className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-gray-100/80 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800/80 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                >
+                  <CloseLineIcon className="size-4" aria-hidden="true" />
+                </button>
               </div>
 
-              {/* Capability Tier Selector */}
-              <fieldset>
-                <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t("scopeLabel")}
-                </legend>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                  {(
-                    [
-                      {
-                        value: "FULL_OPERATIONS" as const,
-                        title: t("scopeFullOpsTitle"),
-                        desc: t("scopeFullOpsDesc"),
-                        code: "FULL_OPERATIONS",
-                      },
-                      {
-                        value: "READ_WRITE" as const,
-                        title: t("scopeReadWriteTitle"),
-                        desc: t("scopeReadWriteDesc"),
-                        code: "READ_WRITE",
-                      },
-                      {
-                        value: "READ_ONLY" as const,
-                        title: t("scopeReadOnlyTitle"),
-                        desc: t("scopeReadOnlyDesc"),
-                        code: "READ_ONLY",
-                      },
-                    ] as const
-                  ).map((tier) => {
-                    const active = selectedScope === tier.value;
-                    return (
+              <form
+                onSubmit={handleCreateSubmit}
+                className="flex min-h-0 flex-1 flex-col overflow-hidden"
+                noValidate
+              >
+                <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
+                  {formValidationError && (
+                    <div role="alert">
+                      <Alert
+                        variant="warning"
+                        title={t("errorTitle")}
+                        message={formValidationError}
+                      />
+                    </div>
+                  )}
+
+                  {createMutation.isError && (
+                    <div role="alert">
+                      <Alert
+                        variant="error"
+                        title={t("errorTitle")}
+                        message={resolveErrorMessage(createMutation.error)}
+                      />
+                    </div>
+                  )}
+
+                  {/* Key Name */}
+                  <div>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="mcp-key-name-input">
+                        {t("keyNameLabel")}
+                      </Label>
+                      <span className="mb-1 text-xs text-gray-400 tabular-nums">
+                        {keyName.trim().length}/80
+                      </span>
+                    </div>
+                    <input
+                      ref={keyNameInputRef}
+                      id="mcp-key-name-input"
+                      type="text"
+                      maxLength={80}
+                      required
+                      value={keyName}
+                      disabled={createMutation.isPending}
+                      onChange={(event) => {
+                        setKeyName(event.target.value);
+                        setFormValidationError(null);
+                      }}
+                      placeholder={t("keyNamePlaceholder")}
+                      className="h-10 w-full rounded-xl border border-gray-300 bg-transparent px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    />
+                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      {t("keyNameHelp")}
+                    </p>
+                  </div>
+
+                  {/* Capability Tier Selector */}
+                  <fieldset>
+                    <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {t("scopeLabel")}
+                    </legend>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+                      {(
+                        [
+                          {
+                            value: "FULL_OPERATIONS" as const,
+                            title: t("scopeFullOpsTitle"),
+                            desc: t("scopeFullOpsDesc"),
+                            code: "FULL_OPERATIONS",
+                          },
+                          {
+                            value: "READ_WRITE" as const,
+                            title: t("scopeReadWriteTitle"),
+                            desc: t("scopeReadWriteDesc"),
+                            code: "READ_WRITE",
+                          },
+                          {
+                            value: "READ_ONLY" as const,
+                            title: t("scopeReadOnlyTitle"),
+                            desc: t("scopeReadOnlyDesc"),
+                            code: "READ_ONLY",
+                          },
+                        ] as const
+                      ).map((tier) => {
+                        const active = selectedScope === tier.value;
+                        return (
+                          <button
+                            key={tier.value}
+                            type="button"
+                            aria-pressed={active}
+                            disabled={createMutation.isPending}
+                            onClick={() => setSelectedScope(tier.value)}
+                            className={cn(
+                              "flex cursor-pointer flex-col items-start rounded-xl border p-3 text-start transition-colors",
+                              active
+                                ? "border-brand-500 bg-brand-50/60 ring-1 ring-brand-500/30 dark:border-brand-400 dark:bg-brand-500/15"
+                                : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700",
+                            )}
+                          >
+                            <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
+                              {tier.code}
+                            </code>
+                            <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
+                              {tier.title}
+                            </span>
+                            <span className="mt-1 text-xs leading-4.5 text-gray-600 dark:text-gray-400">
+                              {tier.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </fieldset>
+
+                  {/* Project Scope Partition */}
+                  <fieldset>
+                    <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {t("projectScopeLabel")}
+                    </legend>
+                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                       <button
-                        key={tier.value}
                         type="button"
-                        aria-pressed={active}
+                        aria-pressed={projectPartitionMode === "all"}
                         disabled={createMutation.isPending}
-                        onClick={() => setSelectedScope(tier.value)}
+                        onClick={() => {
+                          setProjectPartitionMode("all");
+                          setFormValidationError(null);
+                        }}
                         className={cn(
-                          "flex cursor-pointer flex-col items-start rounded-xl border p-3.5 text-start transition-colors",
-                          active
-                            ? "border-brand-500 bg-brand-50/60 ring-1 ring-brand-500/30 dark:border-brand-400 dark:bg-brand-500/15"
-                            : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700",
+                          "cursor-pointer rounded-xl border p-3 text-start transition-colors",
+                          projectPartitionMode === "all"
+                            ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
+                            : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
                         )}
                       >
-                        <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
-                          {tier.code}
-                        </code>
-                        <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
-                          {tier.title}
+                        <span className="block text-sm font-semibold text-gray-900 dark:text-white">
+                          {t("allProjectsOption")}
                         </span>
-                        <span className="mt-1 text-xs leading-4.5 text-gray-600 dark:text-gray-400">
-                          {tier.desc}
+                        <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
+                          {t("allProjectsDesc")}
                         </span>
                       </button>
-                    );
-                  })}
-                </div>
-              </fieldset>
 
-              {/* Project Scope Partition */}
-              <fieldset>
-                <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  {t("projectScopeLabel")}
-                </legend>
-                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                  <button
-                    type="button"
-                    aria-pressed={projectPartitionMode === "all"}
-                    disabled={createMutation.isPending}
-                    onClick={() => {
-                      setProjectPartitionMode("all");
-                      setFormValidationError(null);
-                    }}
-                    className={cn(
-                      "cursor-pointer rounded-xl border p-3 text-start transition-colors",
-                      projectPartitionMode === "all"
-                        ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
-                        : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
-                    )}
-                  >
-                    <span className="block text-sm font-semibold text-gray-900 dark:text-white">
-                      {t("allProjectsOption")}
-                    </span>
-                    <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                      {t("allProjectsDesc")}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    aria-pressed={projectPartitionMode === "selected"}
-                    disabled={createMutation.isPending}
-                    onClick={() => {
-                      setProjectPartitionMode("selected");
-                      setFormValidationError(null);
-                    }}
-                    className={cn(
-                      "cursor-pointer rounded-xl border p-3 text-start transition-colors",
-                      projectPartitionMode === "selected"
-                        ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
-                        : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                        {t("selectedProjectsOption")}
-                      </span>
-                      {selectedProjectIds.length > 0 && (
-                        <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
-                          {t("selectedProjectsCount", {
-                            count: selectedProjectIds.length,
-                          })}
+                      <button
+                        type="button"
+                        aria-pressed={projectPartitionMode === "selected"}
+                        disabled={createMutation.isPending}
+                        onClick={() => {
+                          setProjectPartitionMode("selected");
+                          setFormValidationError(null);
+                        }}
+                        className={cn(
+                          "cursor-pointer rounded-xl border p-3 text-start transition-colors",
+                          projectPartitionMode === "selected"
+                            ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
+                            : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
+                        )}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {t("selectedProjectsOption")}
+                          </span>
+                          {selectedProjectIds.length > 0 && (
+                            <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
+                              {t("selectedProjectsCount", {
+                                count: selectedProjectIds.length,
+                              })}
+                            </span>
+                          )}
+                        </div>
+                        <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
+                          {t("selectedProjectsDesc")}
                         </span>
-                      )}
+                      </button>
                     </div>
-                    <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                      {t("selectedProjectsDesc")}
-                    </span>
-                  </button>
-                </div>
 
-                {projectPartitionMode === "selected" && (
-                  <div className="mt-2.5 rounded-xl border border-gray-200 bg-gray-50/70 p-2.5 dark:border-gray-800 dark:bg-gray-950">
-                    {projectsQuery.isPending ? (
-                      <p className="px-2 py-2 text-xs text-gray-500">
-                        {t("projectsLoading")}
-                      </p>
-                    ) : projectsQuery.isError ? (
-                      <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 text-xs">
-                        <span className="text-error-700 dark:text-error-300">
-                          {t("projectsLoadError")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => void projectsQuery.refetch()}
-                          className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
-                        >
-                          {t("retry")}
-                        </button>
-                      </div>
-                    ) : activeProjects.length === 0 ? (
-                      <p className="px-2 py-2 text-xs text-gray-500">
-                        {t("projectsEmpty")}
-                      </p>
-                    ) : (
-                      <>
-                        {activeProjects.length > 6 && (
-                          <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200/80 pb-2 dark:border-gray-800">
-                            <div className="relative min-w-0 flex-1">
-                              <SearchIcon
-                                aria-hidden="true"
-                                className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
-                              />
-                              <input
-                                type="search"
-                                value={projectSearchQuery}
-                                onChange={(event) =>
-                                  setProjectSearchQuery(event.target.value)
-                                }
-                                placeholder={t("searchProjectsPlaceholder")}
-                                aria-label={t("searchProjectsPlaceholder")}
-                                className="h-8 w-full rounded-lg border border-gray-200 bg-white ps-8 pe-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                              />
-                            </div>
+                    {projectPartitionMode === "selected" && (
+                      <div className="mt-2.5 rounded-xl border border-gray-200 bg-gray-50/70 p-2.5 dark:border-gray-800 dark:bg-gray-950">
+                        {projectsQuery.isPending ? (
+                          <p className="px-2 py-2 text-xs text-gray-500">
+                            {t("projectsLoading")}
+                          </p>
+                        ) : projectsQuery.isError ? (
+                          <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 text-xs">
+                            <span className="text-error-700 dark:text-error-300">
+                              {t("projectsLoadError")}
+                            </span>
                             <button
                               type="button"
-                              onClick={handleSelectAllFilteredProjects}
-                              className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
+                              onClick={() => void projectsQuery.refetch()}
+                              className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
                             >
-                              {t("selectAllProjects")}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleClearSelectedProjects}
-                              className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
-                            >
-                              {t("clearSelectedProjects")}
+                              {t("retry")}
                             </button>
                           </div>
+                        ) : activeProjects.length === 0 ? (
+                          <p className="px-2 py-2 text-xs text-gray-500">
+                            {t("projectsEmpty")}
+                          </p>
+                        ) : (
+                          <>
+                            {activeProjects.length > 6 && (
+                              <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200/80 pb-2 dark:border-gray-800">
+                                <div className="relative min-w-0 flex-1">
+                                  <SearchIcon
+                                    aria-hidden="true"
+                                    className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
+                                  />
+                                  <input
+                                    type="search"
+                                    value={projectSearchQuery}
+                                    onChange={(event) =>
+                                      setProjectSearchQuery(event.target.value)
+                                    }
+                                    placeholder={t("searchProjectsPlaceholder")}
+                                    aria-label={t("searchProjectsPlaceholder")}
+                                    className="h-8 w-full rounded-lg border border-gray-200 bg-white ps-8 pe-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={handleSelectAllFilteredProjects}
+                                  className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
+                                >
+                                  {t("selectAllProjects")}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleClearSelectedProjects}
+                                  className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
+                                >
+                                  {t("clearSelectedProjects")}
+                                </button>
+                              </div>
+                            )}
+
+                            <ul className="max-h-40 space-y-1 overflow-y-auto">
+                              {filteredModalProjects.map((proj) => {
+                                const checked = selectedProjectIds.includes(
+                                  proj.id,
+                                );
+                                return (
+                                  <li key={proj.id}>
+                                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-xs hover:bg-white dark:hover:bg-gray-900">
+                                      <span className="flex items-center gap-2.5">
+                                        <input
+                                          type="checkbox"
+                                          checked={checked}
+                                          onChange={() =>
+                                            handleToggleProjectId(proj.id)
+                                          }
+                                          className="size-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
+                                        />
+                                        <span className="font-medium text-gray-900 dark:text-gray-100">
+                                          {proj.name}
+                                        </span>
+                                      </span>
+                                      <code className="rounded bg-gray-200/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                                        {proj.code}
+                                      </code>
+                                    </label>
+                                  </li>
+                                );
+                              })}
+                            </ul>
+                          </>
                         )}
-
-                        <ul className="max-h-44 space-y-1 overflow-y-auto">
-                          {filteredModalProjects.map((proj) => {
-                            const checked = selectedProjectIds.includes(
-                              proj.id,
-                            );
-                            return (
-                              <li key={proj.id}>
-                                <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-xs hover:bg-white dark:hover:bg-gray-900">
-                                  <span className="flex items-center gap-2.5">
-                                    <input
-                                      type="checkbox"
-                                      checked={checked}
-                                      onChange={() =>
-                                        handleToggleProjectId(proj.id)
-                                      }
-                                      className="size-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                                    />
-                                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                                      {proj.name}
-                                    </span>
-                                  </span>
-                                  <code className="rounded bg-gray-200/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                    {proj.code}
-                                  </code>
-                                </label>
-                              </li>
-                            );
-                          })}
-                        </ul>
-                      </>
+                      </div>
                     )}
+                  </fieldset>
+
+                  {/* Expiration Selector */}
+                  <div>
+                    <Label htmlFor="mcp-key-expiration-select">
+                      {t("expirationLabel")}
+                    </Label>
+                    <select
+                      id="mcp-key-expiration-select"
+                      value={expirationPreset}
+                      disabled={createMutation.isPending}
+                      onChange={(event) =>
+                        setExpirationPreset(
+                          event.target.value as ExpirationPreset,
+                        )
+                      }
+                      className="h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
+                    >
+                      <option value="30">{t("exp30Days")}</option>
+                      <option value="90">{t("exp90Days")}</option>
+                      <option value="365">{t("exp365Days")}</option>
+                      <option value="never">{t("expNever")}</option>
+                    </select>
                   </div>
-                )}
-              </fieldset>
+                </div>
 
-              {/* Expiration Selector */}
-              <div>
-                <Label htmlFor="mcp-key-expiration-select">
-                  {t("expirationLabel")}
-                </Label>
-                <select
-                  id="mcp-key-expiration-select"
-                  value={expirationPreset}
-                  disabled={createMutation.isPending}
-                  onChange={(event) =>
-                    setExpirationPreset(event.target.value as ExpirationPreset)
-                  }
-                  className="h-11 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                >
-                  <option value="30">{t("exp30Days")}</option>
-                  <option value="90">{t("exp90Days")}</option>
-                  <option value="365">{t("exp365Days")}</option>
-                  <option value="never">{t("expNever")}</option>
-                </select>
-              </div>
+                <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-gray-100 bg-gray-50/70 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-950/50">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={createMutation.isPending}
+                    onClick={closeCreateModal}
+                  >
+                    {t("cancelCta")}
+                  </Button>
+                  <Button
+                    type="submit"
+                    size="sm"
+                    disabled={createMutation.isPending}
+                  >
+                    {createMutation.isPending
+                      ? t("mintingKey")
+                      : t("mintKeySubmit")}
+                  </Button>
+                </div>
+              </form>
+            </div>
+          </div>,
+        )}
 
-              <div className="flex items-center justify-end gap-2.5 border-t border-gray-100 pt-4 dark:border-gray-800">
+      {/* 6. Revoke Confirmation Dialog */}
+      {revokeTarget &&
+        renderModalPortal(
+          <div
+            data-testid="mcp-revoke-modal-backdrop"
+            onClick={closeRevokeModal}
+            className="fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-4 backdrop-blur-[3px] sm:items-center dark:bg-gray-950/65"
+          >
+            <div
+              ref={revokeDialogRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="revoke-mcp-key-dialog-title"
+              aria-describedby="revoke-mcp-key-dialog-desc"
+              onClick={(event) => event.stopPropagation()}
+              className="relative my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl sm:p-6 dark:border-gray-800 dark:bg-gray-900"
+            >
+              <h2
+                id="revoke-mcp-key-dialog-title"
+                className="text-lg font-semibold text-gray-900 dark:text-white"
+              >
+                {t("revokeConfirmTitle")}
+              </h2>
+              <p
+                id="revoke-mcp-key-dialog-desc"
+                className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300"
+              >
+                {t("revokeConfirmDesc", {
+                  name: revokeTarget.name,
+                  prefix: revokeTarget.keyPrefix,
+                })}
+              </p>
+
+              {revokeMutation.isError && (
+                <div className="mt-4" role="alert">
+                  <Alert
+                    variant="error"
+                    title={t("errorTitle")}
+                    message={resolveErrorMessage(revokeMutation.error)}
+                  />
+                </div>
+              )}
+
+              <div className="mt-5 flex items-center justify-end gap-2.5">
                 <Button
+                  ref={revokeCancelBtnRef}
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={createMutation.isPending}
-                  onClick={closeCreateModal}
+                  disabled={revokeMutation.isPending}
+                  onClick={closeRevokeModal}
                 >
                   {t("cancelCta")}
                 </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={createMutation.isPending}
+                <button
+                  type="button"
+                  disabled={revokeMutation.isPending}
+                  onClick={() => void handleConfirmRevoke()}
+                  className="inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-error-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-error-700 disabled:opacity-60"
                 >
-                  {createMutation.isPending
-                    ? t("mintingKey")
-                    : t("mintKeySubmit")}
-                </Button>
+                  {revokeMutation.isPending
+                    ? t("revokingCta")
+                    : t("revokeConfirmSubmit")}
+                </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* 6. Revoke Confirmation Dialog */}
-      {revokeTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/60 p-4 backdrop-blur-xs">
-          <div
-            ref={revokeDialogRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="revoke-mcp-key-dialog-title"
-            aria-describedby="revoke-mcp-key-dialog-desc"
-            className="w-full max-w-md rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-lg sm:p-6 dark:border-gray-800 dark:bg-gray-900"
-          >
-            <h2
-              id="revoke-mcp-key-dialog-title"
-              className="text-lg font-semibold text-gray-900 dark:text-white"
-            >
-              {t("revokeConfirmTitle")}
-            </h2>
-            <p
-              id="revoke-mcp-key-dialog-desc"
-              className="mt-2 text-sm leading-6 text-gray-600 dark:text-gray-300"
-            >
-              {t("revokeConfirmDesc", {
-                name: revokeTarget.name,
-                prefix: revokeTarget.keyPrefix,
-              })}
-            </p>
-
-            {revokeMutation.isError && (
-              <div className="mt-4" role="alert">
-                <Alert
-                  variant="error"
-                  title={t("errorTitle")}
-                  message={resolveErrorMessage(revokeMutation.error)}
-                />
-              </div>
-            )}
-
-            <div className="mt-5 flex items-center justify-end gap-2.5">
-              <Button
-                ref={revokeCancelBtnRef}
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={revokeMutation.isPending}
-                onClick={closeRevokeModal}
-              >
-                {t("cancelCta")}
-              </Button>
-              <button
-                type="button"
-                disabled={revokeMutation.isPending}
-                onClick={() => void handleConfirmRevoke()}
-                className="inline-flex h-9 cursor-pointer items-center justify-center rounded-lg bg-error-600 px-4 text-xs font-semibold text-white transition-colors hover:bg-error-700 disabled:opacity-60"
-              >
-                {revokeMutation.isPending
-                  ? t("revokingCta")
-                  : t("revokeConfirmSubmit")}
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          </div>,
+        )}
     </div>
   );
 }
