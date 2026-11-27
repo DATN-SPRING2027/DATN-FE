@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
-import { setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, setRequestLocale } from "next-intl/server";
 import DeveloperDocsView from "@/components/docs/DeveloperDocsView";
+import { DOCS_NAMESPACES, pickMessages } from "@/i18n/messages-scope";
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
 type PageProps = {
@@ -16,5 +18,16 @@ export function generateMetadata({ params }: PageProps): Promise<Metadata> {
 export default async function DeveloperDocsPage({ params }: PageProps) {
   const { locale } = await params;
   setRequestLocale(locale);
-  return <DeveloperDocsView />;
+  const messages = await getMessages();
+  return (
+    <NextIntlClientProvider
+      locale={locale}
+      messages={pickMessages(
+        messages as Record<string, unknown>,
+        DOCS_NAMESPACES,
+      )}
+    >
+      <DeveloperDocsView />
+    </NextIntlClientProvider>
+  );
 }

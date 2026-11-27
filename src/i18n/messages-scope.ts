@@ -29,6 +29,11 @@ export const LEGAL_NAMESPACES = [
   "legalCenter",
 ] as const;
 
+export const DOCS_NAMESPACES = [
+  ...ROOT_BASE_NAMESPACES,
+  "developerDocs",
+] as const;
+
 export const PLATFORM_NAMESPACES = [
   ...ROOT_BASE_NAMESPACES,
   "auth",
@@ -51,6 +56,7 @@ export const ADMIN_NAMESPACES = [
   "aiCompanionNotifications",
   "organizationOverview",
   "organizationMembers",
+  "organizationIntegrations",
   "organizationSettings",
   "projects",
   "projectMembers",
