@@ -1187,7 +1187,7 @@
       "title": "Trợ giúp",
       "close": "Đóng bảng trợ giúp",
       "developerDocs": "Tài liệu Nhà phát triển & MCP",
-      "developerDocsDesc": "28 công cụ MCP, cấu hình IDE & kiến trúc",
+      "developerDocsDesc": "36 công cụ MCP, cấu hình IDE & kiến trúc",
       "mcpIntegrations": "Khóa API MCP & Tích hợp",
       "projects": "Dự án",
       "chat": "Trò chuyện",
@@ -1308,7 +1308,7 @@
       "switchOrgTitle": "Chuyển đổi tổ chức",
       "switchOrgDesc": "Chọn hoặc chuyển đổi không gian làm việc tổ chức đang hoạt động",
       "developerDocsTitle": "Tài liệu Nhà phát triển & MCP",
-      "developerDocsDesc": "Cổng MCP Streamable HTTP, 28 công cụ và hướng dẫn cấu hình IDE",
+      "developerDocsDesc": "Cổng MCP Streamable HTTP, 36 công cụ và hướng dẫn cấu hình IDE",
       "integrationsTitle": "Tích hợp MCP & Khóa API",
       "integrationsDesc": "Tạo khóa ctm_mcp cá nhân cho Cursor, Claude Code, Antigravity & VS Code",
       "helpDesc": "Mở hướng dẫn trợ giúp và danh sách phím tắt",
@@ -6858,7 +6858,7 @@
     "organizationSettings": "Cài đặt tổ chức",
     "organizationSettingsDescription": "Quản lý hồ sơ tổ chức, chính sách quản trị và phân quyền Quản lý.",
     "developerDocs": "Tài liệu nhà phát triển & MCP",
-    "developerDocsDescription": "Tài liệu kỹ thuật chính thức của máy chủ Continuum AI Streamable HTTP MCP, 28 công cụ hệ thống, khóa API SHA-256 và hướng dẫn tích hợp IDE.",
+    "developerDocsDescription": "Tài liệu kỹ thuật chính thức của máy chủ Continuum AI Streamable HTTP MCP, 36 công cụ hệ thống, khóa API SHA-256 và hướng dẫn tích hợp IDE.",
     "users": "Danh bạ thành viên",
     "profile": "Hồ sơ cá nhân",
     "profileDescription": "Quản lý thông tin cá nhân và bảo mật tài khoản của bạn trên Continuum.",
@@ -7008,7 +7008,7 @@
     "defaultDocLang": "vi",
     "brandHomeAria": "Trang chủ Continuum AI",
     "metaTitle": "Tài liệu nhà phát triển & MCP · Continuum",
-    "metaDescription": "Tài liệu kỹ thuật chính thức của máy chủ Continuum AI Streamable HTTP MCP, 28 công cụ trên 6 phân hệ, khóa API SHA-256 và hướng dẫn tích hợp IDE."
+    "metaDescription": "Tài liệu kỹ thuật chính thức của máy chủ Continuum AI Streamable HTTP MCP, 36 công cụ trên 6 phân hệ, khóa API SHA-256 và hướng dẫn tích hợp IDE."
   },
   "organizationIntegrations": {
     "title": "Tích hợp MCP & Khóa API",

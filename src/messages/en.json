@@ -1187,7 +1187,7 @@
       "title": "Help",
       "close": "Close help panel",
       "developerDocs": "Developer & MCP Docs",
-      "developerDocsDesc": "28 MCP tools, IDE setup & architecture",
+      "developerDocsDesc": "36 MCP tools, IDE setup & architecture",
       "mcpIntegrations": "MCP API Keys & Integrations",
       "projects": "Projects",
       "chat": "Chat",
@@ -1308,7 +1308,7 @@
       "switchOrgTitle": "Switch organization",
       "switchOrgDesc": "Choose or switch your active organization workspace",
       "developerDocsTitle": "Developer & MCP Docs",
-      "developerDocsDesc": "Streamable HTTP MCP gateway, 28 tools, and IDE setup",
+      "developerDocsDesc": "Streamable HTTP MCP gateway, 36 tools, and IDE setup",
       "integrationsTitle": "MCP Integrations & API Keys",
       "integrationsDesc": "Generate personal ctm_mcp keys for Cursor, Claude Code, Antigravity & VS Code",
       "helpDesc": "Open help guide and workspace keyboard shortcuts",
@@ -6858,7 +6858,7 @@
     "organizationSettings": "Organization Settings",
     "organizationSettingsDescription": "Manage organization profile, governance policy, and manager permissions.",
     "developerDocs": "Developer & MCP Docs",
-    "developerDocsDescription": "Official technical reference for the Continuum AI Streamable HTTP MCP Server, 28 workspace tools, SHA-256 API keys, and IDE setup.",
+    "developerDocsDescription": "Official technical reference for the Continuum AI Streamable HTTP MCP Server, 36 workspace tools, SHA-256 API keys, and IDE setup.",
     "users": "User Directory",
     "profile": "My Profile",
     "profileDescription": "Manage your personal information and account security in Continuum.",
@@ -7008,7 +7008,7 @@
     "defaultDocLang": "en",
     "brandHomeAria": "Continuum AI home",
     "metaTitle": "Developer & MCP Docs · Continuum",
-    "metaDescription": "Official technical reference for the Continuum AI Streamable HTTP MCP Server, 28 tools across 6 subsystems, SHA-256 API keys, and IDE setup."
+    "metaDescription": "Official technical reference for the Continuum AI Streamable HTTP MCP Server, 36 tools across 6 subsystems, SHA-256 API keys, and IDE setup."
   },
   "organizationIntegrations": {
     "title": "MCP Integrations & API Keys",

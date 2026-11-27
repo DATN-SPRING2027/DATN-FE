@@ -10,12 +10,12 @@ export const MCP_TOOL_DOMAIN_ORDER: readonly McpToolDomainId[] = [
 ];
 
 /**
- * 28 Continuum MCP Tools — 100% parameter & schema parity with
+ * 36 Continuum MCP Tools — 100% parameter & schema parity with
  * DATN-BE/src/mcp/mcp-tools.catalog.ts and PROJECT.md Section 2.3.
  */
 export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
   // =========================================================================
-  // 1. IAM & Projects (4)
+  // 1. IAM & Projects (7)
   // =========================================================================
   {
     name: "continuum_get_context",
@@ -173,6 +173,229 @@ export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
       },
     ],
     exampleArgs: { projectId: "69e923c77859fd1c702d4c21", status: "ACTIVE" },
+  },
+  {
+    name: "continuum_create_project",
+    domain: "iam-projects",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Create a new Continuum project in the active organization with optional initial members and leaders (org-wide key + project.create permission required).",
+      vi: "Tạo dự án Continuum mới trong tổ chức hiện hành kèm thành viên/trưởng nhóm khởi tạo (yêu cầu khóa toàn tổ chức và quyền project.create).",
+    },
+    params: [
+      {
+        name: "name",
+        type: "string",
+        required: true,
+        description: {
+          en: "Project display name (1..200 chars).",
+          vi: "Tên hiển thị dự án (1..200 ký tự).",
+        },
+      },
+      {
+        name: "code",
+        type: "string",
+        required: true,
+        description: {
+          en: "Uppercase project key (2..32 chars, starts with A-Z).",
+          vi: "Mã dự án viết hoa (2..32 ký tự, bắt đầu bằng A-Z).",
+        },
+      },
+      {
+        name: "description",
+        type: "string",
+        required: false,
+        description: {
+          en: "Optional project overview (max 2000 chars).",
+          vi: "Mô tả ngắn dự án (tối đa 2000 ký tự).",
+        },
+      },
+      {
+        name: "visibility",
+        type: '"PRIVATE" | "PUBLIC"',
+        required: false,
+        description: {
+          en: "Project visibility (defaults to PRIVATE).",
+          vi: "Chế độ hiển thị dự án (mặc định PRIVATE).",
+        },
+      },
+      {
+        name: "memberUserIds",
+        type: "string[]",
+        required: false,
+        description: {
+          en: "Optional initial member user IDs (24-hex array).",
+          vi: "Danh sách mã người dùng thành viên ban đầu (mảng 24-hex).",
+        },
+      },
+      {
+        name: "leaderUserIds",
+        type: "string[]",
+        required: false,
+        description: {
+          en: "Optional initial leader user IDs (24-hex array).",
+          vi: "Danh sách mã người dùng trưởng nhóm ban đầu (mảng 24-hex).",
+        },
+      },
+    ],
+    exampleArgs: {
+      name: "Continuum Core",
+      code: "CNTM",
+      visibility: "PRIVATE",
+    },
+  },
+  {
+    name: "continuum_update_project",
+    domain: "iam-projects",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: true,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Update project name, description, or visibility under live project.update / project.visibility.manage RBAC.",
+      vi: "Cập nhật tên, mô tả hoặc chế độ PRIVATE/PUBLIC của dự án theo phân quyền RBAC thời gian thực.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Target project ID (24-hex).",
+          vi: "Mã dự án cần cập nhật (24-hex).",
+        },
+      },
+      {
+        name: "name",
+        type: "string",
+        required: false,
+        description: {
+          en: "Updated project name (1..200 chars).",
+          vi: "Tên dự án mới (1..200 ký tự).",
+        },
+      },
+      {
+        name: "description",
+        type: "string | null",
+        required: false,
+        description: {
+          en: "Updated description or null to clear.",
+          vi: "Mô tả mới hoặc null để xóa.",
+        },
+      },
+      {
+        name: "visibility",
+        type: '"PRIVATE" | "PUBLIC"',
+        required: false,
+        description: {
+          en: "Updated project visibility.",
+          vi: "Chế độ hiển thị mới của dự án.",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      visibility: "PUBLIC",
+    },
+  },
+  {
+    name: "continuum_manage_project_members",
+    domain: "iam-projects",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Inspect member/leader candidates or add/remove members and assign/change/revoke project leaders.",
+      vi: "Tra cứu ứng viên thành viên/trưởng nhóm hoặc thêm/xóa thành viên và chỉ định/thay đổi/thu hồi trưởng nhóm dự án.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Target project ID (24-hex).",
+          vi: "Mã dự án mục tiêu (24-hex).",
+        },
+      },
+      {
+        name: "action",
+        type: '"LIST_CANDIDATES" | "LIST_LEADER_CANDIDATES" | "ADD_MEMBER" | "REMOVE_MEMBER" | "ASSIGN_LEADER" | "CHANGE_LEADER" | "REVOKE_LEADER"',
+        required: true,
+        description: {
+          en: "Member or leader governance action to execute.",
+          vi: "Hành động quản trị thành viên hoặc trưởng nhóm.",
+        },
+      },
+      {
+        name: "userId",
+        type: "string (24-hex)",
+        required: false,
+        description: {
+          en: "Target user ID for ADD_MEMBER, ASSIGN_LEADER, or REVOKE_LEADER.",
+          vi: "Mã người dùng cho ADD_MEMBER, ASSIGN_LEADER hoặc REVOKE_LEADER.",
+        },
+      },
+      {
+        name: "role",
+        type: '"MEMBER" | "TEAM_LEADER"',
+        required: false,
+        description: {
+          en: "Optional initial project role when action is ADD_MEMBER.",
+          vi: "Vai trò khởi tạo khi thêm thành viên (ADD_MEMBER).",
+        },
+      },
+      {
+        name: "membershipId",
+        type: "string (24-hex)",
+        required: false,
+        description: {
+          en: "Project membership ID required for REMOVE_MEMBER.",
+          vi: "Mã thành viên dự án bắt buộc khi gọi REMOVE_MEMBER.",
+        },
+      },
+      {
+        name: "previousUserId",
+        type: "string (24-hex)",
+        required: false,
+        description: {
+          en: "Outgoing leader user ID required for CHANGE_LEADER.",
+          vi: "Mã trưởng nhóm hiện tại khi thay trưởng nhóm (CHANGE_LEADER).",
+        },
+      },
+      {
+        name: "nextUserId",
+        type: "string (24-hex)",
+        required: false,
+        description: {
+          en: "Incoming leader user ID required for CHANGE_LEADER.",
+          vi: "Mã trưởng nhóm mới khi thay trưởng nhóm (CHANGE_LEADER).",
+        },
+      },
+      {
+        name: "search",
+        type: "string",
+        required: false,
+        description: {
+          en: "Optional search filter for LIST_CANDIDATES / LIST_LEADER_CANDIDATES.",
+          vi: "Từ khóa tìm kiếm ứng viên theo tên hoặc email.",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      action: "LIST_CANDIDATES",
+    },
   },
 
   // =========================================================================
@@ -885,6 +1108,64 @@ export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
     },
   },
   {
+    name: "continuum_review_work_note",
+    domain: "capture",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Approve, request changes on, or reject a submitted task work note (APPROVE queues SAG knowledge sync).",
+      vi: "Phê duyệt, yêu cầu chỉnh sửa hoặc từ chối ghi chú công việc (APPROVE tự động đưa vào hàng đợi đồng bộ SAG).",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Project identifier (24-hex).",
+          vi: "Mã định danh dự án (24-hex).",
+        },
+      },
+      {
+        name: "noteId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Work note identifier (24-hex).",
+          vi: "Mã định danh ghi chú công việc (24-hex).",
+        },
+      },
+      {
+        name: "action",
+        type: '"APPROVE" | "REQUEST_CHANGES" | "REJECT"',
+        required: true,
+        description: {
+          en: "Review decision applied to the work note.",
+          vi: "Quyết định xét duyệt đối với ghi chú công việc.",
+        },
+      },
+      {
+        name: "comment",
+        type: "string",
+        required: false,
+        description: {
+          en: "Reviewer feedback (required for REQUEST_CHANGES and REJECT).",
+          vi: "Nhận xét xét duyệt (bắt buộc nếu chọn REQUEST_CHANGES hoặc REJECT).",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      noteId: "69e923c77859fd1c702d4c44",
+      action: "APPROVE",
+      comment: "Verified engineering rationale and links.",
+    },
+  },
+  {
     name: "continuum_list_documents",
     domain: "capture",
     minScope: "READ_ONLY",
@@ -927,6 +1208,53 @@ export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
       },
     ],
     exampleArgs: { projectId: "69e923c77859fd1c702d4c21" },
+  },
+  {
+    name: "continuum_get_document",
+    domain: "capture",
+    minScope: "READ_ONLY",
+    annotations: {
+      readOnlyHint: true,
+      idempotentHint: true,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Fetch full document content, attached file metadata, review history, and live SAG knowledge indexing status.",
+      vi: "Đọc toàn văn nội dung tài liệu, thông tin tệp đính kèm, lịch sử duyệt và trạng thái lập chỉ mục SAG.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Project identifier (24-hex).",
+          vi: "Mã định danh dự án (24-hex).",
+        },
+      },
+      {
+        name: "documentId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Document identifier (24-hex).",
+          vi: "Mã định danh tài liệu (24-hex).",
+        },
+      },
+      {
+        name: "includeKnowledgeStatus",
+        type: "boolean",
+        required: false,
+        description: {
+          en: "Include live SAG pipeline indexing status (default true).",
+          vi: "Đính kèm trạng thái đồng bộ tri thức SAG thời gian thực (mặc định true).",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      documentId: "69e923c77859fd1c702d4c55",
+    },
   },
   {
     name: "continuum_create_document",
@@ -1003,6 +1331,195 @@ export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
       type: "ARCHITECTURE",
       content: "# MCP Key Digest Storage\nAll MCP keys store SHA-256 digests only...",
       submitForReview: true,
+    },
+  },
+  {
+    name: "continuum_upload_document_file",
+    domain: "capture",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Upload a binary/text attachment (PDF, DOCX, XLSX, PPTX, MD, JSON, PNG/JPG/WEBP up to 20 MB base64) to a DRAFT project document.",
+      vi: "Tải tệp đính kèm (PDF, DOCX, XLSX, PPTX, MD, JSON, ảnh... tối đa 20 MB dạng base64) lên tài liệu dự án ở trạng thái DRAFT.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Project identifier (24-hex).",
+          vi: "Mã định danh dự án (24-hex).",
+        },
+      },
+      {
+        name: "documentId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Target DRAFT document ID (24-hex).",
+          vi: "Mã tài liệu nháp cần gắn tệp (24-hex).",
+        },
+      },
+      {
+        name: "fileName",
+        type: "string",
+        required: true,
+        description: {
+          en: "Attachment file name with extension (e.g. architecture.pdf).",
+          vi: "Tên tệp kèm phần mở rộng (ví dụ architecture.pdf).",
+        },
+      },
+      {
+        name: "contentType",
+        type: "string",
+        required: true,
+        description: {
+          en: "Declared MIME type (e.g. application/pdf, text/markdown).",
+          vi: "MIME content type của tệp (ví dụ application/pdf, text/markdown).",
+        },
+      },
+      {
+        name: "contentBase64",
+        type: "string",
+        required: true,
+        description: {
+          en: "Base64-encoded binary content (decoded limit 20 MB).",
+          vi: "Nội dung tệp mã hóa Base64 (kích thước giải mã tối đa 20 MB).",
+        },
+      },
+      {
+        name: "expectedSha256",
+        type: "string",
+        required: false,
+        description: {
+          en: "Optional 64-hex SHA-256 checksum verified before storing.",
+          vi: "Mã kiểm tra SHA-256 64 ký tự hex (tùy chọn).",
+        },
+      },
+      {
+        name: "autoSyncSag",
+        type: "boolean",
+        required: false,
+        description: {
+          en: "Automatically enqueue SAG sync if reviewer authority applies.",
+          vi: "Tự động đồng bộ sang SAG nếu có quyền xét duyệt.",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      documentId: "69e923c77859fd1c702d4c55",
+      fileName: "architecture-spec.md",
+      contentType: "text/markdown",
+      contentBase64: "IyBBcmNoaXRlY3R1cmUgU3BlYwo=",
+    },
+  },
+  {
+    name: "continuum_review_document",
+    domain: "capture",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Execute full document lifecycle actions: UPDATE_DRAFT, SUBMIT, COMMENT, APPROVE, REQUEST_CHANGES, REJECT, ARCHIVE, SYNC_KNOWLEDGE, or KNOWLEDGE_CONTROL.",
+      vi: "Điều phối toàn bộ vòng đời tài liệu: cập nhật nháp, gửi duyệt, bình luận, phê duyệt/từ chối, lưu trữ, đồng bộ SAG hoặc điều khiển PAUSE/RESUME/REPROCESS/REVOKE.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Project identifier (24-hex).",
+          vi: "Mã định danh dự án (24-hex).",
+        },
+      },
+      {
+        name: "documentId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Document identifier (24-hex).",
+          vi: "Mã định danh tài liệu (24-hex).",
+        },
+      },
+      {
+        name: "action",
+        type: '"UPDATE_DRAFT" | "SUBMIT" | "COMMENT" | "APPROVE" | "REQUEST_CHANGES" | "REJECT" | "ARCHIVE" | "SYNC_KNOWLEDGE" | "KNOWLEDGE_CONTROL"',
+        required: true,
+        description: {
+          en: "Governance or knowledge sync action.",
+          vi: "Hành động quản trị tài liệu hoặc đồng bộ tri thức SAG.",
+        },
+      },
+      {
+        name: "comment",
+        type: "string",
+        required: false,
+        description: {
+          en: "Required for COMMENT, REQUEST_CHANGES, and REJECT.",
+          vi: "Bắt buộc khi chọn COMMENT, REQUEST_CHANGES hoặc REJECT.",
+        },
+      },
+      {
+        name: "knowledgeAction",
+        type: '"PAUSE" | "RESUME" | "REPROCESS" | "REVOKE"',
+        required: false,
+        description: {
+          en: "Required when action is KNOWLEDGE_CONTROL.",
+          vi: "Bắt buộc khi action là KNOWLEDGE_CONTROL.",
+        },
+      },
+      {
+        name: "title",
+        type: "string",
+        required: false,
+        description: {
+          en: "Required when action is UPDATE_DRAFT.",
+          vi: "Bắt buộc khi action là UPDATE_DRAFT.",
+        },
+      },
+      {
+        name: "type",
+        type: "string",
+        required: false,
+        description: {
+          en: "Document type required when action is UPDATE_DRAFT.",
+          vi: "Loại tài liệu bắt buộc khi action là UPDATE_DRAFT.",
+        },
+      },
+      {
+        name: "content",
+        type: "string",
+        required: false,
+        description: {
+          en: "Markdown content required when action is UPDATE_DRAFT.",
+          vi: "Nội dung Markdown bắt buộc khi action là UPDATE_DRAFT.",
+        },
+      },
+      {
+        name: "description",
+        type: "string",
+        required: false,
+        description: {
+          en: "Optional summary when action is UPDATE_DRAFT.",
+          vi: "Tóm tắt tùy chọn khi action là UPDATE_DRAFT.",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      documentId: "69e923c77859fd1c702d4c55",
+      action: "APPROVE",
+      comment: "Approved for SAG knowledge indexing.",
     },
   },
   {
@@ -1133,10 +1650,68 @@ export const CONTINUUM_MCP_TOOLS: readonly McpToolDoc[] = [
     ],
     exampleArgs: {
       projectId: "69e923c77859fd1c702d4c21",
-      accomplishments: "Delivered Streamable HTTP MCP gateway and 28 domain tools.",
+      accomplishments: "Delivered Streamable HTTP MCP gateway and 36 domain tools.",
       approach: "TDD across IAM, Task, Capture, Handover, SAG, and Chat modules.",
       reason: "Unifies IDE agent access under live Continuum RBAC.",
       submit: false,
+    },
+  },
+  {
+    name: "continuum_review_work_report",
+    domain: "capture",
+    minScope: "FULL_OPERATIONS",
+    annotations: {
+      readOnlyHint: false,
+      idempotentHint: false,
+      destructiveHint: false,
+    },
+    summary: {
+      en: "Approve, request changes on, or reject a submitted periodic member or leader work report.",
+      vi: "Phê duyệt, yêu cầu chỉnh sửa hoặc từ chối báo cáo công việc định kỳ đã nộp.",
+    },
+    params: [
+      {
+        name: "projectId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Project identifier (24-hex).",
+          vi: "Mã định danh dự án (24-hex).",
+        },
+      },
+      {
+        name: "reportId",
+        type: "string (24-hex)",
+        required: true,
+        description: {
+          en: "Work report identifier (24-hex).",
+          vi: "Mã định danh báo cáo công việc (24-hex).",
+        },
+      },
+      {
+        name: "action",
+        type: '"APPROVE" | "REQUEST_CHANGES" | "REJECT"',
+        required: true,
+        description: {
+          en: "Review decision on the submitted report.",
+          vi: "Quyết định xét duyệt báo cáo.",
+        },
+      },
+      {
+        name: "comment",
+        type: "string",
+        required: false,
+        description: {
+          en: "Reviewer comment (required for REQUEST_CHANGES and REJECT).",
+          vi: "Nhận xét xét duyệt (bắt buộc khi chọn REQUEST_CHANGES hoặc REJECT).",
+        },
+      },
+    ],
+    exampleArgs: {
+      projectId: "69e923c77859fd1c702d4c21",
+      reportId: "69e923c77859fd1c702d4c66",
+      action: "APPROVE",
+      comment: "All milestone deliverables verified.",
     },
   },
 

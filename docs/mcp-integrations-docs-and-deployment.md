@@ -9,13 +9,13 @@
   - Authenticated App Header Help Drawer (`src/components/header/HeaderHelpDrawer.tsx`), Organization Switcher / Sidebar (`AppSidebar.tsx`, `SidebarOrganizationSwitcher.tsx`), and Legal Center footer (`LegalCenterView.tsx`).
 - **Design & Interactive Features:**
   - Architectural zero-rounded-container ledger (`docs-notebook.module.css` ruled Continuum Work Notes canvas in Light `#fcfcfd` & Dark `#0b101b` mode; only buttons use pill radii).
-  - Live client-side search (`/` shortcut, `Escape` clear/blur), 7-client WAI-ARIA config generator (**Google Antigravity, Claude Code CLI, Cursor, Claude Desktop, VS Code Copilot, Windsurf, JSON-RPC curl**), Direct vs. Same-Origin BFF endpoint switcher, filterable 28-tool schema/JSON-RPC explorer (including `continuum_ask_knowledge` `persistThread` escalation notes), 2 resources, 4 prompts, and 3 multi-step playbooks.
+  - Live client-side search (`/` shortcut, `Escape` clear/blur), 7-client WAI-ARIA config generator (**Google Antigravity, Claude Code CLI, Cursor, Claude Desktop, VS Code Copilot, Windsurf, JSON-RPC curl**), Direct vs. Same-Origin BFF endpoint switcher, filterable 36-tool schema/JSON-RPC explorer (including `continuum_ask_knowledge` `persistThread` escalation notes), 2 resources, 4 prompts, and 3 multi-step playbooks.
 
 ### B. Organization Integrations & MCP API Key Vault (`/organization/integrations`)
 - **Route & Component:** `src/app/[locale]/(admin)/organization/integrations/page.tsx` rendering `src/components/organization-integrations/OrganizationIntegrationsManager.tsx`.
 - **Capabilities:**
   - Unlocks organization navigation item (`AppSidebar.tsx`) and queries `src/lib/queries/mcp-keys/` (`/api/backend/iam/mcp-api-keys`).
-  - Mints `ctm_mcp_...` personal API keys scoped to `READ_ONLY` (19 tools), `READ_WRITE` (25 tools + `persistThread`), or `FULL_OPERATIONS` (all 28 tools), with optional `allowedProjectIds` project restriction and expiration presets.
+  - Mints `ctm_mcp_...` personal API keys scoped to `READ_ONLY` (20 tools), `READ_WRITE` (26 tools + `persistThread`), or `FULL_OPERATIONS` (all 36 tools), with optional `allowedProjectIds` project restriction and expiration presets.
   - Shows one-time secret in the IDE config generator (never persisted in Redux/localStorage across org switches) and supports instant key revocation.
 
 ### C. Streamable HTTP BFF Proxy Hardening (`src/lib/bff-proxy.ts`, `src/app/api/backend/forward.ts`)

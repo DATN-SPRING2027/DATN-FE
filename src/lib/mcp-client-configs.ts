@@ -85,7 +85,8 @@ export const MCP_IDE_CLIENT_SPECS: readonly McpIdeClientSpec[] = [
     id: "antigravity",
     label: "Google Antigravity",
     shortLabel: "Antigravity",
-    targetFile: "~/.gemini/antigravity/mcp_config.json",
+    targetFile:
+      "~/.gemini/config/mcp_config.json (or ~/.gemini/antigravity/mcp_config.json)",
     language: "json",
     buildSnippet: ({ endpointUrl, bearerToken }) =>
       JSON.stringify(

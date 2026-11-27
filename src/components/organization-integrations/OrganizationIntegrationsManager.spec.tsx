@@ -104,7 +104,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: [],
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       throw new Error(`Unexpected endpoint: ${endpoint}`);
@@ -205,7 +205,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: keys,
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       if (endpoint === "/iam/mcp-api-keys" && options?.method === "POST") {
@@ -381,7 +381,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: [],
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       if (endpoint === "/iam/mcp-api-keys" && options?.method === "POST") {
@@ -472,7 +472,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: [],
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       if (endpoint === "/iam/mcp-api-keys" && options?.method === "POST") {
@@ -597,7 +597,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: [],
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       throw new Error(`Unexpected endpoint: ${endpoint}`);
@@ -670,7 +670,7 @@ describe("OrganizationIntegrationsManager", () => {
           items: [activeKey],
           mcpEndpointPath: "/api/v1/mcp",
           protocolVersion: "2025-03-26",
-          toolCount: 28,
+          toolCount: 36,
         };
       }
       throw new Error(`Unexpected endpoint: ${endpoint}`);

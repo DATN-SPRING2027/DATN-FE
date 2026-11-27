@@ -5,7 +5,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
     metaTitle: "Developer & MCP Docs · Continuum",
     ui: {
       headerBadge: "Docs · MCP v1.0",
-      searchPlaceholder: "Search docs & 28 MCP tools (press / to focus)…",
+      searchPlaceholder: "Search docs & 36 MCP tools (press / to focus)…",
       searchAriaLabel: "Search developer documentation and MCP tools",
       clearSearchAria: "Clear documentation search",
       langGroupAria: "Documentation language",
@@ -78,8 +78,8 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
       {
         id: "tools",
         number: "04",
-        shortTitle: "28-Tool Reference",
-        title: "28-Tool Reference Explorer",
+        shortTitle: "36-Tool Reference",
+        title: "36-Tool Reference Explorer",
       },
       {
         id: "resources-prompts",
@@ -96,7 +96,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
       protocolStatLabel: "Protocol",
       protocolStatValue: "2025-03-26",
       toolsStatLabel: "System Tools",
-      toolsStatValue: "28 Tools",
+      toolsStatValue: "36 Tools",
       subsystemsStatLabel: "Subsystems",
       subsystemsStatValue: "6 Subsystems",
       authStatLabel: "Authentication",
@@ -114,9 +114,9 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
           code: "01",
           domain: "iam-projects",
           name: "IAM & Projects",
-          toolCount: 4,
+          toolCount: 7,
           summary:
-            "Caller identity inspection, organization context, project metadata, and member role rosters.",
+            "Caller identity inspection, project creation/settings, member rosters, and leader governance.",
         },
         {
           code: "02",
@@ -130,9 +130,9 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
           code: "03",
           domain: "capture",
           name: "Work Notes, Documents & Reports",
-          toolCount: 7,
+          toolCount: 12,
           summary:
-            "Structured engineering work notes, project specification documents with SAG indexing, and periodic work reports.",
+            "Work notes, binary/Markdown project documents, review/approval decisions, periodic reports, and SAG sync controls.",
         },
         {
           code: "04",
@@ -271,11 +271,11 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "READ_ONLY",
           title: "Read Only",
-          badge: "READ_ONLY · 19 tools",
+          badge: "READ_ONLY · 20 tools",
           summary:
-            "Read-only visibility across projects, tasks, sprints, work notes, documents, handovers, and cited SAG search.",
+            "Read-only visibility across projects, tasks, sprints, work notes, full document contents, handovers, and cited SAG search.",
           capabilities: [
-            "Read caller context, projects, members, tasks, sprints, notes, documents & reports",
+            "Read caller context, projects, members, tasks, sprints, notes, full documents & reports",
             "Run hybrid SAG search and cited technical Q&A",
             "Inspect chat conversations and unread notification counts without modifying state",
           ],
@@ -283,11 +283,11 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "READ_WRITE",
           title: "Read & Write",
-          badge: "READ_WRITE · 25 tools (+6 write tools)",
+          badge: "READ_WRITE · 26 tools (+6 write tools)",
           summary:
             "Day-to-day engineering work: create, update, and transition tasks, log work notes, save report drafts, and mark notifications read.",
           capabilities: [
-            "All 19 tools in READ_ONLY",
+            "All 20 tools in READ_ONLY",
             "Create, update, transition, and comment on project tasks (+4 tools)",
             "Create structured work notes, save report drafts (submit: false), and mark notifications read (+2 tools)",
           ],
@@ -295,12 +295,12 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "FULL_OPERATIONS",
           title: "Full Operations",
-          badge: "FULL_OPERATIONS · All 28 tools (+3 full-ops tools)",
+          badge: "FULL_OPERATIONS · All 36 tools (+10 full-ops tools)",
           summary:
-            "Complete workflow operations including formal document creation, report submission, 5-step handover actions, and team chat messages.",
+            "Complete workflow operations: project/member administration, binary document upload & approval, work-note/report review, 5-step handovers, and team chat.",
           capabilities: [
-            "All 25 tools in READ_WRITE",
-            "Create project specification documents and submit formal work reports (submit: true)",
+            "All 26 tools in READ_WRITE",
+            "Create/update projects, manage members/leaders, upload document files, review/approve docs/notes/reports, and sync SAG",
             "Create, bundle, and act on 5-step handovers + send team chat messages",
           ],
         },
@@ -308,7 +308,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
     },
     toolsExplorer: {
       subtitle:
-        "Filter all 28 Continuum MCP tools by subsystem, minimum capability scope, or keyword, and inspect input parameters and JSON-RPC 2.0 payloads.",
+        "Filter all 36 Continuum MCP tools by subsystem, minimum capability scope, or keyword, and inspect input parameters and JSON-RPC 2.0 payloads.",
       domainLabels: {
         "iam-projects": "IAM & Projects",
         "tasks-sprints": "Tasks & Sprints",
@@ -464,7 +464,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
     metaTitle: "Tài liệu nhà phát triển & MCP · Continuum",
     ui: {
       headerBadge: "Docs · MCP v1.0",
-      searchPlaceholder: "Tìm tài liệu & 28 công cụ MCP (nhấn / để tìm)…",
+      searchPlaceholder: "Tìm tài liệu & 36 công cụ MCP (nhấn / để tìm)…",
       searchAriaLabel: "Tìm kiếm tài liệu nhà phát triển và công cụ MCP",
       clearSearchAria: "Xóa từ khóa tìm kiếm",
       langGroupAria: "Ngôn ngữ tài liệu",
@@ -537,8 +537,8 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
       {
         id: "tools",
         number: "04",
-        shortTitle: "Tra cứu 28 công cụ",
-        title: "Danh mục chi tiết 28 công cụ MCP",
+        shortTitle: "Tra cứu 36 công cụ",
+        title: "Danh mục chi tiết 36 công cụ MCP",
       },
       {
         id: "resources-prompts",
@@ -555,7 +555,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
       protocolStatLabel: "Phiên bản giao thức",
       protocolStatValue: "2025-03-26",
       toolsStatLabel: "Công cụ hệ thống",
-      toolsStatValue: "28 công cụ",
+      toolsStatValue: "36 công cụ",
       subsystemsStatLabel: "Phân hệ kết nối",
       subsystemsStatValue: "6 phân hệ",
       authStatLabel: "Cơ chế xác thực",
@@ -573,9 +573,9 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
           code: "01",
           domain: "iam-projects",
           name: "IAM & dự án",
-          toolCount: 4,
+          toolCount: 7,
           summary:
-            "Kiểm tra danh tính người gọi, ngữ cảnh tổ chức, thông tin dự án và danh sách vai trò thành viên.",
+            "Kiểm tra danh tính người gọi, tạo/cập nhật dự án, quản lý thành viên và trưởng nhóm theo RBAC thực.",
         },
         {
           code: "02",
@@ -589,9 +589,9 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
           code: "03",
           domain: "capture",
           name: "Ghi chú, tài liệu & báo cáo",
-          toolCount: 7,
+          toolCount: 12,
           summary:
-            "Ghi chú công việc kỹ thuật có cấu trúc, tài liệu đặc tả dự án đồng bộ SAG và báo cáo công việc định kỳ.",
+            "Ghi chú công việc, tải tệp đính kèm tài liệu (base64), phê duyệt/từ chối tài liệu/ghi chú/báo cáo và điều khiển đồng bộ SAG.",
         },
         {
           code: "04",
@@ -730,11 +730,11 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "READ_ONLY",
           title: "Chỉ đọc (Read Only)",
-          badge: "READ_ONLY · 19 công cụ",
+          badge: "READ_ONLY · 20 công cụ",
           summary:
-            "Tra cứu ngữ cảnh dự án, công việc, sprint, ghi chú, tài liệu, bàn giao và tìm kiếm SAG mà không thay đổi dữ liệu.",
+            "Tra cứu ngữ cảnh dự án, công việc, sprint, ghi chú, toàn văn tài liệu, bàn giao và tìm kiếm SAG mà không thay đổi dữ liệu.",
           capabilities: [
-            "Đọc ngữ cảnh tài khoản, dự án, thành viên, công việc, sprint, ghi chú, tài liệu & báo cáo",
+            "Đọc ngữ cảnh tài khoản, dự án, thành viên, công việc, sprint, ghi chú, chi tiết tài liệu & báo cáo",
             "Chạy tìm kiếm lai SAG và hỏi đáp kỹ thuật kèm trích dẫn nguồn",
             "Xem phòng trò chuyện và số thông báo chưa đọc mà không làm đổi trạng thái",
           ],
@@ -742,11 +742,11 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "READ_WRITE",
           title: "Đọc & ghi công việc",
-          badge: "READ_WRITE · 25 công cụ (+6 công cụ ghi)",
+          badge: "READ_WRITE · 26 công cụ (+6 công cụ ghi)",
           summary:
             "Phục vụ công việc kỹ thuật hằng ngày: tạo, cập nhật, chuyển trạng thái công việc, lưu ghi chú kỹ thuật, lưu nháp báo cáo và đánh dấu thông báo.",
           capabilities: [
-            "Bao gồm toàn bộ 19 công cụ của tầng READ_ONLY",
+            "Bao gồm toàn bộ 20 công cụ của tầng READ_ONLY",
             "Tạo mới, cập nhật, chuyển trạng thái và bình luận trên công việc dự án (+4 công cụ)",
             "Tạo ghi chú kỹ thuật, lưu nháp báo cáo (submit: false) và đánh dấu đã đọc thông báo (+2 công cụ)",
           ],
@@ -754,12 +754,12 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           scope: "FULL_OPERATIONS",
           title: "Toàn quyền vận hành",
-          badge: "FULL_OPERATIONS · Đủ 28 công cụ (+3 công cụ vận hành)",
+          badge: "FULL_OPERATIONS · Đủ 36 công cụ (+10 công cụ vận hành)",
           summary:
-            "Mở khóa trọn bộ thao tác gồm tạo tài liệu dự án, nộp duyệt báo cáo công việc, điều phối bàn giao 5 bước và gửi tin nhắn nhóm.",
+            "Mở khóa trọn bộ thao tác: tạo/sửa dự án, quản trị thành viên, tải tệp đính kèm, phê duyệt tài liệu/ghi chú/báo cáo, đồng bộ SAG, bàn giao 5 bước và gửi chat.",
           capabilities: [
-            "Bao gồm toàn bộ 25 công cụ của tầng READ_WRITE",
-            "Tạo tài liệu đặc tả dự án và nộp chính thức báo cáo công việc (submit: true)",
+            "Bao gồm toàn bộ 26 công cụ của tầng READ_WRITE",
+            "Tạo/sửa dự án, thêm/gỡ thành viên & trưởng nhóm, tải tệp lên tài liệu, duyệt & đồng bộ SAG",
             "Tạo, đóng gói và thực hiện bàn giao tri thức 5 bước + gửi tin nhắn vào phòng chat",
           ],
         },
@@ -767,7 +767,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
     },
     toolsExplorer: {
       subtitle:
-        "Lọc 28 công cụ Continuum MCP theo phân hệ, tầng quyền tối thiểu hoặc từ khóa; mở từng công cụ để xem tham số đầu vào và mẫu JSON-RPC 2.0.",
+        "Lọc 36 công cụ Continuum MCP theo phân hệ, tầng quyền tối thiểu hoặc từ khóa; mở từng công cụ để xem tham số đầu vào và mẫu JSON-RPC 2.0.",
       domainLabels: {
         "iam-projects": "IAM & dự án",
         "tasks-sprints": "Công việc & sprint",
@@ -785,7 +785,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
     },
     resourcesAndPrompts: {
       subtitle:
-        "Bên cạnh 28 công cụ, Continuum cung cấp MCP Resources để nạp nhanh ngữ cảnh dự án và bộ Prompts dựng sẵn cho các tác vụ kỹ thuật lặp lại.",
+        "Bên cạnh 36 công cụ, Continuum cung cấp MCP Resources để nạp nhanh ngữ cảnh dự án và bộ Prompts dựng sẵn cho các tác vụ kỹ thuật lặp lại.",
       resourcesHeading: "MCP Resources & mẫu URI",
       resources: [
         {

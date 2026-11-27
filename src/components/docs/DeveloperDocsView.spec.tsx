@@ -82,8 +82,8 @@ describe("DeveloperDocsView", () => {
     });
   });
 
-  it("maintains structural parity across all 28 canonical tools, 2 resources, and 4 prompts in VI and EN", () => {
-    expect(CONTINUUM_MCP_TOOLS).toHaveLength(28);
+  it("maintains structural parity across all 36 canonical tools, 2 resources, and 4 prompts in VI and EN", () => {
+    expect(CONTINUUM_MCP_TOOLS).toHaveLength(36);
     expect(DOCS_CORPUS.en.sections).toHaveLength(5);
     expect(DOCS_CORPUS.vi.sections).toHaveLength(5);
     expect(DOCS_CORPUS.en.resourcesAndPrompts.resources).toHaveLength(2);
@@ -203,7 +203,7 @@ describe("DeveloperDocsView", () => {
     ).toHaveAttribute("href", "/organization/integrations");
   });
 
-  it("jumps from Section 01 subsystem '{count} tools' button and filters the 28-tool explorer with Escape search clear", () => {
+  it("jumps from Section 01 subsystem '{count} tools' button and filters the 36-tool explorer with Escape search clear", () => {
     renderDocs("en");
 
     // Default: 0 tools expanded on initial load, hiding noisy readOnlyHint chips
@@ -211,23 +211,23 @@ describe("DeveloperDocsView", () => {
 
     const countStatus = screen.getByTestId("docs-tools-count");
     expect(countStatus).toHaveAttribute("role", "status");
-    expect(countStatus).toHaveTextContent("Showing 28 of 28 MCP tools");
+    expect(countStatus).toHaveTextContent("Showing 36 of 36 MCP tools");
 
     // Click Section 01 subsystem button "5 tools" (Handover) -> filters Section 04 to Handover (5)
     fireEvent.click(screen.getByRole("button", { name: /^5 tools/i }));
     expect(screen.getByTestId("docs-tools-count")).toHaveTextContent(
-      "Showing 5 of 28 MCP tools",
+      "Showing 5 of 36 MCP tools",
     );
     expect(
       screen.getByTestId("mcp-tool-card-continuum_create_and_bundle_handover"),
     ).toBeInTheDocument();
 
-    // Intersect with FULL_OPERATIONS (3) scope -> 2 tools in Handover
+    // Intersect with FULL_OPERATIONS (10) scope -> 2 tools in Handover
     fireEvent.click(
-      screen.getByRole("button", { name: "FULL_OPERATIONS (3)" }),
+      screen.getByRole("button", { name: "FULL_OPERATIONS (10)" }),
     );
     expect(screen.getByTestId("docs-tools-count")).toHaveTextContent(
-      "Showing 2 of 28 MCP tools",
+      "Showing 2 of 36 MCP tools",
     );
 
     // Focus search via '/' shortcut, verify Jump button appears, then press Escape to clear & blur
@@ -253,7 +253,7 @@ describe("DeveloperDocsView", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Reset tool filters" }));
     expect(screen.getByTestId("docs-tools-count")).toHaveTextContent(
-      "Showing 28 of 28 MCP tools",
+      "Showing 36 of 36 MCP tools",
     );
   });
 

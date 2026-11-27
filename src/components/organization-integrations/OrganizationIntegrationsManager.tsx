@@ -749,7 +749,7 @@ export default function OrganizationIntegrationsManager() {
   const keys = visibleData?.items ?? [];
   const activeKeyCount = keys.filter((k) => k.status === "ACTIVE").length;
   const protocolVersion = visibleData?.protocolVersion ?? "2025-03-26";
-  const toolCount = visibleData?.toolCount ?? 28;
+  const toolCount = visibleData?.toolCount ?? 36;
   const { directEndpointUrl, bffEndpointUrl } = resolvePublicMcpEndpoints(
     browserOrigin,
     mcpEndpointPath,

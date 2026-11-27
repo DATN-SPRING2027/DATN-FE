@@ -899,7 +899,7 @@ export default function DeveloperDocsView() {
                 fontWeight="600"
                 letterSpacing="0.06em"
               >
-                MCP-28
+                MCP-36
               </text>
               <line
                 x1="48"
@@ -1604,7 +1604,7 @@ export default function DeveloperDocsView() {
               </div>
             </section>
 
-            {/* SECTION 04: 28-TOOL ARCHITECTURAL REFERENCE EXPLORER */}
+            {/* SECTION 04: 36-TOOL ARCHITECTURAL REFERENCE EXPLORER */}
             <section
               id="tools"
               aria-labelledby="docs-heading-tools"
