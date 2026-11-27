@@ -312,80 +312,177 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
   const blocks = content.split(/(```[\s\S]*?```)/g).filter(Boolean);
 
   const renderNonTableLines = (lines: string[], keyPrefix: string) => {
-    const joined = lines.join("\n").trim();
-    if (!joined) return null;
+    const elements: ReactNode[] = [];
+    let idx = 0;
+    let segIdx = 0;
 
-    if (lines.every((line) => /^[-*•]\s+/.test(line.trim()))) {
-      return (
-        <ul key={`ul-${keyPrefix}`} className="list-disc space-y-1.5 ps-5">
-          {lines.map((line, lineIdx) => (
-            <li key={lineIdx}>
-              {renderInlineWithCitations(
-                line.trim().replace(/^[-*•]\s+/, ""),
-                citations,
-                sessionCitations,
-                citationJumpAria,
-                onClickToken,
-              )}
-            </li>
-          ))}
-        </ul>
-      );
+    const isHrLine = (line: string) =>
+      /^(-{3,}|\*{3,}|_{3,})$/.test(line.trim());
+    const headingMatch = (line: string) =>
+      line.trim().match(/^(#{1,6})\s+(.+)$/);
+    const ulMatch = (line: string) => line.match(/^(\s*)[-*•]\s+(.+)$/);
+    const olMatch = (line: string) => line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
+
+    while (idx < lines.length) {
+      const current = lines[idx] ?? "";
+      if (!current.trim()) {
+        idx += 1;
+        continue;
+      }
+
+      if (isHrLine(current)) {
+        elements.push(
+          <hr
+            key={`hr-${keyPrefix}-${segIdx}`}
+            className="my-2 border-gray-200/80 dark:border-white/10"
+          />,
+        );
+        idx += 1;
+        segIdx += 1;
+        continue;
+      }
+
+      const hMatch = headingMatch(current);
+      if (hMatch) {
+        const level = hMatch[1]?.length ?? 3;
+        const headingText = hMatch[2] ?? "";
+        const HeadingTag = level >= 4 ? "h5" : "h4";
+        elements.push(
+          <HeadingTag
+            key={`h-${keyPrefix}-${segIdx}`}
+            className={
+              level >= 4
+                ? "pt-1 text-sm font-semibold text-gray-900 dark:text-white"
+                : "pt-1 text-base font-semibold text-gray-900 dark:text-white"
+            }
+          >
+            {renderInlineWithCitations(
+              headingText,
+              citations,
+              sessionCitations,
+              citationJumpAria,
+              onClickToken,
+            )}
+          </HeadingTag>,
+        );
+        idx += 1;
+        segIdx += 1;
+        continue;
+      }
+
+      if (ulMatch(current)) {
+        const items: Array<{ indent: number; text: string }> = [];
+        while (idx < lines.length) {
+          const matched = ulMatch(lines[idx] ?? "");
+          if (!matched) break;
+          items.push({
+            indent: (matched[1] ?? "").length,
+            text: matched[2] ?? "",
+          });
+          idx += 1;
+        }
+        elements.push(
+          <ul
+            key={`ul-${keyPrefix}-${segIdx}`}
+            className="list-disc space-y-1.5 ps-5"
+          >
+            {items.map((item, lineIdx) => (
+              <li
+                key={lineIdx}
+                className={item.indent >= 2 ? "ms-5 list-[circle]" : undefined}
+              >
+                {renderInlineWithCitations(
+                  item.text,
+                  citations,
+                  sessionCitations,
+                  citationJumpAria,
+                  onClickToken,
+                )}
+              </li>
+            ))}
+          </ul>,
+        );
+        segIdx += 1;
+        continue;
+      }
+
+      if (olMatch(current)) {
+        const items: Array<{ num: number; indent: number; text: string }> = [];
+        while (idx < lines.length) {
+          const matched = olMatch(lines[idx] ?? "");
+          if (!matched) break;
+          items.push({
+            indent: (matched[1] ?? "").length,
+            num: Number.parseInt(matched[2] ?? "1", 10),
+            text: matched[3] ?? "",
+          });
+          idx += 1;
+        }
+        const startNum = items[0]?.num ?? 1;
+        elements.push(
+          <ol
+            key={`ol-${keyPrefix}-${segIdx}`}
+            start={startNum > 1 ? startNum : undefined}
+            className="list-decimal space-y-1.5 ps-5"
+          >
+            {items.map((item, lineIdx) => (
+              <li
+                key={lineIdx}
+                className={item.indent >= 2 ? "ms-5" : undefined}
+              >
+                {renderInlineWithCitations(
+                  item.text,
+                  citations,
+                  sessionCitations,
+                  citationJumpAria,
+                  onClickToken,
+                )}
+              </li>
+            ))}
+          </ol>,
+        );
+        segIdx += 1;
+        continue;
+      }
+
+      const paragraphLines: string[] = [];
+      while (idx < lines.length) {
+        const line = lines[idx] ?? "";
+        if (
+          !line.trim() ||
+          isHrLine(line) ||
+          headingMatch(line) ||
+          ulMatch(line) ||
+          olMatch(line)
+        ) {
+          break;
+        }
+        paragraphLines.push(line);
+        idx += 1;
+      }
+      const joined = paragraphLines.join("\n").trim();
+      if (joined) {
+        elements.push(
+          <p
+            key={`p-${keyPrefix}-${segIdx}`}
+            className="whitespace-pre-wrap"
+          >
+            {renderInlineWithCitations(
+              joined,
+              citations,
+              sessionCitations,
+              citationJumpAria,
+              onClickToken,
+            )}
+          </p>,
+        );
+        segIdx += 1;
+      }
     }
 
-    if (lines.every((line) => /^\d+[.)]\s+/.test(line.trim()))) {
-      const startMatch = lines[0]?.trim().match(/^(\d+)[.)]\s+/);
-      const startNum = startMatch ? Number.parseInt(startMatch[1], 10) : 1;
-      return (
-        <ol
-          key={`ol-${keyPrefix}`}
-          start={startNum > 1 ? startNum : undefined}
-          className="list-decimal space-y-1.5 ps-5"
-        >
-          {lines.map((line, lineIdx) => (
-            <li key={lineIdx}>
-              {renderInlineWithCitations(
-                line.trim().replace(/^\d+[.)]\s+/, ""),
-                citations,
-                sessionCitations,
-                citationJumpAria,
-                onClickToken,
-              )}
-            </li>
-          ))}
-        </ol>
-      );
-    }
-
-    if (lines.length === 1 && /^#{1,3}\s+/.test(joined)) {
-      const headingText = joined.replace(/^#{1,3}\s+/, "");
-      return (
-        <h4
-          key={`h-${keyPrefix}`}
-          className="pt-1 text-base font-semibold text-gray-900 dark:text-white"
-        >
-          {renderInlineWithCitations(
-            headingText,
-            citations,
-            sessionCitations,
-            citationJumpAria,
-            onClickToken,
-          )}
-        </h4>
-      );
-    }
-
-    return (
-      <p key={`p-${keyPrefix}`} className="whitespace-pre-wrap">
-        {renderInlineWithCitations(
-          joined,
-          citations,
-          sessionCitations,
-          citationJumpAria,
-          onClickToken,
-        )}
-      </p>
-    );
+    if (elements.length === 0) return null;
+    if (elements.length === 1) return elements[0];
+    return <Fragment key={`seg-${keyPrefix}`}>{elements}</Fragment>;
   };
 
   return (

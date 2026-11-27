@@ -589,4 +589,57 @@ describe("AI Chat no-answer presentation", () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
   });
+
+  it("renders Markdown headings, horizontal rules, and nested bullet lists without blank-line gaps", () => {
+    const markdownContent = [
+      "---",
+      "### 1. Framework chính: **Next.js (App Router)** [1]",
+      "- **Lý do:** Dùng RSC và Route Handlers [1]",
+      "  - Hỗ trợ streaming SSE cho AI Chat [1]",
+      "---",
+    ].join("\n");
+
+    renderWithProviders(
+      <AiChatMessageList
+        projectId="project-1"
+        mode="chat"
+        messages={[
+          {
+            ...assistant,
+            answerStatus: "answered",
+            content: markdownContent,
+            citations: [
+              {
+                number: 1,
+                sourceId: "src-fe",
+                documentId: "6ad8834abef68a3326035eeb",
+                documentName: "02_FRONTEND_NEXTJS.md",
+                heading: "Tech Stack",
+                snippet: "Next.js App Router with SSE streaming.",
+              },
+            ],
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onInspectEvidence={vi.fn()}
+        onJumpToTurn={vi.fn()}
+      />,
+      "vi",
+    );
+
+    const heading = screen.getByRole("heading", { level: 4 });
+    expect(heading).toHaveTextContent("1. Framework chính: Next.js (App Router)");
+    expect(heading.textContent).not.toContain("###");
+    expect(screen.getAllByRole("separator")).toHaveLength(2);
+    expect(screen.getByText(/Hỗ trợ streaming SSE/).closest("li")).toHaveClass(
+      "ms-5",
+    );
+  });
 });
