@@ -300,7 +300,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       await screen.findByTestId("floating-chat-total-unread"),
     ).toHaveTextContent("2");
     const aiDock = screen.getByTestId("ai-companion-floating-dock");
-    expect(aiDock.className).toContain("sm:end-20");
+    expect(aiDock.className).toContain("sm:end-24");
 
     // 2. Click FAB -> opens conversation launcher popover
     fireEvent.click(screen.getByTestId("floating-chat-fab"));
@@ -363,7 +363,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     ).not.toBeInTheDocument();
     const head = screen.getByTestId(`floating-chat-head-${convId}`);
     expect(head).toBeInTheDocument();
-    expect(aiDock.className).toContain("sm:end-20");
+    expect(aiDock.className).toContain("sm:end-24");
 
     const restoreButton = within(head).getByRole("button", {
       name: "Restore chat with Lan Tran",
@@ -753,7 +753,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     const aiDock = screen.getByTestId("ai-companion-floating-dock");
     expect(aiDock.className).toContain("sm:end-108");
 
-    // Switch organization -> activeOrgId syncs to org2Id (0 open windows), so AI companion resets to sm:end-20!
+    // Switch organization -> activeOrgId syncs to org2Id (0 open windows), so AI companion resets to sm:end-24!
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
         id: actorId,
@@ -778,7 +778,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     );
 
     await waitFor(() => {
-      expect(aiDock.className).toContain("sm:end-20");
+      expect(aiDock.className).toContain("sm:end-24");
     });
   });
 
