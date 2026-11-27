@@ -22,7 +22,7 @@ export function HeadingEmphasis({
       "bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent dark:from-blue-400 dark:via-indigo-300 dark:to-violet-400 inline-block drop-shadow-xs",
     blue: "text-blue-600 dark:text-blue-400 font-extrabold inline-block",
     underline:
-      "relative inline-block font-extrabold text-[#0F172A] dark:text-white after:content-[''] after:absolute after:bottom-1 after:left-0 after:right-0 after:h-[3px] after:bg-gradient-to-r after:from-blue-600 after:to-indigo-500 after:rounded-full after:opacity-85",
+      "relative inline-block font-extrabold text-[#0F172A] dark:text-white after:content-[''] after:absolute after:bottom-1 after:inset-x-0 after:h-[3px] after:bg-gradient-to-r after:from-blue-600 after:to-indigo-500 after:rounded-full after:opacity-85",
     contrast: "font-black text-[#0F172A] tracking-tight dark:text-white inline-block",
   };
 
@@ -63,7 +63,7 @@ export function SectionHeading({
   return (
     <div
       className={`max-w-3xl ${
-        isCenter ? "mx-auto text-center" : "text-left"
+        isCenter ? "mx-auto text-center" : "text-start"
       } ${className}`}
     >
       {badge && (

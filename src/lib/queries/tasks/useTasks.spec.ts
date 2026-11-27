@@ -12,6 +12,7 @@ import {
 describe("Workspace Task API client (useTasks)", () => {
   afterEach(() => {
     vi.restoreAllMocks();
+    document.cookie = "continuum_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
   });
 
   it("formats task and sprint ETag / If-Match headers per contract", () => {
@@ -24,6 +25,7 @@ describe("Workspace Task API client (useTasks)", () => {
   });
 
   it("sends X-CSRF-Token, Idempotency-Key, and If-Match headers on task mutations", async () => {
+    document.cookie = "continuum_csrf=test-csrf-token";
     const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
       async () =>
         new Response(

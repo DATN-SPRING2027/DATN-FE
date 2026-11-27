@@ -3,12 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 import WorkToolbar from "./WorkToolbar";
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/icons", () => ({
-  ChevronDownIcon: () => null,
-  FilterIcon: () => null,
-  GridIcon: () => null,
-  SearchIcon: () => null,
-}));
 
 describe("WorkToolbar", () => {
   it("hides Clear filters and keeps the status selector available", () => {

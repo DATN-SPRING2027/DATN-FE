@@ -4,7 +4,7 @@ import { ArrowRightIcon, GroupIcon } from "@/icons";
 import { Link } from "@/i18n/navigation";
 import { parseGoogleOrganizationOptions } from "@/lib/auth/google-organization-options";
 import styles from "@/components/auth/auth-experience.module.css";
-import { getTranslations } from "next-intl/server";
+import { getTranslations, setRequestLocale } from "next-intl/server";
 
 function organizationInitials(name: string) {
   return name
@@ -26,10 +26,14 @@ export function generateMetadata({
 }
 
 export default async function SelectOrganizationPage({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<{ options?: string | string[] }>;
 }) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   const query = await searchParams;
   const organizations = parseGoogleOrganizationOptions(query.options);
   if (!organizations) return <AccountOnboarding />;

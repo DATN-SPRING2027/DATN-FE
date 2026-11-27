@@ -2,6 +2,13 @@
 
 import { useState, type ReactNode } from"react";
 import { useTranslations } from"next-intl";
+import {
+  CalenderIcon,
+  CheckLineIcon,
+  FilePlusIcon,
+  PencilIcon,
+  ReportsPromoIllustration,
+} from "@/icons";
 import WorkOverviewBreakdownPanel from"./WorkOverviewBreakdownPanel";
 import WorkOverviewPanel from"./WorkOverviewPanel";
 import WorkOverviewRecentItemsPanel from"./WorkOverviewRecentItemsPanel";
@@ -42,6 +49,7 @@ export default function WorkOverviewView({
   const statusCounts: Record<WorkStatus, number> = {
     TODO: 0,
     IN_PROGRESS: 0,
+    BLOCKED: 0,
     IN_REVIEW: 0,
     DONE: 0,
   };
@@ -218,85 +226,11 @@ export default function WorkOverviewView({
             </div>
           </div>
 
-          <div aria-hidden="true"className="hidden sm:block">
-            <svg width="190"height="74"viewBox="0 0 190 74"fill="none">
-              <rect
-                x="35"
-                y="6"
-                width="120"
-                height="62"
-                rx="6"
-                fill="white"
-                stroke="#B3D4FF"
-                strokeWidth="1.5"
-              />
-              <line
-                x1="47"
-                y1="18"
-                x2="85"
-                y2="18"
-                stroke="#0C66E4"
-                strokeWidth="4"
-                strokeLinecap="round"
-              />
-              <rect
-                x="47"
-                y="32"
-                width="14"
-                height="26"
-                rx="2"
-                fill="#4C9AFF"
-              />
-              <rect
-                x="66"
-                y="24"
-                width="14"
-                height="34"
-                rx="2"
-                fill="#36B37E"
-              />
-              <rect
-                x="85"
-                y="38"
-                width="14"
-                height="20"
-                rx="2"
-                fill="#6554C0"
-              />
-              <rect
-                x="104"
-                y="20"
-                width="14"
-                height="38"
-                rx="2"
-                fill="#FFAB00"
-              />
-              <rect
-                x="125"
-                y="14"
-                width="48"
-                height="44"
-                rx="6"
-                fill="white"
-                stroke="#0C66E4"
-                strokeWidth="1.5"
-              />
-              <circle
-                cx="149"
-                cy="36"
-                r="13"
-                stroke="#E9F2FF"
-                strokeWidth="5"
-                fill="none"
-              />
-              <path
-                d="M149 23 A13 13 0 1 1 136 36"
-                stroke="#0C66E4"
-                strokeWidth="5"
-                strokeLinecap="round"
-                fill="none"
-              />
-            </svg>
+          <div aria-hidden="true" className="hidden sm:block">
+            <ReportsPromoIllustration
+              aria-hidden="true"
+              className="h-[74px] w-[190px]"
+            />
           </div>
         </div>
       )}
@@ -305,80 +239,25 @@ export default function WorkOverviewView({
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <OverviewMetricCard
           iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          icon={
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.5"
-              aria-hidden="true"
-            >
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          }
+          icon={<CheckLineIcon className="h-[18px] w-[18px]" aria-hidden="true" />}
           title={`${statusCounts.DONE} completed`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
           iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          icon={
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M12 20h9"/>
-              <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>
-            </svg>
-          }
+          icon={<PencilIcon className="h-[18px] w-[18px]" aria-hidden="true" />}
           title={`${items.length} updated`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
           iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          icon={
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-              <polyline points="14 2 14 8 20 8"/>
-              <line x1="12"y1="18"x2="12"y2="12"/>
-              <line x1="9"y1="15"x2="15"y2="15"/>
-            </svg>
-          }
+          icon={<FilePlusIcon className="h-[18px] w-[18px]" aria-hidden="true" />}
           title={`${items.length} created`}
           hint="in the last 7 days"
         />
         <OverviewMetricCard
           iconBg="border border-gray-300 bg-gray-100 text-gray-800 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200"
-          icon={
-            <svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              aria-hidden="true"
-            >
-              <rect x="3"y="4"width="18"height="18"rx="2"ry="2"/>
-              <line x1="16"y1="2"x2="16"y2="6"/>
-              <line x1="8"y1="2"x2="8"y2="6"/>
-              <line x1="3"y1="10"x2="21"y2="10"/>
-            </svg>
-          }
+          icon={<CalenderIcon className="h-[18px] w-[18px]" aria-hidden="true" />}
           title={`${dueSoonCount} due soon`}
           hint="in the next 7 days"
         />

@@ -1,4 +1,5 @@
 import { Link } from "@/i18n/navigation";
+import { ChevronRightIcon } from "@/icons";
 
 interface BreadcrumbProps {
   pageTitle: string;
@@ -30,22 +31,10 @@ const PageBreadcrumb: React.FC<BreadcrumbProps> = ({
               href="/"
             >
               {homeLabel}
-              <svg
-                className="stroke-current rtl:rotate-180"
-                width="17"
-                height="16"
-                viewBox="0 0 17 16"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M6.0765 12.667L10.2432 8.50033L6.0765 4.33366"
-                  stroke=""
-                  strokeWidth="1.2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
+              <ChevronRightIcon
+                aria-hidden="true"
+                className="size-4 shrink-0 rtl:rotate-180"
+              />
             </Link>
           </li>
           {items.map((item, index) => (

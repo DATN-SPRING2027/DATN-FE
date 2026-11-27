@@ -11,7 +11,11 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useFormatter, useTranslations } from "next-intl";
 import Button from "@/components/ui/button/Button";
-import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
+import {
+  hasClientSessionHint,
+  isAccessOrResourceUnavailableError,
+} from "@/lib/api-client";
+import { getLocalTimeZone } from "@/lib/date-format";
 import { BackgroundRefreshError } from "@/components/ui/loading/AsyncStatus";
 import { Modal } from "@/components/ui/modal";
 import {
@@ -25,8 +29,7 @@ import {
   PaperPlaneIcon,
   TrashBinIcon,
 } from "@/icons";
-import { authKeys } from "@/lib/queries/auth/auth.keys";
-import type { CurrentUserResponse } from "@/lib/queries/auth/useAuth";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import {
   useProjectMembersQuery,
   type ProjectMemberPage,
@@ -701,13 +704,27 @@ export default function ProjectDocumentsWorkspace({
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const wasModalOpenRef = useRef(false);
 
-  const cachedCurrentUser = queryClient.getQueryData<CurrentUserResponse>(
-    authKeys.currentUser(),
-  );
+  const currentUserQuery = useCurrentUserQuery({
+    enabled: hasClientSessionHint(),
+  });
+  const cachedCurrentUser = currentUserQuery.data;
   const activeOrganizationId =
     cachedCurrentUser && "organizationId" in cachedCurrentUser
       ? (cachedCurrentUser.organizationId ?? "")
       : "";
+
+  useEffect(() => {
+    const controllers = batchAbortControllersRef.current;
+    return () => {
+      batchCancelAllRef.current = true;
+      for (const controller of controllers.values()) {
+        controller.abort();
+      }
+      controllers.clear();
+      replacementAbortRef.current?.abort();
+      replacementAbortRef.current = null;
+    };
+  }, []);
   const projectMembers = useProjectMembersQuery(
     activeOrganizationId,
     projectId,
@@ -1369,6 +1386,7 @@ export default function ProjectDocumentsWorkspace({
           }
 
           let docId = item.documentId;
+          let createdDraftInAttempt = false;
           if (!docId) {
             const baseTitle =
               item.file.name.replace(/\.[^.]+$/, "").slice(0, 200) ||
@@ -1382,6 +1400,7 @@ export default function ProjectDocumentsWorkspace({
               content: "",
             });
             docId = created.id;
+            createdDraftInAttempt = true;
             setBatchQueue((prev) =>
               prev.map((q) =>
                 q.id === item.id ? { ...q, documentId: docId } : q,
@@ -1389,23 +1408,51 @@ export default function ProjectDocumentsWorkspace({
             );
           }
 
-          await workNotesApi.uploadDocumentFile(projectId, docId, item.file, {
-            sha256: resolvedSha256 || undefined,
-            autoSyncSag: isProjectLeader,
-            signal: controller.signal,
-            onProgress: (percent) => {
-              const displayPercent = isProjectLeader
-                ? percent
-                : Math.min(92, Math.round(percent * 0.92));
+          let lastProgressAt = 0;
+          let lastProgressValue = -1;
+          try {
+            await workNotesApi.uploadDocumentFile(projectId, docId, item.file, {
+              sha256: resolvedSha256 || undefined,
+              autoSyncSag: isProjectLeader,
+              signal: controller.signal,
+              onProgress: (percent) => {
+                const displayPercent = isProjectLeader
+                  ? percent
+                  : Math.min(92, Math.round(percent * 0.92));
+                const now = Date.now();
+                if (
+                  displayPercent < 92 &&
+                  displayPercent - lastProgressValue < 5 &&
+                  now - lastProgressAt < 120
+                ) {
+                  return;
+                }
+                lastProgressAt = now;
+                lastProgressValue = displayPercent;
+                setBatchQueue((prev) =>
+                  prev.map((q) =>
+                    q.id === item.id
+                      ? { ...q, progress: Math.max(q.progress, displayPercent) }
+                      : q,
+                  ),
+                );
+              },
+            });
+          } catch (uploadErr) {
+            // Remove newly created empty draft so cancelled/failed uploads never leave orphan records.
+            if (createdDraftInAttempt && docId) {
+              const orphanId = docId;
+              void workNotesApi
+                .deleteDocument(projectId, orphanId)
+                .catch(() => undefined);
               setBatchQueue((prev) =>
                 prev.map((q) =>
-                  q.id === item.id
-                    ? { ...q, progress: Math.max(q.progress, displayPercent) }
-                    : q,
+                  q.id === item.id ? { ...q, documentId: undefined } : q,
                 ),
               );
-            },
-          });
+            }
+            throw uploadErr;
+          }
 
           if (!isProjectLeader) {
             setBatchQueue((prev) =>
@@ -1529,6 +1576,7 @@ export default function ProjectDocumentsWorkspace({
   async function handleRowQuickApprove(doc: ProjectDocumentSummary) {
     if (busyRowId) return;
     setBusyRowId(doc.id);
+    setPipelineControlError("");
     try {
       await workNotesApi.documentAction(projectId, doc.id, "approve");
       const synced = await workNotesApi
@@ -1541,6 +1589,10 @@ export default function ProjectDocumentsWorkspace({
       await queryClient.invalidateQueries({
         queryKey: workNoteKeys.project(projectId),
       });
+    } catch (err) {
+      setPipelineControlError(
+        err instanceof Error ? err.message : t("pipelineFailedHint"),
+      );
     } finally {
       setBusyRowId(null);
     }
@@ -2356,19 +2408,19 @@ export default function ProjectDocumentsWorkspace({
               <table className="w-full min-w-[46rem] border-collapse text-start text-sm lg:table-fixed">
                 <thead className="border-b border-gray-100 bg-gray-50/60 text-xs text-gray-500 dark:border-gray-800 dark:bg-gray-800/30 dark:text-gray-400">
                   <tr>
-                    <th className="py-3 pr-3 pl-5 text-left font-medium whitespace-nowrap">
+                    <th className="py-3 pe-3 ps-5 text-start font-medium whitespace-nowrap">
                       {t("columnDocument")}
                     </th>
-                    <th className="w-[128px] px-3 py-3 text-left font-medium whitespace-nowrap">
+                    <th className="w-[128px] px-3 py-3 text-start font-medium whitespace-nowrap">
                       {t("columnApproval")}
                     </th>
-                    <th className="w-[212px] px-3 py-3 text-left font-medium whitespace-nowrap xl:w-[248px]">
+                    <th className="w-[212px] px-3 py-3 text-start font-medium whitespace-nowrap xl:w-[248px]">
                       {t("columnPipeline")}
                     </th>
-                    <th className="w-[104px] px-3 py-3 text-left font-medium whitespace-nowrap">
+                    <th className="w-[104px] px-3 py-3 text-start font-medium whitespace-nowrap">
                       {t("updatedLabel")}
                     </th>
-                    <th className="w-[216px] py-3 pr-5 pl-3 text-right font-medium whitespace-nowrap">
+                    <th className="w-[216px] py-3 pe-5 ps-3 text-end font-medium whitespace-nowrap">
                       {t("actionsLabel")}
                     </th>
                   </tr>
@@ -2419,7 +2471,7 @@ export default function ProjectDocumentsWorkspace({
                         className="group transition-colors hover:bg-gray-50/80 dark:hover:bg-gray-800/40"
                       >
                         {/* 1. Document File & Metadata */}
-                        <td className="py-3.5 pr-3 pl-5">
+                        <td className="py-3.5 pe-3 ps-5">
                           <div className="flex items-start gap-3">
                             <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-gray-200/80 bg-gray-50/80 text-gray-500 dark:border-gray-800 dark:bg-gray-800/70 dark:text-gray-400">
                               <UploadFileGlyph
@@ -2541,7 +2593,7 @@ export default function ProjectDocumentsWorkspace({
                             className={`inline-flex h-6 items-center rounded-md border px-2.5 text-xs font-medium whitespace-nowrap ${STATUS_BADGE_CLASSES[document.status]}`}
                           >
                             <span
-                              className={`mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_CLASSES[document.status]}`}
+                              className={`me-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${STATUS_DOT_CLASSES[document.status]}`}
                             />
                             <span>{t(`status.${document.status}`)}</span>
                           </span>
@@ -2656,12 +2708,12 @@ export default function ProjectDocumentsWorkspace({
                         <td className="px-3 py-3.5 align-middle text-xs whitespace-nowrap text-gray-500 tabular-nums dark:text-gray-400">
                           {format.dateTime(new Date(document.updatedAt), {
                             dateStyle: "medium",
-                            timeZone: "UTC",
+                            timeZone: getLocalTimeZone(),
                           })}
                         </td>
 
                         {/* 5. Surgical Contextual Row Actions */}
-                        <td className="py-3.5 pr-5 pl-3 text-end align-middle whitespace-nowrap">
+                        <td className="py-3.5 pe-5 ps-3 text-end align-middle whitespace-nowrap">
                           <div className="inline-flex items-center justify-end gap-1">
                             {document.permissions.canReview && (
                               <button
@@ -3436,7 +3488,7 @@ export default function ProjectDocumentsWorkspace({
                     ·{" "}
                     {format.dateTime(
                       new Date(viewedVersion?.createdAt ?? current.createdAt),
-                      { dateStyle: "medium", timeZone: "UTC" },
+                      { dateStyle: "medium", timeZone: getLocalTimeZone() },
                     )}
                   </span>
                 </div>
@@ -4662,7 +4714,7 @@ export default function ProjectDocumentsWorkspace({
                                         new Date(version.createdAt),
                                         {
                                           dateStyle: "medium",
-                                          timeZone: "UTC",
+                                          timeZone: getLocalTimeZone(),
                                         },
                                       )}
                                     </time>
@@ -4924,7 +4976,7 @@ export default function ProjectDocumentsWorkspace({
                         };
 
                         return timelineEvents.length > 0 ? (
-                          <ol className="mt-3 max-h-80 overflow-y-auto pr-1">
+                          <ol className="mt-3 max-h-80 overflow-y-auto pe-1">
                             {timelineEvents.map((event, idx) => {
                               const meta = styleForAction(event.action);
                               const isLast = idx === timelineEvents.length - 1;
@@ -4971,7 +5023,7 @@ export default function ProjectDocumentsWorkspace({
                                       {format.dateTime(new Date(event.at), {
                                         dateStyle: "medium",
                                         timeStyle: "short",
-                                        timeZone: "UTC",
+                                        timeZone: getLocalTimeZone(),
                                       })}
                                     </time>
                                     {event.fileName && (

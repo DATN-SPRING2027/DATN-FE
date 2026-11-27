@@ -14,6 +14,8 @@ import {
   GroupIcon,
   LockIcon,
   MailIcon,
+  ShieldCheckIcon,
+  TimeIcon,
 } from "@/icons";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 import { isAccessOrResourceUnavailableError } from "@/lib/api-client";
@@ -124,34 +126,80 @@ function MemberWorkspaceOverview({
         </div>
       </section>
 
-      {items.length > 0 && (
-        <section
-          aria-labelledby="member-projects-heading"
-          className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900"
-        >
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <span
-                aria-hidden="true"
-                className="text-indigo-600 dark:text-indigo-400"
-              >
-                <FolderIcon viewBox="0 0 20 18" className="size-5" />
-              </span>
-              <h2
-                id="member-projects-heading"
-                className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
-              >
-                {t("projectsSectionTitle")}
-              </h2>
-            </div>
+      <section
+        aria-labelledby="member-projects-heading"
+        aria-busy={projects.isFetching}
+        className="rounded-2xl border border-gray-200/80 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900"
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <span
+              aria-hidden="true"
+              className="text-indigo-600 dark:text-indigo-400"
+            >
+              <FolderIcon viewBox="0 0 20 18" className="size-5" />
+            </span>
+            <h2
+              id="member-projects-heading"
+              className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
+            >
+              {t("projectsSectionTitle")}
+            </h2>
+          </div>
+          <Link
+            href="/projects"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+          >
+            <span>{t("viewAll")}</span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        </div>
+
+        {projects.isPending && items.length === 0 ? (
+          <div role="status" aria-label={t("loading")} aria-busy="true" className="space-y-3">
+            <span className="sr-only">{t("loading")}</span>
+            {Array.from({ length: 2 }, (_, idx) => (
+              <div
+                key={idx}
+                className="h-20 motion-safe:animate-pulse rounded-xl bg-gray-100 dark:bg-gray-800"
+              />
+            ))}
+          </div>
+        ) : projects.isError && items.length === 0 ? (
+          <div
+            role="alert"
+            className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-warning-200 bg-warning-50 px-3.5 py-2.5 text-xs text-warning-800 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
+          >
+            <span>{t("projectListLoadFailed")}</span>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => void projects.refetch()}
+            >
+              {t("retry")}
+            </Button>
+          </div>
+        ) : items.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center dark:border-gray-800 dark:bg-gray-800/30">
+            <p className="text-sm font-semibold text-gray-900 dark:text-white">
+              {t("noProjectsYetTitle")}
+            </p>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              {t("noProjectsYetDescription")}
+            </p>
             <Link
               href="/projects"
-              className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300"
+              className="mt-3 inline-flex h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition hover:bg-brand-600"
             >
-              <span>{t("viewAll")}</span>
-              <span aria-hidden="true">→</span>
+              <span>{t("projectsDirectoryCta")}</span>
+              <ArrowRightIcon
+                viewBox="0 0 20 20"
+                className="size-3.5 shrink-0 rtl:rotate-180"
+                aria-hidden="true"
+              />
             </Link>
           </div>
+        ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {items.map((project, index) => (
               <ProjectDirectoryRow
@@ -177,8 +225,8 @@ function MemberWorkspaceOverview({
               />
             ))}
           </div>
-        </section>
-      )}
+        )}
+      </section>
     </div>
   );
 }
@@ -274,7 +322,7 @@ function ManagerOverviewWorkspace({
         style={{
           backgroundImage: "url('/images/organization/overview-hero-banner.png')",
         }}
-        className="relative overflow-hidden rounded-2xl border border-indigo-100/80 bg-white bg-cover bg-right bg-no-repeat px-6 py-7 shadow-theme-xs sm:px-8 sm:py-9 dark:border-gray-800 dark:bg-gray-900"
+        className="relative overflow-hidden rounded-2xl border border-indigo-100/80 bg-white bg-cover bg-center bg-no-repeat px-6 py-7 shadow-theme-xs sm:px-8 sm:py-9 dark:border-gray-800 dark:bg-gray-900"
       >
         <div
           aria-hidden="true"
@@ -522,24 +570,7 @@ function ManagerOverviewWorkspace({
                   : "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-300"
               }`}
             >
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.8"
-                className="size-6"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 3 19 6v5.5c0 4.8-3 8.2-7 9.5-4-1.3-7-4.7-7-9.5V6l7-3Z"
-                />
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="m9.5 12 1.8 1.8 3.5-3.6"
-                />
-              </svg>
+              <ShieldCheckIcon aria-hidden="true" className="size-6" />
             </span>
             <div>
               <p className="text-2xl font-bold tracking-tight text-gray-900 tabular-nums dark:text-white">
@@ -694,21 +725,10 @@ function ManagerOverviewWorkspace({
           >
             <div className="mb-4 flex items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
-                <svg
+                <TimeIcon
                   aria-hidden="true"
-                  viewBox="0 0 20 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.7"
                   className="size-5 text-indigo-600 dark:text-indigo-400"
-                >
-                  <circle cx="10" cy="10" r="7.5" />
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M10 6v4l2.5 1.5"
-                  />
-                </svg>
+                />
                 <h2
                   id="org-recent-activity-heading"
                   className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"

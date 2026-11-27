@@ -12,7 +12,7 @@ import {
   useProjectQuery,
 } from "@/lib/queries/projects/useProjects";
 import ProjectState from "@/components/projects/ProjectState";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
+import { BackgroundRefreshError } from "@/components/ui/loading/AsyncStatus";
 import WorkWorkspace from "./WorkWorkspace";
 import type { WorkView } from "./WorkPageHeader";
 
@@ -196,7 +196,6 @@ export default function MemberWorkspace({
 
   return (
     <div className="space-y-3">
-      {!userAccessLost && user.isFetching && <UpdatingStatus>{common("updating")}</UpdatingStatus>}
       {!userAccessLost && user.isRefetchError && (
         <BackgroundRefreshError
           retryLabel={common("retry")}
@@ -205,9 +204,6 @@ export default function MemberWorkspace({
           {common("updateFailed")}
         </BackgroundRefreshError>
       )}
-      {!projectsAccessLost && projects.isFetching && visibleProjects && (
-        <UpdatingStatus>{common("updating")}</UpdatingStatus>
-      )}
       {!projectsAccessLost && projects.isRefetchError && (
         <BackgroundRefreshError
           retryLabel={common("retry")}
@@ -215,9 +211,6 @@ export default function MemberWorkspace({
         >
           {common("updateFailed")}
         </BackgroundRefreshError>
-      )}
-      {!directProjectAccessLost && directProject.isFetching && visibleDirectProject && (
-        <UpdatingStatus>{common("updating")}</UpdatingStatus>
       )}
       {!directProjectAccessLost && directProject.isRefetchError && (
         <BackgroundRefreshError

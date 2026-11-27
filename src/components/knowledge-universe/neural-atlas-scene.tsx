@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import * as THREE from "three";
+import { useTranslations } from "next-intl";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { EffectComposer } from "three/examples/jsm/postprocessing/EffectComposer.js";
@@ -31,10 +32,59 @@ export interface NeuralAtlasSceneHandle extends NeuralCortexSceneHandle {
 type Props = NeuralCortexSceneProps & {
   onUnavailable: (reason: UniverseSceneUnavailableReason) => void;
   keyboardHint: string;
+  sceneRef?: React.Ref<NeuralAtlasSceneHandle>;
 };
 
 const COPPER = "#b97b42";
 const COLORS = ["#87977e", "#7f8c77", "#746d75", "#8f7e69", "#789887"];
+
+interface NodeVisualRecord {
+  key: string;
+  group: number;
+  baseRadius: number;
+  pearlOffset: number;
+  isMatched: boolean;
+  position: THREE.Vector3;
+  mesh: THREE.Mesh;
+  material: THREE.MeshPhysicalMaterial;
+  hitTarget: THREE.Mesh;
+  sprite: THREE.Sprite;
+  spriteMaterial: THREE.SpriteMaterial;
+}
+
+interface EdgeVisualRecord {
+  sourceKey: string;
+  targetKey: string;
+  sourceGroup: number;
+  targetGroup: number;
+  cross: boolean;
+  material: THREE.LineBasicMaterial;
+}
+
+interface EvidenceLineRecord {
+  colorAttribute: THREE.Float32BufferAttribute;
+  segmentGroups: readonly number[];
+}
+
+interface BeaconVisualRecord {
+  mesh: THREE.InstancedMesh;
+  groups: readonly number[];
+}
+
+function disposeMaterialTextures(
+  material: THREE.Material,
+  sharedTextures?: ReadonlySet<THREE.Texture>,
+) {
+  const record = material as unknown as Record<string, unknown>;
+  for (const value of Object.values(record)) {
+    if (
+      value instanceof THREE.Texture &&
+      (!sharedTextures || !sharedTextures.has(value))
+    ) {
+      value.dispose();
+    }
+  }
+}
 
 function createGlow() {
   const canvas = document.createElement("canvas");
@@ -52,7 +102,10 @@ function createGlow() {
   return new THREE.CanvasTexture(canvas);
 }
 
-function disposeNetwork(group: THREE.Group) {
+function disposeNetwork(
+  group: THREE.Group,
+  sharedTextures?: ReadonlySet<THREE.Texture>,
+) {
   const geometries = new Set<THREE.BufferGeometry>();
   const materials = new Set<THREE.Material>();
   group.traverse((object) => {
@@ -71,27 +124,55 @@ function disposeNetwork(group: THREE.Group) {
   });
   group.clear();
   geometries.forEach((geometry) => geometry.dispose());
-  materials.forEach((material) => material.dispose());
+  materials.forEach((material) => {
+    disposeMaterialTextures(material, sharedTextures);
+    material.dispose();
+  });
 }
 
 export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
   function NeuralAtlasScene(props, ref) {
+    const t = useTranslations("knowledgeUniverse");
     const containerRef = React.useRef<HTMLDivElement>(null);
     const labelsRef = React.useRef<HTMLDivElement>(null);
     const latest = React.useRef(props);
-    React.useEffect(() => { latest.current = props; });
+    React.useEffect(() => {
+      latest.current = props;
+    });
     const [hovered, setHovered] = React.useState<string | null>(null);
     const hoveringRegionRef = React.useRef(false);
     const positions = React.useRef(new Map<string, THREE.Vector3>());
     const fitKey = React.useRef("");
+    const hostSizeRef = React.useRef({ width: 0, height: 0 });
+    const labelSizeMapRef = React.useRef(
+      new WeakMap<HTMLElement, { width: number; height: number }>(),
+    );
+    const labelStyleCacheRef = React.useRef(
+      new WeakMap<
+        HTMLElement,
+        {
+          visibility: string;
+          transform: string;
+          anchorX: string;
+          anchorY: string;
+          leaderLength: string;
+          leaderAngle: string;
+        }
+      >(),
+    );
     const stateRef = React.useRef<{
       camera: THREE.PerspectiveCamera;
       controls: OrbitControls;
       network: THREE.Group;
       bokeh: BokehPass;
       glow: THREE.CanvasTexture;
+      sharedTextures: Set<THREE.Texture>;
       pickable: THREE.Mesh[];
       ring: THREE.Mesh | null;
+      nodeVisuals: Map<string, NodeVisualRecord>;
+      edgeVisuals: EdgeVisualRecord[];
+      evidenceLine: EvidenceLineRecord | null;
+      beaconVisual: BeaconVisualRecord | null;
       dirty: boolean;
     } | null>(null);
     const flight = React.useRef<{
@@ -113,7 +194,9 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       [props.neurons, props.regions, props.edges, props.filterMode],
     );
     const layoutRef = React.useRef(layout);
-    React.useEffect(() => { layoutRef.current = layout; }, [layout]);
+    React.useEffect(() => {
+      layoutRef.current = layout;
+    }, [layout]);
 
     const moveCamera = React.useCallback(
       (position: THREE.Vector3, target: THREE.Vector3, animate = true) => {
@@ -151,13 +234,9 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
         const state = stateRef.current;
         const host = containerRef.current;
         const position = positions.current.get(key);
-        if (
-          !state ||
-          !host ||
-          !position ||
-          !host.clientWidth ||
-          !host.clientHeight
-        ) {
+        const hostWidth = hostSizeRef.current.width || host?.clientWidth || 0;
+        const hostHeight = hostSizeRef.current.height || host?.clientHeight || 0;
+        if (!state || !host || !position || !hostWidth || !hostHeight) {
           return;
         }
         const bounds = host.getBoundingClientRect();
@@ -237,9 +316,8 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       [moveCamera],
     );
 
-    React.useImperativeHandle(
-      ref,
-      () => ({
+    const handleFactory = React.useCallback(
+      (): NeuralAtlasSceneHandle => ({
         focusAll: () => fit(),
         focusNode,
         zoomIn: () => {
@@ -269,6 +347,9 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       }),
       [fit, focusNode],
     );
+
+    React.useImperativeHandle(ref, handleFactory, [handleFactory]);
+    React.useImperativeHandle(props.sceneRef, handleFactory, [handleFactory]);
 
     React.useEffect(() => {
       const host = containerRef.current;
@@ -320,6 +401,7 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       const network = new THREE.Group();
       scene.add(network);
       const glow = createGlow();
+      const sharedTextures = new Set<THREE.Texture>([glow]);
       const target = new THREE.WebGLRenderTarget(1, 1, {
         type: THREE.HalfFloatType,
         samples: Math.min(4, renderer.capabilities.maxSamples),
@@ -341,8 +423,13 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
         network,
         bokeh,
         glow,
+        sharedTextures,
         pickable: [] as THREE.Mesh[],
         ring: null as THREE.Mesh | null,
+        nodeVisuals: new Map<string, NodeVisualRecord>(),
+        edgeVisuals: [] as EdgeVisualRecord[],
+        evidenceLine: null as EvidenceLineRecord | null,
+        beaconVisual: null as BeaconVisualRecord | null,
         dirty: true,
       };
       stateRef.current = state;
@@ -353,11 +440,13 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       controls.addEventListener("start", interruptFlight);
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
+      const scratchVec = new THREE.Vector3();
       let down = { x: 0, y: 0 };
       let pointerActive = false;
       let frameId = 0;
       let lastFrame = 0;
       let visible = true;
+      let pageVisible = document.visibilityState !== "hidden";
       const hit = (event: MouseEvent) => {
         const bounds = renderer.domElement.getBoundingClientRect();
         pointer.set(
@@ -415,10 +504,15 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       renderer.domElement.addEventListener("dblclick", dblClick);
       renderer.domElement.addEventListener("pointerleave", pointerLeave);
       renderer.domElement.addEventListener("webglcontextlost", contextLost);
-      const resize = new ResizeObserver(() => {
-        const width = host.clientWidth;
-        const height = host.clientHeight;
+
+      const resize = new ResizeObserver((entries) => {
+        const entry = entries[0];
+        const width = Math.round(entry?.contentRect.width ?? host.clientWidth);
+        const height = Math.round(
+          entry?.contentRect.height ?? host.clientHeight,
+        );
         if (!width || !height) return;
+        hostSizeRef.current = { width, height };
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
         renderer.setSize(width, height);
@@ -434,16 +528,21 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
         }
       });
       resize.observe(host);
-      const intersection = new IntersectionObserver(([entry]) => {
-        visible = entry.isIntersecting;
-      });
-      intersection.observe(host);
+
       const animate = (now: number) => {
+        frameId = 0;
+        if (!visible || !pageVisible || document.hidden) {
+          return;
+        }
         frameId = requestAnimationFrame(animate);
-        if (!visible || document.hidden || now - lastFrame < 1000 / 60 - 1) {
+        if (now - lastFrame < 1000 / 60 - 1) {
           return;
         }
         lastFrame = now;
+        const hostWidth = hostSizeRef.current.width;
+        const hostHeight = hostSizeRef.current.height;
+        if (!hostWidth || !hostHeight) return;
+
         if (flight.current) {
           const value = flight.current;
           const progress = latest.current.reducedMotion
@@ -458,18 +557,17 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
         if (!changed && !flight.current && !state.dirty) return;
         state.dirty = false;
         camera.updateMatrixWorld();
-        const pixelRadius = host.clientWidth < 600 ? 16 : 8;
+        const pixelRadius = hostWidth < 600 ? 16 : 8;
         const tangent = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
         for (const object of state.pickable) {
           if (typeof object.userData.radius !== "number") continue;
-          const depth = -object.position
-            .clone()
+          const depth = -scratchVec
+            .copy(object.position)
             .applyMatrix4(camera.matrixWorldInverse).z;
           object.scale.setScalar(
             Math.max(
               object.userData.radius,
-              (pixelRadius * 2 * Math.max(1, depth) * tangent) /
-                host.clientHeight,
+              (pixelRadius * 2 * Math.max(1, depth) * tangent) / hostHeight,
             ),
           );
         }
@@ -477,47 +575,52 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
           ? layoutRef.current.points.get(latest.current.selectedKey)
           : undefined;
         bokeh.materialBokeh.uniforms.focus.value = focus
-          ? -focus.position.clone().applyMatrix4(camera.matrixWorldInverse).z
+          ? -scratchVec
+              .copy(focus.position)
+              .applyMatrix4(camera.matrixWorldInverse).z
           : camera.position.distanceTo(controls.target) - 100;
-        if (state.ring) state.ring.quaternion.copy(camera.quaternion);
+        if (state.ring && state.ring.visible) {
+          state.ring.quaternion.copy(camera.quaternion);
+        }
         composer.render();
+
         const placed: Array<{
           x: number;
           y: number;
           width: number;
           height: number;
         }> = [];
-        for (const element of Array.from(
-          labelsRef.current?.children ?? [],
-        ) as HTMLElement[]) {
+        const labelNodes = labelsRef.current?.children;
+        if (!labelNodes) return;
+
+        for (let i = 0; i < labelNodes.length; i += 1) {
+          const element = labelNodes[i] as HTMLElement;
           const position = positions.current.get(element.dataset.key ?? "");
           if (!position) continue;
           const anchor = projectAtlasLabel(
             position,
             camera,
-            host.clientWidth,
-            host.clientHeight,
+            hostWidth,
+            hostHeight,
           );
           const { x, y } = anchor;
-          const width = element.offsetWidth;
-          const height = element.offsetHeight;
+          const cachedSize = labelSizeMapRef.current.get(element);
           const region = element.dataset.kind === "region";
+          const width = cachedSize?.width ?? (region ? 164 : 140);
+          const height = cachedSize?.height ?? (region ? 38 : 28);
           const minLeft =
-            region && latest.current.leftDrawerOpen && host.clientWidth > 840
+            region && latest.current.leftDrawerOpen && hostWidth > 840
               ? 388
               : 16;
           const maxLeft =
-            region && latest.current.rightDrawerOpen && host.clientWidth > 840
-              ? host.clientWidth - width - 388
-              : host.clientWidth - width - 16;
+            region && latest.current.rightDrawerOpen && hostWidth > 840
+              ? hostWidth - width - 388
+              : hostWidth - width - 16;
           const left = Math.round(
-            Math.max(
-              minLeft,
-              Math.min(maxLeft, x + (region ? -22 : 18)),
-            ),
+            Math.max(minLeft, Math.min(maxLeft, x + (region ? -22 : 18))),
           );
           const minTop = 74;
-          const maxTop = Math.max(minTop, host.clientHeight - height - 82);
+          const maxTop = Math.max(minTop, hostHeight - height - 82);
           const baseTop = Math.round(
             Math.max(
               minTop,
@@ -562,26 +665,77 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
             !anchor.visible ||
             (region && leaderDistance > 360) ||
             overlaps;
-          element.style.visibility = hidden ? "hidden" : "visible";
-          element.style.transform = `translate3d(${left}px,${top}px,0)`;
-          element.dataset.anchorX = String(x);
-          element.dataset.anchorY = String(y);
-          if (region) {
-            element.style.setProperty(
-              "--leader-length",
-              `${leaderDistance}px`,
-            );
-            element.style.setProperty(
-              "--leader-angle",
-              `${Math.atan2(dy, dx)}rad`,
-            );
+          const nextVisibility = hidden ? "hidden" : "visible";
+          const nextTransform = `translate3d(${left}px,${top}px,0)`;
+          const nextAnchorX = String(x);
+          const nextAnchorY = String(y);
+          const nextLeaderLength = region ? `${leaderDistance}px` : "";
+          const nextLeaderAngle = region ? `${Math.atan2(dy, dx)}rad` : "";
+
+          const prev = labelStyleCacheRef.current.get(element);
+          if (!prev || prev.visibility !== nextVisibility) {
+            element.style.visibility = nextVisibility;
           }
+          if (!prev || prev.transform !== nextTransform) {
+            element.style.transform = nextTransform;
+          }
+          if (!prev || prev.anchorX !== nextAnchorX) {
+            element.dataset.anchorX = nextAnchorX;
+          }
+          if (!prev || prev.anchorY !== nextAnchorY) {
+            element.dataset.anchorY = nextAnchorY;
+          }
+          if (region) {
+            if (!prev || prev.leaderLength !== nextLeaderLength) {
+              element.style.setProperty("--leader-length", nextLeaderLength);
+            }
+            if (!prev || prev.leaderAngle !== nextLeaderAngle) {
+              element.style.setProperty("--leader-angle", nextLeaderAngle);
+            }
+          }
+          labelStyleCacheRef.current.set(element, {
+            visibility: nextVisibility,
+            transform: nextTransform,
+            anchorX: nextAnchorX,
+            anchorY: nextAnchorY,
+            leaderLength: nextLeaderLength,
+            leaderAngle: nextLeaderAngle,
+          });
           if (!hidden) placed.push({ x: left, y: top, width, height });
         }
       };
-      frameId = requestAnimationFrame(animate);
+
+      const startLoop = () => {
+        if (!frameId && visible && pageVisible && !document.hidden) {
+          state.dirty = true;
+          frameId = requestAnimationFrame(animate);
+        }
+      };
+      const stopLoop = () => {
+        if (frameId) {
+          cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      };
+
+      const intersection = new IntersectionObserver(([entry]) => {
+        visible = entry?.isIntersecting ?? true;
+        if (visible) startLoop();
+        else stopLoop();
+      });
+      intersection.observe(host);
+
+      const handleVisibilityChange = () => {
+        pageVisible = document.visibilityState !== "hidden";
+        if (pageVisible) startLoop();
+        else stopLoop();
+      };
+      document.addEventListener("visibilitychange", handleVisibilityChange);
+
+      startLoop();
       return () => {
-        cancelAnimationFrame(frameId);
+        stopLoop();
+        document.removeEventListener("visibilitychange", handleVisibilityChange);
         resize.disconnect();
         intersection.disconnect();
         renderer.domElement.removeEventListener("pointerdown", pointerDown);
@@ -592,43 +746,77 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
         renderer.domElement.removeEventListener("webglcontextlost", contextLost);
         controls.removeEventListener("start", interruptFlight);
         controls.dispose();
-        disposeNetwork(network);
+        disposeNetwork(network, sharedTextures);
         glow.dispose();
         environment.dispose();
         renderPass.dispose();
         bokeh.dispose();
         outputPass.dispose();
+        target.dispose();
         composer.dispose();
         renderer.dispose();
+        renderer.forceContextLoss();
         renderer.domElement.remove();
         stateRef.current = null;
         fitKey.current = "";
       };
     }, [fit, focusNode]);
 
+    // Observe label dimensions via ResizeObserver so rAF loop never triggers forced reflows
+    React.useEffect(() => {
+      const container = labelsRef.current;
+      if (!container || typeof ResizeObserver === "undefined") return;
+      const labelObserver = new ResizeObserver((entries) => {
+        let updated = false;
+        for (const entry of entries) {
+          const target = entry.target as HTMLElement;
+          const borderSize = entry.borderBoxSize?.[0];
+          const width = Math.round(
+            borderSize ? borderSize.inlineSize : entry.contentRect.width,
+          );
+          const height = Math.round(
+            borderSize ? borderSize.blockSize : entry.contentRect.height,
+          );
+          if (width > 0 && height > 0) {
+            labelSizeMapRef.current.set(target, { width, height });
+            updated = true;
+          }
+        }
+        if (updated && stateRef.current) {
+          stateRef.current.dirty = true;
+        }
+      });
+      const children = Array.from(container.children) as HTMLElement[];
+      for (const child of children) {
+        labelObserver.observe(child);
+      }
+      return () => {
+        labelObserver.disconnect();
+      };
+    }, [layout.labels, hovered, props.selectedKey]);
+
+    // Effect A: Build WebGL scene geometry ONLY when the graph layout changes
     React.useEffect(() => {
       const state = stateRef.current;
       if (!state) return;
       state.dirty = true;
-      disposeNetwork(state.network);
+      disposeNetwork(state.network, state.sharedTextures);
       state.pickable = [];
+      state.nodeVisuals.clear();
+      state.edgeVisuals = [];
+      state.evidenceLine = null;
+      state.beaconVisual = null;
       positions.current.clear();
       state.ring = null;
+
       const sphere = new THREE.SphereGeometry(1, 24, 20);
       const hitMaterial = new THREE.MeshBasicMaterial({ visible: false });
-      const focusedGroup = props.selectedKey
-        ? layout.points.get(props.selectedKey)?.group
-        : 0;
-      const colorFor = (group: number) =>
-        new THREE.Color(
-          group === focusedGroup ? COPPER : COLORS[group % COLORS.length],
-        );
+      const baseColorFor = (group: number) =>
+        new THREE.Color(group === 0 ? COPPER : COLORS[group % COLORS.length]);
+
       layout.points.forEach((point, key) => {
-        const selected = key === props.selectedKey;
-        const active = point.group === focusedGroup || point.neuron.isMatched;
-        const color = (
-          selected ? new THREE.Color("#e0a264") : colorFor(point.group)
-        ).offsetHSL(0, 0, (seed(key + ":pearl") - 0.5) * 0.12);
+        const pearlOffset = (seed(key + ":pearl") - 0.5) * 0.12;
+        const color = baseColorFor(point.group).offsetHSL(0, 0, pearlOffset);
         const material = new THREE.MeshPhysicalMaterial({
           color,
           metalness: 0.35,
@@ -636,52 +824,65 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
           clearcoat: 1,
           clearcoatRoughness: 0.1,
           envMapIntensity: 0.72,
-          emissive: color,
-          emissiveIntensity: selected ? 0.6 : active ? 0.025 : 0.008,
+          emissive: color.clone(),
+          emissiveIntensity: 0.008,
         });
         const mesh = new THREE.Mesh(sphere, material);
-        const radius = selected
-          ? Math.max(10, point.radius * 1.1)
-          : point.radius;
-        mesh.scale.setScalar(radius);
+        mesh.scale.setScalar(point.radius);
         mesh.position.copy(point.position);
         state.network.add(mesh);
         positions.current.set(key, point.position);
+
         const hitTarget = new THREE.Mesh(sphere, hitMaterial);
         hitTarget.position.copy(point.position);
-        hitTarget.scale.setScalar(Math.max(radius, 7));
+        hitTarget.scale.setScalar(Math.max(point.radius, 7));
         hitTarget.userData.key = key;
-        hitTarget.userData.radius = radius;
+        hitTarget.userData.radius = point.radius;
         state.network.add(hitTarget);
         state.pickable.push(hitTarget);
-        if (selected || point.radius > 5) {
-          const sprite = new THREE.Sprite(
-            new THREE.SpriteMaterial({
-              map: state.glow,
-              color,
-              transparent: true,
-              opacity: selected ? 0.9 : active ? 0.11 : 0.045,
-              depthWrite: false,
-              blending: THREE.AdditiveBlending,
-            }),
-          );
-          sprite.position.copy(point.position);
-          sprite.scale.setScalar(radius * (selected ? 8 : 5));
-          state.network.add(sprite);
-        }
-        if (selected) {
-          state.ring = new THREE.Mesh(
-            new THREE.TorusGeometry(radius * 1.1, 0.42, 8, 64),
-            new THREE.MeshBasicMaterial({ color: "#ffe3bd" }),
-          );
-          state.ring.position.copy(point.position);
-          state.network.add(state.ring);
-        }
+
+        const spriteMaterial = new THREE.SpriteMaterial({
+          map: state.glow,
+          color: color.clone(),
+          transparent: true,
+          opacity: 0.045,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+        });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.position.copy(point.position);
+        sprite.scale.setScalar(point.radius * 5);
+        sprite.visible = point.radius > 5;
+        state.network.add(sprite);
+
+        state.nodeVisuals.set(key, {
+          key,
+          group: point.group,
+          baseRadius: point.radius,
+          pearlOffset,
+          isMatched: point.neuron.isMatched,
+          position: point.position,
+          mesh,
+          material,
+          hitTarget,
+          sprite,
+          spriteMaterial,
+        });
       });
+
       if (!layout.points.size) {
         sphere.dispose();
         hitMaterial.dispose();
+      } else {
+        const ring = new THREE.Mesh(
+          new THREE.TorusGeometry(1, 0.042, 8, 64),
+          new THREE.MeshBasicMaterial({ color: "#ffe3bd" }),
+        );
+        ring.visible = false;
+        state.ring = ring;
+        state.network.add(ring);
       }
+
       const beaconGeometry = new THREE.SphereGeometry(1, 10, 8);
       const beaconMesh = new THREE.InstancedMesh(
         beaconGeometry,
@@ -694,21 +895,23 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
       );
       const matrix = new THREE.Matrix4();
       const quaternion = new THREE.Quaternion();
+      const scaleVec = new THREE.Vector3();
       const evidencePositions: number[] = [];
       const evidenceColors: number[] = [];
+      const evidenceSegmentGroups: number[] = [];
       const parentKeys: string[] = [];
+      const beaconGroups: number[] = [];
+
       layout.beacons.forEach((beacon, index) => {
-        matrix.compose(
-          beacon.position,
-          quaternion,
-          new THREE.Vector3().setScalar(beacon.radius),
-        );
+        scaleVec.setScalar(beacon.radius);
+        matrix.compose(beacon.position, quaternion, scaleVec);
         beaconMesh.setMatrixAt(index, matrix);
         beaconMesh.setColorAt(
           index,
-          colorFor(beacon.group).offsetHSL(0, -0.05, 0.09),
+          baseColorFor(beacon.group).offsetHSL(0, -0.05, 0.09),
         );
         parentKeys.push(beacon.parentKey);
+        beaconGroups.push(beacon.group);
         const parent = layout.points.get(beacon.parentKey)!;
         const samples = atlasConnectionCurve(
           parent.position,
@@ -716,8 +919,8 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
           `${beacon.parentKey}:${index}`,
           false,
         ).getPoints(10);
-        const color = colorFor(beacon.group).multiplyScalar(
-          beacon.group === focusedGroup ? 1 : 0.6,
+        const color = baseColorFor(beacon.group).multiplyScalar(
+          beacon.group === 0 ? 1 : 0.6,
         );
         for (let sample = 1; sample < samples.length; sample++) {
           evidencePositions.push(
@@ -725,25 +928,29 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
             ...samples[sample].toArray(),
           );
           evidenceColors.push(...color.toArray(), ...color.toArray());
+          evidenceSegmentGroups.push(beacon.group);
         }
       });
       beaconMesh.userData.keys = parentKeys;
       if (layout.beacons.length) {
         state.network.add(beaconMesh);
         state.pickable.push(beaconMesh);
+        state.beaconVisual = { mesh: beaconMesh, groups: beaconGroups };
       } else {
         beaconGeometry.dispose();
         beaconMesh.material.dispose();
       }
+
       const evidenceGeometry = new THREE.BufferGeometry();
       evidenceGeometry.setAttribute(
         "position",
         new THREE.Float32BufferAttribute(evidencePositions, 3),
       );
-      evidenceGeometry.setAttribute(
-        "color",
-        new THREE.Float32BufferAttribute(evidenceColors, 3),
+      const evidenceColorAttr = new THREE.Float32BufferAttribute(
+        evidenceColors,
+        3,
       );
+      evidenceGeometry.setAttribute("color", evidenceColorAttr);
       state.network.add(
         new THREE.LineSegments(
           evidenceGeometry,
@@ -755,55 +962,40 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
           }),
         ),
       );
+      state.evidenceLine = {
+        colorAttribute: evidenceColorAttr,
+        segmentGroups: evidenceSegmentGroups,
+      };
+
       layout.centers.forEach((position, key) =>
         positions.current.set(key, position),
       );
       layout.labels.forEach((label) =>
         positions.current.set(label.region.key, label.position),
       );
+
       const degree = new Map<string, number>();
       const crossCount = new Map<string, number>();
-      const edgeBuckets = new Map<
-        string,
-        {
-          coordinates: number[];
-          active: boolean;
-          selected: boolean;
-          cross: boolean;
-        }
-      >();
       for (const edge of [...layout.edges].sort(
         (a, b) => b.weight - a.weight || a.id.localeCompare(b.id),
       )) {
         const source = layout.points.get(edge.sourceKey)!;
         const target = layout.points.get(edge.targetKey)!;
-        const selected =
-          edge.sourceKey === props.selectedKey ||
-          edge.targetKey === props.selectedKey;
         const cross = source.group !== target.group;
         const pair = [source.group, target.group]
           .sort((a, b) => a - b)
           .join(":");
         if (
-          !selected &&
-          ((degree.get(edge.sourceKey) ?? 0) >= 7 ||
-            (degree.get(edge.targetKey) ?? 0) >= 7 ||
-            (cross && (crossCount.get(pair) ?? 0) >= 8))
+          (degree.get(edge.sourceKey) ?? 0) >= 7 ||
+          (degree.get(edge.targetKey) ?? 0) >= 7 ||
+          (cross && (crossCount.get(pair) ?? 0) >= 8)
         ) {
           continue;
         }
         degree.set(edge.sourceKey, (degree.get(edge.sourceKey) ?? 0) + 1);
         degree.set(edge.targetKey, (degree.get(edge.targetKey) ?? 0) + 1);
         if (cross) crossCount.set(pair, (crossCount.get(pair) ?? 0) + 1);
-        const active =
-          source.group === focusedGroup || target.group === focusedGroup;
-        const bucketKey = `${selected}:${active}:${cross}`;
-        const bucket = edgeBuckets.get(bucketKey) ?? {
-          coordinates: [],
-          active,
-          selected,
-          cross,
-        };
+
         const samples = atlasConnectionCurve(
           source.position,
           target.position,
@@ -812,35 +1004,158 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
           source.group,
           target.group,
         ).getPoints(cross ? 40 : 20);
+        const coordinates: number[] = [];
         for (let sample = 1; sample < samples.length; sample++) {
-          bucket.coordinates.push(
+          coordinates.push(
             ...samples[sample - 1].toArray(),
             ...samples[sample].toArray(),
           );
         }
-        edgeBuckets.set(bucketKey, bucket);
-      }
-      edgeBuckets.forEach(({ coordinates, active, selected, cross }) => {
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute(
           "position",
           new THREE.Float32BufferAttribute(coordinates, 3),
         );
         const material = new THREE.LineBasicMaterial({
-          color: active ? "#d3a16d" : "#829681",
+          color: "#829681",
           transparent: true,
-          opacity: selected ? 0.42 : active ? (cross ? 0.18 : 0.22) : 0.15,
+          opacity: 0.15,
           depthWrite: false,
         });
         state.network.add(new THREE.LineSegments(geometry, material));
+        state.edgeVisuals.push({
+          sourceKey: edge.sourceKey,
+          targetKey: edge.targetKey,
+          sourceGroup: source.group,
+          targetGroup: target.group,
+          cross,
+          material,
+        });
+      }
+    }, [layout]);
+
+    // Effect B: Update highlight colors/emissive/ring in-place on neuron selection (zero WebGL rebuild!)
+    React.useEffect(() => {
+      const state = stateRef.current;
+      if (!state) return;
+      const focusedGroup = props.selectedKey
+        ? (layout.points.get(props.selectedKey)?.group ?? 0)
+        : 0;
+      const scratchColor = new THREE.Color();
+      const setColorForGroup = (group: number) =>
+        scratchColor.set(
+          group === focusedGroup ? COPPER : COLORS[group % COLORS.length],
+        );
+
+      let selectedVisual: NodeVisualRecord | null = null;
+      state.nodeVisuals.forEach((visual) => {
+        const isSelected = visual.key === props.selectedKey;
+        const isActive = visual.group === focusedGroup || visual.isMatched;
+        if (isSelected) {
+          scratchColor.set("#e0a264");
+          selectedVisual = visual;
+        } else {
+          setColorForGroup(visual.group);
+        }
+        scratchColor.offsetHSL(0, 0, visual.pearlOffset);
+        visual.material.color.copy(scratchColor);
+        visual.material.emissive.copy(scratchColor);
+        visual.material.emissiveIntensity = isSelected
+          ? 0.6
+          : isActive
+            ? 0.025
+            : 0.008;
+
+        const radius = isSelected
+          ? Math.max(10, visual.baseRadius * 1.1)
+          : visual.baseRadius;
+        visual.mesh.scale.setScalar(radius);
+        visual.hitTarget.scale.setScalar(Math.max(radius, 7));
+        visual.hitTarget.userData.radius = radius;
+
+        visual.sprite.visible = isSelected || visual.baseRadius > 5;
+        visual.spriteMaterial.color.copy(scratchColor);
+        visual.spriteMaterial.opacity = isSelected
+          ? 0.9
+          : isActive
+            ? 0.11
+            : 0.045;
+        visual.sprite.scale.setScalar(radius * (isSelected ? 8 : 5));
       });
+
+      if (state.ring) {
+        if (selectedVisual) {
+          const picked = selectedVisual as NodeVisualRecord;
+          const ringRadius = Math.max(10, picked.baseRadius * 1.1) * 1.1;
+          state.ring.position.copy(picked.position);
+          state.ring.scale.setScalar(ringRadius);
+          state.ring.visible = true;
+        } else {
+          state.ring.visible = false;
+        }
+      }
+
+      if (state.beaconVisual) {
+        const { mesh, groups } = state.beaconVisual;
+        for (let i = 0; i < groups.length; i += 1) {
+          setColorForGroup(groups[i]!).offsetHSL(0, -0.05, 0.09);
+          mesh.setColorAt(i, scratchColor);
+        }
+        if (mesh.instanceColor) {
+          mesh.instanceColor.needsUpdate = true;
+        }
+      }
+
+      if (state.evidenceLine) {
+        const { colorAttribute, segmentGroups } = state.evidenceLine;
+        const arr = colorAttribute.array as Float32Array;
+        for (let i = 0; i < segmentGroups.length; i += 1) {
+          const group = segmentGroups[i]!;
+          setColorForGroup(group).multiplyScalar(
+            group === focusedGroup ? 1 : 0.6,
+          );
+          const offset = i * 6;
+          arr[offset] = scratchColor.r;
+          arr[offset + 1] = scratchColor.g;
+          arr[offset + 2] = scratchColor.b;
+          arr[offset + 3] = scratchColor.r;
+          arr[offset + 4] = scratchColor.g;
+          arr[offset + 5] = scratchColor.b;
+        }
+        colorAttribute.needsUpdate = true;
+      }
+
+      for (const edge of state.edgeVisuals) {
+        const isSelected =
+          edge.sourceKey === props.selectedKey ||
+          edge.targetKey === props.selectedKey;
+        const isActive =
+          edge.sourceGroup === focusedGroup ||
+          edge.targetGroup === focusedGroup;
+        const nextOpacity = isSelected
+          ? 0.42
+          : isActive
+            ? edge.cross
+              ? 0.18
+              : 0.22
+            : 0.15;
+        const edgeMaterial = edge.material;
+        edgeMaterial.color.set(isActive ? "#d3a16d" : "#829681");
+        edgeMaterial.setValues({ opacity: nextOpacity });
+      }
+
+      state.dirty = true;
+    }, [layout, props.selectedKey]);
+
+    // Effect C: Fit camera only when active region or layout key changes
+    React.useEffect(() => {
       const nextFitKey = `${props.activeRegionKey ?? "overview"}::${layout.key}`;
       if (nextFitKey !== fitKey.current && layout.points.size > 0) {
         const animate = Boolean(fitKey.current);
         fitKey.current = nextFitKey;
         fit(animate);
       }
-    }, [layout, props.selectedKey, props.activeRegionKey, fit]);
+    }, [layout.key, layout.points.size, props.activeRegionKey, fit]);
 
     React.useEffect(() => {
       if (stateRef.current) stateRef.current.dirty = true;
@@ -930,10 +1245,16 @@ export const NeuralAtlasScene = React.forwardRef<NeuralAtlasSceneHandle, Props>(
               <span className={styles.regionLabelTitle}>
                 {label.region.label}
               </span>
-              <span className={styles.regionLabelBadge}>
+              <span
+                className={`${styles.regionLabelBadge} tabular-nums`}
+                aria-label={t("clusterStats", {
+                  units: label.region.node.unit_count,
+                  sources: label.region.node.source_count,
+                })}
+              >
                 {label.region.node.unit_count}
                 {label.region.childCount
-                  ? ` · ${label.region.childCount} sub`
+                  ? ` · +${label.region.childCount}`
                   : ""}
                 <span className={styles.regionLabelArrow} aria-hidden="true">
                   ↗

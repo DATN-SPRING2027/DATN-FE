@@ -17,6 +17,7 @@ import NotificationDropdown from "@/components/header/NotificationDropdown";
 import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
 import { useChatNavigation } from "@/stores/chat-navigation";
 import { useFloatingChatStore } from "@/stores/floating-chat";
+import { resetChatWsCooldown } from "./chat-shared-helpers";
 import FloatingChatDock from "./FloatingChatDock";
 
 vi.mock("@/lib/api-client", async (original) => ({
@@ -148,6 +149,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     sidebarState.isHelpOpen = false;
     useFloatingChatStore.getState().reset();
     useChatNavigation.getState().clear();
+    resetChatWsCooldown();
     api.mockReset();
     routerPushMock.mockReset();
     routeState.pathname = "/projects/507f1f77bcf86cd799439011/work";
@@ -298,7 +300,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
       await screen.findByTestId("floating-chat-total-unread"),
     ).toHaveTextContent("2");
     const aiDock = screen.getByTestId("ai-companion-floating-dock");
-    expect(aiDock.className).toContain("sm:end-24");
+    expect(aiDock.className).toContain("sm:end-20");
 
     // 2. Click FAB -> opens conversation launcher popover
     fireEvent.click(screen.getByTestId("floating-chat-fab"));
@@ -361,7 +363,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     ).not.toBeInTheDocument();
     const head = screen.getByTestId(`floating-chat-head-${convId}`);
     expect(head).toBeInTheDocument();
-    expect(aiDock.className).toContain("sm:end-24");
+    expect(aiDock.className).toContain("sm:end-20");
 
     const restoreButton = within(head).getByRole("button", {
       name: "Restore chat with Lan Tran",
@@ -751,7 +753,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     const aiDock = screen.getByTestId("ai-companion-floating-dock");
     expect(aiDock.className).toContain("sm:end-108");
 
-    // Switch organization -> activeOrgId syncs to org2Id (0 open windows), so AI companion resets to sm:end-24!
+    // Switch organization -> activeOrgId syncs to org2Id (0 open windows), so AI companion resets to sm:end-20!
     vi.mocked(useCurrentUserQuery).mockReturnValue({
       data: {
         id: actorId,
@@ -776,7 +778,7 @@ describe("FloatingChatDock — Facebook-style Mini Chat, Chat Heads & Companion 
     );
 
     await waitFor(() => {
-      expect(aiDock.className).toContain("sm:end-24");
+      expect(aiDock.className).toContain("sm:end-20");
     });
   });
 

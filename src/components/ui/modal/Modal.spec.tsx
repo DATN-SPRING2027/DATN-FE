@@ -49,4 +49,94 @@ describe("Modal", () => {
     fireEvent.click(screen.getByTestId("modal-backdrop"));
     expect(onClose).toHaveBeenCalledTimes(2);
   });
+
+  it("exposes dialog ARIA semantics, traps Tab focus, and restores trigger focus on close", () => {
+    const trigger = document.createElement("button");
+    trigger.textContent = "Open modal";
+    document.body.appendChild(trigger);
+    trigger.focus();
+
+    const onClose = vi.fn();
+    const { rerender } = render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen onClose={onClose} ariaLabel="Edit item" showCloseButton={false}>
+          <button type="button">First action</button>
+          <button type="button">Last action</button>
+        </Modal>
+      </NextIntlClientProvider>,
+    );
+
+    const dialog = screen.getByRole("dialog", { name: "Edit item" });
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+
+    const first = screen.getByRole("button", { name: "First action" });
+    const last = screen.getByRole("button", { name: "Last action" });
+
+    last.focus();
+    fireEvent.keyDown(document, { key: "Tab" });
+    expect(document.activeElement).toBe(first);
+
+    first.focus();
+    fireEvent.keyDown(document, { key: "Tab", shiftKey: true });
+    expect(document.activeElement).toBe(last);
+
+    rerender(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen={false} onClose={onClose} ariaLabel="Edit item" showCloseButton={false}>
+          <button type="button">First action</button>
+        </Modal>
+      </NextIntlClientProvider>,
+    );
+
+    expect(document.activeElement).toBe(trigger);
+    trigger.remove();
+  });
+
+  it("closes only the top-most stacked modal on Escape and ref-counts body scroll lock", () => {
+    const onOuterClose = vi.fn();
+    const onInnerClose = vi.fn();
+
+    const { rerender } = render(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen onClose={onOuterClose} ariaLabel="Outer dialog">
+          <p>Outer</p>
+        </Modal>
+        <Modal isOpen onClose={onInnerClose} ariaLabel="Inner dialog">
+          <p>Inner</p>
+        </Modal>
+      </NextIntlClientProvider>,
+    );
+
+    expect(document.body.style.overflow).toBe("hidden");
+
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onInnerClose).toHaveBeenCalledTimes(1);
+    expect(onOuterClose).not.toHaveBeenCalled();
+
+    // Closing only the inner modal must keep body scroll locked while outer remains open
+    rerender(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen onClose={onOuterClose} ariaLabel="Outer dialog">
+          <p>Outer</p>
+        </Modal>
+        <Modal isOpen={false} onClose={onInnerClose} ariaLabel="Inner dialog">
+          <p>Inner</p>
+        </Modal>
+      </NextIntlClientProvider>,
+    );
+    expect(document.body.style.overflow).toBe("hidden");
+
+    // Closing the outer modal releases body scroll lock
+    rerender(
+      <NextIntlClientProvider locale="vi" messages={viMessages}>
+        <Modal isOpen={false} onClose={onOuterClose} ariaLabel="Outer dialog">
+          <p>Outer</p>
+        </Modal>
+        <Modal isOpen={false} onClose={onInnerClose} ariaLabel="Inner dialog">
+          <p>Inner</p>
+        </Modal>
+      </NextIntlClientProvider>,
+    );
+    expect(document.body.style.overflow).not.toBe("hidden");
+  });
 });

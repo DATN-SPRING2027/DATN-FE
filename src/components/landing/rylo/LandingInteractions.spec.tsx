@@ -135,12 +135,19 @@ describe("Rylo-inspired landing interactions", () => {
   });
 
   it("announces session loading before showing an account action", () => {
+    const prevCookie = document.cookie;
+    document.cookie = "continuum_csrf=test-session";
     vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: undefined,
       isPending: true,
     } as never);
-    renderLanding(<WorkspaceLink />);
-    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
-    expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    try {
+      renderLanding(<WorkspaceLink />);
+      expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true");
+      expect(screen.queryByRole("link")).not.toBeInTheDocument();
+    } finally {
+      document.cookie = "continuum_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+      if (prevCookie) document.cookie = prevCookie;
+    }
   });
 });

@@ -7,17 +7,19 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
-import { ApiError, apiClient } from "@/lib/api-client";
+import { ApiError, apiClient, getCsrfToken } from "@/lib/api-client";
 import {
   acquireSharedChatWsTicket,
   getChatWsCooldownRemainingMs,
+  getChatWsPolicyFailureCooldownMs,
+  recordChatWsConnectionFailure,
   resetChatWsCooldown,
   resolveChatRealtimeWsUrl,
 } from "@/components/chat/floating/chat-shared-helpers";
 import { authKeys } from "@/lib/queries/auth/auth.keys";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 
-const NOTIFICATION_POLL_INTERVAL_MS = 30_000;
+const NOTIFICATION_POLL_INTERVAL_MS = 60_000;
 
 export type NotificationMvpType =
   | "ORGANIZATION_MEMBER_INVITED"
@@ -80,25 +82,9 @@ export type NotificationResolveResponse = Readonly<{
   target?: NotificationTarget | null;
 }>;
 
-const CSRF_COOKIE_PREFIXES = [
-  "__Host-csrf=",
-  "continuum_csrf=",
-  "csrf_token=",
-] as const;
-
 function csrfHeaders(): HeadersInit {
-  if (typeof document === "undefined") return {};
-  for (const part of document.cookie.split(";")) {
-    const trimmed = part.trim();
-    for (const prefix of CSRF_COOKIE_PREFIXES) {
-      if (trimmed.startsWith(prefix)) {
-        return {
-          "X-CSRF-Token": decodeURIComponent(trimmed.slice(prefix.length)),
-        };
-      }
-    }
-  }
-  return {};
+  const token = getCsrfToken();
+  return token ? { "X-CSRF-Token": token } : {};
 }
 
 function requestHeaders(organizationId?: string | null): Headers {
@@ -239,6 +225,7 @@ export function useNotificationsQuery(
     limit?: number;
     enabled?: boolean;
     organizationId?: string | null;
+    refetchInterval?: number | false;
   } = {},
 ) {
   const limit = options.limit ?? 15;
@@ -258,8 +245,9 @@ export function useNotificationsQuery(
         options.organizationId,
       ),
     enabled: options.enabled ?? true,
-    refetchInterval: NOTIFICATION_POLL_INTERVAL_MS,
-    staleTime: 5_000,
+    refetchInterval: options.refetchInterval ?? false,
+    refetchIntervalInBackground: false,
+    staleTime: 30_000,
   });
 }
 
@@ -369,14 +357,25 @@ export function useNotificationRealtimeSubscription(
     let authRecheckAttempted = false;
 
     const scheduleReconnect = () => {
+      if (stopped) return;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
+      if (typeof document !== "undefined" && document.hidden) return;
       const waitMs = Math.max(delay, getChatWsCooldownRemainingMs(identityKey));
       reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
         void connect();
       }, waitMs);
-      delay = Math.min(delay * 2, 30_000);
+      delay = Math.min(delay * 2, 60_000);
     };
 
     const connect = async () => {
+      if (stopped) return;
+      if (typeof document !== "undefined" && document.hidden) return;
+      if (useFloatingChatStore.getState().realtimeOwner === identityKey) return;
+      let receivedConnectedFrame = false;
       try {
         const cooldown = getChatWsCooldownRemainingMs(identityKey);
         if (cooldown > 0) {
@@ -396,10 +395,7 @@ export function useNotificationRealtimeSubscription(
             connection.close();
             return;
           }
-          resetChatWsCooldown(identityKey);
           setConnectedIdentity(identityKey);
-          delay = 2000;
-          authRecheckAttempted = false;
         };
 
         connection.onmessage = (event) => {
@@ -407,7 +403,13 @@ export function useNotificationRealtimeSubscription(
             const packet = JSON.parse(String(event.data)) as {
               event?: unknown;
             };
-            if (
+            if (packet.event === "connected") {
+              receivedConnectedFrame = true;
+              resetChatWsCooldown(identityKey);
+              setConnectedIdentity(identityKey);
+              delay = 2000;
+              authRecheckAttempted = false;
+            } else if (
               packet.event === "notification.created" ||
               packet.event === "notification.read" ||
               packet.event === "notification.read_all"
@@ -421,8 +423,16 @@ export function useNotificationRealtimeSubscription(
           }
         };
 
-        connection.onclose = () => {
+        connection.onclose = (event) => {
           if (stopped) return;
+          if (!receivedConnectedFrame) {
+            recordChatWsConnectionFailure(
+              identityKey,
+              event.code === 1008
+                ? getChatWsPolicyFailureCooldownMs()
+                : undefined,
+            );
+          }
           setConnectedIdentity((current) =>
             current === identityKey ? null : current,
           );
@@ -444,6 +454,8 @@ export function useNotificationRealtimeSubscription(
             })
             .catch(() => undefined);
           if (stopped) return;
+        } else if (error instanceof ApiError && error.status === 429) {
+          delay = Math.min(Math.max(delay * 2, error.retryAfterMs ?? 15_000), 60_000);
         } else if (error instanceof ApiError && error.status === 403) {
           return;
         }

@@ -1,219 +1,25 @@
-"use client";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, setRequestLocale } from "next-intl/server";
+import { ADMIN_NAMESPACES, pickMessages } from "@/i18n/messages-scope";
+import AdminLayoutShell from "./AdminLayoutShell";
 
-import { useSidebar } from "@/context/SidebarContext";
-import AppHeader from "@/layout/AppHeader";
-import AppSidebar from "@/layout/AppSidebar";
-import Backdrop from "@/layout/Backdrop";
-import SessionRecoveryPanel from "@/components/auth/SessionRecoveryPanel";
-import AdminSessionLoadingShell from "@/components/auth/AdminSessionLoadingShell";
-import ContinuumAiCompanion from "@/components/ai-companion/ContinuumAiCompanion";
-import FloatingChatDock from "@/components/chat/floating/FloatingChatDock";
-import { BackgroundRefreshError, UpdatingStatus } from "@/components/ui/loading/AsyncStatus";
-import { usePathname, useRouter } from "@/i18n/navigation";
-import { ApiError } from "@/lib/api-client";
-import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
-import { useFloatingChatStore } from "@/stores/floating-chat";
-import { useTranslations } from "next-intl";
-import React, { useEffect, useRef, useState } from "react";
-
-export function resolveAdminPageTransitionKey(pathname: string): string {
-  const workRouteMatch = pathname.match(
-    /^((?:\/(?:en|vi))?\/projects\/[^/]+\/work)(?:\/.*)?$/,
-  );
-  return workRouteMatch?.[1] ?? pathname;
-}
-
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
-}: {
+  params,
+}: Readonly<{
   children: React.ReactNode;
-}) {
-  const { isExpanded, isMobileOpen, sidebarWidth, isResizing, isHelpOpen } =
-    useSidebar();
-  const router = useRouter();
-  const pathname = usePathname();
-  const common = useTranslations("common");
-  const locale = common("localeCode") === "vi" ? "vi" : "en";
-  const isAiChat =
-    pathname === "/ai-chat" || pathname.startsWith("/ai-chat/");
-  const isHumanChat =
-    pathname === "/chat" || pathname.startsWith("/chat/");
-  const isKnowledge = pathname === "/knowledge" || pathname.startsWith("/knowledge/");
-  const isChat = isHumanChat || isAiChat || isKnowledge;
-  const aiChatFloatingPadding = useFloatingChatStore((state) => {
-    if (!isAiChat || !state.activeOrgId) return "";
-    const openCount = state.openWindowsByOrg[state.activeOrgId]?.length ?? 0;
-    const launcherOpen = state.launcherOrgId === state.activeOrgId;
-    if (launcherOpen && openCount >= 1) return "lg:pe-96 xl:pe-184";
-    if (launcherOpen) return "sm:pe-96";
-    if (openCount >= 2) return "sm:pe-96 lg:pe-184";
-    if (openCount === 1) return "sm:pe-96";
-    return "";
-  });
-
-  const shell = useRef<HTMLDivElement>(null);
-  const currentUser = useCurrentUserQuery();
-  const [isRetrying, setIsRetrying] = useState(false);
-  const unauthorized =
-    currentUser.error instanceof ApiError && currentUser.error.status === 401;
-  const sessionRecoveryFailed =
-    currentUser.error instanceof ApiError &&
-    currentUser.error.sessionRecoveryFailed;
-  const invalidSession =
-    currentUser.error instanceof ApiError &&
-    ([401, 403, 404].includes(currentUser.error.status) ||
-      sessionRecoveryFailed);
-
-  useEffect(() => {
-    const shellEl = shell.current;
-    if (!isChat || !window.visualViewport) {
-      if (shellEl) shellEl.style.height = "";
-      return;
-    }
-    const viewport = window.visualViewport;
-    const resize = () => {
-      if (shell.current) shell.current.style.height = `${viewport.height}px`;
-    };
-    resize();
-    viewport.addEventListener("resize", resize);
-    return () => {
-      viewport.removeEventListener("resize", resize);
-      if (shellEl) shellEl.style.height = "";
-    };
-  }, [isChat, currentUser.data, currentUser.isError]);
-
-  const retrySession = async () => {
-    if (isRetrying || currentUser.isFetching) return;
-    setIsRetrying(true);
-    try {
-      await currentUser.refetch();
-    } finally {
-      setIsRetrying(false);
-    }
-  };
-
-  const rawWidth = Number.isFinite(sidebarWidth) ? Number(sidebarWidth) : 240;
-  const resolvedExpandedWidth = Math.min(
-    420,
-    Math.max(180, Math.round(rawWidth)),
-  );
-  const desktopSidebarOffsetPx = isExpanded ? resolvedExpandedWidth : 64;
-
-  useEffect(() => {
-    if (unauthorized) {
-      router.replace("/signin");
-    } else if (currentUser.data?.context === "ACCOUNT") {
-      router.replace("/onboarding");
-    }
-  }, [unauthorized, currentUser.data?.context, router]);
-
-  if (
-    !currentUser.data ||
-    (currentUser.isError && invalidSession) ||
-    (isRetrying && !currentUser.data)
-  ) {
-    if (!currentUser.data && !currentUser.isError && !isRetrying) {
-      return (
-        <AdminSessionLoadingShell
-          isChat={isChat}
-          sidebarOffset={isMobileOpen ? 0 : desktopSidebarOffsetPx}
-          sidebarWidth={isExpanded ? resolvedExpandedWidth : 64}
-          isMobileOpen={isMobileOpen}
-          isHelpOpen={isHelpOpen}
-        />
-      );
-    }
-    if ((currentUser.isError && !unauthorized) || isRetrying) {
-      return (
-        <SessionRecoveryPanel
-          state="error"
-          isRetrying={isRetrying || currentUser.isFetching}
-          onRetry={() => {
-            void retrySession();
-          }}
-        />
-      );
-    }
-    return (
-      <SessionRecoveryPanel state={unauthorized ? "redirecting" : "checking"} />
-    );
-  }
-
-  if (currentUser.data.context === "ACCOUNT") {
-    return (
-      <div
-        className="min-h-screen bg-white dark:bg-gray-900"
-        aria-busy="true"
-      />
-    );
-  }
-
-  const mainContentMargin = isMobileOpen
-    ? "ms-0"
-    : "xl:ms-[var(--sidebar-offset)]";
-  const helpContentMargin = isHelpOpen ? "lg:me-80" : "me-0";
+  params: Promise<{ locale: string }>;
+}>) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const messages = await getMessages();
 
   return (
-    <div
-      ref={shell}
-      className={
-        isChat
-          ? "flex h-dvh flex-col overflow-hidden"
-          : "flex min-h-screen flex-col"
-      }
+    <NextIntlClientProvider
+      locale={locale}
+      messages={pickMessages(messages as Record<string, unknown>, ADMIN_NAMESPACES)}
     >
-      {/* Full-width Top Header */}
-      <AppHeader compact={isChat} />
-
-      {/* Workspace Body below Header: Left Sidebar + Right Main Content */}
-      <div
-        className={
-          isChat
-            ? "relative flex min-h-0 flex-1 overflow-hidden"
-            : "relative flex min-h-0 flex-1"
-        }
-      >
-        <AppSidebar />
-        <Backdrop />
-
-        {/* Main Content Area */}
-        <div
-          style={
-            {
-              "--sidebar-offset": `${desktopSidebarOffsetPx}px`,
-            } as React.CSSProperties
-          }
-          className={`${isChat ? "flex h-full min-h-0 flex-col" : ""} min-w-0 flex-1 ${isResizing ? "transition-none" : "transition-all duration-200 ease-in-out"} ${mainContentMargin} ${helpContentMargin}`}
-        >
-          {/* Page Content */}
-          <div
-            key={resolveAdminPageTransitionKey(pathname)}
-            className={
-              isChat
-                ? `continuum-page-enter flex min-h-0 flex-1 flex-col overflow-hidden transition-[padding] duration-200 ease-out ${aiChatFloatingPadding}`
-                : "continuum-page-enter mx-auto max-w-(--breakpoint-2xl) p-4 pb-24 md:p-6 md:pb-28"
-            }
-          >
-            {currentUser.data && currentUser.isFetching && (
-              <UpdatingStatus className="mx-4 mt-4">
-                {common("updating")}
-              </UpdatingStatus>
-            )}
-            {currentUser.data && currentUser.isRefetchError && (
-              <BackgroundRefreshError
-                className="mx-4 mt-3"
-                retryLabel={common("retry")}
-                onRetry={() => void retrySession()}
-              >
-                {common("updateFailed")}
-              </BackgroundRefreshError>
-            )}
-            {children}
-          </div>
-        </div>
-      </div>
-      {!isHumanChat && <FloatingChatDock />}
-      {!isAiChat && <ContinuumAiCompanion locale={locale} />}
-    </div>
+      <AdminLayoutShell>{children}</AdminLayoutShell>
+    </NextIntlClientProvider>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from"react";
+import { SparklineUpIcon } from "@/icons";
 import { PREVIEW_PEOPLE } from"./work-preview-data";
 import type { CreatePreviewWorkItem, WorkItem } from"./work-types";
 
@@ -215,21 +216,10 @@ export default function WorkDevelopmentView({
                 Completed this week
               </p>
             </div>
-            <svg
-              width="88"
-              height="36"
-              viewBox="0 0 90 36"
-              fill="none"
+            <SparklineUpIcon
               aria-hidden="true"
-            >
-              <path
-                d="M2 30 C 20 26, 35 28, 50 18 C 60 12, 68 8, 88 6"
-                stroke="#465FFF"
-                strokeWidth="2"
-                strokeLinecap="round"
-                fill="none"
-              />
-            </svg>
+              className="h-9 w-[88px] shrink-0 text-brand-500"
+            />
           </div>
 
           <div className="border border-gray-200 bg-white p-4 shadow-theme-xs dark:border-gray-800 dark:bg-gray-900">

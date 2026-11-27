@@ -14,7 +14,6 @@ import MemberAddForm from "./MemberAddForm";
 vi.mock("@/lib/queries/projects/useProjectMembers", () => ({
   useProjectMemberCandidatesQuery: vi.fn(),
 }));
-vi.mock("@/icons", () => ({ SearchIcon: () => null }));
 
 const candidateQuery = vi.mocked(useProjectMemberCandidatesQuery);
 const organizationId = "organization-000000000001";

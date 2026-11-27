@@ -84,6 +84,35 @@ function canUseWebGL(): boolean {
   }
 }
 
+function disposeMaterialTextures(material: THREE.Material): void {
+  const record = material as unknown as Record<string, unknown>;
+  for (const key of Object.keys(record)) {
+    const val = record[key];
+    if (val && typeof val === "object" && "isTexture" in val && typeof (val as THREE.Texture).dispose === "function") {
+      (val as THREE.Texture).dispose();
+    }
+  }
+  material.dispose();
+}
+
+function disposeSceneResources(root: THREE.Object3D): void {
+  root.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (mesh.geometry && typeof mesh.geometry.dispose === "function") {
+      mesh.geometry.dispose();
+    }
+    if (mesh.material) {
+      if (Array.isArray(mesh.material)) {
+        for (const mat of mesh.material) {
+          disposeMaterialTextures(mat);
+        }
+      } else {
+        disposeMaterialTextures(mesh.material);
+      }
+    }
+  });
+}
+
 export default function Robot3D({
   status = "idle",
   modelPath = "/models/robot.glb",
@@ -109,6 +138,7 @@ export default function Robot3D({
     if (!interactiveMouse || typeof window === "undefined") return;
 
     const handlePointerMove = (event: MouseEvent) => {
+      if (document.hidden) return;
       const nx = (event.clientX / Math.max(window.innerWidth, 1)) * 2 - 1;
       const ny = -((event.clientY / Math.max(window.innerHeight, 1)) * 2 - 1);
       pointerRef.current = {
@@ -135,7 +165,7 @@ export default function Robot3D({
       renderer = new THREE.WebGLRenderer({
         alpha: true,
         antialias: true,
-        powerPreference: "high-performance",
+        powerPreference: "default",
       });
     } catch {
       return;
@@ -143,7 +173,7 @@ export default function Robot3D({
 
     const width = Math.max(container.clientWidth, 120);
     const height = Math.max(container.clientHeight, 120);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
     renderer.setSize(width, height);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
 
@@ -236,7 +266,10 @@ export default function Robot3D({
     const clock = new THREE.Clock();
 
     const animate = () => {
-      if (disposed || !renderer) return;
+      if (disposed || !renderer || document.hidden) {
+        frameId = 0;
+        return;
+      }
       frameId = window.requestAnimationFrame(animate);
 
       const delta = Math.min(clock.getDelta(), 0.1);
@@ -351,7 +384,25 @@ export default function Robot3D({
       renderer.render(scene, camera);
     };
 
-    animate();
+    const startLoop = () => {
+      if (disposed || frameId !== 0 || document.hidden) return;
+      clock.getDelta();
+      animate();
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        if (frameId !== 0) {
+          window.cancelAnimationFrame(frameId);
+          frameId = 0;
+        }
+      } else {
+        startLoop();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    startLoop();
 
     const handleResize = () => {
       if (!container || !renderer) return;
@@ -371,13 +422,24 @@ export default function Robot3D({
 
     return () => {
       disposed = true;
-      window.cancelAnimationFrame(frameId);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      if (frameId !== 0) {
+        window.cancelAnimationFrame(frameId);
+        frameId = 0;
+      }
       resizeObserver?.disconnect();
       window.removeEventListener("resize", handleResize);
       if (mixer) {
         mixer.stopAllAction();
       }
-      renderer?.dispose();
+      disposeSceneResources(scene);
+      if (renderer) {
+        renderer.dispose();
+        renderer.forceContextLoss();
+      }
+      if (container.contains(canvas)) {
+        container.removeChild(canvas);
+      }
     };
   }, [modelPath, interactiveMouse]);
 

@@ -42,7 +42,7 @@ export function TableSkeleton({
         {Array.from({ length: columns }).map((_, i) => (
           <div
             key={i}
-            className="flex-1 pr-4"
+            className="flex-1 pe-4"
           >
             <div className="h-3 w-20 rounded bg-gray-200 dark:bg-gray-700" />
           </div>
@@ -51,7 +51,7 @@ export function TableSkeleton({
       {Array.from({ length: rows }).map((_, rowIdx) => (
         <div key={rowIdx} className="flex items-center px-5 py-4">
           {Array.from({ length: columns }).map((_, colIdx) => (
-            <div key={colIdx} className="flex-1 pr-4">
+            <div key={colIdx} className="flex-1 pe-4">
               <div
                 className={cn(
                   "h-3.5 rounded bg-gray-200 dark:bg-gray-800",

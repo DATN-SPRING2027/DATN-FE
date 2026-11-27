@@ -1,15 +1,19 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  setActiveUserIdHint,
+  setExpectedOrganizationId,
+} from "@/lib/api-client";
+import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 import { authKeys } from "./auth.keys";
 import { loadSignInSession, loginFromSharedForm } from "./sign-in-session";
 import { notifyAuthSessionChanged } from "./session-sync";
-import { useChatNavigation } from "@/stores/chat-navigation";
-import { useFloatingChatStore } from "@/stores/floating-chat";
 
-export function useSignInSessionQuery() {
+export function useSignInSessionQuery(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: authKeys.session(),
     queryFn: loadSignInSession,
+    enabled: options?.enabled ?? true,
     retry: false,
     retryOnMount: false,
     staleTime: 0,
@@ -27,6 +31,8 @@ export function useSharedLoginMutation() {
     retry: false,
     onSuccess: async () => {
       // A new cookie context must never reuse the previous user's cached data.
+      setExpectedOrganizationId(null);
+      setActiveUserIdHint(null);
       await client.cancelQueries();
       client.removeQueries({
         predicate: (query) =>
@@ -36,8 +42,7 @@ export function useSharedLoginMutation() {
             query.queryKey[1] === "session"
           ),
       });
-      useFloatingChatStore.getState().reset();
-      useChatNavigation.getState().clear();
+      clearAllClientSessionCaches({ clearStorage: true });
       notifyAuthSessionChanged();
     },
   });

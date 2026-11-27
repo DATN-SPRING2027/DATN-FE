@@ -14,6 +14,8 @@ describe("apiClient", () => {
   beforeEach(() => {
     vi.resetModules();
     process.env = { ...originalEnv };
+    window.localStorage.removeItem("continuum:auth-refresh-at");
+    window.localStorage.removeItem("continuum:auth-refresh-lease");
   });
 
   afterEach(() => {
@@ -292,10 +294,66 @@ describe("apiClient", () => {
     expect(probes).toBe(4);
   });
 
-  it.each(["/auth/login", "/api/v1/auth/logout", "/iam/users/user-1"])("never refreshes or replays mutation %s", async (endpoint) => {
+  it.each(["/auth/login", "/api/v1/auth/logout", "/auth/refresh"])("never refreshes or replays auth endpoint %s", async (endpoint) => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(new Response('{}', { status: 401 }));
     await expect(apiClient(endpoint, { method: "POST" })).rejects.toMatchObject({ status: 401 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("recovers expired session via single-flight refresh and replays non-auth mutations", async () => {
+    let calls = 0;
+    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+      if (url === "/api/v1/auth/refresh") {
+        return new Response('{"status":"refreshed"}', {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      calls += 1;
+      if (calls === 1) {
+        return new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ id: "user-1", updated: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    await expect(apiClient("/iam/users/user-1", { method: "POST" })).resolves.toEqual({
+      id: "user-1",
+      updated: true,
+    });
+    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
+    expect(calls).toBe(2);
+  });
+
+  it("treats 401 AUTH_REFRESH_CONCURRENT as a successful concurrent rotation and replays cleanly", async () => {
+    let calls = 0;
+    vi.spyOn(global, "fetch").mockImplementation(async (url) => {
+      if (url === "/api/v1/auth/refresh") {
+        return new Response(
+          JSON.stringify({ code: "AUTH_REFRESH_CONCURRENT", message: "Already rotated by peer tab" }),
+          { status: 401, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      calls += 1;
+      if (calls === 1) {
+        return new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    });
+
+    await expect(apiClient("/iam/projects")).resolves.toEqual({ ok: true });
+    expect(calls).toBe(2);
   });
 
   it("throws descriptive error when response is not ok", async () => {
@@ -357,8 +415,8 @@ describe("apiClient", () => {
   });
 
   describe("unauthorized responses", () => {
-    it.each(["/protected", "/auth/refresh", "/auth/login"])(
-      "propagates 401 from %s without refreshing or replaying the request",
+    it.each(["/auth/refresh", "/auth/login"])(
+      "propagates 401 from auth endpoint %s without refreshing or replaying",
       async (endpoint) => {
         const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
           new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
@@ -381,18 +439,39 @@ describe("apiClient", () => {
       },
     );
 
-    it("does not replay an unauthorized mutation", async () => {
+    it("attempts silent refresh on protected 401 and propagates terminal 401 when refresh fails", async () => {
+      const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+        if (url === "/api/v1/auth/refresh") {
+          return new Response(JSON.stringify({ code: "AUTH_REFRESH_FAILED", message: "Expired" }), {
+            status: 401,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
+          status: 401,
+          headers: { "Content-Type": "application/json" },
+        });
+      });
+
+      await expect(apiClient("/protected")).rejects.toMatchObject({
+        name: "ApiError",
+        status: 401,
+        sessionRecoveryFailed: true,
+      });
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
+    });
+
+    it("does not replay an unauthorized mutation when refresh fails", async () => {
       const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
         new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), { status: 401 }),
       );
       const body = JSON.stringify({ name: "Project", code: "PR" });
 
-      await expect(apiClient("/iam/projects", { method: "POST", body })).rejects.toMatchObject({ status: 401 });
-      expect(fetchMock).toHaveBeenCalledTimes(1);
-      expect(fetchMock).toHaveBeenCalledWith(
-        "/api/backend/iam/projects",
-        expect.objectContaining({ method: "POST", body }),
-      );
+      await expect(apiClient("/iam/projects", { method: "POST", body })).rejects.toMatchObject({
+        status: 401,
+        sessionRecoveryFailed: true,
+      });
+      expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/iam/projects")).toHaveLength(1);
     });
   });
 });

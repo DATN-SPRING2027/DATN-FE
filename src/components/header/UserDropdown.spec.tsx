@@ -14,7 +14,6 @@ vi.mock("next-intl", () => ({
   useLocale: () => "en",
   useTranslations: () => (key: string) => key,
 }));
-vi.mock("@/icons", () => ({ ChevronDownIcon: () => null }));
 vi.mock("@/i18n/languages", () => ({
   getLanguage: (id: string) =>
     id === "vi"

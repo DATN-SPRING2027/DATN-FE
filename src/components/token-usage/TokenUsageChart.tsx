@@ -75,7 +75,7 @@ export default function TokenUsageChart({
           <span
             ref={modeThumbRef}
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
+            className="pointer-events-none absolute inset-y-0.5 start-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
           />
           <button
             type="button"

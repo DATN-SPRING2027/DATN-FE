@@ -147,7 +147,7 @@ it("disables unread polling while realtime is connected", () => {
 });
 
 it("keeps polling as a fallback while realtime is unavailable", () => {
-  expect(unreadNotificationPollingInterval(false)).toBe(30_000);
+  expect(unreadNotificationPollingInterval(false)).toBe(60_000);
 });
 
 it("rechecks authentication once for a rejected WebSocket ticket and stops repeated 401 retries", async () => {

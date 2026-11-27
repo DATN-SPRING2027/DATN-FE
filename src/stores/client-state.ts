@@ -7,6 +7,7 @@ type ClientState = {
   selectedProjectByOrg: Record<string, string>;
   setActiveProjectId: (projectId: string | null) => void;
   setSelectedProjectForOrg: (organizationId: string, projectId: string) => void;
+  reset: () => void;
 };
 
 export const useClientStateStore = create<ClientState>((set) => ({
@@ -31,4 +32,5 @@ export const useClientStateStore = create<ClientState>((set) => ({
         },
       };
     }),
+  reset: () => set({ activeProjectId: null, selectedProjectByOrg: {} }),
 }));

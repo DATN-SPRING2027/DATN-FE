@@ -226,33 +226,47 @@ function buildOrbitalLayout(slice: EventEntityGraphSlice): OrbitalLayout {
     0.26,
     Math.min(0.42, 2.45 / Math.sqrt(Math.max(1, anchors.length))),
   );
+  const minimumDistanceSq = minimumDistance * minimumDistance;
 
   const relaxationIterations =
-    anchors.length > 320 ? 0 : anchors.length > 180 ? 18 : 90;
+    anchors.length > 240 ? 0 : anchors.length > 140 ? 16 : 48;
+  const scratchForce = new THREE.Vector3();
+  const scratchDelta = new THREE.Vector3();
+  const scratchAnchorTangent = new THREE.Vector3();
+  let nextDirections = entityDirections.map(() => new THREE.Vector3());
+
   for (let iteration = 0; iteration < relaxationIterations; iteration += 1) {
-    entityDirections = entityDirections.map((direction, index, values) => {
-      const force = new THREE.Vector3();
-      values.forEach((other, otherIndex) => {
-        if (index === otherIndex) return;
-        const delta = direction.clone().sub(other);
-        const distance = delta.length();
-        if (distance >= minimumDistance || distance < 0.00001) return;
-        const tangent = delta.addScaledVector(
-          direction,
-          -delta.dot(direction),
-        );
-        if (tangent.lengthSq() < 0.00001) return;
-        force.addScaledVector(
-          tangent.normalize(),
+    const count = entityDirections.length;
+    for (let index = 0; index < count; index += 1) {
+      const direction = entityDirections[index]!;
+      scratchForce.set(0, 0, 0);
+      for (let otherIndex = 0; otherIndex < count; otherIndex += 1) {
+        if (index === otherIndex) continue;
+        const other = entityDirections[otherIndex]!;
+        scratchDelta.copy(direction).sub(other);
+        const distanceSq = scratchDelta.lengthSq();
+        if (distanceSq >= minimumDistanceSq || distanceSq < 1e-10) continue;
+        const distance = Math.sqrt(distanceSq);
+        const dot = scratchDelta.dot(direction);
+        scratchDelta.addScaledVector(direction, -dot);
+        const tangentLenSq = scratchDelta.lengthSq();
+        if (tangentLenSq < 1e-10) continue;
+        scratchDelta.multiplyScalar(1 / Math.sqrt(tangentLenSq));
+        scratchForce.addScaledVector(
+          scratchDelta,
           (minimumDistance - distance) * 0.13,
         );
-      });
-      const anchorTangent = anchors[index]
-        .clone()
-        .addScaledVector(direction, -anchors[index].dot(direction));
-      force.addScaledVector(anchorTangent, 0.012);
-      return direction.clone().add(force).normalize();
-    });
+      }
+      const anchor = anchors[index]!;
+      scratchAnchorTangent
+        .copy(anchor)
+        .addScaledVector(direction, -anchor.dot(direction));
+      scratchForce.addScaledVector(scratchAnchorTangent, 0.012);
+      nextDirections[index]!.copy(direction).add(scratchForce).normalize();
+    }
+    const swap = entityDirections;
+    entityDirections = nextDirections;
+    nextDirections = swap;
   }
 
   slice.entities.forEach((entity, index) => {
@@ -1081,6 +1095,7 @@ export function OrbitalEventEntityGraph({
         )
       : null;
     let labelLimit = 10;
+    const scratchDisplayColor = new THREE.Color();
     const updateFocus = () => {
       const focusId = selectedId ?? hoveredId;
       const selectedNodes = new Set(
@@ -1097,10 +1112,10 @@ export function OrbitalEventEntityGraph({
         const active = node.id === focusId;
         if (node.visualKind === "plate") {
           const material = node.visualMaterial as THREE.MeshStandardMaterial;
-          const displayColor = node.baseColor.clone();
-          if (!selectedNeighborhood) displayColor.multiplyScalar(0.18);
-          if (active) displayColor.offsetHSL(0, 0, 0.08);
-          material.color.copy(displayColor);
+          scratchDisplayColor.copy(node.baseColor);
+          if (!selectedNeighborhood) scratchDisplayColor.multiplyScalar(0.18);
+          if (active) scratchDisplayColor.offsetHSL(0, 0, 0.08);
+          material.color.copy(scratchDisplayColor);
           material.emissive
             .copy(node.baseColor)
             .multiplyScalar(active ? 0.38 : 0.2);
@@ -1297,6 +1312,7 @@ export function OrbitalEventEntityGraph({
     let frame = 0;
     let inViewport = true;
     let pageVisible = document.visibilityState !== "hidden";
+    const scratchPulsePoint = new THREE.Vector3();
     const render = (time: number) => {
       frame = 0;
       if (!inViewport || !pageVisible) return;
@@ -1318,7 +1334,8 @@ export function OrbitalEventEntityGraph({
       edges.forEach((edge) => {
         if (!edge.pulse.visible) return;
         const progress = (time * 0.00023 + edge.offset) % 1;
-        edge.pulse.position.copy(edge.curve.getPoint(progress));
+        edge.curve.getPoint(progress, scratchPulsePoint);
+        edge.pulse.position.copy(scratchPulsePoint);
       });
       controls.update();
       renderer.render(scene, camera);
@@ -1391,7 +1408,9 @@ export function OrbitalEventEntityGraph({
         onContextLost,
       );
       controls.dispose();
+      sharedPulseMaterial.dispose();
       disposeScene(scene, textures.values());
+      scene.clear();
       renderer.dispose();
       renderer.forceContextLoss();
       mount.replaceChildren();
@@ -1450,7 +1469,7 @@ export function OrbitalEventEntityGraph({
 
       <div ref={mountRef} className="absolute inset-0" />
 
-      <div className="pointer-events-none absolute left-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-white/10 bg-[#0b1020]/85 px-2.5 py-2 text-white/70 shadow-lg backdrop-blur-md">
+      <div className="pointer-events-none absolute start-3 top-3 z-10 max-w-[calc(100%-1.5rem)] rounded-md border border-white/10 bg-[#0b1020]/85 px-2.5 py-2 text-white/70 shadow-lg backdrop-blur-md">
         <div className="flex flex-wrap gap-x-3 gap-y-1.5">
           <span className="inline-flex items-center gap-1.5 text-[11px]">
             <span
@@ -1483,7 +1502,7 @@ export function OrbitalEventEntityGraph({
         </div>
       </div>
 
-      <div className="absolute right-3 top-3 z-20 flex flex-wrap items-center justify-end gap-1.5">
+      <div className="absolute end-3 top-3 z-20 flex flex-wrap items-center justify-end gap-1.5">
         <button
           type="button"
           onClick={() =>
@@ -1548,7 +1567,7 @@ export function OrbitalEventEntityGraph({
       </div>
 
       {selection && !onOpenEvent && (
-        <div className="absolute bottom-3 left-3 z-20 w-[min(24rem,calc(100%-1.5rem))] rounded-lg border border-white/15 bg-[#0d1424]/95 p-3.5 text-white shadow-xl backdrop-blur-md">
+        <div className="absolute bottom-3 start-3 z-20 w-[min(24rem,calc(100%-1.5rem))] rounded-lg border border-white/15 bg-[#0d1424]/95 p-3.5 text-white shadow-xl backdrop-blur-md">
           {selection.kind === "entity" ? (
             <>
               <div className="flex items-center gap-1.5 text-xs font-medium text-indigo-300">
@@ -1596,7 +1615,7 @@ export function OrbitalEventEntityGraph({
         </div>
       )}
 
-      <div className="pointer-events-none absolute bottom-3 right-3 z-10 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-[#0b1020]/80 px-2 py-1 text-[10px] text-white/50 shadow-lg backdrop-blur-md">
+      <div className="pointer-events-none absolute bottom-3 end-3 z-10 inline-flex items-center gap-1.5 rounded-md border border-white/10 bg-[#0b1020]/80 px-2 py-1 text-[10px] text-white/50 shadow-lg backdrop-blur-md">
         {eventSurfaceMode === "plates" ? (
           <Globe2 className="size-3" />
         ) : (

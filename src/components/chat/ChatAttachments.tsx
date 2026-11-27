@@ -4,7 +4,14 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CloseIcon,
+  DownloadIcon,
+} from "@/icons";
 import { chatApi, type ChatAttachment } from "@/lib/queries/chat/useChat";
+import { normalizeChatAttachmentUrl } from "@/lib/queries/chat/attachment-url";
 
 function formatSize(bytes: number) {
   return bytes < 1024 * 1024
@@ -27,7 +34,7 @@ function useAttachmentUrl(conversationId: string, attachmentId: string) {
           attachmentId,
         );
         if (!active) return;
-        setUrl(result.url);
+        setUrl(normalizeChatAttachmentUrl(result.url));
         setFailed(false);
         renewal = setTimeout(
           () => void load(),
@@ -260,7 +267,7 @@ function ChatImageLightbox({
         className="absolute inset-x-0 top-0 z-30 flex items-center justify-between bg-gradient-to-b from-black/80 via-black/40 to-transparent px-6 py-4 text-white/90"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex min-w-0 items-center gap-2.5 pr-4">
+        <div className="flex min-w-0 items-center gap-2.5 pe-4">
           <span className="truncate text-sm font-medium text-white">
             {currentAttachment.name}
           </span>
@@ -291,21 +298,7 @@ function ChatImageLightbox({
             title={t("downloadImage")}
             onClick={(e) => e.stopPropagation()}
           >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
+            <DownloadIcon className="size-3.5 shrink-0" aria-hidden="true" />
             <span>{t("downloadImage")}</span>
           </a>
           <button
@@ -315,20 +308,7 @@ function ChatImageLightbox({
             title={t("closePreview")}
             className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-white transition-colors hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-white"
           >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
+            <CloseIcon className="size-4 shrink-0" aria-hidden="true" />
           </button>
         </div>
       </div>
@@ -343,21 +323,9 @@ function ChatImageLightbox({
           }}
           aria-label={t("previousImage")}
           title={t("previousImage")}
-          className="absolute left-4 top-1/2 -translate-y-1/2 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/90 shadow-xl backdrop-blur-md transition-all hover:bg-black/90 hover:text-white hover:scale-110 focus-visible:outline-2 focus-visible:outline-white active:scale-95"
+          className="absolute start-4 top-1/2 -translate-y-1/2 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/90 shadow-xl backdrop-blur-md transition-all hover:bg-black/90 hover:text-white hover:scale-110 focus-visible:outline-2 focus-visible:outline-white active:scale-95"
         >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
+          <ChevronLeftIcon className="size-5.5 shrink-0 rtl:rotate-180" aria-hidden="true" />
         </button>
       )}
 
@@ -371,21 +339,9 @@ function ChatImageLightbox({
           }}
           aria-label={t("nextImage")}
           title={t("nextImage")}
-          className="absolute right-4 top-1/2 -translate-y-1/2 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/90 shadow-xl backdrop-blur-md transition-all hover:bg-black/90 hover:text-white hover:scale-110 focus-visible:outline-2 focus-visible:outline-white active:scale-95"
+          className="absolute end-4 top-1/2 -translate-y-1/2 z-30 flex h-11 w-11 items-center justify-center rounded-full bg-black/60 text-white/90 shadow-xl backdrop-blur-md transition-all hover:bg-black/90 hover:text-white hover:scale-110 focus-visible:outline-2 focus-visible:outline-white active:scale-95"
         >
-          <svg
-            width="22"
-            height="22"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
-          >
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
+          <ChevronRightIcon className="size-5.5 shrink-0 rtl:rotate-180" aria-hidden="true" />
         </button>
       )}
 

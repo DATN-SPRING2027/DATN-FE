@@ -1,4 +1,9 @@
-import { ApiError, apiClient } from "@/lib/api-client";
+import {
+  ApiError,
+  apiClient,
+  getActiveUserIdHint,
+  getExpectedOrganizationId,
+} from "@/lib/api-client";
 import {
   aiChatCsrfHeaders,
   streamAiChatAsk,
@@ -15,18 +20,28 @@ export class CompanionChatClient {
     query: string,
     signal: AbortSignal,
     onText: (text: string) => void,
+    sessionHint?: Readonly<{ userId?: string; organizationId?: string }>,
   ) {
-    const user = await apiClient<CurrentUserResponse>("/auth/me", {
-      signal,
-      cache: "no-store",
-    });
-    if (!user.organizationId)
+    let userId = sessionHint?.userId?.trim() || getActiveUserIdHint() || undefined;
+    let organizationId =
+      sessionHint?.organizationId?.trim() ||
+      getExpectedOrganizationId() ||
+      undefined;
+    if (!userId || !organizationId) {
+      const user = await apiClient<CurrentUserResponse>("/auth/me", {
+        signal,
+        cache: "no-store",
+      });
+      userId = user.id;
+      organizationId = user.organizationId;
+    }
+    if (!organizationId)
       throw new ApiError(
         403,
         "PROJECT_CONTEXT_REQUIRED",
         "Select an organization and project.",
       );
-    const key = `${user.id}:${user.organizationId}:${projectId}`;
+    const key = `${userId}:${organizationId}:${projectId}`;
     let threadId = this.threads.get(key);
     if (!threadId) {
       const created = await apiClient<AiChatThread>(

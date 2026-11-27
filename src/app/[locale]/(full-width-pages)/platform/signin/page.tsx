@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
@@ -16,5 +17,6 @@ export default async function LegacyPlatformSignInPage({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  setRequestLocale(locale);
   redirect({ href: "/signin", locale });
 }

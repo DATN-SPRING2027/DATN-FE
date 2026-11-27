@@ -131,7 +131,7 @@ describe("AppHeader", () => {
     });
   });
 
-  it("renders centered search input without Ctrl/Cmd+K badge, searches system features, opens Update modal, and toggles Help drawer", async () => {
+  it("renders centered search input without Ctrl/Cmd+K badge, searches system features, hides fake Update modal, and toggles Help drawer", async () => {
     mockSessionFetch(["ADMIN"]);
     renderHeader();
 
@@ -150,15 +150,8 @@ describe("AppHeader", () => {
     fireEvent.submit(searchInput.closest("form")!);
     expect(replace).toHaveBeenCalledWith("/chat");
 
-    // Open Update modal
-    fireEvent.click(screen.getByRole("button", { name: "update" }));
-    expect(screen.getByText("upgradeModal.title")).toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("button", { name: "upgradeModal.upgradeNow" }),
-    );
-    expect(
-      screen.getByText("upgradeModal.demoNotice:upgradeModal.plans.pro.name"),
-    ).toBeInTheDocument();
+    // Fake demo Update button is removed from production header
+    expect(screen.queryByRole("button", { name: "update" })).not.toBeInTheDocument();
 
     // Toggle Help right sidebar
     fireEvent.click(screen.getByRole("button", { name: "help" }));

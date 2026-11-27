@@ -1,4 +1,5 @@
 import { useTranslations } from "next-intl";
+import { ChevronDownIcon, ChevronUpIcon, MinusIcon } from "@/icons";
 import { MonoIssueTypeIcon } from "./WorkMonoIcons";
 import type {
   WorkIntakeFormType,
@@ -11,6 +12,8 @@ const statusStyles: Record<WorkStatus, string> = {
   TODO: "border-gray-200 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300",
   IN_PROGRESS:
     "border-brand-200 bg-brand-50 text-brand-700 dark:border-brand-500/30 dark:bg-brand-500/15 dark:text-brand-300",
+  BLOCKED:
+    "border-error-200 bg-error-50 text-error-700 dark:border-error-500/30 dark:bg-error-500/15 dark:text-error-400",
   IN_REVIEW:
     "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/15 dark:text-warning-400",
   DONE: "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/15 dark:text-success-400",
@@ -19,6 +22,7 @@ const statusStyles: Record<WorkStatus, string> = {
 const statusDots: Record<WorkStatus, string> = {
   TODO: "bg-gray-400 dark:bg-gray-500",
   IN_PROGRESS: "bg-brand-500",
+  BLOCKED: "bg-error-500",
   IN_REVIEW: "bg-warning-500",
   DONE: "bg-success-500",
 };
@@ -87,58 +91,27 @@ export function WorkIssueTypeBadge({
 function PriorityGlyph({ priority }: { priority: WorkPriority }) {
   if (priority === "HIGH") {
     return (
-      <svg
-        viewBox="0 0 16 16"
-        width={14}
-        height={14}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
+      <ChevronUpIcon
         aria-hidden="true"
         className="h-3.5 w-3.5 shrink-0 text-error-600 dark:text-error-400"
-      >
-        <path d="M3.5 8.5L8 4l4.5 4.5" />
-        <path d="M3.5 12.5L8 8l4.5 4.5" />
-      </svg>
+      />
     );
   }
 
   if (priority === "MEDIUM") {
     return (
-      <svg
-        viewBox="0 0 16 16"
-        width={14}
-        height={14}
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
+      <MinusIcon
         aria-hidden="true"
         className="h-3.5 w-3.5 shrink-0 text-orange-500 dark:text-orange-400"
-      >
-        <path d="M3 6h10" />
-        <path d="M3 10h10" />
-      </svg>
+      />
     );
   }
 
   return (
-    <svg
-      viewBox="0 0 16 16"
-      width={14}
-      height={14}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
+    <ChevronDownIcon
       aria-hidden="true"
       className="h-3.5 w-3.5 shrink-0 text-blue-light-600 dark:text-blue-light-400"
-    >
-      <path d="M3.5 6L8 10.5 12.5 6" />
-    </svg>
+    />
   );
 }
 

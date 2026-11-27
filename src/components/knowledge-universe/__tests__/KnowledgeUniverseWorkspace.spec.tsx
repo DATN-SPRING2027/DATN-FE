@@ -298,4 +298,106 @@ describe("KnowledgeUniverseWorkspace project synchronization", () => {
     expect(screen.getByText("openDocuments")).toBeInTheDocument();
     expect(screen.queryByTestId("neural-atlas-scene")).not.toBeInTheDocument();
   });
+
+  it("debounces region hover prefetch >=250ms, caps concurrent prefetch to <=2, and aborts on mouse leave", async () => {
+    const childNodes = Array.from({ length: 6 }, (_, i) => ({
+      id: `child-${i}`,
+      parent_id: "region-1",
+      depth: 2,
+      label: `Subregion ${i}`,
+      is_leaf: true,
+      unit_count: 10 - i,
+      source_count: 1,
+      document_count: 1,
+      top_entities: [],
+    }));
+    overviewMock.mockResolvedValueOnce({
+      version: "v1",
+      status: "ready",
+      stale: false,
+      trees: [
+        {
+          project_id: "69e923c77859fd1c702d4c21",
+          tree_version: "v1",
+          projection: "tree",
+          node_count: 8,
+          unit_count: 45,
+          source_count: 4,
+          nodes: [
+            {
+              id: "root",
+              parent_id: null,
+              depth: 0,
+              label: "Root",
+              is_leaf: false,
+              unit_count: 45,
+              source_count: 4,
+              document_count: 4,
+              top_entities: [],
+            },
+            {
+              id: "region-1",
+              parent_id: "root",
+              depth: 1,
+              label: "Architecture Region",
+              is_leaf: false,
+              unit_count: 45,
+              source_count: 4,
+              document_count: 4,
+              top_entities: [],
+            },
+            ...childNodes,
+          ],
+        },
+      ],
+    });
+
+    const signals: AbortSignal[] = [];
+    clusterMock.mockImplementation(
+      (
+        _projectId: string,
+        params: { tree_version: string; node_id: string },
+        signal?: AbortSignal,
+      ) => {
+        if (signal) signals.push(signal);
+        return new Promise(() => {
+          // Stay pending to inspect AbortSignal on mouse leave
+        });
+      },
+    );
+
+    render(<KnowledgeUniverseWorkspace />);
+    const regionChip = await screen.findByRole("button", {
+      name: /Architecture Region/i,
+    });
+
+    // Clear initial ambient load calls before testing hover prefetch
+    clusterMock.mockClear();
+    signals.length = 0;
+
+    vi.useFakeTimers();
+    try {
+      fireEvent.mouseEnter(regionChip);
+      act(() => {
+        vi.advanceTimersByTime(200);
+      });
+      // Still debounced below 250ms
+      expect(clusterMock).not.toHaveBeenCalled();
+
+      act(() => {
+        vi.advanceTimersByTime(80);
+      });
+      // After >= 250ms, capped at <= 2 concurrent prefetch calls
+      expect(clusterMock.mock.calls.length).toBeGreaterThanOrEqual(1);
+      expect(clusterMock.mock.calls.length).toBeLessThanOrEqual(2);
+      expect(signals.length).toBe(clusterMock.mock.calls.length);
+      expect(signals.every((s) => !s.aborted)).toBe(true);
+
+      // Leaving cancels in-flight prefetch via AbortController
+      fireEvent.mouseLeave(regionChip);
+      expect(signals.every((s) => s.aborted)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

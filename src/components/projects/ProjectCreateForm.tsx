@@ -387,7 +387,7 @@ export default function ProjectCreateForm({
               {/* Left Stepper Sidebar */}
               <aside
                 aria-label={tr(t, "wizard.stepsAria", "Project creation steps")}
-                className="w-full shrink-0 border-b border-gray-100 bg-gray-50/40 p-5 sm:p-6 @2xl:w-60 @2xl:border-r @2xl:border-b-0 dark:border-gray-800 dark:bg-gray-800/20"
+                className="w-full shrink-0 border-b border-gray-100 bg-gray-50/40 p-5 sm:p-6 @2xl:w-60 @2xl:border-e @2xl:border-b-0 dark:border-gray-800 dark:bg-gray-800/20"
               >
                 <ol className="relative space-y-6">
                   {steps.map((item, idx) => {
@@ -402,7 +402,7 @@ export default function ProjectCreateForm({
                         {!isLast && (
                           <span
                             aria-hidden="true"
-                            className={`absolute top-8 left-4 -ml-px h-6 w-0.5 transition-colors ${
+                            className={`absolute top-8 start-4 -ms-px h-6 w-0.5 transition-colors ${
                               isCompleted
                                 ? "bg-brand-500"
                                 : "bg-gray-200 dark:bg-gray-700"
@@ -426,7 +426,7 @@ export default function ProjectCreateForm({
                             }
                             setStep(item.id);
                           }}
-                          className="group flex w-full cursor-pointer items-start gap-3 text-left"
+                          className="group flex w-full cursor-pointer items-start gap-3 text-start"
                         >
                           <span
                             aria-hidden="true"
@@ -750,7 +750,7 @@ export default function ProjectCreateForm({
                         type="button"
                         aria-pressed={visibility === "PRIVATE"}
                         onClick={() => setVisibility("PRIVATE")}
-                        className={`flex w-full cursor-pointer items-start justify-between gap-3.5 rounded-2xl border p-4 text-left transition-all ${
+                        className={`flex w-full cursor-pointer items-start justify-between gap-3.5 rounded-2xl border p-4 text-start transition-all ${
                           visibility === "PRIVATE"
                             ? "border-brand-500 bg-brand-50/40 ring-3 ring-brand-500/10 dark:border-brand-500 dark:bg-brand-500/10"
                             : "border-gray-200/90 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
@@ -800,7 +800,7 @@ export default function ProjectCreateForm({
                         type="button"
                         aria-pressed={visibility === "PUBLIC"}
                         onClick={() => setVisibility("PUBLIC")}
-                        className={`flex w-full cursor-pointer items-start justify-between gap-3.5 rounded-2xl border p-4 text-left transition-all ${
+                        className={`flex w-full cursor-pointer items-start justify-between gap-3.5 rounded-2xl border p-4 text-start transition-all ${
                           visibility === "PUBLIC"
                             ? "border-brand-500 bg-brand-50/40 ring-3 ring-brand-500/10 dark:border-brand-500 dark:bg-brand-500/10"
                             : "border-gray-200/90 bg-white hover:border-gray-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-gray-700"
@@ -1111,7 +1111,7 @@ export default function ProjectCreateForm({
                         <dt className="font-medium text-gray-500 dark:text-gray-400">
                           {t("description")}
                         </dt>
-                        <dd className="max-w-xs text-right text-gray-700 dark:text-gray-300">
+                        <dd className="max-w-xs text-end text-gray-700 dark:text-gray-300">
                           {description.trim() || t("noDescription")}
                         </dd>
                       </div>

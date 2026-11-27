@@ -12,7 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { useTranslations } from "next-intl";
 import { tr } from "@/i18n/tr";
-import { CloseLineIcon } from "@/icons";
+import { CloseLineIcon, DockCornerIcon } from "@/icons";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
 import type { Project } from "@/lib/queries/projects/useProjects";
@@ -619,23 +619,7 @@ export default function WorkItemCreateDialog({
                 : "text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               }`}
           >
-            <svg
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.4"
-              className="h-4 w-4"
-              aria-hidden="true"
-            >
-              <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
-              <rect
-                x="7.5"
-                y="7.5"
-                width="5"
-                height="4.5"
-                fill="currentColor"
-              />
-            </svg>
+            <DockCornerIcon className="h-4 w-4" aria-hidden="true" />
           </button>
 
           <button
@@ -1258,7 +1242,7 @@ export default function WorkItemCreateDialog({
                     className="absolute start-0 bottom-full z-40 mb-1.5 w-44 rounded-lg border border-gray-200 bg-white p-1 shadow-xl dark:border-gray-700 dark:bg-gray-900"
                   >
                     {(
-                      ["TODO", "IN_PROGRESS", "IN_REVIEW", "DONE"] as const
+                      ["TODO", "IN_PROGRESS", "BLOCKED", "IN_REVIEW", "DONE"] as const
                     ).map((st) => (
                       <button
                         key={st}
@@ -1302,6 +1286,7 @@ export default function WorkItemCreateDialog({
                   <option value="IN_PROGRESS">
                     {t("statuses.IN_PROGRESS")}
                   </option>
+                  <option value="BLOCKED">{t("statuses.BLOCKED")}</option>
                   <option value="IN_REVIEW">{t("statuses.IN_REVIEW")}</option>
                   <option value="DONE">{t("statuses.DONE")}</option>
                 </select>

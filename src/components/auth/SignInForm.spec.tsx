@@ -15,14 +15,6 @@ vi.mock("@/i18n/navigation", () => ({
   useRouter: () => ({ replace }),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("@/icons", () => ({
-  ArrowRightIcon: () => null,
-  EnvelopeIcon: () => null,
-  GoogleIcon: () => null,
-  EyeCloseIcon: () => null,
-  EyeIcon: () => null,
-  ChevronDownIcon: () => null,
-}));
 vi.mock("@/lib/queries/auth/useSharedSignIn", () => ({
   useSignInSessionQuery: vi.fn(),
   useSharedLoginMutation: vi.fn(),
@@ -62,8 +54,8 @@ describe("sign in form", () => {
     expect(password).toHaveAttribute("type", "password");
     expect(password).toHaveValue("local-preview-password");
     expect(
-      screen.getByRole("checkbox", { name: "remember" }),
-    ).toBeInTheDocument();
+      screen.queryByRole("checkbox", { name: "remember" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses a single sign-in form without a separate Admin link", () => {
@@ -85,7 +77,7 @@ describe("sign in form", () => {
     expect(screen.queryByRole("link", { name: "signinJoin" })).toBeNull();
   });
 
-  it("routes an authenticated organization member to Organization selection", async () => {
+  it("routes an authenticated organization member directly to /dashboard", async () => {
     vi.mocked(useSignInSessionQuery).mockReturnValue({
       data: {
         id: "user-1",
@@ -103,7 +95,7 @@ describe("sign in form", () => {
     render(<SignInForm />);
 
     await waitFor(() =>
-      expect(replace).toHaveBeenCalledWith("/select-organization"),
+      expect(replace).toHaveBeenCalledWith("/dashboard"),
     );
   });
 

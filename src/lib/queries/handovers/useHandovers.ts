@@ -24,6 +24,7 @@ import {
   listHandoverItemEvidence,
   listHandovers,
   listHandoverTaskTransfers,
+  previewDepartingMember,
   proposeHandoverSources,
   publishHandoverRevision,
   reconcileHandoverTaskTransfer,
@@ -114,7 +115,7 @@ export function useHandoversQuery(
     queryKey: handoverKeys.list(projectId, filter),
     enabled: Boolean(projectId) && options.enabled !== false,
     retry: false,
-    staleTime: 5_000,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       listHandovers(
         projectId,
@@ -133,7 +134,7 @@ export function useHandoverDetailQuery(
     queryKey: handoverKeys.detail(projectId, handoverId),
     enabled: Boolean(projectId && handoverId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) => getHandover(projectId, handoverId, signal),
   });
 }
@@ -147,7 +148,7 @@ export function useHandoverDraftQuery(
     queryKey: handoverKeys.draft(projectId, handoverId),
     enabled: Boolean(projectId && handoverId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) => getHandoverDraft(projectId, handoverId, signal),
   });
 }
@@ -164,7 +165,7 @@ export function useHandoverRevisionQuery(
       Boolean(projectId && handoverId && revisionId) &&
       options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       getHandoverRevision(projectId, handoverId, revisionId!, signal),
   });
@@ -181,11 +182,19 @@ export function useHandoverJobQuery(
     enabled:
       Boolean(projectId && handoverId && jobId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 5_000,
+    refetchIntervalInBackground: false,
     refetchInterval: (query) => {
+      if (typeof document !== "undefined" && document.hidden) {
+        return false;
+      }
       const state = query.state.data?.state;
       if (state === "PENDING" || state === "RUNNING") {
-        return options.refetchIntervalMs ?? 1_500;
+        if (options.refetchIntervalMs !== undefined) {
+          return options.refetchIntervalMs;
+        }
+        const pollCount = Math.max(0, query.state.dataUpdateCount - 1);
+        return Math.min(10_000, 2_000 * Math.pow(1.5, Math.min(pollCount, 4)));
       }
       return false;
     },
@@ -205,7 +214,7 @@ export function useHandoverCandidatesQuery(
     enabled:
       Boolean(projectId && handoverId && jobId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       getHandoverCandidates(projectId, handoverId, jobId!, signal),
   });
@@ -222,7 +231,7 @@ export function useHandoverItemEvidenceQuery(
     enabled:
       Boolean(projectId && handoverId && itemId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       listHandoverItemEvidence(projectId, handoverId, itemId!, signal),
   });
@@ -237,7 +246,7 @@ export function useHandoverTransfersQuery(
     queryKey: handoverKeys.transfers(projectId, handoverId),
     enabled: Boolean(projectId && handoverId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       listHandoverTaskTransfers(projectId, handoverId, signal),
   });
@@ -255,7 +264,7 @@ export function useHandoverTransferQuery(
       Boolean(projectId && handoverId && transferId) &&
       options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       getHandoverTaskTransfer(projectId, handoverId, transferId!, signal),
   });
@@ -270,7 +279,7 @@ export function useHandoverFollowUpsQuery(
     queryKey: handoverKeys.followUps(projectId, handoverId),
     enabled: Boolean(projectId && handoverId) && options.enabled !== false,
     retry: false,
-    staleTime: 0,
+    staleTime: 15_000,
     queryFn: ({ signal }) =>
       listHandoverFollowUps(projectId, handoverId, { limit: 50 }, signal),
   });
@@ -776,15 +785,12 @@ export function useDepartingMemberPreviewQuery(
       "departingPreview",
       cleanId,
     ] as const,
-    queryFn: ({ signal }) =>
-      import("./handover.service").then((m) =>
-        m.previewDepartingMember(projectId, cleanId, signal),
-      ),
+    queryFn: ({ signal }) => previewDepartingMember(projectId, cleanId, signal),
     enabled: Boolean(
       projectId && /^[a-f0-9]{24}$/i.test(cleanId) && (options?.enabled ?? true),
     ),
     retry: false,
-    staleTime: 10_000,
+    staleTime: 30_000,
   });
 }
 

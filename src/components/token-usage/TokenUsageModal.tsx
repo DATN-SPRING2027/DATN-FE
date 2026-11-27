@@ -334,7 +334,7 @@ function TokenUsageModalContent({
                 <span
                   ref={scopeThumbRef}
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
+                  className="pointer-events-none absolute inset-y-0.5 start-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
                 />
                 {availableScopes.map((sc) => (
                   <button
@@ -396,7 +396,7 @@ function TokenUsageModalContent({
                 <span
                   ref={rangeThumbRef}
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-1 left-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
+                  className="pointer-events-none absolute inset-y-1 start-0 rounded-full bg-white shadow-theme-xs dark:bg-gray-800"
                 />
                 {RANGE_PRESETS.map((preset) => (
                   <button

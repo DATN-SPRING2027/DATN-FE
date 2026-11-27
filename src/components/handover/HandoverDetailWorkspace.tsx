@@ -18,6 +18,7 @@ import { useProjectLeadersQuery } from "@/lib/queries/projects/useProjectLeaders
 import {
   useCancelHandoverMutation,
   useCompleteHandoverMutation,
+  useDepartingMemberPreviewQuery,
   useHandoverDetailQuery,
   useSetHandoverCoordinatorMutation,
   useSetHandoverSuccessorMutation,
@@ -27,11 +28,9 @@ import {
   autoBundleHandover,
   formatHandoverEtag,
   generateIdempotencyKey,
-  previewDepartingMember,
   quickAcceptHandover,
   quickTransferHandoverTasks,
 } from "@/lib/queries/handovers/handover.service";
-import type { DepartingMemberPreviewDto } from "@/lib/queries/handovers/handover.types";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import {
@@ -180,8 +179,6 @@ export default function HandoverDetailWorkspace({
   const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // 5-Step Quick Action States
-  const [previewData, setPreviewData] =
-    useState<DepartingMemberPreviewDto | null>(null);
   const [isAutoBundling, setIsAutoBundling] = useState(false);
   const [isQuickTransferring, setIsQuickTransferring] = useState(false);
   const [isQuickAccepting, setIsQuickAccepting] = useState(false);
@@ -398,24 +395,18 @@ export default function HandoverDetailWorkspace({
   const participantView = detailResource?.detail.participantView;
   const useParticipantView = Boolean(participantView && (!canManage || preferParticipant));
 
-  // Fetch auto-aggregated departing member scope (Tasks, Task Notes, Documents, Work Reports, Related Projects)
-  useEffect(() => {
-    const depId = handover?.departingUserId?.trim() ?? "";
-    if (!canManage || useParticipantView || !/^[a-f0-9]{24}$/i.test(depId) || !/^[a-f0-9]{24}$/i.test(projectId)) {
-      return;
-    }
-    const controller = new AbortController();
-    previewDepartingMember(projectId, depId, controller.signal)
-      .then((res) => {
-        if (!controller.signal.aborted) {
-          setPreviewData(res);
-        }
-      })
-      .catch(() => {
-        // Non-blocking in test/restricted environments
-      });
-    return () => controller.abort();
-  }, [canManage, useParticipantView, handover?.departingUserId, handover?.version, projectId]);
+  // Shared React Query departing member scope (deduplicated & cached across views)
+  const departingPreviewQuery = useDepartingMemberPreviewQuery(
+    projectId,
+    handover?.departingUserId,
+    {
+      enabled:
+        canManage &&
+        !useParticipantView &&
+        /^[a-f0-9]{24}$/i.test(projectId),
+    },
+  );
+  const previewData = departingPreviewQuery.data ?? null;
 
   const {
     options: successorOptions,

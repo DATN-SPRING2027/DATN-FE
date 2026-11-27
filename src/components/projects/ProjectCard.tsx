@@ -168,7 +168,7 @@ export default function ProjectCard({
         {/* 2-Column Governance Split: Leader (Left) | Members (Right) */}
         <div className="mt-4 grid grid-cols-2 gap-3 border-y border-gray-100 py-3.5 dark:border-gray-800">
           {/* Left: Leader */}
-          <div className="min-w-0 border-r border-gray-100 pr-3 dark:border-gray-800">
+          <div className="min-w-0 border-e border-gray-100 pe-3 dark:border-gray-800">
             <p className="text-xs font-medium text-gray-400 dark:text-gray-500">
               {t("cardLeaderLabel")}
             </p>
@@ -218,7 +218,7 @@ export default function ProjectCard({
           </div>
 
           {/* Right: Members */}
-          <div className="min-w-0 pl-1">
+          <div className="min-w-0 ps-1">
             <p className="text-xs font-medium text-gray-400 dark:text-gray-500">
               {t("cardMembersLabel")}
             </p>

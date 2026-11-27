@@ -16,17 +16,6 @@ vi.mock("@/i18n/navigation", () => ({
     <a href={href}>{children}</a>
   ),
 }));
-vi.mock("@/icons", () => ({
-  ArrowRightIcon: () => null,
-  CheckCircleIcon: () => null,
-  CheckLineIcon: () => null,
-  ChevronDownIcon: () => null,
-  CopyIcon: () => null,
-  FolderIcon: () => null,
-  InfoIcon: () => null,
-  LockIcon: () => null,
-  UserIcon: () => null,
-}));
 
 const api = vi.mocked(apiClient);
 const organizationId = "0123456789abcdef01234567";

@@ -1,13 +1,30 @@
 "use client";
 
-import React from "react";
+import React, { useSyncExternalStore } from "react";
 import BrandLogo from "@/components/common/BrandLogo";
 import { Link } from "@/i18n/navigation";
 import { ArrowRightIcon } from "@/icons";
+import { hasClientSessionHint } from "@/lib/api-client";
 import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
 
-export default function LandingCtaFooter() {
-  const currentUser = useCurrentUserQuery();
+const subscribeNoop = () => () => undefined;
+
+export default function LandingCtaFooter({
+  hasSessionCookie = false,
+}: {
+  hasSessionCookie?: boolean;
+} = {}) {
+  const hasSessionHint = useSyncExternalStore(
+    subscribeNoop,
+    hasClientSessionHint,
+    () => hasSessionCookie,
+  );
+  const currentUser = useCurrentUserQuery({
+    enabled: hasSessionCookie || hasSessionHint,
+  });
+  const isCheckingSession =
+    currentUser.isLoading ||
+    (currentUser.isPending && currentUser.fetchStatus !== "idle");
   const workspacePath =
     currentUser.data?.context === "ACCOUNT" ? "/onboarding" : "/dashboard";
 
@@ -26,11 +43,11 @@ export default function LandingCtaFooter() {
           <div className="relative rounded-3xl border border-blue-500/20 bg-gradient-to-br from-[#0B1120] via-[#10172D] to-[#1E1B4B] p-8 sm:p-14 md:p-20 text-center shadow-2xl overflow-hidden">
             {/* Ambient Lighting Gradients */}
             <div
-              className="pointer-events-none absolute -top-24 -left-24 h-[400px] w-[400px] rounded-full bg-blue-600/20 blur-3xl opacity-75"
+              className="pointer-events-none absolute -top-24 -start-24 h-[400px] w-[400px] rounded-full bg-blue-600/20 blur-3xl opacity-75"
               aria-hidden="true"
             />
             <div
-              className="pointer-events-none absolute -bottom-24 -right-24 h-[400px] w-[400px] rounded-full bg-indigo-600/20 blur-3xl opacity-75"
+              className="pointer-events-none absolute -bottom-24 -end-24 h-[400px] w-[400px] rounded-full bg-indigo-600/20 blur-3xl opacity-75"
               aria-hidden="true"
             />
 
@@ -71,7 +88,7 @@ export default function LandingCtaFooter() {
                   <span>Trải nghiệm bản demo</span>
                   <ArrowRightIcon className="h-4 w-4" />
                 </button>
-                {currentUser.isPending ? (
+                {isCheckingSession ? (
                   <span
                     aria-label="Đang kiểm tra phiên đăng nhập"
                     aria-busy="true"
@@ -153,7 +170,7 @@ export default function LandingCtaFooter() {
               >
                 Bản demo
               </a>
-              {currentUser.isPending ? (
+              {isCheckingSession ? (
                 <span
                   aria-label="Đang kiểm tra phiên đăng nhập"
                   aria-busy="true"

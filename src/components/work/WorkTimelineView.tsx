@@ -285,10 +285,11 @@ export default function WorkTimelineView({
 
   function cycleSubtaskStatus(epicKey: string, subtaskKey: string) {
     const nextOrder: Record<WorkStatus, WorkStatus> = {
-      TODO:"IN_PROGRESS",
-      IN_PROGRESS:"IN_REVIEW",
-      IN_REVIEW:"DONE",
-      DONE:"TODO",
+      TODO: "IN_PROGRESS",
+      IN_PROGRESS: "IN_REVIEW",
+      IN_REVIEW: "DONE",
+      BLOCKED: "IN_PROGRESS",
+      DONE: "TODO",
     };
     setEpics((current) =>
       current.map((epic) =>

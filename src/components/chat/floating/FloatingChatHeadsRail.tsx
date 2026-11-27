@@ -136,16 +136,16 @@ export default function FloatingChatHeadsRail({
         }
         aria-expanded={isLauncherOpen}
         onClick={onToggleLauncher}
-        className={`relative flex h-14 w-14 items-center justify-center rounded-full text-white shadow-theme-xl transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
+        className={`relative flex h-12 w-12 items-center justify-center rounded-full text-white shadow-theme-lg transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${
           isLauncherOpen
             ? "bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600"
             : "bg-brand-600 hover:bg-brand-700"
         }`}
       >
         {isLauncherOpen ? (
-          <CloseLineIcon className="h-6 w-6" />
+          <CloseLineIcon className="h-5 w-5" />
         ) : (
-          <ChatIcon className="h-6 w-6" />
+          <ChatIcon className="h-5 w-5" />
         )}
         {!isLauncherOpen && totalUnread > 0 && (
           <span

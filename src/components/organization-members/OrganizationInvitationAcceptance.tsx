@@ -42,6 +42,7 @@ export default function OrganizationInvitationAcceptance() {
   const logout = useLogoutMutation();
   const urlCapturedRef = useRef(false);
   const resolvingTokenRef = useRef("");
+  const loadedInvitationKeyRef = useRef("");
   const [token, setToken] = useState("");
   const [invitationIdFromUrl, setInvitationIdFromUrl] = useState("");
   const [invitation, setInvitation] = useState<ResolvedOrganizationInvitation | null>(null);
@@ -84,16 +85,27 @@ export default function OrganizationInvitationAcceptance() {
       }).finally(() => setToken(""));
       return;
     }
-    if (!invitationIdFromUrl || !currentUser.data) return;
+    const actorId = currentUser.data?.id;
+    if (!invitationIdFromUrl || !actorId) return;
+    const loadKey = `${actorId}:${invitationIdFromUrl}`;
+    if (loadedInvitationKeyRef.current === loadKey) return;
+    loadedInvitationKeyRef.current = loadKey;
+    let cancelled = false;
     setLoadState("loading");
     void getOrganizationInvitation(invitationIdFromUrl).then((result) => {
+      if (cancelled) return;
       setInvitation(result);
       setLoadState("idle");
     }).catch((error: unknown) => {
+      if (cancelled) return;
+      loadedInvitationKeyRef.current = "";
       setLoadError(error);
       setLoadState("error");
     });
-  }, [token, invitationIdFromUrl, currentUser.data]);
+    return () => {
+      cancelled = true;
+    };
+  }, [token, invitationIdFromUrl, currentUser.data?.id]);
 
   const invitationId = invitation?.id ?? invitationIdFromUrl;
   const returnTo = invitationId ? invitationReturnTo(invitationId) : "";

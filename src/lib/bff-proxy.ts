@@ -16,6 +16,8 @@ const forwardedHeaders = [
   'x-file-name',
   'idempotency-key',
   'if-match',
+  'traceparent',
+  'tracestate',
   'x-request-id',
 ];
 

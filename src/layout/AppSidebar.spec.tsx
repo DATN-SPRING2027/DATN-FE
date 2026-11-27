@@ -117,6 +117,7 @@ vi.mock("@/lib/queries/auth/useAccountOnboarding", () => ({
   }),
 }));
 vi.mock("@/lib/queries/projects/useProjects", () => ({
+  useProjectQuery: () => ({ data: undefined, isPending: false, isError: false }),
   useProjectsQuery: () => projectsData,
   useInfiniteProjectsQuery: () => ({
     data: { pages: [projectsData.data] },
@@ -679,8 +680,8 @@ describe("AppSidebar navigation", () => {
 
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     const controls = [
-      ...within(nav).getAllByRole("link"),
-      ...within(nav).getAllByRole("button"),
+      ...within(nav).queryAllByRole("link"),
+      ...within(nav).queryAllByRole("button"),
     ];
 
     expect(
@@ -697,7 +698,7 @@ describe("AppSidebar navigation", () => {
     ).toBe(false);
   });
 
-  it("shows not-yet-routed features as disabled items with dark-mode legible text instead of broken links", () => {
+  it("routes Knowledge to active project and removes dead placeholder Integrations button", () => {
     render(<AppSidebar />);
 
     expect(screen.getByRole("complementary")).toHaveClass("dark:text-gray-100");
@@ -705,11 +706,9 @@ describe("AppSidebar navigation", () => {
       "href",
       "/knowledge?projectId=69e923c77859fd1c702d4c21",
     );
-    for (const label of ["Integrations"]) {
-      const button = screen.getByRole("button", { name: label });
-      expect(button).toBeDisabled();
-      expect(button).toHaveClass("text-gray-500", "dark:text-gray-400");
-    }
+    expect(
+      screen.queryByRole("button", { name: "Integrations" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the signed-in account and redirects only after a successful sign-out", async () => {

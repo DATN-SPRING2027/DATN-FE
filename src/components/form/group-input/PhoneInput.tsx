@@ -2,6 +2,7 @@
 
 import { isRtl } from "@/i18n/languages";
 import type { Locale } from "@/i18n/routing";
+import { ChevronDownIcon } from "@/icons";
 import { cn } from "@/utils";
 import { useLocale } from "next-intl";
 import { useState } from "react";
@@ -74,22 +75,7 @@ const PhoneInput: React.FC<PhoneInputProps> = ({
             ))}
           </select>
           <div className="inset-e-3 pointer-events-none absolute inset-y-0 flex items-center text-gray-700 dark:text-gray-400">
-            <svg
-              className="stroke-current"
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M4.79175 7.396L10.0001 12.6043L15.2084 7.396"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronDownIcon aria-hidden="true" className="size-5 shrink-0" />
           </div>
         </div>
       )}
@@ -132,22 +118,7 @@ const PhoneInput: React.FC<PhoneInputProps> = ({
             ))}
           </select>
           <div className="inset-e-3 rtl:inset-s-3 rtl:inset-e-auto pointer-events-none absolute inset-y-0 flex items-center text-gray-700 dark:text-gray-400">
-            <svg
-              className="stroke-current"
-              width="20"
-              height="20"
-              viewBox="0 0 20 20"
-              fill="none"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path
-                d="M4.79175 7.396L10.0001 12.6043L15.2084 7.396"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+            <ChevronDownIcon aria-hidden="true" className="size-5 shrink-0" />
           </div>
         </div>
       )}

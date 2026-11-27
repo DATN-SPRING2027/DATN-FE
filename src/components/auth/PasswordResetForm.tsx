@@ -25,6 +25,7 @@ import styles from "./auth-experience.module.css";
 
 export default function PasswordResetForm() {
   const t = useTranslations("auth");
+  const ui = useTranslations("authExperience");
   const [token, setToken] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -223,7 +224,7 @@ export default function PasswordResetForm() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
-                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    aria-label={ui(showPassword ? "hidePassword" : "showPassword")}
 
                   >
                     {showPassword ? (
@@ -299,9 +300,9 @@ export default function PasswordResetForm() {
                     type="button"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     className="absolute inset-y-0 end-0 flex items-center pe-3 text-gray-500 transition-colors hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 cursor-pointer"
-                    aria-label={
-                      showConfirmPassword ? "Hide password" : "Show password"
-                    }
+                    aria-label={ui(
+                      showConfirmPassword ? "hidePassword" : "showPassword",
+                    )}
 
                   >
                     {showConfirmPassword ? (
@@ -394,7 +395,7 @@ export default function PasswordResetForm() {
             {email && (
               <div className="rounded-xl border border-gray-200 bg-gray-50/70 p-4 dark:border-gray-800 dark:bg-white/3">
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Target address:
+                  {t("targetAddress")}
                 </p>
                 <p className="mt-0.5 text-sm font-semibold text-gray-800 dark:text-white">
                   {email}

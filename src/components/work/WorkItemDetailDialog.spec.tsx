@@ -7,11 +7,6 @@ vi.mock("next-intl", () => ({
   useLocale: () => "de-DE",
   useTranslations: () => (key: string) => key,
 }));
-vi.mock("@/icons", () => ({
-  CloseLineIcon: () => null,
-  CloseIcon: () => null,
-  TaskIcon: () => null,
-}));
 vi.mock("@/components/work-notes/TaskNotesPanel", () => ({
   default: ({
     projectId,
@@ -121,17 +116,21 @@ const sampleItemWithSubtasks: WorkItem = {
 };
 
 describe("WorkItemDetailDialog", () => {
-  it("keeps separately authorized comments and worklogs available when Task fields are read-only", () => {
-    const comment = vi.fn();
-    const worklog = vi.fn();
+  it("keeps separately authorized comments and worklogs available when Task fields are read-only", async () => {
+    const comment = vi.fn().mockResolvedValue(undefined);
+    const worklog = vi.fn().mockResolvedValue(undefined);
     render(<WorkItemDetailDialog item={{ ...sampleItemWithSubtasks, readOnly: true }} onClose={vi.fn()} onAddComment={comment} onAddWorklog={worklog} />);
-    fireEvent.change(screen.getByPlaceholderText("Add a comment…"), { target: { value: "A scoped collaboration comment" } });
+    const commentInput = screen.getByPlaceholderText("Add a comment…");
+    fireEvent.change(commentInput, { target: { value: "A scoped collaboration comment" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
-    expect(comment).toHaveBeenCalledWith("work-1", "A scoped collaboration comment");
+    await waitFor(() => expect(comment).toHaveBeenCalledWith("work-1", "A scoped collaboration comment"));
+    await waitFor(() => expect(commentInput).toHaveValue(""));
     fireEvent.click(screen.getByRole("button", { name: "Work log" }));
-    fireEvent.change(screen.getByPlaceholderText("Time spent (e.g. 1h 30m)"), { target: { value: "30m" } });
+    const worklogInput = screen.getByPlaceholderText("Time spent (e.g. 1h 30m)");
+    fireEvent.change(worklogInput, { target: { value: "30m" } });
     fireEvent.click(screen.getByRole("button", { name: "+ Log work" }));
-    expect(worklog).toHaveBeenCalledWith("work-1", "30m", "");
+    await waitFor(() => expect(worklog).toHaveBeenCalledWith("work-1", "30m", ""));
+    await waitFor(() => expect(worklogInput).toHaveValue(""));
   });
 
   it("hides subtask creation on a read-only Task", () => {
@@ -397,7 +396,10 @@ describe("WorkItemDetailDialog", () => {
     });
     fireEvent.change(clearDescInput, { target: { value: "   " } });
     fireEvent.submit(clearDescInput.closest("form")!);
-    expect(onDescriptionChange).toHaveBeenCalledWith("work-1", null);
+    await waitFor(() =>
+      expect(onDescriptionChange).toHaveBeenCalledWith("work-1", null),
+    );
+    await screen.findByRole("button", { name: "Edit work item description" });
   });
 
   it("blocks Task title and description editing when item.readOnly is true", () => {
@@ -564,19 +566,24 @@ describe("WorkItemDetailDialog", () => {
         name: "Copy Create Git branch",
       }),
     );
-    expect(writeText).toHaveBeenCalledWith(
-      `git checkout -b feat/${sampleItemWithSubtasks.key.toLowerCase()}`,
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `git checkout -b feat/${sampleItemWithSubtasks.key.toLowerCase()}`,
+      ),
     );
-    expect(within(devSection).getByText("Copied")).toBeVisible();
+    expect(await within(devSection).findByText("Copied")).toBeVisible();
 
     fireEvent.click(
       within(devSection).getByRole("button", {
         name: "Copy Create Git commit",
       }),
     );
-    expect(writeText).toHaveBeenCalledWith(
-      `git commit -m "${sampleItemWithSubtasks.key}: ${sampleItemWithSubtasks.title}"`,
+    await waitFor(() =>
+      expect(writeText).toHaveBeenCalledWith(
+        `git commit -m "${sampleItemWithSubtasks.key}: ${sampleItemWithSubtasks.title}"`,
+      ),
     );
+    expect(await within(devSection).findByText("Copied")).toBeVisible();
   });
 
   it("cancels inline description edit on Escape in split view without dismissing the split composer", () => {

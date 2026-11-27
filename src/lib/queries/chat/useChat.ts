@@ -1,12 +1,15 @@
 "use client";
 
 import { apiClient } from "@/lib/api-client";
+import { normalizeChatAttachmentUrl } from "./attachment-url";
 import {
   useInfiniteQuery,
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+
+export { normalizeChatAttachmentUrl };
 
 export type ChatCandidate = Readonly<{
   id: string;
@@ -162,11 +165,14 @@ export const chatApi = {
     previous: readonly ChatMessage[] = [],
     signal?: AbortSignal,
   ): Promise<ChatPage<ChatMessage>> => {
+    const MAX_SYNC_PAGES = 3;
     let page = await chatApi.messages(conversationId, signal);
-    let data = [...page.data];
+    const pageChunks: (readonly ChatMessage[])[] = [page.data];
     const oldest = previous[0];
-    // Reload through the oldest visible message so offline edits and gaps are reconciled too.
+    let pagesFetched = 1;
+    // Cap reconciliation pages so reconnecting long histories never loops unboundedly.
     while (
+      pagesFetched < MAX_SYNC_PAGES &&
       oldest &&
       page.nextCursor &&
       page.data.length > 0 &&
@@ -179,15 +185,21 @@ export const chatApi = {
         page.nextCursor,
         signal,
       );
-      data = [...page.data, ...data];
+      pageChunks.unshift(page.data);
+      pagesFetched += 1;
     }
     const seen = new Set<string>();
+    const merged: ChatMessage[] = [];
+    for (const chunk of pageChunks) {
+      for (const message of chunk) {
+        if (!seen.has(message.id)) {
+          seen.add(message.id);
+          merged.push(message);
+        }
+      }
+    }
     return {
-      data: data.filter((message) => {
-        if (seen.has(message.id)) return false;
-        seen.add(message.id);
-        return true;
-      }),
+      data: merged,
       nextCursor: page.nextCursor,
     };
   },
@@ -310,11 +322,16 @@ export const chatApi = {
     );
     return upload.uploadId;
   },
-  attachmentDownloadUrl: (conversationId: string, attachmentId: string) =>
-    apiClient<{ url: string; expiresInSeconds: number }>(
+  attachmentDownloadUrl: async (conversationId: string, attachmentId: string) => {
+    const result = await apiClient<{ url: string; expiresInSeconds: number }>(
       `/chat/conversations/${encodeURIComponent(conversationId)}/attachments/${encodeURIComponent(attachmentId)}/download-url`,
       { cache: "no-store" },
-    ),
+    );
+    return {
+      ...result,
+      url: normalizeChatAttachmentUrl(result.url),
+    };
+  },
   wsTicket: () =>
     apiClient<{ ticket: string; expiresInSeconds: number }>("/chat/ws-ticket", {
       method: "POST",

@@ -178,6 +178,9 @@ it.each([401, 403, 404, 409, 412, 422, 428, 500, 503])(
     await expect(executeTeamCommand(scope, command)).rejects.toMatchObject({
       status,
     });
-    expect(fetch).toHaveBeenCalledTimes(1);
+    const teamMutationCalls = fetch.mock.calls.filter(([url]) =>
+      String(url).includes("/teams"),
+    );
+    expect(teamMutationCalls).toHaveLength(1);
   },
 );

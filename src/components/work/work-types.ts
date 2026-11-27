@@ -1,6 +1,7 @@
 export const WORK_STATUS_ORDER = [
   "TODO",
   "IN_PROGRESS",
+  "BLOCKED",
   "IN_REVIEW",
   "DONE",
 ] as const;

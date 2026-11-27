@@ -4,10 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 import enMessages from "@/messages/en.json";
 import WorkItemCreateDialog from "./WorkItemCreateDialog";
 
-vi.mock("@/icons", () => ({
-  CloseLineIcon: () => null,
-}));
-
 function renderDialog(
   overrides: Partial<Parameters<typeof WorkItemCreateDialog>[0]> = {},
 ) {

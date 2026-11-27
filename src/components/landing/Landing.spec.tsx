@@ -43,6 +43,7 @@ vi.mock("@/icons", () => ({
   FileIcon: () => <span data-testid="file-icon" />,
   InfoIcon: () => <span data-testid="info-icon" />,
   LockIcon: () => <span data-testid="lock-icon" />,
+  MenuIcon: () => <span data-testid="menu-icon" />,
   UserIcon: () => <span data-testid="user-icon" />,
   ChevronDownIcon: () => <span data-testid="chevron-down-icon" />,
 }));

@@ -66,9 +66,16 @@ export const AI_CHAT_MIND_MAP_DEFAULT_WIDTH = 440;
 export const AI_CHAT_MIND_MAP_MIN_WIDTH = 340;
 export const AI_CHAT_MIND_MAP_MAX_WIDTH = 920;
 export const AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY =
-  "continuum.aiChat.mindMapWidth";
+  "continuum.aiChat.mindMap.width";
 const MIND_MAP_KEYBOARD_STEP = 20;
 const MIN_CHAT_COLUMN_WIDTH = 500;
+
+export function getMindMapWidthStorageKey(
+  userId: string,
+  organizationId: string,
+): string {
+  return `${AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY}.${userId || "anon"}.${organizationId || "no-org"}`;
+}
 
 function resolveAvailableSplitWidth(panelEl: HTMLElement | null): number | null {
   if (!panelEl) return null;
@@ -108,14 +115,12 @@ function clampMindMapWidth(
   );
 }
 
-function readStoredMindMapWidth(): number {
+function readStoredMindMapWidth(storageKey: string): number {
   if (typeof window === "undefined") {
     return AI_CHAT_MIND_MAP_DEFAULT_WIDTH;
   }
   try {
-    const saved = window.localStorage.getItem(
-      AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
-    );
+    const saved = window.localStorage.getItem(storageKey);
     if (saved !== null) {
       const parsed = Number(saved);
       if (Number.isFinite(parsed)) {
@@ -207,25 +212,34 @@ export default function AiChatMindMapPanel({
   const dockedCloseTimerRef = useRef<number | null>(null);
   const [isClosingDocked, setIsClosingDocked] = useState(false);
 
-  const [panelWidth, setPanelWidth] = useState<number>(readStoredMindMapWidth);
+  const widthStorageKey = getMindMapWidthStorageKey(userId, organizationId);
+  const [prevWidthStorageKey, setPrevWidthStorageKey] =
+    useState(widthStorageKey);
+  const [panelWidth, setPanelWidth] = useState<number>(() =>
+    readStoredMindMapWidth(widthStorageKey),
+  );
+  if (prevWidthStorageKey !== widthStorageKey) {
+    setPrevWidthStorageKey(widthStorageKey);
+    setPanelWidth(readStoredMindMapWidth(widthStorageKey));
+  }
   const [isResizing, setIsResizing] = useState(false);
   const panelRef = useRef<HTMLElement | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
   const isDraggingRef = useRef(false);
 
-  const commitPanelWidth = useCallback((nextWidth: number) => {
-    const availableSplitWidth = resolveAvailableSplitWidth(panelRef.current);
-    const clamped = clampMindMapWidth(nextWidth, availableSplitWidth);
-    setPanelWidth(clamped);
-    try {
-      window.localStorage.setItem(
-        AI_CHAT_MIND_MAP_WIDTH_STORAGE_KEY,
-        String(clamped),
-      );
-    } catch {
-      // Ignore storage quota / private mode failures
-    }
-  }, []);
+  const commitPanelWidth = useCallback(
+    (nextWidth: number) => {
+      const availableSplitWidth = resolveAvailableSplitWidth(panelRef.current);
+      const clamped = clampMindMapWidth(nextWidth, availableSplitWidth);
+      setPanelWidth(clamped);
+      try {
+        window.localStorage.setItem(widthStorageKey, String(clamped));
+      } catch {
+        // Ignore storage quota / private mode failures
+      }
+    },
+    [widthStorageKey],
+  );
 
   const startResizeAt = useCallback(
     (startX: number) => {

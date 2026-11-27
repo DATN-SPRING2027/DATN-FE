@@ -16,7 +16,11 @@ import ClosingArt from "./ClosingArt";
 import SmoothScrollHandler from "./SmoothScrollHandler";
 import styles from "./scotch.module.css";
 
-export default async function ScotchLanding() {
+export default async function ScotchLanding({
+  hasSessionCookie = false,
+}: {
+  hasSessionCookie?: boolean;
+} = {}) {
   const t = await getTranslations("landingScotch");
   const common = await getTranslations("landingRylo");
   return (
@@ -25,7 +29,7 @@ export default async function ScotchLanding() {
       <a href="#noi-dung" className={styles.skip}>
         {common("skip")}
       </a>
-      <ScotchNavigation />
+      <ScotchNavigation hasSessionCookie={hasSessionCookie} />
       <main id="noi-dung">
         <section className={styles.hero} aria-labelledby="landing-title">
           <HeroDecorations />
@@ -36,7 +40,11 @@ export default async function ScotchLanding() {
               <p>{t("heroBody")}</p>
               <div className={styles.actions}>
                 <span className={styles.primaryAction}>
-                  <WorkspaceLink guestLabel={t("getStarted")} hideIcon />
+                  <WorkspaceLink
+                    guestLabel={t("getStarted")}
+                    hideIcon
+                    hasSessionCookie={hasSessionCookie}
+                  />
                 </span>
                 <a className={styles.secondaryAction} href="#cach-hoat-dong">
                   {t("seeAction")}
@@ -109,7 +117,11 @@ export default async function ScotchLanding() {
               <h2 id="cta-title">{t("ctaTitle")}</h2>
               <p>{t("ctaBody")}</p>
               <span className={styles.primaryAction}>
-                <WorkspaceLink guestLabel={t("getStarted")} hideIcon />
+                <WorkspaceLink
+                  guestLabel={t("getStarted")}
+                  hideIcon
+                  hasSessionCookie={hasSessionCookie}
+                />
               </span>
             </div>
           </div>

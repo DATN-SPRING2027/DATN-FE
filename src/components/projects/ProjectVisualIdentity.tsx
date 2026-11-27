@@ -4,6 +4,21 @@ import { useEffect, useRef, useState, type ReactNode, type SVGProps } from "reac
 import { createPortal } from "react-dom";
 import RoleLabel from "@/components/common/RoleLabel";
 import { Link } from "@/i18n/navigation";
+import {
+  BarChartIcon,
+  BriefcaseIcon,
+  ChevronRightIcon,
+  CodeBracketsIcon,
+  CpuIcon,
+  EnvelopeIcon,
+  FolderKanbanIcon,
+  GlobeIcon,
+  LayersIcon,
+  LayoutPanelTopIcon,
+  LockIcon,
+  PaletteIcon,
+  TagIcon,
+} from "@/icons";
 import type {
   Project,
   ProjectLeaderSummary,
@@ -11,147 +26,56 @@ import type {
 
 type IconProps = SVGProps<SVGSVGElement>;
 
-function SvgIcon({ children, className, ...props }: IconProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={2}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      {...props}
-    >
-      {children}
-    </svg>
-  );
-}
-
 export function BarChart3(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="M3 3v18h18" />
-      <path d="M18 17V9" />
-      <path d="M13 17V5" />
-      <path d="M8 17v-3" />
-    </SvgIcon>
-  );
+  return <BarChartIcon {...props} />;
 }
 
 export function Briefcase(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect width="20" height="14" x="2" y="7" rx="2" ry="2" />
-      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
-    </SvgIcon>
-  );
+  return <BriefcaseIcon {...props} />;
 }
 
 export function ChevronRight(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="m9 18 6-6-6-6" />
-    </SvgIcon>
-  );
+  return <ChevronRightIcon {...props} />;
 }
 
 export function Code2(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="m18 16 4-4-4-4" />
-      <path d="m6 8-4 4 4 4" />
-      <path d="m14.5 4-5 16" />
-    </SvgIcon>
-  );
+  return <CodeBracketsIcon {...props} />;
 }
 
 export function Cpu(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect width="16" height="16" x="4" y="4" rx="2" />
-      <rect width="6" height="6" x="9" y="9" rx="1" />
-      <path d="M15 2v2M15 20v2M2 15h2M2 9h2M20 15h2M20 9h2M9 2v2M9 20v2" />
-    </SvgIcon>
-  );
+  return <CpuIcon {...props} />;
 }
 
 export function FolderKanban(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z" />
-      <path d="M8 10v4M12 10v2M16 10v6" />
-    </SvgIcon>
-  );
+  return <FolderKanbanIcon {...props} />;
 }
 
 export function Globe(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <circle cx="12" cy="12" r="10" />
-      <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-      <path d="M2 12h20" />
-    </SvgIcon>
-  );
+  return <GlobeIcon {...props} />;
 }
 
 export function Layers(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" />
-      <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" />
-      <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
-    </SvgIcon>
-  );
+  return <LayersIcon {...props} />;
 }
 
 export function LayoutPanelTop(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect width="18" height="7" x="3" y="3" rx="1" />
-      <rect width="7" height="7" x="3" y="14" rx="1" />
-      <rect width="7" height="7" x="14" y="14" rx="1" />
-    </SvgIcon>
-  );
+  return <LayoutPanelTopIcon {...props} />;
 }
 
 export function Lock(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </SvgIcon>
-  );
+  return <LockIcon {...props} />;
 }
 
 export function Mail(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <rect width="20" height="16" x="2" y="4" rx="2" />
-      <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-    </SvgIcon>
-  );
+  return <EnvelopeIcon {...props} />;
 }
 
 export function Palette(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <circle cx="13.5" cy="6.5" r=".5" fill="currentColor" />
-      <circle cx="17.5" cy="10.5" r=".5" fill="currentColor" />
-      <circle cx="8.5" cy="7.5" r=".5" fill="currentColor" />
-      <circle cx="6.5" cy="12.5" r=".5" fill="currentColor" />
-      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z" />
-    </SvgIcon>
-  );
+  return <PaletteIcon {...props} />;
 }
 
 export function Tag(props: IconProps) {
-  return (
-    <SvgIcon {...props}>
-      <path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z" />
-      <circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
-    </SvgIcon>
-  );
+  return <TagIcon {...props} />;
 }
 
 export interface TailAdminProjectTheme {
@@ -386,7 +310,7 @@ export function ProjectCoverThumbnail({
 
       {/* Corner Identity Badge: Default Icon or Project Initials */}
       <span
-        className={`absolute right-1.5 bottom-1.5 flex size-6 items-center justify-center rounded-lg bg-white/95 shadow-2xs ring-1 ring-black/5 backdrop-blur-xs sm:size-7 dark:bg-gray-900/95 dark:ring-white/10 ${theme.iconTextClass}`}
+        className={`absolute end-1.5 bottom-1.5 flex size-6 items-center justify-center rounded-lg bg-white/95 shadow-2xs ring-1 ring-black/5 backdrop-blur-xs sm:size-7 dark:bg-gray-900/95 dark:ring-white/10 ${theme.iconTextClass}`}
       >
         {showIcon ? (
           explicitIconNode
@@ -554,7 +478,7 @@ export function MemberAvatarWithHoverCard({
                   : "translate(-50%, 0)",
               zIndex: 9999,
             }}
-            className="pointer-events-none w-max max-w-[260px] min-w-[205px] rounded-xl border border-gray-200/90 bg-white p-3 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+            className="pointer-events-none w-max max-w-[260px] min-w-[205px] rounded-xl border border-gray-200/90 bg-white p-3 text-start shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
           >
             <div className="flex items-center gap-2.5">
               {avatarUrl ? (
@@ -610,8 +534,8 @@ export function MemberAvatarWithHoverCard({
               aria-hidden="true"
               className={
                 coords.placement === "top"
-                  ? "absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
-                  : "absolute -top-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-t border-l border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                  ? "absolute -bottom-1 start-1/2 size-2 -translate-x-1/2 rtl:translate-x-1/2 rotate-45 border-e border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                  : "absolute -top-1 start-1/2 size-2 -translate-x-1/2 rtl:translate-x-1/2 rotate-45 border-t border-s border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
               }
             />
           </div>,
@@ -787,7 +711,7 @@ export function ProjectMemberAvatarGroup({
                       : "translate(-50%, 0)",
                   zIndex: 9999,
                 }}
-                className="pointer-events-none w-max max-w-[260px] min-w-[200px] rounded-xl border border-gray-200/90 bg-white p-2.5 text-left shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
+                className="pointer-events-none w-max max-w-[260px] min-w-[200px] rounded-xl border border-gray-200/90 bg-white p-2.5 text-start shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10"
               >
                 <p className="mb-1.5 text-[10px] font-semibold tracking-wider text-gray-400 uppercase dark:text-gray-500">
                   +{remainingCount} more members
@@ -837,8 +761,8 @@ export function ProjectMemberAvatarGroup({
                   aria-hidden="true"
                   className={
                     overflowCoords.placement === "top"
-                      ? "absolute -bottom-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-r border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
-                      : "absolute -top-1 left-1/2 size-2 -translate-x-1/2 rotate-45 border-t border-l border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                      ? "absolute -bottom-1 start-1/2 size-2 -translate-x-1/2 rtl:translate-x-1/2 rotate-45 border-e border-b border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
+                      : "absolute -top-1 start-1/2 size-2 -translate-x-1/2 rtl:translate-x-1/2 rotate-45 border-t border-s border-gray-200/90 bg-white dark:border-gray-700 dark:bg-gray-900"
                   }
                 />
               </div>,

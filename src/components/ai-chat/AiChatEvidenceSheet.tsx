@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -10,6 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import {
@@ -32,17 +34,23 @@ import type {
   AiChatCitation,
   AiChatProjectDocumentSources,
 } from "@/lib/queries/ai-chat/ai-chat.types";
-import { apiClient } from "@/lib/api-client";
+import { ApiError, apiClient } from "@/lib/api-client";
+import { useCurrentUserQuery } from "@/lib/queries/auth/useAuth";
+import { registerSessionCacheCleanup } from "@/lib/session-cleanup";
 import {
   workNotesApi,
   type DocumentKnowledgeChunk,
   type ProjectDocumentSummary,
+  type TaskNote,
+  type WorkReport,
 } from "@/lib/queries/work-notes/useWorkNotes";
 import { cn } from "@/utils";
 import type { InspectedEvidence } from "./AiChatMessageList";
 import {
-  buildProjectDocumentHref,
+  buildProjectCitationHref,
   isContinuumDocumentId,
+  parseContinuumCitationTarget,
+  type ContinuumCitationSourceKind,
 } from "./citation-utils";
 import {
   FormattedDocumentPassage,
@@ -54,6 +62,8 @@ import {
 export type AiChatEvidenceSheetProps = Readonly<{
   evidence: InspectedEvidence | null;
   projectId: string;
+  userId?: string;
+  organizationId?: string;
   sessionPreviewText?: string;
   onClose: () => void;
 }>;
@@ -64,20 +74,89 @@ const WIDE_DRAWER_WIDTH = 740;
 const MIN_DRAWER_WIDTH = 420;
 const MAX_DRAWER_WIDTH = 860;
 const CACHE_TTL_MS = 60_000;
+const FOCUSABLE_SELECTOR = [
+  'a[href]:not([tabindex="-1"])',
+  'button:not([disabled]):not([tabindex="-1"])',
+  'input:not([disabled]):not([tabindex="-1"])',
+  'select:not([disabled]):not([tabindex="-1"])',
+  'textarea:not([disabled]):not([tabindex="-1"])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(", ");
 
 type CachedEntry<T> = Readonly<{ data: T; expiresAt: number }>;
 const projectDocsCache = new Map<
   string,
   CachedEntry<readonly ProjectDocumentSummary[]>
 >();
+const projectReportsCache = new Map<
+  string,
+  CachedEntry<readonly WorkReport[]>
+>();
+const projectNotesCache = new Map<
+  string,
+  CachedEntry<readonly TaskNote[]>
+>();
 const docChunksCache = new Map<
   string,
   CachedEntry<readonly DocumentKnowledgeChunk[]>
 >();
 
-export function resetEvidenceSheetCachesForTests(): void {
+function clearEvidenceSheetCaches(): void {
   projectDocsCache.clear();
+  projectReportsCache.clear();
+  projectNotesCache.clear();
   docChunksCache.clear();
+}
+
+registerSessionCacheCleanup(clearEvidenceSheetCaches);
+
+export function resetEvidenceSheetCachesForTests(): void {
+  clearEvidenceSheetCaches();
+}
+
+function buildSessionCachePrefix(
+  userId: string,
+  organizationId: string,
+): string {
+  return `${userId || "anon"}:${organizationId || "no-org"}`;
+}
+
+function acquireBodyScrollLock(): () => void {
+  if (typeof document === "undefined") return () => {};
+  const body = document.body;
+  const currentCount =
+    Number.parseInt(body.dataset.scrollLockCount ?? "0", 10) || 0;
+  if (currentCount === 0) {
+    body.dataset.scrollLockPrevOverflow = body.style.overflow;
+    body.style.overflow = "hidden";
+  }
+  body.dataset.scrollLockCount = String(currentCount + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const count =
+      Number.parseInt(body.dataset.scrollLockCount ?? "1", 10) || 1;
+    const nextCount = Math.max(0, count - 1);
+    if (nextCount === 0) {
+      body.style.overflow = body.dataset.scrollLockPrevOverflow ?? "";
+      delete body.dataset.scrollLockCount;
+      delete body.dataset.scrollLockPrevOverflow;
+    } else {
+      body.dataset.scrollLockCount = String(nextCount);
+    }
+  };
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter(
+    (el) =>
+      !el.hasAttribute("disabled") &&
+      el.getAttribute("aria-hidden") !== "true" &&
+      el.tabIndex >= 0,
+  );
 }
 
 function clampDrawerWidth(raw: number): number {
@@ -88,10 +167,18 @@ function clampDrawerWidth(raw: number): number {
   return Math.round(Math.min(viewportCap, Math.max(MIN_DRAWER_WIDTH, raw)));
 }
 
-function readStoredDrawerWidth(): number {
+function getDrawerWidthStorageKey(
+  userId: string,
+  organizationId: string,
+): string {
+  if (!userId && !organizationId) return DRAWER_WIDTH_STORAGE_KEY;
+  return `continuum.aiChat.mindMap.evidenceWidth.${userId || "anon"}.${organizationId || "no-org"}`;
+}
+
+function readStoredDrawerWidth(storageKey: string): number {
   if (typeof window === "undefined") return DEFAULT_DRAWER_WIDTH;
   try {
-    const raw = window.localStorage.getItem(DRAWER_WIDTH_STORAGE_KEY);
+    const raw = window.localStorage.getItem(storageKey);
     if (!raw) return DEFAULT_DRAWER_WIDTH;
     const parsed = Number.parseInt(raw, 10);
     if (!Number.isFinite(parsed)) return DEFAULT_DRAWER_WIDTH;
@@ -101,10 +188,10 @@ function readStoredDrawerWidth(): number {
   }
 }
 
-function writeStoredDrawerWidth(width: number): void {
+function writeStoredDrawerWidth(storageKey: string, width: number): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(DRAWER_WIDTH_STORAGE_KEY, String(width));
+    window.localStorage.setItem(storageKey, String(width));
   } catch {
     // Ignore storage quota errors in restricted browsing modes.
   }
@@ -162,6 +249,98 @@ function matchBestDocumentSummary(
     }
   }
   return null;
+}
+
+function matchBestWorkReportSummary(
+  reports: readonly WorkReport[],
+  citation: AiChatCitation,
+  allowTitleFallback: boolean,
+): string | null {
+  const candidates = [citation.documentId, citation.sagDocumentId].filter(
+    (id): id is string => Boolean(id),
+  );
+  for (const report of reports) {
+    if (
+      report.knowledgeSync?.sagDocumentId &&
+      candidates.includes(report.knowledgeSync.sagDocumentId)
+    ) {
+      return report.id;
+    }
+  }
+  if (!allowTitleFallback) return null;
+  const targetName = (citation.documentName ?? "").trim().toLowerCase();
+  if (targetName) {
+    const exactMatch = reports.find(
+      (report) =>
+        report.file?.name.trim().toLowerCase() === targetName ||
+        (report.title ?? "").trim().toLowerCase() === targetName,
+    );
+    if (exactMatch) {
+      return exactMatch.id;
+    }
+  }
+  return null;
+}
+
+function matchBestTaskNoteSummary(
+  notes: readonly TaskNote[],
+  citation: AiChatCitation,
+  allowTitleFallback: boolean,
+): string | null {
+  const candidates = [citation.documentId, citation.sagDocumentId].filter(
+    (id): id is string => Boolean(id),
+  );
+  for (const note of notes) {
+    if (
+      note.knowledgeSync?.sagDocumentId &&
+      candidates.includes(note.knowledgeSync.sagDocumentId)
+    ) {
+      return note.id;
+    }
+  }
+  if (!allowTitleFallback) return null;
+  const targetName = (citation.documentName ?? "").trim().toLowerCase();
+  if (targetName) {
+    const exactMatch = notes.find(
+      (note) =>
+        note.file?.name.trim().toLowerCase() === targetName ||
+        note.title.trim().toLowerCase() === targetName,
+    );
+    if (exactMatch) {
+      return exactMatch.id;
+    }
+  }
+  return null;
+}
+
+async function fetchKnowledgeChunksByKind(
+  targetProjectId: string,
+  entityId: string,
+  sourceKind: ContinuumCitationSourceKind,
+  signal: AbortSignal,
+): Promise<readonly DocumentKnowledgeChunk[]> {
+  if (sourceKind === "work_report") {
+    const resp = await workNotesApi.getWorkReportKnowledgeChunks(
+      targetProjectId,
+      entityId,
+      { limit: 100, signal },
+    );
+    return resp.items ?? [];
+  }
+  if (sourceKind === "work_note") {
+    const resp = await workNotesApi.getTaskNoteKnowledgeChunks(
+      targetProjectId,
+      entityId,
+      { limit: 100, signal },
+    );
+    return resp.items ?? [];
+  }
+  const resp = await workNotesApi.getDocumentKnowledgeChunks(
+    targetProjectId,
+    entityId,
+    { limit: 100, signal },
+  );
+  return resp.items ?? [];
 }
 
 function matchBestKnowledgeChunk(
@@ -246,21 +425,36 @@ type HydratedCitationData = Readonly<{
   key: string;
   projectId: string | null;
   continuumDocId: string | null;
+  sourceKind: ContinuumCitationSourceKind;
   matchedChunk: DocumentKnowledgeChunk | null;
   prevChunk: DocumentKnowledgeChunk | null;
   nextChunk: DocumentKnowledgeChunk | null;
 }>;
 
-export default function AiChatEvidenceSheet({
+type AiChatEvidenceSheetContentProps = AiChatEvidenceSheetProps &
+  Readonly<{
+    userId: string;
+    organizationId: string;
+  }>;
+
+function AiChatEvidenceSheetContent({
   evidence,
   projectId,
+  userId,
+  organizationId,
   sessionPreviewText,
   onClose,
-}: AiChatEvidenceSheetProps) {
+}: AiChatEvidenceSheetContentProps) {
   const t = useTranslations("AiChat");
   const closeTimerRef = useRef<number | null>(null);
   const dragCleanupRef = useRef<(() => void) | null>(null);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
+  const drawerWidthStorageKey = getDrawerWidthStorageKey(
+    userId,
+    organizationId,
+  );
   const [prevEvidence, setPrevEvidence] = useState(evidence);
   const [selectedCitationNum, setSelectedCitationNum] = useState<number | null>(
     evidence?.kind === "document" ? evidence.citation.number : null,
@@ -274,9 +468,16 @@ export default function AiChatEvidenceSheet({
     showNext: boolean;
   }>({ citationKey: "", showPrev: false, showNext: false });
 
-  const [drawerWidth, setDrawerWidth] = useState<number>(() =>
-    readStoredDrawerWidth(),
+  const [prevDrawerWidthKey, setPrevDrawerWidthKey] = useState(
+    drawerWidthStorageKey,
   );
+  const [drawerWidth, setDrawerWidth] = useState<number>(() =>
+    readStoredDrawerWidth(drawerWidthStorageKey),
+  );
+  if (prevDrawerWidthKey !== drawerWidthStorageKey) {
+    setPrevDrawerWidthKey(drawerWidthStorageKey);
+    setDrawerWidth(readStoredDrawerWidth(drawerWidthStorageKey));
+  }
   const [isDraggingWidth, setIsDraggingWidth] = useState(false);
   const [hydrated, setHydrated] = useState<HydratedCitationData | null>(null);
 
@@ -311,17 +512,71 @@ export default function AiChatEvidenceSheet({
     }, 165);
   }, [isClosing, onClose]);
 
+  const isSheetOpen = Boolean(evidence);
+
   useEffect(() => {
-    if (!evidence) return;
+    if (!isSheetOpen) return;
+    const releaseScrollLock = acquireBodyScrollLock();
+    const prevActive =
+      typeof document !== "undefined" &&
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    previousFocusRef.current = prevActive;
+
+    const dialogEl = dialogRef.current;
+    if (
+      dialogEl &&
+      (!document.activeElement || !dialogEl.contains(document.activeElement))
+    ) {
+      const focusables = getFocusableElements(dialogEl);
+      (focusables[0] ?? dialogEl).focus();
+    }
+
+    return () => {
+      releaseScrollLock();
+      const toRestore = previousFocusRef.current;
+      previousFocusRef.current = null;
+      if (toRestore && toRestore.isConnected) {
+        toRestore.focus();
+      }
+    };
+  }, [isSheetOpen]);
+
+  useEffect(() => {
+    if (!isSheetOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         event.stopPropagation();
         handleRequestClose();
+        return;
+      }
+      if (event.key === "Tab") {
+        const dialogEl = dialogRef.current;
+        if (!dialogEl) return;
+        const focusables = getFocusableElements(dialogEl);
+        if (focusables.length === 0) {
+          event.preventDefault();
+          dialogEl.focus();
+          return;
+        }
+        const first = focusables[0]!;
+        const last = focusables[focusables.length - 1]!;
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (active === first || active === dialogEl || !dialogEl.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !dialogEl.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [evidence, handleRequestClose]);
+  }, [handleRequestClose, isSheetOpen]);
 
   const activeDocumentCitation: AiChatCitation | null = useMemo(() => {
     if (!evidence || evidence.kind !== "document") return null;
@@ -339,11 +594,18 @@ export default function AiChatEvidenceSheet({
     return evidence.citation;
   }, [evidence, selectedCitationNum]);
 
+  const parsedCitationTarget = useMemo(
+    () => parseContinuumCitationTarget(activeDocumentCitation),
+    [activeDocumentCitation],
+  );
+
+  const sessionCachePrefix = buildSessionCachePrefix(userId, organizationId);
+
   const activeCitationLookupKey = activeDocumentCitation
-    ? `${projectId}:${activeDocumentCitation.projectId ?? ""}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`
+    ? `${sessionCachePrefix}:${projectId}:${activeDocumentCitation.projectId ?? ""}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`
     : "";
 
-  // Hydrate full unflattened canonical chunk & Continuum documentId for authorized project documents
+  // Hydrate full unflattened canonical chunk & Continuum entity ID for authorized project artifacts
   useEffect(() => {
     if (!activeDocumentCitation) {
       return;
@@ -361,19 +623,17 @@ export default function AiChatEvidenceSheet({
     }
 
     const controller = new AbortController();
-    const lookupKey = `${projectId}:${activeDocumentCitation.projectId ?? ""}:${activeDocumentCitation.documentId}:${activeDocumentCitation.chunkId ?? ""}:${activeDocumentCitation.number}`;
+    const lookupKey = activeCitationLookupKey;
+    const initialTarget = parseContinuumCitationTarget(activeDocumentCitation);
 
     const runHydration = async () => {
       let targetProjectId: string | null = directProjectId;
-      let resolvedDocId: string | null = isContinuumDocumentId(
-        activeDocumentCitation.documentId,
-      )
-        ? activeDocumentCitation.documentId
-        : null;
+      let resolvedDocId: string | null = initialTarget.entityId;
+      let resolvedKind: ContinuumCitationSourceKind = initialTarget.sourceKind;
 
       if (!targetProjectId && projectId === "all") {
-        // The catalog exposes Continuum document IDs. A legacy SAG UUID alone
-        // cannot identify which Project owns the cited document.
+        // The catalog exposes Continuum artifact IDs. A legacy SAG UUID alone
+        // cannot identify which Project owns the cited artifact.
         if (!resolvedDocId) return;
         let totalPages = 1;
         for (let page = 1; page <= totalPages; page += 1) {
@@ -382,11 +642,14 @@ export default function AiChatEvidenceSheet({
             { signal: controller.signal, cache: "no-store" },
           );
           if (controller.signal.aborted) return;
-          const match = result.data.find(
-            (source) =>
-              source.documentId === resolvedDocId &&
-              isContinuumDocumentId(source.projectId),
-          );
+          const match = result.data.find((source) => {
+            if (!isContinuumDocumentId(source.projectId)) return false;
+            if (source.documentId === resolvedDocId) return true;
+            const parsedSource = parseContinuumCitationTarget({
+              documentId: source.documentId,
+            });
+            return parsedSource.entityId === resolvedDocId;
+          });
           if (match?.projectId) {
             targetProjectId = match.projectId;
             break;
@@ -399,53 +662,168 @@ export default function AiChatEvidenceSheet({
         return;
       }
 
+      const projectListCacheKey = `${sessionCachePrefix}:${targetProjectId}`;
+      const allowNameFallback = projectId !== "all";
+
       if (!resolvedDocId) {
-        const now = Date.now();
-        const cachedDocs = projectDocsCache.get(targetProjectId);
-        let docs: readonly ProjectDocumentSummary[] = [];
-        if (cachedDocs && cachedDocs.expiresAt > now) {
-          docs = cachedDocs.data;
-        } else {
-          const page = await workNotesApi.listDocuments(
-            targetProjectId,
-            "APPROVED",
-            1,
-            controller.signal,
-          );
-          docs = page.data ?? [];
-          projectDocsCache.set(targetProjectId, {
-            data: docs,
-            expiresAt: Date.now() + CACHE_TTL_MS,
-          });
+        const lookupOrder: readonly ContinuumCitationSourceKind[] =
+          resolvedKind === "work_report"
+            ? ["work_report", "project_document", "work_note"]
+            : resolvedKind === "work_note"
+              ? ["work_note", "project_document", "work_report"]
+              : ["project_document", "work_report", "work_note"];
+
+        for (const candidateKind of lookupOrder) {
+          if (controller.signal.aborted) return;
+          const now = Date.now();
+          if (candidateKind === "project_document") {
+            const cachedDocs = projectDocsCache.get(projectListCacheKey);
+            let docs: readonly ProjectDocumentSummary[] = [];
+            if (cachedDocs && cachedDocs.expiresAt > now) {
+              docs = cachedDocs.data;
+            } else {
+              const page = await workNotesApi
+                .listDocuments(targetProjectId, "APPROVED", 1, controller.signal)
+                .catch(() => ({ data: [] as readonly ProjectDocumentSummary[] }));
+              docs = page.data ?? [];
+              projectDocsCache.set(projectListCacheKey, {
+                data: docs,
+                expiresAt: Date.now() + CACHE_TTL_MS,
+              });
+            }
+            const matched = matchBestDocumentSummary(
+              docs,
+              activeDocumentCitation,
+              allowNameFallback,
+            );
+            if (matched) {
+              resolvedDocId = matched;
+              resolvedKind = "project_document";
+              break;
+            }
+          } else if (candidateKind === "work_report") {
+            const cachedReports = projectReportsCache.get(projectListCacheKey);
+            let reports: readonly WorkReport[] = [];
+            if (cachedReports && cachedReports.expiresAt > now) {
+              reports = cachedReports.data;
+            } else {
+              const page = await workNotesApi
+                .listReports(targetProjectId, "APPROVED", 1, controller.signal)
+                .catch(() => ({ data: [] as readonly WorkReport[] }));
+              reports = page.data ?? [];
+              projectReportsCache.set(projectListCacheKey, {
+                data: reports,
+                expiresAt: Date.now() + CACHE_TTL_MS,
+              });
+            }
+            const matched = matchBestWorkReportSummary(
+              reports,
+              activeDocumentCitation,
+              allowNameFallback,
+            );
+            if (matched) {
+              resolvedDocId = matched;
+              resolvedKind = "work_report";
+              break;
+            }
+          } else {
+            const cachedNotes = projectNotesCache.get(projectListCacheKey);
+            let notes: readonly TaskNote[] = [];
+            if (cachedNotes && cachedNotes.expiresAt > now) {
+              notes = cachedNotes.data;
+            } else {
+              const page = await workNotesApi
+                .listProjectTaskNotes(
+                  targetProjectId,
+                  1,
+                  controller.signal,
+                  "APPROVED",
+                )
+                .catch(() => ({ data: [] as readonly TaskNote[] }));
+              notes = page.data ?? [];
+              projectNotesCache.set(projectListCacheKey, {
+                data: notes,
+                expiresAt: Date.now() + CACHE_TTL_MS,
+              });
+            }
+            const matched = matchBestTaskNoteSummary(
+              notes,
+              activeDocumentCitation,
+              allowNameFallback,
+            );
+            if (matched) {
+              resolvedDocId = matched;
+              resolvedKind = "work_note";
+              break;
+            }
+          }
         }
-        if (controller.signal.aborted) return;
-        resolvedDocId = matchBestDocumentSummary(
-          docs,
-          activeDocumentCitation,
-          projectId !== "all",
-        );
       }
 
       if (!resolvedDocId || !isContinuumDocumentId(resolvedDocId)) {
         return;
       }
 
-      const chunkCacheKey = `${targetProjectId}:${resolvedDocId}`;
+      const chunkCacheKey = `${sessionCachePrefix}:${targetProjectId}:${resolvedKind}:${resolvedDocId}`;
       const cachedChunks = docChunksCache.get(chunkCacheKey);
       let chunks: readonly DocumentKnowledgeChunk[] = [];
       if (cachedChunks && cachedChunks.expiresAt > Date.now()) {
         chunks = cachedChunks.data;
       } else {
-        const resp = await workNotesApi.getDocumentKnowledgeChunks(
-          targetProjectId,
-          resolvedDocId,
-          { limit: 100, signal: controller.signal },
-        );
-        chunks = resp.items ?? [];
-        docChunksCache.set(chunkCacheKey, {
-          data: chunks,
-          expiresAt: Date.now() + CACHE_TTL_MS,
-        });
+        try {
+          chunks = await fetchKnowledgeChunksByKind(
+            targetProjectId,
+            resolvedDocId,
+            resolvedKind,
+            controller.signal,
+          );
+          docChunksCache.set(chunkCacheKey, {
+            data: chunks,
+            expiresAt: Date.now() + CACHE_TTL_MS,
+          });
+        } catch (error) {
+          if (
+            controller.signal.aborted ||
+            initialTarget.hasExplicitKind ||
+            resolvedKind !== "project_document" ||
+            !(error instanceof ApiError && error.status === 404)
+          ) {
+            throw error;
+          }
+          // When SAG omitted explicit sourceKind for a 24-hex work_report/work_note ID,
+          // fall back gracefully to work-report and work-note chunk endpoints.
+          let recovered = false;
+          for (const fallbackKind of [
+            "work_report",
+            "work_note",
+          ] as const) {
+            if (controller.signal.aborted) return;
+            try {
+              const fallbackChunks = await fetchKnowledgeChunksByKind(
+                targetProjectId,
+                resolvedDocId,
+                fallbackKind,
+                controller.signal,
+              );
+              resolvedKind = fallbackKind;
+              chunks = fallbackChunks;
+              docChunksCache.set(
+                `${sessionCachePrefix}:${targetProjectId}:${fallbackKind}:${resolvedDocId}`,
+                {
+                  data: chunks,
+                  expiresAt: Date.now() + CACHE_TTL_MS,
+                },
+              );
+              recovered = true;
+              break;
+            } catch {
+              // Continue to next artifact kind fallback.
+            }
+          }
+          if (!recovered) {
+            throw error;
+          }
+        }
       }
       if (controller.signal.aborted) return;
 
@@ -454,6 +832,7 @@ export default function AiChatEvidenceSheet({
         key: lookupKey,
         projectId: targetProjectId,
         continuumDocId: resolvedDocId,
+        sourceKind: resolvedKind,
         matchedChunk: matchedIdx >= 0 ? (chunks[matchedIdx] ?? null) : null,
         prevChunk: matchedIdx > 0 ? (chunks[matchedIdx - 1] ?? null) : null,
         nextChunk:
@@ -470,7 +849,7 @@ export default function AiChatEvidenceSheet({
     return () => {
       controller.abort();
     };
-  }, [activeDocumentCitation, projectId]);
+  }, [activeCitationLookupKey, activeDocumentCitation, projectId, sessionCachePrefix]);
 
   const currentHydrated =
     hydrated && hydrated.key === activeCitationLookupKey ? hydrated : null;
@@ -497,11 +876,14 @@ export default function AiChatEvidenceSheet({
 
   const resolvedContinuumDocId = useMemo(() => {
     if (!activeDocumentCitation) return null;
-    if (isContinuumDocumentId(activeDocumentCitation.documentId)) {
-      return activeDocumentCitation.documentId;
+    if (parsedCitationTarget.entityId) {
+      return parsedCitationTarget.entityId;
     }
     return currentHydrated?.continuumDocId ?? null;
-  }, [activeDocumentCitation, currentHydrated]);
+  }, [activeDocumentCitation, currentHydrated, parsedCitationTarget.entityId]);
+
+  const resolvedSourceKind: ContinuumCitationSourceKind =
+    currentHydrated?.sourceKind ?? parsedCitationTarget.sourceKind;
 
   const effectivePassageText =
     currentHydrated?.matchedChunk?.content ||
@@ -545,11 +927,14 @@ export default function AiChatEvidenceSheet({
     }
   }, [activeCopyId, copyPayload]);
 
-  const applyDrawerWidth = useCallback((nextWidth: number) => {
-    const clamped = clampDrawerWidth(nextWidth);
-    setDrawerWidth(clamped);
-    writeStoredDrawerWidth(clamped);
-  }, []);
+  const applyDrawerWidth = useCallback(
+    (nextWidth: number) => {
+      const clamped = clampDrawerWidth(nextWidth);
+      setDrawerWidth(clamped);
+      writeStoredDrawerWidth(drawerWidthStorageKey, clamped);
+    },
+    [drawerWidthStorageKey],
+  );
 
   const handleStartResize = useCallback(
     (event: ReactPointerEvent<HTMLDivElement>) => {
@@ -572,7 +957,7 @@ export default function AiChatEvidenceSheet({
           : startX - moveEvent.clientX;
         const clamped = clampDrawerWidth(startWidth + delta);
         setDrawerWidth(clamped);
-        writeStoredDrawerWidth(clamped);
+        writeStoredDrawerWidth(drawerWidthStorageKey, clamped);
       };
 
       const cleanup = () => {
@@ -590,7 +975,7 @@ export default function AiChatEvidenceSheet({
       window.addEventListener("pointerup", cleanup);
       window.addEventListener("pointercancel", cleanup);
     },
-    [drawerWidth],
+    [drawerWidth, drawerWidthStorageKey],
   );
 
   const handleResizeKeyDown = useCallback(
@@ -673,6 +1058,8 @@ export default function AiChatEvidenceSheet({
       />
 
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label={t("citationDialogAriaLabel")}
@@ -680,7 +1067,7 @@ export default function AiChatEvidenceSheet({
         data-dragging={isDraggingWidth ? "true" : undefined}
         style={drawerStyle}
         className={cn(
-          "continuum-evidence-drawer relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-gray-200/90 bg-white shadow-theme-xl lg:rounded-none lg:border-y-0 lg:border-e-0 lg:border-s dark:border-white/12 dark:bg-gpt-popover",
+          "continuum-evidence-drawer relative z-10 flex w-full flex-col overflow-hidden rounded-t-3xl border border-gray-200/90 bg-white shadow-theme-xl focus:outline-none lg:rounded-none lg:border-y-0 lg:border-e-0 lg:border-s dark:border-white/12 dark:bg-gpt-popover",
           isClosing
             ? "continuum-evidence-exit"
             : "continuum-evidence-enter",
@@ -1144,9 +1531,10 @@ export default function AiChatEvidenceSheet({
               resolvedContinuumDocId &&
               resolvedProjectId && (
               <Link
-                href={buildProjectDocumentHref(
+                href={buildProjectCitationHref(
                   resolvedProjectId,
                   resolvedContinuumDocId,
+                  resolvedSourceKind,
                 )}
                 onClick={onClose}
                 className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-brand-600 px-4 text-xs font-semibold text-white shadow-theme-xs transition-all hover:bg-brand-700 active:scale-95 dark:bg-brand-500 dark:hover:bg-brand-600"
@@ -1162,5 +1550,33 @@ export default function AiChatEvidenceSheet({
         </div>
       </div>
     </div>
+  );
+}
+
+function AiChatEvidenceSheetWithSession(props: AiChatEvidenceSheetProps) {
+  const currentUserQuery = useCurrentUserQuery();
+  const userId = props.userId ?? currentUserQuery.data?.id ?? "";
+  const organizationId =
+    props.organizationId ?? currentUserQuery.data?.organizationId ?? "";
+  return (
+    <AiChatEvidenceSheetContent
+      {...props}
+      userId={userId}
+      organizationId={organizationId}
+    />
+  );
+}
+
+export default function AiChatEvidenceSheet(props: AiChatEvidenceSheetProps) {
+  const queryClient = useContext(QueryClientContext);
+  if (queryClient) {
+    return <AiChatEvidenceSheetWithSession {...props} />;
+  }
+  return (
+    <AiChatEvidenceSheetContent
+      {...props}
+      userId={props.userId ?? ""}
+      organizationId={props.organizationId ?? ""}
+    />
   );
 }

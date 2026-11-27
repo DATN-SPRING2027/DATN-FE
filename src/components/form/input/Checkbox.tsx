@@ -1,4 +1,5 @@
 import type React from "react";
+import { CheckLineIcon } from "@/icons";
 
 interface CheckboxProps {
   label?: React.ReactNode;
@@ -39,40 +40,16 @@ const Checkbox: React.FC<CheckboxProps> = ({
           disabled={disabled}
         />
         {checked && (
-          <svg
-            className="pointer-events-none absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 transform rtl:translate-x-1/2"
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-          >
-            <path
-              d="M11.6666 3.5L5.24992 9.91667L2.33325 7"
-              stroke="white"
-              strokeWidth="1.94437"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CheckLineIcon
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 start-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 transform text-white rtl:translate-x-1/2"
+          />
         )}
         {disabled && (
-          <svg
-            className="pointer-events-none absolute top-1/2 start-1/2 -translate-x-1/2 -translate-y-1/2 transform rtl:translate-x-1/2"
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 14 14"
-            fill="none"
-          >
-            <path
-              d="M11.6666 3.5L5.24992 9.91667L2.33325 7"
-              stroke="#E4E7EC"
-              strokeWidth="2.33333"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </svg>
+          <CheckLineIcon
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 start-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 transform text-gray-200 rtl:translate-x-1/2"
+          />
         )}
       </div>
       {label && (

@@ -72,9 +72,9 @@ export function useProjectMembersQuery(
       options.enabled !== false,
     retry: false,
     throwOnError: false,
-    staleTime: options.staleTime ?? 0,
-    gcTime: 120_000,
-    refetchOnWindowFocus: true,
+    staleTime: options.staleTime ?? 30_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
     networkMode: "always",
     queryFn: async ({ signal }) => {
       if (
@@ -121,7 +121,9 @@ export function useProjectMembersQuery(
       // Directory consumers use data only. Keep server pagination metadata and
       // the aggregate in a separate cache from ordinary paged lists.
       const members = new Map(first.data.map((member) => [member.id, member]));
-      for (let page = 2; page <= first.pagination.totalPages; page += 1) {
+      const maxPages = Math.min(first.pagination.totalPages, 10);
+      for (let page = 2; page <= maxPages; page += 1) {
+        if (signal?.aborted) break;
         const result = await fetchPage(page);
         for (const member of result.data) members.set(member.id, member);
       }
@@ -164,7 +166,6 @@ export function useProjectMemberCandidatesQuery(
             "INVALID_PROJECT_MEMBER_RESPONSE",
             "Unexpected Project member response",
           );
-        if ("pagination" in res) return [];
         return res.data.map(parseCandidate);
       });
     },
@@ -177,9 +178,9 @@ export function useProjectMemberAddAccess(organizationId: string, projectId: str
     queryKey: [...projectMemberKeys.scope(organizationId, projectId), "add-access"],
     enabled: active && Boolean(organizationId && isResourceId(projectId)),
     retry: false,
-    staleTime: 0,
-    gcTime: 0,
-    refetchOnWindowFocus: true,
+    staleTime: 30_000,
+    gcTime: 300_000,
+    refetchOnWindowFocus: false,
     networkMode: "always",
     queryFn: async ({ signal }) => {
       const result = await apiClient<{ data: unknown[] }>(`/iam/projects/${encodeURIComponent(projectId)}/member-candidates`, {

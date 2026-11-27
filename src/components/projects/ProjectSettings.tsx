@@ -15,7 +15,7 @@ import {
   useUpdateProjectMutation,
 } from "@/lib/queries/projects/useProjects";
 import { useProjectManagementAccess, useProjectSettingsAccess } from "@/lib/queries/projects/useProjectSettings";
-import { AlertIcon, SettingsIcon, TrashBinIcon } from "@/icons";
+import { AlertIcon, GlobeIcon, LockIcon, SettingsIcon, TrashBinIcon } from "@/icons";
 import ProjectVisibility from "./ProjectVisibility";
 
 const inputClassName =
@@ -168,28 +168,7 @@ function ProjectDetailsForm({ project, access }: { project: Project; access: Ret
                 {projectText("code")}
               </span>
               <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-400 dark:text-gray-500">
-                <svg
-                  aria-hidden="true"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  className="h-3 w-3 shrink-0"
-                >
-                  <rect
-                    x="3.5"
-                    y="7.25"
-                    width="9"
-                    height="6.25"
-                    rx="1.25"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                  />
-                  <path
-                    d="M5.5 7.25V5.25a2.5 2.5 0 1 1 5 0v2"
-                    stroke="currentColor"
-                    strokeWidth="1.4"
-                    strokeLinecap="round"
-                  />
-                </svg>
+                <LockIcon aria-hidden="true" className="h-3 w-3 shrink-0" />
                 Immutable
               </span>
             </div>
@@ -422,48 +401,9 @@ export default function ProjectSettings({
                 }`}
               >
                 {isPrivate ? (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 18 18"
-                    fill="none"
-                    className="size-4.5"
-                  >
-                    <rect
-                      x="3.75"
-                      y="8"
-                      width="10.5"
-                      height="7.25"
-                      rx="1.75"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    />
-                    <path
-                      d="M6 8V5.75a3 3 0 1 1 6 0V8"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                    />
-                  </svg>
+                  <LockIcon aria-hidden="true" className="size-4.5" />
                 ) : (
-                  <svg
-                    aria-hidden="true"
-                    viewBox="0 0 18 18"
-                    fill="none"
-                    className="size-4.5"
-                  >
-                    <circle
-                      cx="9"
-                      cy="9"
-                      r="6.25"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                    />
-                    <path
-                      d="M3 9h12M9 2.75c1.75 1.7 2.65 3.8 2.65 6.25S10.75 13.55 9 15.25c-1.75-1.7-2.65-3.8-2.65-6.25S7.25 4.45 9 2.75Z"
-                      stroke="currentColor"
-                      strokeWidth="1.4"
-                    />
-                  </svg>
+                  <GlobeIcon aria-hidden="true" className="size-4.5" />
                 )}
               </span>
               <div>

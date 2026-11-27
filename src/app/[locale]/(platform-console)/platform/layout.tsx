@@ -1,6 +1,8 @@
 import PlatformConsole from "@/components/platform/PlatformConsole";
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
+import { pickMessages, PLATFORM_NAMESPACES } from "@/i18n/messages-scope";
 import { platformFont } from "@/components/platform/ui/platformFont";
 import PlatformCopyProvider from "@/components/platform/ui/PlatformCopyProvider";
 import { BRAND_PLATFORM, formatPlatformTitle } from "@/lib/page-titles";
@@ -26,15 +28,30 @@ export async function generateMetadata({
   };
 }
 
-export default function PlatformConsoleLayout({
+export default async function PlatformConsoleLayout({
   children,
-}: Readonly<{ children: React.ReactNode }>) {
+  params,
+}: Readonly<{
+  children: React.ReactNode;
+  params: Promise<{ locale: string }>;
+}>) {
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const messages = await getMessages();
   return (
-    <div className={platformFont.variable}>
-      <PlatformCopyProvider>
-        <PlatformConsole />
-        {children}
-      </PlatformCopyProvider>
-    </div>
+    <NextIntlClientProvider
+      locale={locale}
+      messages={pickMessages(
+        messages as Record<string, unknown>,
+        PLATFORM_NAMESPACES,
+      )}
+    >
+      <div className={platformFont.variable}>
+        <PlatformCopyProvider>
+          <PlatformConsole />
+          {children}
+        </PlatformCopyProvider>
+      </div>
+    </NextIntlClientProvider>
   );
 }

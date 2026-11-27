@@ -11,6 +11,17 @@ import {
 } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import {
+  AlertCircleFilledIcon,
+  BanCircleIcon,
+  CheckLineIcon,
+  ChevronDownIcon,
+  CloseIcon,
+  EnvelopeIcon,
+  ShieldCheckIcon,
+  UserIcon,
+  UserStarIcon,
+} from "@/icons";
 import Button from "@/components/ui/button/Button";
 import Label from "@/components/form/Label";
 import { Modal } from "@/components/ui/modal";
@@ -72,68 +83,33 @@ function RoleOptionIcon({
   className?: string;
 }) {
   if (option === "MANAGER") {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        className={className}
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M10 2.75 16 5.25v4.6c0 4.05-2.55 6.86-6 7.9-3.45-1.04-6-3.85-6-7.9v-4.6L10 2.75Z"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m7.75 10.25 1.5 1.5 3.25-3.25"
-        />
-      </svg>
-    );
+    return <ShieldCheckIcon aria-hidden="true" className={className} />;
   }
   if (option === "LEADER") {
-    return (
-      <svg
-        aria-hidden="true"
-        viewBox="0 0 20 20"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.6"
-        className={className}
-      >
-        <circle cx="8" cy="6.75" r="2.75" />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M3.25 16c.8-2.3 2.65-3.5 4.75-3.5s3.95 1.2 4.75 3.5"
-        />
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="m14.5 5.25.65 1.35 1.48.22-1.07 1.04.25 1.47-1.31-.69-1.31.69.25-1.47-1.07-1.04 1.48-.22.65-1.35Z"
-        />
-      </svg>
-    );
+    return <UserStarIcon aria-hidden="true" className={className} />;
   }
+  return <UserIcon aria-hidden="true" className={className} />;
+}
+
+function DialogCloseButton({
+  onClick,
+  disabled = false,
+  label,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  label: string;
+}) {
   return (
-    <svg
-      aria-hidden="true"
-      viewBox="0 0 20 20"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.6"
-      className={className}
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2 disabled:opacity-50 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-gray-700 dark:hover:text-white dark:focus-visible:ring-offset-gray-900"
     >
-      <circle cx="10" cy="6.75" r="3" />
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M4.5 16.25c.9-2.6 3.05-4 5.5-4s4.6 1.4 5.5 4"
-      />
-    </svg>
+      <CloseIcon aria-hidden="true" className="size-5" />
+    </button>
   );
 }
 
@@ -443,9 +419,33 @@ export default function OrganizationInvitationCreateDialog({
     }
   }
 
+  const hasUnsavedDraft =
+    email.trim().length > 0 ||
+    emailChips.length > 0 ||
+    message.trim().length > 0 ||
+    selectedProjectIds.length > 0;
+
+  function handleEscapeClose() {
+    if (isPending) return;
+    if (confirmCloseOpen) {
+      setConfirmCloseOpen(false);
+      return;
+    }
+    if (roleDropdownOpen) {
+      setRoleDropdownOpen(false);
+      return;
+    }
+    onClose();
+  }
+
   function handleBackdropClose() {
     if (isPending) return;
-    if (isSuccess || isForbiddenState || activeConflictState !== null) {
+    if (
+      isSuccess ||
+      isForbiddenState ||
+      activeConflictState !== null ||
+      !hasUnsavedDraft
+    ) {
       onClose();
       return;
     }
@@ -468,10 +468,11 @@ export default function OrganizationInvitationCreateDialog({
   return (
     <Modal
       isOpen={isOpen}
-      onClose={handleBackdropClose}
+      onClose={handleEscapeClose}
+      onEscape={handleEscapeClose}
       onBackdropClick={handleBackdropClose}
       showCloseButton={false}
-      className="mx-4 w-full max-w-[440px]"
+      className="w-full max-w-[440px] min-w-0"
     >
       <div
         ref={dialogRef}
@@ -481,7 +482,7 @@ export default function OrganizationInvitationCreateDialog({
         aria-describedby={descriptionId}
         aria-busy={isPending}
         onKeyDown={trapFocus}
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900"
+        className="max-h-[calc(100dvh-2rem)] min-w-0 overflow-x-hidden overflow-y-auto rounded-2xl border border-gray-200 bg-white p-4 shadow-theme-xl sm:p-6 dark:border-gray-800 dark:bg-gray-900"
       >
         {/* Outside-click Cancel Confirmation Overlay */}
         {confirmCloseOpen && !isPending && !isSuccess && (
@@ -544,16 +545,7 @@ export default function OrganizationInvitationCreateDialog({
         {isForbiddenState ? (
           <div>
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t("close")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <span aria-hidden="true" className="text-lg leading-none">
-                  ×
-                </span>
-              </button>
+              <DialogCloseButton onClick={onClose} label={t("close")} />
             </div>
             <div
               role="alert"
@@ -563,16 +555,7 @@ export default function OrganizationInvitationCreateDialog({
                 aria-hidden="true"
                 className="mb-4 flex size-14 items-center justify-center rounded-full bg-error-50 text-error-500 dark:bg-error-500/10 dark:text-error-400"
               >
-                <svg
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  className="size-7"
-                >
-                  <circle cx="12" cy="12" r="9" />
-                  <path strokeLinecap="round" d="M5.7 5.7l12.6 12.6" />
-                </svg>
+                <BanCircleIcon aria-hidden="true" className="size-7" />
               </span>
               <h2
                 id={titleId}
@@ -624,16 +607,7 @@ export default function OrganizationInvitationCreateDialog({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t("close")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <span aria-hidden="true" className="text-lg leading-none">
-                  ×
-                </span>
-              </button>
+              <DialogCloseButton onClick={onClose} label={t("close")} />
             </div>
             <div className="mt-6 flex justify-end gap-2.5">
               <Button
@@ -668,7 +642,7 @@ export default function OrganizationInvitationCreateDialog({
           /* Screen 9B: Trạng thái đặc biệt — Account already a member */
           <div>
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3.5">
+              <div className="flex min-w-0 items-start gap-3.5">
                 <span
                   aria-hidden="true"
                   className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-600 ring-4 ring-brand-50/60 dark:bg-brand-500/15 dark:text-brand-400"
@@ -677,7 +651,7 @@ export default function OrganizationInvitationCreateDialog({
                     i
                   </span>
                 </span>
-                <div>
+                <div className="min-w-0">
                   <h2
                     id={titleId}
                     className="text-base font-semibold text-gray-900 dark:text-white/90"
@@ -692,16 +666,7 @@ export default function OrganizationInvitationCreateDialog({
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t("close")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <span aria-hidden="true" className="text-lg leading-none">
-                  ×
-                </span>
-              </button>
+              <DialogCloseButton onClick={onClose} label={t("close")} />
             </div>
             <div className="mt-6 flex justify-end gap-2.5">
               <Button
@@ -736,16 +701,7 @@ export default function OrganizationInvitationCreateDialog({
           /* Screen 5: Gửi thành công */
           <div>
             <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                aria-label={t("close")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <span aria-hidden="true" className="text-lg leading-none">
-                  ×
-                </span>
-              </button>
+              <DialogCloseButton onClick={onClose} label={t("close")} />
             </div>
             <div
               role="status"
@@ -757,17 +713,7 @@ export default function OrganizationInvitationCreateDialog({
                 className="mb-4 flex size-16 items-center justify-center rounded-full bg-success-50 dark:bg-success-500/10"
               >
                 <span className="flex size-10 items-center justify-center rounded-full bg-success-500 text-white shadow-sm">
-                  <svg
-                    viewBox="0 0 20 20"
-                    fill="currentColor"
-                    className="size-6"
-                  >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.775a1 1 0 1 1 1.42-1.408l3.04 3.06 6.54-6.585a1 1 0 0 1 1.414-.006Z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
+                  <CheckLineIcon aria-hidden="true" className="size-6" />
                 </span>
               </span>
               <h2
@@ -808,8 +754,8 @@ export default function OrganizationInvitationCreateDialog({
           /* Screens 1, 2, 3, 4, 6, 7, 8: Main Invite Form */
           <>
             {/* Header */}
-            <div className="mb-5 flex items-start justify-between gap-4">
-              <div>
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div className="min-w-0">
                 <h2
                   id={titleId}
                   className="text-xl font-semibold text-gray-900 dark:text-white/90"
@@ -825,17 +771,11 @@ export default function OrganizationInvitationCreateDialog({
                   {descriptionText}
                 </p>
               </div>
-              <button
-                type="button"
+              <DialogCloseButton
                 onClick={onClose}
                 disabled={isPending}
-                aria-label={t("close")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-gray-200"
-              >
-                <span aria-hidden="true" className="text-lg leading-none">
-                  ×
-                </span>
-              </button>
+                label={t("close")}
+              />
             </div>
 
             {!canSend && (
@@ -883,29 +823,18 @@ export default function OrganizationInvitationCreateDialog({
                   }`}
                 >
                   {!isMultiMode && (
-                    <svg
+                    <EnvelopeIcon
                       aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
                       className="size-4 shrink-0 text-gray-400"
-                    >
-                      <rect x="2.5" y="4.5" width="15" height="11" rx="2" />
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="m3.5 6 6.5 4.5L16.5 6"
-                      />
-                    </svg>
+                    />
                   )}
 
                   {emailChips.map((chip) => (
                     <span
                       key={chip}
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-gray-800 dark:bg-brand-500/15 dark:text-gray-200"
+                      className="inline-flex max-w-full items-center gap-1.5 rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-medium text-gray-800 dark:bg-brand-500/15 dark:text-gray-200"
                     >
-                      <span>{chip}</span>
+                      <span className="truncate">{chip}</span>
                       <button
                         type="button"
                         disabled={isPending}
@@ -914,10 +843,10 @@ export default function OrganizationInvitationCreateDialog({
                             prev.filter((item) => item !== chip),
                           )
                         }
-                        className="text-gray-400 hover:text-gray-700 dark:hover:text-white"
+                        className="inline-flex shrink-0 items-center justify-center rounded text-gray-400 hover:text-gray-700 dark:hover:text-white"
                         aria-label={`Remove ${chip}`}
                       >
-                        ×
+                        <CloseIcon aria-hidden="true" className="size-3.5" />
                       </button>
                     </span>
                   ))}
@@ -946,7 +875,7 @@ export default function OrganizationInvitationCreateDialog({
                       if (localConflictState) setLocalConflictState(null);
                       if (hasError) onClearError?.();
                     }}
-                    className="min-w-[140px] flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-hidden disabled:opacity-60 dark:text-white/90 dark:placeholder:text-gray-500"
+                    className="min-w-0 flex-1 bg-transparent text-sm text-gray-900 placeholder:text-gray-400 focus:outline-hidden disabled:opacity-60 dark:text-white/90 dark:placeholder:text-gray-500"
                   />
 
                   {(email.length > 0 || emailChips.length > 0) && (
@@ -955,11 +884,9 @@ export default function OrganizationInvitationCreateDialog({
                       disabled={isPending}
                       onClick={handleClearEmail}
                       aria-label={t("inviteClearEmail")}
-                      className="rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                      className="inline-flex shrink-0 items-center justify-center rounded-md p-1 text-gray-400 transition hover:bg-gray-100 hover:text-gray-600 disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
                     >
-                      <span aria-hidden="true" className="text-base leading-none">
-                        ×
-                      </span>
+                      <CloseIcon aria-hidden="true" className="size-4" />
                     </button>
                   )}
                 </div>
@@ -985,18 +912,10 @@ export default function OrganizationInvitationCreateDialog({
                     role="alert"
                     className="mt-2 flex items-start gap-2 rounded-xl bg-error-50/90 px-3.5 py-2.5 text-xs font-medium leading-5 text-error-600 dark:bg-error-500/10 dark:text-error-400"
                   >
-                    <svg
+                    <AlertCircleFilledIcon
                       aria-hidden="true"
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
                       className="mt-0.5 size-4 shrink-0 text-error-500"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M8 15A7 7 0 1 0 8 1a7 7 0 0 0 0 14ZM8 4.5a.75.75 0 0 1 .75.75v3.5a.75.75 0 0 1-1.5 0v-3.5A.75.75 0 0 1 8 4.5Zm0 7.25a.875.875 0 1 0 0-1.75.875.875 0 0 0 0 1.75Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    />
                     <div>
                       <span>
                         {serverIneligibleError
@@ -1103,20 +1022,12 @@ export default function OrganizationInvitationCreateDialog({
                         {roleCode ? visualRoleLabel : t("inviteRolePlaceholder")}
                       </span>
                     </span>
-                    <svg
+                    <ChevronDownIcon
                       aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
                       className={`size-4 text-gray-500 transition-transform ${
                         roleDropdownOpen ? "rotate-180" : ""
                       }`}
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    />
                   </button>
 
                   {/* Screen 2: Role dropdown menu */}
@@ -1159,7 +1070,7 @@ export default function OrganizationInvitationCreateDialog({
                             role="option"
                             aria-selected={selected}
                             onClick={() => selectVisualRole(item.key)}
-                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
+                            className={`flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-start text-sm font-medium transition ${
                               selected
                                 ? "bg-brand-500 text-white"
                                 : "text-gray-800 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
@@ -1177,18 +1088,10 @@ export default function OrganizationInvitationCreateDialog({
                               <span>{item.label}</span>
                             </span>
                             {selected && (
-                              <svg
+                              <CheckLineIcon
                                 aria-hidden="true"
-                                viewBox="0 0 20 20"
-                                fill="currentColor"
                                 className="size-4 text-white"
-                              >
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.704 5.29a1 1 0 0 1 .006 1.414l-7.25 7.3a1 1 0 0 1-1.42 0l-3.75-3.775a1 1 0 1 1 1.42-1.408l3.04 3.06 6.54-6.585a1 1 0 0 1 1.414-.006Z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
+                              />
                             )}
                           </button>
                         );
@@ -1293,7 +1196,7 @@ export default function OrganizationInvitationCreateDialog({
                     type="button"
                     aria-expanded={messageOpen}
                     onClick={() => setMessageOpen((prev) => !prev)}
-                    className="flex w-full items-center justify-between py-0.5 text-left text-xs font-medium text-gray-700 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
+                    className="flex w-full items-center justify-between py-0.5 text-start text-xs font-medium text-gray-700 transition hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                   >
                     <Label
                       htmlFor="organization-invite-message"
@@ -1301,20 +1204,12 @@ export default function OrganizationInvitationCreateDialog({
                     >
                       {t("inviteMessageLabel")}
                     </Label>
-                    <svg
+                    <ChevronDownIcon
                       aria-hidden="true"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
                       className={`size-4 text-gray-400 transition-transform ${
                         messageOpen ? "rotate-180" : ""
                       }`}
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
+                    />
                   </button>
                 </div>
 

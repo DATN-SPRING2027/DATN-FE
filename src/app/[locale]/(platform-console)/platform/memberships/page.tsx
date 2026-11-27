@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
 import PlatformConsoleRoute from "@/components/platform/PlatformConsoleRoute";
 import { buildPlatformPageMetadata } from "@/lib/page-titles.server";
 
@@ -10,6 +11,12 @@ export function generateMetadata({
   return buildPlatformPageMetadata(params, "platformMemberships");
 }
 
-export default function MembershipsPage() {
+export default async function MembershipsPage({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  setRequestLocale(locale);
   return <PlatformConsoleRoute />;
 }

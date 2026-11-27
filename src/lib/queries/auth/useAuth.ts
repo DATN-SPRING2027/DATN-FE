@@ -7,11 +7,16 @@ import {
   type UseMutationOptions,
   type UseQueryOptions,
 } from "@tanstack/react-query";
-import { apiClient, logoutSession } from "@/lib/api-client";
+import {
+  apiClient,
+  logoutSession,
+  setActiveUserIdHint,
+  setAuthContextHint,
+  setExpectedOrganizationId,
+} from "@/lib/api-client";
 import { authKeys } from "./auth.keys";
 import { notifyAuthSessionChanged } from "./session-sync";
-import { useChatNavigation } from "@/stores/chat-navigation";
-import { useFloatingChatStore } from "@/stores/floating-chat";
+import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 
 export type LoginInput = Readonly<{
   email: string;
@@ -65,7 +70,15 @@ export function useCurrentUserQuery(
   return useQuery({
     ...options,
     queryKey: authKeys.currentUser(),
-    queryFn: () => apiClient<CurrentUserResponse>("/auth/me"),
+    queryFn: async () => {
+      const user = await apiClient<CurrentUserResponse>("/auth/me");
+      setAuthContextHint(null);
+      setActiveUserIdHint(user?.id ?? null);
+      setExpectedOrganizationId(
+        user && "organizationId" in user ? (user.organizationId ?? null) : null,
+      );
+      return user;
+    },
     retry: false,
     staleTime: 30_000,
     refetchOnWindowFocus: (query) => query.state.status !== "error",
@@ -93,9 +106,11 @@ export function useLoginMutation(
     onSuccess: (...args) => {
       // Tenant-scoped cached data may belong to a different account using the
       // same browser. Drop it before the protected shell loads for this login.
+      setAuthContextHint(null);
+      setExpectedOrganizationId(null);
+      setActiveUserIdHint(null);
       queryClient.removeQueries();
-      useFloatingChatStore.getState().reset();
-      useChatNavigation.getState().clear();
+      clearAllClientSessionCaches({ clearStorage: true });
       notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },
@@ -203,9 +218,11 @@ export function useLogoutMutation(
       }
     },
     onSuccess: (...args) => {
+      setAuthContextHint(null);
+      setExpectedOrganizationId(null);
+      setActiveUserIdHint(null);
       queryClient.clear();
-      useFloatingChatStore.getState().reset();
-      useChatNavigation.getState().clear();
+      clearAllClientSessionCaches({ clearStorage: true });
       notifyAuthSessionChanged();
       options?.onSuccess?.(...args);
     },

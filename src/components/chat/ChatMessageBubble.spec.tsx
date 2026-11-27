@@ -5,7 +5,6 @@ import type { ChatMessage } from "@/lib/queries/chat/useChat";
 import messages from "@/messages/en.json";
 import ChatMessageBubble from "./ChatMessageBubble";
 
-vi.mock("@/icons", () => ({ MoreDotIcon: () => null }));
 const message: ChatMessage = {
   id: "one",
   conversationId: "conversation",

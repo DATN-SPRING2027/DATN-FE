@@ -47,6 +47,7 @@
     "seeAll": "Xem tất cả",
     "copy": "Sao chép",
     "copied": "Đã sao chép",
+    "toggleTheme": "Chuyển giao diện sáng/tối",
     "localeCode": "vi"
   },
   "roleLabels": {
@@ -1335,6 +1336,11 @@
   },
   "auth": {
     "forgotPasswordLink": "Quên mật khẩu?",
+    "targetAddress": "Địa chỉ nhận:",
+    "transitionAriaLabel": "Đang mở không gian làm việc {organizationName}",
+    "transitionEyebrow": "TRI THỨC CỦA BẠN, ĐƯỢC KẾT NỐI",
+    "transitionReady": "Không gian làm việc đã sẵn sàng",
+    "transitionConnecting": "Đang kết nối không gian làm việc",
     "forgotPasswordTitle": "Đặt lại mật khẩu",
     "forgotPasswordDescription": "Nhập địa chỉ email gắn với tài khoản của bạn, chúng tôi sẽ gửi hướng dẫn đặt lại mật khẩu nếu tài khoản hợp lệ.",
     "email": "Email",
@@ -2643,6 +2649,7 @@
       "TODO": "Cần làm",
       "IN_PROGRESS": "Đang thực hiện",
       "IN_REVIEW": "Đang duyệt",
+      "BLOCKED": "Bị chặn",
       "DONE": "Hoàn thành"
     },
     "priorities": {
@@ -6319,6 +6326,9 @@
       "coordinatorReasonLabel": "Lý do chỉ định",
       "coordinatorReasonPlaceholder": "Ghi lại lý do quản trị khi chỉ định Trưởng nhóm điều phối (D)…",
       "coordinatorSafeReceiptSuccess": "Đã cập nhật Điều phối (Bàn giao v{version}, trạng thái {status}). Nội dung chi tiết của gói bàn giao vẫn được giới hạn trong các vai trò dự án được ủy quyền.",
+      "coordinatorInvalidIdVersion": "Vui lòng cung cấp ID gói bàn giao và số phiên bản nguyên (>= 1) hợp lệ.",
+      "coordinatorMissingFields": "Vui lòng chọn Trưởng nhóm dự án và nhập lý do chỉ định.",
+      "coordinatorUpdateFailed": "Cập nhật Điều phối thất bại.",
       "saveCoordinator": "Xác nhận Điều phối",
       "completeModalTitle": "Hoàn tất bàn giao tri thức",
       "completeModalDesc": "Thao tác hoàn tất sẽ đóng băng vĩnh viễn bản chụp bàn giao. Tất cả hạng mục bắt buộc phải được xác nhận đã nắm rõ kèm minh chứng hợp lệ, và mọi khoảng trống tri thức tùy chọn chưa đóng phải được ghi nhận ngoại lệ theo dõi sau bàn giao.",

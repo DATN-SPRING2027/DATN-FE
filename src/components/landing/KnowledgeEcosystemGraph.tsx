@@ -132,11 +132,11 @@ export default function KnowledgeEcosystemGraph({
 
       {/* Atmospheric Orbit Circles for Spatial Depth */}
       <div
-        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[340px] w-[340px] rounded-full border border-blue-200/50"
+        className="pointer-events-none absolute start-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 h-[340px] w-[340px] rounded-full border border-blue-200/50"
         aria-hidden="true"
       />
       <div
-        className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[460px] w-[460px] rounded-full border border-indigo-200/30"
+        className="pointer-events-none absolute start-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 h-[460px] w-[460px] rounded-full border border-indigo-200/30"
         aria-hidden="true"
       />
 
@@ -245,7 +245,7 @@ export default function KnowledgeEcosystemGraph({
         <button
           type="button"
           onClick={() => setActiveNodeKey("center")}
-          className={`absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center rounded-2xl p-3 text-center transition-all cursor-pointer ${
+          className={`absolute start-1/2 top-1/2 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center rounded-2xl p-3 text-center transition-all cursor-pointer ${
             activeNodeKey === "center"
               ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-500/30 scale-105 ring-4 ring-blue-200"
               : "bg-white text-slate-800 border-2 border-blue-500/80 shadow-md hover:scale-102"
@@ -279,7 +279,7 @@ export default function KnowledgeEcosystemGraph({
         <button
           type="button"
           onClick={() => setActiveNodeKey("evidence_pr")}
-          className={`absolute left-[6%] top-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-left transition-all cursor-pointer border ${
+          className={`absolute start-[6%] top-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-start transition-all cursor-pointer border ${
             activeNodeKey === "evidence_pr"
               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25 scale-105 ring-2 ring-blue-300"
               : "bg-white text-slate-700 border-slate-200 shadow-2xs hover:border-blue-400 hover:bg-blue-50/50"
@@ -294,7 +294,7 @@ export default function KnowledgeEcosystemGraph({
           >
             <FileIcon className="h-4 w-4" />
           </div>
-          <div className="pr-1">
+          <div className="pe-1">
             <span className="block text-[11px] font-extrabold leading-tight">
               PR #88
             </span>
@@ -312,7 +312,7 @@ export default function KnowledgeEcosystemGraph({
         <button
           type="button"
           onClick={() => setActiveNodeKey("evidence_benchmark")}
-          className={`absolute right-[6%] top-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-left transition-all cursor-pointer border ${
+          className={`absolute end-[6%] top-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-start transition-all cursor-pointer border ${
             activeNodeKey === "evidence_benchmark"
               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25 scale-105 ring-2 ring-blue-300"
               : "bg-white text-slate-700 border-slate-200 shadow-2xs hover:border-blue-400 hover:bg-blue-50/50"
@@ -327,7 +327,7 @@ export default function KnowledgeEcosystemGraph({
           >
             <FileIcon className="h-4 w-4" />
           </div>
-          <div className="pr-1">
+          <div className="pe-1">
             <span className="block text-[11px] font-extrabold leading-tight">
               Benchmark
             </span>
@@ -347,7 +347,7 @@ export default function KnowledgeEcosystemGraph({
         <button
           type="button"
           onClick={() => setActiveNodeKey("verification")}
-          className={`absolute right-[6%] bottom-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-left transition-all cursor-pointer border ${
+          className={`absolute end-[6%] bottom-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-start transition-all cursor-pointer border ${
             activeNodeKey === "verification"
               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25 scale-105 ring-2 ring-blue-300"
               : "bg-white text-slate-700 border-slate-200 shadow-2xs hover:border-blue-400 hover:bg-blue-50/50"
@@ -362,7 +362,7 @@ export default function KnowledgeEcosystemGraph({
           >
             <CheckCircleIcon className="h-4 w-4" />
           </div>
-          <div className="pr-1">
+          <div className="pe-1">
             <span className="block text-[11px] font-extrabold leading-tight">
               Tech Lead
             </span>
@@ -380,7 +380,7 @@ export default function KnowledgeEcosystemGraph({
         <button
           type="button"
           onClick={() => setActiveNodeKey("handover")}
-          className={`absolute left-[6%] bottom-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-left transition-all cursor-pointer border ${
+          className={`absolute start-[6%] bottom-[10%] z-20 flex items-center gap-2 rounded-xl p-2 text-start transition-all cursor-pointer border ${
             activeNodeKey === "handover"
               ? "bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-500/25 scale-105 ring-2 ring-blue-300"
               : "bg-white text-slate-700 border-slate-200 shadow-2xs hover:border-blue-400 hover:bg-blue-50/50"
@@ -395,7 +395,7 @@ export default function KnowledgeEcosystemGraph({
           >
             <UserIcon className="h-4 w-4" />
           </div>
-          <div className="pr-1">
+          <div className="pe-1">
             <span className="block text-[11px] font-extrabold leading-tight">
               Kế nhiệm
             </span>

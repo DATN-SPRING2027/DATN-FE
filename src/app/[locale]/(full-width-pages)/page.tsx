@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
-import { getTranslations, setRequestLocale } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import ScotchLanding from "@/components/landing/scotch/ScotchLanding";
+import { LANDING_NAMESPACES, pickMessages } from "@/i18n/messages-scope";
+import { hasServerSessionCookie } from "@/lib/auth/session-cookie.server";
 import { resolveMetadataLocale } from "@/lib/page-titles.server";
 
 export async function generateMetadata({
@@ -36,6 +39,20 @@ export default async function LandingPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  const [hasSessionCookie, messages] = await Promise.all([
+    hasServerSessionCookie(),
+    getMessages(),
+  ]);
 
-  return <ScotchLanding />;
+  return (
+    <NextIntlClientProvider
+      locale={locale}
+      messages={pickMessages(
+        messages as Record<string, unknown>,
+        LANDING_NAMESPACES,
+      )}
+    >
+      <ScotchLanding hasSessionCookie={hasSessionCookie} />
+    </NextIntlClientProvider>
+  );
 }

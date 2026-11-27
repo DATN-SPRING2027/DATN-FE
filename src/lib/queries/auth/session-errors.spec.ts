@@ -19,14 +19,14 @@ describe("protected request session errors", () => {
     expect(client.getQueryData(["users"])).toBeUndefined();
   });
 
-  it("rechecks a previously successful /auth/me when Users receives 401", async () => {
+  it("rechecks a previously successful /auth/me when Users receives 401 without unmounting the workspace", async () => {
     vi.useFakeTimers();
     const client = new QueryClient();
     client.setQueryData(authKeys.currentUser(), { id: "user-1" });
     const reset = vi.spyOn(client, "resetQueries").mockResolvedValue(undefined);
 
     handleSessionError(client, new ApiError(401, "AUTHENTICATION_FAILED", "Expired"));
-    expect(client.getQueryData(authKeys.currentUser())).toBeNull();
+    expect(client.getQueryData(authKeys.currentUser())).toEqual({ id: "user-1" });
     await vi.runAllTimersAsync();
 
     expect(reset).toHaveBeenCalledWith({ queryKey: authKeys.currentUser() });

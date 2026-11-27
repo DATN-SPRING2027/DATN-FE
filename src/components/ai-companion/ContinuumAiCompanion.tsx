@@ -9,16 +9,75 @@ import {
   type FormEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import dynamic from "next/dynamic";
 import { useOptionalSidebar } from "@/context/SidebarContext";
-import { MinusIcon } from "@/icons";
+import { CloseIcon } from "@/icons";
 import { Link, usePathname } from "@/i18n/navigation";
 import { ApiError } from "@/lib/api-client";
+import { useHydratedReducedMotion } from "@/components/ui/button/buttonMotion";
 import { useFloatingChatStore } from "@/stores/floating-chat";
 import { CompanionChatClient } from "./companion-chat-client";
 import CompanionProjectPicker from "./CompanionProjectPicker";
 import { useTranslations } from "next-intl";
 import WorkReportReminderNotice from "./WorkReportReminderNotice";
-import Robot3D, { type RobotStatus } from "./Robot3D";
+import type { RobotStatus } from "./Robot3D";
+
+function RobotStaticStage({
+  status = "idle",
+  compact = false,
+  className = "",
+}: {
+  status?: RobotStatus;
+  compact?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      data-testid="robot-3d-stage"
+      data-status={status}
+      className={`relative flex h-full w-full items-center justify-center select-none ${className}`}
+    >
+      <div
+        className={`relative flex items-center justify-center transition-transform duration-200 ${
+          compact
+            ? "h-full w-full rounded-full"
+            : "h-12 w-12 rounded-2xl border border-brand-200/90 bg-gradient-to-b from-white to-brand-50/90 shadow-theme-sm sm:h-14 sm:w-14 dark:border-brand-500/35 dark:from-gray-800 dark:to-gray-900"
+        } ${
+          status === "happy"
+            ? "-translate-y-0.5 scale-105"
+            : status === "thinking"
+              ? "motion-safe:animate-pulse"
+              : ""
+        }`}
+      >
+        <div
+          className={`flex flex-col items-center justify-center rounded-lg bg-gray-900 dark:bg-gray-950 ${
+            compact ? "h-6 w-7.5 px-1" : "h-7 w-9.5 px-1.5"
+          }`}
+        >
+          <div className="flex items-center gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
+          </div>
+          <span
+            className={`mt-1 rounded-full bg-brand-400 transition-[width,height] duration-150 ${
+              status === "speaking"
+                ? "h-1.5 w-3"
+                : status === "happy"
+                  ? "h-1 w-3.5"
+                  : "h-0.5 w-2"
+            }`}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const LazyRobot3D = dynamic(() => import("./Robot3D"), {
+  ssr: false,
+  loading: () => <RobotStaticStage status="idle" />,
+});
 
 type CompanionActionLink = {
   label: string;
@@ -125,6 +184,7 @@ export default function ContinuumAiCompanion({
   const t = useTranslations("aiCompanionNotifications");
   const sidebar = useOptionalSidebar();
   const isHelpOpen = Boolean(sidebar?.isHelpOpen);
+  const prefersReducedMotion = useHydratedReducedMotion();
 
   const [chatNotice, setChatNotice] = useState(false);
   const isEn = locale === "en";
@@ -148,12 +208,6 @@ export default function ContinuumAiCompanion({
   const chatClient = useRef(new CompanionChatClient());
   const requestController = useRef<AbortController | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-  const [isMinimized, setIsMinimized] = useState(false);
-  const minimizedTriggerRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    if (isMinimized) minimizedTriggerRef.current?.focus({ preventScroll: true });
-  }, [isMinimized]);
   const [robotStatus, setRobotStatus] = useState<RobotStatus>("idle");
   const [isDragging, setIsDragging] = useState(false);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
@@ -196,7 +250,6 @@ export default function ContinuumAiCompanion({
       ).detail;
       if (!detail?.projectId || !detail.threadId) return;
       setChatNotice(true);
-      setIsMinimized(false);
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => setChatNotice(false), 8000);
     };
@@ -212,7 +265,6 @@ export default function ContinuumAiCompanion({
 
   useEffect(() => {
     const handleOpenEvent = () => {
-      setIsMinimized(false);
       setIsOpen(true);
     };
     window.addEventListener("continuum:open-ai-companion", handleOpenEvent);
@@ -481,29 +533,21 @@ export default function ContinuumAiCompanion({
       ? "max-lg:invisible lg:-translate-x-80 rtl:lg:translate-x-80"
       : "";
 
-  const hideGreetingBubble =
-    (openChatWindowCount > 0 ||
-      isLauncherOpen ||
-      isHumanChatPage ||
-      hasBottomRightPageActions) &&
-    !chatNotice;
-  const effectiveMinimized = isMinimized || hasBottomRightPageActions;
-
-  // Default anchor: sits right beside the bottom-right Floating Chat button,
-  // and glides smoothly further inline-start (or above on medium screens) when mini chat boxes or launcher expand.
+  // Default anchor: compact circular FAB tucked beside the bottom-right Floating Chat FAB,
+  // gliding smoothly inline-start when mini chat windows or the launcher popover expand.
   const defaultDockOffsetClass = isHumanChatPage
     ? "end-4 bottom-24 sm:end-6 sm:bottom-24"
     : isLauncherOpen
       ? openChatWindowCount >= 1
-        ? "max-lg:hidden end-20 bottom-4 sm:end-96 lg:end-96 lg:bottom-116 xl:end-184 xl:bottom-5"
-        : "max-sm:hidden end-20 bottom-4 sm:end-96 sm:bottom-5"
+        ? "max-lg:hidden end-18 bottom-4 sm:end-96 lg:end-96 lg:bottom-116 xl:end-184 xl:bottom-5"
+        : "max-sm:hidden end-18 bottom-4 sm:end-96 sm:bottom-5"
       : openChatWindowCount >= 2
-        ? "max-sm:hidden end-20 bottom-4 sm:end-108 lg:end-24 lg:bottom-116 xl:end-195 xl:bottom-5"
+        ? "max-sm:hidden end-18 bottom-4 sm:end-108 lg:end-24 lg:bottom-116 xl:end-195 xl:bottom-5"
         : openChatWindowCount === 1
-          ? "max-sm:hidden end-20 bottom-4 sm:end-108 sm:bottom-5"
-          : hasBottomRightPageActions && effectiveMinimized
+          ? "max-sm:hidden end-18 bottom-4 sm:end-108 sm:bottom-5"
+          : hasBottomRightPageActions
             ? "end-4 bottom-20 sm:end-5 sm:bottom-20"
-            : "end-20 bottom-3 sm:end-24 sm:bottom-4";
+            : "end-18 bottom-4 sm:end-20 sm:bottom-5";
 
   const defaultPanelOffsetClass = isHumanChatPage
     ? "end-3 bottom-24 sm:end-6 sm:bottom-24"
@@ -515,11 +559,11 @@ export default function ContinuumAiCompanion({
         ? "end-3 bottom-3 sm:end-108 lg:end-24 xl:end-195 sm:bottom-5"
         : openChatWindowCount === 1
           ? "end-3 bottom-3 sm:end-108 sm:bottom-5"
-          : "end-3 bottom-3 sm:end-24 sm:bottom-5";
+          : "end-3 bottom-3 sm:end-20 sm:bottom-5";
 
   return (
     <>
-      {/* Free-Draggable Floating 3D Robot Widget */}
+      {/* Free-Draggable Compact Circular AI Companion FAB */}
       {!isOpen && (
         <div
           ref={dockRef}
@@ -542,112 +586,59 @@ export default function ContinuumAiCompanion({
           <div className="pointer-events-auto">
             <WorkReportReminderNotice visible={!isOpen} />
           </div>
-          {effectiveMinimized ? (
+          <div
+            className={`group relative flex flex-col ${
+              isOnLeftHalf ? "items-start" : "items-end"
+            }`}
+          >
+            {/* Hover/focus label tooltip or completion toast — invisible at rest so it never overlaps page CTAs */}
             <div
-              className={`pointer-events-auto flex flex-col ${
-                isOnLeftHalf ? "items-start" : "items-end"
+              className={`pointer-events-none mb-2 flex items-center gap-1.5 rounded-full border border-gray-200/90 bg-white/95 px-2.5 py-1 text-[11px] font-medium whitespace-nowrap text-gray-700 shadow-theme-md backdrop-blur transition-[opacity,transform] duration-150 dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
+                chatNotice
+                  ? "opacity-100"
+                  : "translate-y-1 opacity-0 group-focus-within:translate-y-0 group-focus-within:opacity-100 group-hover:translate-y-0 group-hover:opacity-100"
               }`}
             >
-              {chatNotice && (
-                <div className="mb-1 flex items-center gap-1.5 rounded-full border border-emerald-200 bg-white/95 px-3 py-1 text-xs font-medium text-gray-700 shadow-md backdrop-blur dark:border-emerald-500/30 dark:bg-gray-900/95 dark:text-gray-200">
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                  <span role="status" aria-live="polite">
-                    {t("chatCompleted")}
-                  </span>
-                </div>
-              )}
-              <button
-                ref={minimizedTriggerRef}
-                type="button"
-                onClick={(event) => {
-                  if (suppressNextClickRef.current) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    suppressNextClickRef.current = false;
-                    return;
-                  }
-                  setIsMinimized(false);
-                  setIsOpen(true);
-                }}
-                aria-label="Open Continuum AI Companion"
-                className="inline-flex cursor-grab items-center gap-2 rounded-full border border-brand-200 bg-white/95 px-3.5 py-2 text-xs font-semibold text-brand-700 shadow-lg backdrop-blur transition hover:-translate-y-0.5 hover:border-brand-400 active:cursor-grabbing dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300"
-              >
-                <span className="h-2 w-2 rounded-full bg-brand-500" />
-                <span>{companionPillLabel}</span>
-              </button>
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+              <span role="status" aria-live="polite">
+                {chatNotice ? t("chatCompleted") : companionPillLabel}
+              </span>
             </div>
-          ) : (
-            <div
-              className={`group relative flex flex-col ${
-                isOnLeftHalf ? "items-start" : "items-end"
-              }`}
-            >
-              {/* Greeting bubble above the floating 3D robot — reveals on hover/focus or AI completion notice so it never occludes page CTAs */}
-              <div
-                className={`pointer-events-none mb-1 max-w-[calc(100vw-6.5rem)] items-center gap-1.5 rounded-2xl border border-gray-200/90 bg-white/95 px-2.5 py-1 text-[11px] leading-snug font-medium text-gray-700 shadow-md backdrop-blur transition-[opacity,border-color,transform] duration-150 group-hover:border-brand-300 sm:max-w-[235px] dark:border-gray-700 dark:bg-gray-900/95 dark:text-gray-200 ${
-                  hideGreetingBubble
-                    ? "hidden"
-                    : chatNotice
-                      ? "flex opacity-100"
-                      : "hidden translate-y-1 opacity-0 sm:flex group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-                } ${isOnLeftHalf ? "rounded-es-xs" : "rounded-ee-xs"}`}
-              >
-                <span className="h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <span role="status" aria-live="polite" className="min-w-0">
-                  {chatNotice ? (
-                    t("chatCompleted")
-                  ) : isEn ? (
-                    "Hi! Need a quick project summary?"
-                  ) : (
-                    "Xin chào! Cần mình tóm tắt dự án không?"
-                  )}
-                </span>
-              </div>
 
-              {/* 3D Robot Floating Trigger (Click to open, Hold & Drag to move anywhere) */}
-              <button
-                type="button"
-                onClick={(event) => {
-                  if (suppressNextClickRef.current) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    suppressNextClickRef.current = false;
-                    return;
-                  }
-                  setIsOpen(true);
-                }}
-                title={
-                  isEn
-                    ? "Click to open AI Companion · Hold & drag anywhere"
-                    : "Bấm để mở Trợ lý AI · Nhấn giữ chuột để kéo đi mọi nơi"
+            <button
+              type="button"
+              onClick={(event) => {
+                if (suppressNextClickRef.current) {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  suppressNextClickRef.current = false;
+                  return;
                 }
-                aria-label="Open Continuum AI Companion"
-                className={`pointer-events-auto relative flex h-16 w-16 flex-col items-center justify-end overflow-visible rounded-3xl transition-transform duration-200 focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:outline-none sm:h-20 sm:w-20 ${
-                  isDragging
-                    ? "scale-105 cursor-grabbing"
-                    : "cursor-grab hover:scale-105"
-                }`}
-              >
-                <div className="pointer-events-none absolute inset-0 rounded-full bg-brand-500/10 blur-lg transition group-hover:bg-brand-500/20" />
-                <div className="pointer-events-none h-14 w-14 sm:h-16 sm:w-16">
-                  <Robot3D status={displayRobotStatus} interactiveMouse />
-                </div>
-                <span className="relative z-10 -mt-1.5 inline-flex items-center gap-1 rounded-full border border-brand-200 bg-white/95 px-2 py-0.5 text-[10px] font-semibold whitespace-nowrap text-brand-700 shadow-sm dark:border-brand-500/30 dark:bg-gray-900/95 dark:text-brand-300">
-                  <span className="h-1.5 w-1.5 rounded-full bg-brand-500" />
-                  {companionPillLabel}
-                </span>
-              </button>
-              <button
-                type="button"
-                data-no-drag="true"
-                aria-label={t("minimize")}
-                onClick={() => setIsMinimized(true)}
-                className="pointer-events-auto absolute end-0 bottom-10 z-20 inline-flex size-6 cursor-pointer items-center justify-center rounded-full border border-gray-200 bg-white text-gray-600 shadow-sm hover:bg-gray-100 focus-visible:outline-2 focus-visible:outline-brand-500 sm:bottom-12 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800"
-              >
-                <MinusIcon aria-hidden="true" className="size-3.5" />
-              </button>
-            </div>
-          )}
+                setIsOpen(true);
+              }}
+              title={
+                isEn
+                  ? `${companionPillLabel} · Click to open · Drag to move`
+                  : `${companionPillLabel} · Bấm để mở · Kéo để di chuyển`
+              }
+              aria-label="Open Continuum AI Companion"
+              className={`pointer-events-auto relative flex h-12 w-12 items-center justify-center rounded-full border border-brand-200/90 bg-white/95 shadow-theme-lg backdrop-blur transition-transform duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 dark:border-brand-500/35 dark:bg-gray-900/95 ${
+                isDragging
+                  ? "scale-105 cursor-grabbing"
+                  : "cursor-grab hover:scale-105 hover:border-brand-400"
+              }`}
+            >
+              <div className="pointer-events-none h-10 w-10">
+                <RobotStaticStage status={displayRobotStatus} compact />
+              </div>
+              {chatNotice && (
+                <span
+                  aria-hidden="true"
+                  className="absolute -end-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-white bg-emerald-500 dark:border-gray-900"
+                />
+              )}
+            </button>
+          </div>
         </div>
       )}
 
@@ -673,7 +664,11 @@ export default function ContinuumAiCompanion({
           >
             <div className="pointer-events-none relative h-20 w-20 shrink-0">
               <div className="pointer-events-none absolute inset-2 rounded-full bg-brand-500/15 blur-lg" />
-              <Robot3D status={displayRobotStatus} interactiveMouse />
+              {prefersReducedMotion ? (
+                <RobotStaticStage status={displayRobotStatus} />
+              ) : (
+                <LazyRobot3D status={displayRobotStatus} interactiveMouse />
+              )}
             </div>
 
             <div className="min-w-0 flex-1">
@@ -718,9 +713,9 @@ export default function ContinuumAiCompanion({
                 type="button"
                 aria-label="Close AI Companion"
                 onClick={() => setIsOpen(false)}
-                className="inline-flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+                className="inline-flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-gray-400 transition hover:bg-gray-100 hover:text-gray-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 dark:hover:bg-gray-800 dark:hover:text-gray-200"
               >
-                ✕
+                <CloseIcon aria-hidden="true" className="size-4" />
               </button>
             </div>
           </header>

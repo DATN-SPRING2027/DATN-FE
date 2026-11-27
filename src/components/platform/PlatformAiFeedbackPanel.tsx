@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   AlertIcon,
@@ -74,6 +74,7 @@ export default function PlatformAiFeedbackPanel({
   const [cursorStack, setCursorStack] = useState<readonly string[]>([]);
   const [inspectedRow, setInspectedRow] =
     useState<PlatformAiFeedbackRow | null>(null);
+  const detailDialogRef = useRef<HTMLDivElement | null>(null);
 
   const activeCursor =
     cursorStack.length > 0 ? cursorStack[cursorStack.length - 1] : undefined;
@@ -130,16 +131,86 @@ export default function PlatformAiFeedbackPanel({
     canReadAi && !hasInvalidDateRange,
   );
 
+  const isDetailDialogOpen = Boolean(inspectedRow);
   useEffect(() => {
-    if (!inspectedRow) return;
+    if (!isDetailDialogOpen) return;
+
+    const focusableSelector =
+      'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const currentLockCount = Number(
+      document.body.dataset.scrollLockCount ?? "0",
+    );
+    if (currentLockCount === 0) {
+      document.body.dataset.scrollLockPrevOverflow =
+        document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
+    document.body.dataset.scrollLockCount = String(currentLockCount + 1);
+
+    const dialogEl = detailDialogRef.current;
+    if (dialogEl) {
+      const focusables = dialogEl.querySelectorAll<HTMLElement>(
+        focusableSelector,
+      );
+      (focusables[0] ?? dialogEl).focus();
+    }
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setInspectedRow(null);
+        return;
+      }
+      if (event.key === "Tab") {
+        const container = detailDialogRef.current;
+        if (!container) return;
+        const focusables = Array.from(
+          container.querySelectorAll<HTMLElement>(focusableSelector),
+        );
+        if (focusables.length === 0) {
+          event.preventDefault();
+          container.focus();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (event.shiftKey) {
+          if (!active || active === first || !container.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (!active || active === last || !container.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [inspectedRow]);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      const nextLockCount = Math.max(
+        0,
+        Number(document.body.dataset.scrollLockCount ?? "1") - 1,
+      );
+      if (nextLockCount === 0) {
+        document.body.style.overflow =
+          document.body.dataset.scrollLockPrevOverflow ?? "";
+        delete document.body.dataset.scrollLockCount;
+        delete document.body.dataset.scrollLockPrevOverflow;
+      } else {
+        document.body.dataset.scrollLockCount = String(nextLockCount);
+      }
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus();
+      }
+    };
+  }, [isDetailDialogOpen]);
 
   if (!canReadAi) {
     return null;
@@ -663,10 +734,12 @@ export default function PlatformAiFeedbackPanel({
             className="fixed inset-0 bg-gray-950/40 backdrop-blur-[3px] dark:bg-gray-950/60"
           />
           <div
+            ref={detailDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label={t("detailDialogTitle")}
-            className="relative z-10 w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl dark:border-gray-800 dark:bg-gray-900"
+            className="relative z-10 w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-5 shadow-theme-xl outline-none dark:border-gray-800 dark:bg-gray-900"
           >
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 pb-3.5 dark:border-gray-800">
               <h3 className="text-base font-semibold text-gray-900 dark:text-white">

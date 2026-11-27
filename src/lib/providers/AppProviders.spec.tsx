@@ -221,7 +221,7 @@ describe("AppProviders", () => {
     await waitFor(() => expect(screen.getByText("platform-session-error")).toBeInTheDocument());
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 30)); });
     expect(platformMeCalls).toBe(2);
-    expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(fetchMock).toHaveBeenCalledTimes(5);
   });
 
   it("rechecks a successful /auth/me session after a Users 401", async () => {

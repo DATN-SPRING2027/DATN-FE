@@ -1,5 +1,7 @@
 import SignInForm from "@/components/auth/SignInForm";
 import type { Metadata } from "next";
+import { setRequestLocale } from "next-intl/server";
+import { hasServerSessionCookie } from "@/lib/auth/session-cookie.server";
 import { buildAppPageMetadata } from "@/lib/page-titles.server";
 
 export function generateMetadata({
@@ -13,8 +15,10 @@ export function generateMetadata({
 }
 
 export default async function SignIn({
+  params,
   searchParams,
 }: {
+  params: Promise<{ locale: string }>;
   searchParams: Promise<{
     google?: string | string[];
     returnTo?: string | string[];
@@ -22,7 +26,12 @@ export default async function SignIn({
     switch?: string | string[];
   }>;
 }) {
-  const query = await searchParams;
+  const { locale } = await params;
+  setRequestLocale(locale);
+  const [query, hasSessionCookie] = await Promise.all([
+    searchParams,
+    hasServerSessionCookie(),
+  ]);
   const value = Array.isArray(query.google) ? query.google[0] : query.google;
   const returnTo = Array.isArray(query.returnTo)
     ? query.returnTo[0]
@@ -45,6 +54,7 @@ export default async function SignIn({
       returnTo={returnTo}
       initialEmail={email}
       switchAccount={switchAccount}
+      hasSessionCookie={hasSessionCookie}
     />
   );
 }

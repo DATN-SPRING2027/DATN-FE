@@ -1,6 +1,7 @@
 import { act, render, screen } from "@testing-library/react";
-import { gsap } from "gsap";
+import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import messages from "@/messages/en.json";
 import OrganizationTransition from "./OrganizationTransition";
 
 function mockMatchMedia(reducedMotion: boolean) {
@@ -22,8 +23,17 @@ function mockMatchMedia(reducedMotion: boolean) {
   });
 }
 
-describe("OrganizationTransition — Continuum AI Neural Signature", () => {
+function renderTransition(props: React.ComponentProps<typeof OrganizationTransition>) {
+  return render(
+    <NextIntlClientProvider locale="en" messages={messages}>
+      <OrganizationTransition {...props} />
+    </NextIntlClientProvider>,
+  );
+}
+
+describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -31,13 +41,11 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
 
-    render(
-      <OrganizationTransition
-        organizationName="Continuum AI Labs"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    renderTransition({
+      organizationName: "Continuum AI Labs",
+      ready: false,
+      onComplete,
+    });
 
     const status = screen.getByRole("status", {
       name: "Opening Continuum AI Labs workspace",
@@ -55,103 +63,89 @@ describe("OrganizationTransition — Continuum AI Neural Signature", () => {
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("plays the ~2.7s GSAP sequence when backend finishes early and calls onComplete once", () => {
+  it("completes in <= 300ms (160ms) once backend is ready without blocking on GSAP", () => {
+    vi.useFakeTimers();
     mockMatchMedia(false);
     const onComplete = vi.fn();
-    const baseTime = gsap.globalTimeline.time();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
-
-    // Backend resolves at 0.50s while Phase 1 is still playing
-    act(() => {
-      gsap.updateRoot(baseTime + 0.5);
+    const { rerender } = renderTransition({
+      organizationName: "North Star",
+      ready: false,
+      onComplete,
     });
+
     rerender(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="North Star"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
 
-    // Advance past intro (2.22s) -> triggers setIntroDone(true) and mounts Phase 4 exit timeline
     act(() => {
-      gsap.updateRoot(baseTime + 2.25);
-    });
-    expect(onComplete).not.toHaveBeenCalled();
-
-    // Advance past Phase 4 exit (2.25s + 0.50s = 2.75s)
-    act(() => {
-      gsap.updateRoot(baseTime + 2.75);
+      vi.advanceTimersByTime(200);
     });
 
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it("holds on the finished brand screen when backend is slow (4s) and navigates only after ready becomes true", () => {
+  it("waits cleanly when backend is slow and completes promptly once ready becomes true", () => {
+    vi.useFakeTimers();
     mockMatchMedia(false);
     const onComplete = vi.fn();
-    const baseTime = gsap.globalTimeline.time();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="Sunrise Institute"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    const { rerender } = renderTransition({
+      organizationName: "Sunrise Institute",
+      ready: false,
+      onComplete,
+    });
 
-    // Advance to 4.0s while backend is still pending
     act(() => {
-      gsap.updateRoot(baseTime + 4.0);
+      vi.advanceTimersByTime(4_000);
     });
     expect(screen.getByText("Connecting workspace")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
 
-    // Backend finishes at 4.0s -> triggers Phase 4 exit (0.48s)
     rerender(
-      <OrganizationTransition
-        organizationName="Sunrise Institute"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="Sunrise Institute"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
-    expect(onComplete).not.toHaveBeenCalled();
 
     act(() => {
-      gsap.updateRoot(baseTime + 4.55);
+      vi.advanceTimersByTime(200);
     });
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it("respects prefers-reduced-motion by skipping animations and completing as soon as ready is true", () => {
+  it("respects prefers-reduced-motion by completing immediately when ready is true", () => {
     mockMatchMedia(true);
     const onComplete = vi.fn();
 
-    const { rerender } = render(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={false}
-        onComplete={onComplete}
-      />,
-    );
+    const { rerender } = renderTransition({
+      organizationName: "North Star",
+      ready: false,
+      onComplete,
+    });
     expect(onComplete).not.toHaveBeenCalled();
 
     rerender(
-      <OrganizationTransition
-        organizationName="North Star"
-        ready={true}
-        onComplete={onComplete}
-      />,
+      <NextIntlClientProvider locale="en" messages={messages}>
+        <OrganizationTransition
+          organizationName="North Star"
+          ready={true}
+          onComplete={onComplete}
+        />
+      </NextIntlClientProvider>,
     );
     expect(onComplete).toHaveBeenCalledTimes(1);
   });

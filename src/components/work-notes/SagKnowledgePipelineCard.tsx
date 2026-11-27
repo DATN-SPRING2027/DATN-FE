@@ -1228,7 +1228,7 @@ export function BulkGovernanceBar({
     <div
       role="region"
       aria-label={tg("bulkSelectedCount", { count: selectedCount })}
-      className="fixed bottom-14 left-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rounded-2xl border border-gray-200/90 bg-white/95 px-3.5 py-2 text-gray-900 shadow-theme-xl ring-1 ring-gray-900/5 backdrop-blur-md lg:left-[calc(50%+9rem)] lg:max-w-[calc(100vw-20rem)] dark:border-gray-700 dark:bg-gray-900/95 dark:text-white"
+      className="fixed bottom-14 start-1/2 z-50 w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 rtl:translate-x-1/2 rounded-2xl border border-gray-200/90 bg-white/95 px-3.5 py-2 text-gray-900 shadow-theme-xl ring-1 ring-gray-900/5 backdrop-blur-md lg:start-[calc(50%+9rem)] lg:max-w-[calc(100vw-20rem)] dark:border-gray-700 dark:bg-gray-900/95 dark:text-white"
     >
       {selectedCount > 0 ? (
         <div className="space-y-2">
@@ -1365,7 +1365,7 @@ export function BulkGovernanceBar({
                   </button>
 
                   {isLifecycleMenuOpen ? (
-                    <div className="absolute right-0 bottom-full mb-2 w-56 rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-xl dark:border-gray-700 dark:bg-gray-900">
+                    <div className="absolute end-0 bottom-full mb-2 w-56 rounded-xl border border-gray-200 bg-white p-1.5 shadow-theme-xl dark:border-gray-700 dark:bg-gray-900">
                       {approvedControlCount > 0 && (
                         <>
                           {reviewableCount > 0 && (
@@ -2375,7 +2375,7 @@ export function SplitWorkbenchResizer({
       <span
         aria-hidden="true"
         className={cn(
-          "pointer-events-none absolute top-1/2 left-1/2 flex h-7 w-1.5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border transition-all",
+          "pointer-events-none absolute top-1/2 start-1/2 flex h-7 w-1.5 -translate-x-1/2 rtl:translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border transition-all",
           isDragging
             ? "border-brand-500 bg-brand-500 shadow-theme-xs"
             : "border-gray-200/90 bg-white/95 opacity-75 group-hover:border-brand-400 group-hover:bg-brand-50 group-hover:opacity-100 dark:border-gray-700 dark:bg-gray-900 dark:group-hover:border-brand-500",

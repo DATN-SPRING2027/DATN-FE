@@ -17,15 +17,6 @@ import {
 } from "@/lib/queries/chat/useChat";
 import ChatWorkspace from "./ChatWorkspace";
 
-vi.mock("@/icons", () => ({
-  ChatIcon: () => null,
-  GroupIcon: () => null,
-  SearchIcon: () => null,
-  InfoIcon: () => null,
-  MoreDotIcon: () => null,
-  PaperPlaneIcon: () => null,
-  PlusIcon: () => null,
-}));
 const auth = vi.hoisted(() => ({
   data: { id: "actor", organizationId: "organization" },
   refetch: vi.fn(),

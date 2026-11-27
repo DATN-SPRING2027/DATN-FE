@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CheckCircleIcon, MindMapIcon, ShootingStarIcon } from "@/icons";
 import { cn } from "@/utils";
@@ -13,7 +13,6 @@ export default function AiChatMindMapLoadingStudio({
   mode,
 }: AiChatMindMapLoadingStudioProps) {
   const t = useTranslations("AiChat");
-  const patternId = useId().replace(/:/g, "");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
 
   useEffect(() => {
@@ -44,31 +43,15 @@ export default function AiChatMindMapLoadingStudio({
       className="relative flex min-h-0 flex-1 flex-col items-center justify-center overflow-hidden bg-gray-50/95 p-5 select-none dark:bg-gpt-canvas"
     >
       {/* Dot-grid background + soft ambient Studio glow */}
-      <svg
+      <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full"
-      >
-        <defs>
-          <pattern
-            id={`mindmap-loading-grid-${patternId}`}
-            width={22}
-            height={22}
-            patternUnits="userSpaceOnUse"
-          >
-            <circle
-              cx={2}
-              cy={2}
-              r={1}
-              className="fill-gray-300/70 dark:fill-white/10"
-            />
-          </pattern>
-        </defs>
-        <rect
-          width="100%"
-          height="100%"
-          fill={`url(#mindmap-loading-grid-${patternId})`}
-        />
-      </svg>
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, currentColor 1px, transparent 1px)",
+          backgroundSize: "22px 22px",
+        }}
+        className="pointer-events-none absolute inset-0 h-full w-full text-gray-300/70 dark:text-white/10"
+      />
 
       <div
         aria-hidden="true"

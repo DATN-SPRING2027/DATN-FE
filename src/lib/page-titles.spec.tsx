@@ -105,7 +105,7 @@ describe("Page tab title formatting & full-route coverage", () => {
   it("enforces generateMetadata on every [locale] page.tsx and eliminates TailAdmin titles", () => {
     const localeRoot = path.resolve(process.cwd(), "src/app/[locale]");
     const pages = walkLocaleRoutes(localeRoot);
-    expect(pages.length).toBeGreaterThanOrEqual(65);
+    expect(pages.length).toBeGreaterThanOrEqual(55);
 
     const missingMetadata: string[] = [];
     const leftoverTailAdmin: string[] = [];

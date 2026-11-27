@@ -388,10 +388,25 @@ function formatHistoryEventAction(
 }
 
 function mapBackendStatusToWorkStatus(status: BackendTaskStatus): WorkStatus {
-  if (status ==="IN_PROGRESS"|| status ==="BLOCKED") return"IN_PROGRESS";
-  if (status ==="IN_REVIEW") return"IN_REVIEW";
-  if (status ==="DONE") return"DONE";
-  return"TODO";
+  if (status === "IN_PROGRESS") return "IN_PROGRESS";
+  if (status === "BLOCKED") return "BLOCKED";
+  if (status === "IN_REVIEW") return "IN_REVIEW";
+  if (status === "DONE") return "DONE";
+  return "TODO";
+}
+
+class PartialTaskTransitionError extends Error {
+  constructor(
+    public readonly actualServerStatus: BackendTaskStatus,
+    public readonly causeError: unknown,
+  ) {
+    super(
+      causeError instanceof Error
+        ? causeError.message
+        : "Task transition partially completed",
+    );
+    this.name = "PartialTaskTransitionError";
+  }
 }
 
 function resolvePersonById(
@@ -595,6 +610,7 @@ export default function WorkWorkspace({
     onViewChange?.(nextView);
     syncProjectWorkUrl({ view: nextView, mode: null }, "push");
   };
+  const annotationUserId = visibleUser?.id ?? "";
   const [annotationsByProject, setAnnotationsByProject] = useState<
     Record<
       string,
@@ -605,10 +621,11 @@ export default function WorkWorkspace({
       }
     >
   >(() => ({
-    [projectId]: readProjectWorkAnnotations(projectId),
+    [projectId]: readProjectWorkAnnotations(projectId, annotationUserId),
   }));
   const projectAnnotations =
-    annotationsByProject[projectId] ?? readProjectWorkAnnotations(projectId);
+    annotationsByProject[projectId] ??
+    readProjectWorkAnnotations(projectId, annotationUserId);
   function updateProjectAnnotations(
     updater: (prev: {
       flagged: Record<string, boolean>;
@@ -622,9 +639,10 @@ export default function WorkWorkspace({
   ) {
     setAnnotationsByProject((all) => {
       const current =
-        all[projectId] ?? readProjectWorkAnnotations(projectId);
+        all[projectId] ??
+        readProjectWorkAnnotations(projectId, annotationUserId);
       const next = updater(current);
-      writeProjectWorkAnnotations(projectId, next);
+      writeProjectWorkAnnotations(projectId, next, annotationUserId);
       return { ...all, [projectId]: next };
     });
   }
@@ -752,6 +770,46 @@ export default function WorkWorkspace({
             });
             return true;
           } catch (error) {
+            if (error instanceof PartialTaskTransitionError) {
+              const serverUiStatus = mapBackendStatusToWorkStatus(
+                error.actualServerStatus,
+              );
+              setItems((current) =>
+                current.map((item) => {
+                  if (item.id === realId) {
+                    return {
+                      ...item,
+                      status: serverUiStatus,
+                      resolution:
+                        serverUiStatus === "DONE" ? "RESOLVED" : "UNRESOLVED",
+                    };
+                  }
+                  if (
+                    item.subtaskItems?.some((sub) => sub.id === realId)
+                  ) {
+                    return {
+                      ...item,
+                      subtaskItems: item.subtaskItems.map((sub) =>
+                        sub.id === realId
+                          ? {
+                              ...sub,
+                              status: serverUiStatus,
+                              done: serverUiStatus === "DONE",
+                            }
+                          : sub,
+                      ),
+                    };
+                  }
+                  return item;
+                }),
+              );
+              void tasksQuery.refetch();
+              const detailMsg = describeMutationError(error.causeError);
+              const partialMsg = `Status updated partway to ${error.actualServerStatus}, then failed: ${detailMsg}`;
+              setMutationError(partialMsg);
+              setAnnouncement(partialMsg);
+              return false;
+            }
             onRollback?.();
             void tasksQuery.refetch();
             const message = describeMutationError(error);
@@ -776,6 +834,7 @@ export default function WorkWorkspace({
   ): Promise<number> {
     const actualFrom: BackendTaskStatus =
       taskBackendStatusesRef.current.get(realId) ?? fromStatus;
+    let completedStepStatus: BackendTaskStatus | null = null;
 
     const runStep = async (
       stepVersion: number,
@@ -783,14 +842,23 @@ export default function WorkWorkspace({
       stepTo: BackendTaskStatus,
       reason?: string,
     ): Promise<number> => {
-      const res = await transitionProjectTaskApi(projectId, realId, stepVersion, {
-        fromStatus: stepFrom,
-        toStatus: stepTo,
-        ...(reason ? { reason } : {}),
-      });
-      taskVersionsRef.current.set(realId, res.version);
-      taskBackendStatusesRef.current.set(realId, res.status ?? stepTo);
-      return res.version;
+      try {
+        const res = await transitionProjectTaskApi(projectId, realId, stepVersion, {
+          fromStatus: stepFrom,
+          toStatus: stepTo,
+          ...(reason ? { reason } : {}),
+        });
+        const confirmedStatus = res.status ?? stepTo;
+        completedStepStatus = confirmedStatus;
+        taskVersionsRef.current.set(realId, res.version);
+        taskBackendStatusesRef.current.set(realId, confirmedStatus);
+        return res.version;
+      } catch (error) {
+        if (completedStepStatus !== null) {
+          throw new PartialTaskTransitionError(completedStepStatus, error);
+        }
+        throw error;
+      }
     };
 
     if (actualFrom === toStatus) return version;
@@ -812,6 +880,26 @@ export default function WorkWorkspace({
         currentFrom,
         "CANCELLED",
         "Cancelled from workspace UI",
+      );
+    }
+
+    if (toStatus === "BLOCKED") {
+      let currentVer = version;
+      let currentFrom: BackendTaskStatus = actualFrom;
+      if (currentFrom === "DONE" || currentFrom === "CANCELLED") {
+        currentVer = await runStep(
+          currentVer,
+          currentFrom,
+          currentFrom === "DONE" ? "IN_PROGRESS" : "TODO",
+          "Reopened before blocking",
+        );
+        currentFrom = currentFrom === "DONE" ? "IN_PROGRESS" : "TODO";
+      }
+      return runStep(
+        currentVer,
+        currentFrom,
+        "BLOCKED",
+        "Blocked from workspace UI",
       );
     }
 
@@ -898,7 +986,10 @@ export default function WorkWorkspace({
       }
     }
 
-    const storedAnnotations = readProjectWorkAnnotations(projectId);
+    const storedAnnotations = readProjectWorkAnnotations(
+      projectId,
+      visibleUser?.id ?? "",
+    );
     const currentProjectName = resolvedProject?.name ?? "";
     const mapped: WorkItem[] = parentTasks.map((t) => {
       const childTasks = childrenByParent.get(t.id) ?? [];
@@ -1312,28 +1403,32 @@ export default function WorkWorkspace({
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
     setActivityError(null);
     void (async () => {
       try {
         let fetchFailed = false;
         const [detail, commentItems, worklogsData, historyItems] =
           await Promise.all([
-            fetchProjectTaskDetail(projectId, openedTaskId),
-            fetchAllTaskComments(projectId, openedTaskId).catch((err) => {
+            fetchProjectTaskDetail(projectId, openedTaskId, controller.signal),
+            fetchAllTaskComments(projectId, openedTaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               fetchFailed = true;
               if (!cancelled) {
                 setActivityError(describeMutationError(err));
               }
               return null;
             }),
-            fetchAllTaskWorklogs(projectId, openedTaskId).catch((err) => {
+            fetchAllTaskWorklogs(projectId, openedTaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               fetchFailed = true;
               if (!cancelled) {
                 setActivityError(describeMutationError(err));
               }
               return null;
             }),
-            fetchAllTaskHistory(projectId, openedTaskId).catch((err) => {
+            fetchAllTaskHistory(projectId, openedTaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               const msg = err instanceof Error ? err.message : "";
               if (!msg.includes("Unexpected API path")) {
                 fetchFailed = true;
@@ -1344,7 +1439,7 @@ export default function WorkWorkspace({
               return null;
             }),
           ]);
-        if (cancelled) return;
+        if (cancelled || controller.signal.aborted) return;
         if (!fetchFailed) {
           setActivityError(null);
         }
@@ -1413,6 +1508,7 @@ export default function WorkWorkspace({
           ),
         );
       } catch (err) {
+        if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : "";
         if (!cancelled && !msg.includes("Unexpected API path")) {
           setActivityError(describeMutationError(err));
@@ -1421,6 +1517,7 @@ export default function WorkWorkspace({
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [isRealProject, openedTaskId, projectId, projectPeopleById, visibleUser]);
 
@@ -1435,27 +1532,31 @@ export default function WorkWorkspace({
       return;
     }
     let cancelled = false;
+    const controller = new AbortController();
     void (async () => {
       try {
         let fetchFailed = false;
         const [subDetail, subCommentItems, subWorklogsData, subHistoryItems] =
           await Promise.all([
-            fetchProjectTaskDetail(projectId, openedSubtaskId),
-            fetchAllTaskComments(projectId, openedSubtaskId).catch((err) => {
+            fetchProjectTaskDetail(projectId, openedSubtaskId, controller.signal),
+            fetchAllTaskComments(projectId, openedSubtaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               fetchFailed = true;
               if (!cancelled) {
                 setActivityError(describeMutationError(err));
               }
               return null;
             }),
-            fetchAllTaskWorklogs(projectId, openedSubtaskId).catch((err) => {
+            fetchAllTaskWorklogs(projectId, openedSubtaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               fetchFailed = true;
               if (!cancelled) {
                 setActivityError(describeMutationError(err));
               }
               return null;
             }),
-            fetchAllTaskHistory(projectId, openedSubtaskId).catch((err) => {
+            fetchAllTaskHistory(projectId, openedSubtaskId, controller.signal).catch((err) => {
+              if (controller.signal.aborted) return null;
               const msg = err instanceof Error ? err.message : "";
               if (!msg.includes("Unexpected API path")) {
                 fetchFailed = true;
@@ -1466,7 +1567,7 @@ export default function WorkWorkspace({
               return null;
             }),
           ]);
-        if (cancelled) return;
+        if (cancelled || controller.signal.aborted) return;
         if (!fetchFailed) {
           setActivityError(null);
         }
@@ -1544,6 +1645,7 @@ export default function WorkWorkspace({
           }),
         );
       } catch (err) {
+        if (controller.signal.aborted) return;
         const msg = err instanceof Error ? err.message : "";
         if (!cancelled && !msg.includes("Unexpected API path")) {
           setActivityError(describeMutationError(err));
@@ -1552,6 +1654,7 @@ export default function WorkWorkspace({
     })();
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [
     isRealProject,
@@ -4473,7 +4576,17 @@ function normalizeSearch(value: string): string {
     .toLocaleLowerCase();
 }
 
-function readProjectWorkAnnotations(projectId: string): {
+function workAnnotationsStorageKey(projectId: string, userId?: string): string {
+  const scope = userId?.trim();
+  return scope
+    ? `continuum:work-annotations:${scope}:${projectId}`
+    : `continuum:work-annotations:${projectId}`;
+}
+
+function readProjectWorkAnnotations(
+  projectId: string,
+  userId?: string,
+): {
   flagged: Record<string, boolean>;
   watching: Record<string, boolean>;
   estimates: Record<string, string>;
@@ -4483,7 +4596,7 @@ function readProjectWorkAnnotations(projectId: string): {
   }
   try {
     const raw = window.localStorage.getItem(
-      `continuum:work-annotations:${projectId}`,
+      workAnnotationsStorageKey(projectId, userId),
     );
     if (!raw) {
       return { flagged: {}, watching: {}, estimates: {} };
@@ -4519,11 +4632,12 @@ function writeProjectWorkAnnotations(
     watching: Record<string, boolean>;
     estimates: Record<string, string>;
   },
+  userId?: string,
 ): void {
   if (typeof window === "undefined" || !projectId) return;
   try {
     window.localStorage.setItem(
-      `continuum:work-annotations:${projectId}`,
+      workAnnotationsStorageKey(projectId, userId),
       JSON.stringify(next),
     );
   } catch {

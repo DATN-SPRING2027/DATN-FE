@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import {
   BookOpen,
@@ -11,6 +11,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Link, useRouter } from "@/i18n/navigation";
+import { getLocalTimeZone } from "@/lib/date-format";
 import Button from "@/components/ui/button/Button";
 import {
   FolderIcon,
@@ -121,14 +122,23 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
   >("all");
   const [onlyLeaderless, setOnlyLeaderless] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [view, setView] = useState<"grid" | "list">("list");
   const [sort, setSort] = useState<"updated" | "name" | "code">("updated");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const trimmed = search.trim();
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(trimmed);
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const projects = useProjectsQuery(organizationId, {
     page,
     pageSize: 20,
     ...(status ? { status } : {}),
+    ...(debouncedSearch ? { q: debouncedSearch } : {}),
   });
 
   const filters: readonly {
@@ -184,25 +194,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
     setVisibilityFilter("all");
     setOnlyLeaderless(false);
     setSearch("");
+    setDebouncedSearch("");
     setPage(1);
-  };
-
-  const allVisibleSelected =
-    filteredProjects.length > 0 &&
-    filteredProjects.every((item) => selectedIds.includes(item.id));
-
-  const toggleSelectAll = () => {
-    if (allVisibleSelected) {
-      setSelectedIds([]);
-    } else {
-      setSelectedIds(filteredProjects.map((item) => item.id));
-    }
-  };
-
-  const toggleSelectOne = (id: string) => {
-    setSelectedIds((prev) =>
-      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id],
-    );
   };
 
   const totalPages = Math.max(1, activeList?.pagination.totalPages ?? 1);
@@ -347,18 +340,13 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               type="search"
               aria-label={t("searchProjects")}
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
               placeholder={t("searchPlaceholder")}
-              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 sm:pe-12 text-xs sm:text-sm text-gray-800 shadow-theme-xs transition-[border-color,background-color,box-shadow] placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
+              className="h-9 w-full rounded-xl border border-gray-200 bg-gray-50/70 ps-9 pe-3 text-xs sm:text-sm text-gray-800 shadow-theme-xs transition-[border-color,background-color,box-shadow] placeholder:text-gray-400 focus:border-brand-300 focus:bg-white focus:ring-2 focus:ring-brand-500/10 focus:outline-none dark:border-gray-700 dark:bg-gray-800/80 dark:text-white/90 dark:placeholder:text-gray-500 dark:focus:border-brand-500 dark:focus:bg-gray-900"
             />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-y-0 end-2.5 hidden items-center sm:flex"
-            >
-              <kbd className="rounded-md border border-gray-200 bg-white px-1.5 py-0.5 font-sans text-[10px] font-medium text-gray-400 shadow-2xs dark:border-gray-700 dark:bg-gray-900 dark:text-gray-500">
-                ⌘K
-              </kbd>
-            </span>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -520,19 +508,10 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
               /* Inner Bordered Table (Matching Reference Design with TailAdmin Visual Tokens) */
               <div className="overflow-hidden rounded-xl border border-gray-200/90 dark:border-gray-800">
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[820px] border-collapse text-left">
+                  <table className="w-full min-w-[780px] border-collapse text-start">
                     <thead>
                       <tr className="border-b border-gray-200/80 bg-gray-50/80 text-xs font-semibold text-gray-500 dark:border-gray-800 dark:bg-gray-800/60 dark:text-gray-400">
-                        <th scope="col" className="w-11 py-3 ps-4 pe-2">
-                          <input
-                            type="checkbox"
-                            aria-label={t("selectAllProjects")}
-                            checked={allVisibleSelected}
-                            onChange={toggleSelectAll}
-                            className="size-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                          />
-                        </th>
-                        <th scope="col" className="px-3 py-3">
+                        <th scope="col" className="py-3 ps-4 pe-3">
                           {t("tableProjectName")}
                         </th>
                         <th scope="col" className="px-3 py-3">
@@ -547,7 +526,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                         <th scope="col" className="px-3 py-3">
                           {t("tableGovernance")}
                         </th>
-                        <th scope="col" className="px-4 py-3 text-right">
+                        <th scope="col" className="px-4 py-3 text-end">
                           {t("tableStatus")}
                         </th>
                       </tr>
@@ -562,7 +541,7 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                           new Date(project.updatedAt),
                           {
                             dateStyle: "medium",
-                            timeZone: "UTC",
+                            timeZone: getLocalTimeZone(),
                           },
                         );
                         const memberPreviews =
@@ -577,22 +556,10 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                         return (
                           <tr
                             key={project.id}
-                            role="article"
                             className="group transition-colors hover:bg-gray-50/70 dark:hover:bg-white/[0.02]"
                           >
-                            {/* Col 1: Checkbox */}
-                            <td className="py-3.5 ps-4 pe-2 align-middle">
-                              <input
-                                type="checkbox"
-                                aria-label={`Select ${project.name}`}
-                                checked={selectedIds.includes(project.id)}
-                                onChange={() => toggleSelectOne(project.id)}
-                                className="size-4 cursor-pointer rounded border-gray-300 text-brand-600 focus:ring-brand-500 dark:border-gray-700 dark:bg-gray-800"
-                              />
-                            </td>
-
-                            {/* Col 2: Project Name + Description */}
-                            <td className="px-3 py-3.5 align-middle">
+                            {/* Col 1: Project Name + Description */}
+                            <td className="py-3.5 ps-4 pe-3 align-middle">
                               <div className="flex min-w-0 items-center gap-3">
                                 {project.coverImageUrl?.trim() ? (
                                   <span
@@ -698,8 +665,8 @@ function OrganizationProjects({ organizationId }: { organizationId: string }) {
                               </div>
                             </td>
 
-                            {/* Col 7: Status Pill (Styled like Reference 'Status' badge) */}
-                            <td className="px-4 py-3.5 text-right align-middle whitespace-nowrap">
+                            {/* Col 6: Status Pill (Styled like Reference 'Status' badge) */}
+                            <td className="px-4 py-3.5 text-end align-middle whitespace-nowrap">
                               {!isActive ? (
                                 <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300">
                                   <span
@@ -794,7 +761,7 @@ export default function ProjectWorkspace() {
         style={{
           backgroundImage: "url('/images/projects/projects-hero-banner.png')",
         }}
-        className="relative overflow-hidden rounded-2xl border border-indigo-100/80 bg-[#f4f6fc] bg-cover bg-right bg-no-repeat px-6 py-7 shadow-theme-xs sm:px-8 sm:py-8 dark:border-gray-800 dark:bg-gray-900"
+        className="relative overflow-hidden rounded-2xl border border-indigo-100/80 bg-[#f4f6fc] bg-cover bg-center bg-no-repeat px-6 py-7 shadow-theme-xs sm:px-8 sm:py-8 dark:border-gray-800 dark:bg-gray-900"
       >
         <div
           aria-hidden="true"

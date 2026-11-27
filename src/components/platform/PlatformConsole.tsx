@@ -1,13 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { CloseIcon } from "@/icons";
 import dialogStyles from "./ui/platformDialog.module.css";
-import PlatformAccountDirectory from "./PlatformAccountDirectory";
-import PlatformAuditProjection from "@/components/platform/PlatformAuditProjection";
-import PlatformDashboard from "@/components/platform/PlatformDashboard";
-import PlatformMembershipDirectory from "@/components/platform/PlatformMembershipDirectory";
-import PlatformOperationsDirectory from "@/components/platform/PlatformOperationsDirectory";
-import PlatformOrganizationsView from "@/components/platform/PlatformOrganizationsView";
+import { TableSkeleton } from "@/components/platform/ui/LoadingSkeleton";
 import PlatformShell from "@/components/platform/ui/PlatformShell";
 import PageHeader from "@/components/platform/ui/PageHeader";
 import StatusBadge from "@/components/platform/ui/StatusBadge";
@@ -35,6 +31,46 @@ import {
 } from "@/lib/queries/platform/usePlatformConsole";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+
+function PlatformSectionFallback() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      className="rounded-2xl border border-gray-200/80 bg-white dark:border-gray-800 dark:bg-gray-900"
+    >
+      <TableSkeleton rows={5} columns={5} />
+    </div>
+  );
+}
+
+const PlatformAccountDirectory = dynamic(
+  () => import("./PlatformAccountDirectory"),
+  { loading: PlatformSectionFallback },
+);
+const PlatformAuditProjection = dynamic(
+  () => import("@/components/platform/PlatformAuditProjection"),
+  { loading: PlatformSectionFallback },
+);
+const PlatformDashboard = dynamic(
+  () => import("@/components/platform/PlatformDashboard"),
+  { loading: PlatformSectionFallback },
+);
+const PlatformMembershipDirectory = dynamic(
+  () => import("@/components/platform/PlatformMembershipDirectory"),
+  { loading: PlatformSectionFallback },
+);
+const PlatformOperationsDirectory = dynamic(
+  () => import("@/components/platform/PlatformOperationsDirectory"),
+  { loading: PlatformSectionFallback },
+);
+const PlatformOrganizationsView = dynamic(
+  () => import("@/components/platform/PlatformOrganizationsView"),
+  { loading: PlatformSectionFallback },
+);
+
+const SUSPEND_DIALOG_FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 const sectionIds = [
   "dashboard",
@@ -80,16 +116,17 @@ function resolveCreateOrgErrorKey(error: unknown): string {
   return "errors.organizationCreate";
 }
 
-function apiMessage(error: unknown, fallback: string): string {
+export function apiMessage(error: unknown, fallback: string): string {
   if (!(error instanceof ApiError)) return fallback;
-  if (error.status === 403) return fallback;
-  if (error.status === 404) return fallback;
-  if (error.status === 409) return fallback;
-  return fallback;
+  const trimmed = error.message.trim();
+  if (!trimmed || trimmed.startsWith("API request failed:")) return fallback;
+  if (error.status >= 500) return fallback;
+  return trimmed;
 }
 
 export default function PlatformConsole() {
   const t = useTranslations("platformConsole");
+  const tCommon = useTranslations("common");
   const tPage = useTranslations("pageTitles");
   const router = useRouter();
   const pathname = usePathname();
@@ -156,6 +193,8 @@ export default function PlatformConsole() {
   const [suspendTarget, setSuspendTarget] = useState<PlatformMembership | null>(
     null,
   );
+  const suspendDialogRef = useRef<HTMLElement | null>(null);
+  const suspendPendingRef = useRef(false);
   const [operationMessage, setOperationMessage] = useState("");
   const [lookupErrorKey, setLookupErrorKey] = useState<string | undefined>();
   const [createErrorKey, setCreateErrorKey] = useState<string | undefined>();
@@ -215,6 +254,97 @@ export default function PlatformConsole() {
   const suspend = useSuspendPlatformMembershipMutation(
     suspendTarget?.organizationId ?? effectiveSelectedOrganizationId,
   );
+
+  useEffect(() => {
+    suspendPendingRef.current = suspend.isPending;
+  }, [suspend.isPending]);
+
+  const isSuspendDialogOpen = Boolean(suspendTarget);
+  useEffect(() => {
+    if (!isSuspendDialogOpen) return;
+
+    const previousFocus =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+
+    const currentLockCount = Number(
+      document.body.dataset.scrollLockCount ?? "0",
+    );
+    if (currentLockCount === 0) {
+      document.body.dataset.scrollLockPrevOverflow =
+        document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+    }
+    document.body.dataset.scrollLockCount = String(currentLockCount + 1);
+
+    const dialogEl = suspendDialogRef.current;
+    if (dialogEl) {
+      const focusables = dialogEl.querySelectorAll<HTMLElement>(
+        SUSPEND_DIALOG_FOCUSABLE_SELECTOR,
+      );
+      (focusables[0] ?? dialogEl).focus();
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        if (!suspendPendingRef.current) {
+          event.preventDefault();
+          setSuspendTarget(null);
+        }
+        return;
+      }
+
+      if (event.key === "Tab") {
+        const container = suspendDialogRef.current;
+        if (!container) return;
+        const focusables = Array.from(
+          container.querySelectorAll<HTMLElement>(
+            SUSPEND_DIALOG_FOCUSABLE_SELECTOR,
+          ),
+        );
+        if (focusables.length === 0) {
+          event.preventDefault();
+          container.focus();
+          return;
+        }
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement as HTMLElement | null;
+        if (event.shiftKey) {
+          if (!active || active === first || !container.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (!active || active === last || !container.contains(active)) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+
+      const nextLockCount = Math.max(
+        0,
+        Number(document.body.dataset.scrollLockCount ?? "1") - 1,
+      );
+      if (nextLockCount === 0) {
+        document.body.style.overflow =
+          document.body.dataset.scrollLockPrevOverflow ?? "";
+        delete document.body.dataset.scrollLockCount;
+        delete document.body.dataset.scrollLockPrevOverflow;
+      } else {
+        document.body.dataset.scrollLockCount = String(nextLockCount);
+      }
+
+      if (previousFocus && document.contains(previousFocus)) {
+        previousFocus.focus();
+      }
+    };
+  }, [isSuspendDialogOpen]);
 
   useEffect(() => {
     if (session.isError && (!session.data || isReadAccessLost(session.error)))
@@ -409,10 +539,11 @@ export default function PlatformConsole() {
           <span>{operationMessage}</span>
           <button
             type="button"
+            aria-label={tCommon("close")}
             onClick={() => setOperationMessage("")}
-            className="text-brand-600 hover:text-brand-800 dark:text-brand-400"
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded text-brand-600 hover:bg-brand-100/70 hover:text-brand-800 dark:text-brand-400 dark:hover:bg-brand-500/20"
           >
-            ×
+            <CloseIcon aria-hidden="true" className="size-3.5" />
           </button>
         </div>
       )}
@@ -673,18 +804,22 @@ export default function PlatformConsole() {
           className="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/40 p-4 backdrop-blur-[3px] dark:bg-gray-950/60"
           role="presentation"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) setSuspendTarget(null);
+            if (event.target === event.currentTarget && !suspend.isPending) {
+              setSuspendTarget(null);
+            }
           }}
         >
           <section
+            ref={suspendDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-labelledby="suspend-title"
-            className={`${dialogStyles.surface} ${dialogStyles.confirmation} relative`}
+            className={`${dialogStyles.surface} ${dialogStyles.confirmation} relative outline-none`}
           >
             <button
               type="button"
-              aria-label={t("cancel")}
+              aria-label={tCommon("close")}
               className={`${dialogStyles.close} absolute end-3 top-3`}
               disabled={suspend.isPending}
               onClick={() => setSuspendTarget(null)}
@@ -702,8 +837,7 @@ export default function PlatformConsole() {
                 name: suspendTarget.user?.fullName ?? suspendTarget.userId,
               })}
             </p>
-            <div className="mt-4 rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-xs text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
-              <span className="mb-0.5 block font-semibold">Policy Guard</span>
+            <div className="mt-4 rounded-xl border border-amber-200/60 bg-amber-50/70 p-3 text-xs leading-relaxed text-amber-800 dark:border-amber-500/20 dark:bg-amber-500/10 dark:text-amber-300">
               {t("memberships.confirmGuard")}
             </div>
             <div className="mt-6 flex flex-col-reverse justify-end gap-2 sm:flex-row">

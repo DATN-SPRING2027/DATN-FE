@@ -18,13 +18,6 @@ vi.mock("@/i18n/navigation", () => ({
   ),
 }));
 
-vi.mock("@/icons", () => ({
-  ArrowRightIcon: () => null,
-  ChevronLeftIcon: () => null,
-  EnvelopeIcon: () => null,
-  GoogleIcon: () => null,
-}));
-
 vi.mock("@/lib/queries/auth/useAuth", () => ({
   useRequestEmailRegistrationMutation: vi.fn(),
 }));
