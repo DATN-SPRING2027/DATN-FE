@@ -6147,7 +6147,12 @@
     "allProjectsIsolationTitle": "Phạm vi Toàn tổ chức (Manager)",
     "allProjectsIsolationDesc": "Truy vấn xuyên suốt toàn bộ dự án đang hoạt động trong tổ chức · Chỉ dựa trên tri thức",
     "tokenUsageButton": "Token AI",
-    "tokenUsageButtonAria": "Xem thống kê mức sử dụng Token AI"
+    "tokenUsageButtonAria": "Xem thống kê mức sử dụng Token AI",
+    "citationHoverHint": "Nhấn để xem trích đoạn gốc",
+    "citationSessionHoverTitle": "Bộ nhớ ngữ cảnh hội thoại",
+    "citationSourcesStripLabel": "Nguồn tham chiếu",
+    "citationExpandSources": "Xem chi tiết nguồn",
+    "citationCollapseSources": "Thu gọn nguồn"
   },
   "handover": {
     "aiCoverage": {

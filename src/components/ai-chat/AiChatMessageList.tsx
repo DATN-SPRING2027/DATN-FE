@@ -16,6 +16,7 @@ import {
   AlertIcon,
   ArrowRightIcon,
   BranchIcon,
+  ChevronDownIcon,
   DocsIcon,
   ShootingStarIcon,
   TimeIcon,
@@ -33,6 +34,12 @@ import {
   groupAnswerVersions,
   isPersistedMessageId,
 } from "./answer-action-utils";
+import {
+  formatCitationSnippetPreview,
+  normalizeCitationTokens,
+  parseNumberedHeading,
+  stripLeadingDecorativeEmoji,
+} from "./answer-prose-utils";
 import {
   buildProjectCitationHref,
   isContinuumDocumentId,
@@ -177,7 +184,7 @@ function renderBoldAndCodeText(
       return (
         <code
           key={key}
-          className="font-mono rounded-md bg-gray-100 px-1.5 py-0.5 text-xs text-brand-600 dark:bg-white/10 dark:text-brand-300"
+          className="font-mono rounded-md border border-gray-200/80 bg-gray-100/90 px-1.5 py-0.5 text-xs font-medium text-brand-700 dark:border-white/10 dark:bg-white/10 dark:text-brand-300"
         >
           {part.slice(1, -1)}
         </code>
@@ -197,15 +204,185 @@ function renderBoldAndCodeText(
   });
 }
 
+interface CitationTooltipHelpers {
+  hoverHint: string;
+  sessionHoverTitle: string;
+  formatPage: (cit: AiChatCitation) => string | null;
+  formatVersion: (version: number) => string;
+}
+
+interface TooltipCoords {
+  top: number;
+  left: number;
+  placement: "top" | "bottom";
+}
+
+const TOOLTIP_WIDTH_PX = 256;
+const TOOLTIP_VIEWPORT_MARGIN_PX = 12;
+const TOOLTIP_FLIP_THRESHOLD_PX = 180;
+
+const InlineCitationBadge = memo(function InlineCitationBadge({
+  item,
+  matchedDoc,
+  matchedSession,
+  citationJumpAria,
+  onClickToken,
+  tooltipHelpers,
+}: {
+  item: CitationItemToken;
+  matchedDoc: AiChatCitation | undefined;
+  matchedSession: AiChatSessionCitation | undefined;
+  citationJumpAria: (label: string) => string;
+  onClickToken: (item: CitationItemToken) => void;
+  tooltipHelpers: CitationTooltipHelpers;
+}) {
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const [tooltipCoords, setTooltipCoords] = useState<TooltipCoords | null>(
+    null,
+  );
+  const isSession = item.type === "session";
+  const matched = Boolean(matchedDoc || matchedSession);
+
+  const tooltipTitle = matchedDoc
+    ? (matchedDoc.documentName ??
+      matchedDoc.sourceName ??
+      matchedDoc.label ??
+      matchedDoc.documentId)
+    : matchedSession
+      ? tooltipHelpers.sessionHoverTitle
+      : null;
+  const tooltipMeta = matchedDoc
+    ? [
+        matchedDoc.versionNo !== undefined
+          ? tooltipHelpers.formatVersion(matchedDoc.versionNo)
+          : null,
+        tooltipHelpers.formatPage(matchedDoc),
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+  const rawSnippet = matchedDoc
+    ? (matchedDoc.snippet ?? matchedDoc.heading ?? "")
+    : (matchedSession?.summaryExcerpt ?? "");
+  const tooltipSnippet = formatCitationSnippetPreview(rawSnippet, 140);
+
+  const openPreview = useCallback(() => {
+    if (!tooltipTitle) return;
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (!rect || typeof window === "undefined") {
+      setTooltipCoords({ top: 0, left: 0, placement: "bottom" });
+      return;
+    }
+    const viewportWidth = window.innerWidth || 1024;
+    const clampedLeft = Math.max(
+      TOOLTIP_VIEWPORT_MARGIN_PX,
+      Math.min(
+        rect.left + rect.width / 2 - TOOLTIP_WIDTH_PX / 2,
+        viewportWidth - TOOLTIP_WIDTH_PX - TOOLTIP_VIEWPORT_MARGIN_PX,
+      ),
+    );
+    const placement: "top" | "bottom" =
+      rect.top < TOOLTIP_FLIP_THRESHOLD_PX ? "bottom" : "top";
+    const top = placement === "bottom" ? rect.bottom + 8 : rect.top - 8;
+    setTooltipCoords({ top, left: clampedLeft, placement });
+  }, [tooltipTitle]);
+
+  const closePreview = useCallback(() => {
+    setTooltipCoords(null);
+  }, []);
+
+  return (
+    <span
+      className="relative inline-flex items-baseline"
+      onMouseEnter={openPreview}
+      onMouseLeave={closePreview}
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => {
+          closePreview();
+          onClickToken(item);
+        }}
+        onFocus={openPreview}
+        onBlur={closePreview}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            closePreview();
+          }
+        }}
+        aria-label={citationJumpAria(item.label)}
+        className={cn(
+          "inline-flex items-center rounded-full px-1.5 py-0.5 text-xs leading-none font-semibold tabular-nums transition-colors focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none",
+          isSession
+            ? "bg-warning-500/15 text-warning-700 ring-1 ring-inset ring-warning-500/25 hover:bg-warning-500/25 dark:text-warning-300"
+            : matched
+              ? "bg-brand-500/12 text-brand-700 ring-1 ring-inset ring-brand-500/20 hover:bg-brand-500/20 dark:bg-brand-400/15 dark:text-brand-300 dark:ring-brand-400/25 dark:hover:bg-brand-400/25"
+              : "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300",
+        )}
+      >
+        [{item.label}]
+      </button>
+
+      {tooltipCoords && tooltipTitle && (
+        <span
+          role="tooltip"
+          style={{
+            top: tooltipCoords.top,
+            left: tooltipCoords.left,
+            width: TOOLTIP_WIDTH_PX,
+          }}
+          className={cn(
+            "pointer-events-none fixed z-50 rounded-xl border border-gray-200/90 bg-white p-2.5 text-start shadow-theme-lg dark:border-white/15 dark:bg-gpt-composer",
+            tooltipCoords.placement === "top" && "-translate-y-full",
+          )}
+        >
+          <span className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span
+                className={cn(
+                  "inline-flex shrink-0 items-center rounded-full px-1.5 py-0.5 text-xs leading-none font-semibold tabular-nums",
+                  isSession
+                    ? "bg-warning-500/20 text-warning-700 dark:text-warning-300"
+                    : "bg-brand-500/15 text-brand-700 dark:text-brand-300",
+                )}
+              >
+                [{item.label}]
+              </span>
+              <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">
+                {tooltipTitle}
+              </span>
+            </span>
+            {tooltipMeta && (
+              <span className="shrink-0 text-xs text-gray-400 tabular-nums dark:text-gray-500">
+                {tooltipMeta}
+              </span>
+            )}
+          </span>
+          {tooltipSnippet && (
+            <span className="mt-1.5 line-clamp-2 text-xs leading-relaxed font-normal whitespace-normal text-gray-600 dark:text-gray-300">
+              {tooltipSnippet}
+            </span>
+          )}
+          <span className="mt-1.5 block text-xs font-medium text-brand-600 dark:text-brand-300">
+            {tooltipHelpers.hoverHint}
+          </span>
+        </span>
+      )}
+    </span>
+  );
+});
+
 function renderInlineWithCitations(
   line: string,
   citations: readonly AiChatCitation[],
   sessionCitations: readonly AiChatSessionCitation[],
   citationJumpAria: (label: string) => string,
   onClickToken: (item: CitationItemToken) => void,
+  tooltipHelpers: CitationTooltipHelpers,
 ): ReactNode {
-  const tokens = tokenizeTextWithCitations(line);
-  return tokens.map((token, idx) => {
+  const tokens = normalizeCitationTokens(tokenizeTextWithCitations(line));
+  return tokens.map(({ token, boundPunctuation }, idx) => {
     if (token.kind === "text") {
       return (
         <Fragment key={`txt-${idx}`}>
@@ -216,32 +393,35 @@ function renderInlineWithCitations(
     return (
       <span
         key={`cit-${idx}`}
-        className="mx-0.5 inline-flex flex-wrap items-center gap-1 align-baseline"
+        className={cn(
+          "inline-flex items-baseline whitespace-nowrap align-baseline",
+          idx > 0 && "ms-1",
+          boundPunctuation ? "me-0" : "me-0.5",
+        )}
       >
-        {token.items.map((item, subIdx) => {
-          const isSession = item.type === "session";
-          const matched = isSession
-            ? sessionCitations.some((sc) => sc.ref === item.ref)
-            : citations.some((c) => c.number === item.number);
-          return (
-            <button
-              key={`${item.label}-${subIdx}`}
-              type="button"
-              onClick={() => onClickToken(item)}
-              aria-label={citationJumpAria(item.label)}
-              className={cn(
-                "inline-flex items-center rounded px-1.5 py-0.5 text-xs leading-none font-semibold tabular-nums transition-colors",
-                isSession
-                  ? "bg-warning-500/15 text-warning-700 hover:bg-warning-500/25 dark:text-warning-300"
-                  : matched
-                    ? "bg-brand-500/15 text-brand-600 hover:bg-brand-500/25 dark:text-brand-300"
-                    : "bg-gray-100 text-gray-600 dark:bg-white/10 dark:text-gray-300",
-              )}
-            >
-              [{item.label}]
-            </button>
-          );
-        })}
+        <span className="inline-flex items-baseline gap-1">
+          {token.items.map((item, subIdx) => {
+            const isSession = item.type === "session";
+            const matchedDoc = isSession
+              ? undefined
+              : citations.find((c) => c.number === item.number);
+            const matchedSession = isSession
+              ? sessionCitations.find((sc) => sc.ref === item.ref)
+              : undefined;
+            return (
+              <InlineCitationBadge
+                key={`${item.label}-${subIdx}`}
+                item={item}
+                matchedDoc={matchedDoc}
+                matchedSession={matchedSession}
+                citationJumpAria={citationJumpAria}
+                onClickToken={onClickToken}
+                tooltipHelpers={tooltipHelpers}
+              />
+            );
+          })}
+        </span>
+        {boundPunctuation}
       </span>
     );
   });
@@ -302,12 +482,14 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
   sessionCitations,
   citationJumpAria,
   onClickToken,
+  tooltipHelpers,
 }: {
   content: string;
   citations: readonly AiChatCitation[];
   sessionCitations: readonly AiChatSessionCitation[];
   citationJumpAria: (label: string) => string;
   onClickToken: (item: CitationItemToken) => void;
+  tooltipHelpers: CitationTooltipHelpers;
 }) {
   const blocks = content.split(/(```[\s\S]*?```)/g).filter(Boolean);
 
@@ -320,6 +502,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
       /^(-{3,}|\*{3,}|_{3,})$/.test(line.trim());
     const headingMatch = (line: string) =>
       line.trim().match(/^(#{1,6})\s+(.+)$/);
+    const blockquoteMatch = (line: string) => line.match(/^\s*>\s?(.*)$/);
     const ulMatch = (line: string) => line.match(/^(\s*)[-*•]\s+(.+)$/);
     const olMatch = (line: string) => line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
 
@@ -334,7 +517,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
         elements.push(
           <hr
             key={`hr-${keyPrefix}-${segIdx}`}
-            className="my-2 border-gray-200/80 dark:border-white/10"
+            className="my-3 border-gray-100 dark:border-white/10"
           />,
         );
         idx += 1;
@@ -345,27 +528,78 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
       const hMatch = headingMatch(current);
       if (hMatch) {
         const level = hMatch[1]?.length ?? 3;
-        const headingText = hMatch[2] ?? "";
+        const cleanedHeading = stripLeadingDecorativeEmoji(hMatch[2] ?? "");
+        const numbered = parseNumberedHeading(cleanedHeading);
         const HeadingTag = level >= 4 ? "h5" : "h4";
         elements.push(
           <HeadingTag
             key={`h-${keyPrefix}-${segIdx}`}
             className={
               level >= 4
-                ? "pt-1 text-sm font-semibold text-gray-900 dark:text-white"
-                : "pt-1 text-base font-semibold text-gray-900 dark:text-white"
+                ? "mt-3.5 mb-1 text-sm leading-snug font-semibold text-gray-900 first:mt-0 dark:text-white"
+                : "mt-5 mb-1.5 flex items-baseline gap-2 border-b border-gray-100 pb-1.5 text-base leading-snug font-semibold tracking-tight text-gray-900 first:mt-0 dark:border-white/10 dark:text-white"
             }
           >
-            {renderInlineWithCitations(
-              headingText,
-              citations,
-              sessionCitations,
-              citationJumpAria,
-              onClickToken,
+            {numbered ? (
+              <>
+                <span className="shrink-0 font-semibold text-brand-600 tabular-nums dark:text-brand-400">
+                  {numbered.numberPrefix}
+                </span>{" "}
+                <span className="min-w-0">
+                  {renderInlineWithCitations(
+                    numbered.titleText,
+                    citations,
+                    sessionCitations,
+                    citationJumpAria,
+                    onClickToken,
+                    tooltipHelpers,
+                  )}
+                </span>
+              </>
+            ) : (
+              renderInlineWithCitations(
+                cleanedHeading,
+                citations,
+                sessionCitations,
+                citationJumpAria,
+                onClickToken,
+                tooltipHelpers,
+              )
             )}
           </HeadingTag>,
         );
         idx += 1;
+        segIdx += 1;
+        continue;
+      }
+
+      if (blockquoteMatch(current)) {
+        const quoteLines: string[] = [];
+        while (idx < lines.length) {
+          const matched = blockquoteMatch(lines[idx] ?? "");
+          if (!matched) break;
+          quoteLines.push(stripLeadingDecorativeEmoji(matched[1] ?? ""));
+          idx += 1;
+        }
+        elements.push(
+          <blockquote
+            key={`bq-${keyPrefix}-${segIdx}`}
+            className="my-2.5 rounded-e-xl border-s-2 border-brand-500/60 bg-gray-50/90 px-3.5 py-2.5 text-sm leading-6 text-gray-700 dark:border-brand-400/60 dark:bg-white/5 dark:text-gray-200"
+          >
+            {quoteLines.map((qLine, qIdx) => (
+              <p key={qIdx} className={qIdx > 0 ? "mt-1.5" : undefined}>
+                {renderInlineWithCitations(
+                  qLine,
+                  citations,
+                  sessionCitations,
+                  citationJumpAria,
+                  onClickToken,
+                  tooltipHelpers,
+                )}
+              </p>
+            ))}
+          </blockquote>,
+        );
         segIdx += 1;
         continue;
       }
@@ -377,19 +611,23 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
           if (!matched) break;
           items.push({
             indent: (matched[1] ?? "").length,
-            text: matched[2] ?? "",
+            text: stripLeadingDecorativeEmoji(matched[2] ?? ""),
           });
           idx += 1;
         }
         elements.push(
           <ul
             key={`ul-${keyPrefix}-${segIdx}`}
-            className="list-disc space-y-1.5 ps-5"
+            className="list-disc space-y-1.5 ps-5 marker:text-gray-400 dark:marker:text-gray-500"
           >
             {items.map((item, lineIdx) => (
               <li
                 key={lineIdx}
-                className={item.indent >= 2 ? "ms-5 list-[circle]" : undefined}
+                className={
+                  item.indent >= 2
+                    ? "ms-5 list-[circle] marker:text-gray-300 dark:marker:text-gray-600"
+                    : undefined
+                }
               >
                 {renderInlineWithCitations(
                   item.text,
@@ -397,6 +635,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
                   sessionCitations,
                   citationJumpAria,
                   onClickToken,
+                  tooltipHelpers,
                 )}
               </li>
             ))}
@@ -414,7 +653,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
           items.push({
             indent: (matched[1] ?? "").length,
             num: Number.parseInt(matched[2] ?? "1", 10),
-            text: matched[3] ?? "",
+            text: stripLeadingDecorativeEmoji(matched[3] ?? ""),
           });
           idx += 1;
         }
@@ -423,7 +662,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
           <ol
             key={`ol-${keyPrefix}-${segIdx}`}
             start={startNum > 1 ? startNum : undefined}
-            className="list-decimal space-y-1.5 ps-5"
+            className="list-decimal space-y-1.5 ps-5 marker:font-semibold marker:text-gray-500 marker:tabular-nums dark:marker:text-gray-400"
           >
             {items.map((item, lineIdx) => (
               <li
@@ -436,6 +675,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
                   sessionCitations,
                   citationJumpAria,
                   onClickToken,
+                  tooltipHelpers,
                 )}
               </li>
             ))}
@@ -452,6 +692,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
           !line.trim() ||
           isHrLine(line) ||
           headingMatch(line) ||
+          blockquoteMatch(line) ||
           ulMatch(line) ||
           olMatch(line)
         ) {
@@ -473,6 +714,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
               sessionCitations,
               citationJumpAria,
               onClickToken,
+              tooltipHelpers,
             )}
           </p>,
         );
@@ -489,16 +731,26 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
     <div className="space-y-3 text-sm leading-7 break-words text-gray-800 dark:text-gray-100">
       {blocks.map((block, blockIdx) => {
         if (block.startsWith("```") && block.endsWith("```")) {
-          const stripped = block
-            .slice(3, -3)
-            .replace(/^[a-zA-Z0-9_-]+\r?\n/, "");
+          const inner = block.slice(3, -3);
+          const langMatch = inner.match(/^([a-zA-Z0-9_+-]+)\r?\n/);
+          const languageLabel = langMatch?.[1] ?? null;
+          const stripped = languageLabel
+            ? inner.slice(langMatch![0].length)
+            : inner.replace(/^\r?\n/, "");
           return (
-            <pre
+            <div
               key={`code-${blockIdx}`}
-              className="font-mono overflow-x-auto rounded-2xl border border-gray-200/80 bg-gray-950 p-4 text-xs leading-relaxed text-gray-100 dark:border-white/10 dark:bg-gpt-sidebar"
+              className="overflow-hidden rounded-2xl border border-gray-200/80 bg-gray-950 dark:border-white/10 dark:bg-gpt-sidebar"
             >
-              <code>{stripped}</code>
-            </pre>
+              {languageLabel && (
+                <div className="border-b border-white/10 bg-white/5 px-4 py-1.5 font-mono text-xs font-medium text-gray-400">
+                  {languageLabel}
+                </div>
+              )}
+              <pre className="font-mono overflow-x-auto p-4 text-xs leading-relaxed text-gray-100">
+                <code>{stripped}</code>
+              </pre>
+            </div>
           );
         }
 
@@ -537,7 +789,7 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
               <Fragment key={`tbl-wrap-${keyBase}`}>
                 {beforeLines.length > 0 &&
                   renderNonTableLines(beforeLines, `${keyBase}-pre`)}
-                <div className="overflow-x-auto rounded-xl border border-gray-200/80 dark:border-white/10">
+                <div className="my-3 overflow-x-auto rounded-xl border border-gray-200/80 bg-white shadow-theme-xs dark:border-white/10 dark:bg-gpt-sidebar/60">
                   <table className="w-full border-collapse text-xs leading-5 tabular-nums">
                     <thead className="border-b border-gray-200/80 bg-gray-50/90 text-gray-700 dark:border-white/10 dark:bg-white/5 dark:text-gray-200">
                       <tr>
@@ -546,16 +798,17 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
                             key={`th-${colIdx}`}
                             scope="col"
                             className={cn(
-                              "px-3 py-2 font-semibold",
+                              "px-3.5 py-2.5 font-semibold",
                               alignments[colIdx] ?? "text-start",
                             )}
                           >
                             {renderInlineWithCitations(
-                              headerCell,
+                              stripLeadingDecorativeEmoji(headerCell),
                               citations,
                               sessionCitations,
                               citationJumpAria,
                               onClickToken,
+                              tooltipHelpers,
                             )}
                           </th>
                         ))}
@@ -565,22 +818,25 @@ const FormattedAnswerProse = memo(function FormattedAnswerProse({
                       {bodyRows.map((rowCells, rowIdx) => (
                         <tr
                           key={`tr-${rowIdx}`}
-                          className="bg-white/60 transition-colors hover:bg-gray-50/70 dark:bg-transparent dark:hover:bg-white/5"
+                          className="bg-white/60 transition-colors hover:bg-gray-50/80 dark:bg-transparent dark:hover:bg-white/5"
                         >
                           {headers.map((_h, colIdx) => (
                             <td
                               key={`td-${rowIdx}-${colIdx}`}
                               className={cn(
-                                "px-3 py-2 align-top text-gray-700 dark:text-gray-200",
+                                "px-3.5 py-2.5 align-top text-gray-700 dark:text-gray-200",
                                 alignments[colIdx] ?? "text-start",
                               )}
                             >
                               {renderInlineWithCitations(
-                                rowCells[colIdx] ?? "",
+                                stripLeadingDecorativeEmoji(
+                                  rowCells[colIdx] ?? "",
+                                ),
                                 citations,
                                 sessionCitations,
                                 citationJumpAria,
                                 onClickToken,
+                                tooltipHelpers,
                               )}
                             </td>
                           ))}
@@ -750,9 +1006,25 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
 }: AssistantTurnItemProps) {
   const t = useTranslations("AiChat");
   const versionCount = versions.length;
+  const [showSourceDetails, setShowSourceDetails] = useState(mode === "work");
 
   const citationJumpAria = useCallback(
     (label: string) => t("citationJumpAria", { label }),
+    [t],
+  );
+
+  const tooltipHelpers = useMemo<CitationTooltipHelpers>(
+    () => ({
+      hoverHint: t("citationHoverHint"),
+      sessionHoverTitle: t("citationSessionHoverTitle"),
+      formatPage: (cit) =>
+        cit.pageFrom && cit.pageTo && cit.pageFrom !== cit.pageTo
+          ? t("pageRangeLabel", { from: cit.pageFrom, to: cit.pageTo })
+          : cit.pageFrom
+            ? t("pageSingleLabel", { page: cit.pageFrom })
+            : null,
+      formatVersion: (version) => t("versionBadge", { version }),
+    }),
     [t],
   );
 
@@ -864,6 +1136,11 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
     questionMessage,
   ]);
 
+  const sortedCitations = useMemo(
+    () => [...message.citations].sort((a, b) => a.number - b.number),
+    [message.citations],
+  );
+
   const effectiveDisplayMessage = useMemo(
     () => (isNoAnswer ? { ...message, content: t("noAnswerNotice") } : message),
     [isNoAnswer, message, t],
@@ -957,6 +1234,7 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
             sessionCitations={message.sessionCitations}
             citationJumpAria={citationJumpAria}
             onClickToken={handleTokenClick}
+            tooltipHelpers={tooltipHelpers}
           />
         )
       )}
@@ -990,116 +1268,179 @@ const AssistantTurnItem = memo(function AssistantTurnItem({
         </div>
       )}
 
-      {/* Verified Document Citations */}
-      {message.citations.length > 0 && (
-        <div className="pt-1">
-          <div className="mb-2 text-xs font-semibold tracking-wider text-gray-400 uppercase tabular-nums dark:text-gray-500">
-            {t("documentSourcesHeading", {
-              count: message.citations.length,
-            })}
+      {/* Compact Source Strip + Expandable Verified Document Citations */}
+      {message.citations.length > 0 && !isEmptyEvidenceScope && !isNoAnswer && (
+        <div
+          data-testid="ai-chat-source-strip"
+          className="border-t border-gray-100 pt-3 dark:border-white/10"
+        >
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase tabular-nums dark:text-gray-400">
+              {t("citationSourcesStripLabel")} · {message.citations.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowSourceDetails((prev) => !prev)}
+              aria-expanded={showSourceDetails}
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none dark:text-gray-400 dark:hover:bg-white/10 dark:hover:text-white"
+            >
+              <span>
+                {showSourceDetails
+                  ? t("citationCollapseSources")
+                  : t("citationExpandSources")}
+              </span>
+              <ChevronDownIcon
+                aria-hidden="true"
+                className={cn(
+                  "size-3.5 transition-transform",
+                  showSourceDetails && "rotate-180",
+                )}
+              />
+            </button>
           </div>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {message.citations.map((cit) => {
+
+          <div className="flex flex-wrap items-center gap-1.5">
+            {sortedCitations.map((cit) => {
               const title =
                 cit.documentName ??
                 cit.sourceName ??
                 cit.label ??
                 cit.documentId;
-              const pageText =
-                cit.pageFrom && cit.pageTo && cit.pageFrom !== cit.pageTo
-                  ? t("pageRangeLabel", {
-                      from: cit.pageFrom,
-                      to: cit.pageTo,
-                    })
-                  : cit.pageFrom
-                    ? t("pageSingleLabel", { page: cit.pageFrom })
-                    : null;
-              const parsedCitation = parseContinuumCitationTarget(cit);
-              const targetProjectId =
-                cit.projectId && isContinuumDocumentId(cit.projectId)
-                  ? cit.projectId
-                  : projectId !== "all"
-                    ? projectId
-                    : null;
-              const canDeepLink = Boolean(
-                targetProjectId && parsedCitation.entityId,
-              );
-
+              const pageText = tooltipHelpers.formatPage(cit);
               return (
-                <div
-                  key={`${cit.number}-${cit.sourceId}-${cit.documentId}`}
-                  className="group flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-gray-50/70 p-3 transition-all hover:border-brand-500/40 hover:bg-white dark:border-white/10 dark:bg-gpt-sidebar dark:hover:border-brand-400/40 dark:hover:bg-gpt-composer"
+                <button
+                  key={`chip-${cit.number}-${cit.sourceId}-${cit.documentId}`}
+                  type="button"
+                  onClick={() =>
+                    onInspectEvidence({
+                      kind: "document",
+                      citation: cit,
+                      relatedCitations: sortedCitations,
+                      focusTerms: questionMessage?.content
+                        ? [questionMessage.content]
+                        : undefined,
+                    })
+                  }
+                  title={title}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-gray-200/90 bg-gray-50/90 px-2.5 py-1 text-xs text-gray-700 transition-colors hover:border-brand-400/60 hover:bg-brand-50/60 hover:text-brand-700 focus-visible:ring-2 focus-visible:ring-brand-500/40 focus-visible:outline-none sm:max-w-xs dark:border-white/10 dark:bg-gpt-sidebar dark:text-gray-200 dark:hover:border-brand-400/40 dark:hover:bg-brand-500/15 dark:hover:text-brand-200"
                 >
-                  <div>
-                    <div className="mb-1 flex items-center justify-between gap-2">
-                      <div className="flex min-w-0 items-center gap-1.5">
-                        <span className="inline-flex shrink-0 items-center rounded-md bg-brand-500/15 px-1.5 py-0.5 text-xs font-bold text-brand-600 tabular-nums dark:text-brand-300">
-                          [{cit.number}]
-                        </span>
-                        <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">
-                          {title}
-                        </span>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1 text-xs text-gray-400 tabular-nums">
-                        {cit.versionNo !== undefined && (
-                          <span>
-                            {t("versionBadge", {
-                              version: cit.versionNo,
-                            })}
-                          </span>
-                        )}
-                        {pageText && <span>{pageText}</span>}
-                      </div>
-                    </div>
-
-                    {cit.snippet && (
-                      <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
-                        {cit.snippet}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        onInspectEvidence({
-                          kind: "document",
-                          citation: cit,
-                          relatedCitations: message.citations,
-                          focusTerms: questionMessage?.content
-                            ? [questionMessage.content]
-                            : undefined,
-                        })
-                      }
-                      className="font-medium text-brand-600 hover:underline dark:text-brand-400"
-                    >
-                      {t("previewExcerptAction")}
-                    </button>
-
-                    {canDeepLink &&
-                      targetProjectId &&
-                      parsedCitation.entityId && (
-                        <Link
-                          href={buildProjectCitationHref(
-                            targetProjectId,
-                            parsedCitation.entityId,
-                            parsedCitation.sourceKind,
-                          )}
-                          className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
-                        >
-                          <span>{t("openDocumentLink")}</span>
-                          <ArrowRightIcon
-                            aria-hidden="true"
-                            className="size-3"
-                          />
-                        </Link>
-                      )}
-                  </div>
-                </div>
+                  <DocsIcon
+                    aria-hidden="true"
+                    className="size-3.5 shrink-0 text-brand-500 dark:text-brand-400"
+                  />
+                  <span className="shrink-0 font-semibold text-brand-600 tabular-nums dark:text-brand-300">
+                    [{cit.number}]
+                  </span>
+                  <span className="truncate font-medium">{title}</span>
+                  {pageText && (
+                    <span className="shrink-0 text-gray-400 tabular-nums dark:text-gray-500">
+                      · {pageText}
+                    </span>
+                  )}
+                </button>
               );
             })}
           </div>
+
+          {showSourceDetails && (
+            <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {sortedCitations.map((cit) => {
+                const title =
+                  cit.documentName ??
+                  cit.sourceName ??
+                  cit.label ??
+                  cit.documentId;
+                const pageText = tooltipHelpers.formatPage(cit);
+                const cleanSnippet = cit.snippet
+                  ? formatCitationSnippetPreview(cit.snippet, 180)
+                  : "";
+                const parsedCitation = parseContinuumCitationTarget(cit);
+                const targetProjectId =
+                  cit.projectId && isContinuumDocumentId(cit.projectId)
+                    ? cit.projectId
+                    : projectId !== "all"
+                      ? projectId
+                      : null;
+                const canDeepLink = Boolean(
+                  targetProjectId && parsedCitation.entityId,
+                );
+
+                return (
+                  <div
+                    key={`${cit.number}-${cit.sourceId}-${cit.documentId}`}
+                    className="group flex flex-col justify-between rounded-2xl border border-gray-200/80 bg-gray-50/70 p-3 transition-all hover:border-brand-500/40 hover:bg-white dark:border-white/10 dark:bg-gpt-sidebar dark:hover:border-brand-400/40 dark:hover:bg-gpt-composer"
+                  >
+                    <div>
+                      <div className="mb-1 flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-1.5">
+                          <span className="inline-flex shrink-0 items-center rounded-md bg-brand-500/15 px-1.5 py-0.5 text-xs font-bold text-brand-600 tabular-nums dark:text-brand-300">
+                            [{cit.number}]
+                          </span>
+                          <span className="truncate text-xs font-semibold text-gray-900 dark:text-white">
+                            {title}
+                          </span>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 text-xs text-gray-400 tabular-nums">
+                          {cit.versionNo !== undefined && (
+                            <span>
+                              {t("versionBadge", {
+                                version: cit.versionNo,
+                              })}
+                            </span>
+                          )}
+                          {pageText && <span>{pageText}</span>}
+                        </div>
+                      </div>
+
+                      {cleanSnippet && (
+                        <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                          {cleanSnippet}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="mt-2.5 flex items-center justify-between gap-2 pt-1 text-xs">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onInspectEvidence({
+                            kind: "document",
+                            citation: cit,
+                            relatedCitations: sortedCitations,
+                            focusTerms: questionMessage?.content
+                              ? [questionMessage.content]
+                              : undefined,
+                          })
+                        }
+                        className="font-medium text-brand-600 hover:underline dark:text-brand-400"
+                      >
+                        {t("previewExcerptAction")}
+                      </button>
+
+                      {canDeepLink &&
+                        targetProjectId &&
+                        parsedCitation.entityId && (
+                          <Link
+                            href={buildProjectCitationHref(
+                              targetProjectId,
+                              parsedCitation.entityId,
+                              parsedCitation.sourceKind,
+                            )}
+                            className="inline-flex items-center gap-1 font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
+                          >
+                            <span>{t("openDocumentLink")}</span>
+                            <ArrowRightIcon
+                              aria-hidden="true"
+                              className="size-3"
+                            />
+                          </Link>
+                        )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 

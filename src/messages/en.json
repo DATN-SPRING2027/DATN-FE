@@ -6147,7 +6147,12 @@
     "allProjectsIsolationTitle": "Organization-Wide Manager Scope",
     "allProjectsIsolationDesc": "Searching across all active projects in your organization · Knowledge-only",
     "tokenUsageButton": "Token Usage",
-    "tokenUsageButtonAria": "View AI token usage statistics"
+    "tokenUsageButtonAria": "View AI token usage statistics",
+    "citationHoverHint": "Click to inspect source",
+    "citationSessionHoverTitle": "Session continuity memory",
+    "citationSourcesStripLabel": "Cited sources",
+    "citationExpandSources": "Show excerpts",
+    "citationCollapseSources": "Hide excerpts"
   },
   "handover": {
     "aiCoverage": {

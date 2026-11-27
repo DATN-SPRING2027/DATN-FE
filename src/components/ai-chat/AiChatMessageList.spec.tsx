@@ -642,4 +642,134 @@ describe("AI Chat no-answer presentation", () => {
       "ms-5",
     );
   });
+
+  it("strips decorative heading/bullet emojis, removes stray space before punctuation after citations, renders blockquotes, tooltips, and compact source strip", () => {
+    const onInspectEvidence = vi.fn();
+    const markdownContent = [
+      "Dashboard dùng Next.js App Router và Zustand để giảm 45% JS bundle [4] .",
+      "",
+      "### ✅ 1. Framework nền tảng: Next.js (App Router)",
+      "- 🚀 **Server Components (RSC):** Giảm 45% bundle ban đầu [4] .",
+      "- 💡 **Streaming SSE:** Phản hồi theo token [4] , không chặn UI.",
+      "",
+      "> 📌 **Lưu ý kiến trúc:** Token lưu hoàn toàn trong `HttpOnly Cookies` [4] .",
+    ].join("\n");
+
+    renderWithProviders(
+      <AiChatMessageList
+        projectId="project-1"
+        mode="chat"
+        messages={[
+          {
+            ...assistant,
+            answerStatus: "answered",
+            content: markdownContent,
+            citations: [
+              {
+                number: 4,
+                sourceId: "src-fe-arch",
+                documentId: "6ad8834abef68a3326035eeb",
+                documentName: "Frontend_Architecture_Spec.md",
+                versionNo: 2,
+                pageFrom: 3,
+                pageTo: 3,
+                heading: "App Router",
+                snippet:
+                  "### **Next.js App Router** reduces initial client `JS bundle` by 45%.",
+              },
+            ],
+          },
+        ]}
+        isLoadingMessages={false}
+        isMessagesError={false}
+        hasOlderMessages={false}
+        isLoadingOlder={false}
+        highlightedTurnId={null}
+        onLoadOlder={vi.fn()}
+        onRetryMessages={vi.fn()}
+        onRetryTurn={vi.fn()}
+        onInspectEvidence={onInspectEvidence}
+        onJumpToTurn={vi.fn()}
+      />,
+      "vi",
+    );
+
+    // Decorative emojis stripped from heading, bullets, and blockquote
+    const heading = screen.getByRole("heading", { level: 4 });
+    expect(heading).toHaveTextContent(
+      "1. Framework nền tảng: Next.js (App Router)",
+    );
+    expect(heading.textContent).not.toContain("✅");
+
+    const listItems = screen.getAllByRole("listitem");
+    expect(listItems[0]?.textContent).not.toContain("🚀");
+    expect(listItems[1]?.textContent).not.toContain("💡");
+
+    // Blockquote rendered without decorative pin emoji
+    const blockquote = document.querySelector("blockquote");
+    expect(blockquote).not.toBeNull();
+    expect(blockquote?.textContent).toContain("Lưu ý kiến trúc:");
+    expect(blockquote?.textContent).not.toContain("📌");
+
+    // No stray whitespace between citation [4] and trailing punctuation
+    const introParagraph = screen
+      .getByText(/Dashboard dùng Next\.js App Router/)
+      .closest("p");
+    expect(introParagraph?.textContent).not.toMatch(/\[4\]\s+\./);
+    expect(listItems[1]?.textContent).not.toMatch(/\[4\]\s+,/);
+
+    // Inline citation mounts accessible preview tooltip on hover/focus and dismisses cleanly
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    const inlineCitations = screen.getAllByRole("button", {
+      name: viMessages.AiChat.citationJumpAria.replace("{label}", "4"),
+    });
+    fireEvent.mouseEnter(inlineCitations[0]!);
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toBeVisible();
+    expect(tooltip.textContent).toContain("Frontend_Architecture_Spec.md");
+    expect(tooltip.textContent).toContain("v2 · tr. 3");
+    expect(tooltip.textContent).toContain(
+      "Next.js App Router reduces initial client JS bundle by 45%.",
+    );
+    expect(tooltip.textContent).not.toContain("**");
+    expect(tooltip.textContent).not.toContain("`");
+    expect(tooltip.textContent).toContain(viMessages.AiChat.citationHoverHint);
+    fireEvent.mouseLeave(inlineCitations[0]!);
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    // Compact source strip renders clickable chip and expands detailed cards on demand
+    const strip = screen.getByTestId("ai-chat-source-strip");
+    expect(strip).toHaveTextContent("Frontend_Architecture_Spec.md");
+    expect(
+      screen.queryByRole("button", {
+        name: viMessages.AiChat.previewExcerptAction,
+      }),
+    ).not.toBeInTheDocument();
+
+    const expandButton = screen.getByRole("button", {
+      name: viMessages.AiChat.citationExpandSources,
+    });
+    expect(expandButton).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(expandButton);
+    expect(
+      screen.getByRole("button", {
+        name: viMessages.AiChat.citationCollapseSources,
+      }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", {
+        name: viMessages.AiChat.previewExcerptAction,
+      }),
+    ).toBeVisible();
+
+    // Clicking a source chip in the compact strip opens evidence directly
+    const sourceChip = screen.getByTitle("Frontend_Architecture_Spec.md");
+    fireEvent.click(sourceChip);
+    expect(onInspectEvidence).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "document",
+        citation: expect.objectContaining({ number: 4 }),
+      }),
+    );
+  });
 });
