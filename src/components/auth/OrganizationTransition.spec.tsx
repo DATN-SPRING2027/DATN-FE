@@ -1,4 +1,5 @@
 import { act, render, screen } from "@testing-library/react";
+import { gsap } from "gsap";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import messages from "@/messages/en.json";
@@ -23,7 +24,9 @@ function mockMatchMedia(reducedMotion: boolean) {
   });
 }
 
-function renderTransition(props: React.ComponentProps<typeof OrganizationTransition>) {
+function renderTransition(
+  props: React.ComponentProps<typeof OrganizationTransition>,
+) {
   return render(
     <NextIntlClientProvider locale="en" messages={messages}>
       <OrganizationTransition {...props} />
@@ -31,13 +34,12 @@ function renderTransition(props: React.ComponentProps<typeof OrganizationTransit
   );
 }
 
-describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
+describe("OrganizationTransition — Continuum AI Neural Signature", () => {
   afterEach(() => {
-    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
-  it("renders the Continuum AI logo, wordmark, and organization name while waiting for backend readiness", () => {
+  it("renders the Continuum AI logo, blue neural SVG streaks, wordmark, and organization name while waiting for backend readiness", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
 
@@ -60,13 +62,16 @@ describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
 
     const logo = status.querySelector("img.cnt-logo");
     expect(logo).toHaveAttribute("src", "/continuum-ai-logo.png");
+    expect(status.querySelectorAll("svg.cnt-paths path.cnt-streak")).toHaveLength(2);
+    expect(status.querySelector(".cnt-exit-bloom")).toBeInTheDocument();
+    expect(status.querySelector(".cnt-cover")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
   });
 
-  it("completes in <= 300ms (160ms) once backend is ready without blocking on GSAP", () => {
-    vi.useFakeTimers();
+  it("plays the ~2.7s GSAP Neural Signature sequence when backend finishes early and calls onComplete once", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
+    const baseTime = gsap.globalTimeline.time();
 
     const { rerender } = renderTransition({
       organizationName: "North Star",
@@ -74,6 +79,10 @@ describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
       onComplete,
     });
 
+    // Backend resolves at 0.50s while Phase 1 is still playing
+    act(() => {
+      gsap.updateRoot(baseTime + 0.5);
+    });
     rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
         <OrganizationTransition
@@ -86,17 +95,24 @@ describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
 
+    // Advance past intro (2.22s) -> triggers setIntroDone(true) and mounts Phase 4 exit timeline
     act(() => {
-      vi.advanceTimersByTime(200);
+      gsap.updateRoot(baseTime + 2.25);
+    });
+    expect(onComplete).not.toHaveBeenCalled();
+
+    // Advance past Phase 4 exit (2.25s + 0.50s = 2.75s)
+    act(() => {
+      gsap.updateRoot(baseTime + 2.75);
     });
 
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it("waits cleanly when backend is slow and completes promptly once ready becomes true", () => {
-    vi.useFakeTimers();
+  it("holds on the finished brand screen when backend is slow (4s) and navigates only after ready becomes true", () => {
     mockMatchMedia(false);
     const onComplete = vi.fn();
+    const baseTime = gsap.globalTimeline.time();
 
     const { rerender } = renderTransition({
       organizationName: "Sunrise Institute",
@@ -104,12 +120,14 @@ describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
       onComplete,
     });
 
+    // Advance to 4.0s while backend is still pending
     act(() => {
-      vi.advanceTimersByTime(4_000);
+      gsap.updateRoot(baseTime + 4.0);
     });
     expect(screen.getByText("Connecting workspace")).toBeInTheDocument();
     expect(onComplete).not.toHaveBeenCalled();
 
+    // Backend finishes at 4.0s -> triggers Phase 4 exit (0.48s)
     rerender(
       <NextIntlClientProvider locale="en" messages={messages}>
         <OrganizationTransition
@@ -120,14 +138,15 @@ describe("OrganizationTransition — Fast CSS Workspace Handoff", () => {
       </NextIntlClientProvider>,
     );
     expect(screen.getByText("Workspace ready")).toBeInTheDocument();
+    expect(onComplete).not.toHaveBeenCalled();
 
     act(() => {
-      vi.advanceTimersByTime(200);
+      gsap.updateRoot(baseTime + 4.55);
     });
     expect(onComplete).toHaveBeenCalledTimes(1);
   });
 
-  it("respects prefers-reduced-motion by completing immediately when ready is true", () => {
+  it("respects prefers-reduced-motion by skipping animations and completing as soon as ready is true", () => {
     mockMatchMedia(true);
     const onComplete = vi.fn();
 

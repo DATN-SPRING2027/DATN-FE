@@ -1,12 +1,3 @@
-@keyframes cnt-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
 .cnt-transition.cnt-transition {
   --cnt-ink: #080e30;
   --cnt-ink-deep: #060a20;
@@ -38,8 +29,6 @@
     #080e30 48%,
     #060a20 100%
   );
-  animation: cnt-enter 120ms cubic-bezier(0.22, 1, 0.36, 1) both;
-  transition: opacity 160ms cubic-bezier(0.22, 1, 0.36, 1);
   font-family:
     var(--font-sans),
     Inter,
@@ -50,19 +39,6 @@
     "Segoe UI",
     sans-serif;
   -webkit-font-smoothing: antialiased;
-}
-
-.cnt-transition--exiting.cnt-transition--exiting {
-  opacity: 0;
-  pointer-events: none;
-}
-
-.cnt-transition--exiting .cnt-stage {
-  transform: scale(1.03);
-  opacity: 0;
-  transition:
-    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
-    opacity 160ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .cnt-transition *,

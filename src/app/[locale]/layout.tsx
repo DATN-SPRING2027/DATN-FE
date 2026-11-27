@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { pickMessages, ROOT_BASE_NAMESPACES } from "@/i18n/messages-scope";
+import { BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT } from "@/lib/browser-extension-hydration-guard";
 import { Be_Vietnam_Pro } from "next/font/google";
 import { notFound } from "next/navigation";
 import { BRAND_SHORT } from "@/lib/page-titles";
@@ -71,6 +72,11 @@ export default async function RootLayout({
     <html lang={locale} dir={isRtl(locale as Locale) ? "rtl" : "ltr"} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT,
+          }}
+        />
       </head>
       <body suppressHydrationWarning className={`${beVietnamPro.className} ${beVietnamPro.variable} font-sans dark:bg-gray-900`}>
         <NextIntlClientProvider locale={locale} messages={rootMessages}>

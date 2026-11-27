@@ -143,6 +143,11 @@ export const BROWSER_EXTENSION_HYDRATION_GUARD_SCRIPT = `(function(){
     };
   } catch (_) {}
   cleanTree(document.documentElement);
+  document.addEventListener("DOMContentLoaded", function onDomReady() {
+    if (window.__continuumExtHydrationGuardActive) {
+      cleanTree(document.documentElement);
+    }
+  }, { once: true });
   if (typeof MutationObserver !== "undefined" && document.documentElement) {
     obs = new MutationObserver(function(mutations) {
       for (var i = 0; i < mutations.length; i++) {
@@ -199,9 +204,9 @@ export function teardownBrowserExtensionHydrationGuard(): void {
 
 export function installBrowserExtensionHydrationGuard(): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  sanitizeSubtreeExtensionAttributes(document.documentElement);
   if (window.__continuumExtHydrationGuardInstalled) return;
   window.__continuumExtHydrationGuardInstalled = true;
-  sanitizeSubtreeExtensionAttributes(document.documentElement);
 
   if (!window.__continuumExtErrorHandlersInstalled) {
     window.__continuumExtErrorHandlersInstalled = true;

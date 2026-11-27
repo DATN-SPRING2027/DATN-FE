@@ -2,7 +2,7 @@
 
 import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import InputFocusPolicy from "@/components/form/InputFocusPolicy";
-import { useEffect, useInsertionEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   installBrowserExtensionHydrationGuard,
   teardownBrowserExtensionHydrationGuard,
@@ -16,19 +16,22 @@ import { currentSessionIdentityKey, handleSessionError } from "@/lib/queries/aut
 import { subscribeToAuthSessionChanges } from "@/lib/queries/auth/session-sync";
 import { clearAllClientSessionCaches } from "@/lib/session-cleanup";
 
+const HYDRATION_GUARD_TEARDOWN_DELAY_MS = 1_500;
+
+if (typeof window !== "undefined") {
+  installBrowserExtensionHydrationGuard();
+}
+
 type AppProvidersProps = Readonly<{
   children: React.ReactNode;
 }>;
 
 export function AppProviders({ children }: AppProvidersProps) {
-  useInsertionEffect(() => {
-    installBrowserExtensionHydrationGuard();
-  }, []);
-
   useEffect(() => {
+    installBrowserExtensionHydrationGuard();
     const timer = window.setTimeout(() => {
       teardownBrowserExtensionHydrationGuard();
-    }, 0);
+    }, HYDRATION_GUARD_TEARDOWN_DELAY_MS);
     return () => {
       window.clearTimeout(timer);
       teardownBrowserExtensionHydrationGuard();
