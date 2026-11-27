@@ -318,8 +318,9 @@ it("supports Project Member 'Request document upload' flow with files embedded i
   expect(await screen.findByText("Awaiting Leader approval")).toBeVisible();
 });
 
-it("supports Project Leader 'Upload project documents' flow with SHA-256 deduplication and immediate auto-sync", async () => {
+it("supports Project Leader 'Upload project documents' flow with SHA-256 deduplication and submission for review", async () => {
   let uploadedAutoSyncHeader: string | null = null;
+  let submitted = false;
   const existingDocWithHash: ProjectDocument = {
     ...document,
     status: "APPROVED",
@@ -353,7 +354,7 @@ it("supports Project Leader 'Upload project documents' flow with SHA-256 dedupli
       return {
         ...document,
         id: "951a2b3c4d5e6f7a8b9c0d99",
-        status: "APPROVED",
+        status: "DRAFT",
       } as never;
     }
     if (
@@ -366,9 +367,13 @@ it("supports Project Leader 'Upload project documents' flow with SHA-256 dedupli
       return {
         ...document,
         id: "951a2b3c4d5e6f7a8b9c0d99",
-        status: "APPROVED",
+        status: "DRAFT",
         file: { name: "new-spec.md", contentType: "text/markdown", size: 14 },
       } as never;
+    }
+    if (path.endsWith("/documents/951a2b3c4d5e6f7a8b9c0d99/submit")) {
+      submitted = true;
+      return { ...document, status: "PENDING_REVIEW" } as never;
     }
     throw new Error(
       `Unexpected API request: ${options?.method ?? "GET"} ${path}`,
@@ -415,9 +420,10 @@ it("supports Project Leader 'Upload project documents' flow with SHA-256 dedupli
     within(dialog).getByRole("button", { name: "Upload 1 file" }),
   );
   expect(
-    await within(dialog).findByText("Uploaded · Processing started"),
+    await within(dialog).findByText("Request sent · Pending approval"),
   ).toBeVisible();
-  expect(uploadedAutoSyncHeader).toBe("true");
+  expect(uploadedAutoSyncHeader).toBeNull();
+  expect(submitted).toBe(true);
 });
 
 it("renders real SAG pipeline stages (5% -> 35% -> 65% -> Paused -> 85% -> 100%) and handles Pause, Resume, Reprocess, and Revoke", async () => {
@@ -1069,6 +1075,10 @@ it("renders the two-column Document Detail Modal with SAG extracted chunks inspe
           },
         ],
       };
+      return currentDoc as never;
+    }
+    if (path.endsWith("/submit") && options?.method === "POST") {
+      currentDoc = { ...currentDoc, status: "PENDING_REVIEW" };
       return currentDoc as never;
     }
     if (path.endsWith(`/documents/${documentId}`)) return currentDoc as never;

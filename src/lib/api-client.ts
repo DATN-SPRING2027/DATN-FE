@@ -470,28 +470,20 @@ export async function apiClient<T>(
 
   const canAttemptRecovery =
     typeof window !== "undefined" &&
+    safeMethod &&
+    !logoutInFlight &&
     !skipSessionRecovery &&
     !AUTH_NO_RECOVERY_ENDPOINTS.has(endpointPath) &&
     response.status === 401;
 
   if (canAttemptRecovery) {
-    if (logoutInFlight) {
-      try {
-        await logoutInFlight;
-      } catch (error) {
-        throw recoveryError(error);
-      }
-    } else if (generation === sessionGeneration) {
+    if (generation === sessionGeneration) {
       await recoverAuthSession();
     }
-    recovered = true;
-    // Refresh CSRF token on unsafe retries because /auth/refresh rotates the CSRF cookie.
-    if (!safeMethod && typeof document !== "undefined") {
-      const freshCsrf = getCsrfToken();
-      if (freshCsrf) {
-        headers.set("X-CSRF-Token", freshCsrf);
-      }
+    if (logoutInFlight) {
+      throw new ApiError(401, "AUTHENTICATION_FAILED", "Session ended during recovery.");
     }
+    recovered = true;
     try {
       response = await fetch(url, requestOptions);
     } catch (error) {

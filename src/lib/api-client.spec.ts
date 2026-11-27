@@ -232,21 +232,21 @@ describe("apiClient", () => {
     const recoveringProbe = apiClient("/auth/me");
     await vi.waitFor(() => expect(calls).toContain("refresh"));
     const logout = logoutSession();
-    const probeDuringLogout = apiClient("/auth/me");
+    const probeDuringLogout = expect(apiClient("/auth/me")).rejects.toMatchObject({ status: 401 });
     await vi.waitFor(() => expect(calls).toContain("probe-2"));
 
     expect(calls).not.toContain("logout");
     expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
 
     finishRefresh(new Response('{"status":"refreshed"}'));
-    await expect(recoveringProbe).resolves.toEqual({ id: "current-user" });
+    await expect(recoveringProbe).rejects.toMatchObject({ status: 401 });
     await vi.waitFor(() => expect(calls).toContain("logout"));
     expect(logoutCookie).toBe("refresh-rotated");
     expect(calls.indexOf("refresh")).toBeLessThan(calls.indexOf("logout"));
 
     finishLogout(new Response('{"status":"logged_out"}'));
     await logout;
-    await expect(probeDuringLogout).rejects.toMatchObject({ status: 401 });
+    await probeDuringLogout;
     expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
   });
 
@@ -300,34 +300,14 @@ describe("apiClient", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("recovers expired session via single-flight refresh and replays non-auth mutations", async () => {
-    let calls = 0;
-    const fetchMock = vi.spyOn(global, "fetch").mockImplementation(async (url) => {
-      if (url === "/api/v1/auth/refresh") {
-        return new Response('{"status":"refreshed"}', {
-          status: 200,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      calls += 1;
-      if (calls === 1) {
-        return new Response(JSON.stringify({ code: "UNAUTHORIZED", message: "Expired" }), {
-          status: 401,
-          headers: { "Content-Type": "application/json" },
-        });
-      }
-      return new Response(JSON.stringify({ id: "user-1", updated: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    });
+  it("never refreshes or replays a non-auth mutation after a 401", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ code: "UNAUTHORIZED" }), { status: 401 }),
+    );
 
-    await expect(apiClient("/iam/users/user-1", { method: "POST" })).resolves.toEqual({
-      id: "user-1",
-      updated: true,
-    });
-    expect(fetchMock.mock.calls.filter(([url]) => url === "/api/v1/auth/refresh")).toHaveLength(1);
-    expect(calls).toBe(2);
+    await expect(apiClient("/iam/users/user-1", { method: "POST" }))
+      .rejects.toMatchObject({ status: 401, sessionRecoveryFailed: false });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("treats 401 AUTH_REFRESH_CONCURRENT as a successful concurrent rotation and replays cleanly", async () => {
@@ -469,7 +449,7 @@ describe("apiClient", () => {
 
       await expect(apiClient("/iam/projects", { method: "POST", body })).rejects.toMatchObject({
         status: 401,
-        sessionRecoveryFailed: true,
+        sessionRecoveryFailed: false,
       });
       expect(fetchMock.mock.calls.filter(([url]) => url === "/api/backend/iam/projects")).toHaveLength(1);
     });

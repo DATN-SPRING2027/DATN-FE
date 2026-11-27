@@ -3,7 +3,6 @@ import {
   getApiBaseUrl,
   getCsrfToken,
   getExpectedOrganizationId,
-  recoverAuthSession,
 } from "@/lib/api-client";
 import type { AiChatStreamEvent } from "./ai-chat.types";
 
@@ -132,13 +131,7 @@ async function consumeAiChatSseStream(
     }
   };
 
-  let response = await executeFetch();
-  let recovered = false;
-  if (response.status === 401 && typeof window !== "undefined") {
-    await recoverAuthSession();
-    recovered = true;
-    response = await executeFetch();
-  }
+  const response = await executeFetch();
 
   if (!response.ok) {
     const errorBody = await response.text().catch(() => "Unknown error");
@@ -164,7 +157,7 @@ async function consumeAiChatSseStream(
       detail.message ??
         `AI Chat stream request failed (${response.status} ${response.statusText})`,
       undefined,
-      recovered,
+      false,
       parsedDetails,
     );
   }

@@ -1413,12 +1413,9 @@ export default function ProjectDocumentsWorkspace({
           try {
             await workNotesApi.uploadDocumentFile(projectId, docId, item.file, {
               sha256: resolvedSha256 || undefined,
-              autoSyncSag: isProjectLeader,
               signal: controller.signal,
               onProgress: (percent) => {
-                const displayPercent = isProjectLeader
-                  ? percent
-                  : Math.min(92, Math.round(percent * 0.92));
+                const displayPercent = Math.min(92, Math.round(percent * 0.92));
                 const now = Date.now();
                 if (
                   displayPercent < 92 &&
@@ -1454,35 +1451,29 @@ export default function ProjectDocumentsWorkspace({
             throw uploadErr;
           }
 
-          if (!isProjectLeader) {
-            setBatchQueue((prev) =>
-              prev.map((q) =>
-                q.id === item.id
-                  ? {
-                      ...q,
-                      status: "SUBMITTING",
-                      progress: Math.max(q.progress, 95),
-                    }
-                  : q,
-              ),
-            );
-            await workNotesApi.documentAction(projectId, docId, "submit");
-          }
-
           setBatchQueue((prev) =>
             prev.map((q) =>
               q.id === item.id
                 ? {
                     ...q,
-                    status: isProjectLeader ? "SYNCED" : "REQUESTED",
+                    status: "SUBMITTING",
+                    progress: Math.max(q.progress, 95),
+                  }
+                : q,
+            ),
+          );
+          await workNotesApi.documentAction(projectId, docId, "submit");
+          setBatchQueue((prev) =>
+            prev.map((q) =>
+              q.id === item.id
+                ? {
+                    ...q,
+                    status: "REQUESTED",
                     progress: 100,
                   }
                 : q,
             ),
           );
-          if (isProjectLeader) {
-            setSyncedDocIds((prev) => ({ ...prev, [docId!]: true }));
-          }
           void queryClient.invalidateQueries({
             queryKey: ["work-notes", projectId, "documents"],
           });
@@ -1737,27 +1728,21 @@ export default function ProjectDocumentsWorkspace({
         type: current.type ?? "OTHER",
         content: current.content ?? "",
       });
-      const uploaded = await workNotesApi.uploadDocumentFile(
+      await workNotesApi.uploadDocumentFile(
         projectId,
         current.id,
         replacementFile,
         {
           ...(replacementSha256 ? { sha256: replacementSha256 } : {}),
-          autoSyncSag: isProjectLeader,
           onProgress: (pct) => setReplacementProgress(pct),
           signal: controller.signal,
         },
       );
-      let finalDoc = uploaded;
-      if (!isProjectLeader) {
-        finalDoc = await workNotesApi.documentAction(
-          projectId,
-          current.id,
-          "submit",
-        );
-      } else {
-        setSyncedDocIds((prev) => ({ ...prev, [current.id]: true }));
-      }
+      const finalDoc = await workNotesApi.documentAction(
+        projectId,
+        current.id,
+        "submit",
+      );
       setSelected(finalDoc);
       setSelectedVersionNumber(null);
       setIsReplacingVersion(false);
