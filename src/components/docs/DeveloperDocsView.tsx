@@ -95,11 +95,15 @@ function buildToolJsonRpcPayload(tool: McpToolDoc): string {
 function renderSyntaxTintedSnippet(
   snippet: string,
   language: "json" | "bash",
+  wrapCode = false,
 ): ReactNode {
   if (language === "json") {
     const lines = snippet.split("\n");
     return lines.map((line, lineIdx) => {
       const nl = lineIdx < lines.length - 1 ? "\n" : "";
+      const wrapCls = wrapCode
+        ? "block whitespace-pre-wrap [overflow-wrap:anywhere]"
+        : undefined;
       const keyValueMatch = /^(\s*)("(?:\\.|[^"\\])*")(\s*:\s*)(.*)$/.exec(
         line,
       );
@@ -108,12 +112,18 @@ function renderSyntaxTintedSnippet(
         const strValMatch = /^("(?:\\.|[^"\\])*")(,?)$/.exec(rest);
         if (strValMatch) {
           return (
-            <span key={lineIdx}>
+            <span key={lineIdx} className={wrapCls}>
               {indent}
-              <span className="text-slate-300">{keyToken}</span>
-              <span className="text-slate-500">{colon}</span>
-              <span className="text-emerald-300">{strValMatch[1]}</span>
-              <span className="text-slate-400">{strValMatch[2]}</span>
+              <span className="text-slate-700 dark:text-slate-300">
+                {keyToken}
+              </span>
+              <span className="text-slate-400 dark:text-slate-500">{colon}</span>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                {strValMatch[1]}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {strValMatch[2]}
+              </span>
               {nl}
             </span>
           );
@@ -123,22 +133,30 @@ function renderSyntaxTintedSnippet(
         );
         if (primValMatch) {
           return (
-            <span key={lineIdx}>
+            <span key={lineIdx} className={wrapCls}>
               {indent}
-              <span className="text-slate-300">{keyToken}</span>
-              <span className="text-slate-500">{colon}</span>
-              <span className="text-sky-300">{primValMatch[1]}</span>
-              <span className="text-slate-400">{primValMatch[2]}</span>
+              <span className="text-slate-700 dark:text-slate-300">
+                {keyToken}
+              </span>
+              <span className="text-slate-400 dark:text-slate-500">{colon}</span>
+              <span className="text-brand-700 dark:text-sky-300">
+                {primValMatch[1]}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {primValMatch[2]}
+              </span>
               {nl}
             </span>
           );
         }
         return (
-          <span key={lineIdx}>
+          <span key={lineIdx} className={wrapCls}>
             {indent}
-            <span className="text-slate-300">{keyToken}</span>
-            <span className="text-slate-500">{colon}</span>
-            <span className="text-slate-200">{rest}</span>
+            <span className="text-slate-700 dark:text-slate-300">
+              {keyToken}
+            </span>
+            <span className="text-slate-400 dark:text-slate-500">{colon}</span>
+            <span className="text-slate-800 dark:text-slate-200">{rest}</span>
             {nl}
           </span>
         );
@@ -147,17 +165,27 @@ function renderSyntaxTintedSnippet(
       const arrayStringMatch = /^(\s*)("(?:\\.|[^"\\])*")(,?)$/.exec(line);
       if (arrayStringMatch) {
         return (
-          <span key={lineIdx}>
+          <span key={lineIdx} className={wrapCls}>
             {arrayStringMatch[1]}
-            <span className="text-emerald-300">{arrayStringMatch[2]}</span>
-            <span className="text-slate-400">{arrayStringMatch[3]}</span>
+            <span className="text-emerald-700 dark:text-emerald-300">
+              {arrayStringMatch[2]}
+            </span>
+            <span className="text-slate-500 dark:text-slate-400">
+              {arrayStringMatch[3]}
+            </span>
             {nl}
           </span>
         );
       }
 
       return (
-        <span key={lineIdx} className="text-slate-400">
+        <span
+          key={lineIdx}
+          className={cn(
+            "text-slate-500 dark:text-slate-400",
+            wrapCls,
+          )}
+        >
           {line}
           {nl}
         </span>
@@ -167,37 +195,51 @@ function renderSyntaxTintedSnippet(
 
   // Bash / CLI single-line tokenizer preserving exact whitespace and quotes
   const tokens = snippet.match(/"(?:\\.|[^"\\])*"|\s+|\S+/g) ?? [snippet];
-  return tokens.map((token, idx) => {
-    if (/^\s+$/.test(token)) {
-      return <span key={idx}>{token}</span>;
-    }
-    if (idx === 0) {
-      return (
-        <span key={idx} className="font-semibold text-sky-300">
-          {token}
-        </span>
-      );
-    }
-    if (token.startsWith("-")) {
-      return (
-        <span key={idx} className="text-sky-300">
-          {token}
-        </span>
-      );
-    }
-    if (token.startsWith('"')) {
-      return (
-        <span key={idx} className="text-emerald-300">
-          {token}
-        </span>
-      );
-    }
-    return (
-      <span key={idx} className="text-slate-200">
-        {token}
-      </span>
-    );
-  });
+  return (
+    <span
+      className={cn(
+        wrapCode && "block whitespace-pre-wrap [overflow-wrap:anywhere]",
+      )}
+    >
+      {tokens.map((token, idx) => {
+        if (/^\s+$/.test(token)) {
+          return <span key={idx}>{token}</span>;
+        }
+        if (idx === 0) {
+          return (
+            <span
+              key={idx}
+              className="font-semibold text-brand-700 dark:text-sky-300"
+            >
+              {token}
+            </span>
+          );
+        }
+        if (token.startsWith("-")) {
+          return (
+            <span key={idx} className="text-brand-700 dark:text-sky-300">
+              {token}
+            </span>
+          );
+        }
+        if (token.startsWith('"')) {
+          return (
+            <span
+              key={idx}
+              className="text-emerald-700 dark:text-emerald-300"
+            >
+              {token}
+            </span>
+          );
+        }
+        return (
+          <span key={idx} className="text-slate-800 dark:text-slate-200">
+            {token}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 export default function DeveloperDocsView() {
@@ -260,6 +302,7 @@ export default function DeveloperDocsView() {
 
   const [activeIdeClient, setActiveIdeClient] =
     useState<McpIdeClientId>("antigravity");
+  const [wrapIdeCode, setWrapIdeCode] = useState(false);
   const [activePlaybookId, setActivePlaybookId] =
     useState<string>("playbook-bugfix");
 
@@ -1352,38 +1395,44 @@ export default function DeveloperDocsView() {
                 {corpus.quickstart.subtitle}
               </p>
 
-              <div className="mt-6 grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
-                {/* Left Column: Hairline Stepper + Frameless Endpoint Pill Group */}
-                <div className="min-w-0 space-y-6 lg:col-span-5">
-                  <ol className="space-y-5 border-s border-gray-300 ps-5 dark:border-gray-700">
-                    {corpus.quickstart.steps.map((item, idx) => (
-                      <li key={item.step} className="space-y-1">
-                        <div className="flex items-baseline gap-2.5">
-                          <span className="font-mono text-[11px] font-bold text-brand-600 tabular-nums dark:text-brand-400">
-                            {String(idx + 1).padStart(2, "0")}
-                          </span>
-                          <h3 className="text-sm font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white">
-                            {item.title}
-                          </h3>
-                        </div>
-                        <p className="text-xs leading-5.5 [overflow-wrap:anywhere] text-gray-600 dark:text-gray-400">
-                          {item.body}
-                        </p>
-                      </li>
-                    ))}
-                  </ol>
+              <div className="mt-6 space-y-6">
+                {/* 3-Step Horizontal Editorial Rail */}
+                <ol className="grid grid-cols-1 gap-5 border-t border-gray-200/85 pt-5 md:grid-cols-3 dark:border-gray-800">
+                  {corpus.quickstart.steps.map((item, idx) => (
+                    <li
+                      key={item.step}
+                      className="space-y-1.5 border-s border-gray-300 ps-4 dark:border-gray-700"
+                    >
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-[11px] font-bold text-brand-600 tabular-nums dark:text-brand-400">
+                          {String(idx + 1).padStart(2, "0")}
+                        </span>
+                        <h3 className="text-sm font-semibold [overflow-wrap:anywhere] text-gray-900 dark:text-white">
+                          {item.title}
+                        </h3>
+                      </div>
+                      <p className="text-xs leading-5.5 [overflow-wrap:anywhere] text-gray-600 dark:text-gray-400">
+                        {item.body}
+                      </p>
+                    </li>
+                  ))}
+                </ol>
 
-                  <div className="space-y-2 border-t border-gray-200/85 pt-4 dark:border-gray-800">
-                    <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-                      {corpus.quickstart.configuratorTitle}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {corpus.quickstart.configuratorSubtitle}
-                    </p>
+                {/* Full-Width 7-IDE Configurator Workbench */}
+                <div className="min-w-0 space-y-3 border-t border-gray-200/85 pt-5 dark:border-gray-800">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                        {corpus.quickstart.configuratorTitle}
+                      </p>
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                        {corpus.quickstart.configuratorSubtitle}
+                      </p>
+                    </div>
                     <div
                       role="group"
                       aria-label={ui.endpointModeAriaLabel}
-                      className="mt-2.5 flex flex-wrap items-center gap-2"
+                      className="flex flex-wrap items-center gap-2"
                     >
                       <button
                         type="button"
@@ -1419,15 +1468,12 @@ export default function DeveloperDocsView() {
                       </button>
                     </div>
                   </div>
-                </div>
 
-                {/* Right Column: Sharp Architectural Dark Terminal */}
-                <div className="min-w-0 lg:col-span-7">
-                  <div className="overflow-hidden rounded-none border-y border-gray-800 bg-gray-950 lg:border-s-2 lg:border-s-brand-500">
+                  <div className="overflow-hidden rounded-none border-y border-e border-s-2 border-gray-200/95 border-s-brand-600 bg-white/90 dark:border-gray-800 dark:border-s-brand-400 dark:bg-gray-950">
                     <div
                       role="tablist"
                       aria-label={corpus.quickstart.configuratorTitle}
-                      className="custom-scrollbar-dark flex items-center gap-1 overflow-x-auto border-b border-gray-800 bg-gray-900/95 px-3 py-2 whitespace-nowrap"
+                      className="custom-scrollbar flex items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-gray-200/90 bg-white px-2 pt-1 whitespace-nowrap dark:border-gray-800 dark:bg-gray-900/90"
                     >
                       {MCP_IDE_CLIENT_SPECS.map((spec, idx) => {
                         const selected = spec.id === activeIdeSpec.id;
@@ -1448,10 +1494,10 @@ export default function DeveloperDocsView() {
                               handleIdeTabKeyDown(event, idx)
                             }
                             className={cn(
-                              "shrink-0 cursor-pointer rounded-full px-3 py-1 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
+                              "-mb-px shrink-0 cursor-pointer rounded-none border-b-2 px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500 sm:px-2.5 sm:text-xs",
                               selected
-                                ? "bg-brand-600 text-white"
-                                : "text-gray-400 hover:bg-gray-800 hover:text-gray-100",
+                                ? "border-gray-900 text-gray-950 dark:border-brand-400 dark:text-white"
+                                : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100",
                             )}
                           >
                             {spec.label}
@@ -1466,56 +1512,77 @@ export default function DeveloperDocsView() {
                       aria-labelledby={`docs-ide-tab-${activeIdeSpec.id}`}
                       className="min-w-0"
                     >
-                      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2">
+                      <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-200/80 bg-gray-50/80 px-4 py-2 dark:border-gray-800/90 dark:bg-gray-900/60">
                         <span
                           title={activeIdeSpec.targetFile}
-                          className="min-w-0 flex-1 truncate font-mono text-xs text-slate-400"
+                          className="min-w-0 flex-1 truncate font-mono text-xs text-gray-500 dark:text-slate-400"
                         >
                           {ui.targetFileLabel}{" "}
-                          <span className="text-slate-200">
+                          <span className="text-gray-700 dark:text-slate-200">
                             {activeIdeSpec.targetFile}
                           </span>
                         </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void handleCopy(
-                              `quickstart-${activeIdeSpec.id}`,
-                              quickstartSnippet,
-                            )
-                          }
-                          className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-gray-800 px-3 text-xs font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
-                        >
-                          {copiedId === `quickstart-${activeIdeSpec.id}` ? (
-                            <>
-                              <CheckLineIcon
-                                className="size-3.5 text-emerald-400"
-                                aria-hidden="true"
-                              />
-                              <span className="text-emerald-300">
-                                {ui.copiedCta}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              <CopyIcon
-                                className="size-3.5"
-                                aria-hidden="true"
-                              />
-                              <span>{ui.copyCta}</span>
-                            </>
-                          )}
-                        </button>
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          <button
+                            type="button"
+                            aria-pressed={wrapIdeCode}
+                            aria-label={
+                              docLang === "vi"
+                                ? "Bật hoặc tắt xuống dòng trong khối mã"
+                                : "Wrap lines in code block"
+                            }
+                            onClick={() => setWrapIdeCode((prev) => !prev)}
+                            className={cn(
+                              "inline-flex h-7 shrink-0 cursor-pointer items-center rounded-full px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+                              wrapIdeCode
+                                ? "bg-gray-900 text-white dark:bg-white dark:text-gray-950"
+                                : "text-gray-600 ring-1 ring-gray-300/80 ring-inset hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:ring-gray-700 dark:hover:bg-gray-800 dark:hover:text-white",
+                            )}
+                          >
+                            {docLang === "vi" ? "Xuống dòng" : "Wrap"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void handleCopy(
+                                `quickstart-${activeIdeSpec.id}`,
+                                quickstartSnippet,
+                              )
+                            }
+                            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-full bg-white px-3 text-xs font-medium whitespace-nowrap text-gray-800 ring-1 ring-gray-300/90 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
+                          >
+                            {copiedId === `quickstart-${activeIdeSpec.id}` ? (
+                              <>
+                                <CheckLineIcon
+                                  className="size-3.5 text-success-600 dark:text-emerald-400"
+                                  aria-hidden="true"
+                                />
+                                <span className="text-success-700 dark:text-emerald-300">
+                                  {ui.copiedCta}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <CopyIcon
+                                  className="size-3.5"
+                                  aria-hidden="true"
+                                />
+                                <span>{ui.copyCta}</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       <pre
                         data-testid="docs-ide-config-pre"
-                        className="custom-scrollbar-dark max-w-full overflow-x-auto rounded-none p-4 font-mono text-xs leading-6 text-slate-100"
+                        className="custom-scrollbar max-w-full overflow-x-auto rounded-none bg-gray-50/75 px-4 pt-4 pb-3.5 font-mono text-xs leading-6 text-slate-800 dark:bg-gray-950 dark:text-slate-100"
                       >
                         <code>
                           {renderSyntaxTintedSnippet(
                             quickstartSnippet,
                             activeIdeSpec.language,
+                            wrapIdeCode,
                           )}
                         </code>
                       </pre>
@@ -1964,9 +2031,9 @@ export default function DeveloperDocsView() {
                               )}
                             </div>
 
-                            <div className="min-w-0 overflow-hidden rounded-none border-y border-gray-800 bg-gray-950">
-                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-800 bg-gray-900 px-3.5 py-2">
-                                <span className="font-mono text-[11px] text-slate-300">
+                            <div className="min-w-0 overflow-hidden rounded-none border border-gray-200/95 bg-white/90 dark:border-gray-800 dark:bg-gray-950">
+                              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200/80 bg-gray-50/80 px-3.5 py-2 dark:border-gray-800 dark:bg-gray-900">
+                                <span className="font-mono text-[11px] text-gray-600 dark:text-slate-300">
                                   {ui.examplePayloadHeading}
                                 </span>
                                 <button
@@ -1974,15 +2041,15 @@ export default function DeveloperDocsView() {
                                   onClick={() =>
                                     void handleCopy(copyKey, rpcPayload)
                                   }
-                                  className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full bg-gray-800 px-3 text-[11px] font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
+                                  className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-full bg-white px-3 text-[11px] font-medium whitespace-nowrap text-gray-800 ring-1 ring-gray-300/90 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
                                 >
                                   {copiedId === copyKey ? (
                                     <>
                                       <CheckLineIcon
-                                        className="size-3 text-emerald-400"
+                                        className="size-3 text-success-600 dark:text-emerald-400"
                                         aria-hidden="true"
                                       />
-                                      <span className="text-emerald-300">
+                                      <span className="text-success-700 dark:text-emerald-300">
                                         {ui.copiedJsonRpcCta}
                                       </span>
                                     </>
@@ -1997,7 +2064,7 @@ export default function DeveloperDocsView() {
                                   )}
                                 </button>
                               </div>
-                              <pre className="custom-scrollbar-dark max-w-full overflow-x-auto rounded-none p-3.5 font-mono text-xs leading-5.5 text-slate-100">
+                              <pre className="custom-scrollbar max-w-full overflow-x-auto rounded-none bg-gray-50/75 p-3.5 font-mono text-xs leading-5.5 text-slate-800 dark:bg-gray-950 dark:text-slate-100">
                                 <code>
                                   {renderSyntaxTintedSnippet(
                                     rpcPayload,

@@ -688,7 +688,7 @@ export const DOCS_CORPUS: Record<DocsLanguage, DocsLocalizedCorpus> = {
         {
           step: "02",
           title: "Dán cấu hình vào IDE hoặc CLI",
-          body: "Chọn công cụ lập trình bên cạnh, chọn BFF cùng miền (/api/backend/mcp) hoặc API trực tiếp (/api/v1/mcp), rồi sao chép đoạn cấu hình vào tệp MCP tương ứng.",
+          body: "Chọn công cụ lập trình bên dưới, chọn BFF cùng miền (/api/backend/mcp) hoặc API trực tiếp (/api/v1/mcp), rồi sao chép đoạn cấu hình vào tệp MCP tương ứng.",
         },
         {
           step: "03",

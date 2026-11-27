@@ -49,7 +49,6 @@ import {
   BackgroundRefreshError,
   UpdatingStatus,
 } from "@/components/ui/loading/AsyncStatus";
-import Label from "@/components/form/Label";
 import {
   ArrowRightIcon,
   CheckCircleIcon,
@@ -66,6 +65,9 @@ import {
 } from "@/icons";
 import { cn } from "@/utils";
 import { writeClipboardText } from "@/utils/clipboard";
+import CreateMcpKeySheet, {
+  type ExpirationPreset,
+} from "./CreateMcpKeySheet";
 
 function renderModalPortal(node: ReactNode): ReactNode {
   if (typeof document === "undefined") {
@@ -73,8 +75,6 @@ function renderModalPortal(node: ReactNode): ReactNode {
   }
   return createPortal(node, document.body);
 }
-
-type ExpirationPreset = "30" | "90" | "365" | "never";
 
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -86,20 +86,19 @@ function ScopeBadge({
   scope: McpKeyScopeMode;
   label: string;
 }) {
-  const toneClass =
+  const dotClass =
     scope === "READ_ONLY"
-      ? "bg-success-50 text-success-700 ring-success-600/20 dark:bg-success-500/10 dark:text-success-300 dark:ring-success-400/25"
+      ? "bg-success-600 dark:bg-success-400"
       : scope === "READ_WRITE"
-        ? "bg-blue-light-50 text-blue-light-700 ring-blue-light-600/20 dark:bg-blue-light-500/10 dark:text-blue-light-300 dark:ring-blue-light-400/25"
-        : "bg-brand-50 text-brand-700 ring-brand-600/20 dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25";
+        ? "bg-blue-light-600 dark:bg-blue-light-400"
+        : "bg-gray-900 dark:bg-brand-400";
 
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 font-mono text-[11px] font-semibold tracking-tight whitespace-nowrap ring-1 ring-inset",
-        toneClass,
-      )}
-    >
+    <span className="inline-flex items-center gap-2 text-xs font-medium whitespace-nowrap text-gray-800 dark:text-gray-200">
+      <span
+        aria-hidden="true"
+        className={cn("size-1.5 shrink-0 rounded-full", dotClass)}
+      />
       <span>{label}</span>
     </span>
   );
@@ -112,12 +111,12 @@ function StatusBadge({
   status: McpApiKeyView["status"];
   label: string;
 }) {
-  const toneClass =
+  const textClass =
     status === "ACTIVE"
-      ? "border-success-200 bg-success-50 text-success-700 dark:border-success-500/30 dark:bg-success-500/10 dark:text-success-300"
+      ? "text-gray-900 dark:text-gray-100"
       : status === "EXPIRED"
-        ? "border-warning-200 bg-warning-50 text-warning-700 dark:border-warning-500/30 dark:bg-warning-500/10 dark:text-warning-300"
-        : "border-gray-300 bg-gray-100 text-gray-700 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300";
+        ? "text-warning-700 dark:text-warning-300"
+        : "text-gray-500 dark:text-gray-400";
 
   const dotClass =
     status === "ACTIVE"
@@ -129,13 +128,13 @@ function StatusBadge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium whitespace-nowrap",
-        toneClass,
+        "inline-flex items-center gap-1.5 text-xs font-medium whitespace-nowrap",
+        textClass,
       )}
     >
       <span
         aria-hidden="true"
-        className={cn("size-1.5 rounded-full", dotClass)}
+        className={cn("size-1.5 shrink-0 rounded-full", dotClass)}
       />
       <span>{label}</span>
     </span>
@@ -162,19 +161,27 @@ function renderSyntaxTintedSnippet(
           lineContent = (
             <>
               {indent}
-              <span className="text-slate-300">{keyToken}</span>
-              <span className="text-slate-500">{colon}</span>
-              <span className="text-emerald-300">{strValMatch[1]}</span>
-              <span className="text-slate-400">{strValMatch[2]}</span>
+              <span className="text-slate-700 dark:text-slate-300">
+                {keyToken}
+              </span>
+              <span className="text-slate-400 dark:text-slate-500">{colon}</span>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                {strValMatch[1]}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {strValMatch[2]}
+              </span>
             </>
           );
         } else {
           lineContent = (
             <>
               {indent}
-              <span className="text-slate-300">{keyToken}</span>
-              <span className="text-slate-500">{colon}</span>
-              <span className="text-slate-200">{rest}</span>
+              <span className="text-slate-700 dark:text-slate-300">
+                {keyToken}
+              </span>
+              <span className="text-slate-400 dark:text-slate-500">{colon}</span>
+              <span className="text-slate-800 dark:text-slate-200">{rest}</span>
             </>
           );
         }
@@ -184,12 +191,18 @@ function renderSyntaxTintedSnippet(
           lineContent = (
             <>
               {arrayStringMatch[1]}
-              <span className="text-emerald-300">{arrayStringMatch[2]}</span>
-              <span className="text-slate-400">{arrayStringMatch[3]}</span>
+              <span className="text-emerald-700 dark:text-emerald-300">
+                {arrayStringMatch[2]}
+              </span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {arrayStringMatch[3]}
+              </span>
             </>
           );
         } else {
-          lineContent = <span className="text-slate-400">{line}</span>;
+          lineContent = (
+            <span className="text-slate-500 dark:text-slate-400">{line}</span>
+          );
         }
       }
 
@@ -198,8 +211,8 @@ function renderSyntaxTintedSnippet(
           key={lineIdx}
           data-line={lineIdx + 1}
           className={cn(
-            "block before:me-4 before:inline-block before:w-5 before:text-right before:text-slate-500 before:select-none before:content-[attr(data-line)]",
-            wrapCode && "break-all",
+            "block before:me-4 before:inline-block before:w-5 before:text-right before:text-slate-400 before:select-none before:content-[attr(data-line)] dark:before:text-slate-500",
+            wrapCode && "whitespace-pre-wrap [overflow-wrap:anywhere]",
           )}
         >
           {lineContent}
@@ -214,8 +227,8 @@ function renderSyntaxTintedSnippet(
     <span
       data-prompt="$"
       className={cn(
-        "block before:me-2.5 before:font-semibold before:text-brand-400 before:select-none before:content-[attr(data-prompt)]",
-        wrapCode && "break-all",
+        "block before:me-2.5 before:font-semibold before:text-brand-600 before:select-none before:content-[attr(data-prompt)] dark:before:text-brand-400",
+        wrapCode && "whitespace-pre-wrap [overflow-wrap:anywhere]",
       )}
     >
       {tokens.map((token, idx) => {
@@ -224,27 +237,30 @@ function renderSyntaxTintedSnippet(
         }
         if (idx === 0) {
           return (
-            <span key={idx} className="font-semibold text-sky-300">
+            <span
+              key={idx}
+              className="font-semibold text-brand-700 dark:text-sky-300"
+            >
               {token}
             </span>
           );
         }
         if (token.startsWith("-")) {
           return (
-            <span key={idx} className="text-sky-300">
+            <span key={idx} className="text-brand-700 dark:text-sky-300">
               {token}
             </span>
           );
         }
         if (token.startsWith('"')) {
           return (
-            <span key={idx} className="text-emerald-300">
+            <span key={idx} className="text-emerald-700 dark:text-emerald-300">
               {token}
             </span>
           );
         }
         return (
-          <span key={idx} className="text-slate-200">
+          <span key={idx} className="text-slate-800 dark:text-slate-200">
             {token}
           </span>
         );
@@ -954,137 +970,48 @@ export default function OrganizationIntegrationsManager() {
         </BackgroundRefreshError>
       )}
 
-      {/* 1. Precision Enterprise MCP Gateway Control Card */}
+      {/* 1. Quiet Frameless Gateway Metadata Row + Docs Link */}
       <section
         aria-label={t("heroTitle")}
-        className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
+        className="flex flex-col gap-2.5 border-b border-gray-200/80 pb-4 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800"
       >
-        <div className="flex flex-col gap-3 border-b border-gray-100 bg-gray-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5 dark:border-gray-800 dark:bg-gray-950/60">
-          <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-gray-600 tabular-nums dark:text-gray-300">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-success-50 px-2.5 py-0.5 font-mono text-[11px] font-semibold text-success-700 ring-1 ring-success-600/20 ring-inset dark:bg-success-500/10 dark:text-success-300 dark:ring-success-400/25">
-              <span
-                aria-hidden="true"
-                className="size-1.5 shrink-0 rounded-full bg-success-500"
-              />
-              <span>{t("gatewayOnlineLabel")}</span>
-            </span>
-            <span className="font-mono font-semibold text-gray-900 dark:text-white">
-              {t("protocolBadge", { version: protocolVersion })}
-            </span>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-600 tabular-nums dark:text-gray-300">
+          <span className="inline-flex items-center gap-2 font-mono font-medium text-gray-900 dark:text-white">
             <span
               aria-hidden="true"
-              className="hidden text-gray-300 sm:inline dark:text-gray-700"
-            >
-              ·
-            </span>
-            <span className="font-mono">{t("toolsBadge", { count: toolCount })}</span>
-            <span
-              aria-hidden="true"
-              className="hidden text-gray-300 sm:inline dark:text-gray-700"
-            >
-              ·
-            </span>
-            <span className="inline-flex items-center gap-1 font-mono text-gray-600 dark:text-gray-400">
-              <LockIcon className="size-3 shrink-0" aria-hidden="true" />
-              <span>{t("securityBadge")}</span>
-            </span>
-          </div>
-
-          <Link
-            href="/docs"
-            className="inline-flex h-8 shrink-0 items-center gap-1.5 self-start rounded-lg bg-white px-3 text-xs font-semibold whitespace-nowrap text-gray-800 ring-1 ring-gray-200/90 ring-inset transition-colors hover:bg-gray-50 sm:self-center dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
-          >
-            <DocsIcon
-              className="size-3.5 shrink-0 text-brand-600 dark:text-brand-400"
-              aria-hidden="true"
+              className="size-1.5 shrink-0 rounded-full bg-success-500"
             />
-            <span>{t("exploreDocsCta")}</span>
-            <ArrowRightIcon
-              className="size-3.5 shrink-0 rtl:rotate-180"
-              aria-hidden="true"
-            />
-          </Link>
+            <span>{t("protocolBadge", { version: protocolVersion })}</span>
+          </span>
+          <span aria-hidden="true" className="text-gray-300 dark:text-gray-700">
+            ·
+          </span>
+          <span className="font-mono text-gray-700 dark:text-gray-300">
+            {t("toolsBadge", { count: toolCount })}
+          </span>
+          <span aria-hidden="true" className="text-gray-300 dark:text-gray-700">
+            ·
+          </span>
+          <span className="inline-flex items-center gap-1 font-mono text-gray-600 dark:text-gray-400">
+            <LockIcon className="size-3 shrink-0" aria-hidden="true" />
+            <span>{t("securityBadge")}</span>
+          </span>
         </div>
 
-        <dl className="grid grid-cols-2 divide-y divide-gray-100 text-xs lg:grid-cols-4 lg:divide-x lg:divide-y-0 dark:divide-gray-800">
-          <div className="px-4 py-3 sm:px-5">
-            <dt className="font-medium text-gray-500 dark:text-gray-400">
-              {t("statActiveKeysLabel")}
-            </dt>
-            <dd className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
-              <span className="text-lg font-bold text-gray-900 dark:text-white">
-                {activeKeyCount}
-              </span>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                / {keys.length}
-              </span>
-            </dd>
-          </div>
-          <div className="px-4 py-3 sm:px-5">
-            <dt className="font-medium text-gray-500 dark:text-gray-400">
-              {t("statToolsLabel")}
-            </dt>
-            <dd className="mt-1 flex items-baseline gap-2 font-mono tabular-nums">
-              <span className="text-lg font-bold text-brand-600 dark:text-brand-400">
-                {toolCount}
-              </span>
-              <span className="text-[11px] text-gray-500 dark:text-gray-400">
-                6 {t("statSubsystemsLabel")}
-              </span>
-            </dd>
-          </div>
-          <div className="col-span-2 px-4 py-3 sm:px-5">
-            <dt className="font-medium text-gray-500 dark:text-gray-400">
-              {endpointMode === "direct"
-                ? t("directEndpointLabel")
-                : t("bffEndpointLabel")}
-            </dt>
-            <dd className="mt-1 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="shrink-0 rounded bg-brand-50 px-1.5 py-0.5 font-mono text-[10px] font-bold text-brand-700 uppercase dark:bg-brand-500/15 dark:text-brand-300">
-                  POST
-                </span>
-                <code
-                  title={selectedEndpointUrl}
-                  className="min-w-0 truncate font-mono text-xs font-medium text-gray-900 dark:text-gray-100"
-                >
-                  {selectedEndpointUrl}
-                </code>
-              </div>
-              <button
-                type="button"
-                aria-label={t("copyEndpointAria", {
-                  label:
-                    endpointMode === "direct"
-                      ? t("directEndpointLabel")
-                      : t("bffEndpointLabel"),
-                })}
-                onClick={() =>
-                  void copyText(
-                    "gateway-endpoint",
-                    selectedEndpointUrl,
-                    t("copiedBadge"),
-                  )
-                }
-                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md bg-gray-50 px-2 text-[11px] font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-700"
-              >
-                {copiedTarget === "gateway-endpoint" ? (
-                  <CheckLineIcon
-                    className="size-3 text-success-600 dark:text-success-400"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <CopyIcon className="size-3" aria-hidden="true" />
-                )}
-                <span>
-                  {copiedTarget === "gateway-endpoint"
-                    ? t("copiedBadge")
-                    : t("copyButton")}
-                </span>
-              </button>
-            </dd>
-          </div>
-        </dl>
+        <Link
+          href="/docs"
+          className="inline-flex shrink-0 items-center gap-1.5 self-start text-xs font-medium whitespace-nowrap text-gray-700 transition-colors hover:text-gray-950 sm:self-center dark:text-gray-300 dark:hover:text-white"
+        >
+          <DocsIcon
+            className="size-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+            aria-hidden="true"
+          />
+          <span>{t("exploreDocsCta")}</span>
+          <ArrowRightIcon
+            className="size-3.5 shrink-0 rtl:rotate-180"
+            aria-hidden="true"
+          />
+        </Link>
       </section>
 
       {/* 2. One-Time Secret Reveal Vault Callout */}
@@ -1093,18 +1020,21 @@ export default function OrganizationIntegrationsManager() {
           role="region"
           aria-labelledby="mcp-secret-vault-heading"
           data-testid="mcp-secret-reveal-vault"
-          className="continuum-stagger-1 rounded-2xl border border-success-500/70 bg-success-50/50 p-5 shadow-theme-sm sm:p-6 dark:border-success-400/50 dark:bg-success-500/[0.08]"
+          className="continuum-stagger-1 rounded-xl border border-gray-200 border-s-2 border-s-success-600 bg-white p-5 dark:border-gray-800 dark:border-s-success-400 dark:bg-gray-900"
         >
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div className="min-w-0 space-y-1.5">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-md bg-success-600 px-2.5 py-0.5 font-mono text-[11px] font-bold tracking-wider text-white uppercase">
+              <div className="flex flex-wrap items-center gap-2.5 text-xs">
+                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-semibold tracking-wider text-success-700 uppercase dark:text-success-300">
                   <LockIcon className="size-3 shrink-0" aria-hidden="true" />
                   <span>{t("secretVaultBadge")}</span>
                 </span>
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-success-700 dark:text-success-300">
+                <span aria-hidden="true" className="text-gray-300 dark:text-gray-700">
+                  ·
+                </span>
+                <span className="inline-flex items-center gap-1 font-medium text-gray-600 dark:text-gray-300">
                   <CheckCircleIcon
-                    className="size-3.5 shrink-0"
+                    className="size-3.5 shrink-0 text-success-600 dark:text-success-400"
                     aria-hidden="true"
                   />
                   <span>{t("injectedNotice")}</span>
@@ -1112,11 +1042,11 @@ export default function OrganizationIntegrationsManager() {
               </div>
               <h2
                 id="mcp-secret-vault-heading"
-                className="text-base font-semibold text-gray-900 sm:text-lg dark:text-white"
+                className="text-base font-semibold text-balance text-gray-900 dark:text-white"
               >
                 {t("secretVaultTitle", { name: mintedSecret.keyName })}
               </h2>
-              <p className="max-w-3xl text-xs leading-5 text-gray-700 dark:text-gray-300">
+              <p className="max-w-3xl text-xs leading-5 text-pretty text-gray-600 dark:text-gray-300">
                 {t("secretVaultWarning")}
               </p>
             </div>
@@ -1125,24 +1055,24 @@ export default function OrganizationIntegrationsManager() {
               <button
                 type="button"
                 onClick={handleJumpToIdeSetup}
-                className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl bg-white px-3.5 text-xs font-semibold whitespace-nowrap text-brand-700 ring-1 ring-brand-200 ring-inset transition-colors hover:bg-brand-50 dark:bg-gray-900 dark:text-brand-300 dark:ring-brand-500/30 dark:hover:bg-gray-800"
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium whitespace-nowrap text-gray-800 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t("jumpToIdeSetup")}
               </button>
               <button
                 type="button"
                 onClick={() => setMintedSecretState(null)}
-                className="inline-flex h-9 cursor-pointer items-center justify-center rounded-xl bg-white px-3.5 text-xs font-semibold whitespace-nowrap text-gray-700 ring-1 ring-gray-200 ring-inset transition-colors hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-800"
+                className="inline-flex h-8 cursor-pointer items-center justify-center rounded-lg px-2.5 text-xs font-medium whitespace-nowrap text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white"
               >
                 {t("dismissSecretCta")}
               </button>
             </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-3 rounded-xl border border-success-500/35 bg-gray-950 p-3.5 shadow-[inset_0_1px_0_rgba(52,211,153,0.16)] sm:flex-row sm:items-center sm:justify-between dark:border-success-400/30">
+          <div className="mt-4 flex flex-col gap-3 rounded-lg border border-gray-200/90 bg-gray-50 p-3 sm:flex-row sm:items-center sm:justify-between dark:border-gray-800 dark:bg-gray-950">
             <code
               data-testid="mcp-raw-secret-value"
-              className="custom-scrollbar-dark min-w-0 flex-1 overflow-x-auto font-mono text-xs break-all text-emerald-300 select-all sm:text-sm"
+              className="custom-scrollbar min-w-0 flex-1 overflow-x-auto font-mono text-xs break-all text-emerald-800 select-all sm:text-sm dark:text-emerald-300"
             >
               {mintedSecret.rawKey}
             </code>
@@ -1156,7 +1086,7 @@ export default function OrganizationIntegrationsManager() {
                   t("copiedRawKeyCta"),
                 )
               }
-              className="inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-success-500 px-3.5 text-xs font-semibold whitespace-nowrap text-white transition-colors hover:bg-success-600"
+              className="inline-flex h-8 shrink-0 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-gray-900 px-3.5 text-xs font-medium whitespace-nowrap text-white transition-colors hover:bg-gray-800 dark:bg-success-600 dark:hover:bg-success-500"
             >
               {copiedTarget === "raw-secret-key" ? (
                 <>
@@ -1174,37 +1104,34 @@ export default function OrganizationIntegrationsManager() {
         </section>
       )}
 
-      {/* 3. Personal MCP API Keys Table (Elevated Immediately Above the Fold) */}
-      <section
-        aria-labelledby="mcp-keys-ledger-heading"
-        className="overflow-hidden rounded-2xl border border-gray-200/90 bg-white shadow-theme-xs dark:border-gray-800 dark:bg-gray-900"
-      >
-        <div className="flex flex-col gap-3 border-b border-gray-100 p-5 sm:px-6 lg:flex-row lg:items-center lg:justify-between dark:border-gray-800">
+      {/* 3. Frameless Editorial MCP API Keys Ledger */}
+      <section aria-labelledby="mcp-keys-ledger-heading" className="space-y-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-baseline gap-2.5">
               <h2
                 ref={ledgerHeadingRef}
                 id="mcp-keys-ledger-heading"
                 tabIndex={-1}
-                className="text-base font-semibold tracking-tight text-gray-900 focus:outline-none dark:text-white"
+                className="text-base font-semibold tracking-tight text-balance text-gray-900 focus:outline-none dark:text-white"
               >
                 {t("ledgerTitle")}
               </h2>
-              <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-700 ring-1 ring-brand-600/15 ring-inset tabular-nums dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
-                {t("activeCountBadge", { count: activeKeyCount })}
+              <span className="font-mono text-xs text-gray-500 tabular-nums dark:text-gray-400">
+                · {t("activeCountBadge", { count: activeKeyCount })}
               </span>
             </div>
-            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-0.5 text-xs text-pretty text-gray-500 dark:text-gray-400">
               {t("ledgerSubtitle")}
             </p>
           </div>
 
           {keys.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-4">
               <div
                 role="group"
                 aria-label={t("colStatus")}
-                className="inline-flex items-center gap-0.5 rounded-lg bg-gray-100 p-0.5 dark:bg-gray-950"
+                className="flex items-center gap-4 border-b border-gray-200/80 dark:border-gray-800"
               >
                 {(
                   [
@@ -1229,10 +1156,10 @@ export default function OrganizationIntegrationsManager() {
                       aria-pressed={active}
                       onClick={() => setKeyStatusFilter(pill.id)}
                       className={cn(
-                        "cursor-pointer rounded-md px-2.5 py-1 text-xs font-semibold tabular-nums transition-colors",
+                        "-mb-px cursor-pointer border-b-2 pb-1.5 text-xs font-medium tabular-nums transition-colors",
                         active
-                          ? "bg-white text-gray-900 shadow-theme-xs dark:bg-gray-800 dark:text-white"
-                          : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
+                          ? "border-gray-900 text-gray-900 dark:border-white dark:text-white"
+                          : "border-transparent text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
                       )}
                     >
                       {pill.label} ({pill.count})
@@ -1241,7 +1168,7 @@ export default function OrganizationIntegrationsManager() {
                 })}
               </div>
 
-              <div className="relative min-w-[200px] flex-1 sm:flex-initial">
+              <div className="relative min-w-[210px] flex-1 sm:flex-initial">
                 <SearchIcon
                   aria-hidden="true"
                   className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
@@ -1252,7 +1179,7 @@ export default function OrganizationIntegrationsManager() {
                   onChange={(event) => setKeySearchQuery(event.target.value)}
                   placeholder={t("searchKeysPlaceholder")}
                   aria-label={t("searchKeysPlaceholder")}
-                  className="h-8 w-full rounded-lg border border-gray-200 bg-gray-50/70 ps-8 pe-7 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:bg-white focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-white dark:focus:bg-gray-900"
+                  className="h-8 w-full rounded-lg border border-gray-200 bg-white ps-8 pe-7 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-800 dark:bg-gray-900 dark:text-white"
                 />
                 {keySearchQuery && (
                   <button
@@ -1270,18 +1197,20 @@ export default function OrganizationIntegrationsManager() {
         </div>
 
         {keys.length === 0 ? (
-          <div className="p-6 sm:p-8">
-            <div className="rounded-xl border border-dashed border-gray-200 bg-gray-50/60 p-6 text-center sm:p-8 dark:border-gray-800 dark:bg-gray-950/40">
-              <div className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 ring-1 ring-brand-600/15 ring-inset dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
-                <PlugInIcon className="size-5" aria-hidden="true" />
+          <div className="grid grid-cols-1 gap-6 rounded-xl border border-gray-200/90 bg-white p-6 sm:p-7 lg:grid-cols-12 dark:border-gray-800 dark:bg-gray-900/60">
+            <div className="space-y-3 lg:col-span-6">
+              <div className="inline-flex size-9 items-center justify-center rounded-lg border border-gray-200 bg-gray-50 text-gray-700 dark:border-gray-800 dark:bg-gray-800 dark:text-gray-300">
+                <PlugInIcon className="size-4" aria-hidden="true" />
               </div>
-              <h3 className="mt-3 text-base font-semibold text-gray-900 dark:text-white">
-                {t("emptyKeysTitle")}
-              </h3>
-              <p className="mx-auto mt-1 max-w-md text-sm text-gray-500 dark:text-gray-400">
-                {t("emptyKeysDesc")}
-              </p>
-              <div className="mt-4">
+              <div>
+                <h3 className="text-base font-semibold text-balance text-gray-900 dark:text-white">
+                  {t("emptyKeysTitle")}
+                </h3>
+                <p className="mt-1 max-w-md text-sm text-pretty text-gray-500 dark:text-gray-400">
+                  {t("emptyKeysDesc")}
+                </p>
+              </div>
+              <div className="pt-1">
                 <Button
                   type="button"
                   size="sm"
@@ -1291,37 +1220,37 @@ export default function OrganizationIntegrationsManager() {
                   <span>{t("createKeyCta")}</span>
                 </Button>
               </div>
-
-              <ol className="mx-auto mt-7 grid max-w-3xl grid-cols-1 gap-3 border-t border-dashed border-gray-200 pt-6 text-start md:grid-cols-3 dark:border-gray-800">
-                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {t("emptyStep1Title")}
-                  </p>
-                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
-                    {t("emptyStep1Desc")}
-                  </p>
-                </li>
-                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {t("emptyStep2Title")}
-                  </p>
-                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
-                    {t("emptyStep2Desc")}
-                  </p>
-                </li>
-                <li className="rounded-xl border border-gray-200/80 bg-white p-3.5 dark:border-gray-800 dark:bg-gray-900">
-                  <p className="text-xs font-semibold text-gray-900 dark:text-white">
-                    {t("emptyStep3Title")}
-                  </p>
-                  <p className="mt-1 text-xs leading-4.5 text-gray-500 dark:text-gray-400">
-                    {t("emptyStep3Desc")}
-                  </p>
-                </li>
-              </ol>
             </div>
+
+            <ol className="space-y-3.5 border-s border-gray-200 ps-5 lg:col-span-6 dark:border-gray-800">
+              <li>
+                <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                  {t("emptyStep1Title")}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-pretty text-gray-500 dark:text-gray-400">
+                  {t("emptyStep1Desc")}
+                </p>
+              </li>
+              <li>
+                <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                  {t("emptyStep2Title")}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-pretty text-gray-500 dark:text-gray-400">
+                  {t("emptyStep2Desc")}
+                </p>
+              </li>
+              <li>
+                <p className="text-xs font-semibold text-gray-900 dark:text-white">
+                  {t("emptyStep3Title")}
+                </p>
+                <p className="mt-0.5 text-xs leading-5 text-pretty text-gray-500 dark:text-gray-400">
+                  {t("emptyStep3Desc")}
+                </p>
+              </li>
+            </ol>
           </div>
         ) : filteredKeys.length === 0 ? (
-          <div className="p-8 text-center">
+          <div className="rounded-xl border border-gray-200/90 bg-white px-6 py-8 text-center dark:border-gray-800 dark:bg-gray-900/60">
             <p className="text-sm font-medium text-gray-700 dark:text-gray-300">
               {t("noMatchingKeys")}
             </p>
@@ -1331,61 +1260,61 @@ export default function OrganizationIntegrationsManager() {
                 setKeyStatusFilter("ALL");
                 setKeySearchQuery("");
               }}
-              className="mt-3 inline-flex h-8 cursor-pointer items-center rounded-lg bg-gray-100 px-3 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+              className="mt-3 inline-flex h-8 cursor-pointer items-center rounded-lg border border-gray-200 bg-white px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
             >
               {t("resetKeyFilters")}
             </button>
           </div>
         ) : (
-          <div className="custom-scrollbar max-w-full overflow-x-auto">
-            <table className="w-full min-w-[780px] divide-y divide-gray-200 text-start text-sm dark:divide-gray-800">
-              <thead className="bg-gray-50/80 dark:bg-gray-950/60">
+          <div className="custom-scrollbar max-w-full overflow-x-auto rounded-xl border border-gray-200/90 bg-white dark:border-gray-800 dark:bg-gray-900/60">
+            <table className="w-full min-w-[760px] divide-y divide-gray-200 text-start text-sm dark:divide-gray-800">
+              <thead className="bg-gray-50/70 dark:bg-gray-950/40">
                 <tr>
                   <th
                     scope="col"
-                    className="px-5 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-5 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colName")}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-4 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colScope")}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-4 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colProjects")}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-4 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colLifecycle")}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-4 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colExpires")}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 text-start text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-4 py-2.5 text-start text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colStatus")}
                   </th>
                   <th
                     scope="col"
-                    className="px-5 py-3 text-end text-xs font-semibold tracking-wider text-gray-500 uppercase dark:text-gray-400"
+                    className="px-5 py-2.5 text-end text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400"
                   >
                     {t("colActions")}
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100 bg-white dark:divide-gray-800 dark:bg-gray-900">
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800/80">
                 {filteredKeys.map((item) => {
                   const projectIds = item.allowedProjectIds;
                   const resolvedProjectCodes = projectIds
@@ -1410,7 +1339,7 @@ export default function OrganizationIntegrationsManager() {
                   return (
                     <tr
                       key={item.id}
-                      className="transition-colors hover:bg-gray-50/70 dark:hover:bg-white/[0.02]"
+                      className="transition-colors hover:bg-gray-50/60 dark:hover:bg-white/[0.02]"
                     >
                       <td className="px-5 py-3.5">
                         <p className="font-medium text-gray-900 dark:text-white">
@@ -1426,7 +1355,7 @@ export default function OrganizationIntegrationsManager() {
                               t("copiedPrefixToast"),
                             )
                           }
-                          className="mt-1 inline-flex cursor-pointer items-center gap-1 rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-600 transition-colors hover:bg-gray-200/80 hover:text-gray-900 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
+                          className="group mt-0.5 inline-flex cursor-pointer items-center gap-1.5 font-mono text-xs text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-white"
                         >
                           <code>{item.keyPrefix}••••</code>
                           {copiedTarget === prefixCopyId ? (
@@ -1436,7 +1365,7 @@ export default function OrganizationIntegrationsManager() {
                             />
                           ) : (
                             <CopyIcon
-                              className="size-3 opacity-70"
+                              className="size-3 opacity-0 transition-opacity group-hover:opacity-80 group-focus-visible:opacity-80"
                               aria-hidden="true"
                             />
                           )}
@@ -1450,15 +1379,15 @@ export default function OrganizationIntegrationsManager() {
                       </td>
                       <td className="px-4 py-3.5">
                         {projectIds === null ? (
-                          <span className="inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+                          <span className="text-xs text-gray-600 dark:text-gray-300">
                             {t("allProjectsBadge")}
                           </span>
                         ) : (
                           <div
-                            className="flex flex-wrap items-center gap-1"
+                            className="flex flex-wrap items-center gap-1.5 text-xs"
                             title={projectTooltip}
                           >
-                            <span className="inline-flex items-center rounded-md bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700 ring-1 ring-brand-600/20 ring-inset tabular-nums dark:bg-brand-500/15 dark:text-brand-300 dark:ring-brand-400/25">
+                            <span className="font-medium text-gray-700 tabular-nums dark:text-gray-300">
                               {t("restrictedProjectsBadge", {
                                 count: projectIds.length,
                               })}
@@ -1466,13 +1395,13 @@ export default function OrganizationIntegrationsManager() {
                             {resolvedProjectCodes.slice(0, 2).map((code) => (
                               <code
                                 key={code}
-                                className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                className="font-mono text-[11px] text-gray-500 dark:text-gray-400"
                               >
                                 {code}
                               </code>
                             ))}
                             {overflowProjectCount > 0 && (
-                              <span className="rounded bg-gray-100 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-gray-600 tabular-nums dark:bg-gray-800 dark:text-gray-300">
+                              <span className="font-mono text-[11px] font-medium text-gray-500 tabular-nums dark:text-gray-400">
                                 +{overflowProjectCount}
                               </span>
                             )}
@@ -1527,7 +1456,7 @@ export default function OrganizationIntegrationsManager() {
                             onClick={(event) =>
                               openRevokeModal(item, event.currentTarget)
                             }
-                            className="inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-error-200 bg-error-50/70 px-2.5 text-xs font-semibold whitespace-nowrap text-error-700 transition-colors hover:bg-error-100 dark:border-error-500/30 dark:bg-error-500/10 dark:text-error-300 dark:hover:bg-error-500/20"
+                            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs font-medium whitespace-nowrap text-gray-500 transition-colors hover:bg-error-50/80 hover:text-error-700 dark:text-gray-400 dark:hover:bg-error-500/10 dark:hover:text-error-300"
                           >
                             <TrashBinIcon
                               className="size-3.5 shrink-0"
@@ -1548,661 +1477,329 @@ export default function OrganizationIntegrationsManager() {
         )}
       </section>
 
-      {/* 4. Interactive IDE & Agent Quick-Setup Configurator */}
+      {/* 4. Asymmetric Editorial IDE & Agent Quick-Setup Workbench */}
       <section
         id="mcp-ide-quick-setup"
         aria-labelledby="mcp-ide-quick-setup-heading"
-        className="scroll-mt-20 rounded-2xl border border-gray-200/90 bg-white p-5 shadow-theme-xs sm:p-6 dark:border-gray-800 dark:bg-gray-900"
+        className="scroll-mt-20 border-t border-gray-200/80 pt-7 dark:border-gray-800"
       >
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
+          {/* Left Column: Context, Endpoint Mode & Copyable Endpoint URL */}
+          <div className="min-w-0 space-y-5 lg:col-span-4">
+            <div>
               <h2
                 id="mcp-ide-quick-setup-heading"
-                className="text-base font-semibold tracking-tight text-gray-900 dark:text-white"
+                className="text-base font-semibold tracking-tight text-balance text-gray-900 dark:text-white"
               >
                 {t("quickSetupTitle")}
               </h2>
-              {mintedSecret ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-0.5 text-xs font-semibold text-success-700 ring-1 ring-success-600/20 ring-inset dark:bg-success-500/15 dark:text-success-300 dark:ring-success-400/25">
-                  <CheckCircleIcon
-                    className="size-3.5 shrink-0"
-                    aria-hidden="true"
-                  />
-                  <span>{t("usingLiveSecretBadge")}</span>
-                </span>
-              ) : (
-                <span className="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-                  {t("usingPlaceholderBadge")}
-                </span>
-              )}
-            </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              {t("quickSetupSubtitle")}
-            </p>
-          </div>
-
-          {/* Endpoint Target Switch */}
-          <div
-            role="group"
-            aria-label={t("endpointModeLabel")}
-            className="inline-flex max-w-full shrink-0 flex-wrap items-center gap-1 rounded-xl bg-gray-100 p-1 dark:bg-gray-950"
-          >
-            {(
-              [
-                { id: "direct" as const, label: t("endpointModeDirect") },
-                { id: "bff" as const, label: t("endpointModeBff") },
-              ] as const
-            ).map((option) => {
-              const active = endpointMode === option.id;
-              return (
-                <button
-                  key={option.id}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => {
-                    userToggledEndpointRef.current = true;
-                    setEndpointMode(option.id);
-                  }}
-                  className={cn(
-                    "relative cursor-pointer rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors",
-                    active
-                      ? "text-gray-900 dark:text-white"
-                      : "text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200",
-                  )}
-                >
-                  {active &&
-                    (shouldReduceMotion ? (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-lg bg-white shadow-theme-xs dark:bg-gray-800"
-                      />
-                    ) : (
-                      <motion.span
-                        layoutId="org-mcp-endpoint-pill"
-                        transition={ANIMATE_UI_BUTTON_SPRING}
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-lg bg-white shadow-theme-xs dark:bg-gray-800"
-                      />
-                    ))}
-                  <span className="relative z-1">{option.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Compact Copyable Endpoint URL Row */}
-        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-gray-50 px-3.5 py-2.5 ring-1 ring-gray-200/80 ring-inset dark:bg-gray-950/70 dark:ring-gray-800">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-1.5 shrink-0 rounded-full bg-success-500"
-            />
-            <span className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
-              {endpointMode === "direct"
-                ? t("directEndpointLabel")
-                : t("bffEndpointLabel")}
-              :
-            </span>
-            <code
-              title={selectedEndpointUrl}
-              className="min-w-0 truncate font-mono text-xs text-gray-900 dark:text-gray-100"
-            >
-              {selectedEndpointUrl}
-            </code>
-          </div>
-          <button
-            type="button"
-            aria-label={t("copyEndpointAria", {
-              label:
-                endpointMode === "direct"
-                  ? t("directEndpointLabel")
-                  : t("bffEndpointLabel"),
-            })}
-            onClick={() =>
-              void copyText(
-                `endpoint-${endpointMode}`,
-                selectedEndpointUrl,
-                t("copiedBadge"),
-              )
-            }
-            className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-lg bg-white px-2.5 text-xs font-semibold whitespace-nowrap text-gray-700 ring-1 ring-gray-200 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700 dark:hover:bg-gray-800"
-          >
-            {copiedTarget === `endpoint-${endpointMode}` ? (
-              <>
-                <CheckLineIcon
-                  className="size-3.5 text-success-600 dark:text-success-400"
+              <p className="mt-1 text-xs leading-5 text-pretty text-gray-500 dark:text-gray-400">
+                {t("quickSetupSubtitle")}
+              </p>
+              <p className="mt-2.5 inline-flex items-center gap-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+                <span
                   aria-hidden="true"
+                  className={cn(
+                    "size-1.5 shrink-0 rounded-full",
+                    mintedSecret
+                      ? "bg-success-500"
+                      : "bg-gray-400 dark:bg-gray-500",
+                  )}
                 />
-                <span className="text-success-700 dark:text-success-300">
-                  {t("copiedBadge")}
+                <span>
+                  {mintedSecret
+                    ? t("usingLiveSecretBadge")
+                    : t("usingPlaceholderBadge")}
                 </span>
-              </>
-            ) : (
-              <>
-                <CopyIcon className="size-3.5" aria-hidden="true" />
-                <span>{t("copyButton")}</span>
-              </>
-            )}
-          </button>
-        </div>
+              </p>
+            </div>
 
-        {/* WAI-ARIA IDE Tabs + Tabpanel */}
-        <div className="mt-4 overflow-hidden rounded-2xl border border-gray-800/95 bg-gray-950 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-          <div
-            role="tablist"
-            aria-label={t("quickSetupTitle")}
-            className="custom-scrollbar-dark flex items-center gap-1 overflow-x-auto border-b border-gray-800/90 bg-gray-900/95 px-2.5 py-2 whitespace-nowrap"
-          >
-            {MCP_IDE_CLIENT_SPECS.map((spec, idx) => {
-              const isSelected = spec.id === activeClientSpec.id;
-              return (
-                <button
-                  key={spec.id}
-                  ref={(el) => {
-                    ideTabRefs.current[spec.id] = el;
-                  }}
-                  id={`org-mcp-ide-tab-${spec.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={isSelected}
-                  aria-controls={`org-mcp-ide-panel-${spec.id}`}
-                  tabIndex={isSelected ? 0 : -1}
-                  onClick={() => setActiveIdeClient(spec.id)}
-                  onKeyDown={(event) => handleIdeTabKeyDown(event, idx)}
-                  className={cn(
-                    "relative shrink-0 cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-400",
-                    isSelected
-                      ? "text-white"
-                      : "text-gray-400 hover:bg-gray-800/80 hover:text-gray-100",
-                  )}
-                >
-                  {isSelected &&
-                    (shouldReduceMotion ? (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-lg bg-brand-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-                      />
-                    ) : (
-                      <motion.span
-                        layoutId="org-mcp-ide-active-pill"
-                        transition={ANIMATE_UI_BUTTON_SPRING}
-                        aria-hidden="true"
-                        className="absolute inset-0 rounded-lg bg-brand-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.18)]"
-                      />
-                    ))}
-                  <span className="relative z-1">{spec.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div
-            id={`org-mcp-ide-panel-${activeClientSpec.id}`}
-            role="tabpanel"
-            aria-labelledby={`org-mcp-ide-tab-${activeClientSpec.id}`}
-            className="min-w-0"
-          >
-            <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-800/90 bg-gray-900/60 px-4 py-2.5">
-              <span
-                title={activeClientSpec.targetFile}
-                className="min-w-0 flex-1 truncate font-mono text-xs text-slate-300"
+            {/* Endpoint Target Switcher */}
+            <div className="space-y-2">
+              <p className="text-[11px] font-medium tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                {t("endpointModeLabel")}
+              </p>
+              <div
+                role="group"
+                aria-label={t("endpointModeLabel")}
+                className="divide-y divide-gray-200/80 overflow-hidden rounded-xl border border-gray-200/90 bg-white dark:divide-gray-800 dark:border-gray-800 dark:bg-gray-900/60"
               >
-                {t("configFileHint", { target: activeClientSpec.targetFile })}
-              </span>
-              <div className="flex shrink-0 items-center gap-1.5">
-                <button
-                  type="button"
-                  aria-pressed={wrapCode}
-                  aria-label={t("wrapCodeAria")}
-                  onClick={() => setWrapCode((prev) => !prev)}
-                  className={cn(
-                    "inline-flex h-7 shrink-0 cursor-pointer items-center rounded-md px-2.5 text-xs font-medium whitespace-nowrap ring-1 ring-inset transition-colors",
-                    wrapCode
-                      ? "bg-brand-600/25 text-brand-200 ring-brand-400/50"
-                      : "bg-gray-800/80 text-gray-300 ring-gray-700 hover:bg-gray-700 hover:text-white",
-                  )}
-                >
-                  {t("wrapCodeLabel")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    void copyText(
-                      `ide-${activeClientSpec.id}`,
-                      renderedSnippet,
-                      t("copiedSnippetCta"),
-                    )
-                  }
-                  className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-gray-800 px-2.5 text-xs font-semibold whitespace-nowrap text-gray-100 ring-1 ring-gray-700 ring-inset transition-colors hover:bg-gray-700"
-                >
-                  <motion.span
-                    key={
-                      copiedTarget === `ide-${activeClientSpec.id}`
-                        ? "copied"
-                        : "copy"
-                    }
-                    initial={
-                      shouldReduceMotion
-                        ? false
-                        : { scale: 0.6, opacity: 0 }
-                    }
-                    animate={{ scale: 1, opacity: 1 }}
-                    transition={ANIMATE_UI_ICON_SPRING}
-                    className="inline-flex items-center justify-center"
-                  >
-                    {copiedTarget === `ide-${activeClientSpec.id}` ? (
-                      <CheckLineIcon
-                        className="size-3.5 text-emerald-400"
-                        aria-hidden="true"
-                      />
-                    ) : (
-                      <CopyIcon className="size-3.5" aria-hidden="true" />
-                    )}
-                  </motion.span>
-                  <span
-                    className={
-                      copiedTarget === `ide-${activeClientSpec.id}`
-                        ? "text-emerald-300"
-                        : undefined
-                    }
-                  >
-                    {copiedTarget === `ide-${activeClientSpec.id}`
-                      ? t("copiedSnippetCta")
-                      : t("copySnippetCta")}
-                  </span>
-                </button>
+                {(
+                  [
+                    { id: "direct" as const, label: t("endpointModeDirect") },
+                    { id: "bff" as const, label: t("endpointModeBff") },
+                  ] as const
+                ).map((option) => {
+                  const active = endpointMode === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => {
+                        userToggledEndpointRef.current = true;
+                        setEndpointMode(option.id);
+                      }}
+                      className={cn(
+                        "flex w-full cursor-pointer items-center justify-between border-s-2 px-3.5 py-2.5 text-start text-xs font-medium transition-colors",
+                        active
+                          ? "border-s-brand-600 bg-gray-50/90 text-gray-950 dark:border-s-brand-400 dark:bg-gray-800/70 dark:text-white"
+                          : "border-s-transparent text-gray-600 hover:bg-gray-50/50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-white/[0.02] dark:hover:text-gray-200",
+                      )}
+                    >
+                      <span>{option.label}</span>
+                      {active && (
+                        <span
+                          aria-hidden="true"
+                          className="size-1.5 rounded-full bg-brand-600 dark:bg-brand-400"
+                        />
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
-            <pre
-              data-testid="mcp-ide-config-pre"
-              className={cn(
-                "custom-scrollbar-dark max-w-full overflow-x-auto p-4 font-mono text-xs leading-6 text-slate-100",
-                wrapCode && "whitespace-pre-wrap",
-              )}
-            >
-              <code>
-                {renderSyntaxTintedSnippet(
-                  renderedSnippet,
-                  activeClientSpec.language,
-                  wrapCode,
+
+            {/* Single Copyable Endpoint URL Bar */}
+            <div className="flex items-center justify-between gap-2 rounded-xl border border-gray-200/90 bg-gray-50/70 px-3 py-2 dark:border-gray-800 dark:bg-gray-900/60">
+              <div className="flex min-w-0 flex-1 items-center gap-2">
+                <span className="shrink-0 font-mono text-[10px] font-semibold text-brand-700 uppercase dark:text-brand-300">
+                  POST
+                </span>
+                <code
+                  title={selectedEndpointUrl}
+                  className="min-w-0 flex-1 truncate font-mono text-xs text-gray-800 dark:text-gray-200"
+                >
+                  {selectedEndpointUrl}
+                </code>
+              </div>
+              <button
+                type="button"
+                aria-label={t("copyEndpointAria", {
+                  label:
+                    endpointMode === "direct"
+                      ? t("directEndpointLabel")
+                      : t("bffEndpointLabel"),
+                })}
+                onClick={() =>
+                  void copyText(
+                    `endpoint-${endpointMode}`,
+                    selectedEndpointUrl,
+                    t("copiedBadge"),
+                  )
+                }
+                className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 text-xs font-medium whitespace-nowrap text-gray-600 transition-colors hover:bg-gray-200/70 hover:text-gray-950 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+              >
+                {copiedTarget === `endpoint-${endpointMode}` ? (
+                  <>
+                    <CheckLineIcon
+                      className="size-3.5 text-success-600 dark:text-success-400"
+                      aria-hidden="true"
+                    />
+                    <span className="text-success-700 dark:text-success-300">
+                      {t("copiedBadge")}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <CopyIcon className="size-3.5" aria-hidden="true" />
+                    <span>{t("copyButton")}</span>
+                  </>
                 )}
-              </code>
-            </pre>
+              </button>
+            </div>
+          </div>
+
+          {/* Right Column: Light/Dark-Adaptive Editorial Code Workbench */}
+          <div className="min-w-0 lg:col-span-8">
+            <div className="overflow-hidden rounded-xl border border-gray-200/90 bg-white dark:border-gray-800 dark:bg-gray-950">
+              <div
+                role="tablist"
+                aria-label={t("quickSetupTitle")}
+                className="custom-scrollbar flex items-center gap-0.5 overflow-x-auto overflow-y-hidden border-b border-gray-200/90 bg-white px-2 pt-1 whitespace-nowrap dark:border-gray-800 dark:bg-gray-900/80"
+              >
+                {MCP_IDE_CLIENT_SPECS.map((spec, idx) => {
+                  const isSelected = spec.id === activeClientSpec.id;
+                  return (
+                    <button
+                      key={spec.id}
+                      ref={(el) => {
+                        ideTabRefs.current[spec.id] = el;
+                      }}
+                      id={`org-mcp-ide-tab-${spec.id}`}
+                      type="button"
+                      role="tab"
+                      aria-selected={isSelected}
+                      aria-controls={`org-mcp-ide-panel-${spec.id}`}
+                      tabIndex={isSelected ? 0 : -1}
+                      onClick={() => setActiveIdeClient(spec.id)}
+                      onKeyDown={(event) => handleIdeTabKeyDown(event, idx)}
+                      className={cn(
+                        "relative shrink-0 cursor-pointer px-2 py-2 text-[11px] font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500",
+                        isSelected
+                          ? "text-gray-950 dark:text-white"
+                          : "text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-100",
+                      )}
+                    >
+                      {isSelected &&
+                        (shouldReduceMotion ? (
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-x-0 bottom-0 h-0.5 bg-gray-900 dark:bg-brand-400"
+                          />
+                        ) : (
+                          <motion.span
+                            layoutId="org-mcp-ide-active-underline"
+                            transition={ANIMATE_UI_BUTTON_SPRING}
+                            aria-hidden="true"
+                            className="absolute inset-x-0 bottom-0 h-0.5 bg-gray-900 dark:bg-brand-400"
+                          />
+                        ))}
+                      <span>{spec.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div
+                id={`org-mcp-ide-panel-${activeClientSpec.id}`}
+                role="tabpanel"
+                aria-labelledby={`org-mcp-ide-tab-${activeClientSpec.id}`}
+                className="min-w-0"
+              >
+                <div className="flex flex-nowrap items-center justify-between gap-3 border-b border-gray-200/80 bg-gray-50/75 px-4 py-2 dark:border-gray-800/80 dark:bg-gray-900/50">
+                  <span
+                    title={activeClientSpec.targetFile}
+                    className="min-w-0 flex-1 truncate font-mono text-xs text-gray-500 dark:text-slate-400"
+                  >
+                    {t("configFileHint", { target: activeClientSpec.targetFile })}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <button
+                      type="button"
+                      aria-pressed={wrapCode}
+                      aria-label={t("wrapCodeAria")}
+                      onClick={() => setWrapCode((prev) => !prev)}
+                      className={cn(
+                        "inline-flex h-7 shrink-0 cursor-pointer items-center rounded-md px-2.5 text-xs font-medium whitespace-nowrap transition-colors",
+                        wrapCode
+                          ? "bg-gray-200/80 text-gray-950 dark:bg-gray-800 dark:text-white"
+                          : "text-gray-600 hover:bg-gray-200/60 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:text-white",
+                      )}
+                    >
+                      {t("wrapCodeLabel")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void copyText(
+                          `ide-${activeClientSpec.id}`,
+                          renderedSnippet,
+                          t("copiedSnippetCta"),
+                        )
+                      }
+                      className="inline-flex h-7 shrink-0 cursor-pointer items-center gap-1.5 rounded-md bg-white px-2.5 text-xs font-medium whitespace-nowrap text-gray-800 ring-1 ring-gray-200 ring-inset transition-colors hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:ring-gray-700 dark:hover:bg-gray-700"
+                    >
+                      <motion.span
+                        key={
+                          copiedTarget === `ide-${activeClientSpec.id}`
+                            ? "copied"
+                            : "copy"
+                        }
+                        initial={
+                          shouldReduceMotion
+                            ? false
+                            : { scale: 0.6, opacity: 0 }
+                        }
+                        animate={{ scale: 1, opacity: 1 }}
+                        transition={ANIMATE_UI_ICON_SPRING}
+                        className="inline-flex items-center justify-center"
+                      >
+                        {copiedTarget === `ide-${activeClientSpec.id}` ? (
+                          <CheckLineIcon
+                            className="size-3.5 text-success-600 dark:text-emerald-400"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <CopyIcon className="size-3.5" aria-hidden="true" />
+                        )}
+                      </motion.span>
+                      <span
+                        className={
+                          copiedTarget === `ide-${activeClientSpec.id}`
+                            ? "text-success-700 dark:text-emerald-300"
+                            : undefined
+                        }
+                      >
+                        {copiedTarget === `ide-${activeClientSpec.id}`
+                          ? t("copiedSnippetCta")
+                          : t("copySnippetCta")}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+                <pre
+                  data-testid="mcp-ide-config-pre"
+                  className={cn(
+                    "custom-scrollbar max-w-full overflow-x-auto bg-gray-50/80 p-4 font-mono text-xs leading-6 text-slate-800 dark:bg-gray-950 dark:text-slate-100",
+                    wrapCode && "whitespace-pre-wrap",
+                  )}
+                >
+                  <code>
+                    {renderSyntaxTintedSnippet(
+                      renderedSnippet,
+                      activeClientSpec.language,
+                      wrapCode,
+                    )}
+                  </code>
+                </pre>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* 5. Create MCP API Key Modal */}
+      {/* 5. Create MCP API Key Inspector Sheet */}
       {isCreateModalOpen &&
         renderModalPortal(
-          <div
-            data-testid="mcp-create-modal-backdrop"
-            onClick={closeCreateModal}
-            className="continuum-backdrop-enter fixed inset-0 z-99999 flex items-start justify-center overflow-y-auto overscroll-contain bg-gray-950/45 p-3 backdrop-blur-[3px] sm:items-center sm:p-4 dark:bg-gray-950/65"
-          >
-            <div
-              ref={createDialogRef}
-              role="dialog"
-              aria-modal="true"
-              aria-labelledby="create-mcp-key-dialog-title"
-              aria-describedby="create-mcp-key-dialog-desc"
-              onClick={(event) => event.stopPropagation()}
-              className="continuum-sheet-enter relative my-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-theme-xl sm:max-h-[min(92dvh,810px)] dark:border-gray-800 dark:bg-gray-900"
-            >
-              <div className="flex shrink-0 items-start justify-between gap-3 border-b border-gray-100 px-5 py-4 sm:px-6 dark:border-gray-800">
-                <div>
-                  <h2
-                    id="create-mcp-key-dialog-title"
-                    className="text-lg font-semibold text-gray-900 dark:text-white"
-                  >
-                    {t("createModalTitle")}
-                  </h2>
-                  <p
-                    id="create-mcp-key-dialog-desc"
-                    className="mt-1 text-xs leading-5 text-gray-500 dark:text-gray-400"
-                  >
-                    {t("createModalSubtitle")}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  aria-label={t("closeModalAria")}
-                  disabled={createMutation.isPending}
-                  onClick={closeCreateModal}
-                  className="inline-flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-gray-100/80 text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-800/80 dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-white"
-                >
-                  <CloseLineIcon className="size-4" aria-hidden="true" />
-                </button>
-              </div>
-
-              <form
-                onSubmit={handleCreateSubmit}
-                className="flex min-h-0 flex-1 flex-col overflow-hidden"
-                noValidate
-              >
-                <div className="custom-scrollbar-modal min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain px-5 py-4 sm:px-6">
-                  {formValidationError && (
-                    <div role="alert">
-                      <Alert
-                        variant="warning"
-                        title={t("errorTitle")}
-                        message={formValidationError}
-                      />
-                    </div>
-                  )}
-
-                  {createMutation.isError && (
-                    <div role="alert">
-                      <Alert
-                        variant="error"
-                        title={t("errorTitle")}
-                        message={resolveErrorMessage(createMutation.error)}
-                      />
-                    </div>
-                  )}
-
-                  {/* Key Name */}
-                  <div>
-                    <div className="flex items-center justify-between gap-2">
-                      <Label htmlFor="mcp-key-name-input">
-                        {t("keyNameLabel")}
-                      </Label>
-                      <span className="mb-1 text-xs text-gray-500 tabular-nums dark:text-gray-400">
-                        {keyName.trim().length}/80
-                      </span>
-                    </div>
-                    <input
-                      ref={keyNameInputRef}
-                      id="mcp-key-name-input"
-                      type="text"
-                      maxLength={80}
-                      required
-                      value={keyName}
-                      disabled={createMutation.isPending}
-                      onChange={(event) => {
-                        setKeyName(event.target.value);
-                        setFormValidationError(null);
-                      }}
-                      placeholder={t("keyNamePlaceholder")}
-                      className="h-10 w-full rounded-xl border border-gray-300 bg-transparent px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs placeholder:text-gray-400 focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                    />
-                    <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                      {t("keyNameHelp")}
-                    </p>
-                  </div>
-
-                  {/* Capability Tier Selector */}
-                  <fieldset>
-                    <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {t("scopeLabel")}
-                    </legend>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
-                      {(
-                        [
-                          {
-                            value: "FULL_OPERATIONS" as const,
-                            title: t("scopeFullOpsTitle"),
-                            desc: t("scopeFullOpsDesc"),
-                            toolBadge: t("tierToolCountFull"),
-                            code: "FULL_OPERATIONS",
-                          },
-                          {
-                            value: "READ_WRITE" as const,
-                            title: t("scopeReadWriteTitle"),
-                            desc: t("scopeReadWriteDesc"),
-                            toolBadge: t("tierToolCountReadWrite"),
-                            code: "READ_WRITE",
-                          },
-                          {
-                            value: "READ_ONLY" as const,
-                            title: t("scopeReadOnlyTitle"),
-                            desc: t("scopeReadOnlyDesc"),
-                            toolBadge: t("tierToolCountReadOnly"),
-                            code: "READ_ONLY",
-                          },
-                        ] as const
-                      ).map((tier) => {
-                        const active = selectedScope === tier.value;
-                        return (
-                          <button
-                            key={tier.value}
-                            type="button"
-                            aria-pressed={active}
-                            disabled={createMutation.isPending}
-                            onClick={() => setSelectedScope(tier.value)}
-                            className={cn(
-                              "flex cursor-pointer flex-col items-start rounded-xl border p-3 text-start transition-colors",
-                              active
-                                ? "border-brand-500 bg-brand-50/60 ring-1 ring-brand-500/30 dark:border-brand-400 dark:bg-brand-500/15"
-                                : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950 dark:hover:border-gray-700",
-                            )}
-                          >
-                            <div className="flex w-full items-center justify-between gap-1.5">
-                              <code className="rounded bg-white px-1.5 py-0.5 font-mono text-[10px] font-semibold text-gray-700 ring-1 ring-gray-200 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700">
-                                {tier.code}
-                              </code>
-                              <span className="font-mono text-[10px] font-semibold text-gray-500 tabular-nums dark:text-gray-400">
-                                {tier.toolBadge}
-                              </span>
-                            </div>
-                            <span className="mt-2 text-sm font-semibold text-gray-900 dark:text-white">
-                              {tier.title}
-                            </span>
-                            <span className="mt-1 text-xs leading-4.5 text-gray-600 dark:text-gray-400">
-                              {tier.desc}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </fieldset>
-
-                  {/* Project Scope Partition */}
-                  <fieldset>
-                    <legend className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {t("projectScopeLabel")}
-                    </legend>
-                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-                      <button
-                        type="button"
-                        aria-pressed={projectPartitionMode === "all"}
-                        disabled={createMutation.isPending}
-                        onClick={() => {
-                          setProjectPartitionMode("all");
-                          setFormValidationError(null);
-                        }}
-                        className={cn(
-                          "cursor-pointer rounded-xl border p-3 text-start transition-colors",
-                          projectPartitionMode === "all"
-                            ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
-                            : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
-                        )}
-                      >
-                        <span className="block text-sm font-semibold text-gray-900 dark:text-white">
-                          {t("allProjectsOption")}
-                        </span>
-                        <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                          {t("allProjectsDesc")}
-                        </span>
-                      </button>
-
-                      <button
-                        type="button"
-                        aria-pressed={projectPartitionMode === "selected"}
-                        disabled={createMutation.isPending}
-                        onClick={() => {
-                          setProjectPartitionMode("selected");
-                          setFormValidationError(null);
-                        }}
-                        className={cn(
-                          "cursor-pointer rounded-xl border p-3 text-start transition-colors",
-                          projectPartitionMode === "selected"
-                            ? "border-brand-500 bg-brand-50/60 dark:border-brand-400 dark:bg-brand-500/15"
-                            : "border-gray-200 bg-gray-50/50 hover:border-gray-300 dark:border-gray-800 dark:bg-gray-950",
-                        )}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                            {t("selectedProjectsOption")}
-                          </span>
-                          {selectedProjectIds.length > 0 && (
-                            <span className="rounded-full bg-brand-600 px-2 py-0.5 text-[11px] font-semibold text-white tabular-nums">
-                              {t("selectedProjectsCount", {
-                                count: selectedProjectIds.length,
-                              })}
-                            </span>
-                          )}
-                        </div>
-                        <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">
-                          {t("selectedProjectsDesc")}
-                        </span>
-                      </button>
-                    </div>
-
-                    {projectPartitionMode === "selected" && (
-                      <div className="mt-2.5 rounded-xl border border-gray-200 bg-gray-50/70 p-2.5 dark:border-gray-800 dark:bg-gray-950">
-                        {projectsQuery.isPending ? (
-                          <p className="px-2 py-2 text-xs text-gray-500">
-                            {t("projectsLoading")}
-                          </p>
-                        ) : projectsQuery.isError ? (
-                          <div className="flex flex-wrap items-center justify-between gap-2 px-2 py-1.5 text-xs">
-                            <span className="text-error-700 dark:text-error-300">
-                              {t("projectsLoadError")}
-                            </span>
-                            <button
-                              type="button"
-                              onClick={() => void projectsQuery.refetch()}
-                              className="cursor-pointer rounded-md bg-white px-2.5 py-1 font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
-                            >
-                              {t("retry")}
-                            </button>
-                          </div>
-                        ) : activeProjects.length === 0 ? (
-                          <p className="px-2 py-2 text-xs text-gray-500">
-                            {t("projectsEmpty")}
-                          </p>
-                        ) : (
-                          <>
-                            {activeProjects.length > 6 && (
-                              <div className="mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200/80 pb-2 dark:border-gray-800">
-                                <div className="relative min-w-0 flex-1">
-                                  <SearchIcon
-                                    aria-hidden="true"
-                                    className="pointer-events-none absolute start-2.5 top-1/2 size-3.5 -translate-y-1/2 text-gray-400"
-                                  />
-                                  <input
-                                    type="search"
-                                    value={projectSearchQuery}
-                                    onChange={(event) =>
-                                      setProjectSearchQuery(event.target.value)
-                                    }
-                                    placeholder={t("searchProjectsPlaceholder")}
-                                    aria-label={t("searchProjectsPlaceholder")}
-                                    className="h-8 w-full rounded-lg border border-gray-200 bg-white ps-8 pe-2.5 text-xs text-gray-900 placeholder:text-gray-400 focus:border-brand-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
-                                  />
-                                </div>
-                                <button
-                                  type="button"
-                                  onClick={handleSelectAllFilteredProjects}
-                                  className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-700 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-200 dark:ring-gray-700"
-                                >
-                                  {t("selectAllProjects")}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleClearSelectedProjects}
-                                  className="cursor-pointer rounded-md bg-white px-2 py-1 text-xs font-semibold text-gray-600 ring-1 ring-gray-200 ring-inset hover:bg-gray-100 dark:bg-gray-900 dark:text-gray-300 dark:ring-gray-700"
-                                >
-                                  {t("clearSelectedProjects")}
-                                </button>
-                              </div>
-                            )}
-
-                            <ul className="custom-scrollbar-modal max-h-40 space-y-1 overflow-y-auto pe-1">
-                              {filteredModalProjects.map((proj) => {
-                                const checked = selectedProjectIds.includes(
-                                  proj.id,
-                                );
-                                return (
-                                  <li key={proj.id}>
-                                    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-xs hover:bg-white dark:hover:bg-gray-900">
-                                      <span className="flex items-center gap-2.5">
-                                        <input
-                                          type="checkbox"
-                                          checked={checked}
-                                          onChange={() =>
-                                            handleToggleProjectId(proj.id)
-                                          }
-                                          className="size-4 rounded border-gray-300 text-brand-600 focus:ring-brand-500"
-                                        />
-                                        <span className="font-medium text-gray-900 dark:text-gray-100">
-                                          {proj.name}
-                                        </span>
-                                      </span>
-                                      <code className="rounded bg-gray-200/70 px-1.5 py-0.5 font-mono text-[11px] text-gray-700 dark:bg-gray-800 dark:text-gray-300">
-                                        {proj.code}
-                                      </code>
-                                    </label>
-                                  </li>
-                                );
-                              })}
-                            </ul>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </fieldset>
-
-                  {/* Expiration Selector */}
-                  <div>
-                    <Label htmlFor="mcp-key-expiration-select">
-                      {t("expirationLabel")}
-                    </Label>
-                    <select
-                      id="mcp-key-expiration-select"
-                      value={expirationPreset}
-                      disabled={createMutation.isPending}
-                      onChange={(event) =>
-                        setExpirationPreset(
-                          event.target.value as ExpirationPreset,
-                        )
-                      }
-                      className="h-10 w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2 text-sm text-gray-900 shadow-theme-xs focus:border-brand-500 focus:ring-3 focus:ring-brand-500/10 focus:outline-hidden dark:border-gray-700 dark:bg-gray-950 dark:text-white"
-                    >
-                      <option value="30">{t("exp30Days")}</option>
-                      <option value="90">{t("exp90Days")}</option>
-                      <option value="365">{t("exp365Days")}</option>
-                      <option value="never">{t("expNever")}</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex shrink-0 items-center justify-end gap-2.5 border-t border-gray-100 bg-gray-50/70 px-5 py-3.5 sm:px-6 dark:border-gray-800 dark:bg-gray-950/50">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    disabled={createMutation.isPending}
-                    onClick={closeCreateModal}
-                  >
-                    {t("cancelCta")}
-                  </Button>
-                  <Button
-                    type="submit"
-                    size="sm"
-                    disabled={createMutation.isPending}
-                  >
-                    {createMutation.isPending
-                      ? t("mintingKey")
-                      : t("mintKeySubmit")}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>,
+          <CreateMcpKeySheet
+            dialogRef={createDialogRef}
+            keyNameInputRef={keyNameInputRef}
+            onClose={closeCreateModal}
+            onSubmit={handleCreateSubmit}
+            isPending={createMutation.isPending}
+            formValidationError={formValidationError}
+            mutationErrorMessage={
+              createMutation.isError
+                ? resolveErrorMessage(createMutation.error)
+                : null
+            }
+            keyName={keyName}
+            onKeyNameChange={(value) => {
+              setKeyName(value);
+              setFormValidationError(null);
+            }}
+            selectedScope={selectedScope}
+            onSelectScope={setSelectedScope}
+            projectPartitionMode={projectPartitionMode}
+            onProjectPartitionModeChange={(mode) => {
+              setProjectPartitionMode(mode);
+              setFormValidationError(null);
+            }}
+            selectedProjectIds={selectedProjectIds}
+            activeProjects={activeProjects}
+            filteredModalProjects={filteredModalProjects}
+            projectsLoading={projectsQuery.isPending}
+            projectsError={projectsQuery.isError}
+            onRetryProjects={() => void projectsQuery.refetch()}
+            projectSearchQuery={projectSearchQuery}
+            onProjectSearchChange={setProjectSearchQuery}
+            onSelectAllFilteredProjects={handleSelectAllFilteredProjects}
+            onClearSelectedProjects={handleClearSelectedProjects}
+            onToggleProjectId={handleToggleProjectId}
+            expirationPreset={expirationPreset}
+            onExpirationPresetChange={setExpirationPreset}
+          />,
         )}
 
       {/* 6. Revoke Confirmation Dialog */}

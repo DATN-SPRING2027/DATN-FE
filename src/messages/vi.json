@@ -7058,7 +7058,7 @@
     "scopeFullOpsTitle": "Toàn quyền vận hành",
     "scopeFullOpsDesc": "Toàn bộ thao tác gồm đăng ký tài liệu, nộp báo cáo, thực hiện bàn giao 5 bước và gửi tin nhắn nhóm.",
     "projectScopeLabel": "Phạm vi dự án",
-    "allProjectsOption": "Tất cả dự án được phép truy cập trong tổ chức",
+    "allProjectsOption": "Tất cả dự án khả dụng",
     "allProjectsDesc": "Tự động áp dụng cho mọi dự án mà tài khoản của bạn có quyền đọc.",
     "selectedProjectsOption": "Giới hạn theo dự án cụ thể",
     "selectedProjectsDesc": "Chỉ cho phép khóa này truy cập các dự án đã chọn.",
@@ -7147,6 +7147,13 @@
     "emptyStep3Desc": "Nhờ trợ lý AI gọi continuum_get_context để xác nhận kết nối và quyền RBAC.",
     "tierToolCountFull": "36 công cụ",
     "tierToolCountReadWrite": "26 công cụ",
-    "tierToolCountReadOnly": "20 công cụ"
+    "tierToolCountReadOnly": "20 công cụ",
+    "exp90DaysShort": "90 ngày",
+    "expNeverShort": "Không hết hạn",
+    "expRecommendedNote": "Khuyên dùng — tự động hết hạn sau 90 ngày.",
+    "expFixedNote": "Tự động thu hồi quyền sau {days} ngày.",
+    "expNeverNote": "Không tự hết hạn — nhớ thu hồi thủ công khi xoay vòng khóa.",
+    "keyPreviewLabel": "Xem trước khóa",
+    "escHint": "để đóng"
   }
 }

@@ -7058,7 +7058,7 @@
     "scopeFullOpsTitle": "Full Operations",
     "scopeFullOpsDesc": "Full workflow access including document registration, report submission, 5-step handover actions, and team chat messages.",
     "projectScopeLabel": "Project access",
-    "allProjectsOption": "All accessible projects in organization",
+    "allProjectsOption": "All accessible projects",
     "allProjectsDesc": "Automatic access to every project your membership can read.",
     "selectedProjectsOption": "Restrict to specific projects",
     "selectedProjectsDesc": "Limit this key to selected projects.",
@@ -7147,6 +7147,13 @@
     "emptyStep3Desc": "Ask your agent to call continuum_get_context to confirm live RBAC access.",
     "tierToolCountFull": "36 tools",
     "tierToolCountReadWrite": "26 tools",
-    "tierToolCountReadOnly": "20 tools"
+    "tierToolCountReadOnly": "20 tools",
+    "exp90DaysShort": "90 days",
+    "expNeverShort": "Never",
+    "expRecommendedNote": "Recommended — automatically expires after 90 days.",
+    "expFixedNote": "Automatically expires after {days} days.",
+    "expNeverNote": "No automatic expiry — revoke manually when rotating credentials.",
+    "keyPreviewLabel": "Credential preview",
+    "escHint": "to close"
   }
 }

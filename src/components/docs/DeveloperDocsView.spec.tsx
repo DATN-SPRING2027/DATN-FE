@@ -412,14 +412,21 @@ describe("DeveloperDocsView", () => {
     expect(document.getElementById("docs-mobile-toc")).toBeInTheDocument();
   });
 
-  it("applies custom-scrollbar-dark on the IDE terminal & copies sidebar MCP endpoint without breaking unique Copy button", async () => {
+  it("applies custom-scrollbar on the IDE terminal & copies sidebar MCP endpoint without breaking unique Copy button", async () => {
     renderDocs("en");
 
     const codePre = screen.getByTestId("docs-ide-config-pre");
-    expect(codePre).toHaveClass("custom-scrollbar-dark");
+    expect(codePre).toHaveClass("custom-scrollbar");
 
-    // Quickstart Copy button stays unique
+    // Quickstart Copy & Wrap buttons work cleanly
     expect(screen.getByRole("button", { name: "Copy" })).toBeInTheDocument();
+    const wrapBtn = screen.getByRole("button", {
+      name: "Wrap lines in code block",
+    });
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(wrapBtn);
+    expect(wrapBtn).toHaveAttribute("aria-pressed", "true");
+    expect(codePre.innerHTML).toContain("whitespace-pre-wrap");
 
     // Sidebar MCP endpoint copy works cleanly
     const sidebarCopy = screen.getByRole("button", {

@@ -281,6 +281,11 @@ describe("OrganizationIntegrationsManager", () => {
     fireEvent.click(
       within(dialog).getByRole("button", { name: /READ_WRITE/i }),
     );
+    // Live credential preview reflects typed label & updated privilege count
+    const livePreview = within(dialog).getByTestId("mcp-key-live-preview");
+    expect(livePreview).toHaveTextContent("Cursor — MacBook Pro");
+    expect(livePreview).toHaveTextContent("26/36");
+
     fireEvent.click(
       within(dialog).getByRole("button", {
         name: /Restrict to specific projects/i,
@@ -525,6 +530,17 @@ describe("OrganizationIntegrationsManager", () => {
       ),
     ).toBeInTheDocument();
 
+    // Verify 4-way HIG Expiration Segmented Control updates aria-pressed and payload
+    const exp30Btn = within(dialog).getByRole("button", { name: "30 days" });
+    const exp90Btn = within(dialog).getByRole("button", { name: "90 days" });
+    const expNeverBtn = within(dialog).getByRole("button", { name: "Never" });
+    expect(exp90Btn).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(exp30Btn);
+    expect(exp30Btn).toHaveAttribute("aria-pressed", "true");
+    expect(exp90Btn).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(expNeverBtn);
+    expect(expNeverBtn).toHaveAttribute("aria-pressed", "true");
+
     // Verify 409 MCP_API_KEY_LIMIT_EXCEEDED error mapping
     postError = new ApiError(
       409,
@@ -539,6 +555,19 @@ describe("OrganizationIntegrationsManager", () => {
         /You have reached the maximum number of active MCP API keys/i,
       ),
     ).toBeInTheDocument();
+
+    const lastPostCall = api.mock.calls
+      .filter(
+        ([endpoint, opts]) =>
+          endpoint === "/iam/mcp-api-keys" && opts?.method === "POST",
+      )
+      .at(-1);
+    expect(JSON.parse(String(lastPostCall?.[1]?.body))).toEqual({
+      name: "Test Key",
+      scope: "FULL_OPERATIONS",
+      allowedProjectIds: null,
+      expiresInDays: null,
+    });
 
     // Escape closes modal and restores focus to trigger button
     // First verify Tab/Shift+Tab focus trap stays inside the dialog
@@ -793,7 +822,7 @@ describe("OrganizationIntegrationsManager", () => {
     expect(tableWrapper).toHaveClass("custom-scrollbar");
 
     const codePre = screen.getByTestId("mcp-ide-config-pre");
-    expect(codePre).toHaveClass("custom-scrollbar-dark");
+    expect(codePre).toHaveClass("custom-scrollbar");
     expect(codePre).not.toHaveClass("whitespace-pre-wrap");
 
     // Wrap toggle toggles aria-pressed and whitespace-pre-wrap
