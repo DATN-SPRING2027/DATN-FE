@@ -21,6 +21,7 @@ export default async function ScotchFooter() {
             <h2>{t("products")}</h2>
             <a href="#cach-hoat-dong">{t("paymentLabel")}</a>
             <a href="#giai-phap">{t("backOffice")}</a>
+            <Link href="/docs">{t("docsLink")}</Link>
           </div>
           <div>
             <h2>{t("footerCompany")}</h2>

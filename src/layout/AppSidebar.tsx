@@ -44,19 +44,36 @@ import SidebarAccountFooter from "./SidebarAccountFooter";
 import SidebarOrganizationSwitcher from "./SidebarOrganizationSwitcher";
 import SidebarProjectSwitcher from "./SidebarProjectSwitcher";
 
-const primaryItems = [
+type SidebarNavItemKey =
+  | "overview"
+  | "projects"
+  | "chat"
+  | "knowledge"
+  | "aiSearch"
+  | "members"
+  | "integrations"
+  | "settings";
+
+type SidebarNavItem = {
+  readonly key: SidebarNavItemKey;
+  readonly path?: string;
+  readonly icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  readonly viewBox: string;
+};
+
+const primaryItems: readonly SidebarNavItem[] = [
   { key: "overview", path: "/dashboard", icon: GridIcon, viewBox: "1.5 1.5 21 21" },
   { key: "projects", path: "/projects", icon: FolderIcon, viewBox: "-2 -3 24 24" },
   { key: "chat", path: "/chat", icon: ChatIcon, viewBox: "1 1.1 22 22" },
   { key: "knowledge", path: "/knowledge", icon: BookOpenIcon, viewBox: "0.5 1.5 23 23" },
   { key: "aiSearch", path: "/ai-chat", icon: ShootingStarIcon, viewBox: "0.5 -0.8 23 23" },
-] as const;
+];
 
-const administrationItems = [
+const administrationItems: readonly SidebarNavItem[] = [
   { key: "members", path: "/organization/members", icon: GroupIcon, viewBox: "0.5 0.5 23 23" },
-  { key: "integrations", icon: PlugInIcon, viewBox: "0.5 0.5 23 23" },
+  { key: "integrations", path: "/organization/integrations", icon: PlugInIcon, viewBox: "0.5 0.5 23 23" },
   { key: "settings", path: "/organization/settings", icon: SettingsIcon, viewBox: "0 0 24 24" },
-] as const;
+];
 
 const DEFAULT_WIDTH = 240;
 const MIN_WIDTH = 180;
@@ -748,13 +765,21 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
   );
 
   const canViewMembers = canReadOrganizationMemberships(visibleUser);
+  const hasActiveOrganizationContext = Boolean(
+    visibleUser &&
+      visibleUser.context !== "ACCOUNT" &&
+      visibleUser.organizationId,
+  );
   const visiblePrimaryItems = primaryItems.filter(
     (item) => item.key !== "overview" || canViewMembers,
   );
-  const visibleAdministrationItems = administrationItems.filter(
-    (item) =>
-      (item.key !== "members" && item.key !== "settings") || canViewMembers,
-  );
+  const visibleAdministrationItems = administrationItems.filter((item) => {
+    if (!hasActiveOrganizationContext) return false;
+    if (item.key === "members" || item.key === "settings") {
+      return canViewMembers;
+    }
+    return true;
+  });
 
   const projectSubItems = useMemo(() => {
     if (!activeProject) return [];
@@ -915,20 +940,18 @@ const AppSidebar: React.FC<AppSidebarProps> = ({
     </>
   );
 
-  const renderItem = (
-    item: (typeof primaryItems)[number] | (typeof administrationItems)[number],
-  ) => {
+  const renderItem = (item: SidebarNavItem) => {
     const label =
       item.key === "overview" ? t("items.dashboard") : t(`items.${item.key}`);
     const Icon = item.icon;
     const iconViewBox = item.viewBox;
     const itemId = `org:${item.key}`;
-    const isItemActive =
-      "path" in item
-        ? item.key === "projects"
-           ? pathname === "/projects" || pathname === "/projects/new"
-          : isSidebarPathActive(item.path, pathname)
-        : false;
+    const targetPath = item.path;
+    const isItemActive = targetPath
+      ? item.key === "projects"
+        ? pathname === "/projects" || pathname === "/projects/new"
+        : isSidebarPathActive(targetPath, pathname)
+      : false;
     const isVisualActive = activePendingItemId
       ? activePendingItemId === itemId
       : isItemActive;

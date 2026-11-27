@@ -51,7 +51,13 @@ export async function forwardBackendRequest(
 
   const isAiChatRequest =
     path[0] === "ai-chat" || (path[0] === "platform" && path[1] === "ai");
-  const streamBody = !["GET", "HEAD"].includes(request.method) && request.body !== null;
+  const isMcpRequest = path[0] === "mcp";
+  const contentLength = request.headers.get("content-length");
+  const streamBody =
+    !["GET", "HEAD"].includes(request.method) &&
+    (request.method !== "DELETE" ||
+      Boolean(contentLength && contentLength !== "0")) &&
+    request.body !== null;
   const body = streamBody ? request.body : undefined;
   let backendResponse: Response;
   try {
@@ -96,6 +102,19 @@ export async function forwardBackendRequest(
         { status: 503, headers: { "cache-control": "no-store" } },
       );
     }
+    if (isMcpRequest) {
+      return Response.json(
+        {
+          jsonrpc: "2.0",
+          id: null,
+          error: {
+            code: -32000,
+            message: "Continuum MCP backend is temporarily unavailable.",
+          },
+        },
+        { status: 503, headers: { "cache-control": "no-store" } },
+      );
+    }
     if (!isTeamPath(path)) throw error;
     return Response.json(
       {
@@ -124,6 +143,10 @@ export async function forwardBackendRequest(
     "retry-after",
     "x-ratelimit-limit",
     "x-ratelimit-reset",
+    "mcp-session-id",
+    "mcp-protocol-version",
+    "allow",
+    "www-authenticate",
   ]) {
     const value = backendResponse.headers.get(name);
     if (value) responseHeaders.set(name, value);
@@ -131,10 +154,13 @@ export async function forwardBackendRequest(
   for (const cookie of backendResponse.headers.getSetCookie()) {
     responseHeaders.append("set-cookie", cookie);
   }
-  if (isTeamPath(path) || isAiChatRequest) {
+  if (isTeamPath(path) || isAiChatRequest || isMcpRequest) {
     responseHeaders.set("cache-control", "no-store");
   }
-  return new Response(backendResponse.body, {
+  const responseBody = [204, 205, 304].includes(backendResponse.status)
+    ? null
+    : backendResponse.body;
+  return new Response(responseBody, {
     status: backendResponse.status,
     headers: responseHeaders,
   });

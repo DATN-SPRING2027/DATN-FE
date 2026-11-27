@@ -16,6 +16,9 @@ describe('BFF proxy boundary', () => {
       'x-expected-organization-id': 'org-expected',
       'x-organization-id': 'org-untrusted',
       'idempotency-key': '0123456789abcdef',
+      'mcp-session-id': 'mcp-sess-01',
+      'mcp-protocol-version': '2025-03-26',
+      'last-event-id': 'evt-42',
       'x-ignored': 'nope',
     });
 
@@ -27,6 +30,9 @@ describe('BFF proxy boundary', () => {
     expect(forwarded.get('x-expected-organization-id')).toBe('org-expected');
     expect(forwarded.get('x-organization-id')).toBeNull();
     expect(forwarded.get('idempotency-key')).toBe('0123456789abcdef');
+    expect(forwarded.get('mcp-session-id')).toBe('mcp-sess-01');
+    expect(forwarded.get('mcp-protocol-version')).toBe('2025-03-26');
+    expect(forwarded.get('last-event-id')).toBe('evt-42');
     expect(forwarded.get('x-ignored')).toBeNull();
     expect(forwarded.get('x-request-id')).toMatch(/^[0-9a-f-]{36}$/);
   });

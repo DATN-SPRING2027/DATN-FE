@@ -15,6 +15,7 @@ import {
   FolderIcon,
   GridIcon,
   GroupIcon,
+  PlugInIcon,
   PlusIcon,
   SearchIcon,
   SettingsIcon,
@@ -248,7 +249,58 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
       );
     }
 
+    if (organizationId) {
+      items.push({
+        id: "feature-integrations",
+        title: tr(
+          t,
+          "searchItems.integrationsTitle",
+          "MCP Integrations & API Keys",
+        ),
+        description: tr(
+          t,
+          "searchItems.integrationsDesc",
+          "Generate personal ctm_mcp keys for Cursor, Claude Code, Antigravity & VS Code",
+        ),
+        category: tr(t, "searchItems.categoryAdministration", "Administration"),
+        href: "/organization/integrations",
+        keywords:
+          "integrations mcp api keys token cursor claude code antigravity vscode windsurf tich hop khoa api",
+        icon: (
+          <PlugInIcon
+            viewBox="0.5 0.5 23 23"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      });
+    }
+
     items.push(
+      {
+        id: "feature-developer-docs",
+        title: tr(
+          t,
+          "searchItems.developerDocsTitle",
+          "Developer & MCP Docs",
+        ),
+        description: tr(
+          t,
+          "searchItems.developerDocsDesc",
+          "Streamable HTTP MCP gateway, 28 tools, and IDE setup",
+        ),
+        category: tr(t, "searchItems.categorySupport", "Support"),
+        href: "/docs",
+        keywords:
+          "docs documentation developer mcp reference tools schema sdk ide tai lieu nha phat trien",
+        icon: (
+          <DocsIcon
+            viewBox="0.5 0.5 23 23"
+            className="size-4 shrink-0"
+            aria-hidden="true"
+          />
+        ),
+      },
       {
         id: "feature-profile",
         title: translateOrFallback(
@@ -348,7 +400,7 @@ const AppHeader = ({ compact = false }: { compact?: boolean }) => {
     }
 
     return items;
-  }, [canViewMembers, visibleProjects?.data, setIsHelpOpen, t]);
+  }, [canViewMembers, organizationId, visibleProjects?.data, setIsHelpOpen, t]);
 
   const filteredFeatures = useMemo(() => {
     const normalizedQuery = normalizeSearchText(searchQuery);
